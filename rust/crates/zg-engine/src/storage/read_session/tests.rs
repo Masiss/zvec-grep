@@ -152,6 +152,7 @@ fn write_text(home: &Path, storage_home: &Path, text: &str) {
                 entity_id,
                 fragment_id,
                 model: schema().model.reference(),
+                embedding_fingerprint: None,
                 vector: vec![1.0, 0.0, 0.0],
                 fts_text: text.into(),
             }],

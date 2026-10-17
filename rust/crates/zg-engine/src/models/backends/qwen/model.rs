@@ -231,6 +231,13 @@ impl EmbeddingModel for QwenEmbeddingModel {
         &self.info
     }
 
+    /// The Qwen provider exposes a hosted model alias whose revision is not
+    /// pinned in the declared metadata, so its vectors are not eligible for
+    /// cross-run reuse.
+    fn identity_is_stable(&self) -> bool {
+        false
+    }
+
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults {
         if self.entry.kind == "multimodal" {
             EmbeddingConcurrencyDefaults {

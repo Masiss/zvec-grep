@@ -1016,10 +1016,6 @@ fn copilot_home() -> PathBuf {
     env_path_non_empty("COPILOT_HOME").unwrap_or_else(|| home_dir().join(".copilot"))
 }
 
-fn trimmed_env_path(name: &str) -> Option<PathBuf> {
-    non_empty_env(name).map(|value| absolute_path(value.trim()))
-}
-
 fn copilot_config_path() -> PathBuf {
     copilot_home().join("mcp-config.json")
 }
@@ -2050,6 +2046,11 @@ fn home_dir() -> PathBuf {
 fn env_path(name: &str) -> Option<PathBuf> {
     env::var_os(name).map(PathBuf::from).map(absolute_path)
 }
+
+fn trimmed_env_path(name: &str) -> Option<PathBuf> {
+    non_empty_env(name).map(|value| absolute_path(value.trim()))
+}
+
 fn env_path_non_empty(name: &str) -> Option<PathBuf> {
     non_empty_env(name).map(absolute_path)
 }

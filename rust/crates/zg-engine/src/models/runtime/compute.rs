@@ -76,6 +76,16 @@ impl Default for ModelComputeRuntime {
     }
 }
 
+const DEFAULT_MAX_CAPACITY: usize = 8;
+
 fn default_capacity() -> usize {
-    std::thread::available_parallelism().map_or(1, NonZeroUsize::get)
+    std::env::var("ZVEC_GREP_MODEL_COMPUTE_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&value| value > 0)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map_or(1, NonZeroUsize::get)
+                .min(DEFAULT_MAX_CAPACITY)
+        })
 }

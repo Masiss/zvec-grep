@@ -34,7 +34,7 @@ use zg_host_native::{
 
 use crate::job_scheduler::{
     IndexExecutor, IndexJobCompletion, IndexJobScheduler, IndexJobSnapshot, JobReason, JobState,
-    SchedulerConfig, SchedulerError, SchedulerSnapshot,
+    SchedulerConfig, SchedulerError, SchedulerSnapshot, SubmitIndexJobResult,
 };
 mod lifecycle;
 use lifecycle::{RuntimeActivity, RuntimeLifecycle};
@@ -460,6 +460,7 @@ impl WorkspaceRuntimeManager {
             let submitted = runtime
                 .submit_tracked(&self.inner.scheduler, options.clone(), JobReason::Watch)
                 .map_err(|error| WorkspaceRuntimeError::from(error).into_engine_error())?;
+            log_full_rescan_request(&root, &submitted, "query_refresh", wait);
             scheduled = true;
             {
                 let manager = self.clone();
@@ -489,16 +490,7 @@ impl WorkspaceRuntimeManager {
                 .await
                 .map_err(|error| WorkspaceRuntimeError::from(error).into_engine_error())?;
             runtime.complete_job(&completed);
-            ensure_refresh_succeeded(&completed.job)?;
-            if completed
-                .result
-                .as_ref()
-                .is_none_or(|result| result.files_failed != 0)
-            {
-                return Err(EngineError::storage_failure(
-                    "index refresh left failed files",
-                ));
-            }
+            ensure_refresh_completed(&completed)?;
             // Flush again after indexing to include events that arrived during it.
         }
     }
@@ -1104,6 +1096,20 @@ async fn wait_for_search_admission<T>(
         .map_err(|_| EngineError::resource_busy("timed out waiting for search refresh admission"))?
 }
 
+fn ensure_refresh_completed(completed: &IndexJobCompletion) -> Result<(), EngineError> {
+    ensure_refresh_succeeded(&completed.job)?;
+    if completed
+        .result
+        .as_ref()
+        .is_none_or(|result| result.files_failed != 0)
+    {
+        return Err(EngineError::storage_failure(
+            "index refresh left failed files",
+        ));
+    }
+    Ok(())
+}
+
 fn ensure_refresh_succeeded(job: &IndexJobSnapshot) -> Result<(), EngineError> {
     if job.state == JobState::Succeeded {
         Ok(())
@@ -1119,6 +1125,16 @@ impl Drop for RuntimeManagerInner {
     fn drop(&mut self) {
         self.shutdown.cancel();
     }
+}
+
+fn log_full_rescan_request(
+    root: &Path,
+    submitted: &SubmitIndexJobResult,
+    origin: &str,
+    wait: bool,
+) {
+    tracing::info!(root = %root.display(), job_id = %submitted.job.id,
+        origin, wait, reused = submitted.reused, "full rescan requested");
 }
 
 async fn watch_loop(
@@ -1170,13 +1186,17 @@ async fn watch_loop(
         options.root = Some(runtime.canonical_root.clone());
         options.rebuild = false;
         options.changes = batch.changes.into_iter().map(map_change).collect();
-        if options.changes.contains(&IndexChange::Rescan) {
+        let full_rescan = options.changes.contains(&IndexChange::Rescan);
+        if full_rescan {
             runtime.require_reconciliation();
         }
         let Ok(submitted) = runtime.submit_tracked(&inner.scheduler, options, JobReason::Watch)
         else {
             continue;
         };
+        if full_rescan {
+            log_full_rescan_request(&runtime.canonical_root, &submitted, "watch_batch", false);
+        }
         let scheduler = inner.scheduler.clone();
         let manager = WorkspaceRuntimeManager {
             inner: Arc::clone(&inner),

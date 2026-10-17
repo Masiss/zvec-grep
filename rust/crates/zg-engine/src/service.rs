@@ -92,7 +92,12 @@ impl EngineService {
     /// Returns an engine error when indexing fails or no storage backend is configured.
     pub(crate) async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
         self.ensure_open()?;
-        self.indexing.index(&self.models, options).await
+        let result = self.indexing.index(&self.models, options).await;
+        // Indexing creates large short-lived scan, embedding, and native-storage
+        // buffers. Reclaim allocator-retained pages after both success and
+        // failure, but never on the query path.
+        zg_memory::reclaim("index completion");
+        result
     }
 
     /// Returns workspace index metadata and status.
@@ -102,7 +107,14 @@ impl EngineService {
     /// Returns an engine error when workspace metadata or status cannot be read.
     pub(crate) async fn info(&self, options: InfoOptions) -> Result<InfoResult, EngineError> {
         self.ensure_open()?;
-        self.indexing.info(options).await
+        let include_status = options.include_status;
+        let result = self.indexing.info(options).await;
+        if include_status {
+            // Verified status opens native storage and scans source metadata; do
+            // not retain its peak allocator footprint in the resident daemon.
+            zg_memory::reclaim("verified info completion");
+        }
+        result
     }
 
     /// Drops the persisted workspace index.
@@ -112,7 +124,9 @@ impl EngineService {
     /// Returns an engine error when index removal fails or no storage backend is configured.
     pub(crate) async fn drop_index(&self, options: InfoOptions) -> Result<bool, EngineError> {
         self.ensure_open()?;
-        self.indexing.drop_index(&options).await
+        let result = self.indexing.drop_index(&options).await;
+        zg_memory::reclaim("index drop completion");
+        result
     }
 
     /// Closes this service and rejects subsequent requests.

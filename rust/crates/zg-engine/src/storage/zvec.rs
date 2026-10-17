@@ -7,12 +7,13 @@ use zvec_rust::{
 use crate::{EngineError, EngineResult};
 
 pub(super) const WRITE_BATCH: usize = 1024;
+const DEFAULT_NATIVE_THREADS: u32 = 2;
 static INITIALIZED: OnceLock<Result<(), String>> = OnceLock::new();
 
 pub(super) fn initialize() -> EngineResult<()> {
     match INITIALIZED.get_or_init(|| {
         let config = zvec_rust::ConfigBuilder::new()
-            .num_threads(2)
+            .num_threads(native_thread_count())
             .memory_limit(512 * 1024 * 1024)
             .build();
         zvec_rust::initialize(Some(&config)).map_err(|error| error.to_string())
@@ -22,6 +23,17 @@ pub(super) fn initialize() -> EngineResult<()> {
             "cannot initialize zvec: {message}"
         ))),
     }
+}
+
+fn native_thread_count() -> u32 {
+    native_thread_count_from(std::env::var("ZVEC_GREP_NATIVE_THREADS").ok().as_deref())
+}
+
+fn native_thread_count_from(value: Option<&str>) -> u32 {
+    value
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|&value| value > 0)
+        .unwrap_or(DEFAULT_NATIVE_THREADS)
 }
 
 pub(super) fn open_collection(
@@ -108,15 +120,31 @@ pub(super) fn wildcard_string(
     native(schema.add_field(&field), "add indexed path string")
 }
 
+pub(super) fn disjunction_filter(field: &str, values: &[u32]) -> String {
+    values
+        .iter()
+        .map(|value| format!("{field} = {value}"))
+        .collect::<Vec<_>>()
+        .join(" OR ")
+}
+
 pub(super) fn fetch_map(
     collection: &Collection,
     keys: &[String],
+) -> EngineResult<HashMap<String, Doc>> {
+    fetch_map_with_vectors(collection, keys, false)
+}
+
+pub(super) fn fetch_map_with_vectors(
+    collection: &Collection,
+    keys: &[String],
+    include_vectors: bool,
 ) -> EngineResult<HashMap<String, Doc>> {
     let mut result = HashMap::with_capacity(keys.len());
     for batch in keys.chunks(WRITE_BATCH) {
         let refs = batch.iter().map(String::as_str).collect::<Vec<_>>();
         for doc in native(
-            collection.fetch_with_options(&refs, None, false),
+            collection.fetch_with_options(&refs, None, include_vectors),
             "fetch stored records",
         )? {
             result.insert(doc_key(&doc)?.to_owned(), doc);
@@ -174,4 +202,25 @@ pub(super) fn corrupt(message: impl std::fmt::Display) -> EngineError {
 #[track_caller]
 pub(super) fn native<T>(result: zvec_rust::Result<T>, operation: &str) -> EngineResult<T> {
     result.map_err(|error| EngineError::storage_failure(format!("zvec {operation}: {error}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DEFAULT_NATIVE_THREADS, native_thread_count_from};
+
+    #[test]
+    fn native_thread_count_defaults_when_unset_or_invalid() {
+        assert_eq!(native_thread_count_from(None), DEFAULT_NATIVE_THREADS);
+        assert_eq!(native_thread_count_from(Some("0")), DEFAULT_NATIVE_THREADS);
+        assert_eq!(
+            native_thread_count_from(Some("not-a-number")),
+            DEFAULT_NATIVE_THREADS
+        );
+    }
+
+    #[test]
+    fn native_thread_count_accepts_positive_override() {
+        assert_eq!(native_thread_count_from(Some("1")), 1);
+        assert_eq!(native_thread_count_from(Some("4")), 4);
+    }
 }

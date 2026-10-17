@@ -15,6 +15,110 @@ use zg_host_native::{
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
+// A single-threaded consumer simulates a busy indexing executor while notify's
+// native callback keeps delivering source-open events on its separate thread.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn native_registration_walk_does_not_rescan_with_default_queue() -> TestResult {
+    // Comparable to the live HIS_EMR watcher (3340 registrations). Registering
+    // before read_dir yields IN_OPEN at the directory and its watched parent.
+    let temporary = tempfile::tempdir()?;
+    // Root replacement detection watches the parent too; keep it private so
+    // unrelated /tmp sibling events cannot saturate this fixture's queue.
+    let workspace = temporary.path().join("workspace");
+    fs::create_dir(&workspace)?;
+    let root = workspace.as_path();
+    for index in 0..3350 {
+        fs::create_dir(root.join(format!("directory-{index}")))?;
+    }
+    let factory = NativeWatcherFactory::default().with_config(NativeWatcherConfig {
+        debounce: Duration::from_millis(10),
+        max_wait: Duration::from_millis(50),
+        reconcile_interval: None,
+        resume_check_interval: None,
+        // Keep the production default raw_event_capacity (4096).
+        ..NativeWatcherConfig::default()
+    });
+    let control = TaskControl::default();
+    let session = factory
+        .watch(
+            &WatchRequest {
+                root: RootSpec::new(root.to_path_buf(), Arc::new(AllowAllPaths)),
+            },
+            &control,
+        )
+        .await?;
+    tokio::time::timeout(Duration::from_secs(10), session.flush_pending()).await??;
+    let dirty =
+        tokio::time::timeout(Duration::from_millis(250), session.next_changes(&control)).await;
+    session.close().await?;
+    if let Ok(batch) = dirty {
+        panic!(
+            "registration's own directory reads must not require rescan: {:?}",
+            batch?.changes
+        );
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn native_source_read_burst_does_not_schedule_a_rescan() -> TestResult {
+    let temporary = tempfile::tempdir()?;
+    // A private watched parent isolates the deliberately tiny raw queue.
+    let workspace = temporary.path().join("workspace");
+    fs::create_dir(&workspace)?;
+    let root = workspace.as_path();
+    for index in 0..512 {
+        fs::write(root.join(format!("source-{index}.rs")), "fn fixture() {}\n")?;
+    }
+    let factory = NativeWatcherFactory::default().with_config(NativeWatcherConfig {
+        debounce: Duration::from_millis(10),
+        max_wait: Duration::from_millis(50),
+        reconcile_interval: None,
+        resume_check_interval: None,
+        raw_event_capacity: 16,
+        ..NativeWatcherConfig::default()
+    });
+    let control = TaskControl::default();
+    let session = factory
+        .watch(
+            &WatchRequest {
+                root: RootSpec::new(root.to_path_buf(), Arc::new(AllowAllPaths)),
+            },
+            &control,
+        )
+        .await?;
+    session.flush_pending().await?;
+    for index in 0..512 {
+        assert_eq!(
+            fs::read(root.join(format!("source-{index}.rs")))?,
+            b"fn fixture() {}\n"
+        );
+    }
+    tokio::time::timeout(Duration::from_secs(2), session.flush_pending()).await??;
+    let dirty =
+        tokio::time::timeout(Duration::from_millis(250), session.next_changes(&control)).await;
+    if let Ok(batch) = dirty {
+        let batch = batch?;
+        session.close().await?;
+        panic!(
+            "read-only activity must not dirty the workspace: {:?}",
+            batch.changes
+        );
+    }
+    // Filtering irrelevant accesses must not hide a subsequent real write.
+    fs::write(root.join("source-0.rs"), "fn changed() {}\n")?;
+    wait_for_change(
+        &session,
+        &control,
+        WorkspaceChange::Upsert("source-0.rs".into()),
+    )
+    .await?;
+    session.close().await?;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn watcher_debounces_changes_and_obeys_injected_selection_policy() -> TestResult {
     let temporary = tempdir_in(std::env::current_dir()?)?;

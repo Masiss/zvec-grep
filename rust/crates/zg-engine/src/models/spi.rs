@@ -106,6 +106,14 @@ impl Default for EmbeddingConcurrencyDefaults {
 pub trait EmbeddingModel: Send + Sync {
     fn info(&self) -> &EmbeddingModelInfo;
 
+    /// Whether this model's declared identity is content-pinned and therefore
+    /// safe to trust for cross-run embedding reuse. Remote provider aliases can
+    /// silently change behind an unchanged name/endpoint, so backends without a
+    /// verifiable revision return `false` and their vectors are never reused.
+    fn identity_is_stable(&self) -> bool {
+        true
+    }
+
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults {
         EmbeddingConcurrencyDefaults::default()
     }

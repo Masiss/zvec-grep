@@ -182,6 +182,7 @@ impl CacheInner {
             .iter()
             .map(|(home, slot)| (home.clone(), Arc::clone(slot)))
             .collect::<Vec<_>>();
+        let mut retired_any = false;
         for (home, slot) in entries {
             // A cold open or another retirement must not stall maintenance of
             // other workspaces. It will be considered on the next pass.
@@ -200,6 +201,7 @@ impl CacheInner {
                     continue;
                 }
                 entry.take();
+                retired_any = true;
             }
             drop(entry);
             let mut state = lock(&self.state);
@@ -211,6 +213,9 @@ impl CacheInner {
             {
                 state.entries.remove(&home);
             }
+        }
+        if retired_any {
+            zg_memory::reclaim("read-session cache eviction");
         }
         true
     }
@@ -266,11 +271,16 @@ pub(crate) fn release_for_write(home: &Path) {
         .iter()
         .filter_map(Weak::upgrade)
         .collect::<Vec<_>>();
+    let mut retired_any = false;
     for cache in caches {
         let slot = lock(&cache.state).entries.remove(home);
         if let Some(slot) = slot {
             lock(&slot.entry).take();
+            retired_any = true;
         }
+    }
+    if retired_any {
+        zg_memory::reclaim("read-session write eviction");
     }
 }
 

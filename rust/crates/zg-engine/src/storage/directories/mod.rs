@@ -1,8 +1,9 @@
 //! Directory identities and their parent relationships.
 
 use std::{
+    cell::Cell,
     path::Path,
-    sync::{Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard},
 };
 use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
@@ -21,20 +22,23 @@ mod ids;
 use ids::DirectoryIds;
 
 pub(super) struct Directories {
-    collection: Collection,
+    collection: Arc<Collection>,
     ids: Mutex<Option<DirectoryIds>>,
+    /// Whether the most recent `ensure` wrote any new directory row.
+    created: Cell<bool>,
     read_only: bool,
 }
 
 impl Directories {
     pub(super) fn open(root: &Path, read_only: bool) -> EngineResult<Self> {
         Ok(Self {
-            collection: open_collection(
+            collection: Arc::new(open_collection(
                 &root.join("directories"),
                 &directories_schema()?,
                 read_only,
-            )?,
+            )?),
             ids: Mutex::new(None),
+            created: Cell::new(false),
             read_only,
         })
     }
@@ -42,6 +46,10 @@ impl Directories {
     #[cfg(test)]
     pub(super) fn collection(&self) -> &Collection {
         &self.collection
+    }
+
+    pub(super) fn handle(&self) -> Arc<Collection> {
+        Arc::clone(&self.collection)
     }
 
     pub(super) fn load(&self) -> EngineResult<()> {
@@ -101,6 +109,7 @@ impl Directories {
     }
     pub(super) fn ensure(&self, path: &SourcePath) -> EngineResult<Vec<DirectoryId>> {
         self.assert_writable()?;
+        self.created.set(false);
         let mut guard = self.loaded_ids()?;
         let ids = guard.as_mut().expect("loaded directories");
         let result = (|| {
@@ -114,6 +123,9 @@ impl Directories {
                 .filter(|path| ids.get(path).is_none())
                 .collect::<Vec<_>>();
             let directory_ids = ids.resolve(path)?;
+            if !missing.is_empty() {
+                self.created.set(true);
+            }
             // Each child is written after its parent. Empty directories are harmless,
             // so they can be retained if the subsequent file replacement fails.
             for path in missing.iter().rev() {
@@ -137,9 +149,9 @@ impl Directories {
         native(self.collection.flush(), "flush directories")
     }
 
-    pub(super) fn optimize(&self) -> EngineResult<()> {
-        self.assert_writable()?;
-        native(self.collection.optimize(), "optimize directories")
+    /// Whether the most recent [`Self::ensure`] call created directory rows.
+    pub(super) fn took_write(&self) -> bool {
+        self.created.get()
     }
 
     fn assert_writable(&self) -> EngineResult<()> {

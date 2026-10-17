@@ -3,6 +3,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use zvec_rust::{Collection, CollectionSchema, DataType, Doc, SearchQuery};
 
@@ -12,8 +13,8 @@ use super::{
     },
     types::StoredFileAttributes,
     zvec::{
-        corrupt, doc_key, fetch_map, native, open_collection, scalar, string_field, u32_field,
-        wildcard_string, write_docs,
+        corrupt, disjunction_filter, doc_key, fetch_map, native, open_collection, scalar,
+        string_field, u32_field, wildcard_string, write_docs,
     },
 };
 use crate::{
@@ -26,7 +27,7 @@ mod ids;
 use ids::FileIds;
 
 pub(super) struct Files {
-    collection: Collection,
+    collection: Arc<Collection>,
     ids: Option<FileIds>,
 }
 
@@ -36,9 +37,13 @@ impl Files {
         &self.collection
     }
 
+    pub(super) fn handle(&self) -> Arc<Collection> {
+        Arc::clone(&self.collection)
+    }
+
     pub(super) fn open(root: &Path, read_only: bool) -> EngineResult<Self> {
         let mut files = Self {
-            collection: open_collection(&root.join("files"), &files_schema()?, read_only)?,
+            collection: Arc::new(open_collection(&root.join("files"), &files_schema()?, read_only)?),
             ids: None,
         };
         if !read_only {
@@ -155,28 +160,35 @@ impl Files {
         Ok(())
     }
 
+    #[allow(
+        dead_code,
+        reason = "single-file table deletion is retained for storage-level tests"
+    )]
     pub(super) fn delete(&mut self, id: FileId) -> EngineResult<()> {
+        self.delete_many(std::slice::from_ref(&id))
+    }
+
+    pub(super) fn delete_many(&mut self, ids: &[FileId]) -> EngineResult<()> {
         self.assert_writable()?;
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let values = ids.iter().map(|file_id| file_id.get()).collect::<Vec<_>>();
         native(
             self.collection
-                .delete_by_filter(&format!("file_id = {}", id.get())),
-            "delete source file",
+                .delete_by_filter(&disjunction_filter("file_id", &values)),
+            "delete source files",
         )?;
-        self.ids
-            .as_mut()
-            .expect("writable file identities")
-            .remove(id);
+        let file_ids = self.ids.as_mut().expect("writable file identities");
+        for id in ids {
+            file_ids.remove(*id);
+        }
         Ok(())
     }
 
     pub(super) fn flush(&self) -> EngineResult<()> {
         self.assert_writable()?;
         native(self.collection.flush(), "flush source files")
-    }
-
-    pub(super) fn optimize(&self) -> EngineResult<()> {
-        self.assert_writable()?;
-        native(self.collection.optimize(), "optimize source files")
     }
 
     fn assert_writable(&self) -> EngineResult<()> {

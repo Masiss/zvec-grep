@@ -4,6 +4,7 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     path::Path,
+    sync::Arc,
 };
 
 use zvec_rust::{
@@ -18,8 +19,8 @@ use super::{
         StorageSearchPath,
     },
     zvec::{
-        corrupt, doc_key, fetch_map, native, open_collection, scalar, string_field, u32_field,
-        write_docs,
+        corrupt, disjunction_filter, doc_key, fetch_map, fetch_map_with_vectors, native,
+        open_collection, scalar, string_field, u32_field, write_docs,
     },
 };
 use crate::{
@@ -29,13 +30,13 @@ use crate::{
         FileId, FileRecord, FragmentId, IndexField, SourcePath,
         model::{EmbeddingModelInfo, Metric},
     },
-    utils::sha256_hex_parts,
+    utils::{sha256_hex, sha256_hex_parts},
 };
 
 const MAX_TOP_K: usize = 100_000;
 
 pub(super) struct Fragments {
-    indexes: BTreeMap<String, Collection>,
+    indexes: BTreeMap<String, Arc<Collection>>,
 }
 
 impl Fragments {
@@ -66,7 +67,7 @@ impl Fragments {
                 read_only,
             )?;
             if indexes
-                .insert(embedding.model.reference(), collection)
+                .insert(embedding.model.reference(), Arc::new(collection))
                 .is_some()
             {
                 return Err(EngineError::invalid_argument("duplicate embedding model"));
@@ -82,57 +83,43 @@ impl Fragments {
         entries: &[IndexedFragment],
         directories: &[DirectoryId],
     ) -> EngineResult<BTreeMap<String, Vec<Doc>>> {
-        let owners = entities
-            .iter()
-            .map(|entity| {
-                let fields = entity
-                    .metadata
-                    .as_ref()
-                    .map(|metadata| {
-                        let value = serde_json::to_value(metadata)
-                            .map_err(|error| corrupt(format!("encode entity metadata: {error}")))?;
-                        encode_metadata_fields(&value)
-                    })
-                    .transpose()?
-                    .unwrap_or_default();
-                Ok((&entity.id, (entity, fields)))
-            })
-            .collect::<EngineResult<HashMap<_, _>>>()?;
-        let fragments = entities
-            .iter()
-            .flat_map(|entity| &entity.fragments)
-            .map(|fragment| (&fragment.id, fragment))
-            .collect::<HashMap<_, _>>();
-        let mut projections: BTreeMap<String, Vec<Doc>> = BTreeMap::new();
-        for entry in entries {
-            let (owner, fields) = owners.get(&entry.entity_id).ok_or_else(|| {
-                EngineError::invalid_argument("search projection references a missing entity")
-            })?;
-            let fragment = fragments.get(&entry.fragment_id).ok_or_else(|| {
-                EngineError::invalid_argument("search projection references a missing fragment")
-            })?;
-            let mut doc = fragment_doc(owner, fragment, file, directories, fields)?;
-            native(
-                doc.add_string("text", &index_text(&entry.fts_text)),
-                "encode searchable text",
-            )?;
-            native(
-                doc.add_vector_f32("embedding", &entry.vector),
-                "encode embedding vector",
-            )?;
-            projections
-                .entry(entry.model.clone())
-                .or_default()
-                .push(doc);
-        }
+        let mut encoder = ProjectionEncoder::new(file, entities, directories)?;
+        let projections = encoder.prepare(entries)?;
+        encoder.finish()?;
         Ok(projections)
     }
 
+    /// Write fragment projections in bounded chunks so a large file does not
+    /// hand one oversized `Vec<Doc>` to the native collection in one call.
     pub(super) fn write(&self, projections: &BTreeMap<String, Vec<Doc>>) -> EngineResult<()> {
+        const WRITE_CHUNK: usize = 512;
         for (model, docs) in projections {
-            write_docs(self.index(model)?, docs, "write model fragments")?;
+            let index = self.index(model)?;
+            if docs.len() <= WRITE_CHUNK {
+                write_docs(index, docs, "write model fragments")?;
+            } else {
+                for chunk in docs.chunks(WRITE_CHUNK) {
+                    write_docs(index, chunk, "write model fragments")?;
+                }
+            }
         }
         Ok(())
+    }
+
+    pub(super) fn fetch_vectors(
+        &self,
+        model: &str,
+        fragment_ids: &[String],
+    ) -> EngineResult<HashMap<String, Vec<f32>>> {
+        let index = self.index(model)?;
+        fetch_map_with_vectors(index, fragment_ids, true)?
+            .into_iter()
+            .map(|(id, doc)| {
+                let vector = native(doc.get_vector_f32("embedding"), "read stored embedding")?
+                    .ok_or_else(|| corrupt("stored fragment has no embedding vector"))?;
+                Ok((id, vector))
+            })
+            .collect()
     }
 
     pub(super) fn validate_ownership(
@@ -150,8 +137,42 @@ impl Fragments {
         Ok(())
     }
 
+    pub(super) fn delete_fragment_ids(
+        &self,
+        model: &str,
+        fragment_ids: &[FragmentId],
+    ) -> EngineResult<()> {
+        let index = self.index(model)?;
+        for batch in fragment_ids.chunks(512) {
+            if batch.is_empty() {
+                continue;
+            }
+            let filter = batch
+                .iter()
+                .map(|id| format!("document_id = '{}'", id.as_str()))
+                .collect::<Vec<_>>()
+                .join(" OR ");
+            native(
+                index.delete_by_filter(&filter),
+                "delete selected model fragments",
+            )?;
+        }
+        Ok(())
+    }
+
     pub(super) fn delete_file(&self, file_id: FileId) -> EngineResult<()> {
-        let filter = format!("file_id = {}", file_id.get());
+        self.delete_files(std::slice::from_ref(&file_id))
+    }
+
+    pub(super) fn delete_files(&self, file_ids: &[FileId]) -> EngineResult<()> {
+        if file_ids.is_empty() {
+            return Ok(());
+        }
+        let values = file_ids
+            .iter()
+            .map(|file_id| file_id.get())
+            .collect::<Vec<_>>();
+        let filter = disjunction_filter("file_id", &values);
         for index in self.indexes.values() {
             native(index.delete_by_filter(&filter), "delete source fragments")?;
         }
@@ -175,11 +196,17 @@ impl Fragments {
         Ok(false)
     }
 
-    pub(super) fn optimize(&self) -> EngineResult<()> {
+    pub(super) fn completeness_summary(&self) -> EngineResult<f32> {
+        let mut minimum = 1.0_f32;
         for index in self.indexes.values() {
-            native(index.optimize(), "optimize fragment collection")?;
+            let stats = native(index.stats(), "inspect fragment indexes")?;
+            for stat in stats.indexes {
+                if stat.completeness < minimum {
+                    minimum = stat.completeness;
+                }
+            }
         }
-        Ok(())
+        Ok(minimum)
     }
 
     pub(super) fn search_fts(
@@ -256,8 +283,15 @@ impl Fragments {
             .collect()
     }
 
+    pub(super) fn supports_model(&self, model: &str) -> bool {
+        self.indexes.contains_key(model)
+    }
+
     fn index(&self, model: &str) -> EngineResult<&Collection> {
-        self.indexes.get(model).ok_or_else(|| {
+        self.indexes
+            .get(model)
+            .map(|collection| &**collection)
+            .ok_or_else(|| {
             EngineError::invalid_argument(format!("unknown embedding model {model:?}"))
         })
     }
@@ -265,6 +299,145 @@ impl Fragments {
     #[cfg(test)]
     pub(super) fn collection(&self, model: &str) -> EngineResult<&Collection> {
         self.index(model)
+    }
+
+    /// Checked-out handles for maintenance to optimize outside the state lock.
+    pub(super) fn handles(&self) -> Vec<(String, Arc<Collection>)> {
+        self.indexes
+            .iter()
+            .map(|(model, collection)| (model.clone(), Arc::clone(collection)))
+            .collect()
+    }
+
+    /// Native completeness of a set of fragment handles (no state lock needed).
+    pub(super) fn handles_completeness(
+        handles: &[(String, Arc<Collection>)],
+    ) -> EngineResult<f32> {
+        let mut minimum = 1.0_f32;
+        for (_, collection) in handles {
+            let stats = native(collection.stats(), "inspect fragment indexes")?;
+            for stat in stats.indexes {
+                if stat.completeness < minimum {
+                    minimum = stat.completeness;
+                }
+            }
+        }
+        Ok(minimum)
+    }
+}
+
+/// Reusable lookup state for preparing bounded batches from a staged replacement.
+pub(super) struct ProjectionEncoder<'a> {
+    file: &'a FileRecord,
+    directories: &'a [DirectoryId],
+    owners: HashMap<&'a str, (&'a Entity, Vec<(IndexField, String)>)>,
+    fragments: HashMap<&'a str, (&'a Entity, &'a EntityFragment)>,
+    seen: HashSet<&'a str>,
+    models: HashMap<&'a str, String>,
+}
+
+impl<'a> ProjectionEncoder<'a> {
+    pub(super) fn new(
+        file: &'a FileRecord,
+        entities: &'a [Entity],
+        directories: &'a [DirectoryId],
+    ) -> EngineResult<Self> {
+        let mut owners = HashMap::with_capacity(entities.len());
+        let mut fragments = HashMap::new();
+        for entity in entities {
+            let fields = entity
+                .metadata
+                .as_ref()
+                .map(|metadata| {
+                    let value = serde_json::to_value(metadata)
+                        .map_err(|error| corrupt(format!("encode entity metadata: {error}")))?;
+                    encode_metadata_fields(&value)
+                })
+                .transpose()?
+                .unwrap_or_default();
+            if owners
+                .insert(entity.id.as_str(), (entity, fields))
+                .is_some()
+            {
+                return Err(EngineError::invalid_argument("duplicate entity id"));
+            }
+            for fragment in &entity.fragments {
+                if fragments
+                    .insert(fragment.id.as_str(), (entity, fragment))
+                    .is_some()
+                {
+                    return Err(EngineError::invalid_argument("duplicate fragment id"));
+                }
+            }
+        }
+        Ok(Self {
+            file,
+            directories,
+            owners,
+            fragments,
+            seen: HashSet::new(),
+            models: HashMap::new(),
+        })
+    }
+
+    pub(super) fn prepare(
+        &mut self,
+        entries: &[IndexedFragment],
+    ) -> EngineResult<BTreeMap<String, Vec<Doc>>> {
+        let mut projections: BTreeMap<String, Vec<Doc>> = BTreeMap::new();
+        for entry in entries {
+            let (owner, fields) = self.owners.get(entry.entity_id.as_str()).ok_or_else(|| {
+                EngineError::invalid_argument("search projection references a missing entity")
+            })?;
+            let (fragment_owner, fragment) = self
+                .fragments
+                .get(entry.fragment_id.as_str())
+                .ok_or_else(|| {
+                    EngineError::invalid_argument("search projection references a missing fragment")
+                })?;
+            if fragment_owner.id != owner.id {
+                return Err(EngineError::invalid_argument(
+                    "search projection references a fragment owned by another entity",
+                ));
+            }
+            if !self.seen.insert(fragment.id.as_str()) {
+                return Err(EngineError::invalid_argument(
+                    "canonical fragment has more than one search projection",
+                ));
+            }
+            if self
+                .models
+                .insert(owner.id.as_str(), entry.model.clone())
+                .is_some_and(|previous| previous != entry.model)
+            {
+                return Err(EngineError::invalid_argument(
+                    "all fragments of an entity must use one embedding model",
+                ));
+            }
+            let mut doc = fragment_doc(owner, fragment, self.file, self.directories, fields)?;
+            native(
+                doc.add_string("text", &index_text(&entry.fts_text)),
+                "encode searchable text",
+            )?;
+            native(
+                doc.add_vector_f32("embedding", &entry.vector),
+                "encode embedding vector",
+            )?;
+            projections
+                .entry(entry.model.clone())
+                .or_default()
+                .push(doc);
+        }
+        Ok(projections)
+    }
+
+    pub(super) fn finish(&self) -> EngineResult<()> {
+        if self.seen.len() != self.fragments.len() {
+            return Err(EngineError::invalid_argument(
+                "every canonical fragment requires a search projection",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -446,6 +619,32 @@ pub(super) fn build_filter(
         ));
     }
     Ok((!clauses.is_empty()).then(|| clauses.join(" AND ")))
+}
+
+/// Fingerprint of the entity fields materialized into a search projection.
+///
+/// A fragment document stores only identity, file membership, and the indexed
+/// metadata fields. Non-indexed metadata (documentation, signature, scope, or
+/// Markdown headings) never reaches a projection, so changing it must not
+/// invalidate the stored projection and force a vector-index optimize.
+pub(super) fn metadata_projection_fingerprint(
+    metadata: Option<&EntityMetadata>,
+) -> EngineResult<String> {
+    let fields = match metadata {
+        Some(metadata) => {
+            let value = serde_json::to_value(metadata)
+                .map_err(|error| corrupt(format!("encode projection metadata: {error}")))?;
+            encode_metadata_fields(&value)?
+        }
+        None => Vec::new(),
+    };
+    let encoded = fields
+        .iter()
+        .map(|(field, value)| (field.name(), value.as_str()))
+        .collect::<Vec<_>>();
+    let bytes = serde_json::to_vec(&encoded)
+        .map_err(|error| corrupt(format!("encode metadata projection: {error}")))?;
+    Ok(sha256_hex(&bytes))
 }
 
 fn encode_metadata_fields(metadata: &serde_json::Value) -> EngineResult<Vec<(IndexField, String)>> {

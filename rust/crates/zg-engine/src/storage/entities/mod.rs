@@ -1,5 +1,5 @@
 //! Canonical entities, content, metadata, and fragment selectors.
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
@@ -9,15 +9,15 @@ use crate::{
 };
 
 use super::zvec::{
-    corrupt, doc_key, fetch_map, native, open_collection, scalar, string_field, u32_field,
-    write_docs,
+    corrupt, disjunction_filter, doc_key, fetch_map, native, open_collection, scalar, string_field,
+    u32_field, write_docs,
 };
 
 mod codec;
 pub(super) use codec::validate_content;
 
 pub(super) struct Entities {
-    collection: Collection,
+    collection: Arc<Collection>,
 }
 
 impl Entities {
@@ -26,9 +26,13 @@ impl Entities {
         &self.collection
     }
 
+    pub(super) fn handle(&self) -> Arc<Collection> {
+        Arc::clone(&self.collection)
+    }
+
     pub(super) fn open(path: &Path, read_only: bool) -> EngineResult<Self> {
         Ok(Self {
-            collection: open_collection(&path.join("entities"), &schema()?, read_only)?,
+            collection: Arc::new(open_collection(&path.join("entities"), &schema()?, read_only)?),
         })
     }
 
@@ -76,20 +80,45 @@ impl Entities {
         Ok(())
     }
 
+    pub(super) fn delete_ids(&self, ids: &[EntityId]) -> EngineResult<()> {
+        for batch in ids.chunks(512) {
+            if batch.is_empty() {
+                continue;
+            }
+            let filter = batch
+                .iter()
+                .map(|id| format!("entity_id = '{}'", id.as_str()))
+                .collect::<Vec<_>>()
+                .join(" OR ");
+            native(
+                self.collection.delete_by_filter(&filter),
+                "delete selected source entities",
+            )?;
+        }
+        Ok(())
+    }
+
     pub(super) fn delete_file(&self, file_id: FileId) -> EngineResult<()> {
+        self.delete_files(std::slice::from_ref(&file_id))
+    }
+
+    pub(super) fn delete_files(&self, file_ids: &[FileId]) -> EngineResult<()> {
+        if file_ids.is_empty() {
+            return Ok(());
+        }
+        let values = file_ids
+            .iter()
+            .map(|file_id| file_id.get())
+            .collect::<Vec<_>>();
         native(
             self.collection
-                .delete_by_filter(&format!("file_id = {}", file_id.get())),
+                .delete_by_filter(&disjunction_filter("file_id", &values)),
             "delete source entities",
         )
     }
 
     pub(super) fn flush(&self) -> EngineResult<()> {
         native(self.collection.flush(), "flush entities")
-    }
-
-    pub(super) fn optimize(&self) -> EngineResult<()> {
-        native(self.collection.optimize(), "optimize entities")
     }
 }
 
@@ -100,6 +129,29 @@ fn schema() -> EngineResult<CollectionSchema> {
     scalar(&mut schema, "payload", DataType::String, false, false)?;
     scalar(&mut schema, "metadata", DataType::String, true, false)?;
     Ok(schema)
+}
+
+pub(super) fn encode_staged_entity(entity: &Entity) -> EngineResult<(String, Option<String>)> {
+    entity.validate()?;
+    codec::validate_content(&entity.content)?;
+    let payload = codec::encode_entity(entity)?;
+    let metadata = entity
+        .metadata
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(|error| {
+            EngineError::invalid_argument(format!("encode staged metadata: {error}"))
+        })?;
+    Ok((payload, metadata))
+}
+
+pub(super) fn decode_staged_entity(payload: &str, metadata: Option<&str>) -> EngineResult<Entity> {
+    let metadata = metadata
+        .map(serde_json::from_str)
+        .transpose()
+        .map_err(|error| corrupt(format!("invalid staged entity metadata: {error}")))?;
+    codec::decode_entity(payload, metadata.as_ref())
 }
 
 fn encode_doc(entity: &Entity) -> EngineResult<Doc> {

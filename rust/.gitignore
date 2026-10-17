@@ -18,6 +18,7 @@ __pycache__/
 # Local tool state
 .cache/
 .zvec-grep/
+.repowise/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/

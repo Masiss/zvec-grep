@@ -79,6 +79,15 @@ mod tests {
             assert_eq!(model.info().model.reference(), entry.reference());
             assert_eq!(model.info().dimension, entry.dimension());
             assert_eq!(model.info().model.endpoint, expected_endpoint);
+            // Hosted provider aliases are not content-pinned and must not be
+            // trusted for cross-run embedding reuse; local backends are.
+            let remote = matches!(entry, super::EmbeddingCatalogEntry::Qwen(_));
+            assert_eq!(
+                model.identity_is_stable(),
+                !remote,
+                "identity stability for {}",
+                entry.reference()
+            );
         }
 
         let unknown = create_embedding_model(

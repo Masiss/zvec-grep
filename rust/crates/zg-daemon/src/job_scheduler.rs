@@ -7,9 +7,11 @@ use std::{
         Arc, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
+use tracing::Instrument;
 use thiserror::Error;
 use tokio::sync::{Notify, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -121,6 +123,8 @@ struct SchedulerInner {
     closed: AtomicBool,
     drained: Notify,
     config: SchedulerConfig,
+    #[cfg(test)]
+    watch_coalescing_enabled: AtomicBool,
 }
 
 #[derive(Default)]
@@ -156,6 +160,42 @@ struct ScheduledJob {
     result: Mutex<Option<IndexResult>>,
     finished: AtomicBool,
     completed: Notify,
+    coalescing_wakeup: Notify,
+    watch_coalescing: Mutex<Option<WatchCoalescing>>,
+    /// Number of Watch submissions represented by this writer job. Keeping
+    /// this on the job lets production logs distinguish fewer writer jobs
+    /// from cheaper individual writer jobs without logging every filesystem
+    /// event.
+    watch_submissions: AtomicUsize,
+}
+
+const WATCH_COALESCE_DEBOUNCE: Duration = Duration::from_millis(750);
+const WATCH_COALESCE_MAX_WAIT: Duration = Duration::from_secs(5);
+
+#[derive(Clone, Copy)]
+struct WatchCoalescing {
+    started_at: Instant,
+    last_event_at: Instant,
+}
+
+impl WatchCoalescing {
+    fn now() -> Self {
+        let now = Instant::now();
+        Self {
+            started_at: now,
+            last_event_at: now,
+        }
+    }
+
+    fn note_event(&mut self) {
+        self.last_event_at = Instant::now();
+    }
+
+    fn delay_until_ready(&self, now: Instant) -> Duration {
+        let debounce_at = self.last_event_at + WATCH_COALESCE_DEBOUNCE;
+        let max_wait_at = self.started_at + WATCH_COALESCE_MAX_WAIT;
+        debounce_at.min(max_wait_at).saturating_duration_since(now)
+    }
 }
 
 impl IndexJobScheduler {
@@ -173,6 +213,8 @@ impl IndexJobScheduler {
                     concurrency,
                     queue_capacity: config.queue_capacity,
                 },
+                #[cfg(test)]
+                watch_coalescing_enabled: AtomicBool::new(true),
             }),
         }
     }
@@ -201,6 +243,9 @@ impl IndexJobScheduler {
         if let Some(active) = state.active_by_root.get(&canonical_root).cloned() {
             // Once another caller relies on a job, request cancellation must not stop it.
             active.shared.store(true, Ordering::Release);
+            if reason == JobReason::Watch {
+                note_watch_submission(&active);
+            }
             let active_snapshot = lock(&active.snapshot).clone();
             let needs_followup = reason == JobReason::Watch
                 || active_snapshot.reason == JobReason::Watch
@@ -216,8 +261,15 @@ impl IndexJobScheduler {
                 if !queued_full_manual {
                     merge_options(&mut lock(&active.options), options);
                 }
+                if reason == JobReason::Watch
+                    && let Some(window) = lock(&active.watch_coalescing).as_mut()
+                {
+                    window.note_event();
+                    active.coalescing_wakeup.notify_waiters();
+                }
                 if reason == JobReason::Manual {
                     lock(&active.snapshot).reason = JobReason::Manual;
+                    active.coalescing_wakeup.notify_waiters();
                 }
                 return Ok(SubmitIndexJobResult {
                     job: lock(&active.snapshot).clone(),
@@ -227,9 +279,19 @@ impl IndexJobScheduler {
             if needs_followup {
                 if let Some(followup) = state.followup_by_root.get(&canonical_root) {
                     followup.shared.store(true, Ordering::Release);
+                    if reason == JobReason::Watch {
+                        note_watch_submission(followup);
+                    }
                     merge_options(&mut lock(&followup.options), options);
+                    if reason == JobReason::Watch
+                        && let Some(window) = lock(&followup.watch_coalescing).as_mut()
+                    {
+                        window.note_event();
+                        followup.coalescing_wakeup.notify_waiters();
+                    }
                     if reason == JobReason::Manual {
                         lock(&followup.snapshot).reason = JobReason::Manual;
+                        followup.coalescing_wakeup.notify_waiters();
                     }
                     return Ok(SubmitIndexJobResult {
                         job: lock(&followup.snapshot).clone(),
@@ -416,6 +478,13 @@ impl IndexJobScheduler {
         }
     }
 
+    #[cfg(test)]
+    fn set_watch_coalescing_for_benchmark(&self, enabled: bool) {
+        self.inner
+            .watch_coalescing_enabled
+            .store(enabled, Ordering::Release);
+    }
+
     fn reserve_slot(&self) -> Result<(), SchedulerError> {
         let maximum_outstanding = self
             .inner
@@ -454,7 +523,60 @@ fn create_job(
         result: Mutex::new(None),
         finished: AtomicBool::new(false),
         completed: Notify::new(),
+        coalescing_wakeup: Notify::new(),
+        watch_coalescing: Mutex::new((reason == JobReason::Watch).then(WatchCoalescing::now)),
+        watch_submissions: AtomicUsize::new(usize::from(reason == JobReason::Watch)),
     })
+}
+
+fn note_watch_submission(job: &ScheduledJob) {
+    job.watch_submissions.fetch_add(1, Ordering::Relaxed);
+}
+
+fn watch_submission_counts(job: &ScheduledJob) -> (usize, usize) {
+    let submissions = job.watch_submissions.load(Ordering::Relaxed);
+    (submissions, submissions.saturating_sub(1))
+}
+
+fn spawn_job_after(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>, delay: Duration) {
+    if delay.is_zero() {
+        spawn_job(inner, job);
+        return;
+    }
+    tokio::spawn(async move {
+        loop {
+            let notified = job.coalescing_wakeup.notified();
+            tokio::pin!(notified);
+            // Register before reading the state so a Watch/Manual submission
+            // racing with this task cannot lose the wake-up.
+            notified.as_mut().enable();
+            if lock(&job.snapshot).reason != JobReason::Watch {
+                spawn_job(Arc::clone(&inner), Arc::clone(&job));
+                return;
+            }
+            let delay = lock(&job.watch_coalescing)
+                .as_ref()
+                .map_or(Duration::ZERO, |window| {
+                    window.delay_until_ready(Instant::now())
+                });
+            if delay.is_zero() {
+                spawn_job(Arc::clone(&inner), Arc::clone(&job));
+                return;
+            }
+            tokio::select! {
+                () = job.cancellation.cancelled() => {
+                    finish_cancelled(&job, "indexing was cancelled");
+                    finish_job(&inner, &job);
+                    return;
+                }
+                () = notified => {}
+                () = tokio::time::sleep(delay) => {
+                    spawn_job(Arc::clone(&inner), Arc::clone(&job));
+                    return;
+                }
+            }
+        }
+    });
 }
 
 fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
@@ -520,13 +642,22 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
             })
             .prioritize_model_progress(),
         );
-        let outcome = inner.executor.index(options).await;
+        let started = std::time::Instant::now();
+        log_job_started(&job, &options);
+        let span = tracing::info_span!(
+            "index_job",
+            job_id = %job.id,
+            root = %job.canonical_root.display()
+        );
+        let outcome = inner.executor.index(options).instrument(span).await;
         match outcome {
             Ok(result) => {
+                log_job_completed(&job, started, &result);
                 *lock(&job.result) = Some(result);
                 lock(&job.snapshot).state = JobState::Succeeded;
             }
             Err(error) => {
+                log_job_stopped(&job, started, &error);
                 let state = if error.code() == EngineError::CANCELLED {
                     JobState::Cancelled
                 } else {
@@ -539,6 +670,66 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
         }
         finish_job(&inner, &job);
     });
+}
+
+fn log_job_started(job: &ScheduledJob, options: &IndexOptions) {
+    let (watch_submissions, coalesced_watch_submissions) = watch_submission_counts(job);
+    tracing::info!(
+        job_id = %job.id,
+        root = %job.canonical_root.display(),
+        reason = ?lock(&job.snapshot).reason,
+        watch_submissions,
+        coalesced_watch_submissions,
+        changed_paths = options.changes.len(),
+        rebuild = options.rebuild,
+        full_rescan = options.changes.is_empty()
+            || options.changes.contains(&zg_engine::api::index::options::WorkspaceChange::Rescan),
+        "index job started"
+    );
+}
+
+fn log_job_completed(job: &ScheduledJob, started: std::time::Instant, result: &IndexResult) {
+    let (watch_submissions, coalesced_watch_submissions) = watch_submission_counts(job);
+    tracing::info!(
+        job_id = %job.id,
+        elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        watch_submissions,
+        coalesced_watch_submissions,
+        files_scanned = result.files_scanned,
+        files_added = result.files_added,
+        files_modified = result.files_modified,
+        files_pending = result.files_pending,
+        files_deleted = result.files_deleted,
+        files_unchanged = result.files_unchanged,
+        files_failed = result.files_failed,
+        entities_created = result.entities_created,
+        duration_micros = result.duration_micros,
+        timings = ?result.timings,
+        "index job completed"
+    );
+}
+
+fn log_job_stopped(job: &ScheduledJob, started: std::time::Instant, error: &EngineError) {
+    let (watch_submissions, coalesced_watch_submissions) = watch_submission_counts(job);
+    tracing::info!(
+        job_id = %job.id,
+        elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        watch_submissions,
+        coalesced_watch_submissions,
+        error_code = error.code(),
+        "index job stopped"
+    );
+}
+
+fn watch_coalescing_enabled(_inner: &SchedulerInner) -> bool {
+    #[cfg(test)]
+    {
+        _inner.watch_coalescing_enabled.load(Ordering::Acquire)
+    }
+    #[cfg(not(test))]
+    {
+        true
+    }
 }
 
 fn finish_job(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
@@ -569,7 +760,19 @@ fn finish_job(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
             finish_cancelled(&followup, "the daemon job scheduler closed");
             finish_job(inner, &followup);
         } else {
-            spawn_job(Arc::clone(inner), followup);
+            let delay = {
+                let snapshot = lock(&followup.snapshot);
+                if snapshot.reason == JobReason::Watch && watch_coalescing_enabled(inner) {
+                    lock(&followup.watch_coalescing)
+                        .as_ref()
+                        .map_or(Duration::ZERO, |window| {
+                            window.delay_until_ready(Instant::now())
+                        })
+                } else {
+                    Duration::ZERO
+                }
+            };
+            spawn_job_after(Arc::clone(inner), followup, delay);
         }
     }
 }
@@ -1069,6 +1272,7 @@ mod tests {
     use std::{
         path::PathBuf,
         sync::{Arc, Mutex},
+        time::{Duration, Instant},
     };
 
     use async_trait::async_trait;
@@ -1083,7 +1287,7 @@ mod tests {
 
     use super::{
         IndexExecutor, IndexJobScheduler, JobReason, JobState, SchedulerConfig, SchedulerError,
-        redact_job_error_text,
+        WATCH_COALESCE_DEBOUNCE, WATCH_COALESCE_MAX_WAIT, WatchCoalescing, redact_job_error_text,
     };
 
     struct GatedExecutor {
@@ -1599,6 +1803,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn watch_coalescing_is_bounded_and_trailing() {
+        let started = Instant::now();
+        let initial = WatchCoalescing {
+            started_at: started,
+            last_event_at: started,
+        };
+        assert_eq!(initial.delay_until_ready(started), WATCH_COALESCE_DEBOUNCE);
+
+        let refreshed = WatchCoalescing {
+            started_at: started,
+            last_event_at: started + Duration::from_millis(4_500),
+        };
+        assert_eq!(
+            refreshed.delay_until_ready(started + Duration::from_millis(4_500)),
+            Duration::from_millis(500),
+        );
+        assert_eq!(
+            refreshed.delay_until_ready(started + WATCH_COALESCE_MAX_WAIT),
+            Duration::ZERO
+        );
+    }
+
     #[tokio::test]
     async fn watcher_changes_arriving_during_a_writer_run_as_one_followup_job() {
         let executor = Arc::new(RecordingExecutor {
@@ -1658,6 +1885,26 @@ mod tests {
         assert_ne!(followup.job.id, first.job.id);
         assert_eq!(merged.job.id, followup.job.id);
         executor.releases.add_permits(1);
+        let trailing = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    changes: vec![zg_engine::api::index::options::WorkspaceChange::Upsert(
+                        PathBuf::from("src/main.rs"),
+                    )],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("late watcher batch should merge into the delayed follow-up");
+        assert_eq!(trailing.job.id, followup.job.id);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), executor.started.notified())
+                .await
+                .is_err(),
+            "follow-up must wait for the bounded trailing window"
+        );
         executor.started.notified().await;
         executor.releases.add_permits(1);
         let completed = scheduler
@@ -1665,14 +1912,217 @@ mod tests {
             .await
             .expect("followup should complete");
         assert_eq!(completed.job.state, JobState::Succeeded);
+        let followup_job = super::lock(&scheduler.inner.state)
+            .jobs
+            .get(&followup.job.id)
+            .cloned()
+            .expect("finished follow-up should remain in scheduler history");
+        assert_eq!(super::watch_submission_counts(&followup_job), (3, 2));
         let calls = executor.calls.lock().expect("calls should be readable");
         assert_eq!(calls.len(), 2);
         assert!(calls[1].name.is_none());
+        assert_eq!(calls[1].changes.len(), 2);
+        assert!(calls[1].changes.contains(
+            &zg_engine::api::index::options::WorkspaceChange::Delete(PathBuf::from("src/lib.rs"))
+        ));
+        assert!(calls[1].changes.contains(
+            &zg_engine::api::index::options::WorkspaceChange::Upsert(PathBuf::from("src/main.rs"))
+        ));
+    }
+
+    struct BenchmarkCall {
+        started: Instant,
+        change_count: usize,
+    }
+
+    struct TimedBenchmarkExecutor {
+        calls: Mutex<Vec<BenchmarkCall>>,
+        started: Notify,
+        duration: Duration,
+    }
+
+    #[async_trait]
+    impl IndexExecutor for TimedBenchmarkExecutor {
+        async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
+            self.calls
+                .lock()
+                .expect("benchmark calls lock")
+                .push(BenchmarkCall {
+                    started: Instant::now(),
+                    change_count: options.changes.len(),
+                });
+            self.started.notify_one();
+            tokio::time::sleep(self.duration).await;
+            Ok(IndexResult::default())
+        }
+    }
+
+    struct WatchBenchmarkResult {
+        watch_jobs: usize,
+        observed_changes: usize,
+        freshness_lag: Duration,
+    }
+
+    async fn run_watch_benchmark(coalescing: bool) -> WatchBenchmarkResult {
+        let executor = Arc::new(TimedBenchmarkExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            duration: Duration::from_millis(80),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 1,
+                queue_capacity: 128,
+            },
+        );
+        scheduler.set_watch_coalescing_for_benchmark(coalescing);
+        let root = PathBuf::from(if coalescing {
+            "/tmp/zg-watch-benchmark-coalesced"
+        } else {
+            "/tmp/zg-watch-benchmark-control"
+        });
+        let initial = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    changes: vec![WorkspaceChange::Upsert(PathBuf::from("seed.rs"))],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("initial benchmark Watch job");
+        executor.started.notified().await;
+
+        let mut submitted_changes = 1;
+        let mut last_event = Instant::now();
+        let mut last_job_id = initial.job.id;
+        for index in 0..40 {
+            let submitted = scheduler
+                .submit(
+                    root.clone(),
+                    IndexOptions {
+                        changes: vec![WorkspaceChange::Upsert(PathBuf::from(format!(
+                            "burst-{index}.rs"
+                        )))],
+                        ..IndexOptions::default()
+                    },
+                    JobReason::Watch,
+                )
+                .expect("burst Watch job");
+            last_job_id = submitted.job.id;
+            submitted_changes += 1;
+            last_event = Instant::now();
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        scheduler
+            .wait(last_job_id)
+            .await
+            .expect("last benchmark job should finish");
+        scheduler.shutdown().await;
+
+        let calls = executor.calls.lock().expect("benchmark calls readable");
+        let observed_changes = calls.iter().map(|call| call.change_count).sum();
+        let freshness_lag = calls
+            .last()
+            .map(|call| call.started.saturating_duration_since(last_event))
+            .unwrap_or(Duration::ZERO);
         assert_eq!(
-            calls[1].changes,
-            [zg_engine::api::index::options::WorkspaceChange::Delete(
-                PathBuf::from("src/lib.rs")
-            )]
+            observed_changes, submitted_changes,
+            "every synthetic file event must reach an optimize call"
+        );
+        WatchBenchmarkResult {
+            watch_jobs: calls.len(),
+            observed_changes,
+            freshness_lag,
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "manual Gate D1 benchmark; run with cargo test -p zg-daemon watch_burst_benchmark -- --ignored --nocapture"]
+    async fn watch_burst_benchmark() {
+        let control = run_watch_benchmark(false).await;
+        let coalesced = run_watch_benchmark(true).await;
+        println!(
+            "watch_benchmark mode=control watch_jobs={} optimize_calls={} observed_changes={} freshness_lag_ms={}",
+            control.watch_jobs,
+            control.watch_jobs,
+            control.observed_changes,
+            control.freshness_lag.as_millis()
+        );
+        println!(
+            "watch_benchmark mode=coalesced watch_jobs={} optimize_calls={} observed_changes={} freshness_lag_ms={}",
+            coalesced.watch_jobs,
+            coalesced.watch_jobs,
+            coalesced.observed_changes,
+            coalesced.freshness_lag.as_millis()
+        );
+        assert!(coalesced.watch_jobs < control.watch_jobs);
+        assert_eq!(coalesced.observed_changes, 41);
+        assert_eq!(control.observed_changes, 41);
+    }
+
+    #[tokio::test]
+    async fn manual_submission_is_not_delayed_by_a_queued_watch_followup() {
+        let executor = Arc::new(RecordingExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            releases: tokio::sync::Semaphore::new(0),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 2,
+                queue_capacity: 8,
+            },
+        );
+        let root = PathBuf::from("/workspace");
+        let first = scheduler
+            .submit(root.clone(), IndexOptions::default(), JobReason::Manual)
+            .expect("initial job should be accepted");
+        executor.started.notified().await;
+        let followup = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    changes: vec![WorkspaceChange::Upsert(PathBuf::from("src/lib.rs"))],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("watch follow-up should be accepted");
+        executor.releases.add_permits(1);
+        scheduler
+            .wait(first.job.id)
+            .await
+            .expect("initial job should complete");
+
+        let manual = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    name: Some("manual-now".into()),
+                    ..IndexOptions::default()
+                },
+                JobReason::Manual,
+            )
+            .expect("manual job should merge into the follow-up");
+        assert_eq!(manual.job.id, followup.job.id);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), executor.started.notified())
+                .await
+                .is_ok(),
+            "manual work must wake a delayed Watch follow-up immediately"
+        );
+        executor.releases.add_permits(1);
+        let completed = scheduler
+            .wait(followup.job.id)
+            .await
+            .expect("manual follow-up should complete");
+        assert_eq!(completed.job.state, JobState::Succeeded);
+        assert_eq!(
+            executor.calls.lock().expect("calls should be readable")[1].name,
+            Some("manual-now".into())
         );
     }
 

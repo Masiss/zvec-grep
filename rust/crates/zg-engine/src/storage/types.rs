@@ -65,6 +65,8 @@ pub(crate) struct IndexedFragment {
     pub fragment_id: FragmentId,
     /// Unique configured embedding model reference (provider/name).
     pub model: String,
+    /// Exact embedding input/model fingerprint; absent only in storage fixtures/legacy callers.
+    pub embedding_fingerprint: Option<String>,
     pub vector: Vec<f32>,
     pub fts_text: String,
 }

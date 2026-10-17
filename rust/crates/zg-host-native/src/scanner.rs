@@ -9,13 +9,14 @@ use std::{
 
 use async_trait::async_trait;
 use same_file::{Handle, is_same_file};
-use tokio::sync::Semaphore;
+use tokio::sync::{Semaphore, mpsc};
 
 use crate::{
     HostError,
     api::{
         DiscoveredFile, ReadBatchRequest, RootSpec, ScanDiagnostics, ScanRequest, ScanSnapshot,
-        SkippedFile, SkippedFileReason, SourceFile, TaskControl, WorkspaceScannerPort,
+        SkippedFile, SkippedFileReason, SourceFile, SourceReadSnapshot, SourceReadStream,
+        TaskControl, WorkspaceScannerPort,
     },
 };
 
@@ -74,6 +75,29 @@ impl WorkspaceScannerPort for NativeScanner {
         })
         .await
     }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn read_stream(
+        &self,
+        file: &DiscoveredFile,
+        control: &TaskControl,
+    ) -> Result<SourceReadStream, HostError> {
+        let permit = acquire_owned_slot(&self.scan_slots, control).await?;
+        let file = file.clone();
+        let blocking_control = BlockingControl {
+            cancellation: control.cancellation.clone(),
+            deadline: control.deadline,
+        };
+        let (sender, receiver) = mpsc::channel(2);
+        let task = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            read_source_stream_sync(&file, &blocking_control, sender)
+        });
+        Ok(SourceReadStream::from_worker(receiver, task))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -114,6 +138,24 @@ async fn acquire_slot<'a>(
             "native scanner operation exceeded its deadline",
         )),
         permit = slots.acquire() => permit.map_err(|_| {
+            HostError::internal("native scanner concurrency limiter closed unexpectedly")
+        }),
+    }
+}
+
+async fn acquire_owned_slot(
+    slots: &Arc<Semaphore>,
+    control: &TaskControl,
+) -> Result<tokio::sync::OwnedSemaphorePermit, HostError> {
+    control_check(control)?;
+    tokio::select! {
+        () = control.cancellation.cancelled() => {
+            Err(HostError::cancelled("native scanner operation was cancelled"))
+        },
+        () = deadline_wait(control.deadline) => Err(HostError::deadline_exceeded(
+            "native scanner operation exceeded its deadline",
+        )),
+        permit = Arc::clone(slots).acquire_owned() => permit.map_err(|_| {
             HostError::internal("native scanner concurrency limiter closed unexpectedly")
         }),
     }
@@ -541,6 +583,100 @@ fn read_batch_sync(
     Ok(sources)
 }
 
+fn read_source_stream_sync(
+    discovered: &DiscoveredFile,
+    control: &BlockingControl,
+    sender: mpsc::Sender<Vec<u8>>,
+) -> Result<SourceReadSnapshot, HostError> {
+    control.check()?;
+    validate_relative_path(&discovered.relative_path)?;
+    let absolute_path = if fs::metadata(&discovered.root).is_ok_and(|metadata| metadata.is_file()) {
+        discovered.root.clone()
+    } else {
+        discovered.root.join(&discovered.relative_path)
+    };
+    let mut file = File::open(&absolute_path).map_err(|error| {
+        HostError::storage_failure(
+            "native-scanner",
+            format!("could not open source {}: {error}", absolute_path.display()),
+        )
+    })?;
+    let before = file.metadata().map_err(|error| {
+        HostError::storage_failure(
+            "native-scanner",
+            format!(
+                "could not inspect source {}: {error}",
+                absolute_path.display()
+            ),
+        )
+    })?;
+    if !before.is_file() {
+        return Err(HostError::invalid_argument(format!(
+            "source must be a regular file: {}",
+            absolute_path.display()
+        )));
+    }
+
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut actual_size = 0_u64;
+    loop {
+        control.check()?;
+        let read = file.read(&mut buffer).map_err(|error| {
+            HostError::storage_failure(
+                "native-scanner",
+                format!("could not read source {}: {error}", absolute_path.display()),
+            )
+        })?;
+        if read == 0 {
+            break;
+        }
+        actual_size = actual_size
+            .checked_add(
+                u64::try_from(read)
+                    .map_err(|_| HostError::internal("stream chunk byte length exceeds u64"))?,
+            )
+            .ok_or_else(|| HostError::internal("source byte length exceeds u64"))?;
+        sender.blocking_send(buffer[..read].to_vec()).map_err(|_| {
+            HostError::cancelled("source stream consumer closed before reading completed")
+        })?;
+    }
+    control.check()?;
+    let after = file.metadata().map_err(|error| {
+        HostError::storage_failure(
+            "native-scanner",
+            format!(
+                "could not inspect source {}: {error}",
+                absolute_path.display()
+            ),
+        )
+    })?;
+    validate_source_snapshot(&absolute_path, &before, &after, actual_size)?;
+    let same_file = Handle::from_file(file)
+        .and_then(|opened| Handle::from_path(&absolute_path).map(|current| opened == current))
+        .map_err(|error| {
+            HostError::storage_failure(
+                "native-scanner",
+                format!(
+                    "could not verify source identity {}: {error}",
+                    absolute_path.display()
+                ),
+            )
+        })?;
+    if !same_file {
+        return Err(HostError::storage_failure(
+            "native-scanner",
+            format!(
+                "source was replaced while reading: {}",
+                absolute_path.display()
+            ),
+        ));
+    }
+    Ok(SourceReadSnapshot {
+        size_bytes: actual_size,
+        source_fingerprint: source_fingerprint(after.len(), modified_epoch_ms(&after)),
+    })
+}
+
 fn read_source_snapshot(path: &Path, mut file: File) -> Result<(Vec<u8>, String), HostError> {
     let inspect = |file: &File| {
         file.metadata().map_err(|error| {
@@ -670,6 +806,40 @@ mod tests {
     use std::{fs::FileTimes, time::Duration};
 
     use super::*;
+
+    #[tokio::test]
+    async fn native_source_stream_is_bounded_and_verifies_snapshot() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("source.txt");
+        let bytes = vec![b'x'; 200_000];
+        fs::write(&path, &bytes).expect("write source");
+        let metadata = fs::metadata(&path).expect("source metadata");
+        let discovered = DiscoveredFile {
+            root: directory.path().to_path_buf(),
+            relative_path: PathBuf::from("source.txt"),
+            size_bytes: metadata.len(),
+            modified_epoch_ms: modified_epoch_ms(&metadata),
+            source_fingerprint: source_fingerprint(metadata.len(), modified_epoch_ms(&metadata)),
+        };
+        let scanner = NativeScanner::new();
+        let mut stream = scanner
+            .read_stream(&discovered, &TaskControl::default())
+            .await
+            .expect("open source stream");
+        let mut collected = Vec::new();
+        let mut chunks = 0;
+        while let Some(chunk) = stream.next_chunk().await {
+            assert!(!chunk.is_empty());
+            assert!(chunk.len() <= 64 * 1024);
+            chunks += 1;
+            collected.extend_from_slice(&chunk);
+        }
+        let snapshot = stream.finish().await.expect("finish source stream");
+        assert_eq!(collected, bytes);
+        assert!(chunks > 1);
+        assert_eq!(snapshot.size_bytes, discovered.size_bytes);
+        assert_eq!(snapshot.source_fingerprint, discovered.source_fingerprint);
+    }
 
     #[test]
     fn source_snapshot_uses_metadata_from_the_read_handle() {

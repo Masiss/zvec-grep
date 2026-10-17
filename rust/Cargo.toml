@@ -55,6 +55,7 @@ uuid = { version = "1.18.1", features = ["serde", "v4"] }
 windows-spawn = "0.1.0"
 zvec-rust = "=0.7.2"
 zvec-rust-build = "=0.7.2"
+zg-memory = { path = "crates/zg-memory" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

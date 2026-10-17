@@ -140,6 +140,7 @@ fn metadata_fragments(
         .map(|(fragment, (vector, text))| IndexedFragment {
             fts_text: format!("harvest 春'\\crop\nGarden\npub async fn harvest() -> Crop\nProduces the seasonal crop.\n{text}"),
             model: "fixture/fixture".into(),
+            embedding_fingerprint: None,
             entity_id: owner.id.clone(),
             fragment_id: fragment.id.clone(),
             vector,
@@ -500,7 +501,7 @@ fn fragment_ids_cannot_be_reused_by_another_file_in_a_different_model_table() {
 }
 
 #[test]
-fn interrupted_replacements_remain_readable_and_retry_removes_stale_fragments() {
+fn interrupted_replacements_hide_old_rows_until_retry_removes_stale_fragments() {
     let home = tempfile::tempdir().expect("storage");
     let store = metadata_store(home.path());
     let (mut source, entities, entries) = metadata_fragments(0, "old-owner");
@@ -527,13 +528,12 @@ fn interrupted_replacements_remain_readable_and_retry_removes_stale_fragments() 
         store.list_files().expect("unchanged retry state"),
         [unfinished]
     );
-    assert_eq!(
+    assert!(
         store
             .load_search_hits(&old_hits)
-            .expect("partial data remains readable")
-            .entities[&entities[0].id]
-            .entity,
-        entities[0],
+            .expect("unfinished replacement is hidden")
+            .entities
+            .is_empty()
     );
     let (_, mut replacement, mut projections) = metadata_fragments(0, "new-owner");
     replacement[0].fragments.truncate(1);

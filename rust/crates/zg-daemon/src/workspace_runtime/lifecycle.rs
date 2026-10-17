@@ -96,9 +96,14 @@ impl WorkspaceRuntimeManager {
                 }
                 let Some(inner) = weak.upgrade() else { break };
                 let manager = WorkspaceRuntimeManager { inner };
-                manager.retire_idle(Instant::now()).await;
+                manager.maintenance_tick().await;
             }
         }));
+    }
+
+    async fn maintenance_tick(&self) {
+        self.retire_idle(Instant::now()).await;
+        zg_memory::reclaim_idle("daemon idle maintenance");
     }
 
     pub(super) async fn retire_idle(&self, now: Instant) {
@@ -125,10 +130,14 @@ impl WorkspaceRuntimeManager {
             });
             retired
         };
+        let retired_any = !retired.is_empty();
         for runtime in retired {
             if let Err(error) = Self::close_watcher(&runtime).await {
                 tracing::warn!(%error, root = %runtime.canonical_root.display(), "idle watcher close failed");
             }
+        }
+        if retired_any {
+            zg_memory::reclaim("workspace retirement");
         }
     }
 }

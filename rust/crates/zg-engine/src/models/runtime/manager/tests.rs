@@ -11,6 +11,25 @@ use crate::domain::model::Metric;
 use super::*;
 use crate::domain::model::EmbeddingPurpose;
 
+#[test]
+fn cache_policy_allows_short_or_disabled_idle_retention() {
+    let default = CachePolicy::from_overrides(None, None);
+    assert_eq!(default.idle_timeout, Duration::from_secs(900));
+    assert_eq!(default.capacity, 1);
+
+    let short = CachePolicy::from_overrides(Some(" 60 "), Some("1"));
+    assert_eq!(short.idle_timeout, Duration::from_secs(60));
+    assert_eq!(short.capacity, 1);
+
+    let disabled = CachePolicy::from_overrides(Some("0"), Some("0"));
+    assert_eq!(disabled.idle_timeout, Duration::ZERO);
+    assert_eq!(disabled.capacity, 0);
+
+    let invalid = CachePolicy::from_overrides(Some("86401"), Some("100"));
+    assert_eq!(invalid.idle_timeout, Duration::from_secs(900));
+    assert_eq!(invalid.capacity, 1);
+}
+
 struct ConcurrentFixtureModel {
     info: EmbeddingModelInfo,
     barrier: Barrier,

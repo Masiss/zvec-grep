@@ -318,10 +318,12 @@ async fn watch_loop(mut state: WatchLoop) {
         // Drain delivered raw events before acknowledging a reader's barrier.
         // Events not delivered by the OS are covered by recovery/periodic rescans.
         if pending_flush.is_some() && state.raw_receiver.is_empty() {
-            if state.overflowed.swap(false, Ordering::AcqRel)
-                || state.watcher.is_none()
-                || retry_deadline.is_some()
-            {
+            let raw_queue_overflowed = state.overflowed.swap(false, Ordering::AcqRel);
+            if raw_queue_overflowed {
+                warn!(root = %state.root.path.display(), cause = "raw_queue_overflow",
+                    "native watcher requires full rescan");
+            }
+            if raw_queue_overflowed || state.watcher.is_none() || retry_deadline.is_some() {
                 changes.require_full_rescan();
                 match refresh_watcher(&mut state).await {
                     Ok(()) if state.watcher.is_some() && consecutive_errors > 0 => {
@@ -428,6 +430,8 @@ async fn watch_loop(mut state: WatchLoop) {
             }
             () = state.overflow_notify.notified() => {
                 if state.overflowed.swap(false, Ordering::AcqRel) {
+                    warn!(root = %state.root.path.display(), cause = "raw_queue_overflow",
+                        "native watcher requires full rescan");
                     refresh_registration = true;
                     changes.require_full_rescan();
                     schedule_flush(&state.config, &mut debounce_deadline, &mut max_wait_deadline);
@@ -568,10 +572,7 @@ fn create_watcher(
     let overflowed = Arc::clone(overflowed);
     let overflow_notify = Arc::clone(overflow_notify);
     let handler = move |event| {
-        if sender.try_send(event).is_err() {
-            overflowed.store(true, Ordering::Release);
-            overflow_notify.notify_one();
-        }
+        enqueue_raw_event(&sender, &overflowed, &overflow_notify, event);
     };
     let backend = if let Some(interval) = poll_interval {
         WatchBackend::Poll(
@@ -600,6 +601,29 @@ fn create_watcher(
     };
     watcher.refresh(root, root_is_file)?;
     Ok(watcher)
+}
+
+fn enqueue_raw_event(
+    sender: &mpsc::Sender<notify::Result<Event>>,
+    overflowed: &AtomicBool,
+    overflow_notify: &Notify,
+    event: notify::Result<Event>,
+) {
+    // Access notifications are irrelevant to index contents (normalize_event
+    // already ignores them). Linux notify subscribes to IN_OPEN: a scanner or
+    // registration walk can otherwise fill this queue with its own reads and
+    // turn harmless activity into a full-rescan feedback loop. Preserve errors
+    // and explicit rescan flags, even if carried by an Access event.
+    if event
+        .as_ref()
+        .is_ok_and(|event| matches!(event.kind, EventKind::Access(_)) && !event.need_rescan())
+    {
+        return;
+    }
+    if sender.try_send(event).is_err() {
+        overflowed.store(true, Ordering::Release);
+        overflow_notify.notify_one();
+    }
 }
 
 fn watcher_error(error: impl std::fmt::Display) -> HostError {
@@ -956,13 +980,13 @@ fn normalize_event(
     event: &Event,
 ) -> Result<NormalizedEvent, HostError> {
     let mut normalized = NormalizedEvent::default();
-    if matches!(event.kind, EventKind::Access(_)) {
-        return Ok(normalized);
-    }
     if event.need_rescan() || matches!(event.kind, EventKind::Any | EventKind::Other) {
         root.policy.invalidate()?;
         normalized.changes.push(WorkspaceChange::Rescan);
         normalized.refresh_registration = true;
+        return Ok(normalized);
+    }
+    if matches!(event.kind, EventKind::Access(_)) {
         return Ok(normalized);
     }
     let topology_event = is_topology_event(event.kind);
@@ -1167,6 +1191,96 @@ mod tests {
     use crate::PathPolicy;
     use notify::event::CreateKind;
     use std::sync::atomic::AtomicUsize;
+
+    #[test]
+    fn ignored_access_flood_does_not_poison_raw_queue() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let overflowed = AtomicBool::new(false);
+        let notify = Notify::new();
+        let modification = Event::new(EventKind::Modify(ModifyKind::Data(
+            notify::event::DataChange::Content,
+        )))
+        .add_path(PathBuf::from("source.rs"));
+        enqueue_raw_event(&sender, &overflowed, &notify, Ok(modification.clone()));
+        for _ in 0..10_000 {
+            for kind in [
+                notify::event::AccessKind::Open(notify::event::AccessMode::Any),
+                notify::event::AccessKind::Close(notify::event::AccessMode::Read),
+                notify::event::AccessKind::Close(notify::event::AccessMode::Write),
+            ] {
+                enqueue_raw_event(
+                    &sender,
+                    &overflowed,
+                    &notify,
+                    Ok(Event::new(EventKind::Access(kind))),
+                );
+            }
+        }
+        assert!(
+            !overflowed.load(Ordering::Acquire),
+            "ignored accesses must not request a rescan"
+        );
+        assert_eq!(
+            receiver.try_recv().expect("real change").expect("event"),
+            modification
+        );
+        assert!(receiver.try_recv().is_err());
+        enqueue_raw_event(&sender, &overflowed, &notify, Ok(modification.clone()));
+        assert_eq!(
+            receiver.try_recv().expect("later change").expect("event"),
+            modification
+        );
+    }
+
+    #[test]
+    fn raw_queue_keeps_meaningful_overflow_and_backend_errors() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let overflowed = AtomicBool::new(false);
+        let notify = Notify::new();
+        let change = Event::new(EventKind::Modify(ModifyKind::Data(
+            notify::event::DataChange::Content,
+        )));
+        enqueue_raw_event(&sender, &overflowed, &notify, Ok(change.clone()));
+        enqueue_raw_event(&sender, &overflowed, &notify, Ok(change));
+        assert!(overflowed.load(Ordering::Acquire));
+        receiver.try_recv().expect("queued change").expect("event");
+        overflowed.store(false, Ordering::Release);
+        enqueue_raw_event(
+            &sender,
+            &overflowed,
+            &notify,
+            Err(notify::Error::generic("injected backend error")),
+        );
+        assert!(
+            receiver
+                .try_recv()
+                .expect("backend error is delivered")
+                .is_err()
+        );
+        assert!(!overflowed.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn access_event_with_rescan_flag_is_not_ignored() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let overflowed = AtomicBool::new(false);
+        let notify = Notify::new();
+        let event = Event::new(EventKind::Access(notify::event::AccessKind::Open(
+            notify::event::AccessMode::Any,
+        )))
+        .set_flag(notify::event::Flag::Rescan);
+        enqueue_raw_event(&sender, &overflowed, &notify, Ok(event));
+        let event = receiver
+            .try_recv()
+            .expect("rescan is delivered")
+            .expect("event");
+        assert!(event.need_rescan());
+        let temporary = tempfile::tempdir().expect("fixture");
+        let root = test_root(temporary.path(), temporary.path().join(".control"));
+        let normalized = normalize_event(&root, false, &event).expect("normalize rescan");
+        assert_eq!(normalized.changes, [WorkspaceChange::Rescan]);
+        assert!(normalized.refresh_registration);
+    }
 
     #[test]
     fn watcher_recovery_uses_node_backoff_schedule() {

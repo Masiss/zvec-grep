@@ -83,7 +83,11 @@ fn run() -> Result<(), Box<dyn Error>> {
         init_tracing(debug);
     }
 
-    let runtime = Builder::new_multi_thread().enable_all().build()?;
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(default_runtime_workers())
+        .max_blocking_threads(default_blocking_workers())
+        .enable_all()
+        .build()?;
 
     runtime.block_on(Box::pin(execute_plan(plan)))
 }
@@ -112,6 +116,29 @@ fn install_darwin_metal_residency_mitigation() -> io::Result<()> {
 #[allow(clippy::unnecessary_wraps)]
 fn install_darwin_metal_residency_mitigation() -> io::Result<()> {
     Ok(())
+}
+
+const DEFAULT_MAX_RUNTIME_WORKERS: usize = 8;
+const DEFAULT_MAX_BLOCKING_WORKERS: usize = 8;
+
+fn default_runtime_workers() -> usize {
+    std::env::var("ZVEC_GREP_TOKIO_WORKERS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&value| value > 0)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map_or(1, std::num::NonZeroUsize::get)
+                .min(DEFAULT_MAX_RUNTIME_WORKERS)
+        })
+}
+
+fn default_blocking_workers() -> usize {
+    std::env::var("ZVEC_GREP_TOKIO_BLOCKING_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&value| value > 0)
+        .unwrap_or(DEFAULT_MAX_BLOCKING_WORKERS)
 }
 
 async fn execute_plan(plan: CliPlan) -> Result<(), Box<dyn Error>> {

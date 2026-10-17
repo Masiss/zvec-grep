@@ -17,6 +17,8 @@ use crate::{
 use super::manifest::{WORKSPACE_MANIFEST_FILE, WorkspaceManifest, write_workspace_manifest};
 
 const BUILD_FILE: &str = "build.json";
+const REBUILD_FREE_SPACE_MULTIPLIER: u64 = 2;
+const REBUILD_HEADROOM_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub(crate) struct WorkspaceBuild {
@@ -107,6 +109,70 @@ fn recover_build_with(
         remove_generation(home, &build.generation, delete_storage)?;
     }
     remove_build(home)
+}
+
+/// Check that a staged rebuild has conservative room for a new generation and
+/// native temporary files while retaining the active generation for rollback.
+///
+/// This is intentionally a preflight only: runtime writes can still consume
+/// space concurrently and must keep returning ordinary I/O errors.
+pub(crate) fn preflight_rebuild(home: &Path, active_storage: &Path) -> Result<(), EngineError> {
+    if !active_storage.is_dir() {
+        return Ok(());
+    }
+    let active_bytes = directory_size(active_storage)?;
+    if active_bytes == 0 {
+        return Ok(());
+    }
+    let Some(available_bytes) = available_space(home)? else {
+        tracing::debug!(path = %home.display(), "rebuild disk preflight unavailable on this platform");
+        return Ok(());
+    };
+    let required_bytes = active_bytes
+        .saturating_mul(REBUILD_FREE_SPACE_MULTIPLIER)
+        .saturating_add(REBUILD_HEADROOM_BYTES);
+    if available_bytes < required_bytes {
+        return Err(EngineError::storage_failure(format!(
+            "insufficient disk space for atomic rebuild: active storage={active_bytes} bytes, available={available_bytes} bytes, required at least {required_bytes} bytes"
+        )));
+    }
+    tracing::info!(
+        active_storage_bytes = active_bytes,
+        available_bytes,
+        required_bytes,
+        "rebuild disk preflight passed"
+    );
+    Ok(())
+}
+
+fn directory_size(path: &Path) -> Result<u64, EngineError> {
+    let mut total = 0_u64;
+    for entry in fs::read_dir(path).map_err(build_io)? {
+        let entry = entry.map_err(build_io)?;
+        let file_type = entry.file_type().map_err(build_io)?;
+        if file_type.is_dir() {
+            total = total.saturating_add(directory_size(&entry.path())?);
+        } else if file_type.is_file() {
+            total = total.saturating_add(entry.metadata().map_err(build_io)?.len());
+        }
+    }
+    Ok(total)
+}
+
+#[cfg(unix)]
+fn available_space(path: &Path) -> Result<Option<u64>, EngineError> {
+    let stats = rustix::fs::statvfs(path).map_err(|error| {
+        EngineError::storage_failure(format!(
+            "inspect free disk space at {}: {error}",
+            path.display()
+        ))
+    })?;
+    Ok(Some(stats.f_bavail.saturating_mul(stats.f_frsize.max(1))))
+}
+
+#[cfg(not(unix))]
+fn available_space(_path: &Path) -> Result<Option<u64>, EngineError> {
+    Ok(None)
 }
 
 /// Start with empty storage. The caller must clean up any previous build first.

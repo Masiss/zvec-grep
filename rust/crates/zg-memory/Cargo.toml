@@ -1,0 +1,24 @@
+[package]
+name = "zg-memory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+tracing.workspace = true
+
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+libc = "0.2.189"
+
+# The only unsafe code in this crate is the narrowly scoped glibc FFI call. The
+# public reclamation API is safe and is a no-op on unsupported platforms.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+

@@ -552,6 +552,14 @@ Environment:
   ZVEC_GREP_SERVER_TOKEN_FILE  File containing the Server/client Bearer token
   ZVEC_GREP_MCP_TOOLSET        Server MCP surface: agent or full
 
+Memory and worker tuning:
+  ZVEC_GREP_MALLOC_TRIM             glibc trim: 0, false, or off disables it
+  ZVEC_GREP_MALLOC_TRIM_IDLE_SECS  Idle trim interval (default 300; 0 disables)
+  ZVEC_GREP_TOKIO_WORKERS           Tokio worker override (default capped at 8)
+  ZVEC_GREP_TOKIO_BLOCKING_THREADS   Tokio blocking worker cap (default 8)
+  ZVEC_GREP_MODEL_COMPUTE_THREADS    Model compute override (default capped at 8)
+  ZVEC_GREP_NATIVE_THREADS            zvec query/optimize threads (default 2)
+
 See zg --help environment for daemon startup scope.";
 
 const INSTALL_HELP: &str = r"Usage:

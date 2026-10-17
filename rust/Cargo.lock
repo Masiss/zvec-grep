@@ -4084,6 +4084,7 @@ dependencies = [
  "zg-daemon-protocol",
  "zg-engine",
  "zg-host-native",
+ "zg-memory",
  "zg-transport-mcp",
 ]
 
@@ -4140,6 +4141,7 @@ dependencies = [
  "uuid",
  "zg-engine-macros",
  "zg-host-native",
+ "zg-memory",
  "zvec-rust",
 ]
 
@@ -4163,6 +4165,14 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "zg-memory"
+version = "0.0.1"
+dependencies = [
+ "libc",
  "tracing",
 ]
 

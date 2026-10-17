@@ -111,6 +111,7 @@ fn metadata_fragments(
         .map(|(fragment, (vector, text))| IndexedFragment {
             fts_text: format!("harvest 春'\\crop\nGarden\npub async fn harvest() -> Crop\nProduces the seasonal crop.\n{text}"),
             model: "fixture/fixture".into(),
+            embedding_fingerprint: None,
             entity_id: owner.id.clone(),
             fragment_id: fragment.id.clone(),
             vector,

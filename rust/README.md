@@ -6,6 +6,8 @@ and [user documentation](../docs/README.md) describe that implementation.
 
 Run the development commands below from `rust/` (`cd rust` from the repository
 root). See the [contributor guide](CONTRIBUTING.md) for checks and conventions.
+For the current crate boundaries, request flows, storage lifecycle, and change
+locations, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
 This workspace preserves its own crates, scripts, compatibility fixtures, and
 benchmarks. The application API is centered on one reusable `ZvecGrep` engine

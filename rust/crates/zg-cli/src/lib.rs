@@ -572,6 +572,9 @@ pub struct StatusArgs {
     pub mode: Option<ClientMode>,
     #[arg(long = "check-ready")]
     pub check_ready: bool,
+    /// Verify source/storage state; without this, status reads metadata only.
+    #[arg(long)]
+    pub verify: bool,
     #[arg(long)]
     pub debug: bool,
     #[arg(long, value_enum)]
@@ -826,7 +829,7 @@ impl Cli {
                 home: args.home,
                 request: InfoOptions {
                     root: Some(resolve_from(&current_dir, args.root.as_deref())),
-                    include_status: true,
+                    include_status: args.verify || args.check_ready,
                 },
                 check_ready: args.check_ready,
                 output: OutputOptions {
@@ -1661,6 +1664,25 @@ mod tests {
             assert_eq!(request.queries, [word, "second"]);
             assert_eq!(request.limit, Some(3));
         }
+    }
+
+    #[test]
+    fn status_verification_is_explicit() {
+        let CliPlan::Status { request, .. } = plan(&["zg", "--status"], false) else {
+            panic!("status plan")
+        };
+        assert!(!request.include_status);
+
+        let CliPlan::Status { request, .. } = plan(&["zg", "--status", "--verify"], false) else {
+            panic!("verified status plan")
+        };
+        assert!(request.include_status);
+
+        let CliPlan::Status { request, .. } = plan(&["zg", "--status", "--check-ready"], false)
+        else {
+            panic!("ready status plan")
+        };
+        assert!(request.include_status);
     }
 
     #[test]

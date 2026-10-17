@@ -6,6 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 use crate::HostError;
@@ -189,6 +190,59 @@ pub struct SourceFile {
     pub source_fingerprint: String,
 }
 
+/// Snapshot metadata verified after a streamed source read completes.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceReadSnapshot {
+    pub size_bytes: u64,
+    pub source_fingerprint: String,
+}
+
+/// Backpressure-aware byte stream for a single discovered file.
+pub struct SourceReadStream {
+    receiver: mpsc::Receiver<Vec<u8>>,
+    task: JoinHandle<Result<SourceReadSnapshot, HostError>>,
+}
+
+impl SourceReadStream {
+    pub(crate) fn from_worker(
+        receiver: mpsc::Receiver<Vec<u8>>,
+        task: JoinHandle<Result<SourceReadSnapshot, HostError>>,
+    ) -> Self {
+        Self { receiver, task }
+    }
+
+    pub(crate) fn from_source(source: SourceFile) -> Self {
+        let (sender, receiver) = mpsc::channel(2);
+        let task = tokio::spawn(async move {
+            let size_bytes = u64::try_from(source.bytes.len())
+                .map_err(|_| HostError::internal("source byte length exceeds u64"))?;
+            for chunk in source.bytes.chunks(64 * 1024) {
+                sender
+                    .send(chunk.to_vec())
+                    .await
+                    .map_err(|_| HostError::cancelled("source stream receiver was dropped"))?;
+            }
+            Ok(SourceReadSnapshot {
+                size_bytes,
+                source_fingerprint: source.source_fingerprint,
+            })
+        });
+        Self { receiver, task }
+    }
+
+    /// Receive the next bounded source byte chunk; `None` indicates worker completion.
+    pub async fn next_chunk(&mut self) -> Option<Vec<u8>> {
+        self.receiver.recv().await
+    }
+
+    /// Join the reader and return the source snapshot verified by the host scanner.
+    pub async fn finish(self) -> Result<SourceReadSnapshot, HostError> {
+        self.task
+            .await
+            .map_err(|error| HostError::internal(format!("native source reader failed: {error}")))?
+    }
+}
+
 /// Metadata-first workspace discovery and bounded source reads.
 ///
 /// Discovery must not read complete file contents. Callers compare the source
@@ -207,6 +261,42 @@ pub trait WorkspaceScannerPort: Send + Sync {
         request: &ReadBatchRequest,
         control: &TaskControl,
     ) -> Result<Vec<SourceFile>, HostError>;
+
+    /// Whether `read_stream` is backed by an incremental source reader rather than
+    /// materializing a complete source through `read_batch`.
+    fn supports_streaming(&self) -> bool {
+        false
+    }
+
+    /// Read one source as bounded byte chunks. Implementations that only support
+    /// batch reads retain compatibility through this bounded-channel fallback.
+    async fn read_stream(
+        &self,
+        file: &DiscoveredFile,
+        control: &TaskControl,
+    ) -> Result<SourceReadStream, HostError> {
+        let mut sources = self
+            .read_batch(
+                &ReadBatchRequest {
+                    files: vec![file.clone()],
+                },
+                control,
+            )
+            .await?;
+        if sources.len() != 1 {
+            return Err(HostError::internal(format!(
+                "scanner returned {} sources for one streamed file",
+                sources.len()
+            )));
+        }
+        let source = sources.remove(0);
+        if source.root != file.root || source.relative_path != file.relative_path {
+            return Err(HostError::internal(
+                "scanner returned bytes for a different streamed source file",
+            ));
+        }
+        Ok(SourceReadStream::from_source(source))
+    }
 }
 
 #[derive(Clone, Debug)]

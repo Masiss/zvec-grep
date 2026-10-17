@@ -28,6 +28,7 @@ tracing.workspace = true
 uuid.workspace = true
 zg-engine = { path = "../zg-engine" }
 zg-host-native = { path = "../zg-host-native" }
+zg-memory.workspace = true
 zg-daemon-protocol = { path = "../zg-daemon-protocol" }
 zg-transport-mcp = { path = "../zg-transport-mcp" }
 

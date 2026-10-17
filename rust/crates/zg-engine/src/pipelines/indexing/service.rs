@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     env, fmt,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use std::sync::Arc;
@@ -30,8 +30,9 @@ use crate::{
     workspace::{
         CURRENT_INDEX_VERSION,
         build::{
-            WorkspaceBuild, discard_build, has_build, has_generation_storage, prepare_build,
-            publish_build, read_build_registration, recover_build, recover_build_for_rebuild,
+            WorkspaceBuild, discard_build, has_build, has_generation_storage, preflight_rebuild,
+            prepare_build, publish_build, read_build_registration, recover_build,
+            recover_build_for_rebuild,
         },
         layout::{
             WorkspaceIndexLocation, find_nearest_workspace, reset_workspace_index,
@@ -221,6 +222,9 @@ impl WorkspaceIndexService {
             options.embedding_concurrency,
         )
         .map_err(ModelError::into_engine_error)?;
+        if rebuilding && let Some(active) = existing.as_ref() {
+            preflight_rebuild(&location.home, &active.storage_home())?;
+        }
         let IndexModels {
             runtimes: acquired,
             descriptor,
@@ -270,10 +274,12 @@ impl WorkspaceIndexService {
         options: IndexOptions,
         home_lock: Arc<FileLock>,
     ) -> Result<IndexResult, EngineError> {
+        let open_started = Instant::now();
         let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
             storage_path: manifest.storage_home(),
             embeddings: models.iter().map(|model| model.info().clone()).collect(),
         })?;
+        let storage_open_ms = u64::try_from(open_started.elapsed().as_millis()).unwrap_or(u64::MAX);
         let writer = self.writers.register(
             crate::pipelines::indexed_search::writer::WriterSession::new(
                 storage,
@@ -311,8 +317,17 @@ impl WorkspaceIndexService {
         });
         // Closing precedes publication: all checkpoints and native handles belong
         // to the completed generation before the active manifest can select it.
+        let close_started = Instant::now();
         writer.retire().await;
         let close_result = writer.session.storage.close();
+        tracing::info!(
+            root = %manifest.workspace.root.display(),
+            storage_open_ms,
+            storage_retire_close_ms = u64::try_from(close_started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            pipeline_succeeded = result.is_ok(),
+            close_succeeded = close_result.is_ok(),
+            "index storage lifecycle completed"
+        );
         let indexed = result?;
         close_result?;
         if options

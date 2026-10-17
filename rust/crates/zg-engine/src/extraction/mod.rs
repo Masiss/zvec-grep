@@ -16,6 +16,7 @@ pub(crate) use spi::ChunkOptions;
 
 // Indexing output.
 pub(crate) use spi::{ExtractedEntity, ExtractedEntityFragment};
+pub(crate) use text::TextStreamChunker;
 
 use crate::{
     EngineError,

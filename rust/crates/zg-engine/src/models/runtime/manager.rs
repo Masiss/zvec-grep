@@ -59,12 +59,31 @@ struct CachePolicy {
     capacity: usize,
 }
 
+impl CachePolicy {
+    /// Keep the defaults stable, but let resident daemons trade model warm-start
+    /// latency for a smaller anonymous-RSS idle footprint. A zero timeout or
+    /// capacity retires a model as soon as its last lease is released.
+    fn from_overrides(idle_seconds: Option<&str>, capacity: Option<&str>) -> Self {
+        let idle_seconds = idle_seconds
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .filter(|seconds| *seconds <= 86_400)
+            .unwrap_or(15 * 60);
+        let capacity = capacity
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .filter(|capacity| *capacity <= 16)
+            .unwrap_or(1);
+        Self {
+            idle_timeout: Duration::from_secs(idle_seconds),
+            capacity,
+        }
+    }
+}
+
 impl Default for CachePolicy {
     fn default() -> Self {
-        Self {
-            idle_timeout: Duration::from_mins(15),
-            capacity: 1,
-        }
+        let timeout = std::env::var("ZVEC_GREP_MODEL_IDLE_TIMEOUT_SECONDS").ok();
+        let capacity = std::env::var("ZVEC_GREP_MODEL_CACHE_CAPACITY").ok();
+        Self::from_overrides(timeout.as_deref(), capacity.as_deref())
     }
 }
 
@@ -246,7 +265,11 @@ impl ModelRuntimeManager {
             }),
         };
         drop(state);
+        let retired_any = !retired.is_empty();
         drop(retired);
+        if retired_any {
+            zg_memory::reclaim("model cache eviction");
+        }
         Ok(lease)
     }
 
@@ -259,6 +282,8 @@ impl ModelRuntimeManager {
         // or waiting for model destructors while holding its state lock.
         state.maintenance.take();
         let retired = state.retire_idle(self.inner.policy, Instant::now());
+        // Shutdown is deliberately not a reclamation point: native storage and
+        // model backends may still be unwinding their own global destructors.
         drop(state);
         drop(retired);
     }
@@ -379,7 +404,11 @@ fn maintain_cache(manager: &Weak<ManagerInner>, receiver: &Receiver<()>) {
             .min();
         drop(state);
         drop(inner);
+        let retired_any = !retired.is_empty();
         drop(retired);
+        if retired_any {
+            zg_memory::reclaim("model cache idle eviction");
+        }
         // With no idle model there is no timer. Closing or dropping the manager
         // disconnects the channel and wakes this thread immediately.
         match deadline {
@@ -427,6 +456,10 @@ impl ModelRuntimeLease {
 
     pub(crate) fn info(&self) -> &EmbeddingModelInfo {
         self.entry.runtime.model.info()
+    }
+
+    pub(crate) fn identity_is_stable(&self) -> bool {
+        self.entry.runtime.model.identity_is_stable()
     }
 
     pub(crate) async fn prepare(
@@ -526,7 +559,11 @@ impl Drop for ModelRuntimeLease {
         let retired = state.retire_idle(manager.policy, Instant::now());
         state.wake_maintenance();
         drop(state);
+        let retired_any = !retired.is_empty();
         drop(retired);
+        if retired_any {
+            zg_memory::reclaim("model lease eviction");
+        }
     }
 }
 

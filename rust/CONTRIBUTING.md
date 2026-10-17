@@ -17,6 +17,25 @@ The workspace pins its Rust toolchain in `rust-toolchain.toml`. Lexical search
 uses embedded `grep` and `ignore` crates, so a system `rg` executable is not
 required for builds or tests.
 
+## Codebase map with RepoWise
+
+The Rust source is indexed locally with the global `repowise` CLI. The
+`.repowise/` directory is local tool state and is ignored by Git. Use the
+structural mode when updating the graph without an LLM provider:
+
+```sh
+cd rust
+repowise init . --no-prose --no-editor-setup --no-hook --no-agents --no-workspace
+repowise update --index-only --working-tree --no-workspace
+repowise search "indexing pipeline storage daemon"
+repowise context crates/zg-engine/src/pipelines/indexing/pipeline.rs
+repowise export --format markdown --output /tmp/zvec-grep-rust-repowise-export
+```
+
+Run `repowise update --working-tree` after source or documentation changes.
+Use the generated graph to locate responsibilities and dependencies, then
+verify behavioral claims against the Rust source and tests before editing.
+
 ## Engine changes
 
 Keep the application surface centered on `ZvecGrep`:
