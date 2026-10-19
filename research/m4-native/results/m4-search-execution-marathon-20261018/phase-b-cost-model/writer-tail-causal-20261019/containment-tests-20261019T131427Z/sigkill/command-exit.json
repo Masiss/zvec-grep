@@ -1,0 +1,6 @@
+{
+  "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-4c00bca9de3f4aef.service",
+  "pid": 3676661,
+  "returncode": -9,
+  "timestamp_utc": "2026-10-19T13:14:28.982837+00:00"
+}

@@ -1,0 +1,28 @@
+{
+  "baseline_memory_events": {
+    "high": 0,
+    "low": 0,
+    "max": 0,
+    "oom": 0,
+    "oom_group_kill": 0,
+    "oom_kill": 0,
+    "sock_throttled": 0
+  },
+  "bootstrap_pid": 3676574,
+  "budget": null,
+  "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-d2def72b0fa5413f.service",
+  "cgroup_rel": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-d2def72b0fa5413f.service",
+  "command_done_marker": "/run/user/1000/m4-cgroup-s8m5pzmy/command.done",
+  "controller_pid": 3676491,
+  "enforce_host_gates": false,
+  "pressure_limits": null,
+  "resource_root": "/var/tmp",
+  "runtime_limit_seconds": 5.0,
+  "sample_interval_ms": 20,
+  "socket_dir": "/run/user/1000/m4-cgroup-s8m5pzmy",
+  "start_marker": "/run/user/1000/m4-cgroup-s8m5pzmy/go",
+  "unit": "m4-contained-d2def72b0fa5413f.service",
+  "watchdog_output": "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/containment-tests-20261019T131427Z/normal-child",
+  "watchdog_ready_path": "/run/user/1000/m4-cgroup-s8m5pzmy/watchdog.ready",
+  "workspace_root": "/var/tmp/m4-containment-fixtures-e3tr7dlu/workspace"
+}

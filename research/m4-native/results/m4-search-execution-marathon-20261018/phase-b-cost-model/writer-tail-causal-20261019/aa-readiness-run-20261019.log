@@ -1,0 +1,3 @@
+AA_BASELINE_START duration_s=60 sample_ms=50
+AA_BASELINE_REJECTED status=STABILITY_GATE_FAIL reason=baseline drift: last half outside first-half envelope for load1_max
+NO_LAUNCH: STABILITY_GATE_FAIL; ambient baseline rejected

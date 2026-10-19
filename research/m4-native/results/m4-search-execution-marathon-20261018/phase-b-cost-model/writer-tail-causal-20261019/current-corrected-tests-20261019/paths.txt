@@ -1,0 +1,2 @@
+build_root=/var/tmp/m4-writer-tail-current-corrected.iakWXv
+source=/home/masis/src/zvec-grep/research/m4-native

@@ -1,0 +1,577 @@
+# M4 — Incremental native index (research prototype)
+
+Status: **research only.** Nothing here is linked into `zvec`, `zg-engine`, the
+daemon, or the production index format. HNSW, the native build, and every
+production schema are untouched.
+
+## Why this exists
+
+M2/M3 showed that a single-file write still costs 20–30 s on large
+collections. The cost is not HNSW (that path is already base-reuse + tail
+append). It is the two whole-collection reducers:
+
+- `ReduceScalar` / `ReduceScalarIndex` re-emit every forward row and rebuild
+  the sealed INVERT RocksDB;
+- `ReduceFts` re-merges every FTS posting and rewrites the stat CF.
+
+M3.3 evaluated the narrow fix (make the BM25 block bound stat-independent) and
+rejected it as incomplete: the FTS RocksDB still had to be rebuilt, and the
+scalar INVERT had the same sealed-format problem. M4 therefore changes the
+**storage/update architecture for both index kinds together** rather than
+patching one bound.
+
+## Scope
+
+Kept:
+
+- HNSW and its base-reuse semantics (not touched);
+- the BM25 formula, top-k semantics, boolean/phrase FTS, scalar EQ/range
+  filters;
+- the hybrid-merge contract (vector scores injected by the caller);
+- exact result correctness, validated against a full-scan oracle.
+
+Changed:
+
+- how FTS postings and scalar inverted postings are stored and updated;
+- how deletes/updates are represented (one shared tombstone/version catalog);
+- how BM25 block bounds are stored (raw `max_tf`/`min_dl`, no IDF in the
+  format);
+- how compaction reclaims tombstones and bounds run count.
+
+Deliberately **not** kept: compatibility with the old sealed FTS/INVERT
+format. The research format is new and re-indexed from source. This is the
+constraint that prevented an incremental design in M3.
+
+## Architecture
+
+### One document catalog for both index kinds
+
+Every logical write receives a new monotonically increasing global `DocId`
+(never reused). An update is:
+
+```
+tombstone(old DocId) + append(new DocId)
+```
+
+The tombstone set is shared by FTS and INVERT. No posting list is rewritten on
+delete or update. A query filters candidates through the same live set, so the
+two indexes cannot disagree about a document's liveness.
+
+### Log-structured runs
+
+```
+active delta (bounded RAM)  --flush-->  level-0 run
+                                           |
+                         tiered compaction (R runs / level)
+                                           v
+                                      higher levels
+```
+
+A run contains:
+
+- docs: `doc_id`, `dl`, primary key, unique term ids;
+- FTS: sorted dictionary, per-term postings, per-block `max_tf` / `min_dl`,
+  positions;
+- INVERT: per-field sorted values, doc-id postings.
+
+Runs are immutable. A flush writes only the changed documents; a delete writes
+only a tombstone. Compaction merges adjacent runs, drops tombstoned docs, and
+recomputes the merged run's raw block metadata.
+
+### Streaming compaction (bounded peak memory, direct writes)
+
+Compaction is a k-way merge by sorted term (FTS) and sorted value (INVERT).
+It never materializes a merged run in RAM:
+
+1. Merge each term's postings across input runs with one decoded 128-doc block
+   per input; emit fixed-size payload blocks **directly into the final file**.
+2. Append that term's fixed block metadata immediately after its payload, then
+   write the final term dictionary once, after all terms. No temp payload or
+   temp metadata file is created.
+3. Stream docs in doc-id order after the FTS dictionary is known, mapping
+   source term ids through the new dictionary (O(vocabulary) map, not
+   O(collection)).
+4. Append the INVERT section the same way: per-value payload + metadata, then
+   the field dictionary and directory.
+5. Patch the 120-byte header with final section offsets and checksum, fsync,
+   then atomic-rename. The checksum is accumulated over each byte as it is
+   written; there is no second read of the output.
+
+The enforced working-set budget (`compaction_memory_limit_bytes`, default
+128 MiB) charges posting buffers, fixed block-metadata vectors, the new
+dictionary, and fixed IO buffers. If it cannot fit, compaction aborts before
+the manifest is published and the old runs remain active. A temp-output RAII
+guard removes an unpublished `.tmp.<pid>` file on failure.
+
+Compaction output uses research **format v2**; flush still writes v1. The
+reader accepts both and dispatches on the header version, so existing runs do
+not need conversion. Measurements and A/B evidence are in
+`results/RESULTS.md`.
+
+### Query-time BM25 bound (no stale IDF)
+
+Each block stores its own `max_tf` and `min_dl`. At query time:
+
+```
+idf(t)      = ln((N_live - df_live(t) + 0.5) / (df_live(t) + 0.5) + 1)
+block_bound = idf(t) * max_tf * (k1+1)
+              / (max_tf + k1 * (1 - b + b * min_dl / avg_dl_live))
+```
+
+`df_live`, `N_live`, and `avg_dl_live` are current live-corpus statistics.
+Corpus growth can therefore never invalidate a persisted bound. WAND uses
+these bounds over the union of run iterators; tombstoned candidates do not
+reduce recall (the scan simply continues).
+
+### Query diagnostics (research)
+
+Passing a `QueryDiagnostics` pointer to `SearchFts` or `SearchFtsFiltered`
+collects query-lock wait, filter construction, query parse, cursor/setup,
+posting execution and final top-k wall/reader-thread CPU timings, alongside
+run/posting/liveness/candidate counters. Query parse is a subset of setup.
+CPU timings use `CLOCK_THREAD_CPUTIME_ID`; they attribute CPU to the calling
+thread, not to other worker threads. Timing clocks are only sampled when the
+caller requests diagnostics. These counters do not change search semantics or
+ranking and do not expose native HNSW internals.
+
+### Statistics without O(N) rewrite
+
+- `N`, `total_dl`, and per-term `df` are updated on write, in O(tokens of the
+  changed document).
+- The update log is appended per flush and checkpointed only when it exceeds a
+  size threshold, so checkpoint cost is amortized.
+- Compaction does not change live statistics (dead rows were already
+  excluded), so it never touches the stats map.
+
+### Durability and recovery
+
+- WAL record per mutation; fsync optional (on by default).
+- Flush order: segment file → stats checkpoint/log → tombstone snapshot →
+  atomic manifest replace → WAL truncate.
+- Crash before the manifest leaves orphan files and replays the WAL. Crash
+  after the manifest skips WAL records already covered by the manifest
+  sequence.
+- Manifest writes keep the previous file as `manifest.bak`; an invalid
+  manifest falls back to it.
+- Old run/tombstone/stats files are garbage-collected only after the new
+  manifest is durable.
+
+### Bounds
+
+- **Query fan-out**: `max_total_runs` (default 12); tiered compaction keeps
+  `runs_per_level ≤ R` and forces a merge when the cap is exceeded.
+- **RAM**: active delta is capped by docs and bytes; segment dictionaries are
+  mmap-packed; postings decode one 128-doc block at a time. Streaming
+  compaction holds one decoded block per input per active term/value, one
+  output block, and the new term dictionary. The dictionary is metadata-scale
+  and is charged against the compaction memory budget.
+- **Disk**: tombstones are the only retained garbage; compaction triggers at a
+  configurable ratio (default 0.30) and after bounded run growth. Old runs are
+  removed after commit.
+
+## Format (research, not compatible)
+
+Little-endian, fixed header (120 bytes):
+
+```
+magic/version/block_size
+run_id/level/first_doc/last_doc/doc_count/total_tokens
+docs_offset/size, fts_offset/size, invert_offset/size, checksum
+```
+
+- `docs`: varint deltas for `doc_id`, `dl`, pk, unique term ids.
+- `fts`: field name, term dictionary, fixed 32-byte block metadata
+  (`last_doc, max_tf, min_dl, payload offset/size`), then varint postings
+  (`doc delta, tf, dl, positions`).
+- `invert`: field count; per field sorted value dictionary and fixed 24-byte
+  block metadata (`last_doc, payload offset/size`), then doc-id delta
+  postings.
+
+**v1 (flush)** stores one global postings table and global metadata table; term
+entries carry `first_block`/`block_count`. **v2 (compaction)** stores each term
+and value as a self-contained payload chunk plus metadata chunk, with offsets
+relative to its section. Its section layout is:
+
+```
+fts:    field name, [term payload][term metas]..., term dictionary, footer
+docs:   count, records
+invert: per-field [value payload][value metas]..., value dictionary, directory,
+        footer
+```
+
+v2 dictionaries are sorted and written after their chunks, so one streaming
+pass can assign final term ids before the docs section. Both versions use the
+same fixed metadata structs and checksum contract. The segment checksum covers
+the contiguous data from the lowest section offset to EOF, so it works for the
+v2 section order as well as the v1 docs-first order.
+
+Fault-injection hooks (`M4_FAULT=after_rename|before_manifest|after_manifest`)
+exercise failure before and after the atomic publish in
+`tests/m4_correctness.cc`; the old runs stay searchable, or a reopened index
+sees the durable new run, as appropriate.
+
+Manifest, stats checkpoint, tombstones, and WAL are separate files with their
+own checksums.
+
+## Correctness oracle
+
+`tests/m4_correctness.cc` keeps an independent full-scan reference with the
+same tokenizer and BM25 formula. It validates:
+
+- FTS top-k scores and membership for OR/AND/phrase, including after corpus
+  growth (the stale-bound regression);
+- scalar EQ/LT/LE/GT/GE sets and typed Uint32 EQ/finite-IN sets, including
+  empty IN, duplicates, boundaries, missing fields, update/delete, and reopen;
+- typed Boolean filter compositions (AND/OR/NOT) over string EQ and
+  filename prefix/suffix, Uint32 EQ/IN, and ArrayUint32 membership, with
+  three-valued missing-field semantics and pre-top-k candidate filtering;
+- randomized updates/deletes (1,200 base docs + 500 mutations);
+- flush, compaction, close/reopen;
+- WAL replay after destruction without a flush;
+- bounded run count and query correctness under a small run cap;
+- hybrid ranking, a forced compaction-memory-budget failure that must leave
+  the old runs searchable, and injected faults at rename/manifest boundaries;
+- delete-heavy churn (updates, deletes, replacement inserts, reinserted
+  deleted keys) with exact live-doc/token/FTS/INVERT checks after repeated
+  compactions, WAL replay after churn, and final tombstone GC.
+
+The M4-P2.4 oracle adds filename prefix/suffix, exact/inequality, empty and
+missing filename cases, and validates update/delete/reinsert, WAL replay,
+flush/compact/reopen, and filtered top-k. Current result: 18,095 checks,
+0 failures; warning-clean and ASan + UBSan + leak detection clean.
+
+## Native FTS differential harness (research only)
+
+`tests/native_fts_differential.cc` compares single-field M4 FTS with the
+checked-out native Zvec C API using separate temporary collection/index
+folders. Set `M4_ZVEC_ROOT` to enable it; this also compiles the checked-out
+native `standard` and `jieba` tokenizer implementations plus the native
+`lowercase` filter into the M4 research target. The Jieba compatibility target
+requires an explicit dictionary path. It does not modify native sources, the
+production ABI, or any production index.
+
+```sh
+cmake -S research/m4-native -B /tmp/m4-p1-build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DM4_ZVEC_ROOT="$PWD/.local/native/zvec-native-profile"
+cmake --build /tmp/m4-p1-build --target m4_correctness m4_native_fts_differential m4_native_bm25_isolation -j4
+/tmp/m4-p1-build/m4_correctness
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  /tmp/m4-p1-build/m4_native_bm25_isolation
+# Expected to exit nonzero while native/M4 ranking remains non-parity:
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  /tmp/m4-p1-build/m4_native_fts_differential
+```
+
+The fixture pins `standard` + `lowercase`, empty extra parameters, native BM25
+defaults (`k1=1.2`, `b=0.75`), and a score tolerance of `1e-4` absolute plus
+`1e-4` relative. M4's runtime token carries native byte offsets for direct analyzer
+differentials; the experimental segment format continues to store terms and
+positions only. The existing harness returns nonzero for semantic differences
+(`checks=438 failures=57`). The new minimal
+probe emits native-source and M4-live BM25 components at insert/update/delete/
+optimize/reopen and passes its lifecycle/model checks. P1.1 attributes the
+remaining score differences to native's tombstone/compaction statistics
+lifecycle versus M4's live-corpus statistics; it does not claim ranking parity
+or authorize an algorithm change. See `results/native-fts-differential-20261017.md`,
+`results/native-bm25-breakdown-20261017.log`, and
+`results/native-bm25-isolation-20261017.log`. These are correctness experiments,
+not performance benchmarks.
+
+## Native typed Uint32 differential (research only)
+
+`tests/native_uint32_differential.cc` exercises `file_id: Uint32` against the
+checked-out native C API. The native field is non-nullable, matching the
+`zg-engine` schema; the fixture records that a missing-value write is rejected.
+M4 intentionally supports absent fields and verifies they match neither EQ nor
+IN. The harness checks logical-PK equality across boundary values, duplicate
+IN, update/delete, flush, optimize/compact, and reopen. A high-scoring
+non-matching FTS hit plus a lower-scoring matching hit verifies candidate
+ordering: the harness retrieves all FTS matches, intersects the typed scalar
+set, then applies top-k. M4 still has no integrated FTS+scalar-filter API; this
+slice adds no planner.
+
+Native `file_id IN ()` is rejected with `INVALID_ARGUMENT`; M4 `IN []` returns
+an empty set. The harness records this compatibility difference explicitly.
+It passes with `checks=528 failures=0`. This is correctness evidence only; no
+performance benchmark was run. `SearchInvertUint32In` deduplicates input
+values, collects exact-value postings, then sorts/uniques candidate DocIds;
+extra memory is O(U + P) for U unique inputs and P matched postings.
+
+```sh
+cmake --build /tmp/m4-p1-build --target m4_native_uint32_differential -j4
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" /tmp/m4-p1-build/m4_native_uint32_differential
+```
+
+## Native ArrayUint32 membership differential (research only)
+
+`tests/native_array_uint32_differential.cc` validates the actual `zg-engine`
+`ancestor_directory_ids: ArrayUint32` usage against native Zvec by logical PK.
+It covers `CONTAIN_ANY` and `NOT CONTAIN_ANY`, including empty arrays and empty
+operand lists, duplicate elements/operands, missing fields, 0 and
+`UINT32_MAX`, update/delete/reinsert, WAL replay, flush, optimize/compaction,
+and reopen. Native rejects a missing value under the production-shaped
+non-nullable schema; M4 permits missing arrays but excludes them from both
+membership and the negative non-null universe. Native empty-list behavior is
+`CONTAIN_ANY ()` → false and `NOT CONTAIN_ANY ()` → `IS NOT NULL`. Both engines
+reject more than 32 operands. The latest differential is `checks=954
+failures=0`; the M4 oracle passes at `checks=17323 failures=0` under warning-
+clean and ASan+UBSan builds. The harness also reports fixture-level NOT
+candidate materialization: 6 live non-null docs, 2 matching docs, 4 returned,
+8 examined DocIds, 64 bytes of logical universe+match DocId payload (excluding
+hit strings and temporary vector capacity). General AND/OR/NOT composition was subsequently approved and implemented in
+M4-P2.3; production integration and performance benchmarks remain out of scope.
+
+```sh
+cmake --build /tmp/m4-p1-build --target m4_native_array_uint32_differential -j4
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" /tmp/m4-p1-build/m4_native_array_uint32_differential
+```
+
+## Native Boolean filter differential (research only)
+
+`tests/native_boolean_filter_differential.cc` covers the usage-backed filter
+subset from `zg-engine`: nested AND/OR/NOT over string EQ/NE, filename prefix/
+suffix, Uint32 EQ/IN, and ArrayUint32 membership. It checks nullable-field
+semantics, missing and empty filenames, escaped `%`/`_`/backslash/quote,
+ASCII/Unicode and case-sensitive matches, updates/deletes/reinserts,
+flush/compact/WAL recovery/reopen, and native + M4 filtered FTS top-1 before
+truncation. Native `file_id IN ()` remains rejected while M4 returns empty;
+`NOT LIKE` is rejected by native parsing and M4. Empty filename prefix/suffix
+produce `LIKE '%'`, matching all present values (including empty strings) but
+excluding missing fields. Rust declares `file_name` through
+`wildcard_string(schema, "file_name", false)`, which sets native
+`IndexParams::invert(false, true)` (non-nullable, range optimization off,
+extended wildcard on); the differential uses that index configuration but
+makes the field nullable to exercise missing-value semantics. The native binder
+accepts at most one unescaped `%`, rejects unescaped `_` for invert execution,
+and allows leading `%` only with extended wildcard enabled. The LIKE evaluator
+unescapes escaped characters, treats `%` as the sole wildcard in this path,
+uses exact byte-sensitive term keys, and maps bare `%` to `IS NOT NULL`. Rust's
+`like_literal` escapes backslash, `%`, and `_`; SQL quoting escapes apostrophes.
+The simple APIs cannot express raw SQL patterns or invalid multi-wildcard input.
+
+Current M4-P2.4 result is recorded in
+`results/m4-p2.4-filename-like-compatibility-20261017.md`; no performance
+benchmark was run. The fixture reports candidates, distinct field-value
+dictionary entries scanned across runs/delta, the LIKE candidate DocId-vector
+capacity, and an analytic logical DocId-payload bound. LIKE scans every
+`file_name` value in every run and the active delta; there is no dedicated
+prefix/suffix index, so work is O(distinct indexed values + matched postings).
+The capacity metric excludes Boolean merge buffers, `Hit`/PK strings, vector
+capacity slack outside the reported leaf, and allocator overhead; the analytic
+bound excludes `Hit`/PK storage and vector capacity slack.
+
+```sh
+cmake --build /tmp/m4-p1-build --target m4_native_boolean_filter_differential -j4
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  /tmp/m4-p1-build/m4_native_boolean_filter_differential
+```
+
+## zg-engine-shaped end-to-end workload (research only)
+
+`tests/native_zg_workload_differential.cc` derives its fixture schema and
+queries from `zg-engine` fragment projections: file/entity/document identity,
+ancestor-directory IDs, filename, hashed symbol name/type, and FTS text. It
+checks root/nested files, path and symbol filters, positive filename prefix/
+suffix LIKE, same-PK upsert, whole-file deletion, duplicate suppression,
+filtered top-k, compaction, and forced-exit WAL recovery against isolated
+native and M4 directories, normalizing identity by fragment primary key. The
+original P3 harness omitted native Zvec's process-wide Jieba dictionary
+registration, so collection creation returned `INVALID_ARGUMENT`; this was a
+harness configuration error, not lack of native Jieba support. Rust
+`zg-engine` auto-registers the bundled dictionary during initialization and
+uses `jieba` + `lowercase` with no per-field extra params. Its tokenizer
+factory has no standard-tokenizer fallback. The original E2E fixture remains
+standard+lowercase and ASCII-only, so it is not production analyzer parity.
+
+P3.2 adds a research-only M4 analyzer adapter that directly reuses the pinned
+native `JiebaTokenizer` and `LowercaseTokenFilter` sources. M4 requires an
+explicit `jieba_dict_dir`, preflights the two required dictionary files, and
+returns initialization errors rather than falling back to `standard` or an
+ambient dictionary. Indexing, WAL replay, and query parsing share the same
+adapter; quoted phrases are tokenized as one phrase string so Jieba sees the
+same context as native query analysis. The compatibility differential compares
+terms, sequence positions, and byte offsets for ASCII, punctuation, Chinese,
+mixed-language, and Unicode fixtures, then checks query hit sets across
+phrases, update/delete, compaction, reopen, and WAL recovery. The segment format still stores only terms/positions. Manifest v2 persists a
+deterministic analyzer fingerprint (configuration plus SHA-256 of the Jieba
+dictionary/model contents); same-content dictionaries at different paths are
+equivalent, while mismatched identities are rejected before WAL replay. Legacy
+manifests without identity require rebuild in a new directory. BM25 remains M4
+live-statistics; score parity is not claimed. See the P3.2/P3.3 reports and logs, alongside
+`results/m4-p3-zg-workload-validation-20261017.md` and
+`results/m4-p3.1-effective-analyzer-20261017.md`.
+
+The opt-in research option `Options::reuse_analyzer_cache` reuses an immutable
+in-memory analyzer implementation across live indexes in the same process,
+keyed by the already-verified analyzer fingerprint. The registry stores weak
+references only; each `Index` retains shared ownership for its lifetime, so
+pinned generations keep their analyzer alive without extending run/file
+ownership. Fingerprint checks remain enabled on cache hits; a cache entry never
+replaces manifest identity validation or is persisted to disk. The cache is
+OFF by default. It does not cache segment handles: the P4 open-stage profile
+measured segment loading below 0.5 ms while Jieba analyzer initialization
+accounted for about 46 ms. This is a standalone M4 research optimization, not
+an HNSW or production change; see `results/m4-m4-open-attribution-cache-20261018.md`.
+
+## M4-P4 paired native vs M4 workload
+
+`tests/native_m4_paired_benchmark.cc` plus
+`tests/profile_native_m4_paired.py` run one isolated index/process per arm
+(`native`, per-document `m4`, or durable `m4-batch`), using a generated
+zg-engine-style fragment workload, logical-PK oracle, resource sampling, and
+paired order. This is FTS/INVERT only and does not use native optimize or M4
+`CompactNow()` as a baseline. Use a real filesystem and a fresh result root.
+P4 evidence is in `results/m4-p4-native-vs-m4-20261017.md`. P4.1 attribution
+and traces are in `results/m4-p4.1-write-amplification-20261018.md` and
+`results/artifacts/m4-p4.1-writeamp-60-20261018.tar.gz`.
+
+P4.2 adds a research-only `m4-batch` arm backed by `ApplyBatch` (max 256
+mutations / 8 MiB, durable WAL transaction when enabled); existing
+per-document APIs and default policy remain unchanged. Phase A/E native
+comparisons and raw syscall/per-query artifacts are in
+`results/m4-phase-a-native-vs-m4-batch-20261018.md`,
+`results/m4-phase-e-final-native-ab-20261018.md`, and
+`results/artifacts/m4-native-m4batch-phase-a-e-20261018.tar.gz`. The profiler
+retains and classifies the known `json parse` native-only extra hits rather
+than suppressing them. `--trace-fsync` enables detached `strace` syscall
+counting (adds tracing overhead); `--m4-debt-policy` enables the accepted S5
+policy for the M4 candidate only after the base flush/reopen. Default remains
+OFF. The policy-on A/B, sustained-churn evidence, and complete limitations are
+in `results/m4-phase-b-d-churn-debt-20261018.md`. Results are synthetic,
+research-only; durability boundaries differ, and production integration is
+unapproved.
+
+### Cross-component bridge snapshot prototype (research only)
+
+`tests/m4_bridge_integration.cc` models a separate M4 FTS/INVERT store beside
+native Zvec vector/HNSW. Coordinator reads hold a shared snapshot lease across
+FTS+vector hybrid queries; a full publish and component compaction/optimize
+hold the exclusive lease. Three concurrent readers are tested against a
+staged publish; all resume with the exact old-generation hit set. This prevents
+native vector IDs from racing the forward-filter row bitmap during mutable
+segment writes, at the cost of blocking readers for the full commit. Old
+generation rows remain append-only; generation-level reclamation is not
+implemented. The
+correctness and crash matrix, root-cause evidence, and single-run reader-stall
+measurement are in `results/m4-bridge-snapshot-consistency-20261018.md`.
+This is research-only and makes no production-latency or generation-GC claim.
+
+```sh
+cmake --build /tmp/m4-p4-build --target m4_bridge_integration -j2
+/tmp/m4-p4-build/m4_bridge_integration /tmp/m4-bridge-fresh "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
+M4_BRIDGE_TRACE=1 /tmp/m4-p4-build/m4_bridge_integration /tmp/m4-bridge-trace "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
+/tmp/m4-p4-build/m4_bridge_integration /var/tmp/m4-bridge-perf "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" --perf
+
+# Controlled AB/BA reader-vs-existing-vector-compaction crossover; fresh root required
+/tmp/m4-p4-build/m4_bridge_integration /var/tmp/m4-reader-compaction-crossover "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" --reader-compaction-crossover
+```
+
+```sh
+python3 tests/profile_native_m4_paired.py \\
+  --binary /tmp/m4-p4-build/native_m4_paired_benchmark \\
+  --dictionary "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" \\
+  --root /var/tmp/m4-p4-new --files 1200 --runs 3 \\
+  --candidate-arm m4-batch
+```
+
+```sh
+cmake --build /tmp/m4-p1-build --target m4_native_zg_workload_differential -j4
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  /tmp/m4-p1-build/m4_native_zg_workload_differential
+
+# Effective zg analyzer and research-only Jieba parity/lifecycle differential
+cmake --build /tmp/m4-p1-build --target m4_native_jieba_compatibility -j4
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  ctest --test-dir /tmp/m4-p1-build --output-on-failure \
+  -R '^m4_native_jieba_compatibility$'
+```
+
+## Run
+
+Benchmark and harness gate semantics are governed by
+[`docs/benchmark-policy.md`](docs/benchmark-policy.md) and its executable
+source [`docs/benchmark-policy.json`](docs/benchmark-policy.json). Historical
+resource-envelope refusals block only the affected measurement operation; they
+do not authorize threshold changes, automatic retries, or mission completion.
+The active user mission/DoD takes precedence over an older handoff next action.
+
+```sh
+# Correctness (uses /tmp/m4-research-tests)
+cmake -S . -B build && cmake --build build -j
+./build/m4_correctness
+
+# Fixed-snapshot M4 Bridge search diagnostics (resource-gated; research only)
+# --reader-search-control disables diagnostics; --reader-search-counters enables
+# counters only; --reader-search-timing enables phase timers only;
+# --reader-search-diagnostics enables both. QueryDiagnostics defaults both ON
+# for a non-null pointer; set the input flags independently for overhead A/B.
+# Build the harness to match zg's default 256-D normalized cosine embedding shape.
+cmake -S research/m4-native -B /tmp/m4-bridge-search256 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DM4_ZVEC_ROOT="$PWD/.local/native/zvec-native-profile" \
+  -DCMAKE_CXX_FLAGS=-DM4_BRIDGE_DIMENSION=256
+cmake --build /tmp/m4-bridge-search256 --target m4_bridge_integration -j1
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  /tmp/m4-bridge-search256/m4_bridge_integration \
+  /var/tmp/m4-reader-search-diagnostics-20261018 \
+  "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" \
+  --reader-search-diagnostics
+
+# Search-only overhead arms use identical fixed-snapshot queries, fresh roots,
+# and the same binary; capture per-process wall/CPU/PSS plus host state.
+# The isolated native HNSW worktree can additionally emit per-query counters
+# when M4_NATIVE_SEARCH_COUNTERS=1; see the dated results record for the
+# isolated link and provenance commands. Do not use instrumented timings as a
+# production-like baseline without measuring their overhead.
+
+# Benchmark (all cases)
+./build/m4_benchmark
+
+# One size
+./build/m4_benchmark 50000
+
+# Delete-heavy churn: base docs, cycles, ops/cycle
+M4_BENCH_ROOT=/var/tmp/m4-churn-500k \
+  ./build/m4_benchmark --churn 500000 8 6000
+
+# S5 structural debt policy (default OFF)
+M4_BENCH_ROOT=/var/tmp/m4-churn-policy M4_DEBT_POLICY=1 \
+  M4_DEBT_RATIO=0.01 M4_DEBT_CAP=250000 \
+  ./build/m4_benchmark --churn 1000000 8 6000
+```
+
+The benchmark's `rebuild_on_mutation` mode is **not** production zvec. It is
+the same prototype with `CompactNow()` after every flush, used as a controlled
+O(collection) baseline. `--churn` keeps live cardinality approximately stable
+while deleting and reinserting docs, then updates existing docs; it reports
+per-cycle tombstone/run/disk/query-p95/p99 series and the final post-compaction
+state. Use a real filesystem (`M4_BENCH_ROOT=/var/tmp/...`) and
+`/proc/self/io` for physical-write claims; `/tmp` is tmpfs.
+
+## Non-goals / next steps
+
+- No production migration, no old-format reader, no reindex of user data.
+- The M4 index core does not provide general concurrent mutation/read safety.
+  The bridge test adds a coordinator lock around complete cross-component
+  snapshots; broader concurrent use still needs a read snapshot / writer
+  handoff.
+- Direct v2 compaction removes the temp-section copy. Its remaining costs are
+  the O(vocabulary) term/value dictionary held until the end of each section
+  and the single-output-file fsync; both are charged against the budget.
+- M4-P2.3/P2.4 add a small typed filter expression over string EQ/NE,
+  filename prefix/suffix, typed Uint32 EQ/IN, and ArrayUint32 membership;
+  filtered FTS candidates are gated before top-k. Prefix/suffix use a full scan
+  of scalar `file_name` dictionary values; no new index or format was added.
+  This is not generic SQL LIKE: M4 rejects negative LIKE, matching native's
+  current parser rejection. The format has dictionaries per field and is ready
+  for multiple fields.
+- The optional structural debt policy (default off) cuts 1M mean p95
+  186.0→73.8 ms (max 236.6→89.6) and leaves runs at 2, with +12.7% churn
+  writes and lower CPU; 500k is 51.8→31.3 ms at +20% writes. It is a GO for
+  research, not a production policy.
+- The single-field BM25 mutation mismatch is now attributed to different
+  statistics lifecycles, but ranking parity is still **not** established. A
+  production rollout would also need broader tokenizer/analyzer parity,
+  multiple fields, additional numeric/array scalar encodings, background compaction
+  scheduling, and a migration/backfill plan. None of that is approved here.

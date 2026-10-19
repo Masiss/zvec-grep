@@ -1,0 +1,38 @@
+{
+  "approved_budget": null,
+  "cgroup2_root_controllers": "cpuset cpu io memory hugetlb pids rdma misc dmem",
+  "command": [
+    "/usr/sbin/python3",
+    "-c",
+    "raise SystemExit(7)"
+  ],
+  "cwd": "/tmp",
+  "environment_names": [
+    "HOME",
+    "LANG",
+    "PATH"
+  ],
+  "hard_guards": {
+    "io_full_avg10_max": 4.46,
+    "load1_max": 3.14,
+    "memavailable_min_kib": 5477762,
+    "var_tmp_free_min_bytes": 18219000000
+  },
+  "kernel": "7.2.10-arch1-1",
+  "pressure_limits": null,
+  "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+  "resource_root": "/var/tmp",
+  "runner_sha256": "0e40dd304fbbf3606f61272069efe28b6f40eb5b104e7bddb833d6f270102756",
+  "runtime_limit_seconds": 5.0,
+  "sample_interval_ms": 20,
+  "schema_version": 1,
+  "systemd_run": "/usr/sbin/systemd-run",
+  "timestamp_utc": "2026-10-19T13:14:27.531092+00:00",
+  "unit": "m4-contained-f3dab781624e4205.service",
+  "user_slice_controllers": [
+    "cpu",
+    "memory",
+    "pids"
+  ],
+  "workspace_root": "/var/tmp/m4-containment-fixtures-e3tr7dlu/workspace"
+}

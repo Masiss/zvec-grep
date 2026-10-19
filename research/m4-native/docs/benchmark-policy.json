@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "scope": "standalone research/m4-native measurements only",
+  "authority": {
+    "current_instruction": "Active user authorization and the repository's M4 scope boundaries",
+    "historical_envelope_source": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+    "threshold_change": "Requires explicit owner approval; runners must not change these values autonomously",
+    "policy_change": "Update this file and benchmark-policy.md together, add policy tests, and record the decision in RESULTS.md and the canonical handoff"
+  },
+  "resource_guards": {
+    "MemAvailable_kib_min": 5477762,
+    "var_tmp_bytes_min": 18219000000,
+    "io_full_avg10_max": 4.46,
+    "load1_max": 3.14
+  },
+  "resource_guard_metadata": {
+    "M4-RG-MEM": {
+      "metric": "MemAvailable",
+      "unit": "KiB",
+      "operator": ">=",
+      "threshold_key": "MemAvailable_kib_min",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; not a universal safety limit",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+      "owner_approval_required_to_change": true
+    },
+    "M4-RG-DISK": {
+      "metric": "resource-root available bytes",
+      "unit": "bytes",
+      "operator": ">=",
+      "threshold_key": "var_tmp_bytes_min",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+      "owner_approval_required_to_change": true
+    },
+    "M4-RG-IOPSI": {
+      "metric": "host I/O PSI full avg10",
+      "unit": "percent",
+      "operator": "<=",
+      "threshold_key": "io_full_avg10_max",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+      "owner_approval_required_to_change": true
+    },
+    "M4-RG-LOAD": {
+      "metric": "host load-1",
+      "unit": "load average",
+      "operator": "<=",
+      "threshold_key": "load1_max",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; not a universal safety limit",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+      "owner_approval_required_to_change": true
+    }
+  },
+  "baseline_pressure_guard": {
+    "gate_id": "M4-RG-MEMSWAP-BASELINE",
+    "evidence_class": "baseline-derived operation guard from the first three valid 10-second windows; not a universal host limit",
+    "source_of_authority": "same-operation baseline snapshot/window statistics",
+    "enforcement": "hard stop for the affected measurement operation; no arm may start until current pressure is within the derived baseline bounds",
+    "failure_scope": "current baseline, arm, or pair only; whole mission remains unevaluated",
+    "recovery": "recollect a valid baseline only when authorized and after it meets the independent resource guards; no automatic retry",
+    "owner_approval_required_to_change": false
+  },
+  "measurement_quality": {
+    "telemetry_integrity": {
+      "gate_id": "M4-MQ-INTEGRITY",
+      "enforcement": "blocks measurement and qualification; never bypassed in diagnostic mode",
+      "requirements": "complete finite telemetry, valid monotonic sample brackets/cadence, no invalid/missing samples, and complete required windows",
+      "failure_scope": "affected measurement operation only"
+    },
+    "stability_envelope": {
+      "gate_id": "M4-MQ-STABILITY",
+      "enforcement": "qualification blocks on failure; diagnostic may proceed only after every resource/pressure guard and telemetry-integrity gate passes",
+      "failure_scope": "qualification validity or diagnostic evidence class only; never changes resource thresholds",
+      "diagnostic_evidence_class": "EXPLORATORY / NOT QUALIFICATION EVIDENCE"
+    },
+    "interarm_recovery": {
+      "gate_id": "M4-MQ-RECOVERY",
+      "enforcement": "both modes require valid consecutive recovery windows and all resource/memory-swap pressure guards before launching arm two",
+      "failure_scope": "second arm only; preserve first-arm receipt and stop the pair if recovery does not pass"
+    }
+  },
+  "containment": {
+    "mechanism": "transient per-arm systemd user service and delegated cgroup v2 with independent watchdog",
+    "controllers_expected_from_observed_host": ["cpu", "memory", "pids"],
+    "io_controller_delegated": false,
+    "io_limit_claim": "Do not claim per-arm I/O throttling or physical-write attribution; record process-tree /proc I/O and host-wide diskstats as distinct scopes",
+    "resource_budgets": "No numeric cgroup memory, swap, CPU, or workspace ceilings are enabled unless separately approved; sampled workspace size is not a kernel quota",
+    "test_fixture_override": "The run_arm host-guard override is restricted to explicit M4_TEST_FIXTURE_MODE=1 synthetic commands in a temp-tree resource root; receipts label test_fixture_mode=true and performance_eligible=false. It is not exposed as a benchmark CLI option and must never wrap an M4 benchmark executable.",
+    "cleanup": "timeout/controller failure must terminate only the owned cgroup descendants, durably record the abort, and verify cleanup; never signal unrelated host processes"
+  },
+  "correctness_and_durability": {
+    "authority": "M4 invariants in research/m4-native/AGENTS.md, research/m4-native/README.md, oracle/regression tests, and approved format contracts",
+    "enforcement": "oracle/fault/recovery/sanitizer/build gates; a performance diagnostic cannot waive or downgrade a correctness/durability failure",
+    "failure_scope": "candidate/operation remains NO-GO; only an independently approved branch may continue"
+  },
+  "operation_outcomes": [
+    "SUCCESS",
+    "PARTIAL",
+    "OPERATION_BLOCKED",
+    "OWNER_DECISION_REQUIRED",
+    "SAFETY_STOP",
+    "EXHAUSTED"
+  ],
+  "authority_precedence": [
+    "platform/security boundaries and repository scope",
+    "current explicit user mission, authorization, and DoD",
+    "approved owner decisions and current repository policy",
+    "canonical handoff as state/evidence/continuity, not authority over newer user instructions",
+    "historical notes and agent assumptions"
+  ],
+  "continuation_rules": {
+    "operation_guard_failure": "stop the affected benchmark/arm; do not bypass, weaken, auto-retry, or mark the whole mission done; continue only already-authorized independent safe work",
+    "measurement_quality_failure": "qualification evidence is invalid; only explicitly allowed exploratory diagnostics may continue after all resource, integrity, containment, and baseline-pressure guards pass",
+    "correctness_or_durability_failure": "block the candidate/operation and unsafe dependents; do not downgrade the gate or switch to an unapproved branch",
+    "owner_decision_required": "stop only the decision-dependent action; preserve the current state and continue unrelated safe authorized work",
+    "mission_completion": "requires reconciliation of every active mission DoD item; one operation, test, report, or no-launch is not mission success",
+    "stale_handoff": "reconcile a handoff next action against current user authorization and active mission scope before execution",
+    "long_running_work": "keep jobs interruptible and record job id, outputs, stop condition, and exact next action",
+    "delegation": "a sub-agent inherits the same scope and authority limits and cannot approve a gate change or mission completion"
+  },
+  "runner_mission_semantics": "A benchmark runner may report only the operation and evidence class. It must never bypass a current gate or infer whole-mission SUCCESS from no-launch, one completed benchmark, one test, or one report. Whole-mission status belongs to the active mission DoD/handoff review."
+}

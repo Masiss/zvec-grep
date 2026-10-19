@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+"""Tiny, bounded executable checks for the research cgroup containment runner."""
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import os
+import pathlib
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+import uuid
+from unittest import mock
+
+os.environ['M4_TEST_FIXTURE_MODE'] = '1'
+RUNNER_PATH = pathlib.Path(__file__).with_name('m4_containment_runner.py').resolve()
+spec = importlib.util.spec_from_file_location('m4_containment_runner', RUNNER_PATH)
+assert spec and spec.loader
+runner = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = runner
+spec.loader.exec_module(runner)
+
+
+class ContainmentRunnerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.output_root = pathlib.Path(os.environ['M4_CONTAINMENT_TEST_OUTPUT']).resolve()
+        cls.output_root.mkdir(parents=True, exist_ok=True)
+        cls.fixture_root = pathlib.Path(tempfile.mkdtemp(prefix='m4-containment-fixtures-', dir='/tmp'))
+        (cls.fixture_root / 'workspace').mkdir()
+        cls.unrelated_pid = os.getpid()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.fixture_root)
+        os.kill(cls.unrelated_pid, 0)
+
+    def run_fixture(self, name: str, command: list[str], timeout: float = 5.0) -> tuple[dict, pathlib.Path]:
+        receipt_dir = self.output_root / name
+        receipt = runner.run_arm(
+            command, receipt_dir, self.fixture_root, self.fixture_root / 'workspace',
+            pathlib.Path('/tmp'), timeout, sample_interval_ms=20,
+            enforce_host_gates=False,
+        )
+        self.assertEqual(json.loads((receipt_dir / 'receipt.json').read_text()), receipt)
+        self.assertTrue((receipt_dir / 'runtime.jsonl').exists())
+        self.assertTrue((receipt_dir / 'host-before.json').exists())
+        self.assertTrue((receipt_dir / 'host-after.json').exists())
+        self.assertTrue((receipt_dir / 'systemd-final.txt').exists())
+        return receipt, receipt_dir
+
+    def test_terminal_classes_distinguish_oom_and_abort_types(self) -> None:
+        self.assertEqual(runner.failure_class(reason='cgroup_oom_event'), 'OOM_ABORT')
+        self.assertEqual(runner.failure_class(reason='runtime_timeout'), 'TIMEOUT_ABORT')
+        self.assertEqual(runner.failure_class(reason='supervisor_lost'), 'CONTROLLER_CRASH_ABORT')
+
+    def test_hard_gate_block_never_launches_command(self) -> None:
+        receipt_dir = self.output_root / 'hard-gate-refusal'
+        marker = self.fixture_root / 'must-not-exist'
+        state = runner.host_snapshot(self.fixture_root)
+        state['meminfo_kib']['MemAvailable_kib'] = runner.GUARDS['memavailable_min_kib'] - 1
+        with mock.patch.object(runner, 'host_snapshot', return_value=state):
+            receipt = runner.run_arm(
+                ['/usr/bin/touch', str(marker)], receipt_dir, self.fixture_root,
+                self.fixture_root / 'workspace', pathlib.Path('/tmp'), 5.0,
+                pressure_limits={
+                    'swapfree_min_kib': 0, 'memory_some_avg10_max': 1000.0,
+                    'memory_full_avg10_max': 1000.0,
+                },
+            )
+        self.assertEqual(receipt['status'], 'PREFLIGHT_BLOCKED')
+        self.assertEqual(receipt['failure_class'], 'OPERATION_GUARD_REFUSAL')
+        self.assertFalse(receipt['benchmark_started'])
+        self.assertFalse(marker.exists())
+        self.assertEqual(receipt['safety_outcome'], 'NOT_STARTED')
+        self.assertEqual(receipt['measurement_quality'], 'NOT_APPLICABLE')
+        self.assertEqual(receipt['operation_outcome'], 'OPERATION_BLOCKED')
+        self.assertEqual(receipt['mission_status'], 'NOT_EVALUATED_BY_RUNNER')
+        self.assertEqual(receipt['resource_guard_failures'][0]['gate_id'], 'M4-RG-MEM')
+        self.assertFalse(receipt['benchmark_started'])
+
+    def test_memory_swap_pressure_baseline_is_enforced(self) -> None:
+        limits = {
+            'swapfree_min_kib': 1000, 'memory_some_avg10_max': 0.2,
+            'memory_full_avg10_max': 0.0,
+        }
+        state = {
+            'meminfo_kib': {'SwapFree_kib': 1000},
+            'memory_pressure': {
+                'some': {'avg10': 0.2}, 'full': {'avg10': 0.0},
+            },
+        }
+        self.assertEqual(runner.pressure_baseline_failures(state, limits), [])
+        state['meminfo_kib']['SwapFree_kib'] = 999
+        self.assertIn('SwapFree', runner.pressure_baseline_failures(state, limits)[0])
+        state['meminfo_kib']['SwapFree_kib'] = 1000
+        state['memory_pressure']['some']['avg10'] = 0.21
+        self.assertIn('memory PSI some', runner.pressure_baseline_failures(state, limits)[0])
+
+    def test_missing_telemetry_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='m4-cgroup-empty-') as root:
+            with self.assertRaisesRegex(RuntimeError, 'memory.current'):
+                runner.validate_required_cgroup_metrics(pathlib.Path(root))
+
+    def test_guard_override_is_blocked_outside_explicit_fixture_mode(self) -> None:
+        receipt_dir = self.output_root / 'unapproved-fixture-override'
+        marker = self.fixture_root / 'must-not-exist-override'
+        with mock.patch.dict(os.environ, {'M4_TEST_FIXTURE_MODE': ''}):
+            receipt = runner.run_arm(
+                [sys.executable, '-c', f'from pathlib import Path; Path({str(marker)!r}).touch()'],
+                receipt_dir, self.fixture_root, self.fixture_root / 'workspace',
+                pathlib.Path('/tmp'), 5.0, enforce_host_gates=False,
+            )
+        self.assertEqual(receipt['status'], 'PREFLIGHT_BLOCKED')
+        self.assertEqual(receipt['failure_class'], 'TEST_FIXTURE_OVERRIDE_REFUSED')
+        self.assertFalse(receipt['benchmark_started'])
+        self.assertFalse(marker.exists())
+
+    def test_missing_preflight_telemetry_writes_no_launch_receipt(self) -> None:
+        receipt_dir = self.output_root / 'telemetry-incomplete'
+        marker = self.fixture_root / 'must-not-exist-telemetry'
+        with mock.patch.object(runner, 'host_snapshot', side_effect=OSError('fixture telemetry missing')):
+            receipt = runner.run_arm(
+                ['/usr/bin/touch', str(marker)], receipt_dir, self.fixture_root,
+                self.fixture_root / 'workspace', pathlib.Path('/tmp'), 5.0,
+                enforce_host_gates=True,
+                pressure_limits={'swapfree_min_kib': 0, 'memory_some_avg10_max': 1000.0,
+                                 'memory_full_avg10_max': 1000.0},
+            )
+        self.assertEqual(receipt['status'], 'TELEMETRY_INCOMPLETE')
+        self.assertFalse(receipt['benchmark_started'])
+        self.assertEqual(receipt['operation_outcome'], 'OPERATION_BLOCKED')
+        self.assertEqual(receipt['mission_status'], 'NOT_EVALUATED_BY_RUNNER')
+        self.assertTrue((receipt_dir / 'receipt.json').is_file())
+        self.assertFalse(marker.exists())
+
+    def test_normal_exit_and_descendant_share_owned_cgroup(self) -> None:
+        command = [sys.executable, '-c', (
+            'import subprocess,sys; '
+            'p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(0.35)"]); '
+            'print("CHILD_PID="+str(p.pid),flush=True); raise SystemExit(p.wait())'
+        )]
+        receipt, directory = self.run_fixture('normal-child', command)
+        self.assertEqual(receipt['status'], 'PASS')
+        self.assertEqual(receipt['failure_class'], 'NORMAL_EXIT')
+        self.assertEqual(receipt['safety_outcome'], 'SAFE_COMPLETE')
+        self.assertEqual(receipt['measurement_quality'], 'COMPLETE')
+        self.assertEqual(receipt['io_control']['status'],
+                         'AVAILABLE' if receipt['cgroup_io_controller_available'] else 'UNAVAILABLE')
+        self.assertIn('not a per-arm physical-write attribution', receipt['io_control']['fallback'])
+        child_pid = int(next(line.split('=', 1)[1] for line in (directory / 'stdout.log').read_text().splitlines() if line.startswith('CHILD_PID=')))
+        samples = [json.loads(line) for line in (directory / 'runtime.jsonl').read_text().splitlines()]
+        self.assertTrue(any(child_pid in row['cgroup']['pids'] for row in samples), 'descendant was not observed in arm cgroup')
+        self.assertTrue(any('process_tree_pss_kib' in row['cgroup'] and 'memory_peak_bytes' in row['cgroup'] for row in samples))
+        self.assertIn('diskstats', samples[0]['host'])
+        self.assertEqual(receipt['cgroup_relative_path'].split('/')[-1], receipt['unit'])
+        self.assertIsNone(receipt['watchdog_abort'])
+
+    def test_nonzero_exit_is_not_pass(self) -> None:
+        receipt, _ = self.run_fixture('nonzero', [sys.executable, '-c', 'raise SystemExit(7)'])
+        self.assertEqual(receipt['status'], 'NONZERO_EXIT')
+        self.assertEqual(receipt['failure_class'], 'NONZERO_EXIT')
+        self.assertEqual(receipt['workload_returncode'], 7)
+        self.assertEqual(receipt['measurement_quality'], 'COMPLETE')
+
+    def test_sigterm_and_sigkill_are_not_pass(self) -> None:
+        for name, sig in [('sigterm', signal.SIGTERM), ('sigkill', signal.SIGKILL)]:
+            command = [sys.executable, '-c', f'import os,signal; os.kill(os.getpid(), {sig})']
+            receipt, _ = self.run_fixture(name, command)
+            self.assertEqual(receipt['status'], 'SIGNAL_EXIT')
+            self.assertEqual(receipt['failure_class'], 'SIGNAL_EXIT')
+            self.assertEqual(receipt['workload_returncode'], -sig)
+            self.assertEqual(receipt['safety_outcome'], 'WORKLOAD_FAILED')
+
+    def test_supervisor_crash_is_detected_and_arm_is_cleaned(self) -> None:
+        receipt_dir = self.output_root / 'supervisor-crash'
+        worker_code = r'''import importlib.util,pathlib,sys
+p=pathlib.Path(sys.argv[1]);s=importlib.util.spec_from_file_location('crash_runner',p);m=importlib.util.module_from_spec(s);sys.modules[s.name]=m;s.loader.exec_module(m)
+root=pathlib.Path(sys.argv[3])
+cmd=[sys.executable,'-c','import subprocess,sys,time; p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(30)"]); print("CHILD_PID="+str(p.pid),flush=True); time.sleep(30)']
+m.run_arm(cmd,pathlib.Path(sys.argv[2]),root.parent,root,pathlib.Path('/tmp'),30,20,enforce_host_gates=False)
+'''
+        worker = subprocess.Popen(
+            [sys.executable, '-c', worker_code, str(RUNNER_PATH), str(receipt_dir), str(self.fixture_root / 'workspace')],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        try:
+            state_path = receipt_dir / 'run-state.json'
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                if state_path.exists() and (receipt_dir / 'watchdog-config.json').exists() and (receipt_dir / 'stdout.log').exists():
+                    if 'CHILD_PID=' in (receipt_dir / 'stdout.log').read_text():
+                        break
+                if worker.poll() is not None:
+                    self.fail(f'worker exited before contained workload started: {worker.returncode}')
+                time.sleep(0.02)
+            else:
+                self.fail('contained workload did not reach its observable active state')
+            child_pid = int(next(line.split('=', 1)[1] for line in (receipt_dir / 'stdout.log').read_text().splitlines() if line.startswith('CHILD_PID=')))
+            config = json.loads((receipt_dir / 'watchdog-config.json').read_text())
+            socket_dir = pathlib.Path(config['socket_dir'])
+            worker.kill()
+            worker.wait(timeout=5)
+            abort_path = receipt_dir / 'watchdog-abort.json'
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline and not abort_path.exists():
+                time.sleep(0.02)
+            self.assertTrue(abort_path.exists(), 'independent watchdog did not persist an abort receipt')
+            abort = json.loads(abort_path.read_text())
+            self.assertEqual(abort['reason'], 'supervisor_lost')
+            self.assertEqual(abort['failure_class'], 'CONTROLLER_CRASH_ABORT')
+            self.assertIn(child_pid, abort['termination']['term_pids'])
+            self.assertTrue((receipt_dir / 'watchdog-summary.json').exists())
+            self.assertFalse(socket_dir.exists(), 'watchdog did not clean the abandoned controller socket directory')
+            unit = json.loads(state_path.read_text())['unit']
+            cgroup_path = runner.CGROOT / json.loads(state_path.read_text())['cgroup_relative_path']
+            deadline = time.monotonic() + 5
+            unit_state = ''
+            while time.monotonic() < deadline:
+                unit_state = subprocess.run(
+                    ['systemctl', '--user', 'show', unit, '-p', 'LoadState', '-p', 'ActiveState', '-p', 'ControlGroup'],
+                    capture_output=True, text=True, check=True, timeout=5,
+                ).stdout
+                if ('ActiveState=inactive' in unit_state or 'ActiveState=failed' in unit_state) and 'ControlGroup=\n' in unit_state and not cgroup_path.exists():
+                    break
+                time.sleep(0.02)
+            self.assertTrue('ActiveState=inactive' in unit_state or 'ActiveState=failed' in unit_state)
+            self.assertIn('ControlGroup=\n', unit_state)
+            self.assertFalse(cgroup_path.exists(), 'owned cgroup was not removed after the transient unit stopped')
+            os.kill(self.unrelated_pid, 0)
+        finally:
+            if worker.poll() is None:
+                worker.kill()
+                worker.wait(timeout=5)
+
+    def test_watchdog_abort_kills_descendants_and_records_reason(self) -> None:
+        command = [sys.executable, '-c', (
+            'import subprocess,sys,time; '
+            'p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(30)"]); '
+            'print("CHILD_PID="+str(p.pid),flush=True); time.sleep(30)'
+        )]
+        receipt, directory = self.run_fixture('watchdog-timeout', command, timeout=0.5)
+        self.assertEqual(receipt['status'], 'WATCHDOG_ABORT')
+        self.assertEqual(receipt['safety_outcome'], 'ABORTED_CONTAINED')
+        self.assertTrue(receipt['watchdog_abort']['final_cleanup']['success'])
+        self.assertEqual(receipt['reason'], 'runtime_timeout')
+        self.assertEqual(receipt['failure_class'], 'TIMEOUT_ABORT')
+        self.assertEqual(receipt['watchdog_abort']['reason'], 'runtime_timeout')
+        self.assertTrue(receipt['watchdog_abort']['timestamp_utc'])
+        self.assertTrue(receipt['watchdog_abort']['termination']['term_pids'])
+        self.assertEqual(receipt['measurement_quality'], 'COMPLETE')
+        child_pid = int(next(line.split('=', 1)[1] for line in (directory / 'stdout.log').read_text().splitlines() if line.startswith('CHILD_PID=')))
+        self.assertIn(child_pid, receipt['watchdog_abort']['termination']['term_pids'])
+        unit_state = subprocess.run(
+            ['systemctl', '--user', 'show', receipt['unit'], '-p', 'LoadState', '-p', 'ActiveState'],
+            capture_output=True, text=True, check=True, timeout=5,
+        ).stdout
+        self.assertIn('LoadState=not-found', unit_state)
+        os.kill(self.unrelated_pid, 0)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output-dir', type=pathlib.Path, required=True)
+    args = parser.parse_args()
+    os.environ['M4_CONTAINMENT_TEST_OUTPUT'] = str(args.output_dir.resolve())
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(ContainmentRunnerTests)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    summary = {
+        'tests_run': result.testsRun,
+        'failures': len(result.failures),
+        'errors': len(result.errors),
+        'successful': result.wasSuccessful(),
+        'python': sys.version,
+        'runner': str(RUNNER_PATH),
+        'output_dir': str(args.output_dir.resolve()),
+        'host_gates': 'not applied to tiny synthetic fixtures; no production benchmark was run',
+    }
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    (args.output_dir / 'test-summary.json').write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
+    return 0 if result.wasSuccessful() else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
