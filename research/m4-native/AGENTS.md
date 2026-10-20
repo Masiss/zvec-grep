@@ -26,6 +26,9 @@ M4 is a standalone research prototype under `research/m4-native/`. It is not int
 
 ## Workflow and verification
 
+- Keep agent-controlled temporary, build, sanitizer, and disposable scratch artifacts under `research/m4-native/.work/{tmp,build,sanitizer,scratch}/` (the M4 project working directory). Set `TMPDIR`, `TMP`, and `TEMP` per command/job to `.work/tmp/` where compatible; direct build outputs to `.work/build/` or `.work/sanitizer/`. Do not change system-wide temp configuration.
+- Distinguish disposable outputs from retained evidence. Put benchmark receipts, raw evidence, provenance, and binaries needed to reproduce or substantiate a result under `results/` with checksums/manifests. Clean task-owned disposable artifacts when no longer needed; do not leave piles of binaries/build trees in `/tmp`.
+- Do not touch unrelated application/process data, unknown files, or artifacts without verified ownership. Preserve special filesystem semantics required by a test/benchmark; project-local TMPDIR must not silently change benchmark storage semantics.
 - Read `README.md`, relevant format writer/reader and oracle before changing layout. Add/update oracle or regression coverage first for behavior changes; update format documentation when layouts change.
 - Run the focused correctness checks first, then required sanitizers/builds, then only explicitly authorized benchmarks. Do not treat benchmark readiness or a historical handoff next-action as authorization.
 - Do not bypass or change a guard, auto-retry a blocked operation, launch a dependent arm after failed recovery/telemetry/cleanup, or delete unreviewed files to create resources. See `docs/benchmark-policy.md` for interpretation and JSON policy for executable values.

@@ -4,6 +4,23 @@ Status: **research only.** Nothing here is linked into `zvec`, `zg-engine`, the
 daemon, or the production index format. HNSW, the native build, and every
 production schema are untouched.
 
+## Local artifact workspace
+
+Run repository commands from the repository root and use the M4 project-local
+workspace for agent-controlled temporary/build outputs:
+
+```sh
+mkdir -p research/m4-native/.work/{tmp,build,sanitizer,scratch}
+export TMPDIR="$PWD/research/m4-native/.work/tmp" TMP="$PWD/research/m4-native/.work/tmp" TEMP="$PWD/research/m4-native/.work/tmp"
+```
+
+Build directories belong under `research/m4-native/.work/build/` (or
+`.work/sanitizer/`); receipts and evidence that must survive cleanup belong in
+`research/m4-native/results/`. Benchmark data roots must still use the
+filesystem specified by that experiment's protocol (for example `/var/tmp`
+when Btrfs semantics are required); do not redirect them to tmpfs or change
+their storage semantics via `TMPDIR`.
+
 ## Why this exists
 
 M2/M3 showed that a single-file write still costs 20–30 s on large
@@ -251,16 +268,16 @@ requires an explicit dictionary path. It does not modify native sources, the
 production ABI, or any production index.
 
 ```sh
-cmake -S research/m4-native -B /tmp/m4-p1-build \
+cmake -S research/m4-native -B research/m4-native/.work/build/p1 \
   -DCMAKE_BUILD_TYPE=Release \
   -DM4_ZVEC_ROOT="$PWD/.local/native/zvec-native-profile"
-cmake --build /tmp/m4-p1-build --target m4_correctness m4_native_fts_differential m4_native_bm25_isolation -j4
-/tmp/m4-p1-build/m4_correctness
+cmake --build research/m4-native/.work/build/p1 --target m4_correctness m4_native_fts_differential m4_native_bm25_isolation -j4
+research/m4-native/.work/build/p1/m4_correctness
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  /tmp/m4-p1-build/m4_native_bm25_isolation
+  research/m4-native/.work/build/p1/m4_native_bm25_isolation
 # Expected to exit nonzero while native/M4 ranking remains non-parity:
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  /tmp/m4-p1-build/m4_native_fts_differential
+  research/m4-native/.work/build/p1/m4_native_fts_differential
 ```
 
 The fixture pins `standard` + `lowercase`, empty extra parameters, native BM25
@@ -299,8 +316,8 @@ values, collects exact-value postings, then sorts/uniques candidate DocIds;
 extra memory is O(U + P) for U unique inputs and P matched postings.
 
 ```sh
-cmake --build /tmp/m4-p1-build --target m4_native_uint32_differential -j4
-LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" /tmp/m4-p1-build/m4_native_uint32_differential
+cmake --build research/m4-native/.work/build/p1 --target m4_native_uint32_differential -j4
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" research/m4-native/.work/build/p1/m4_native_uint32_differential
 ```
 
 ## Native ArrayUint32 membership differential (research only)
@@ -323,8 +340,8 @@ hit strings and temporary vector capacity). General AND/OR/NOT composition was s
 M4-P2.3; production integration and performance benchmarks remain out of scope.
 
 ```sh
-cmake --build /tmp/m4-p1-build --target m4_native_array_uint32_differential -j4
-LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" /tmp/m4-p1-build/m4_native_array_uint32_differential
+cmake --build research/m4-native/.work/build/p1 --target m4_native_array_uint32_differential -j4
+LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" research/m4-native/.work/build/p1/m4_native_array_uint32_differential
 ```
 
 ## Native Boolean filter differential (research only)
@@ -362,9 +379,9 @@ capacity slack outside the reported leaf, and allocator overhead; the analytic
 bound excludes `Hit`/PK storage and vector capacity slack.
 
 ```sh
-cmake --build /tmp/m4-p1-build --target m4_native_boolean_filter_differential -j4
+cmake --build research/m4-native/.work/build/p1 --target m4_native_boolean_filter_differential -j4
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  /tmp/m4-p1-build/m4_native_boolean_filter_differential
+  research/m4-native/.work/build/p1/m4_native_boolean_filter_differential
 ```
 
 ## zg-engine-shaped end-to-end workload (research only)
@@ -458,32 +475,32 @@ measurement are in `results/m4-bridge-snapshot-consistency-20261018.md`.
 This is research-only and makes no production-latency or generation-GC claim.
 
 ```sh
-cmake --build /tmp/m4-p4-build --target m4_bridge_integration -j2
-/tmp/m4-p4-build/m4_bridge_integration /tmp/m4-bridge-fresh "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
-M4_BRIDGE_TRACE=1 /tmp/m4-p4-build/m4_bridge_integration /tmp/m4-bridge-trace "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
-/tmp/m4-p4-build/m4_bridge_integration /var/tmp/m4-bridge-perf "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" --perf
+cmake --build research/m4-native/.work/build/p4 --target m4_bridge_integration -j2
+research/m4-native/.work/build/p4/m4_bridge_integration research/m4-native/.work/tmp/m4-bridge-fresh "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
+M4_BRIDGE_TRACE=1 research/m4-native/.work/build/p4/m4_bridge_integration research/m4-native/.work/tmp/m4-bridge-trace "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
+research/m4-native/.work/build/p4/m4_bridge_integration /var/tmp/m4-bridge-perf "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" --perf
 
 # Controlled AB/BA reader-vs-existing-vector-compaction crossover; fresh root required
-/tmp/m4-p4-build/m4_bridge_integration /var/tmp/m4-reader-compaction-crossover "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" --reader-compaction-crossover
+research/m4-native/.work/build/p4/m4_bridge_integration /var/tmp/m4-reader-compaction-crossover "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" --reader-compaction-crossover
 ```
 
 ```sh
 python3 tests/profile_native_m4_paired.py \\
-  --binary /tmp/m4-p4-build/native_m4_paired_benchmark \\
+  --binary research/m4-native/.work/build/p4/native_m4_paired_benchmark \\
   --dictionary "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" \\
   --root /var/tmp/m4-p4-new --files 1200 --runs 3 \\
   --candidate-arm m4-batch
 ```
 
 ```sh
-cmake --build /tmp/m4-p1-build --target m4_native_zg_workload_differential -j4
+cmake --build research/m4-native/.work/build/p1 --target m4_native_zg_workload_differential -j4
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  /tmp/m4-p1-build/m4_native_zg_workload_differential
+  research/m4-native/.work/build/p1/m4_native_zg_workload_differential
 
 # Effective zg analyzer and research-only Jieba parity/lifecycle differential
-cmake --build /tmp/m4-p1-build --target m4_native_jieba_compatibility -j4
+cmake --build research/m4-native/.work/build/p1 --target m4_native_jieba_compatibility -j4
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  ctest --test-dir /tmp/m4-p1-build --output-on-failure \
+  ctest --test-dir research/m4-native/.work/build/p1 --output-on-failure \
   -R '^m4_native_jieba_compatibility$'
 ```
 
@@ -497,9 +514,10 @@ do not authorize threshold changes, automatic retries, or mission completion.
 The active user mission/DoD takes precedence over an older handoff next action.
 
 ```sh
-# Correctness (uses /tmp/m4-research-tests)
-cmake -S . -B build && cmake --build build -j
-./build/m4_correctness
+# Correctness (temporary data uses TMPDIR; see Local artifact workspace)
+cmake -S research/m4-native -B research/m4-native/.work/build/default
+cmake --build research/m4-native/.work/build/default -j
+research/m4-native/.work/build/default/m4_correctness
 
 # Fixed-snapshot M4 Bridge search diagnostics (resource-gated; research only)
 # --reader-search-control disables diagnostics; --reader-search-counters enables
@@ -507,13 +525,13 @@ cmake -S . -B build && cmake --build build -j
 # --reader-search-diagnostics enables both. QueryDiagnostics defaults both ON
 # for a non-null pointer; set the input flags independently for overhead A/B.
 # Build the harness to match zg's default 256-D normalized cosine embedding shape.
-cmake -S research/m4-native -B /tmp/m4-bridge-search256 \
+cmake -S research/m4-native -B research/m4-native/.work/build/bridge-search256 \
   -DCMAKE_BUILD_TYPE=Release \
   -DM4_ZVEC_ROOT="$PWD/.local/native/zvec-native-profile" \
   -DCMAKE_CXX_FLAGS=-DM4_BRIDGE_DIMENSION=256
-cmake --build /tmp/m4-bridge-search256 --target m4_bridge_integration -j1
+cmake --build research/m4-native/.work/build/bridge-search256 --target m4_bridge_integration -j1
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  /tmp/m4-bridge-search256/m4_bridge_integration \
+  research/m4-native/.work/build/bridge-search256/m4_bridge_integration \
   /var/tmp/m4-reader-search-diagnostics-20261018 \
   "$PWD/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict" \
   --reader-search-diagnostics

@@ -14,7 +14,6 @@ import sys
 import tempfile
 import time
 import unittest
-import uuid
 from unittest import mock
 
 os.environ['M4_TEST_FIXTURE_MODE'] = '1'
@@ -31,7 +30,7 @@ class ContainmentRunnerTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.output_root = pathlib.Path(os.environ['M4_CONTAINMENT_TEST_OUTPUT']).resolve()
         cls.output_root.mkdir(parents=True, exist_ok=True)
-        cls.fixture_root = pathlib.Path(tempfile.mkdtemp(prefix='m4-containment-fixtures-', dir='/tmp'))
+        cls.fixture_root = pathlib.Path(tempfile.mkdtemp(prefix='m4-containment-fixtures-'))
         (cls.fixture_root / 'workspace').mkdir()
         cls.unrelated_pid = os.getpid()
 
@@ -44,7 +43,7 @@ class ContainmentRunnerTests(unittest.TestCase):
         receipt_dir = self.output_root / name
         receipt = runner.run_arm(
             command, receipt_dir, self.fixture_root, self.fixture_root / 'workspace',
-            pathlib.Path('/tmp'), timeout, sample_interval_ms=20,
+            self.fixture_root.parent, timeout, sample_interval_ms=20,
             enforce_host_gates=False,
         )
         self.assertEqual(json.loads((receipt_dir / 'receipt.json').read_text()), receipt)
@@ -67,7 +66,7 @@ class ContainmentRunnerTests(unittest.TestCase):
         with mock.patch.object(runner, 'host_snapshot', return_value=state):
             receipt = runner.run_arm(
                 ['/usr/bin/touch', str(marker)], receipt_dir, self.fixture_root,
-                self.fixture_root / 'workspace', pathlib.Path('/tmp'), 5.0,
+                self.fixture_root / 'workspace', self.fixture_root.parent, 5.0,
                 pressure_limits={
                     'swapfree_min_kib': 0, 'memory_some_avg10_max': 1000.0,
                     'memory_full_avg10_max': 1000.0,
@@ -103,9 +102,9 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertIn('memory PSI some', runner.pressure_baseline_failures(state, limits)[0])
 
     def test_missing_telemetry_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(prefix='m4-cgroup-empty-') as root:
-            with self.assertRaisesRegex(RuntimeError, 'memory.current'):
-                runner.validate_required_cgroup_metrics(pathlib.Path(root))
+        with tempfile.TemporaryDirectory(prefix='m4-cgroup-empty-') as root, \
+                self.assertRaisesRegex(RuntimeError, 'memory.current'):
+            runner.validate_required_cgroup_metrics(pathlib.Path(root))
 
     def test_guard_override_is_blocked_outside_explicit_fixture_mode(self) -> None:
         receipt_dir = self.output_root / 'unapproved-fixture-override'
@@ -114,7 +113,7 @@ class ContainmentRunnerTests(unittest.TestCase):
             receipt = runner.run_arm(
                 [sys.executable, '-c', f'from pathlib import Path; Path({str(marker)!r}).touch()'],
                 receipt_dir, self.fixture_root, self.fixture_root / 'workspace',
-                pathlib.Path('/tmp'), 5.0, enforce_host_gates=False,
+                self.fixture_root.parent, 5.0, enforce_host_gates=False,
             )
         self.assertEqual(receipt['status'], 'PREFLIGHT_BLOCKED')
         self.assertEqual(receipt['failure_class'], 'TEST_FIXTURE_OVERRIDE_REFUSED')
@@ -127,7 +126,7 @@ class ContainmentRunnerTests(unittest.TestCase):
         with mock.patch.object(runner, 'host_snapshot', side_effect=OSError('fixture telemetry missing')):
             receipt = runner.run_arm(
                 ['/usr/bin/touch', str(marker)], receipt_dir, self.fixture_root,
-                self.fixture_root / 'workspace', pathlib.Path('/tmp'), 5.0,
+                self.fixture_root / 'workspace', self.fixture_root.parent, 5.0,
                 enforce_host_gates=True,
                 pressure_limits={'swapfree_min_kib': 0, 'memory_some_avg10_max': 1000.0,
                                  'memory_full_avg10_max': 1000.0},
@@ -183,7 +182,7 @@ class ContainmentRunnerTests(unittest.TestCase):
 p=pathlib.Path(sys.argv[1]);s=importlib.util.spec_from_file_location('crash_runner',p);m=importlib.util.module_from_spec(s);sys.modules[s.name]=m;s.loader.exec_module(m)
 root=pathlib.Path(sys.argv[3])
 cmd=[sys.executable,'-c','import subprocess,sys,time; p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(30)"]); print("CHILD_PID="+str(p.pid),flush=True); time.sleep(30)']
-m.run_arm(cmd,pathlib.Path(sys.argv[2]),root.parent,root,pathlib.Path('/tmp'),30,20,enforce_host_gates=False)
+m.run_arm(cmd,pathlib.Path(sys.argv[2]),root.parent,root,root.parent,30,20,enforce_host_gates=False)
 '''
         worker = subprocess.Popen(
             [sys.executable, '-c', worker_code, str(RUNNER_PATH), str(receipt_dir), str(self.fixture_root / 'workspace')],
@@ -193,9 +192,10 @@ m.run_arm(cmd,pathlib.Path(sys.argv[2]),root.parent,root,pathlib.Path('/tmp'),30
             state_path = receipt_dir / 'run-state.json'
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
-                if state_path.exists() and (receipt_dir / 'watchdog-config.json').exists() and (receipt_dir / 'stdout.log').exists():
-                    if 'CHILD_PID=' in (receipt_dir / 'stdout.log').read_text():
-                        break
+                if (state_path.exists() and (receipt_dir / 'watchdog-config.json').exists()
+                        and (receipt_dir / 'stdout.log').exists()
+                        and 'CHILD_PID=' in (receipt_dir / 'stdout.log').read_text()):
+                    break
                 if worker.poll() is not None:
                     self.fail(f'worker exited before contained workload started: {worker.returncode}')
                 time.sleep(0.02)
