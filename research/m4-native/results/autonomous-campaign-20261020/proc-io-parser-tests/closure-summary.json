@@ -1,0 +1,20 @@
+{
+  "tiny_units": [
+    "m4-contained-007a425146c540d0.service",
+    "m4-contained-4be0e4aaa6db4292.service",
+    "m4-contained-43ba57c1e3e44d2f.service",
+    "m4-contained-2772baa6be0b427a.service",
+    "m4-contained-93c8e1459de648a8.service",
+    "m4-contained-1ca91fe205c44578.service",
+    "m4-contained-84573bf56bda4c68.service",
+    "m4-contained-92a17dbd99f44ce3.service"
+  ],
+  "all_verified_retired": true,
+  "original_slots_byte_semantics_unchanged": true,
+  "actual_replacement_source_matches_git_14f77dc": true,
+  "raw_safety_stop_preserved": true,
+  "native_arms_started": 0,
+  "real_attempts_consumed": 2,
+  "maximum_attempts": 4,
+  "new_native_experiment_after_refusal": false
+}

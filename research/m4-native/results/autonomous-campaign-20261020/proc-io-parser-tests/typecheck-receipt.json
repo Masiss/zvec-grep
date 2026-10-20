@@ -1,0 +1,17 @@
+{
+  "command": [
+    "ty",
+    "check",
+    "--output-format",
+    "concise",
+    "/home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py",
+    "/home/masis/src/zvec-grep/research/m4-native/tools/test_m4_containment_runner.py",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/analyze_replacement.py"
+  ],
+  "exit_code": 0,
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "c4bc68dec018e863dc7525b320c8d19b7f20fdd516ba63751651c91b90569833",
+    "research/m4-native/tools/test_m4_containment_runner.py": "21ff30f72ae6b4649f47ab488e7e079774e4dd7afaca23757a87ca47fc9a0848",
+    "research/m4-native/results/autonomous-campaign-20261020/analyze_replacement.py": "58c8a7d608267502822c7908861da38e4ba51f77db4292b8b062898cb8dd0e29"
+  }
+}

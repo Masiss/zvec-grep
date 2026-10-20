@@ -145,6 +145,12 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertTrue((receipt_dir / 'receipt.json').is_file())
         self.assertFalse(marker.exists())
 
+    def test_proc_io_colon_keys_are_normalized_without_changing_cgroup_keys(self) -> None:
+        self.assertEqual(runner.parse_kv('read_bytes: 4096\nwrite_bytes: 8192\n'),
+                         {'read_bytes':4096,'write_bytes':8192})
+        self.assertEqual(runner.parse_kv('usage_usec 42\noom 0\nmax 0\n'),
+                         {'usage_usec':42,'oom':0,'max':0})
+
     def test_integer_cpu_quota_and_complete_budget_readback(self) -> None:
         budget = {'approval_reference':'SYNTHETIC CAP-SERIALIZATION REGRESSION ONLY',
                   'memory_max_bytes':1073741824,'memory_swap_max_bytes':0,
@@ -166,6 +172,10 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(caps,{'cpu.max':'200000 100000','memory.max':'1073741824',
                               'memory.swap.max':'0','pids.max':'128'})
         self.assertEqual(receipt['limits_applied']['cpu_max'],'200000 100000')
+        first=json.loads((directory/'runtime.jsonl').read_text().splitlines()[0])['cgroup']
+        self.assertTrue(first['process_io_sample_complete'])
+        self.assertTrue(first['process_memory_sample_complete'])
+        self.assertEqual(runner.contention_runtime_failures(first,None),[])
 
     def test_explicit_task_budget_is_applied_to_owned_unit(self) -> None:
         command = [sys.executable, '-c', (

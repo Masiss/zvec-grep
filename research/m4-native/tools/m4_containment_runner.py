@@ -58,7 +58,7 @@ def parse_kv(text: str) -> dict[str, int]:
         fields = line.split()
         if len(fields) >= 2:
             try:
-                out[fields[0]] = int(fields[1])
+                out[fields[0].removesuffix(':')] = int(fields[1])
             except ValueError:
                 continue
     return out
