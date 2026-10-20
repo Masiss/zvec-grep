@@ -1,0 +1,6 @@
+Running as unit: m4-contained-82ef370f9eac4922.service
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=7/NOTRUNNING
+               Service runtime: 154ms
+             CPU time consumed: 65ms
+                   Memory peak: 18.8M (swap: 0B)

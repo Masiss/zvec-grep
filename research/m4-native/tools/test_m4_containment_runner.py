@@ -145,6 +145,28 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertTrue((receipt_dir / 'receipt.json').is_file())
         self.assertFalse(marker.exists())
 
+    def test_integer_cpu_quota_and_complete_budget_readback(self) -> None:
+        budget = {'approval_reference':'SYNTHETIC CAP-SERIALIZATION REGRESSION ONLY',
+                  'memory_max_bytes':1073741824,'memory_swap_max_bytes':0,
+                  'cpu_max':'200000 100000','pids_max':128,
+                  'workspace_max_allocated_bytes':536870912,
+                  'workspace_max_apparent_bytes':1073741824}
+        self.assertIn('CPUQuota=200%',runner.service_properties(budget,5))
+        self.assertIn('CPUQuota=50%',runner.service_properties(dict(budget,cpu_max='50000 100000'),5))
+        command = [sys.executable,'-c',(
+            'import pathlib,json,threading; '
+            'rel=pathlib.Path("/proc/self/cgroup").read_text().strip().split("::",1)[1]; '
+            'cg=pathlib.Path("/sys/fs/cgroup")/rel.lstrip("/"); '
+            'print(json.dumps({k:(cg/k).read_text().strip() for k in '
+            '("cpu.max","memory.max","memory.swap.max","pids.max")}),flush=True); '
+            'threading.Event().wait(0.15)')]
+        receipt,directory=self.run_fixture('integer-cpu-complete-budget',command,budget=budget)
+        self.assertEqual(receipt['status'],'PASS')
+        caps=json.loads((directory/'stdout.log').read_text())
+        self.assertEqual(caps,{'cpu.max':'200000 100000','memory.max':'1073741824',
+                              'memory.swap.max':'0','pids.max':'128'})
+        self.assertEqual(receipt['limits_applied']['cpu_max'],'200000 100000')
+
     def test_explicit_task_budget_is_applied_to_owned_unit(self) -> None:
         command = [sys.executable, '-c', (
             'import pathlib,threading; '

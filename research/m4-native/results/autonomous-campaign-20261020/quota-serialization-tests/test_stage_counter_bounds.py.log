@@ -1,0 +1,11 @@
+test_current_payload_join_and_scope_fail_closed (__main__.BoundTests.test_current_payload_join_and_scope_fail_closed) ... ok
+test_full_spans_give_conservative_bounds_not_interpolation (__main__.BoundTests.test_full_spans_give_conservative_bounds_not_interpolation) ... ok
+test_invalid_or_reset_counter_is_rejected (__main__.BoundTests.test_invalid_or_reset_counter_is_rejected) ... ok
+test_missing_boundary_never_means_low_cpu (__main__.BoundTests.test_missing_boundary_never_means_low_cpu) ... ok
+test_serialized_clock_error_shrinks_lower_and_expands_coverage (__main__.BoundTests.test_serialized_clock_error_shrinks_lower_and_expands_coverage) ... ok
+test_subsample_stage_remains_broad (__main__.BoundTests.test_subsample_stage_remains_broad) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.002s
+
+OK

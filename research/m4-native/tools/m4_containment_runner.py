@@ -1039,7 +1039,11 @@ def service_properties(budget: dict[str, Any] | None, runtime_seconds: float) ->
             if quota == 'max':
                 props.append('CPUQuota=infinity')
             else:
-                props.append(f'CPUQuota={100.0 * int(quota) / int(period):.3f}%')
+                # systemd-run rejects e.g. 200.000% on this host. Preserve exact
+                # integer percentages; do not round or broaden the approved quota.
+                percent, remainder = divmod(100 * int(quota), int(period))
+                value = str(percent) if remainder == 0 else f'{100.0 * int(quota) / int(period):.3f}'
+                props.append(f'CPUQuota={value}%')
     return props
 
 
