@@ -1,0 +1,31 @@
+{
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "ty",
+        "check",
+        "--output-format",
+        "concise",
+        "research/m4-native/tools/m4_containment_runner.py",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "research/m4-native/tools/test_m4_contention_policy.py",
+        "research/m4-native/results/autonomous-campaign-20261020/rehearse_launch_path.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "scope": "Only Path typing annotations corrected after first typecheck; initial six suites passed59tests and raw failed typecheck preserved. No live rehearsal/native attempt yet.",
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "aa1103b48981d1dbe2a04233ca7ba2019c9719c61534a48243c9ca565c891543",
+    "research/m4-native/tools/test_m4_containment_runner.py": "a8582a017da190b2b51f799454e27220071034c838d586e8670b8dbe40080f37",
+    "research/m4-native/tools/test_m4_contention_policy.py": "35c1727e343722ca976a6e407358bd7effc90bddb7a6d013a2efa5b80370061b",
+    "research/m4-native/results/autonomous-campaign-20261020/rehearse_launch_path.py": "a813f9eeee20e02de97bcb50157bb80220ec4bef1303db63e5b935405821a094"
+  }
+}

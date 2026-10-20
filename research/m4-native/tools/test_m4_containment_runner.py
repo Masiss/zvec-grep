@@ -146,8 +146,8 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertFalse(marker.exists())
 
     def test_proc_io_colon_keys_are_normalized_without_changing_cgroup_keys(self) -> None:
-        self.assertEqual(runner.parse_kv('read_bytes: 4096\nwrite_bytes: 8192\n'),
-                         {'read_bytes':4096,'write_bytes':8192})
+        self.assertEqual(runner.parse_kv('rchar: 12\nwchar: 34\nread_bytes: 4096\nwrite_bytes: 8192\ncancelled_write_bytes: 0\n'),
+                         {'rchar':12,'wchar':34,'read_bytes':4096,'write_bytes':8192,'cancelled_write_bytes':0})
         self.assertEqual(runner.parse_kv('usage_usec 42\noom 0\nmax 0\n'),
                          {'usage_usec':42,'oom':0,'max':0})
 

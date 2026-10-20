@@ -1,0 +1,3 @@
+research/m4-native/results/autonomous-campaign-20261020/rehearse_launch_path.py:31:53: error[invalid-argument-type] Argument to constructor `Path.__new__` is incorrect: Expected `str | PathLike[str]`, found `str | None`
+research/m4-native/tools/test_m4_contention_policy.py:86:49: error[invalid-argument-type] Argument to constructor `Path.__new__` is incorrect: Expected `str | PathLike[str]`, found `str | dict[Unknown, Unknown]`
+Found 2 diagnostics

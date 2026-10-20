@@ -69,6 +69,29 @@ class ContentionPolicyTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.ctx = context(self.root)
 
+    def test_rehearsal_admission_cannot_substitute_native_or_arbitrary_code(self):
+        ctx = dict(self.ctx, purpose='synthetic-containment-rehearsal',
+                   operation_id='m4-contention-rehearsal-test',
+                   operation_root=str(self.root/'m4-contention-rehearsal-test'),
+                   workload=dict(ct.REHEARSAL_WORKLOAD),
+                   binary_sha256=hashlib.sha256(pathlib.Path(sys.executable).read_bytes()).hexdigest())
+        self.assertEqual(ct.validate_contention_context(ctx),ctx)
+        for change in ({'workload':self.ctx['workload']}, {'purpose':'unknown'},
+                       {'binary_sha256':self.ctx['binary_sha256']}, {'operation_id':'m4-contention-fixture'}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                ct.validate_contention_context(dict(ctx,**change))
+        for command in ([sys.executable,'-c','print("not allowlisted")'],
+                        ['/native',str(self.root/'workspace/root'),'x','--incremental-fts-sustained','500','20']):
+            with self.subTest(command=command), self.assertRaisesRegex(ValueError,'binding mismatch'):
+                ct.run_arm(command,pathlib.Path(str(ctx['operation_root']))/'aa-first/containment',
+                           self.root,self.root/'workspace',self.root/'workspace',ctx['runtime_limit_seconds'],
+                           budget=ct.contention_budget(ctx),policy_context=ctx)
+        with self.assertRaisesRegex(ValueError,'binding mismatch'):
+            ct.run_arm([sys.executable,'-c',ct.REHEARSAL_CODE],
+                       pathlib.Path(self.ctx['operation_root'])/'aa-first/containment',
+                       self.root,self.root/'workspace',self.root/'workspace',self.ctx['runtime_limit_seconds'],
+                       budget=ct.contention_budget(self.ctx),policy_context=self.ctx)
+
     def test_all_four_historical_failures_are_raw_not_passes(self):
         d = ct.contention_decision(state(), self.ctx, 'baseline')
         self.assertEqual(len(d['historical_guard_failures']), 4)

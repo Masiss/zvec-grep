@@ -233,6 +233,19 @@ CONTENTION_MODE = 'contention-aware'
 CONTENTION_EVIDENCE = 'EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING'
 
 
+# Fixed, tiny workload only; never an alternate admission path for native commands.
+REHEARSAL_WORKLOAD = {'synthetic_only': True, 'payload_bytes': 32768, 'hold_seconds': 1}
+REHEARSAL_CODE = (
+    'import os,pathlib,json,threading; '
+    'p=pathlib.Path("synthetic-rehearsal.bin"); data=b"r"*32768; '
+    'f=p.open("wb"); f.write(data); f.flush(); os.fsync(f.fileno()); f.close(); '
+    'assert p.read_bytes()==data; '
+    'print(json.dumps({"synthetic_only":True,"proc_io":pathlib.Path("/proc/self/io").read_text(),'
+    '"cgroup":pathlib.Path("/proc/self/cgroup").read_text()}),flush=True); '
+    'threading.Event().wait(1); p.unlink()'
+)
+
+
 def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
     """An explicit, immutable per-operation resource plan; never an ambient override."""
     if not isinstance(context, dict) or context.get('mode') != CONTENTION_MODE:
@@ -253,10 +266,18 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f'{key} must be a canonical absolute path')
     if pathlib.Path(context['operation_root']).name != operation:
         raise ValueError('operation root/id mismatch')
-    if context.get('workload') != {'docs': 500, 'rounds': 20, 'tracing': False}:
-        raise ValueError('contention context is only for tracing-off 500x20 same-binary A/A')
-    if context.get('binary_sha256') != BENCHMARK_POLICY['contention_aware']['full_sync_binary_sha256']:
-        raise ValueError('contention context requires the verified full-sync binary')
+    if context.get('purpose') == 'synthetic-containment-rehearsal':
+        if (not operation.startswith('m4-contention-rehearsal-') or
+                context.get('workload') != REHEARSAL_WORKLOAD or
+                context.get('binary_sha256') != hashlib.sha256(pathlib.Path(sys.executable).read_bytes()).hexdigest()):
+            raise ValueError('rehearsal requires fixed synthetic workload and current Python identity')
+    else:
+        if context.get('purpose') is not None:
+            raise ValueError('unknown contention purpose')
+        if context.get('workload') != {'docs': 500, 'rounds': 20, 'tracing': False}:
+            raise ValueError('contention context is only for tracing-off 500x20 same-binary A/A')
+        if context.get('binary_sha256') != BENCHMARK_POLICY['contention_aware']['full_sync_binary_sha256']:
+            raise ValueError('contention context requires the verified full-sync binary')
     for key in ('memory_max_bytes', 'pids_max', 'workspace_max_allocated_bytes', 'workspace_max_apparent_bytes',
                 'host_memory_reserve_bytes', 'disk_reserve_bytes', 'runtime_limit_seconds',
                 'max_monitor_gap_seconds'):
@@ -1114,15 +1135,19 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
     if policy_context is not None:
         validate_contention_context(policy_context)
         arm_name = receipt_dir.parent.name
+        rehearsal = policy_context.get('purpose') == 'synthetic-containment-rehearsal'
+        command_bound = (command == [sys.executable, '-c', REHEARSAL_CODE]) if rehearsal else (
+            len(command) == 6 and command[-3:] == ['--incremental-fts-sustained', '500', '20'] and
+            pathlib.Path(command[1]).resolve() == workspace_root.resolve() / 'root' and
+            not pathlib.Path(command[1]).exists() and
+            hashlib.sha256(pathlib.Path(command[0]).read_bytes()).hexdigest() == policy_context['binary_sha256'])
         if (arm_name not in ('aa-first', 'aa-second') or
                 receipt_dir.resolve() != pathlib.Path(policy_context['operation_root']) / arm_name / 'containment' or
                 str(resource_root.resolve()) != policy_context['resource_root'] or
                 not enforce_host_gates or budget != contention_budget(policy_context) or
                 runtime_seconds != policy_context['runtime_limit_seconds'] or
-                len(command) != 6 or command[-3:] != ['--incremental-fts-sustained', '500', '20'] or
-                pathlib.Path(command[1]).resolve() != workspace_root.resolve() / 'root' or
-                pathlib.Path(command[1]).exists() or
-                hashlib.sha256(pathlib.Path(command[0]).read_bytes()).hexdigest() != policy_context['binary_sha256'] or
+                not command_bound or
+                (rehearsal and cwd.resolve() != workspace_root.resolve()) or
                 (env or {}).get('LD_PRELOAD') or any(k.startswith('M4_FAULT') for k in (env or {}))):
             raise ValueError('contained arm contention operation/command/budget binding mismatch')
     if not command:
