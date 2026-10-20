@@ -1,0 +1,6 @@
+Running as unit: m4-contained-e15ece230396478c.service; invocation ID: 9e4ea3b36234436c8c5fcd8075532d2a
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=143/n/a
+               Service runtime: 539ms
+             CPU time consumed: 265ms
+                   Memory peak: 19.4M (swap: 0B)

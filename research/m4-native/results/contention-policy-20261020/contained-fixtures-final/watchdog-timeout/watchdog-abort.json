@@ -1,0 +1,23 @@
+{
+  "failure_class": "TIMEOUT_ABORT",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "limit_seconds": 0.5,
+  "reason": "runtime_timeout",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      3198827
+    ],
+    "term_pids": [
+      3198891,
+      3198892
+    ]
+  },
+  "timestamp_utc": "2026-10-20T09:57:16.578995+00:00"
+}

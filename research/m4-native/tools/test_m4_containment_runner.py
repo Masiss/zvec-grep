@@ -249,10 +249,17 @@ m.run_arm(cmd,pathlib.Path(sys.argv[2]),root.parent,root,root.parent,30,20,enfor
             worker.wait(timeout=5)
             abort_path = receipt_dir / 'watchdog-abort.json'
             deadline = time.monotonic() + 10
-            while time.monotonic() < deadline and not abort_path.exists():
+            abort = None
+            while time.monotonic() < deadline:
+                if abort_path.exists():
+                    abort = json.loads(abort_path.read_text())
+                    if abort.get('cleanup_complete'):
+                        break
                 time.sleep(0.02)
-            self.assertTrue(abort_path.exists(), 'independent watchdog did not persist an abort receipt')
-            abort = json.loads(abort_path.read_text())
+            self.assertIsNotNone(abort, 'independent watchdog did not persist an abort receipt')
+            assert abort is not None
+            self.assertTrue(abort.get('cleanup_complete'), 'independent watchdog cleanup did not finish')
+            self.assertTrue(abort.get('socket_cleanup_verified'), 'independent watchdog socket cleanup not verified')
             self.assertEqual(abort['reason'], 'supervisor_lost')
             self.assertEqual(abort['failure_class'], 'CONTROLLER_CRASH_ABORT')
             self.assertIn(child_pid, abort['termination']['term_pids'])

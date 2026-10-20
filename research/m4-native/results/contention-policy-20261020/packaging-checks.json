@@ -1,0 +1,11 @@
+{
+  "tests_passed": 51,
+  "suites_passed": 6,
+  "tested_sources_still_match": true,
+  "preexisting_policy_fields_identical_to_475ea4c": true,
+  "typecheck_exit": 0,
+  "retained_owned_unit_receipts_verified_and_collected": 24,
+  "real_performance_benchmark_launched": false,
+  "performance_readiness_or_ambient_measurement_launched": false,
+  "production_or_unrelated_files_staged": false
+}

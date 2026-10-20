@@ -1,0 +1,32 @@
+{
+  "arm_name": "contained-fixtures-release",
+  "baseline_memory_events": {
+    "high": 0,
+    "low": 0,
+    "max": 0,
+    "oom": 0,
+    "oom_group_kill": 0,
+    "oom_kill": 0,
+    "sock_throttled": 0
+  },
+  "bootstrap_pid": 3230108,
+  "budget": null,
+  "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-e15ece230396478c.service",
+  "cgroup_rel": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-e15ece230396478c.service",
+  "command_done_marker": "/run/user/1000/m4-cgroup-zgdrtki0/command.done",
+  "controller_pid": 3230045,
+  "enforce_host_gates": false,
+  "policy_context": null,
+  "policy_context_digest": null,
+  "policy_mode": "legacy",
+  "pressure_limits": null,
+  "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/tmp/m4-containment-fixtures-hgj98raw",
+  "runtime_limit_seconds": 5.0,
+  "sample_interval_ms": 20,
+  "socket_dir": "/run/user/1000/m4-cgroup-zgdrtki0",
+  "start_marker": "/run/user/1000/m4-cgroup-zgdrtki0/go",
+  "unit": "m4-contained-e15ece230396478c.service",
+  "watchdog_output": "/home/masis/src/zvec-grep/research/m4-native/results/contention-policy-20261020/contained-fixtures-release/sigterm",
+  "watchdog_ready_path": "/run/user/1000/m4-cgroup-zgdrtki0/watchdog.ready",
+  "workspace_root": "/home/masis/src/zvec-grep/research/m4-native/.work/tmp/m4-containment-fixtures-hgj98raw/workspace"
+}

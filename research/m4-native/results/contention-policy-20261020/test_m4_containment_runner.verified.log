@@ -1,0 +1,17 @@
+test_guard_override_is_blocked_outside_explicit_fixture_mode (__main__.ContainmentRunnerTests.test_guard_override_is_blocked_outside_explicit_fixture_mode) ... ok
+test_hard_gate_block_never_launches_command (__main__.ContainmentRunnerTests.test_hard_gate_block_never_launches_command) ... ok
+test_memory_swap_pressure_baseline_is_enforced (__main__.ContainmentRunnerTests.test_memory_swap_pressure_baseline_is_enforced) ... ok
+test_missing_preflight_telemetry_writes_no_launch_receipt (__main__.ContainmentRunnerTests.test_missing_preflight_telemetry_writes_no_launch_receipt) ... ok
+test_missing_telemetry_is_rejected (__main__.ContainmentRunnerTests.test_missing_telemetry_is_rejected) ... ok
+test_nonzero_exit_is_not_pass (__main__.ContainmentRunnerTests.test_nonzero_exit_is_not_pass) ... ok
+test_normal_exit_and_descendant_share_owned_cgroup (__main__.ContainmentRunnerTests.test_normal_exit_and_descendant_share_owned_cgroup) ... ok
+test_retirement_keeps_failed_unit_when_cleanup_is_unverified (__main__.ContainmentRunnerTests.test_retirement_keeps_failed_unit_when_cleanup_is_unverified) ... ok
+test_sigterm_and_sigkill_are_not_pass (__main__.ContainmentRunnerTests.test_sigterm_and_sigkill_are_not_pass) ... ok
+test_supervisor_crash_is_detected_and_arm_is_cleaned (__main__.ContainmentRunnerTests.test_supervisor_crash_is_detected_and_arm_is_cleaned) ... ok
+test_terminal_classes_distinguish_oom_and_abort_types (__main__.ContainmentRunnerTests.test_terminal_classes_distinguish_oom_and_abort_types) ... ok
+test_watchdog_abort_kills_descendants_and_records_reason (__main__.ContainmentRunnerTests.test_watchdog_abort_kills_descendants_and_records_reason) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 2.514s
+
+OK

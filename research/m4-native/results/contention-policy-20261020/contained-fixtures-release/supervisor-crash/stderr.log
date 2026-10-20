@@ -1,0 +1,6 @@
+Running as unit: m4-contained-4719cc87521149e9.service
+          Finished with result: signal
+Main processes terminated with: code=killed, status=9/KILL
+               Service runtime: 582ms
+             CPU time consumed: 333ms
+                   Memory peak: 24.7M (swap: 0B)

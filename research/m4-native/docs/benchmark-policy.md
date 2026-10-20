@@ -40,7 +40,7 @@ The exact values and their metadata exist only in **`benchmark-policy.json`**. T
 - `run_sync_reduction_pair.py`, `run_host_carryover_aa.py`, and the retained `run_diag_aa_v2.py` / `run_matched_evaluator_pair.py` load the guard values from this JSON. The latter two had duplicated literals; they now map their local resource-root key (where needed) from the canonical `var_tmp_bytes_min`. `test_m4_benchmark_policy.py` guards these files against reintroducing threshold literals. The markdown table is explanatory and is not parsed by runners.
 - `m4_containment_runner.py` has observed cgroup-v2 CPU, memory and pids delegation. I/O is not delegated on the calibrated host. Therefore `io.max`/`io.stat` may be unavailable; host diskstats and process-tree `/proc` I/O have different scopes and cannot be called per-arm physical-write attribution. No cgroup resource ceiling is implied unless its budget is explicitly approved. Sampled workspace size is not a kernel quota.
 
-## Diagnostic, qualification, and recovery
+## Qualification and legacy diagnostic (unchanged)
 
 1. **Preflight:** capture current host state and test the unchanged resource guards. Any failure means no benchmark launch. Record all failed metric/value/threshold pairs; do not relabel an empirical guard as universal safety.
 2. **Ambient baseline:** capture the required 60-second telemetry. Missing/malformed/short coverage is `MEASUREMENT_INVALID`, not stability drift. Absolute resource and baseline-relative memory/swap pressure failures block both modes.
@@ -50,6 +50,36 @@ The exact values and their metadata exist only in **`benchmark-policy.json`**. T
 6. **After an operation:** compare only matched binaries/source/native libraries, query IDs, mutation trace, build flags, cache/maintenance conditions and fresh roots. Record physical-write measurements separately from logical bytes and process-tree I/O. One exploratory pair cannot establish a durable performance decision.
 
 Calibration receipts and the canonical handoff preserve dated examples of policy refusals and measurement-quality rejections. These distinguish operation-level blocking from mission status; consult the receipt and handoff for the exact observation at the time rather than copying an old host snapshot here.
+
+## Contention-aware diagnostic (explicitly selected, non-qualifying)
+
+The owner mission **M4 Writer-tail Under Real Host Contention** authorizes this research-only implementation and synthetic tests, **not a real pair**. It supersedes the design of `io-psi-diagnostic-amendment.proposed.md`; that narrower draft was never activated. All earlier no-launch receipts remain valid under their then-active policy. The qualification and legacy diagnostic rules above remain unchanged. Statements above about mandatory historical envelope/first-three-window pressure checks refer to those two modes; the following is the only scoped alternative.
+
+`run_host_carryover_aa.py --mode contention-aware --contention-plan <approved-operation-plan.json>` selects the new path. There is no environment-only override, global ignore switch, or inherited exception in other harnesses. The plan must bind the exact policy SHA-256, named operation/root, Btrfs resource root, pinned full-sync binary, tracing-off same-binary workload, explicit owner execution and I/O-risk acceptance references, and justified finite M4 resource budgets. No real approved plan is shipped. `contention-plan.pending.json` is deliberately incomplete and rejected.
+
+### What changes and what does not
+
+- **All four historical comparisons remain raw PASS/FAIL**, with original values, observed metrics, timestamps and provenance. For this mode only they describe host contention, not universal safety or mandatory idle-host readiness. A distinct `continuation_allowed` decision describes actual approved workload capacity; a raw FAIL is never rewritten to PASS.
+- The ambient capture observes the real host. First-three-window pressure/stability bounds are retained as historical descriptors, not enforced against later natural contention. No request to stop, pause, throttle or kill another project's workload; no idle polling or automatic retry.
+- Host capacity is checked against the **explicit resource plan**, not an invented higher load/PSI limit: pre-arm RAM must cover M4's memory cap plus the approved host reserve; runtime preserves the reserve. SwapFree must cover the remaining approved M4 swap allocation (no extra requirement when its swap cap is zero). Disk must cover the remaining owned-workspace allocation and reserve, including retention of the first arm's root. Other workloads may consume capacity; a shortfall stops M4 without attributing the cause to M4 or changing those workloads.
+- Finite `memory.max`, `memory.swap.max` (zero allowed) and `cpu.max` are mandatory on M4's owned service. Read-back is checked before release and by the independent watchdog. Workspace ceilings are **sampled abort controls**, not kernel/filesystem quotas. No delegated I/O controller exists; neither `io.max` nor hard I/O isolation is claimed.
+- Preserve source/build/dependency/runtime-library identity and completed correctness/durability/fault evidence. Static full-sync verification runs before the pair and each arm; the old sync-reduction binary cannot qualify for this mode. No C++ or production changes are part of this policy.
+
+### Monitoring and abort contract
+
+Before/during/after each arm retain host PSI (CPU/memory/I/O), MemAvailable, swap and reclaim/OOM counters, shared filesystem/diskstats, owned cgroup CPU/memory/swap/PSI, process-tree PSS/RSS/swap/I/O, workspace measurements and lifecycle receipts. Native stages remain in the existing stdout timeline; no heavy tracing is enabled. Compare ambient/during host pressure and owned CPU/memory separately. `contention-analysis.json` reports temporal pressure differences and explicitly cannot identify a causal incremental M4 effect from a concurrent uncontrolled host. Process-tree I/O snapshots can lose exited workers and are not device write attribution.
+
+Required telemetry must be present, finite, in range, internally consistent and monotonic. This mode uses the plan's explicitly bounded maximum observation gap and actual read brackets rather than requiring nominal idle-host sample cadence. Missing/overlong coverage blocks; reduced but valid resolution is disclosed. Qualification/legacy cadence and integrity checks are untouched. Capacity failure, observed host OOM, owned OOM/allocation/swap-limit distress, cap mismatch, malformed/incomplete process telemetry, controller loss, timeout, correctness/durability or cleanup failure still block/abort. PSI alone is not grounds to attribute the failure to M4.
+
+The independent watchdog validates operation/mode/budget/context binding and acknowledges a canonical context digest **before the supervisor releases M4**. Its final summary must echo that digest. It samples the same contention policy, not legacy historical guards. Timeout and verified owned-unit retirement remain in place. Cleanup touches only the owned cgroup descendants. Three valid capacity/integrity recovery windows are required; a capacity/integrity failure stops the pair immediately instead of waiting for an idle host. The recovery timeout starts after arm one in this mode only. A no-launch/abort/completion consumes the operation directory; duplicate attempts cannot overwrite it or reuse its arm receipts.
+
+Every result, even with no historical exceedance, is **`EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING`**, never qualification/performance-eligible. No candidate win, proved regression or production readiness follows. Qualification/default diagnostic and unrelated harnesses keep their old behavior.
+
+### Remaining limits and launch decision
+
+Cgroup memory/CPU caps constrain only the owned service, not the external observer. Host reserves must account for observer/kernel needs and other active work; approval is an operational risk decision, not a universal safety guarantee. I/O interference, shared Btrfs allocation races, page-cache effects and sampling gaps remain possible. A sampled workspace guard can overshoot between reads; no kernel disk quota or per-arm I/O hard cap exists. Kernel OOM/cgroup events and reserves cannot predict every global failure. The observer itself can add scheduling and I/O pressure.
+
+Real launch therefore still requires a separately approved, evidence-based resource plan and explicit acceptance of these limits, followed by one bounded operation. Do not weaken a real capacity/integrity refusal or ask the owner to quiet unrelated workloads. Current engineering verification is not a resource-readiness measurement or real workload safety certificate.
 
 ## Operation and mission status contract
 

@@ -80,7 +80,7 @@ FIELDS = ["monotonic_ns", "epoch_ns", "sample_start_monotonic_ns", "sample_durat
           "memory_some_avg10", "memory_some_total_us", "memory_full_avg10", "memory_full_total_us", "diskstats_json"]
 
 
-def capture(duration_s, output_path=None):
+def capture(duration_s, output_path=None, *, sample_function=None):
     output_path = None if output_path is None else pathlib.Path(output_path)
     start = subprocess.check_output(["ps", "-eo", "pid,comm,%cpu,rss", "--sort=-%cpu"], text=True).splitlines()[:20]
     rows = []
@@ -88,7 +88,7 @@ def capture(duration_s, output_path=None):
     deadline = began + duration_s
     next_sample = began
     while time.monotonic() < deadline:
-        rows.append(sample())
+        rows.append((sample_function or sample)())
         next_sample += SAMPLE_S
         remaining = next_sample - time.monotonic()
         if remaining > 0:
@@ -103,7 +103,7 @@ def capture(duration_s, output_path=None):
     }
     if output_path is not None:
         with output_path.open("w", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=FIELDS)
+            writer = csv.DictWriter(stream, fieldnames=list(rows[0]) if sample_function and rows else FIELDS)
             writer.writeheader()
             writer.writerows(rows)
         output_path.with_suffix(".host.json").write_text(json.dumps(metadata, indent=2) + "\n")

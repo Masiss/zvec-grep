@@ -1,0 +1,488 @@
+{
+  "source": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/writer-cycles.csv",
+  "source_sha256": "5a25e883ca90706e943fafea66136b2348ba0ec27ecbecb1d4d9a092db97f932",
+  "scope": "offline replay of historical filter-identity A/B, NOT new full-sync measurement or durability-equivalent performance proof",
+  "new_benchmark_launched": false,
+  "groups": {
+    "candidate-first/baseline": {
+      "cycles": 20,
+      "noncompacting_cycles": 15,
+      "all_cycles_ms": {
+        "commit_wall_ms": {
+          "min": 174.58517,
+          "median": 217.40666,
+          "max": 270.46832
+        },
+        "writer_thread_cpu_ms": {
+          "min": 96.556373,
+          "median": 124.334495,
+          "max": 182.2867
+        },
+        "vector_build_wall_ms": {
+          "min": 72.916022,
+          "median": 96.1152615,
+          "max": 111.27423
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 28.594704,
+          "median": 41.202934,
+          "max": 62.442004
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 20.972470000000044,
+          "median": 26.40240000000017,
+          "max": 42.48399999999947
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 111.27423
+        }
+      },
+      "noncompacting_ms": {
+        "commit_wall_ms": {
+          "min": 174.58517,
+          "median": 202.43679,
+          "max": 270.46832
+        },
+        "writer_thread_cpu_ms": {
+          "min": 96.556373,
+          "median": 113.40594,
+          "max": 182.2867
+        },
+        "vector_build_wall_ms": {
+          "min": 72.916022,
+          "median": 85.839903,
+          "max": 110.97982
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 28.594704,
+          "median": 36.414025,
+          "max": 62.442004
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 20.972470000000044,
+          "median": 26.295200000000023,
+          "max": 42.48399999999947
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 0.0
+        }
+      },
+      "slowest_five": [
+        {
+          "cycle_id": "5",
+          "compacted": "False",
+          "commit_wall_ms": "270.46832",
+          "writer_thread_cpu_ms": "182.2867",
+          "vector_build_wall_ms": "110.97982",
+          "vector_build_writer_thread_cpu_ms": "59.314224",
+          "m4_end_to_build_end_residual_ms": "29.697799999999916",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "11",
+          "compacted": "False",
+          "commit_wall_ms": "246.81327",
+          "writer_thread_cpu_ms": "158.78948",
+          "vector_build_wall_ms": "110.92421",
+          "vector_build_writer_thread_cpu_ms": "62.442004",
+          "m4_end_to_build_end_residual_ms": "30.61929999999984",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "10",
+          "compacted": "False",
+          "commit_wall_ms": "246.37525",
+          "writer_thread_cpu_ms": "156.47324",
+          "vector_build_wall_ms": "97.479034",
+          "vector_build_writer_thread_cpu_ms": "49.261889",
+          "m4_end_to_build_end_residual_ms": "32.022599999999784",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "4",
+          "compacted": "True",
+          "commit_wall_ms": "245.57135",
+          "writer_thread_cpu_ms": "155.48612",
+          "vector_build_wall_ms": "98.264209",
+          "vector_build_writer_thread_cpu_ms": "46.744143",
+          "m4_end_to_build_end_residual_ms": "33.142500000000155",
+          "compaction_wall_ms": "98.264209"
+        },
+        {
+          "cycle_id": "8",
+          "compacted": "True",
+          "commit_wall_ms": "243.35222",
+          "writer_thread_cpu_ms": "153.11808",
+          "vector_build_wall_ms": "109.52165",
+          "vector_build_writer_thread_cpu_ms": "58.132867",
+          "m4_end_to_build_end_residual_ms": "28.68820000000005",
+          "compaction_wall_ms": "109.52165"
+        }
+      ]
+    },
+    "candidate-first/candidate": {
+      "cycles": 20,
+      "noncompacting_cycles": 15,
+      "all_cycles_ms": {
+        "commit_wall_ms": {
+          "min": 208.61417,
+          "median": 234.45978,
+          "max": 593.90579
+        },
+        "writer_thread_cpu_ms": {
+          "min": 115.62177,
+          "median": 138.40152,
+          "max": 183.0613
+        },
+        "vector_build_wall_ms": {
+          "min": 83.515277,
+          "median": 102.372595,
+          "max": 307.11147
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 37.642203,
+          "median": 48.296733,
+          "max": 70.452158
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 24.354899999999816,
+          "median": 29.64720000000011,
+          "max": 88.84710000000018
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 126.87182
+        }
+      },
+      "noncompacting_ms": {
+        "commit_wall_ms": {
+          "min": 208.61417,
+          "median": 230.49377,
+          "max": 593.90579
+        },
+        "writer_thread_cpu_ms": {
+          "min": 115.62177,
+          "median": 132.46289,
+          "max": 176.78465
+        },
+        "vector_build_wall_ms": {
+          "min": 83.515277,
+          "median": 95.596682,
+          "max": 307.11147
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 37.642203,
+          "median": 45.2911,
+          "max": 70.056464
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 24.354899999999816,
+          "median": 30.74200000000019,
+          "max": 88.84710000000018
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 0.0
+        }
+      },
+      "slowest_five": [
+        {
+          "cycle_id": "1",
+          "compacted": "False",
+          "commit_wall_ms": "593.90579",
+          "writer_thread_cpu_ms": "137.75541",
+          "vector_build_wall_ms": "307.11147",
+          "vector_build_writer_thread_cpu_ms": "50.569267",
+          "m4_end_to_build_end_residual_ms": "88.84710000000018",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "2",
+          "compacted": "False",
+          "commit_wall_ms": "431.07301",
+          "writer_thread_cpu_ms": "115.62177",
+          "vector_build_wall_ms": "246.42426",
+          "vector_build_writer_thread_cpu_ms": "39.76742",
+          "m4_end_to_build_end_residual_ms": "24.99109999999996",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "14",
+          "compacted": "False",
+          "commit_wall_ms": "293.34661",
+          "writer_thread_cpu_ms": "170.64894",
+          "vector_build_wall_ms": "143.9065",
+          "vector_build_writer_thread_cpu_ms": "70.056464",
+          "m4_end_to_build_end_residual_ms": "37.50510000000031",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "12",
+          "compacted": "True",
+          "commit_wall_ms": "287.77611",
+          "writer_thread_cpu_ms": "183.0613",
+          "vector_build_wall_ms": "126.87182",
+          "vector_build_writer_thread_cpu_ms": "68.804418",
+          "m4_end_to_build_end_residual_ms": "34.9362000000001",
+          "compaction_wall_ms": "126.87182"
+        },
+        {
+          "cycle_id": "11",
+          "compacted": "False",
+          "commit_wall_ms": "269.79786",
+          "writer_thread_cpu_ms": "176.78465",
+          "vector_build_wall_ms": "115.40417",
+          "vector_build_writer_thread_cpu_ms": "68.30559",
+          "m4_end_to_build_end_residual_ms": "32.4978000000001",
+          "compaction_wall_ms": "0"
+        }
+      ]
+    },
+    "baseline-first/baseline": {
+      "cycles": 20,
+      "noncompacting_cycles": 15,
+      "all_cycles_ms": {
+        "commit_wall_ms": {
+          "min": 186.71228,
+          "median": 212.602425,
+          "max": 241.95566
+        },
+        "writer_thread_cpu_ms": {
+          "min": 101.28514,
+          "median": 110.60331,
+          "max": 136.76762
+        },
+        "vector_build_wall_ms": {
+          "min": 84.388688,
+          "median": 94.2676085,
+          "max": 122.95577
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 34.000407,
+          "median": 40.9999265,
+          "max": 56.279038
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 23.760839999999916,
+          "median": 29.27250000000015,
+          "max": 54.36860000000024
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 119.29173
+        }
+      },
+      "noncompacting_ms": {
+        "commit_wall_ms": {
+          "min": 186.71228,
+          "median": 202.77848,
+          "max": 239.98417
+        },
+        "writer_thread_cpu_ms": {
+          "min": 101.28514,
+          "median": 107.72386,
+          "max": 122.23878
+        },
+        "vector_build_wall_ms": {
+          "min": 84.388688,
+          "median": 92.508171,
+          "max": 122.95577
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 34.000407,
+          "median": 38.648552,
+          "max": 45.246576
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 23.760839999999916,
+          "median": 29.08960000000002,
+          "max": 54.36860000000024
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 0.0
+        }
+      },
+      "slowest_five": [
+        {
+          "cycle_id": "20",
+          "compacted": "True",
+          "commit_wall_ms": "241.95566",
+          "writer_thread_cpu_ms": "136.76762",
+          "vector_build_wall_ms": "119.29173",
+          "vector_build_writer_thread_cpu_ms": "56.279038",
+          "m4_end_to_build_end_residual_ms": "30.945199999999204",
+          "compaction_wall_ms": "119.29173"
+        },
+        {
+          "cycle_id": "7",
+          "compacted": "False",
+          "commit_wall_ms": "239.98417",
+          "writer_thread_cpu_ms": "122.23878",
+          "vector_build_wall_ms": "95.119849",
+          "vector_build_writer_thread_cpu_ms": "45.246576",
+          "m4_end_to_build_end_residual_ms": "54.36860000000024",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "3",
+          "compacted": "False",
+          "commit_wall_ms": "237.39929",
+          "writer_thread_cpu_ms": "117.00696",
+          "vector_build_wall_ms": "122.95577",
+          "vector_build_writer_thread_cpu_ms": "44.382935",
+          "m4_end_to_build_end_residual_ms": "29.92769999999996",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "12",
+          "compacted": "True",
+          "commit_wall_ms": "233.45614",
+          "writer_thread_cpu_ms": "132.28796",
+          "vector_build_wall_ms": "105.40347",
+          "vector_build_writer_thread_cpu_ms": "52.128317",
+          "m4_end_to_build_end_residual_ms": "29.7795000000001",
+          "compaction_wall_ms": "105.40347"
+        },
+        {
+          "cycle_id": "4",
+          "compacted": "True",
+          "commit_wall_ms": "232.92677",
+          "writer_thread_cpu_ms": "132.97518",
+          "vector_build_wall_ms": "103.09235",
+          "vector_build_writer_thread_cpu_ms": "45.379311",
+          "m4_end_to_build_end_residual_ms": "27.327199999999948",
+          "compaction_wall_ms": "103.09235"
+        }
+      ]
+    },
+    "baseline-first/candidate": {
+      "cycles": 20,
+      "noncompacting_cycles": 15,
+      "all_cycles_ms": {
+        "commit_wall_ms": {
+          "min": 153.73198,
+          "median": 202.049595,
+          "max": 498.37956
+        },
+        "writer_thread_cpu_ms": {
+          "min": 84.411216,
+          "median": 116.69248999999999,
+          "max": 181.86462
+        },
+        "vector_build_wall_ms": {
+          "min": 70.622078,
+          "median": 94.54204200000001,
+          "max": 256.68355
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 26.361852,
+          "median": 40.317355,
+          "max": 73.304927
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 13.36830000000009,
+          "median": 16.613450000000284,
+          "max": 111.20910000000003
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 256.68355
+        }
+      },
+      "noncompacting_ms": {
+        "commit_wall_ms": {
+          "min": 153.73198,
+          "median": 199.05471,
+          "max": 477.12776
+        },
+        "writer_thread_cpu_ms": {
+          "min": 84.411216,
+          "median": 110.02752,
+          "max": 149.77701
+        },
+        "vector_build_wall_ms": {
+          "min": 70.622078,
+          "median": 90.217159,
+          "max": 232.13036
+        },
+        "vector_build_writer_thread_cpu_ms": {
+          "min": 26.361852,
+          "median": 39.078078,
+          "max": 66.363209
+        },
+        "m4_end_to_build_end_residual_ms": {
+          "min": 13.36830000000009,
+          "median": 17.54449999999997,
+          "max": 111.20910000000003
+        },
+        "compaction_wall_ms": {
+          "min": 0.0,
+          "median": 0.0,
+          "max": 0.0
+        }
+      },
+      "slowest_five": [
+        {
+          "cycle_id": "4",
+          "compacted": "True",
+          "commit_wall_ms": "498.37956",
+          "writer_thread_cpu_ms": "181.86462",
+          "vector_build_wall_ms": "256.68355",
+          "vector_build_writer_thread_cpu_ms": "73.304927",
+          "m4_end_to_build_end_residual_ms": "84.99500000000035",
+          "compaction_wall_ms": "256.68355"
+        },
+        {
+          "cycle_id": "3",
+          "compacted": "False",
+          "commit_wall_ms": "477.12776",
+          "writer_thread_cpu_ms": "144.32607",
+          "vector_build_wall_ms": "232.13036",
+          "vector_build_writer_thread_cpu_ms": "66.363209",
+          "m4_end_to_build_end_residual_ms": "102.89350000000013",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "2",
+          "compacted": "False",
+          "commit_wall_ms": "476.66247",
+          "writer_thread_cpu_ms": "149.77701",
+          "vector_build_wall_ms": "220.13628",
+          "vector_build_writer_thread_cpu_ms": "58.047226",
+          "m4_end_to_build_end_residual_ms": "111.20910000000003",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "1",
+          "compacted": "False",
+          "commit_wall_ms": "406.55149",
+          "writer_thread_cpu_ms": "130.16466",
+          "vector_build_wall_ms": "204.77769",
+          "vector_build_writer_thread_cpu_ms": "51.033758",
+          "m4_end_to_build_end_residual_ms": "74.42949999999996",
+          "compaction_wall_ms": "0"
+        },
+        {
+          "cycle_id": "8",
+          "compacted": "True",
+          "commit_wall_ms": "227.70879",
+          "writer_thread_cpu_ms": "142.54729",
+          "vector_build_wall_ms": "98.251416",
+          "vector_build_writer_thread_cpu_ms": "46.397484",
+          "m4_end_to_build_end_residual_ms": "16.271799999999985",
+          "compaction_wall_ms": "98.251416"
+        }
+      ]
+    }
+  }
+}

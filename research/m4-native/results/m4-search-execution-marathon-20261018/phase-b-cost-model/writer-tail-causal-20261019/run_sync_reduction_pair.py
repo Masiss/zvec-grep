@@ -92,7 +92,7 @@ def binary_runtime_identity(binary):
     runner_files = [
         HERE / "run_host_carryover_aa.py", HERE / "run_sync_reduction_pair.py",
         HERE / "capture_host_baseline.py", HERE / "analyze_host_pressure.py",
-        HERE / "summarize_aa_diagnostic.py", CONTAINMENT_PATH,
+        HERE / "summarize_aa_diagnostic.py", CONTAINMENT_PATH, containment.POLICY_PATH,
     ]
     runner_hashes = {str(p.relative_to(REPO_ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                      for p in sorted(set(runner_files)) if p.is_file()}
@@ -124,7 +124,41 @@ def binary_runtime_identity(binary):
     }
 
 
-def read_host():
+def verify_full_sync(binary):
+    """Static verification only: never run the benchmark or redo completed correctness tests."""
+    archive = REPO_ROOT / 'research/m4-native/results/durability-restore-20261020'
+    manifest = json.loads((archive / 'build-provenance.json').read_text())
+    identity = binary_runtime_identity(binary)
+    if (identity['binary_sha256'] != BENCHMARK_POLICY['contention_aware']['full_sync_binary_sha256'] or
+            identity['binary_sha256'] != manifest['binary_sha256'] or
+            identity['ldd_returncode'] != 0 or
+            identity['loaded_shared_libraries'] != manifest['runtime_library_hashes']):
+        raise ValueError('full-sync binary/runtime provenance mismatch')
+    for name, expected in manifest['compile_dependency_hashes'].items():
+        if hashlib.sha256((REPO_ROOT / name).read_bytes()).hexdigest() != expected:
+            raise ValueError(f'compiler input mismatch: {name}')
+    if len(manifest['compile_dependency_hashes']) != manifest['compile_dependency_count']:
+        raise ValueError('incomplete compiler dependency manifest')
+    for line in (archive / 'SHA256SUMS.txt').read_text().splitlines():
+        expected, name = line.split(maxsplit=1)
+        if hashlib.sha256((archive / name.lstrip('*')).read_bytes()).hexdigest() != expected:
+            raise ValueError(f'durability evidence changed: {name}')
+    fault = json.loads((archive / 'faults-corrected/summary.json').read_text())
+    if (fault.get('status') != 'PASS' or fault.get('binary_sha256') != identity['binary_sha256'] or
+            (archive / 'correctness-exit.txt').read_text().strip() != '0' or
+            (archive / 'fault-tests-corrected-exit.txt').read_text().strip() != '0'):
+        raise ValueError('correctness/durability prerequisite did not pass')
+    return {'build_manifest': manifest, 'runtime_identity': identity,
+            'durability_evidence': fault, 'verification': 'static hashes and retained completed tests; no new binary execution'}
+
+
+def read_host(policy_context=None):
+    if policy_context is not None:
+        state = containment.host_snapshot(RESOURCE_ROOT)
+        return {"MemAvailable_kib": state["meminfo_kib"]["MemAvailable_kib"],
+                "load1": state["loadavg"][0], "io_full_avg10": state["io_pressure"]["full"]["avg10"],
+                "resource_root_available_bytes": state["resource_root_free_bytes"],
+                "contention_host_snapshot": state}
     meminfo = pathlib.Path("/proc/meminfo").read_text().splitlines()
     mem = parse_number(next(x.split()[1] for x in meminfo if x.startswith("MemAvailable:")), int)
     load = parse_number(pathlib.Path("/proc/loadavg").read_text().split()[0], float)
@@ -142,11 +176,13 @@ def read_host():
             "top_processes": subprocess.check_output(["ps", "-eo", "pid,comm,%cpu,%mem,rss", "--sort=-%cpu"], text=True).splitlines()[:13]}
 
 
-def preflight(arm):
+def preflight(arm, policy_context=None):
     out = PAIR / arm
-    out.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=policy_context is None)
     try:
-        host = read_host()
+        host = read_host(policy_context) if policy_context is not None else read_host()
+        diagnostic_decision = (containment.contention_decision(host['contention_host_snapshot'], policy_context, arm)
+                               if policy_context is not None else None)
     except Exception as exc:
         failure = {
             "status": "TELEMETRY_INCOMPLETE", "operation_outcome": "OPERATION_BLOCKED",
@@ -163,6 +199,8 @@ def preflight(arm):
               file=sys.stderr, flush=True)
         return False
     host["thresholds"] = THRESHOLDS
+    host["diagnostic_decision"] = diagnostic_decision
+    host["policy_context"] = policy_context
     policy_state = {
         "meminfo_kib": {"MemAvailable_kib": host.get("MemAvailable_kib")},
         "resource_root_free_bytes": host.get("resource_root_available_bytes"),
@@ -177,13 +215,17 @@ def preflight(arm):
     host["gate_decisions"] = gate_decisions
     host["resource_guard_failures"] = failures
     host["hard_safety_failures"] = failures  # compatibility field; policy class/source are explicit above
+    if diagnostic_decision is not None:
+        failures = diagnostic_decision['blocking_failures']
+        host['hard_safety_failures'] = failures
     host["policy_id"] = BENCHMARK_POLICY["policy_id"]
     host["source_of_authority"] = BENCHMARK_POLICY["authority"]["historical_envelope_source"]
     host["failure_scope"] = "this arm or benchmark operation only"
     host["mission_status"] = "NOT_EVALUATED_BY_RUNNER"
     host["operation_outcome"] = "OPERATION_BLOCKED" if failures else "OPERATION_READY"
     host["pass"] = not failures
-    host["decision"] = "PASS" if host["pass"] else "OPERATION_GUARD_FAIL"
+    host["decision"] = (('OPERATION_READY_EXPLORATORY' if host['pass'] else 'CONTENTION_CAPACITY_BLOCKED')
+                        if policy_context is not None else 'PASS' if host['pass'] else 'OPERATION_GUARD_FAIL')
     host["benchmark_launched"] = False
     (out / "host-before.json").write_text(json.dumps(host, indent=2) + "\n")
     (out / "preflight.json").write_text(json.dumps({
@@ -191,7 +233,9 @@ def preflight(arm):
         "failure_scope": host["failure_scope"], "mission_status": host["mission_status"],
         "policy_id": BENCHMARK_POLICY["policy_id"],
         "source_of_authority": host["source_of_authority"],
-        "gate_decisions": gate_decisions, "resource_guard_failures": failures,
+        "gate_decisions": gate_decisions, "resource_guard_failures": host['resource_guard_failures'],
+        "diagnostic_decision": diagnostic_decision,
+        "evidence_class": containment.CONTENTION_EVIDENCE if policy_context is not None else None,
         "hard_safety_failures": failures, "thresholds": THRESHOLDS,
         "recovery": "fresh snapshot satisfies every unchanged resource guard; no automatic retry",
         "resource_snapshot": host,
@@ -372,8 +416,15 @@ def write_containment_compatibility_samples(out, receipt_dir):
             writer.writerows(rows)
 
 
-def run_arm(name, binary, mode="qualification", pressure_limits=None):
-    if not preflight(name):
+def run_arm(name, binary, mode="qualification", pressure_limits=None, policy_context=None):
+    if (mode == containment.CONTENTION_MODE) != (policy_context is not None):
+        raise ValueError('contention mode and explicit operation context must agree')
+    if policy_context is not None:
+        containment.validate_contention_context(policy_context)
+        if PAIR.resolve() != pathlib.Path(policy_context['operation_root']) or name not in ('aa-first', 'aa-second'):
+            raise ValueError('outer arm contention operation binding mismatch')
+        verify_full_sync(binary)
+    if not (preflight(name, policy_context) if policy_context is not None else preflight(name)):
         return False
     out = PAIR / name
     identity = binary_runtime_identity(binary)
@@ -390,7 +441,9 @@ def run_arm(name, binary, mode="qualification", pressure_limits=None):
     command = [str(binary), str(work / "root"), str(DICT), "--incremental-fts-sustained", "500", "20"]
     (out / "mode.json").write_text(json.dumps({
         "mode": mode,
-        "evidence_class": "EXPLORATORY / NOT QUALIFICATION EVIDENCE" if mode == "diagnostic" else "QUALIFICATION",
+        "evidence_class": (containment.CONTENTION_EVIDENCE if policy_context is not None else
+                           "EXPLORATORY / NOT QUALIFICATION EVIDENCE" if mode == "diagnostic" else "QUALIFICATION"),
+        "policy_context": policy_context,
         "operation_resource_guards": THRESHOLDS,
         "baseline_pressure_guard_limits": pressure_limits,
         "benchmark_policy_id": BENCHMARK_POLICY["policy_id"],
@@ -410,9 +463,12 @@ def run_arm(name, binary, mode="qualification", pressure_limits=None):
     receipt_dir = out / "containment"
     result = containment.run_arm(
         command, receipt_dir, RESOURCE_ROOT, work, pathlib.Path.cwd(),
-        runtime_seconds=float(os.environ.get("M4_AA_RUNTIME_LIMIT_SECONDS", "3600")),
-        sample_interval_ms=50, budget=None, env=env,
+        runtime_seconds=(policy_context['runtime_limit_seconds'] if policy_context is not None else
+                         float(os.environ.get("M4_AA_RUNTIME_LIMIT_SECONDS", "3600"))),
+        sample_interval_ms=50,
+        budget=containment.contention_budget(policy_context) if policy_context is not None else None, env=env,
         pressure_limits=pressure_limits, enforce_host_gates=True,
+        **({'policy_context': policy_context} if policy_context is not None else {}),
     )
     for source, target in (("stdout.log", "stdout.jsonl"), ("stderr.log", "stderr.log")):
         src = receipt_dir / source
@@ -434,10 +490,11 @@ def run_arm(name, binary, mode="qualification", pressure_limits=None):
         "workload_started": receipt.get("benchmark_started"),
     }, indent=2) + "\n")
     (out / "exit-code.txt").write_text(f"{exit_code if exit_code is not None else 'NA'}\n")
-    (out / "host-after.json").write_text(json.dumps(read_host(), indent=2) + "\n")
+    (out / "host-after.json").write_text(json.dumps(
+        read_host(policy_context) if policy_context is not None else read_host(), indent=2) + "\n")
     operation_complete = (receipt.get("status") == "PASS" and exit_code == 0 and
                           receipt.get("measurement_quality") == "COMPLETE")
-    performance_eligible = operation_complete and not receipt.get("test_fixture_mode", False)
+    performance_eligible = operation_complete and not receipt.get("test_fixture_mode", False) and policy_context is None
     (out / "arm-result.json").write_text(json.dumps({
         "status": receipt.get("status"), "failure_class": receipt.get("failure_class"),
         "operation_outcome": receipt.get("operation_outcome"),
@@ -451,7 +508,9 @@ def run_arm(name, binary, mode="qualification", pressure_limits=None):
         "performance_eligible": performance_eligible,
         "unit": receipt.get("unit"), "cgroup_relative_path": receipt.get("cgroup_relative_path"),
         "io_control": receipt.get("io_control"),
-        "runtime_limit_seconds": float(os.environ.get("M4_AA_RUNTIME_LIMIT_SECONDS", "3600")),
+        "runtime_limit_seconds": (policy_context['runtime_limit_seconds'] if policy_context is not None else
+                                  float(os.environ.get("M4_AA_RUNTIME_LIMIT_SECONDS", "3600"))),
+        "evidence_class": containment.CONTENTION_EVIDENCE if policy_context is not None else None,
         "private_workdir": str(work), "workload_root": str(work / "root"),
     }, indent=2) + "\n")
     files = sorted(x for x in out.rglob("*") if x.is_file() and x.name != "SHA256SUMS.txt")

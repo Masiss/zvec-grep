@@ -1,0 +1,10 @@
+test_active_and_legacy_harnesses_load_the_json_source (__main__.BenchmarkPolicyTests.test_active_and_legacy_harnesses_load_the_json_source) ... ok
+test_existing_thresholds_are_unchanged_and_runner_uses_policy_source (__main__.BenchmarkPolicyTests.test_existing_thresholds_are_unchanged_and_runner_uses_policy_source) ... ok
+test_io_psi_is_an_operation_guard_not_universal_safety_claim (__main__.BenchmarkPolicyTests.test_io_psi_is_an_operation_guard_not_universal_safety_claim) ... ok
+test_markdown_is_explanatory_not_a_second_threshold_source (__main__.BenchmarkPolicyTests.test_markdown_is_explanatory_not_a_second_threshold_source) ... ok
+test_policy_separates_integrity_quality_baseline_pressure_and_correctness (__main__.BenchmarkPolicyTests.test_policy_separates_integrity_quality_baseline_pressure_and_correctness) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.002s
+
+OK

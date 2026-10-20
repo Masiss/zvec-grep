@@ -102,6 +102,8 @@ def read_vmstat() -> dict[str, int]:
         key, _, value = line.partition(' ')
         if key in {'pswpin', 'pswpout'}:
             result[key + '_pages'] = int(value)
+        elif key in {'oom_kill', 'pgscan_direct', 'pgsteal_direct'} or key.startswith('allocstall_'):
+            result[key] = int(value)
     return result
 
 
@@ -141,6 +143,7 @@ def host_snapshot(resource_root: pathlib.Path) -> dict[str, Any]:
         'io_pressure': io_pressure, 'memory_pressure': mem_pressure,
         'resource_root_free_bytes': st.f_bavail * st.f_frsize,
         'vmstat': read_vmstat(), 'diskstats': read_diskstats(),
+        'cpu_pressure': parse_pressure(pathlib.Path('/proc/pressure/cpu')),
     }
 
 
@@ -226,6 +229,169 @@ def resource_guard_decisions(state: dict[str, Any]) -> list[dict[str, Any]]:
     return decisions
 
 
+CONTENTION_MODE = 'contention-aware'
+CONTENTION_EVIDENCE = 'EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING'
+
+
+def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
+    """An explicit, immutable per-operation resource plan; never an ambient override."""
+    if not isinstance(context, dict) or context.get('mode') != CONTENTION_MODE:
+        raise ValueError('invalid contention policy context')
+    for key in ('approval_reference', 'execution_authorization_reference', 'risk_acceptance_reference',
+                'resource_basis', 'operation_root', 'resource_root'):
+        if not isinstance(context.get(key), str) or not context[key].strip():
+            raise ValueError(f'contention plan requires {key}')
+    if context.get('approval_status') != 'approved' or context.get('schema_version') != 1:
+        raise ValueError('contention plan must be explicitly approved, schema_version=1')
+    if context.get('policy_sha256') != hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest():
+        raise ValueError('contention plan policy identity mismatch')
+    operation = context.get('operation_id', '')
+    if not re.fullmatch(r'm4-contention-[a-zA-Z0-9_-]+', operation):
+        raise ValueError('invalid contention operation_id')
+    for key in ('operation_root', 'resource_root'):
+        if str(pathlib.Path(context[key]).resolve()) != context[key]:
+            raise ValueError(f'{key} must be a canonical absolute path')
+    if pathlib.Path(context['operation_root']).name != operation:
+        raise ValueError('operation root/id mismatch')
+    if context.get('workload') != {'docs': 500, 'rounds': 20, 'tracing': False}:
+        raise ValueError('contention context is only for tracing-off 500x20 same-binary A/A')
+    if context.get('binary_sha256') != BENCHMARK_POLICY['contention_aware']['full_sync_binary_sha256']:
+        raise ValueError('contention context requires the verified full-sync binary')
+    for key in ('memory_max_bytes', 'workspace_max_allocated_bytes', 'workspace_max_apparent_bytes',
+                'host_memory_reserve_bytes', 'disk_reserve_bytes', 'runtime_limit_seconds',
+                'max_monitor_gap_seconds'):
+        v = context.get(key)
+        if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+            raise ValueError(f'contention plan requires positive integer {key}')
+    swap = context.get('memory_swap_max_bytes')
+    if isinstance(swap, bool) or not isinstance(swap, int) or swap < 0:
+        raise ValueError('contention plan requires nonnegative memory_swap_max_bytes')
+    cpu = context.get('cpu_max', '')
+    if not isinstance(cpu, str) or not re.fullmatch(r'[1-9]\d* [1-9]\d*', cpu):
+        raise ValueError('contention plan requires a finite cgroup CPU quota/period')
+    if context['runtime_limit_seconds'] > BENCHMARK_POLICY['contention_aware']['max_arm_runtime_seconds']:
+        raise ValueError('contention runtime exceeds bounded existing workload limit')
+    if context['max_monitor_gap_seconds'] >= min(10, context['runtime_limit_seconds']):
+        raise ValueError('monitor gap must be smaller than the 10s observation window and arm runtime')
+    if context.get('io_max') is not None:
+        raise ValueError('no delegated I/O controller; cannot enforce io.max')
+    return context
+
+
+def contention_context_digest(context: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(context, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def contention_budget(context: dict[str, Any]) -> dict[str, Any]:
+    validate_contention_context(context)
+    return {key: context[key] for key in ('approval_reference', 'memory_max_bytes',
+            'memory_swap_max_bytes', 'cpu_max', 'workspace_max_allocated_bytes',
+            'workspace_max_apparent_bytes')}
+
+
+def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: str,
+                        workspace_bytes: int = 0, owned_swap_bytes: int = 0) -> dict[str, Any]:
+    """Retain raw envelope FAILs; enforce capacity based on the approved workload plan."""
+    validate_contention_context(context)
+    if phase not in ('baseline', 'recovery', 'aa-first', 'aa-second', 'runtime-first', 'runtime-second'):
+        raise ValueError('invalid contention phase')
+    def number(value, name, maximum=None):
+        if (isinstance(value, bool) or not isinstance(value, (int, float)) or
+                not math.isfinite(value) or value < 0 or (maximum is not None and value > maximum)):
+            raise ValueError(f'invalid required contention telemetry: {name}')
+        return value
+    number(state.get('monotonic_ns'), 'monotonic_ns')
+    if not isinstance(state.get('timestamp_utc'), str) or not state['timestamp_utc']:
+        raise ValueError('missing contention sample timestamp')
+    mem = state.get('meminfo_kib', {})
+    for name in ('MemAvailable_kib', 'SwapFree_kib', 'MemTotal_kib', 'SwapTotal_kib'):
+        number(mem.get(name), name)
+    if mem['MemAvailable_kib'] > mem['MemTotal_kib'] or mem['SwapFree_kib'] > mem['SwapTotal_kib']:
+        raise ValueError('inconsistent host memory/swap telemetry')
+    number(state.get('resource_root_free_bytes'), 'resource_root_free_bytes')
+    load = state.get('loadavg') or []
+    number(load[0] if load else None, 'load1')
+    for family in ('io_pressure', 'memory_pressure', 'cpu_pressure'):
+        pressure = state.get(family) or {}
+        # CPU full is not available on every kernel; CPU some is required.
+        for kind in (('some',) if family == 'cpu_pressure' else ('some', 'full')):
+            item = pressure.get(kind) or {}
+            number(item.get('avg10'), f'{family}.{kind}.avg10', 100)
+            number(item.get('total'), f'{family}.{kind}.total')
+    for name in ('pswpin_pages', 'pswpout_pages', 'oom_kill', 'pgscan_direct'):
+        number(state.get('vmstat', {}).get(name), name)
+    disk = state.get('diskstats')
+    if not isinstance(disk, dict) or not disk:
+        raise ValueError('missing host diskstats')
+    for device in disk.values():
+        for name in ('sectors_read', 'sectors_written', 'io_ms'):
+            number(device.get(name), f'diskstats.{name}')
+    number(workspace_bytes, 'workspace_bytes')
+    number(owned_swap_bytes, 'owned_swap_bytes')
+    runtime = phase.startswith('runtime-')
+    memory_required = context['host_memory_reserve_bytes'] + (0 if runtime else context['memory_max_bytes'])
+    # Retain first-arm roots; reserve space for both arms before the first, one before second.
+    arms = 2 if phase in ('baseline', 'aa-first', 'runtime-first') else 1
+    disk_required = context['disk_reserve_bytes'] + max(
+        0, arms * context['workspace_max_allocated_bytes'] - workspace_bytes)
+    failures = []
+    if mem['MemAvailable_kib'] * 1024 < memory_required:
+        failures.append({'gate_id': 'M4-CA-MEM-CAPACITY', 'observed_bytes': mem['MemAvailable_kib'] * 1024,
+                         'required_bytes': memory_required, 'attribution': 'host capacity; cause not established'})
+    swap_required = max(0, context['memory_swap_max_bytes'] - owned_swap_bytes)
+    if mem['SwapFree_kib'] * 1024 < swap_required:
+        failures.append({'gate_id': 'M4-CA-SWAP-CAPACITY', 'observed_bytes': mem['SwapFree_kib'] * 1024,
+                         'required_bytes': swap_required, 'attribution': 'remaining approved swap capacity; cause not established'})
+    if state['resource_root_free_bytes'] < disk_required:
+        failures.append({'gate_id': 'M4-CA-DISK-CAPACITY', 'observed_bytes': state['resource_root_free_bytes'],
+                         'required_bytes': disk_required, 'attribution': 'shared filesystem capacity; cause not established'})
+    raw = resource_guard_decisions(state)
+    for gate in raw:
+        gate['enforced_in_selected_mode'] = False
+    return {'mode': CONTENTION_MODE, 'operation_id': context['operation_id'], 'phase': phase,
+            'timestamp_utc': state.get('timestamp_utc'), 'monotonic_ns': state.get('monotonic_ns'),
+            'historical_gate_decisions': raw, 'historical_guard_failures': [g for g in raw if g['status'] == 'FAIL'],
+            'blocking_failures': failures, 'continuation_allowed': not failures,
+            'continuation_reason': 'approved workload capacity and containment plan, not an idle-envelope waiver or safety certification',
+            'evidence_class': CONTENTION_EVIDENCE, 'approval_reference': context['approval_reference']}
+
+
+def verify_contention_caps(cg: pathlib.Path, context: dict[str, Any]) -> None:
+    for key, name in (('memory_max_bytes', 'memory.max'), ('memory_swap_max_bytes', 'memory.swap.max'), ('cpu_max', 'cpu.max')):
+        if read_text(cg / name).split() != str(context[key]).split():
+            raise ValueError(f'contention cgroup cap not applied or changed: {name}')
+
+
+def contention_runtime_failures(cgroup: dict[str, Any], previous: dict[str, Any] | None) -> list[str]:
+    """Fail closed on unavailable attribution telemetry or observed M4 cap/reclaim distress."""
+    if not cgroup.get('process_io_sample_complete') or not cgroup.get('process_memory_sample_complete'):
+        raise ValueError('incomplete process-tree telemetry')
+    for key in ('memory_current_bytes', 'memory_swap_current_bytes'):
+        if isinstance(cgroup.get(key), bool) or not isinstance(cgroup.get(key), int) or cgroup[key] < 0:
+            raise ValueError(f'invalid cgroup {key}')
+    for family in ('memory_pressure', 'io_pressure', 'cpu_pressure'):
+        for kind in (('some',) if family == 'cpu_pressure' else ('some','full')):
+            item = (cgroup.get(family) or {}).get(kind, {})
+            for key in ('avg10','total'):
+                val = item.get(key)
+                if (isinstance(val, bool) or not isinstance(val, (float, int)) or not math.isfinite(val)
+                        or val < 0 or (key == 'avg10' and val > 100)):
+                    raise ValueError(f'invalid cgroup {family}.{kind}.{key}')
+    for family, keys in (('memory_events', ('max', 'oom', 'oom_kill', 'oom_group_kill')),
+                         ('memory_swap_events', ('max', 'fail')), ('cpu_stat', ('usage_usec',))):
+        for key in keys:
+            val = cgroup.get(family, {}).get(key)
+            if isinstance(val, bool) or not isinstance(val, int) or val < 0:
+                raise ValueError(f'missing/invalid cgroup {family}.{key}')
+            old = (previous or {}).get(family, {}).get(key, 0)
+            if val < old:
+                raise ValueError(f'nonmonotonic cgroup {family}.{key}')
+    return [f'{family}.{key} increased; M4 allocation/swap limit distress'
+            for family, keys in (('memory_events', ('max', 'oom', 'oom_kill', 'oom_group_kill')),
+                                 ('memory_swap_events', ('max', 'fail')))
+            for key in keys if cgroup[family][key] > (previous or {}).get(family, {}).get(key, 0)]
+
+
 def legacy_hard_gate_failures(state: dict[str, Any]) -> list[str]:
     failures: list[str] = []
     available = state.get('meminfo_kib', {}).get('MemAvailable_kib')
@@ -302,6 +468,8 @@ def read_cgroup_metric(cg: pathlib.Path) -> dict[str, Any]:
                 proc_io_complete = proc_memory_complete = False
                 continue
             values = parse_kv(pathlib.Path(f'/proc/{pid}/io').read_text())
+            if 'read_bytes' not in values or 'write_bytes' not in values:
+                proc_io_complete = False
             proc_io_read += values.get('read_bytes', 0)
             proc_io_write += values.get('write_bytes', 0)
         except (FileNotFoundError, ProcessLookupError, PermissionError):
@@ -617,6 +785,21 @@ def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
                 'command_done_marker', 'watchdog_ready_path', 'socket_dir', 'pressure_limits'):
         if key not in config:
             raise ValueError(f'watchdog config missing {key}')
+    context = config.get('policy_context')
+    if (config.get('policy_mode') == CONTENTION_MODE) != (context is not None):
+        raise ValueError('watchdog policy mode/context mismatch')
+    if context is not None:
+        validate_contention_context(context)
+        arm = config.get('arm_name')
+        expected = pathlib.Path(context['operation_root']) / str(arm) / 'containment'
+        if (arm not in ('aa-first', 'aa-second') or
+                pathlib.Path(config['watchdog_output']).resolve() != expected or
+                str(pathlib.Path(config['resource_root']).resolve()) != context['resource_root'] or
+                not config.get('enforce_host_gates', True) or
+                config.get('budget') != contention_budget(context) or
+                config['runtime_limit_seconds'] != context['runtime_limit_seconds'] or
+                config.get('policy_context_digest') != contention_context_digest(context)):
+            raise ValueError('watchdog contention context/budget/operation binding mismatch')
     return config
 
 
@@ -656,6 +839,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         if started_ns is None and start_marker.exists():
             started_ns = time.monotonic_ns()
         try:
+            sample_started_ns = time.monotonic_ns()
             if not cg.exists():
                 abort = {'reason': 'cgroup_telemetry_disappeared', 'timestamp_utc': utc_now()}
                 break
@@ -667,14 +851,52 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 'elapsed_ns': None if started_ns is None else time.monotonic_ns() - started_ns,
                 'cgroup': cgroup_row, 'host': host_row, 'workspace': work_row,
             }
+            if config.get('policy_context') is not None:
+                row['sample_start_monotonic_ns'] = sample_started_ns
+                row['sample_duration_ns'] = row['monotonic_ns'] - sample_started_ns
+                if row['sample_duration_ns'] > config['policy_context']['max_monitor_gap_seconds']*1e9:
+                    raise ValueError('contention sample read exceeds approved monitoring gap')
             samples.append(row)
-            if not ready_marker.exists():
-                ready_marker.write_text(str(time.monotonic_ns()), encoding='ascii')
+            context = config.get('policy_context')
+            context_failures = []
+            if context is not None:
+                verify_contention_caps(cg, context)
+                phase = ('runtime-first' if config['arm_name'] == 'aa-first' else 'runtime-second') if started_ns is not None else config['arm_name']
+                decision = contention_decision(host_row, context, phase, work_row['allocated_st_blocks_bytes_gross'],
+                                                cgroup_row['memory_swap_current_bytes'])
+                row['diagnostic_decision'] = decision
+                previous = samples[-2] if len(samples) > 1 else None
+                distress = contention_runtime_failures(cgroup_row, None if previous is None else previous['cgroup'])
+                if previous is not None:
+                    elapsed = (row['monotonic_ns'] - previous['monotonic_ns']) / 1e9
+                    if elapsed <= 0 or elapsed > context['max_monitor_gap_seconds']:
+                        raise ValueError('contention monitor cadence incomplete/nonmonotonic')
+                    for key in ('pswpin_pages', 'pswpout_pages', 'oom_kill', 'pgscan_direct'):
+                        if host_row['vmstat'][key] < previous['host']['vmstat'][key]:
+                            raise ValueError('nonmonotonic host swap/reclaim telemetry')
+                    if host_row['vmstat']['oom_kill'] > previous['host']['vmstat']['oom_kill']:
+                        distress.append('host OOM kill observed; attribution to M4 not established')
+                baseline_oom = (config.get('pressure_limits') or {}).get('contention_baseline_host_oom_kill')
+                if baseline_oom is not None and host_row['vmstat']['oom_kill'] > baseline_oom:
+                    distress.append('host OOM since ambient baseline; attribution to M4 not established')
+                context_failures = decision['blocking_failures'] + distress
+                if context_failures:
+                    abort = {'reason': 'contention_resource_risk', 'failures': context_failures, 'timestamp_utc': utc_now()}
+            if not ready_marker.exists() and abort is None:
+                if context is not None:
+                    write_json(ready_marker, {'mode': CONTENTION_MODE, 'policy_context_digest': contention_context_digest(context)})
+                else:
+                    ready_marker.write_text(str(time.monotonic_ns()), encoding='ascii')
             if not work_row['scan_complete']:
                 abort = {'reason': 'workspace_telemetry_incomplete', 'errors': work_row['scan_errors'], 'timestamp_utc': utc_now()}
             elif started_ns is not None:
-                failures = hard_gate_failures(host_row) if config.get('enforce_host_gates', True) else []
-                pressure_failures = pressure_baseline_failures(host_row, config.get('pressure_limits'))
+                context = config.get('policy_context')
+                if context is not None:
+                    failures = context_failures
+                    pressure_failures = []  # historical baseline bounds are observations, not safety facts
+                else:
+                    failures = hard_gate_failures(host_row) if config.get('enforce_host_gates', True) else []
+                    pressure_failures = pressure_baseline_failures(host_row, config.get('pressure_limits'))
                 if failures or pressure_failures:
                     abort = {
                         'reason': 'existing_host_guard' if failures else 'memory_swap_pressure_guard',
@@ -709,6 +931,10 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     try:
         if cg.exists():
             final_cgroup = read_cgroup_metric(cg)
+            if config.get('policy_context') is not None:
+                final_distress = contention_runtime_failures(final_cgroup, samples[-1]['cgroup'] if samples else None)
+                if final_distress and abort is None:
+                    abort = {'reason': 'contention_resource_risk', 'failures': final_distress, 'timestamp_utc': utc_now()}
     except Exception as exc:
         final_cgroup = {'error': f'{type(exc).__name__}: {exc}'}
     fiemap = inspect_shared_extents([workspace]) if workspace.exists() else {'available': False, 'reason': 'workspace absent'}
@@ -730,6 +956,8 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     )
     summary = {
         'schema_version': SCHEMA_VERSION, 'samples': len(samples),
+        'policy_mode': config.get('policy_mode', 'legacy'),
+        'policy_context_digest': config.get('policy_context_digest'),
         'measurement_quality': 'COMPLETE' if samples and process_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error') else 'INCOMPLETE',
         'process_tree_samples_complete': process_samples_complete,
         'safety_outcome': 'ABORTED_CONTAINED' if abort is not None else 'WATCHDOG_COMPLETED_NO_ABORT',
@@ -751,6 +979,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     write_json(outdir / 'watchdog-summary.json', summary)
     if abort is not None:
         abort['final_cleanup'] = {'method': 'cgroup.kill', 'attempted': True, 'success': False}
+        abort['cleanup_complete'] = False
         write_json(outdir / 'watchdog-abort.json', abort)
         try:
             kill_file = cg / 'cgroup.kill'
@@ -769,9 +998,13 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 }
         except (OSError, subprocess.TimeoutExpired) as exc:
             abort['final_cleanup']['error'] = f'{type(exc).__name__}: {exc}'
-        write_json(outdir / 'watchdog-abort.json', abort)
         if abort.get('reason') == 'supervisor_lost':
             shutil.rmtree(socket_dir, ignore_errors=True)
+            abort['socket_cleanup_verified'] = not socket_dir.exists()
+            if not abort['socket_cleanup_verified']:
+                abort['final_cleanup']['success'] = False
+        abort['cleanup_complete'] = True  # terminal publication, not merely abort initiation
+        write_json(outdir / 'watchdog-abort.json', abort)
     if pidfd >= 0:
         os.close(pidfd)
     return 0
@@ -859,10 +1092,25 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             workspace_root: pathlib.Path, cwd: pathlib.Path, runtime_seconds: float,
             sample_interval_ms: int = 100, budget: dict[str, Any] | None = None,
             env: dict[str, str] | None = None, enforce_host_gates: bool = True,
-            pressure_limits: dict[str, Any] | None = None) -> dict[str, Any]:
+            pressure_limits: dict[str, Any] | None = None,
+            policy_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    if policy_context is not None:
+        validate_contention_context(policy_context)
+        arm_name = receipt_dir.parent.name
+        if (arm_name not in ('aa-first', 'aa-second') or
+                receipt_dir.resolve() != pathlib.Path(policy_context['operation_root']) / arm_name / 'containment' or
+                str(resource_root.resolve()) != policy_context['resource_root'] or
+                not enforce_host_gates or budget != contention_budget(policy_context) or
+                runtime_seconds != policy_context['runtime_limit_seconds'] or
+                len(command) != 6 or command[-3:] != ['--incremental-fts-sustained', '500', '20'] or
+                pathlib.Path(command[1]).resolve() != workspace_root.resolve() / 'root' or
+                pathlib.Path(command[1]).exists() or
+                hashlib.sha256(pathlib.Path(command[0]).read_bytes()).hexdigest() != policy_context['binary_sha256'] or
+                (env or {}).get('LD_PRELOAD') or any(k.startswith('M4_FAULT') for k in (env or {}))):
+            raise ValueError('contained arm contention operation/command/budget binding mismatch')
     if not command:
         raise ValueError('empty command')
-    if enforce_host_gates and pressure_limits is None:
+    if enforce_host_gates and pressure_limits is None and policy_context is None:
         raise ValueError('host-safe runs require validated 60-second memory/swap pressure limits')
     make_receipt_dir(receipt_dir)
     resource_root = resource_root.resolve(strict=True)
@@ -923,8 +1171,11 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
     write_json(receipt_dir / 'run-state.json', {
         'timestamp_utc': utc_now(), 'controller_pid': os.getpid(), 'unit': unit, 'state': 'starting',
     })
+    diagnostic_decision = None
     try:
         start_state = host_snapshot(resource_root)
+        if policy_context is not None:
+            diagnostic_decision = contention_decision(start_state, policy_context, arm_name)
     except Exception as exc:
         result = {
             'schema_version': SCHEMA_VERSION, 'status': 'TELEMETRY_INCOMPLETE',
@@ -938,9 +1189,14 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         return result
     gate_decisions = resource_guard_decisions(start_state)
     for decision in gate_decisions:
-        decision['enforced'] = enforce_host_gates
-    failures = hard_gate_failures(start_state) if enforce_host_gates else []
-    pressure_failures = pressure_baseline_failures(start_state, pressure_limits)
+        decision['enforced'] = enforce_host_gates and policy_context is None
+    if policy_context is not None:
+        assert diagnostic_decision is not None  # validated inside the fail-closed snapshot block above
+        failures = diagnostic_decision['blocking_failures']
+        pressure_failures = []
+    else:
+        failures = hard_gate_failures(start_state) if enforce_host_gates else []
+        pressure_failures = pressure_baseline_failures(start_state, pressure_limits)
     failures.extend(pressure_failures)
     if failures:
         write_json(receipt_dir / 'run-state.json', {
@@ -955,6 +1211,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'policy_id': BENCHMARK_POLICY['policy_id'],
             'source_of_authority': BENCHMARK_POLICY['authority']['historical_envelope_source'],
             'gate_decisions': gate_decisions, 'hard_guards': GUARDS,
+            'diagnostic_decision': diagnostic_decision, 'policy_context': policy_context,
+            'evidence_class': CONTENTION_EVIDENCE if policy_context is not None else None,
             'preflight': start_state, 'gate_failures': failures,
             'resource_guard_failures': [g for g in gate_decisions if g['status'] == 'FAIL'] if enforce_host_gates else [],
             'operation_outcome': 'OPERATION_BLOCKED', 'failure_scope': 'this arm or benchmark operation only',
@@ -975,7 +1233,9 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         'policy_id': BENCHMARK_POLICY['policy_id'],
         'source_of_authority': BENCHMARK_POLICY['authority']['historical_envelope_source'],
         'gate_decisions': gate_decisions, 'test_fixture_mode': not enforce_host_gates,
-        'performance_eligible': False if not enforce_host_gates else None,
+        'policy_context': policy_context, 'diagnostic_decision': diagnostic_decision,
+        'evidence_class': CONTENTION_EVIDENCE if policy_context is not None else None,
+        'performance_eligible': False if not enforce_host_gates or policy_context is not None else None,
         'failure_scope': 'this arm only', 'mission_status': 'NOT_EVALUATED_BY_RUNNER',
         'approved_budget': budget, 'pressure_limits': pressure_limits,
         'environment_names': sorted((env if env is not None else {k: v for k, v in os.environ.items() if k in {'PATH', 'HOME', 'LANG', 'LC_ALL', 'TZ', 'LD_LIBRARY_PATH'}}).keys()),
@@ -1041,6 +1301,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 file.write_text('0\n', encoding='ascii')
         baseline_events = parse_kv(read_text(cg / 'memory.events'))
         applied = apply_budget(cg, budget)
+        if policy_context is not None:
+            verify_contention_caps(cg, policy_context)
         wconfig = {
             'cgroup_path': str(cg), 'cgroup_rel': expected_path,
             'workspace_root': str(workspace_root), 'resource_root': str(resource_root),
@@ -1051,6 +1313,10 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'baseline_memory_events': baseline_events, 'budget': budget,
             'pressure_limits': pressure_limits,
             'enforce_host_gates': enforce_host_gates, 'pressure_limits': pressure_limits, 'unit': unit,
+            'policy_context': policy_context,
+            'policy_mode': CONTENTION_MODE if policy_context is not None else 'legacy',
+            'policy_context_digest': contention_context_digest(policy_context) if policy_context is not None else None,
+            'arm_name': receipt_dir.parent.name,
         }
         config_path = receipt_dir / 'watchdog-config.json'
         write_json(config_path, wconfig)
@@ -1065,6 +1331,10 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         ready_deadline = time.monotonic() + 10.0
         while not ready_path.exists() and watchdog.poll() is None and time.monotonic() < ready_deadline:
             time.sleep(0.01)
+        if policy_context is not None and ready_path.exists():
+            ready = json.loads(read_text(ready_path))
+            if ready.get('mode') != CONTENTION_MODE or ready.get('policy_context_digest') != contention_context_digest(policy_context):
+                raise RuntimeError('independent watchdog did not acknowledge the exact contention policy context')
         if not ready_path.exists():
             raise RuntimeError('independent watchdog did not establish baseline telemetry before workload start')
         launch_env = env if env is not None else {
@@ -1173,6 +1443,12 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             and not watchdog_summary['final_cgroup'].get('error')
             and (receipt_dir / 'runtime.jsonl').exists()
         )
+        if policy_context is not None:
+            measurement_complete = (measurement_complete and watchdog_summary.get('measurement_quality') == 'COMPLETE'
+                                    and watchdog_summary.get('policy_mode') == CONTENTION_MODE
+                                    and watchdog_summary.get('policy_context_digest') == contention_context_digest(policy_context))
+            if status == 'PASS' and not measurement_complete:
+                status, reason = 'TELEMETRY_INCOMPLETE', 'incomplete required contention process telemetry'
         measurement_quality = 'COMPLETE' if measurement_complete else 'INCOMPLETE'
         if status == 'PREFLIGHT_BLOCKED':
             safety_outcome = 'NOT_STARTED'
@@ -1199,7 +1475,10 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'policy_id': BENCHMARK_POLICY['policy_id'],
             'source_of_authority': BENCHMARK_POLICY['authority']['historical_envelope_source'],
             'gate_decisions': gate_decisions, 'test_fixture_mode': not enforce_host_gates,
-            'performance_eligible': bool(status == 'PASS' and enforce_host_gates),
+            'performance_eligible': bool(status == 'PASS' and enforce_host_gates and policy_context is None),
+            'policy_context': policy_context,
+            'diagnostic_decision': diagnostic_decision,
+            'evidence_class': CONTENTION_EVIDENCE if policy_context is not None else None,
             'operation_outcome': ('OPERATION_COMPLETE' if status == 'PASS' else
                                   'OPERATION_BLOCKED' if status in {'PREFLIGHT_BLOCKED', 'WATCHDOG_ABORT', 'TELEMETRY_INCOMPLETE'} else
                                   'OPERATION_FAILED'),
@@ -1219,8 +1498,16 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'command_end': json.loads((receipt_dir / 'command-exit.json').read_text()) if (receipt_dir / 'command-exit.json').exists() else None,
             'final_process_status': 'PASS only when exit=0, no watchdog/OOM abort, and telemetry is complete',
         }
+        post_state = host_snapshot(resource_root)
+        if policy_context is not None:
+            phase = 'runtime-first' if arm_name == 'aa-first' else 'runtime-second'
+            post_decision = contention_decision(post_state, policy_context, phase,
+                                                workspace_usage(workspace_root)['allocated_st_blocks_bytes_gross'])
+            result['postflight_decision'] = post_decision
+            if not post_decision['continuation_allowed']:
+                result.update(status='POSTFLIGHT_BLOCKED', operation_outcome='OPERATION_BLOCKED', performance_eligible=False)
         write_json(receipt_dir / 'receipt.json', result)
-        write_json(receipt_dir / 'host-after.json', host_snapshot(resource_root))
+        write_json(receipt_dir / 'host-after.json', post_state)
         retire_unit(unit, cg, receipt_dir, result)
         return result
     except BaseException as exc:

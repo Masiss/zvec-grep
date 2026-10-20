@@ -1,0 +1,16 @@
+Running as unit: m4-contained-dc149feba72d4e03.service
+Traceback (most recent call last):
+  File "/home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py", line 1669, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py", line 1632, in main
+    return _bootstrap(sys.argv[2], sys.argv[separator + 1:])
+  File "/home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py", line 762, in _bootstrap
+    client.sendall((json.dumps({'command_returncode': child_rc}) + '\n').encode())
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 176ms
+             CPU time consumed: 103ms
+                   Memory peak: 24.6M (swap: 0B)

@@ -224,7 +224,13 @@ def resource_guard_failures(state, thresholds):
     return failures
 
 
-def gate_snapshot():
+def gate_snapshot(policy_context=None, phase='recovery'):
+    if policy_context is not None:
+        state = runner.read_host(policy_context)
+        decision = runner.containment.contention_decision(state['contention_host_snapshot'], policy_context, phase)
+        state.update({'pass': decision['continuation_allowed'], 'diagnostic_decision': decision,
+                      'resource_guard_failures': decision['historical_guard_failures']})
+        return state
     state = runner.read_host()
     state["thresholds"] = runner.THRESHOLDS
     state["resource_guard_failures"] = resource_guard_failures(state, runner.THRESHOLDS)
@@ -358,11 +364,18 @@ def validate_recovery_samples(rows):
 
 def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
                        capture_window=None, snapshot=None, required_windows=RECOVERY_WINDOWS,
-                       timeout_seconds=RECOVERY_TIMEOUT_S):
+                       timeout_seconds=RECOVERY_TIMEOUT_S, policy_context=None):
     """Run the sequential A/A arms only through the containment-backed arm runner."""
+    if (mode == runner.containment.CONTENTION_MODE) != (policy_context is not None):
+        raise ValueError('pair mode/context mismatch')
+    if policy_context is not None:
+        runner.containment.validate_contention_context(policy_context)
+        if pair.resolve() != pathlib.Path(policy_context['operation_root']) or required_windows != RECOVERY_WINDOWS:
+            raise ValueError('contention operation/recovery count mismatch')
     arm_runner = arm_runner or runner.run_arm
-    capture_window = capture_window or (lambda: host.capture(WINDOW_S, None))
-    snapshot = snapshot or gate_snapshot
+    capture_window = capture_window or (lambda: capture_for_mode(WINDOW_S, policy_context, 'recovery'))
+    snapshot = snapshot or (gate_snapshot if policy_context is None else lambda: gate_snapshot(policy_context))
+    context_kwargs = {} if policy_context is None else {'policy_context': policy_context}
     interarm_rows = []
     window_records = []
     consecutive = 0
@@ -376,7 +389,10 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
         write_rows(pair / "interarm-host-samples.csv", interarm_rows)
         (pair / "interarm-quiescence.json").write_text(json.dumps({
             "windows": window_records, "recovered": recovered, "mode": mode,
-            "recovery_policy": "all operation resource and baseline-pressure guards; diagnostic evidence remains exploratory" if mode == "diagnostic" else "qualification stability envelope plus all operation resource and baseline-pressure guards",
+            "policy_context": policy_context,
+            "evidence_class": runner.containment.CONTENTION_EVIDENCE if policy_context is not None else None,
+            "recovery_policy": ('contention capacity/integrity windows, no historical-envelope or idle-match prerequisite' if policy_context is not None else
+                                "all operation resource and baseline-pressure guards; diagnostic evidence remains exploratory" if mode == "diagnostic" else "qualification stability envelope plus all operation resource and baseline-pressure guards"),
             "required_consecutive_windows": required_windows, "timeout_seconds": timeout_seconds,
             "first_arm_identity": read_arm_identity(pair / "aa-first"),
             "second_arm_identity": read_arm_identity(pair / "aa-second"),
@@ -390,11 +406,13 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
 
     try:
         print("AA_ARM_START name=aa-first", flush=True)
-        if not arm_runner("aa-first", BINARY, mode, pressure_limits):
+        if not arm_runner("aa-first", BINARY, mode, pressure_limits, **context_kwargs):
             persist_interarm(False)
             raise SystemExit("STOP: first arm operation-guard/containment gate failed; see aa-first artifacts")
         print("AA_ARM_COMPLETE name=aa-first", flush=True)
         print("AA_INTERARM_RECOVERY_START", flush=True)
+        if policy_context is not None:
+            deadline = time.monotonic() + timeout_seconds  # recovery timeout excludes first-arm runtime
         while consecutive < required_windows and time.monotonic() < deadline:
             try:
                 rows, metadata = capture_window()
@@ -406,7 +424,8 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
                 persist_interarm(False)
                 raise SystemExit("NO_LAUNCH: MEASUREMENT_INVALID; inter-arm telemetry source failed") from exc
             interarm_rows.extend(rows)
-            integrity = validate_recovery_samples(rows)
+            integrity = (validate_contention_samples(rows, policy_context, 'recovery', WINDOW_S)
+                         if policy_context is not None else validate_recovery_samples(rows))
             if integrity["status"] != "VALID":
                 window_records.append({"window": len(window_records), "status": "MEASUREMENT_INVALID",
                                        "measurement_integrity": integrity,
@@ -439,15 +458,27 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
                                      if mode == "qualification" and profile is not None else None)
             resource_guard_pass = state["pass"]
             pressure_guard_pass = baseline_pressure_window_pass(summary, pressure_limits)
-            recovered = (diagnostic_window_safe(summary, state, pressure_limits) and
-                         (quality_profile_match is not False))
+            if policy_context is not None:
+                decisions = contention_rows_decisions(rows, policy_context, 'recovery')
+                if not state['pass'] or any(not d['continuation_allowed'] for d in decisions):
+                    window_records.append({'window': len(window_records), 'resource_gate': state,
+                                           'contention_decisions': decisions, 'consecutive_recovered_windows': 0})
+                    persist_interarm(False)
+                    raise SystemExit('NO_LAUNCH: contention capacity failure; no idle-wait retry')
+                recovered = True
+            else:
+                recovered = (diagnostic_window_safe(summary, state, pressure_limits) and
+                             (quality_profile_match is not False))
             consecutive = consecutive + 1 if recovered else 0
             baseline_match = None if profile is None or summary is None else within_profile(summary, profile)
             record = {"window": len(window_records), "features": summary, "resource_gate": state,
                       "resource_guard_pass": resource_guard_pass,
                       "baseline_pressure_guard_pass": pressure_guard_pass,
+                      "baseline_pressure_guard_enforced": policy_context is None,
                       "measurement_quality_profile_match": quality_profile_match,
-                      "hard_safety_window_pass": (False if summary is None else diagnostic_window_safe(summary, state, pressure_limits)),
+                      "hard_safety_window_pass": (recovered if policy_context is not None else
+                                                  False if summary is None else diagnostic_window_safe(summary, state, pressure_limits)),
+                      "contention_decisions": decisions if policy_context is not None else None,
                       "within_no_worse_baseline_limits": baseline_match,
                       "consecutive_recovered_windows": consecutive,
                       "measurement_integrity": integrity, "capture_metadata": metadata}
@@ -465,7 +496,7 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
             }, indent=2) + "\n")
             raise SystemExit("NO_LAUNCH: binary/source/native-library identity changed before second arm")
         print("AA_ARM_START name=aa-second", flush=True)
-        if not arm_runner("aa-second", BINARY, mode, pressure_limits):
+        if not arm_runner("aa-second", BINARY, mode, pressure_limits, **context_kwargs):
             persist_interarm(False)
             raise SystemExit("STOP: second arm operation-guard/containment gate failed; see aa-second artifacts")
         print("AA_ARM_COMPLETE name=aa-second", flush=True)
@@ -530,8 +561,114 @@ def archived_build_source_provenance():
             "interpretation": "exact binary SHA is authoritative; archived source checksums are partial build provenance, and current source fingerprints are captured separately"}
 
 
+def sample_contention(context, phase):
+    start = time.monotonic_ns()
+    state = runner.containment.host_snapshot(runner.RESOURCE_ROOT)
+    decision = runner.containment.contention_decision(state, context, phase)
+    if not decision['continuation_allowed']:
+        raise RuntimeError('contention capacity failure: ' + json.dumps(decision))
+    disk = {name: {'read_sectors': d['sectors_read'], 'write_sectors': d['sectors_written'], 'io_ms': d['io_ms']}
+            for name, d in state['diskstats'].items()}
+    row = {'load1': state['loadavg'][0], 'memavailable_kib': state['meminfo_kib']['MemAvailable_kib'],
+           'swapfree_kib': state['meminfo_kib']['SwapFree_kib'],
+           'pswpin': state['vmstat']['pswpin_pages'], 'pswpout': state['vmstat']['pswpout_pages'],
+           'diskstats_json': json.dumps(disk), 'contention_host_json': json.dumps(state)}
+    for family, prefix in (('io_pressure', 'io'), ('memory_pressure', 'memory'), ('cpu_pressure', 'cpu')):
+        for kind, values in state[family].items():
+            row[f'{prefix}_{kind}_avg10'] = values['avg10']
+            row[f'{prefix}_{kind}_total_us'] = values['total']
+    end = time.monotonic_ns()
+    row.update({'monotonic_ns': end, 'epoch_ns': time.time_ns(), 'sample_start_monotonic_ns': start,
+                'sample_duration_ns': end-start})
+    return row
+
+
+def capture_for_mode(duration, context, phase):
+    if context is None:
+        return host.capture(duration, None)
+    return host.capture(duration, None, sample_function=lambda: sample_contention(context, phase))
+
+
+def contention_rows_decisions(rows, context, phase):
+    if not rows:
+        raise ValueError('missing contention samples')
+    decisions = []
+    previous = None
+    for row in rows:
+        state = json.loads(row['contention_host_json'])
+        decisions.append(runner.containment.contention_decision(state, context, phase))
+        if previous is not None:
+            for key in ('pswpin_pages', 'pswpout_pages', 'oom_kill', 'pgscan_direct'):
+                if state['vmstat'][key] < previous['vmstat'][key]:
+                    raise ValueError('nonmonotonic ambient/recovery swap/reclaim telemetry')
+            if state['vmstat']['oom_kill'] > previous['vmstat']['oom_kill']:
+                raise ValueError('host OOM kill during baseline/recovery; no attribution to M4')
+        previous = state
+    return decisions
+
+
+def validate_contention_samples(rows, context, phase, duration):
+    """Integrity at declared monitor resolution, not nominal idle-host cadence."""
+    errors = []
+    try:
+        contention_rows_decisions(rows, context, phase)
+        gap = context['max_monitor_gap_seconds']*1e9
+        times = []
+        for row in rows:
+            if any(isinstance(row.get(k),bool) or not isinstance(row.get(k),int) for k in
+                   ('monotonic_ns','epoch_ns','sample_start_monotonic_ns','sample_duration_ns')):
+                raise ValueError('invalid contention timestamp types')
+            end, start, read_duration = (int(row[k]) for k in ('monotonic_ns', 'sample_start_monotonic_ns', 'sample_duration_ns'))
+            state = json.loads(row['contention_host_json'])
+            if not start <= state['monotonic_ns'] <= end or read_duration != end-start or not 0 <= read_duration <= gap:
+                raise ValueError('invalid/overlong contention sample bracket')
+            if int(row['epoch_ns']) <= 0:
+                raise ValueError('invalid contention wall-clock stamp')
+            for key, value in (('load1',state['loadavg'][0]), ('memavailable_kib',state['meminfo_kib']['MemAvailable_kib']),
+                               ('swapfree_kib',state['meminfo_kib']['SwapFree_kib']), ('pswpin',state['vmstat']['pswpin_pages']),
+                               ('pswpout',state['vmstat']['pswpout_pages']), ('io_some_avg10',state['io_pressure']['some']['avg10']),
+                               ('io_full_avg10',state['io_pressure']['full']['avg10']),
+                               ('memory_some_avg10',state['memory_pressure']['some']['avg10']),
+                               ('memory_full_avg10',state['memory_pressure']['full']['avg10'])):
+                if isinstance(row[key], bool) or not math.isfinite(float(row[key])) or float(row[key]) != value:
+                    raise ValueError('inconsistent contention sample channels: '+key)
+            expected_disk = {name: {'read_sectors':d['sectors_read'], 'write_sectors':d['sectors_written'], 'io_ms':d['io_ms']}
+                             for name,d in state['diskstats'].items()}
+            if json.loads(row['diskstats_json']) != expected_disk:
+                raise ValueError('inconsistent contention diskstats channels')
+            times.append(end)
+        if len(times) < 2 or any(not 0 < b-a <= gap for a,b in pairwise(times)):
+            raise ValueError('missing/nonmonotonic contention coverage')
+        if times[-1]-times[0] < duration*1e9-gap:
+            raise ValueError('short contention capture')
+    except (KeyError, ValueError, TypeError, OverflowError) as exc:
+        errors.append(str(exc))
+    return {'status': 'MEASUREMENT_INVALID' if errors else 'VALID', 'errors': errors,
+            'rows': len(rows), 'maximum_observation_gap_seconds': context['max_monitor_gap_seconds'],
+            'nominal_sample_period_seconds': host.SAMPLE_S,
+            'resolution_note': 'actual brackets retained; reduced resolution limits attribution, not a host-idleness test'}
+
+
 def baseline_gate_decision(mode, integrity, pressure_limits, absolute_failures,
-                           pressure_failures, quality_pass, quality_reason=None):
+                           pressure_failures, quality_pass, quality_reason=None,
+                           policy_context=None, contention_decisions=None):
+    if (mode == runner.containment.CONTENTION_MODE) != (policy_context is not None):
+        raise ValueError('baseline mode/context mismatch')
+    if policy_context is not None:
+        runner.containment.validate_contention_context(policy_context)
+        valid = integrity.get('status') == 'VALID' and bool(contention_decisions)
+        allowed = valid and all(d['continuation_allowed'] for d in contention_decisions)
+        return {'policy_id': runner.BENCHMARK_POLICY['policy_id'],
+                'operation_outcome': 'OPERATION_READY_EXPLORATORY' if allowed else 'OPERATION_BLOCKED',
+                'gate_id': None if allowed else 'M4-CA-CAPACITY-OR-INTEGRITY',
+                'gate_class': 'CONTENTION_AWARE_CAPACITY_AND_INTEGRITY',
+                'reason': 'approved workload plan; historical comparisons retained, not idle prerequisites' if allowed else 'capacity/integrity did not pass',
+                'evidence_class': runner.containment.CONTENTION_EVIDENCE,
+                'historical_guard_failures': absolute_failures,
+                'historical_baseline_pressure_failures': pressure_failures,
+                'contention_decisions': contention_decisions, 'policy_context': policy_context,
+                'recovery_conditions': 'capacity and integrity; no idle wait, no automatic retry',
+                'mission_status': 'NOT_EVALUATED_BY_RUNNER'}
     policy = runner.BENCHMARK_POLICY
     if integrity.get("status") != "VALID":
         gate_id, gate_class = "M4-MQ-INTEGRITY", "MEASUREMENT_INTEGRITY"
@@ -608,14 +745,83 @@ def write_operation_status(pair, status, phase, *, reason=None, gate_id=None,
     return payload
 
 
+def write_contention_analysis(pair, baseline_rows, context):
+    """Temporal pressure association only; host/process scopes are intentionally separate."""
+    def host_summary(states):
+        return {family: {kind: {'min': min(s[family][kind]['avg10'] for s in states),
+                               'max': max(s[family][kind]['avg10'] for s in states),
+                               'mean': sum(s[family][kind]['avg10'] for s in states)/len(states)}
+                         for kind in (('some',) if family == 'cpu_pressure' else ('some', 'full'))}
+                for family in ('io_pressure', 'memory_pressure', 'cpu_pressure')}
+    def swap_rates(states):
+        elapsed = (states[-1]['monotonic_ns'] - states[0]['monotonic_ns'])/1e9
+        if elapsed <= 0:
+            raise ValueError('insufficient monotonic pressure evidence')
+        return {key: (states[-1]['vmstat'][key]-states[0]['vmstat'][key])/elapsed
+                for key in ('pswpin_pages', 'pswpout_pages')}
+    baseline = [json.loads(r['contention_host_json']) for r in baseline_rows]
+    result = {'evidence_class': runner.containment.CONTENTION_EVIDENCE,
+              'operation_id': context['operation_id'], 'ambient_host_psi': host_summary(baseline),
+              'ambient_host_swap_pages_per_second': swap_rates(baseline), 'arms': {},
+              'interpretation': 'During-minus-ambient is temporal association, NOT identified M4 incremental causality. PSI avg10 is smoothed and host-wide. CPU usage is owned-cgroup time; process IO snapshots can lose exited workers. No I/O hard cap, no candidate win/regression/production conclusion.',
+              'missing_for_causal_identification': ['matched counterfactual host workload', 'per-stage CPU/runqueue/wait/syscall attribution; no heavy tracing enabled']}
+    for arm in ('aa-first', 'aa-second'):
+        path = pair/arm/'containment/runtime.jsonl'
+        if not path.is_file():
+            continue
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        active = [r for r in rows if r.get('elapsed_ns') is not None]
+        if len(active) < 2:
+            raise ValueError('insufficient active-arm contention telemetry')
+        states = [r['host'] for r in active]
+        for row in active:
+            runner.containment.contention_decision(row['host'], context,
+                'runtime-first' if arm == 'aa-first' else 'runtime-second', row['workspace']['allocated_st_blocks_bytes_gross'])
+        elapsed = (active[-1]['monotonic_ns'] - active[0]['monotonic_ns'])/1e9
+        host_psi = host_summary(states)
+        result['arms'][arm] = {'host_psi': host_psi, 'host_swap_pages_per_second': swap_rates(states),
+            'host_psi_mean_difference_from_ambient': {f: {k: v['mean']-result['ambient_host_psi'][f][k]['mean']
+                                                        for k,v in kinds.items()} for f,kinds in host_psi.items()},
+            'owned_cgroup_cpu_seconds_observed': (active[-1]['cgroup']['cpu_stat']['usage_usec']-active[0]['cgroup']['cpu_stat']['usage_usec'])/1e6,
+            'observed_wall_seconds': elapsed,
+            'peak_owned_memory_bytes': max(r['cgroup']['memory_current_bytes'] for r in active),
+            'peak_owned_swap_bytes': max(r['cgroup']['memory_swap_current_bytes'] for r in active),
+            'peak_process_io_write_bytes_snapshot': max(r['cgroup']['process_tree_write_bytes'] for r in active),
+            'historical_exceedance_samples': sum(bool(r['diagnostic_decision']['historical_guard_failures']) for r in active),
+            'historical_gate_failure_counts': {gid: sum(any(g['gate_id']==gid for g in r['diagnostic_decision']['historical_guard_failures']) for r in active)
+                                               for gid in runner.BENCHMARK_POLICY['resource_guard_metadata']}}
+    (pair/'contention-analysis.json').write_text(json.dumps(result, indent=2)+'\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("diagnostic", "qualification"), default="qualification")
-    mode = parser.parse_args().mode
+    parser.add_argument("--mode", choices=("diagnostic", "qualification", "contention-aware"), default="qualification")
+    parser.add_argument('--contention-plan', type=pathlib.Path)
+    args = parser.parse_args()
+    mode = args.mode
+    policy_context = None
+    if mode == runner.containment.CONTENTION_MODE:
+        if args.contention_plan is None:
+            raise SystemExit('NO_LAUNCH: approved operation-bound resource plan and separate execution authorization required')
+        policy_context = json.loads(args.contention_plan.read_text())
+        runner.containment.validate_contention_context(policy_context)
+        operation = HERE / policy_context['operation_id']
+        if (str(operation.resolve()) != policy_context['operation_root'] or
+                str(runner.RESOURCE_ROOT) != policy_context['resource_root']):
+            raise SystemExit('NO_LAUNCH: contention plan root binding mismatch')
+        filesystem = subprocess.check_output(['stat', '-f', '-c', '%T', str(runner.RESOURCE_ROOT)], text=True).strip()
+        if filesystem != 'btrfs':
+            raise SystemExit('NO_LAUNCH: contention workload requires fresh roots on Btrfs')
+        runner.PAIR = operation
+    elif args.contention_plan is not None:
+        raise SystemExit('NO_LAUNCH: contention plan cannot leak into qualification/legacy diagnostic')
     if not BINARY.is_file():
         raise SystemExit(f"missing A/A binary: {BINARY}")
     pair = runner.PAIR
     pair.mkdir(parents=True, exist_ok=False)
+    if policy_context is not None:
+        runner.verify_full_sync(BINARY)
+        (pair / 'approved-contention-plan.json').write_text(json.dumps(policy_context, indent=2) + '\n')
     binary_identity = runner.binary_runtime_identity(BINARY)
     runner.EXPECTED_AA_IDENTITY = binary_identity
     (pair / "binary-identity.json").write_text(json.dumps(binary_identity, indent=2, sort_keys=True) + "\n")
@@ -623,8 +829,11 @@ def main():
     (pair / "pair.json").write_text(json.dumps({
         "experiment": "same-binary A/A host carry-over check",
         "mode": mode,
-        "evidence_class": "EXPLORATORY / NOT QUALIFICATION EVIDENCE" if mode == "diagnostic" else "QUALIFICATION",
-        "quality_gate_policy": "stability envelope is non-blocking only in diagnostic mode; telemetry integrity is always required",
+        "evidence_class": (runner.containment.CONTENTION_EVIDENCE if policy_context is not None else
+                           "EXPLORATORY / NOT QUALIFICATION EVIDENCE" if mode == "diagnostic" else "QUALIFICATION"),
+        "policy_context": policy_context,
+        "quality_gate_policy": ('contention is observed, not eliminated; capacity and telemetry integrity always required' if policy_context is not None else
+                                "stability envelope is non-blocking only in diagnostic mode; telemetry integrity is always required"),
         "binary": str(BINARY), "binary_sha256": binary_sha,
         "binary_runtime_identity": "binary hash + current source git revision/tree fingerprint + resolved shared-library path/hash; enforced before each arm",
         "source_git_revision": binary_identity["source_git_revision"],
@@ -633,7 +842,8 @@ def main():
         "binary_build_source_provenance": archived_build_source_provenance(),
         "workload": "500 docs x 20 rounds", "fresh_roots": True,
         "sampling_interval_ms": 50, "baseline_observation_seconds": BASELINE_S,
-        "recovery_rule": ("3 consecutive 10-second windows within unchanged operation resource and baseline-pressure guards; stability similarity does not block exploratory recovery"
+        "recovery_rule": ('3 consecutive valid 10-second capacity/integrity windows; no historical-envelope/idle matching' if policy_context is not None else
+                          "3 consecutive 10-second windows within unchanged operation resource and baseline-pressure guards; stability similarity does not block exploratory recovery"
                           if mode == "diagnostic" else
                           "3 consecutive 10-second windows no worse than stable pre-arm pressure maxima and memory/swap-free minima, plus existing resource gate"),
         "resource_thresholds": runner.THRESHOLDS,
@@ -643,17 +853,20 @@ def main():
         "durability_note": runner.DESCRIPTION,
     }, indent=2) + "\n")
     write_operation_status(pair, "IN_PROGRESS", "baseline-preflight")
-    if not runner.preflight("baseline"):
+    if not (runner.preflight('baseline', policy_context) if policy_context is not None else runner.preflight('baseline')):
         preflight = json.loads((pair / "baseline" / "preflight.json").read_text())
-        failures = preflight.get("resource_guard_failures", preflight.get("hard_safety_failures", []))
+        failures = (preflight.get('diagnostic_decision', {}).get('blocking_failures', [])
+                    if policy_context is not None and preflight.get('diagnostic_decision') is not None else
+                    preflight.get("resource_guard_failures", preflight.get("hard_safety_failures", [])))
         telemetry_incomplete = preflight.get("status") == "TELEMETRY_INCOMPLETE"
         write_operation_status(pair, "OPERATION_BLOCKED", "baseline-preflight",
             reason=preflight.get("reason") or "one or more unchanged operation-level resource guards failed",
             gate_id=("M4-MQ-INTEGRITY" if telemetry_incomplete else
                      [failure.get("gate_id") for failure in failures]),
             gate_class=("MEASUREMENT_INTEGRITY" if telemetry_incomplete else
-                        "HISTORICAL_ENVELOPE_RESOURCE_GUARD"),
-            evidence_class=("required preflight telemetry unavailable" if telemetry_incomplete else
+                        "CONTENTION_CAPACITY" if policy_context is not None else "HISTORICAL_ENVELOPE_RESOURCE_GUARD"),
+            evidence_class=(runner.containment.CONTENTION_EVIDENCE if policy_context is not None else
+                            "required preflight telemetry unavailable" if telemetry_incomplete else
                             "historical successful-run envelope; not universal host safety"),
             recovery=(preflight.get("recovery") if telemetry_incomplete else
                       "fresh preflight meets all unchanged guards; no automatic retry"))
@@ -663,9 +876,12 @@ def main():
     baseline_path = pair / "ambient-baseline.csv"
     baseline_rows = []
     try:
-        baseline_rows, metadata = host.capture(BASELINE_S, None)
-        integrity = validate_baseline_samples(baseline_rows)
+        baseline_rows, metadata = capture_for_mode(BASELINE_S, policy_context, 'baseline')
+        integrity = (validate_contention_samples(baseline_rows, policy_context, 'baseline', BASELINE_S)
+                     if policy_context is not None else validate_baseline_samples(baseline_rows))
+        contention_decisions = contention_rows_decisions(baseline_rows, policy_context, 'baseline') if policy_context is not None else None
     except Exception as exc:
+        contention_decisions = None
         metadata = {"status": "CAPTURE_FAILED", "error": f"{type(exc).__name__}: {exc}",
                     "whole_mission_status": "NOT_EVALUATED_BY_RUNNER"}
         integrity = {"status": "MEASUREMENT_INVALID", "rows": len(baseline_rows),
@@ -689,13 +905,16 @@ def main():
 
     baseline_quality_pass = profile is not None
     pressure_limits = baseline_pressure_limits(baseline_rows) if integrity["status"] == "VALID" else None
+    if policy_context is not None and pressure_limits is not None:
+        pressure_limits['contention_baseline_host_oom_kill'] = json.loads(baseline_rows[-1]['contention_host_json'])['vmstat']['oom_kill']
     resource_failures = resource_guard_baseline_failures(baseline_rows, runner.THRESHOLDS) if integrity["status"] == "VALID" else []
     pressure_failures = (baseline_pressure_failures(ten_second_windows(baseline_rows), pressure_limits)
                          if pressure_limits is not None else [])
     profile_result["resource_guard_failures"] = resource_failures
     profile_result["baseline_pressure_failures"] = pressure_failures
     decision = baseline_gate_decision(mode, integrity, pressure_limits, resource_failures,
-                                      pressure_failures, baseline_quality_pass, profile_result.get("reason"))
+                                      pressure_failures, baseline_quality_pass, profile_result.get("reason"),
+                                      policy_context=policy_context, contention_decisions=contention_decisions)
     profile_result["baseline_decision"] = decision
     (pair / "baseline-gate-decision.json").write_text(json.dumps(decision, indent=2) + "\n")
     persist_baseline()
@@ -712,21 +931,28 @@ def main():
         print(f"AA_BASELINE_QUALITY_FAIL_NONBLOCKING mode=diagnostic reason={profile_result.get('reason')}; evidence=EXPLORATORY_NOT_QUALIFICATION", flush=True)
     write_operation_status(pair, "IN_PROGRESS", "contained-pair")
     try:
-        run_contained_pair(pair, mode, pressure_limits, profile)
+        run_contained_pair(pair, mode, pressure_limits, profile,
+                           **({'policy_context': policy_context} if policy_context is not None else {}))
         persist_baseline()
-        subprocess.run([sys.executable, str(ANALYZER), str(pair)], check=True)
+        if policy_context is not None:
+            write_contention_analysis(pair, baseline_rows, policy_context)
+        else:
+            subprocess.run([sys.executable, str(ANALYZER), str(pair)], check=True)
         if mode == "diagnostic":
             subprocess.run([sys.executable, str(SUMMARIZER), str(pair)], check=True)
     except BaseException:
         persist_baseline()
         raise
     write_operation_status(pair, "OPERATION_COMPLETE", "analysis-complete",
-        evidence_class="EXPLORATORY / NOT QUALIFICATION EVIDENCE" if mode == "diagnostic" else "QUALIFICATION",
+        evidence_class=(runner.containment.CONTENTION_EVIDENCE if policy_context is not None else
+                        "EXPLORATORY / NOT QUALIFICATION EVIDENCE" if mode == "diagnostic" else "QUALIFICATION"),
         recovery="not applicable")
     print(f"AA_COMPLETE mode={mode} {pair}", flush=True)
 
 
 def record_unhandled_operation_exit(pair, exc):
+    if isinstance(exc, FileExistsError):
+        return  # never overwrite a consumed operation's original receipt on a duplicate attempt
     if not pair.is_dir():
         return
     status_path = pair / "operation-status.json"
@@ -766,6 +992,12 @@ def record_unhandled_operation_exit(pair, exc):
                 evidence_class = "; ".join(sorted({gate.get("evidence_class", "") for gate in failed}))
                 recovery = "; ".join(sorted({gate.get("recovery", "") for gate in failed}))
                 break
+    pair_path = pair / 'pair.json'
+    pair_info = json.loads(pair_path.read_text()) if pair_path.is_file() else {}
+    if pair_info.get('mode') == runner.containment.CONTENTION_MODE:
+        evidence_class = runner.containment.CONTENTION_EVIDENCE
+        gate_id = [item.get('reason') for item in receipts if item.get('reason')] or gate_id
+        recovery = 'preserve original receipt; fix actual capacity/integrity/containment blocker; new explicit authorization for another operation, no idle wait or automatic retry'
     write_operation_status(pair, status, "uncaught-operation-exit",
         reason=message, gate_id=gate_id, gate_class=gate_class,
         evidence_class=evidence_class, recovery=recovery,

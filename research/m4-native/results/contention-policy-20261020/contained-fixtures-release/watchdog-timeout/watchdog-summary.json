@@ -1,0 +1,141 @@
+{
+  "abort": {
+    "failure_class": "TIMEOUT_ABORT",
+    "limit_seconds": 0.5,
+    "reason": "runtime_timeout",
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        3230414
+      ],
+      "term_pids": [
+        3230424,
+        3230427
+      ]
+    },
+    "timestamp_utc": "2026-10-20T10:03:32.223173+00:00"
+  },
+  "cgroup_io_stat_available": false,
+  "final_cgroup": {
+    "cgroup_io_controller": false,
+    "controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "cpu_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 257.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 257.0
+      }
+    },
+    "cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 0,
+      "nr_throttled": 0,
+      "system_usec": 46698,
+      "throttled_usec": 0,
+      "usage_usec": 244840,
+      "user_usec": 198142
+    },
+    "io_max": null,
+    "io_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 765.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 765.0
+      }
+    },
+    "io_stat": null,
+    "memory_current_bytes": 17494016,
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "memory_peak_bytes": 26046464,
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      }
+    },
+    "memory_swap_current_bytes": 0,
+    "memory_swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "memory_swap_peak_bytes": 0,
+    "pids": [
+      3230414
+    ],
+    "populated": 1,
+    "process_io_sample_complete": false,
+    "process_memory_sample_complete": true,
+    "process_tree_pss_kib": 16233,
+    "process_tree_read_bytes": 0,
+    "process_tree_rss_kib": 26252,
+    "process_tree_swap_kib": 0,
+    "process_tree_write_bytes": 0
+  },
+  "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+  "measurement_quality": "INCOMPLETE",
+  "peak_cgroup_memory_current_bytes_sampled": 26046464,
+  "peak_cgroup_memory_peak_bytes_observed": 26046464,
+  "peak_cgroup_swap_current_bytes_sampled": 0,
+  "peak_cgroup_swap_peak_bytes_observed": 0,
+  "peak_sampled_generation_apparent_bytes": 0,
+  "peak_sampled_staging_named_apparent_bytes": 0,
+  "peak_sampled_workspace_allocated_st_blocks_bytes_gross": 0,
+  "peak_sampled_workspace_apparent_bytes": 0,
+  "policy_context_digest": null,
+  "policy_mode": "legacy",
+  "process_tree_samples_complete": false,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "sample_interval_ms_requested": 20,
+  "samples": 23,
+  "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+  "schema_version": 1,
+  "workspace_shared_extent_inspection": {
+    "available": true,
+    "errors": [],
+    "files_examined": 0,
+    "files_with_shared_extent_flag": 0,
+    "method": "filefrag -v FIEMAP flags on final workspace files",
+    "scope": "final tree only; not a historical peak/shared-byte de-duplication measurement",
+    "shared_file_samples": []
+  }
+}
