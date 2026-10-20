@@ -600,7 +600,10 @@ def _bootstrap(sock_path: str, command: list[str]) -> int:
         final_line = stream.readline()
         if not final_line or json.loads(final_line).get('finalize') is not True:
             return 125
-        return child_rc
+        # subprocess uses -signal; sys.exit(-signal) would wrap modulo 256.
+        # Keep the signed child result in the protocol/receipt, but expose the
+        # conventional 128+signal failure status to systemd for the bootstrap.
+        return 128 - child_rc if child_rc < 0 else child_rc
 
 
 def cgroup_populated(cg: pathlib.Path) -> int:
@@ -797,6 +800,59 @@ def service_properties(budget: dict[str, Any] | None, runtime_seconds: float) ->
 def make_receipt_dir(path: pathlib.Path) -> None:
     path.mkdir(parents=True, exist_ok=False, mode=0o700)
     os.chmod(path, 0o700)
+
+
+def retire_unit(unit: str, cg: pathlib.Path | None, receipt_dir: pathlib.Path,
+                receipt: dict[str, Any]) -> None:
+    """Retire only this arm's unit, after preserving its result and receipt."""
+    cleanup: dict[str, Any] = {'verified': False, 'unit_collected': False}
+    try:
+        # Do not use --collect: failed-unit metadata must survive until read.
+        metadata = receipt_dir / 'systemd-final.txt'
+        if not metadata.exists():
+            props = subprocess.run(
+                ['systemctl', '--user', 'show', unit, '-p', 'Result', '-p', 'ExecMainCode',
+                 '-p', 'ExecMainStatus', '-p', 'ControlGroup'],
+                capture_output=True, text=True, timeout=5)
+            metadata.write_text(props.stdout + props.stderr, encoding='utf-8')
+        if not (receipt_dir / 'receipt.json').is_file():
+            raise RuntimeError('refusing unit retirement before receipt persistence')
+        stopped = subprocess.run(['systemctl', '--user', 'stop', unit],
+                                 capture_output=True, text=True, timeout=3)
+        cleanup['stop_returncode'] = stopped.returncode
+        state = subprocess.run(
+            ['systemctl', '--user', 'show', unit, '-p', 'LoadState', '-p', 'ActiveState'],
+            capture_output=True, text=True, timeout=3)
+        props = dict(line.split('=', 1) for line in state.stdout.splitlines() if '=' in line)
+        absent = props.get('LoadState') == 'not-found'
+        empty = (cg is not None and (not cg.exists() or
+                 (not read_text(cg / 'cgroup.procs').strip() and cgroup_populated(cg) == 0)))
+        cleanup['verified'] = bool((absent or props.get('ActiveState') in {'inactive', 'failed'})
+                                   and (empty if cg is not None else absent))
+        # Persist cleanup verification before clearing failed-unit state.
+        write_json(receipt_dir / 'unit-cleanup.json', cleanup)
+        if not cleanup['verified']:
+            raise RuntimeError('unit/cgroup cleanup not verified; retaining failed-unit state')
+        if not absent:
+            reset = subprocess.run(['systemctl', '--user', 'reset-failed', unit],
+                                   capture_output=True, text=True, timeout=3)
+            cleanup['reset_failed_returncode'] = reset.returncode
+        state = subprocess.run(['systemctl', '--user', 'show', unit, '-p', 'LoadState', '--value'],
+                               capture_output=True, text=True, timeout=3)
+        cleanup['unit_collected'] = state.stdout.strip() == 'not-found'
+        if not cleanup['unit_collected']:
+            cleanup['error'] = 'owned transient unit still loaded after retirement'
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+        cleanup['error'] = f'{type(exc).__name__}: {exc}'
+    receipt['unit_cleanup'] = cleanup
+    if not cleanup['verified'] or not cleanup['unit_collected']:
+        receipt['pre_retirement_outcome'] = {key: receipt.get(key) for key in
+                                             ('status', 'failure_class', 'safety_outcome', 'operation_outcome')}
+        receipt.update(status='CLEANUP_FAILED', failure_class='CONTAINMENT_UNVERIFIED',
+                       safety_outcome='CONTAINMENT_UNVERIFIED', operation_outcome='SAFETY_STOP',
+                       performance_eligible=False)
+    write_json(receipt_dir / 'unit-cleanup.json', cleanup)
+    write_json(receipt_dir / 'receipt.json', receipt)
 
 
 def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathlib.Path,
@@ -1137,6 +1193,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'safety_outcome': safety_outcome,
             'measurement_quality': measurement_quality, 'process_returncode': rc,
             'workload_returncode': child_rc,
+            'workload_signal': -child_rc if child_rc is not None and child_rc < 0 else None,
+            'bootstrap_exit_status': (128 - child_rc if child_rc < 0 else child_rc) if child_rc is not None else None,
             'benchmark_started': launched, 'hard_guards': GUARDS,
             'policy_id': BENCHMARK_POLICY['policy_id'],
             'source_of_authority': BENCHMARK_POLICY['authority']['historical_envelope_source'],
@@ -1163,6 +1221,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         }
         write_json(receipt_dir / 'receipt.json', result)
         write_json(receipt_dir / 'host-after.json', host_snapshot(resource_root))
+        retire_unit(unit, cg, receipt_dir, result)
         return result
     except BaseException as exc:
         kill_result = None
@@ -1228,6 +1287,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             },
         }
         write_json(receipt_dir / 'receipt.json', failure)
+        retire_unit(unit, cg, receipt_dir, failure)
         raise
     finally:
         server.close()
@@ -1244,10 +1304,6 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         if watchdog_stderr is not None:
             watchdog_stderr.close()
         shutil.rmtree(socket_dir, ignore_errors=True)
-        try:
-            subprocess.run(['systemctl', '--user', 'reset-failed', unit], capture_output=True, timeout=3)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
 
 
 def probe() -> dict[str, Any]:

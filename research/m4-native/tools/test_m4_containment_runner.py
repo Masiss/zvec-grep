@@ -51,6 +51,12 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertTrue((receipt_dir / 'host-before.json').exists())
         self.assertTrue((receipt_dir / 'host-after.json').exists())
         self.assertTrue((receipt_dir / 'systemd-final.txt').exists())
+        self.assertTrue(receipt['unit_cleanup']['verified'])
+        self.assertTrue(receipt['unit_cleanup']['unit_collected'])
+        state = subprocess.run(
+            ['systemctl', '--user', 'show', receipt['unit'], '-p', 'LoadState', '--value'],
+            capture_output=True, text=True, timeout=3)
+        self.assertEqual(state.stdout.strip(), 'not-found')
         return receipt, receipt_dir
 
     def test_terminal_classes_distinguish_oom_and_abort_types(self) -> None:
@@ -160,20 +166,55 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(receipt['cgroup_relative_path'].split('/')[-1], receipt['unit'])
         self.assertIsNone(receipt['watchdog_abort'])
 
+    def test_retirement_keeps_failed_unit_when_cleanup_is_unverified(self) -> None:
+        directory = self.output_root / 'unverified-retirement'
+        directory.mkdir(exist_ok=True)
+        cg = self.fixture_root / 'nonempty-cgroup'
+        cg.mkdir()
+        (cg / 'cgroup.procs').write_text('123\n')
+        (cg / 'cgroup.events').write_text('populated 1\n')
+        receipt: dict = {'status': 'PASS', 'performance_eligible': True}
+        runner.write_json(directory / 'receipt.json', receipt)
+        (directory / 'systemd-final.txt').write_text('Result=exit-code\nExecMainStatus=7\n')
+        for state in ('LoadState=loaded\nActiveState=failed\n', 'LoadState=not-found\nActiveState=inactive\n'):
+            with self.subTest(state=state):
+                receipt = {'status': 'SIGNAL_EXIT', 'workload_returncode': -15, 'performance_eligible': False}
+                runner.write_json(directory / 'receipt.json', receipt)
+                response = subprocess.CompletedProcess([], 0, state, '')
+                with mock.patch.object(runner.subprocess, 'run', return_value=response) as run:
+                    runner.retire_unit('owned-fixture.service', cg, directory, receipt)
+                self.assertFalse(any('reset-failed' in call.args[0] for call in run.call_args_list))
+                self.assertFalse(receipt['unit_cleanup']['verified'])
+                self.assertEqual(receipt['status'], 'CLEANUP_FAILED')
+                self.assertEqual(receipt['pre_retirement_outcome']['status'], 'SIGNAL_EXIT')
+                self.assertEqual(receipt['workload_returncode'], -15)
+                self.assertEqual(receipt['operation_outcome'], 'SAFETY_STOP')
+                self.assertFalse(receipt['performance_eligible'])
+                self.assertEqual(json.loads((directory / 'receipt.json').read_text()), receipt)
+
     def test_nonzero_exit_is_not_pass(self) -> None:
-        receipt, _ = self.run_fixture('nonzero', [sys.executable, '-c', 'raise SystemExit(7)'])
+        receipt, directory = self.run_fixture('nonzero', [sys.executable, '-c', 'raise SystemExit(7)'])
         self.assertEqual(receipt['status'], 'NONZERO_EXIT')
         self.assertEqual(receipt['failure_class'], 'NONZERO_EXIT')
         self.assertEqual(receipt['workload_returncode'], 7)
+        self.assertIsNone(receipt['workload_signal'])
+        self.assertEqual(receipt['bootstrap_exit_status'], 7)
+        self.assertEqual(receipt['process_returncode'], 7)
+        self.assertIn('ExecMainStatus=7\n', (directory / 'systemd-final.txt').read_text())
         self.assertEqual(receipt['measurement_quality'], 'COMPLETE')
 
     def test_sigterm_and_sigkill_are_not_pass(self) -> None:
         for name, sig in [('sigterm', signal.SIGTERM), ('sigkill', signal.SIGKILL)]:
             command = [sys.executable, '-c', f'import os,signal; os.kill(os.getpid(), {sig})']
-            receipt, _ = self.run_fixture(name, command)
+            receipt, directory = self.run_fixture(name, command)
             self.assertEqual(receipt['status'], 'SIGNAL_EXIT')
             self.assertEqual(receipt['failure_class'], 'SIGNAL_EXIT')
             self.assertEqual(receipt['workload_returncode'], -sig)
+            self.assertEqual(receipt['workload_signal'], sig)
+            self.assertEqual(receipt['bootstrap_exit_status'], 128 + sig)
+            self.assertEqual(receipt['process_returncode'], 128 + sig)
+            self.assertIn(f'ExecMainStatus={128 + sig}\n', (directory / 'systemd-final.txt').read_text())
+            self.assertEqual(json.loads((directory / 'command-exit.json').read_text())['returncode'], -sig)
             self.assertEqual(receipt['safety_outcome'], 'WORKLOAD_FAILED')
 
     def test_supervisor_crash_is_detected_and_arm_is_cleaned(self) -> None:

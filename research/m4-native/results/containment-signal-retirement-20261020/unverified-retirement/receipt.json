@@ -1,0 +1,13 @@
+{
+  "failure_class": "CONTAINMENT_UNVERIFIED",
+  "operation_outcome": "SAFETY_STOP",
+  "performance_eligible": false,
+  "safety_outcome": "CONTAINMENT_UNVERIFIED",
+  "status": "CLEANUP_FAILED",
+  "unit_cleanup": {
+    "error": "RuntimeError: unit/cgroup cleanup not verified; retaining failed-unit state",
+    "stop_returncode": 0,
+    "unit_collected": false,
+    "verified": false
+  }
+}
