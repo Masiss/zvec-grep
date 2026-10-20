@@ -1,0 +1,7 @@
+{
+  "returncode": 0,
+  "pss_samples": 102,
+  "sampled_peak_pss_kb": 295621,
+  "sampled_peak_rss_kb": 295232,
+  "sampled_peak_swap_kb": 0
+}

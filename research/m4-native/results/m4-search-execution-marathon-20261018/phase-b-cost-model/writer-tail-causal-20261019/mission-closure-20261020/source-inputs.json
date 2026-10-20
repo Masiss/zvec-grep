@@ -1,0 +1,8 @@
+{
+  "research/m4-native/tests/m4_bridge_integration.cc": "31e9e1db9dfacba98987c38799efcdc2be2bb805656e4ef89c27273d047a1cb5",
+  "research/m4-native/src/index.cc": "71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51",
+  ".local/native/zvec-native-profile/src/db/collection.cc": "2d521fa0cfb0e45bae28aa0455100325420f77c1d1627d2608f6d4c919edbdb9",
+  ".local/native/zvec-native-profile/src/db/index/segment/segment.cc": "7387db8430a0bf063a2a19e027ddf96ee5372b6546ea5c94ca6114cb895adf9c",
+  ".local/native/zvec-native-profile/src/binding/c/c_api.cc": "22f88f1cc511f5f923d5dc98c7c2d4701493d288c599b9d92a6e91fb7ac8340b",
+  "research/m4-native/docs/benchmark-policy.json": "606ef8749fddb7e9ae1f23c404683249f542d45a13c9c3bd743a22f6646b997b"
+}

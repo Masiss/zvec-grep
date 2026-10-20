@@ -1,0 +1,1 @@
+/var/tmp/m4-native-search-op-counters-bridge-build-20261018/m4_bridge_integration /var/tmp/m4-search-cost-model-20261019/sustained-multicycle-500x20-reverse/candidate/root /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict --incremental-fts-sustained 500 20 (counters/tracing off)

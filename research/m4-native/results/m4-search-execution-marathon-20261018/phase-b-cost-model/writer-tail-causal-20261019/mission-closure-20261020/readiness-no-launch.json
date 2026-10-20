@@ -1,0 +1,312 @@
+{
+  "timestamp_utc": "2026-10-20T04:33:52.272795+00:00",
+  "operation_status": "OPERATION_BLOCKED",
+  "resource_evaluations": 1,
+  "ambient_baseline_started": false,
+  "arms_launched": 0,
+  "automatic_retry": false,
+  "resource_root": "/var/tmp",
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "snapshot": {
+    "timestamp_utc": "2026-10-20T04:33:52.248130+00:00",
+    "monotonic_ns": 178060786864390,
+    "meminfo_kib": {
+      "MemTotal_kib": 16051144,
+      "MemAvailable_kib": 5885576,
+      "SwapTotal_kib": 24802296,
+      "SwapFree_kib": 15288484
+    },
+    "loadavg": [
+      2.67,
+      3.17,
+      4.18
+    ],
+    "io_pressure": {
+      "some": {
+        "avg10": 1.84,
+        "avg60": 1.73,
+        "avg300": 1.43,
+        "total": 3563900364.0
+      },
+      "full": {
+        "avg10": 1.37,
+        "avg60": 1.27,
+        "avg300": 1.06,
+        "total": 3256566597.0
+      }
+    },
+    "memory_pressure": {
+      "some": {
+        "avg10": 0.0,
+        "avg60": 0.0,
+        "avg300": 0.0,
+        "total": 191870745.0
+      },
+      "full": {
+        "avg10": 0.0,
+        "avg60": 0.0,
+        "avg300": 0.0,
+        "total": 181949125.0
+      }
+    },
+    "resource_root_free_bytes": 19843407872,
+    "vmstat": {
+      "pswpin_pages": 28921825,
+      "pswpout_pages": 44826076
+    },
+    "diskstats": {
+      "nvme0n1": {
+        "major": 259,
+        "minor": 0,
+        "reads_completed": 20652286,
+        "sectors_read": 1378623430,
+        "read_ms": 6658294,
+        "writes_completed": 20856318,
+        "sectors_written": 1070508842,
+        "write_ms": 92531891,
+        "io_in_progress": 0,
+        "io_ms": 5344350,
+        "weighted_io_ms": 99966562
+      },
+      "nvme0n1p1": {
+        "major": 259,
+        "minor": 1,
+        "reads_completed": 689,
+        "sectors_read": 15981,
+        "read_ms": 227,
+        "writes_completed": 12,
+        "sectors_written": 10,
+        "write_ms": 1,
+        "io_in_progress": 0,
+        "io_ms": 46,
+        "weighted_io_ms": 235
+      },
+      "nvme0n1p2": {
+        "major": 259,
+        "minor": 2,
+        "reads_completed": 10026484,
+        "sectors_read": 127649024,
+        "read_ms": 1748877,
+        "writes_completed": 3267607,
+        "sectors_written": 175518872,
+        "write_ms": 64202632,
+        "io_in_progress": 0,
+        "io_ms": 1478076,
+        "weighted_io_ms": 65951510
+      },
+      "nvme0n1p3": {
+        "major": 259,
+        "minor": 3,
+        "reads_completed": 10625004,
+        "sectors_read": 1250955273,
+        "read_ms": 4909179,
+        "writes_completed": 17588695,
+        "sectors_written": 894989960,
+        "write_ms": 28329257,
+        "io_in_progress": 0,
+        "io_ms": 3943594,
+        "weighted_io_ms": 33238436
+      },
+      "dm-0": {
+        "major": 253,
+        "minor": 0,
+        "reads_completed": 13325722,
+        "sectors_read": 1250954272,
+        "read_ms": 8061058,
+        "writes_completed": 20345489,
+        "sectors_written": 894989960,
+        "write_ms": 118064917,
+        "io_in_progress": 0,
+        "io_ms": 4562370,
+        "weighted_io_ms": 126125975
+      },
+      "zram0": {
+        "major": 252,
+        "minor": 0,
+        "reads_completed": 12966340,
+        "sectors_read": 103732968,
+        "read_ms": 103714,
+        "writes_completed": 21078290,
+        "sectors_written": 183089744,
+        "write_ms": 540855,
+        "io_in_progress": 0,
+        "io_ms": 562984,
+        "weighted_io_ms": 644569
+      }
+    }
+  },
+  "gate_decisions": [
+    {
+      "gate_id": "M4-RG-MEM",
+      "threshold_key": "MemAvailable_kib_min",
+      "metric": "MemAvailable",
+      "unit": "KiB",
+      "operator": ">=",
+      "observed": 5885576,
+      "threshold": 5477762,
+      "status": "PASS",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; not a universal safety limit",
+      "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+      "owner_approval_required_to_change": true
+    },
+    {
+      "gate_id": "M4-RG-DISK",
+      "threshold_key": "var_tmp_bytes_min",
+      "metric": "resource-root available bytes",
+      "unit": "bytes",
+      "operator": ">=",
+      "observed": 19843407872,
+      "threshold": 18219000000,
+      "status": "PASS",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+      "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+      "owner_approval_required_to_change": true
+    },
+    {
+      "gate_id": "M4-RG-IOPSI",
+      "threshold_key": "io_full_avg10_max",
+      "metric": "host I/O PSI full avg10",
+      "unit": "percent",
+      "operator": "<=",
+      "observed": 1.37,
+      "threshold": 4.46,
+      "status": "PASS",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+      "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+      "owner_approval_required_to_change": true
+    },
+    {
+      "gate_id": "M4-RG-LOAD",
+      "threshold_key": "load1_max",
+      "metric": "host load-1",
+      "unit": "load average",
+      "operator": "<=",
+      "observed": 2.67,
+      "threshold": 3.14,
+      "status": "PASS",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; not a universal safety limit",
+      "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+      "owner_approval_required_to_change": true
+    }
+  ],
+  "containment_probe": {
+    "cgroup_v2_mounted": true,
+    "cgroup2_mount": "47 45 0:29 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:7 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting",
+    "self_cgroup": "user.slice/user-1000.slice/user@1000.service/app.slice/kitty-1688559-2.scope",
+    "root_controllers": [
+      "cpuset",
+      "cpu",
+      "io",
+      "memory",
+      "hugetlb",
+      "pids",
+      "rdma",
+      "misc",
+      "dmem"
+    ],
+    "user_service_controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "systemd_run_available": true,
+    "systemctl_available": true,
+    "user_service_subtree_control": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "current_unit": [
+      "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/kitty-1688559-2.scope",
+      "Delegate=no",
+      "IOAccounting=no",
+      "KillMode=process"
+    ],
+    "current_leaf": {
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "io_stat": false,
+      "io_max": false,
+      "io_pressure": true,
+      "memory_max_writable": true,
+      "memory_swap_max_writable": true,
+      "cgroup_kill_writable": true
+    },
+    "host_telemetry": {
+      "vmstat_swap": true,
+      "diskstats": true,
+      "host_memory_psi": true,
+      "host_io_psi": true
+    },
+    "systemd_runtime": [
+      "systemd 262 (262-1-arch)"
+    ]
+  },
+  "systemd_state": "degraded",
+  "failed_owned_units": "\u25cf m4-contained-7470567091df486a.service loaded failed failed [systemd-run] /usr/sbin/python3 /home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py __bootstrap /run/user/1000/m4-cgroup-c8e1nnft/s -- /usr/sbin/python3 -c \"import subprocess,sys,time; p=subprocess.Popen([sys.executable,\\\"-c\\\",\\\"import time; time.sleep(30)\\\"]); print(\\\"CHILD_PID=\\\"+str(p.pid),flush=True); time.sleep(30)\"\n\u25cf m4-contained-951cd3a8debf4df8.service loaded failed failed [systemd-run] /usr/sbin/python3 /home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py __bootstrap /run/user/1000/m4-cgroup-j44a8pmm/s -- /usr/sbin/python3 -c \"import subprocess,sys,time; p=subprocess.Popen([sys.executable,\\\"-c\\\",\\\"import time; time.sleep(30)\\\"]); print(\\\"CHILD_PID=\\\"+str(p.pid),flush=True); time.sleep(30)\"\n\u25cf m4-contained-b0901c53ed394c6c.service loaded failed failed [systemd-run] /usr/sbin/python3 /home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py __bootstrap /run/user/1000/m4-cgroup-epwhhp7d/s -- /usr/sbin/python3 -c \"import subprocess,sys,time; p=subprocess.Popen([sys.executable,\\\"-c\\\",\\\"import time; time.sleep(30)\\\"]); print(\\\"CHILD_PID=\\\"+str(p.pid),flush=True); time.sleep(30)\"\n\u25cf m4-contained-fefd083f8370444c.service loaded failed failed [systemd-run] /usr/sbin/python3 /home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py __bootstrap /run/user/1000/m4-cgroup-tzqvszgc/s -- /usr/sbin/python3 -c \"import subprocess,sys,time; p=subprocess.Popen([sys.executable,\\\"-c\\\",\\\"import time; time.sleep(30)\\\"]); print(\\\"CHILD_PID=\\\"+str(p.pid),flush=True); time.sleep(30)\"\n",
+  "top_processes_no_argv": [
+    "    PID    PPID COMMAND         %CPU   RSS STAT",
+    " 503372 3332286 Web Content      3.5 1655948 Sl",
+    "3996717 3332286 Web Content      1.8 583420 Sl",
+    "3332120    1859 zen-bin          9.0 575232 Sl",
+    "1335348 1333351 pi               7.6 528424 Sl+",
+    "1110269 1106103 pi              10.9 468028 Sl+",
+    " 714060 3332286 Web Content      0.2 416800 Sl",
+    " 739728  738882 claude           5.7 412328 Sl+",
+    " 936214    1703 opencode         1.5 349756 Ssl",
+    "3332809 3332286 WebExtensions    3.0 299868 Sl",
+    "2299835 1688782 opencode         5.1 262236 Sl+",
+    "1591258 1591091 opengrep-core    2.2 238492 Sl",
+    "    711       1 warp-svc         0.4 167392 Ssl",
+    " 738449    1703 zed-editor       7.4 162524 Ssl",
+    "1591158 1335348 ast-grep         0.2 131612 Ssl",
+    "1249270 3332286 file:// Content  1.1 124840 Sl",
+    "3654402    1703 node-MainThread  0.0 97824 Sl",
+    "   1859    1854 Hyprland         4.9 63820 Sl",
+    " 739160  738449 node-MainThread  0.0 60476 Sl",
+    "  58528    1859 Telegram         0.1 57980 Sl",
+    "1344208 1335348 node-MainThread  0.0 51344 Sl+"
+  ],
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "provenance_pass": true,
+  "durability_prerequisite": "NOT_ESTABLISHED: BuildDeltaGeneration calls SyncTree(generation_root,true), skipping FTS/wal.log fsync after FlushInternal WAL truncate; handoff section 35 explicitly withholds durability equivalence",
+  "baseline_pressure_and_cadence_integrity": "NOT_EVALUATED: no ambient baseline permitted after failed prerequisite/guard",
+  "evidence_class": "NO_LAUNCH / NOT PERFORMANCE EVIDENCE",
+  "recovery": "New authorization after durable-equivalence decision or verified correction; all unchanged guards and telemetry/containment checks must pass. No retry in this mission."
+}

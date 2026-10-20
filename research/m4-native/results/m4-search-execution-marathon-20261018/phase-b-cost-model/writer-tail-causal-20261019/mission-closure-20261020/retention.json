@@ -1,0 +1,13 @@
+{
+  "retained_non_git_binary": [
+    {
+      "path": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/current-source-build-20261019/m4_bridge_integration",
+      "sha256": "57f3a19e0fb5dfe4d2d64ea4831f276a81a586c22ee30309d6249ed986ba342f",
+      "apparent_bytes": 2311704,
+      "retention": "Keep under results/; not ignored .work. Not committed as a binary; no cleanup permitted while provenance/results depend on it. No off-host archival claimed."
+    }
+  ],
+  "important_evidence_in_git": "No-launch/provenance, cycle analyzer, derived 80-cycle table, raw stdout for four historical arms and process-sampling receipts; small lifecycle receipts retained in separate commits.",
+  "older_raw_telemetry": "Historical full PSS/host/root data remain at original result paths; do not delete. Input hashes preserved; no new per-cycle host telemetry can be inferred from old snapshots.",
+  "mission_evidence_apparent_bytes_before_manifest": 71719
+}

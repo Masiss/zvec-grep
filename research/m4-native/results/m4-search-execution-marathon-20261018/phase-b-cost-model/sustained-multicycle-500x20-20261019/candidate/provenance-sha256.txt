@@ -1,0 +1,3 @@
+1b70bed427c698da72c879a3e093cb0fd57097780793c457661722f1e800decb  /var/tmp/m4-native-search-op-counters-bridge-build-20261018/m4_bridge_integration
+71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51  research/m4-native/src/index.cc
+68ae22c16dbd9f71b1019f3f500762837adaa963a408a0fc4e775f180cc97523  research/m4-native/tests/m4_bridge_integration.cc
