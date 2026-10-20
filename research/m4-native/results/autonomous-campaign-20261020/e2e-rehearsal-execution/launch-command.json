@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "flock",
+    "--nonblock",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/campaign-execution.lock",
+    "timeout",
+    "--signal=TERM",
+    "--kill-after=5s",
+    "30s",
+    "/usr/sbin/python3",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/rehearse_launch_path.py"
+  ],
+  "timestamp_utc": "2026-10-20T15:40:45.619565+00:00",
+  "synthetic_only": true,
+  "native_budget_unchanged": true
+}

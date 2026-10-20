@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "flock",
+    "--nonblock",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/campaign-execution.lock",
+    "timeout",
+    "--signal=TERM",
+    "--kill-after=5s",
+    "355s",
+    "/usr/sbin/python3",
+    "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py",
+    "--mode",
+    "contention-aware",
+    "--contention-plan",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-2.json"
+  ],
+  "cwd": "/home/masis/src/zvec-grep",
+  "timestamp_utc": "2026-10-20T15:42:17.983274+00:00",
+  "approved_plan_sha256": "6405ee84a3d1b9d027335778c8a0beda6a5d16ad84e7e40cc65c091c737267ef",
+  "slot": 2,
+  "total_attempt_index": 3,
+  "no_auto_retry": true
+}

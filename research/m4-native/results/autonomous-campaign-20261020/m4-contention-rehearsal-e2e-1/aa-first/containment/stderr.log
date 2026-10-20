@@ -1,0 +1,6 @@
+Running as unit: m4-contained-579ca03808454887.service; invocation ID: 20d863304f73436eb350f41260272ffa
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1.257s
+             CPU time consumed: 82ms
+                   Memory peak: 21.2M (swap: 0B)

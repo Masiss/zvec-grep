@@ -1,0 +1,22 @@
+{
+  "active_containment_units": "",
+  "active_native_or_controller_processes": [],
+  "classification": "POST_CRASH_SUPERVISORY_RECONCILIATION_NOT_ORIGINAL_RUNNER_RECEIPT",
+  "controller_or_wrapper_exit_status": "NOT_RETAINED; job registry/log unavailable after crash, do not fabricate exit code",
+  "current_host_snapshot_role": "delayed post-crash closure only, NOT resource authorization or a replacement for failed preflight",
+  "host_crash_cause": "NOT_ESTABLISHED",
+  "native_arms_launched": 0,
+  "native_command_invoked": false,
+  "native_operation_directory_absent": true,
+  "native_retry_performed": false,
+  "no_unresolved_owned_containment": true,
+  "observed_bytes": 2020233216,
+  "rehearsal_cgroup_absent": true,
+  "rehearsal_socket_absent": true,
+  "rehearsal_unit_state_now": "LoadState=not-found\nActiveState=inactive\n",
+  "required_bytes": 2147483648,
+  "saved_guard": "M4-CA-MEM-CAPACITY",
+  "saved_guard_timestamp_utc": "2026-10-20T15:44:07.135544+00:00",
+  "shortfall_bytes": 127250432,
+  "timestamp_utc": "2026-10-20T15:56:28.784230+00:00"
+}

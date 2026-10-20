@@ -1,0 +1,128 @@
+{
+  "abort": null,
+  "cgroup_io_stat_available": false,
+  "final_cgroup": {
+    "cgroup_io_controller": false,
+    "controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "cpu_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 182.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 182.0
+      }
+    },
+    "cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 4,
+      "nr_throttled": 0,
+      "system_usec": 12101,
+      "throttled_usec": 0,
+      "usage_usec": 76670,
+      "user_usec": 64568
+    },
+    "io_max": null,
+    "io_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 1867.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 1867.0
+      }
+    },
+    "io_stat": null,
+    "memory_current_bytes": 16416768,
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "memory_peak_bytes": 22282240,
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      }
+    },
+    "memory_swap_current_bytes": 0,
+    "memory_swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "memory_swap_peak_bytes": 0,
+    "pids": [
+      519032
+    ],
+    "pids_current": 1,
+    "pids_events": {
+      "max": 0
+    },
+    "populated": 1,
+    "process_io_sample_complete": true,
+    "process_memory_sample_complete": true,
+    "process_tree_pss_kib": 16480,
+    "process_tree_read_bytes": 0,
+    "process_tree_rss_kib": 26380,
+    "process_tree_swap_kib": 0,
+    "process_tree_write_bytes": 86016
+  },
+  "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+  "measurement_quality": "COMPLETE",
+  "peak_cgroup_memory_current_bytes_sampled": 22175744,
+  "peak_cgroup_memory_peak_bytes_observed": 22282240,
+  "peak_cgroup_swap_current_bytes_sampled": 0,
+  "peak_cgroup_swap_peak_bytes_observed": 0,
+  "peak_sampled_generation_apparent_bytes": 0,
+  "peak_sampled_staging_named_apparent_bytes": 0,
+  "peak_sampled_workspace_allocated_st_blocks_bytes_gross": 32768,
+  "peak_sampled_workspace_apparent_bytes": 32768,
+  "policy_context_digest": "39486a8575aa53f18d0e44a965c82c09d65c377337ccf5918074cacbf7fe8efe",
+  "policy_mode": "contention-aware",
+  "process_tree_samples_complete": true,
+  "safety_outcome": "WATCHDOG_COMPLETED_NO_ABORT",
+  "sample_interval_ms_requested": 100,
+  "samples": 12,
+  "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+  "schema_version": 1,
+  "workspace_shared_extent_inspection": {
+    "available": true,
+    "errors": [],
+    "files_examined": 0,
+    "files_with_shared_extent_flag": 0,
+    "method": "filefrag -v FIEMAP flags on final workspace files",
+    "scope": "final tree only; not a historical peak/shared-byte de-duplication measurement",
+    "shared_file_samples": []
+  }
+}

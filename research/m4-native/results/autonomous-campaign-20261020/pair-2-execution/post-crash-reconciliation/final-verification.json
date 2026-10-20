@@ -1,0 +1,17 @@
+{
+  "typecheck_command": [
+    "ty",
+    "check",
+    "--output-format",
+    "concise",
+    "research/m4-native/results/autonomous-campaign-20261020/launch_original_pair_2.py",
+    "research/m4-native/results/autonomous-campaign-20261020/analyze_e2e_continuation.py"
+  ],
+  "exit_code": 0,
+  "source_sha256": {
+    "research/m4-native/results/autonomous-campaign-20261020/launch_original_pair_2.py": "974537cef772b7b0918f862b0b88ec73908c04c5bd38f620de3b1fd2361c7514",
+    "research/m4-native/results/autonomous-campaign-20261020/analyze_e2e_continuation.py": "3dea604e330f907d25bb48e642001619e73fe5559a64e50139fdad73fa20b19a"
+  },
+  "offline_analysis_replay": "PASS: existing output equality, raw guard values unchanged; no new capacity decision/native invocation",
+  "benchmark_or_native_retried": false
+}

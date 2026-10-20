@@ -1,0 +1,95 @@
+{
+  "campaign_id": "m4-writer-tail-20261020",
+  "status": "STOPPED_AFTER_REPLACEMENT_R1_INTEGRITY_REFUSAL",
+  "engineering_authority": "Active owner GOAL-BOUNDED AUTONOMY mission; offline research and engineering effective immediately",
+  "resource_plan_approval": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+  "benchmark_campaign_activated": true,
+  "max_pairs_after_resource_approval": 3,
+  "pairs_consumed": 2,
+  "conditional_pairs_remaining": 2,
+  "currently_authorized_real_pairs": 0,
+  "remaining_budget_slots": 2,
+  "currently_eligible_next_pairs": 0,
+  "currently_active_benchmark_arms": 0,
+  "campaign_stop_reason": "Replacement watchdog rejected incomplete process-tree IO telemetry before GO. Formal integrity refusal is not retried; original two conditional slots remain unspent. Original SAFETY_STOP retained; subsequent exact-unit/cgroup/socket verification confirms cleanup now complete.",
+  "maximum_concurrent_heavy_operations": 1,
+  "proposed_per_pair_supervisor_timeout_seconds": 360,
+  "proposed_supervisor_timeout_mechanism": "GNU timeout --signal=TERM --kill-after=5s 355s; tool auto-background is not a hard deadline. Existing watchdog/systemd own the workload; verified cleanup still required after controller timeout.",
+  "proposed_total_measurement_supervisor_seconds": 1080,
+  "consumption_rule": "Each named operation consumes a slot when its unique operation directory is claimed or at its first resource preflight, whichever comes first, including no-launch/abort. No automatic retry, replacement slot, cap increase or extra pair. A formal guard refusal is not permission to relaunch the same refused operation under the next slot.",
+  "slots": [
+    {
+      "slot": 1,
+      "operation_id": "m4-contention-campaign-20261020-pair-1",
+      "status": "NO_LAUNCH_CPUQUOTA_PARSE_REFUSAL",
+      "job_id": "job-1335348-229",
+      "benchmark_started": false,
+      "second_arm_started": false,
+      "verified_cleanup": true,
+      "analysis": "research/m4-native/results/autonomous-campaign-20261020/pair-1-analysis.json",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-1.json",
+      "debit_reason": "First authorized attempt includes its prerequisite/no-launch outcome; debited conservatively before guard execution."
+    },
+    {
+      "slot": 2,
+      "operation_id": "m4-contention-campaign-20261020-pair-2",
+      "status": "NOT_ELIGIBLE_AFTER_SLOT_1_NO_LAUNCH"
+    },
+    {
+      "slot": 3,
+      "operation_id": "m4-contention-campaign-20261020-pair-3",
+      "status": "NOT_ELIGIBLE_AFTER_SLOT_1_NO_LAUNCH"
+    }
+  ],
+  "offline_work": [
+    {
+      "id": "OFF-1",
+      "outcome": "Extracted old RSS/PSS/swap/process CPU/writes and final root size; explicitly missing cgroup/task/workspace peaks"
+    },
+    {
+      "id": "OFF-2",
+      "outcome": "Native build source map: new per-generation shard, six native scalar indexes, HNSW, flush and durable metadata; no evidence for reader contention on an unpublished collection's schema mutex"
+    },
+    {
+      "id": "OFF-3",
+      "outcome": "Mapped post-M4 durable writes, mandatory outer WAL sync, immutable-segment repeat-sync candidate and snapshot-finalization work; no unsafe sync removal"
+    },
+    {
+      "id": "ENG-1",
+      "outcome": "Added explicit task cap/readback/events to existing contention budgets; synthetic and tiny owned-unit tests only"
+    },
+    {
+      "id": "OFF-4",
+      "outcome": "Added pure offline conservative stage/cgroup counter bounds and synthetic tests; no interpolation or compute/wait overclaim"
+    }
+  ],
+  "research_completion_condition": "Replacement performed once up to mandatory admission gate; native GO refused. Offline cause diagnosed, minimal proc-IO parser fix independently verified. Measurement objective remains unfulfilled; no stage/order/latency claim or automatic use of remaining slots.",
+  "performance_conclusion": "INCONCLUSIVE: no native M4 stage or paired/order performance evidence",
+  "engineering_decision": "KEEP exact-integer CPUQuota correction, proc-IO colon normalization and strict completeness/full-sync requirements; DEFER native writer-tail optimization",
+  "verification": "58 focused control/offline tests PASS including real-kernel first-sample strict telemetry contract; fresh type check retained separately; no replacement retry",
+  "next_action": "Owner decision required to explicitly permit another attempt after the formal integrity refusal, using existing remaining budget if desired. No fifth slot, budget increase, guard relaxation or automatic new-ID substitute. Future approved execution needs fresh capacity/provenance/cap and complete telemetry readiness.",
+  "owner_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+  "max_total_attempts": 4,
+  "max_executable_pairs": 3,
+  "original_pairs_consumed": 1,
+  "replacement_attempts_consumed": 1,
+  "total_attempts_consumed": 2,
+  "replacement_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-replacement-authorization.md (current explicit user amendment)",
+  "replacement_attempts": [
+    {
+      "slot": "R1",
+      "operation_id": "m4-contention-campaign-20261020-replacement-1",
+      "status": "NO_NATIVE_GO_REQUIRED_TELEMETRY_MISSING",
+      "raw_operation_status": "SAFETY_STOP",
+      "job_id": "job-1335348-244",
+      "native_arms_started": 0,
+      "second_arm_started": false,
+      "original_controller_cleanup_verified": false,
+      "original_unit_retirement_verified": true,
+      "subsequent_independent_cleanup_verified": true,
+      "analysis": "research/m4-native/results/autonomous-campaign-20261020/replacement-1-analysis.json",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-replacement-1.json",
+      "debit_reason": "Explicit additional owner slot, conservatively consumed at preparation; historical Pair1 and original slots2/3 untouched."
+    }
+  ]
+}
