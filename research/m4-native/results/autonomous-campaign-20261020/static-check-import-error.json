@@ -1,0 +1,8 @@
+{
+  "status": "CONFIGURATION_ERROR_BEFORE_GUARD",
+  "error": "KeyError: M4_RESOURCE_ROOT while importing run_sync_reduction_pair.py",
+  "binary_identity_guard_evaluated": false,
+  "resource_preflight_evaluated": false,
+  "benchmark_launched": false,
+  "recovery": "Read required module environment; bind existing retained full-sync binary to both environment paths and /var/tmp resource root, then perform the first static verification. No guard threshold or source is changed; no failed guard or benchmark is retried."
+}

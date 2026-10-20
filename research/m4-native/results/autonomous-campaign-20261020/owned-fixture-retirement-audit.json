@@ -1,0 +1,49 @@
+{
+  "selector_note": "Initial ad-hoc audit looked for nonexistent cleanup_verified and selected zero. This audit uses nested unit_cleanup/controller_cleanup.verified; raw receipts/tests unchanged, no fixture rerun.",
+  "units": [
+    {
+      "fixture": "task-budget",
+      "unit": "m4-contained-ee7971220e324aee.service",
+      "status": "PASS",
+      "verified_unit_retirement": true
+    },
+    {
+      "fixture": "nonzero",
+      "unit": "m4-contained-4884dda08c594cd1.service",
+      "status": "NONZERO_EXIT",
+      "verified_unit_retirement": true
+    },
+    {
+      "fixture": "normal-child",
+      "unit": "m4-contained-f4f99bb3e6f44c56.service",
+      "status": "PASS",
+      "verified_unit_retirement": true
+    },
+    {
+      "fixture": "sigterm",
+      "unit": "m4-contained-ffa6baf3ed8d4ef6.service",
+      "status": "SIGNAL_EXIT",
+      "verified_unit_retirement": true
+    },
+    {
+      "fixture": "sigkill",
+      "unit": "m4-contained-b68e1d3c79d14a41.service",
+      "status": "SIGNAL_EXIT",
+      "verified_unit_retirement": true
+    },
+    {
+      "fixture": "supervisor-crash",
+      "unit": "m4-contained-fb2ab37838994eac.service",
+      "status": "WATCHDOG_ABORT",
+      "verified_unit_retirement": true
+    },
+    {
+      "fixture": "watchdog-timeout",
+      "unit": "m4-contained-e6752cb0e37a4f7b.service",
+      "status": "WATCHDOG_ABORT",
+      "verified_unit_retirement": true
+    }
+  ],
+  "all_verified": true,
+  "new_operation_launched": false
+}

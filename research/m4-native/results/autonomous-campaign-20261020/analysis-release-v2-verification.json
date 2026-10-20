@@ -1,0 +1,39 @@
+{
+  "real_pairs_consumed": 0,
+  "resource_approval_granted": false,
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "0da531ea75bc02ed92f50e52ddc930925cdf10cf00e0c68945553e56820e721b",
+    "research/m4-native/tools/test_m4_contention_policy.py": "8ebd0eadd848ac5d31d0b429f886dd7562743e848f89378d862e7d7bad15241e",
+    "research/m4-native/tools/test_m4_containment_runner.py": "9d52ba2a0074b477ff589dec1e1e2ee14fd20e96ec1b7c606323b90868ce5b8f",
+    "research/m4-native/results/autonomous-campaign-20261020/stage_counter_bounds.py": "0479fca3f7115eba77886f9fceeeda3c1b4595a1db3f4c001d69a305406fb852",
+    "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py": "99ca96459ec2d746292ef6d9ccbaeada509d10f1c3c8a550dfb40b1adb473fb6",
+    "research/m4-native/results/autonomous-campaign-20261020/inspect_retained_resources.py": "d83711f4da7c5d170b5e9971e2ad72d35e573c14b5a7204cca8595887134dc18"
+  },
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py"
+      ],
+      "exit_code": 0,
+      "log": "stage-bound-release-v2-tests.log"
+    },
+    {
+      "command": [
+        "ty",
+        "check",
+        "--output-format",
+        "concise",
+        "research/m4-native/tools/m4_containment_runner.py",
+        "research/m4-native/tools/test_m4_contention_policy.py",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "research/m4-native/results/autonomous-campaign-20261020/stage_counter_bounds.py",
+        "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py",
+        "research/m4-native/results/autonomous-campaign-20261020/inspect_retained_resources.py"
+      ],
+      "exit_code": 0,
+      "log": "typecheck-release-v2.log"
+    }
+  ],
+  "selection_note": "56 distinct final focused tests: 42 task/policy/lifecycle from task-budget-tests.json, 8 unchanged legacy gate/tiny-pair tests from offline-verification.json, and 6 offline counter-bound tests here. Earlier analysis results remain historical, not counted twice. V2 adds serialized eight-significant-digit clock-error expansion/shrinking; no runtime gate, binary or resource threshold changed."
+}
