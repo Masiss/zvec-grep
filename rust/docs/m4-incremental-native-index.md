@@ -2042,3 +2042,16 @@ At 12:05:35 +07 the sole resource evaluation failed `M4-RG-MEM`: 4,134,692 KiB v
 **Evidence:** under `research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/`, see `full-sync-aa-20261020/` (prerequisites, exact command/environment, summary, runner log, checksums) and `host-carryover-aa-pair-20261020T050534Z/` (actual runner operation/preflight/no-launch receipts). No new per-cycle writer/vector/post-M4/host data exist, so A/A repeatability and H1–H5 remain INCONCLUSIVE; historical elision/full-sync observations cannot be pooled as current binary qualification. Independent existing analysis is already exhausted at its available timing resolution.
 
 This section supersedes earlier next-action authorization notes. Another A/A needs new explicit owner authorization and a fresh pass of all unchanged resource/pressure/integrity/containment requirements; do not retry this operation. Production untouched; writer-tail mission remains PARTIAL.
+
+## 50. Two subsequent explicit owner authorizations: no-launch — 2026-10-20
+
+Owner separately authorized another attempt (“chạy đi, tôi tắt zen rồi”), then another (“retry đi”). Neither was an autonomous retry/poll. Full-sync binary `ef0221f0…1212e7f`, compiler inputs/runtime libraries and systemd running were verified; no source, workload or policy change. Each operation evaluated readiness exactly once and stopped before ambient baseline or either arm.
+
+| Authorization / snapshot +07 | MemAvailable KiB (min 5,477,762) | Load-1 (max 3.14) | Disk B | I/O PSI full avg10 | Outcome |
+| --- | --- | --- | --- | --- | --- |
+| After closing Zen / 12:13:05 | 9,133,088 PASS | 4.84 FAIL | 21,718,110,208 PASS | 1.95% PASS | OPERATION_BLOCKED, load only |
+| Explicit retry / 12:14:02 | 4,450,464 FAIL, short 1,027,298 | 4.40 FAIL | 21,698,637,824 PASS | 1.69% PASS | OPERATION_BLOCKED, memory + load |
+
+Jobs `job-1335348-147` and `job-1335348-149`; receipts under the causal result directory: `full-sync-aa-20261020-after-zen/` + `host-carryover-aa-pair-20261020T051305Z/`, and `full-sync-aa-20261020-owner-retry-2/` + `host-carryover-aa-pair-20261020T051402Z/`. Exact snapshots/commands, runner exits, per-guard decisions and checksums retained. Background rpmbuild/browser activity is recorded in snapshots, not causally attributed or interrupted. No readiness retry after either refusal without a new explicit user message; no arm, root creation, tracing, guard relaxation, cleanup or unrelated process change.
+
+There are still no new cycles to compare; writer-tail remains INCONCLUSIVE and no new independent discriminating data exist. Another attempt requires new owner authorization and all unchanged resource/pressure/integrity/containment requirements. This section is latest operation status, not standing authorization to poll or retry.

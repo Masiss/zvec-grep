@@ -731,3 +731,12 @@ The sole evaluation at **12:05:35 +07** failed `M4-RG-MEM` **4,134,692 KiB < 5,4
 Metadata-only orchestrator correction selects the actual build receipt (`M4_AA_BUILD_RECEIPT`) and configured full-sync description instead of stale elision text/archive; no gate, workload or telemetry changes. Existing gate regressions 7/7 PASS. Receipts were checked to contain the actual full-sync identity.
 
 Evidence under `m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/`: `full-sync-aa-20261020/` and `host-carryover-aa-pair-20261020T050534Z/`, sealed with checksums; canonical handoff §49. No new per-cycle comparisons are possible; H1–H5 and writer-tail cause remain INCONCLUSIVE. Historical measurements are not relabeled current full-sync results. Another attempt requires fresh authorization and all unchanged readiness requirements; no automatic retry. Production untouched.
+
+### Later explicit owner authorizations — 2026-10-20
+
+Two separate user messages authorized one attempt each; both stopped at their sole resource preflight, with no ambient baseline or arms:
+
+- “chạy đi, tôi tắt zen rồi”, 12:13:05 +07: MemAvailable 9,133,088 KiB PASS; load-1 **4.84 > 3.14 FAIL**; disk 21,718,110,208 B and I/O PSI 1.95% PASS. Job `job-1335348-147`; receipts `full-sync-aa-20261020-after-zen/` and `host-carryover-aa-pair-20261020T051305Z/`.
+- “retry đi”, 12:14:02 +07: MemAvailable **4,450,464 < 5,477,762 KiB FAIL** (short 1,027,298); load-1 **4.40 > 3.14 FAIL**; disk 21,698,637,824 B and I/O PSI 1.69% PASS. Job `job-1335348-149`; receipts `full-sync-aa-20261020-owner-retry-2/` and `host-carryover-aa-pair-20261020T051402Z/`.
+
+All receipt paths are under the same writer-tail causal directory above. Full-sync binary/source/runtime checks and systemd running passed. No autonomous retry/poll, policy changes or process interference; historical/new host snapshots do not supply a latency experiment. Writer-tail remains INCONCLUSIVE; another attempt needs new authorization. Canonical handoff §50.
