@@ -740,3 +740,7 @@ Two separate user messages authorized one attempt each; both stopped at their so
 - “retry đi”, 12:14:02 +07: MemAvailable **4,450,464 < 5,477,762 KiB FAIL** (short 1,027,298); load-1 **4.40 > 3.14 FAIL**; disk 21,698,637,824 B and I/O PSI 1.69% PASS. Job `job-1335348-149`; receipts `full-sync-aa-20261020-owner-retry-2/` and `host-carryover-aa-pair-20261020T051402Z/`.
 
 All receipt paths are under the same writer-tail causal directory above. Full-sync binary/source/runtime checks and systemd running passed. No autonomous retry/poll, policy changes or process interference; historical/new host snapshots do not supply a latency experiment. Writer-tail remains INCONCLUSIVE; another attempt needs new authorization. Canonical handoff §50.
+
+### New owner authorization: I/O PSI refusal — 2026-10-20
+
+“ổn rồi đó, chạy đi” authorized one new attempt. Binary/compiler/runtime/manifest, lifecycle/systemd and Btrfs prerequisites passed. At **13:09:15 +07**, sole readiness preflight failed **M4-RG-IOPSI: 4.68% > 4.46%** (+0.22 percentage points); memory **9,933,104 KiB**, load-1 **1.53**, disk **21,736,423,424 B** passed. Job `job-1335348-153`: OPERATION_BLOCKED, no ambient baseline/arms/roots or automatic retry/poll. Under the causal directory, receipts/checksums: `full-sync-aa-20261020-owner-retry-3/` and `host-carryover-aa-pair-20261020T060915Z/`. No new performance evidence; writer-tail INCONCLUSIVE. Further attempt needs new authorization; canonical handoff §51.

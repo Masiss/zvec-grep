@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "operation_id": "host-carryover-aa-pair-20261020T060915Z",
+  "operation": "same-binary A/A host-carryover measurement",
+  "operation_status": "OPERATION_BLOCKED",
+  "phase": "baseline-preflight",
+  "reason": "one or more unchanged operation-level resource guards failed",
+  "gate_id": [
+    "M4-RG-IOPSI"
+  ],
+  "gate_class": "HISTORICAL_ENVELOPE_RESOURCE_GUARD",
+  "evidence_class": "historical successful-run envelope; not universal host safety",
+  "recovery_conditions": "fresh preflight meets all unchanged guards; no automatic retry",
+  "failure_scope": "this benchmark/A/A operation only",
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "mission_marked_done": false,
+  "safe_independent_work_may_continue": true,
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard"
+}
