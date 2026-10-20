@@ -1,0 +1,37 @@
+{
+  "benchmark_started": false,
+  "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-95bdf38a0e2140ff.service",
+  "controller_cleanup": {
+    "error": null,
+    "kill_result": null,
+    "systemd_kill_returncode": 0,
+    "systemd_stop_returncode": 0,
+    "verified": false
+  },
+  "exception": "RuntimeError: independent watchdog did not establish baseline telemetry before workload start",
+  "failure_class": "CONTROLLER_ERROR",
+  "failure_scope": "this arm only",
+  "limits_applied": {
+    "approval_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-replacement-authorization.md (current explicit user amendment)",
+    "cpu_max": "200000 100000",
+    "memory_max_bytes": "1073741824",
+    "memory_swap_max_bytes": "0",
+    "pids_max": "128",
+    "workspace_limits": "sampled-abort-only; no kernel/filesystem quota is available"
+  },
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "operation_outcome": "SAFETY_STOP",
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "safety_outcome": "CONTAINMENT_UNVERIFIED",
+  "schema_version": 1,
+  "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+  "status": "LAUNCH_FAILED",
+  "timestamp_utc": "2026-10-20T15:15:06.878271+00:00",
+  "unit": "m4-contained-95bdf38a0e2140ff.service",
+  "unit_cleanup": {
+    "reset_failed_returncode": 0,
+    "stop_returncode": 0,
+    "unit_collected": true,
+    "verified": true
+  }
+}

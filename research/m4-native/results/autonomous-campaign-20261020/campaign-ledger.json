@@ -1,17 +1,17 @@
 {
   "campaign_id": "m4-writer-tail-20261020",
-  "status": "STOPPED_AFTER_SLOT_1_NO_LAUNCH",
+  "status": "STOPPED_AFTER_REPLACEMENT_R1_INTEGRITY_REFUSAL",
   "engineering_authority": "Active owner GOAL-BOUNDED AUTONOMY mission; offline research and engineering effective immediately",
   "resource_plan_approval": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
   "benchmark_campaign_activated": true,
   "max_pairs_after_resource_approval": 3,
-  "pairs_consumed": 1,
+  "pairs_consumed": 2,
   "conditional_pairs_remaining": 2,
   "currently_authorized_real_pairs": 0,
   "remaining_budget_slots": 2,
   "currently_eligible_next_pairs": 0,
   "currently_active_benchmark_arms": 0,
-  "campaign_stop_reason": "Slot1 launch configuration refused before native GO; section5 prerequisite of valid prior native pair evidence not met. A new ID after repair would be a disguised retry; no automatic use of slots2/3.",
+  "campaign_stop_reason": "Replacement watchdog rejected incomplete process-tree IO telemetry before GO. Formal integrity refusal is not retried; original two conditional slots remain unspent. Original SAFETY_STOP retained; subsequent exact-unit/cgroup/socket verification confirms cleanup now complete.",
   "maximum_concurrent_heavy_operations": 1,
   "proposed_per_pair_supervisor_timeout_seconds": 360,
   "proposed_supervisor_timeout_mechanism": "GNU timeout --signal=TERM --kill-after=5s 355s; tool auto-background is not a hard deadline. Existing watchdog/systemd own the workload; verified cleanup still required after controller timeout.",
@@ -63,10 +63,33 @@
       "outcome": "Added pure offline conservative stage/cgroup counter bounds and synthetic tests; no interpolation or compute/wait overclaim"
     }
   ],
-  "research_completion_condition": "Bounded campaign stopped at authorized condition; raw attempt and no-start verified cleanup retained, independent exact-integer CPUQuota fix validated, hypotheses evaluated, decision DEFER writer-tail. Substantive latency/root-cause research remains unresolved, not a performance success.",
+  "research_completion_condition": "Replacement performed once up to mandatory admission gate; native GO refused. Offline cause diagnosed, minimal proc-IO parser fix independently verified. Measurement objective remains unfulfilled; no stage/order/latency claim or automatic use of remaining slots.",
   "performance_conclusion": "INCONCLUSIVE: no native M4 stage or paired/order performance evidence",
-  "engineering_decision": "KEEP exact-integer CPUQuota launch fix and full durability sync; DEFER latency optimization",
-  "verification": "57 focused control/offline tests and fresh three-file ty check PASS; no M4 benchmark retry",
-  "next_action": "Owner decides whether to explicitly authorize a new attempt/retry after the serialization correction; do not repurpose remaining conditional slots automatically. Future approved attempt requires fresh provenance/capacity and actual kernel cap readback. No cap increase requested.",
-  "owner_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)"
+  "engineering_decision": "KEEP exact-integer CPUQuota correction, proc-IO colon normalization and strict completeness/full-sync requirements; DEFER native writer-tail optimization",
+  "verification": "58 focused control/offline tests PASS including real-kernel first-sample strict telemetry contract; fresh type check retained separately; no replacement retry",
+  "next_action": "Owner decision required to explicitly permit another attempt after the formal integrity refusal, using existing remaining budget if desired. No fifth slot, budget increase, guard relaxation or automatic new-ID substitute. Future approved execution needs fresh capacity/provenance/cap and complete telemetry readiness.",
+  "owner_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+  "max_total_attempts": 4,
+  "max_executable_pairs": 3,
+  "original_pairs_consumed": 1,
+  "replacement_attempts_consumed": 1,
+  "total_attempts_consumed": 2,
+  "replacement_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-replacement-authorization.md (current explicit user amendment)",
+  "replacement_attempts": [
+    {
+      "slot": "R1",
+      "operation_id": "m4-contention-campaign-20261020-replacement-1",
+      "status": "NO_NATIVE_GO_REQUIRED_TELEMETRY_MISSING",
+      "raw_operation_status": "SAFETY_STOP",
+      "job_id": "job-1335348-244",
+      "native_arms_started": 0,
+      "second_arm_started": false,
+      "original_controller_cleanup_verified": false,
+      "original_unit_retirement_verified": true,
+      "subsequent_independent_cleanup_verified": true,
+      "analysis": "research/m4-native/results/autonomous-campaign-20261020/replacement-1-analysis.json",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-replacement-1.json",
+      "debit_reason": "Explicit additional owner slot, conservatively consumed at preparation; historical Pair1 and original slots2/3 untouched."
+    }
+  ]
 }

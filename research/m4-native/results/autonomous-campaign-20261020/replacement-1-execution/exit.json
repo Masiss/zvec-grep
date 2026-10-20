@@ -1,0 +1,6 @@
+{
+  "returncode": 1,
+  "timestamp_utc": "2026-10-20T15:15:07.063433+00:00",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1",
+  "retry_authorized": false
+}

@@ -1,0 +1,17 @@
+{
+  "timestamp_utc": "2026-10-20T15:16:16.116050+00:00",
+  "purpose": "independent post-stop verification; original SAFETY_STOP receipt unchanged",
+  "unit": "m4-contained-95bdf38a0e2140ff.service",
+  "unit_query_returncode": 0,
+  "unit_state": "LoadState=not-found\nActiveState=inactive\nControlGroup=\n",
+  "cgroup_absent": true,
+  "socket_dir_absent": true,
+  "native_started": false,
+  "native_target_absent": true,
+  "private_workspace_empty": true,
+  "verified_owned_cleanup_now": true,
+  "original_controller_cleanup_verified": false,
+  "original_unit_retirement_verified": true,
+  "measurement_resume_authorized": false,
+  "raw_safety_status_preserved": true
+}

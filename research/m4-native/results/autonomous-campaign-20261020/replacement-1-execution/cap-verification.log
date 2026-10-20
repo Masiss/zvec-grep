@@ -1,0 +1,6 @@
+test_integer_cpu_quota_and_complete_budget_readback (replacement_cap_test.ContainmentRunnerTests.test_integer_cpu_quota_and_complete_budget_readback) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.471s
+
+OK

@@ -1,0 +1,48 @@
+{
+  "abort": {
+    "detail": "ValueError: incomplete process-tree telemetry",
+    "failure_class": "UNKNOWN",
+    "reason": "required_telemetry_missing",
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        397739
+      ],
+      "term_pids": []
+    },
+    "timestamp_utc": "2026-10-20T15:15:06.843927+00:00"
+  },
+  "cgroup_io_stat_available": false,
+  "final_cgroup": {
+    "error": "ValueError: incomplete process-tree telemetry"
+  },
+  "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+  "measurement_quality": "INCOMPLETE",
+  "peak_cgroup_memory_current_bytes_sampled": 16023552,
+  "peak_cgroup_memory_peak_bytes_observed": 16023552,
+  "peak_cgroup_swap_current_bytes_sampled": 0,
+  "peak_cgroup_swap_peak_bytes_observed": 0,
+  "peak_sampled_generation_apparent_bytes": 0,
+  "peak_sampled_staging_named_apparent_bytes": 0,
+  "peak_sampled_workspace_allocated_st_blocks_bytes_gross": 0,
+  "peak_sampled_workspace_apparent_bytes": 0,
+  "policy_context_digest": "a330d61d7598628d8b7f4f95b0b4fcea5a599f01c1808df07bcf103a5f852a73",
+  "policy_mode": "contention-aware",
+  "process_tree_samples_complete": false,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "sample_interval_ms_requested": 50,
+  "samples": 1,
+  "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+  "schema_version": 1,
+  "workspace_shared_extent_inspection": {
+    "available": true,
+    "errors": [],
+    "files_examined": 0,
+    "files_with_shared_extent_flag": 0,
+    "method": "filefrag -v FIEMAP flags on final workspace files",
+    "scope": "final tree only; not a historical peak/shared-byte de-duplication measurement",
+    "shared_file_samples": []
+  }
+}
