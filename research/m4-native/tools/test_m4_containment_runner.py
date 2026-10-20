@@ -273,6 +273,18 @@ m.run_arm(cmd,pathlib.Path(sys.argv[2]),root.parent,root,root.parent,30,20,enfor
             self.assertTrue('ActiveState=inactive' in unit_state or 'ActiveState=failed' in unit_state)
             self.assertIn('ControlGroup=\n', unit_state)
             self.assertFalse(cgroup_path.exists(), 'owned cgroup was not removed after the transient unit stopped')
+            # The killed controller cannot retire its own failed unit. After
+            # retaining watchdog evidence and verifying cleanup, the fixture
+            # owner must retire it rather than polluting user-systemd state.
+            receipt: dict = {'unit': unit, 'status': 'WATCHDOG_ABORT',
+                       'failure_class': 'CONTROLLER_CRASH_ABORT',
+                       'safety_outcome': 'ABORTED_CONTAINED', 'performance_eligible': False,
+                       'watchdog_abort': abort}
+            runner.write_json(receipt_dir / 'receipt.json', receipt)
+            runner.retire_unit(unit, cgroup_path, receipt_dir, receipt)
+            self.assertTrue(receipt['unit_cleanup']['verified'])
+            self.assertTrue(receipt['unit_cleanup']['unit_collected'])
+            self.assertEqual(receipt['failure_class'], 'CONTROLLER_CRASH_ABORT')
             os.kill(self.unrelated_pid, 0)
         finally:
             if worker.poll() is None:

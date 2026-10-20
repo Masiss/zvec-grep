@@ -1,0 +1,22 @@
+{
+  "failure_class": "CONTROLLER_CRASH_ABORT",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "systemctl-user-stop",
+    "returncode": 0,
+    "stderr": "",
+    "success": true
+  },
+  "reason": "supervisor_lost",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [],
+    "term_pids": [
+      1593798,
+      1593799
+    ]
+  },
+  "timestamp_utc": "2026-10-20T04:20:45.968663+00:00"
+}

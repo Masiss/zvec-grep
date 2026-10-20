@@ -1,0 +1,5 @@
+{
+  "change": "Only receipt: dict local annotation added after tests to resolve type-checker inference; no runtime behavior changed.",
+  "current_test_sha256": "8c4fd0796d6f776425264671343e793cfb39761fafac8fb73a47bb447295c318",
+  "executed_source_hashes": "source-hashes.json"
+}

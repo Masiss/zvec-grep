@@ -1,0 +1,48 @@
+{
+  "observed_failed_units": [
+    "m4-contained-7470567091df486a.service",
+    "m4-contained-951cd3a8debf4df8.service",
+    "m4-contained-b0901c53ed394c6c.service",
+    "m4-contained-fefd083f8370444c.service"
+  ],
+  "matched_and_retired": [
+    {
+      "unit": "m4-contained-b0901c53ed394c6c.service",
+      "cleanup": {
+        "verified": true,
+        "unit_collected": true,
+        "stop_returncode": 0,
+        "reset_failed_returncode": 0
+      }
+    },
+    {
+      "unit": "m4-contained-7470567091df486a.service",
+      "cleanup": {
+        "verified": true,
+        "unit_collected": true,
+        "stop_returncode": 0,
+        "reset_failed_returncode": 0
+      }
+    },
+    {
+      "unit": "m4-contained-951cd3a8debf4df8.service",
+      "cleanup": {
+        "verified": true,
+        "unit_collected": true,
+        "stop_returncode": 0,
+        "reset_failed_returncode": 0
+      }
+    },
+    {
+      "unit": "m4-contained-fefd083f8370444c.service",
+      "cleanup": {
+        "verified": true,
+        "unit_collected": true,
+        "stop_returncode": 0,
+        "reset_failed_returncode": 0
+      }
+    }
+  ],
+  "unknown_units_touched": false,
+  "readiness_retried": false
+}
