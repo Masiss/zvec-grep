@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-10-20T11:51:19+0700",
+  "source_sha256": "d6a5f4ec834820cfb410ad9e8019cf6d388ee3e397c01b01b2b90c2e13576a0a",
+  "git_revision": "ae7117ff00ba6f7815aef534aa2fdb5b79811abd",
+  "meminfo": "MemTotal:       16051144 kB\nMemFree:         4106144 kB\nMemAvailable:    6673948 kB\nBuffers:              20 kB\nCached:          4079192 kB\nSwapCached:       303152 kB\nActive:          5393764 kB\nInactive:        2660628 kB\nActive(anon):    4773736 kB\nInactive(anon):   698904 kB\nActive(file):     620028 kB\nInactive(file):  1961724 kB\nUnevictable:     1146780 kB\nMlocked:              16 kB\nSwapTotal:      24802296 kB\nSwapFree:       14882552 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:              3340 kB\nWriteback:            52 kB\nAnonPages:       5101520 kB\nMapped:           526948 kB\nShmem:           1433848 kB\nKReclaimable:     330928 kB\nSlab:             689712 kB\nSReclaimable:     330928 kB\nSUnreclaim:       358784 kB\nKernelStack:       34052 kB\nPageTables:       143448 kB\nSecPageTables:      3116 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    32827868 kB\nCommitted_AS:   29830652 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:      111604 kB\nVmallocChunk:          0 kB\nPercpu:            21120 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:    178176 kB\nShmemHugePages:    86016 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nGPUActive:             0 kB\nGPUReclaim:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      284544 kB\nDirectMap2M:    10936320 kB\nDirectMap1G:     5242880 kB\n",
+  "loadavg": "2.30 4.22 4.56 2/2100 1749408\n",
+  "psi": {
+    "memory": "some avg10=0.00 avg60=0.00 avg300=0.12 total=194710249\nfull avg10=0.00 avg60=0.00 avg300=0.12 total=184724189\n",
+    "io": "some avg10=1.96 avg60=1.44 avg300=1.13 total=3579778888\nfull avg10=1.48 avg60=1.12 avg300=0.87 total=3269695924\n",
+    "cpu": "some avg10=0.00 avg60=0.02 avg300=0.34 total=1028034147\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+  },
+  "df": "Filesystem               1B-blocks         Used   Available Use% Mounted on\n/dev/mapper/cryptroot 493838401536 469674946560 22223425536  96% /\n",
+  "processes": [
+    "    PID COMMAND         %CPU   RSS",
+    " 503372 Web Content      3.9 1434540",
+    "3996717 Web Content      1.8 593804",
+    "3332120 zen-bin          9.3 492572",
+    "1335348 pi               8.0 445952",
+    " 739728 claude           5.8 426780",
+    " 936214 opencode         1.5 385420",
+    "1110269 pi               9.8 348408",
+    "2299835 opencode         5.2 289684",
+    " 714060 Web Content      0.2 220360",
+    "3332809 WebExtensions    3.0 208000",
+    "1591258 opengrep-core    2.0 203896",
+    "    711 warp-svc         0.4 171696",
+    " 738449 zed-editor       7.6 150228",
+    "1249270 file:// Content  1.2 120708"
+  ],
+  "build_only": "single compiler job; bounded user systemd cgroup; no benchmark or measurement readiness attempt"
+}

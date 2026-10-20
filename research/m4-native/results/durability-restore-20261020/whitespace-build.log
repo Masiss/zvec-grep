@@ -1,0 +1,10 @@
+Running as unit: m4-durability-whitespace-build-20261020.service
+[ 83%] Built target m4_research
+[ 91%] Building CXX object CMakeFiles/m4_bridge_integration.dir/tests/m4_bridge_integration.cc.o
+[100%] Linking CXX executable m4_bridge_integration
+[100%] Built target m4_bridge_integration
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 32.482s
+             CPU time consumed: 32.049s
+                   Memory peak: 567.2M (swap: 0B)

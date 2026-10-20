@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-10-20T11:54:58+0700",
+  "meminfo": "MemTotal:       16051144 kB\nMemFree:         2108472 kB\nMemAvailable:    6382060 kB\nBuffers:              20 kB\nCached:          5824952 kB\nSwapCached:       355084 kB\nActive:          6166872 kB\nInactive:        3913112 kB\nActive(anon):    5258152 kB\nInactive(anon):   534232 kB\nActive(file):     908720 kB\nInactive(file):  3378880 kB\nUnevictable:     1198556 kB\nMlocked:              16 kB\nSwapTotal:      24802296 kB\nSwapFree:       15010012 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             34600 kB\nWriteback:             0 kB\nAnonPages:       5435408 kB\nMapped:           936364 kB\nShmem:           1473824 kB\nKReclaimable:     330864 kB\nSlab:             689152 kB\nSReclaimable:     330864 kB\nSUnreclaim:       358288 kB\nKernelStack:       34064 kB\nPageTables:       152644 kB\nSecPageTables:      3116 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    32827868 kB\nCommitted_AS:   30404900 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:      112004 kB\nVmallocChunk:          0 kB\nPercpu:            21120 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:    182272 kB\nShmemHugePages:    83968 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nGPUActive:             0 kB\nGPUReclaim:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      284544 kB\nDirectMap2M:    10936320 kB\nDirectMap1G:     5242880 kB\n",
+  "loadavg": "3.44 3.71 4.26 2/2109 1779035\n",
+  "psi": {
+    "memory": "some avg10=0.03 avg60=0.03 avg300=0.05 total=194921382\nfull avg10=0.03 avg60=0.03 avg300=0.05 total=184931047\n",
+    "io": "some avg10=1.77 avg60=1.39 avg300=1.11 total=3583168045\nfull avg10=1.57 avg60=1.15 avg300=0.89 total=3272640395\n",
+    "cpu": "some avg10=0.00 avg60=0.00 avg300=0.14 total=1028956174\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+  },
+  "disk": "Filesystem               1B-blocks         Used   Available Use% Mounted on\n/dev/mapper/cryptroot 493838401536 469776650240 22131159040  96% /\n",
+  "note": "resource observation for bounded correctness jobs; not benchmark readiness"
+}

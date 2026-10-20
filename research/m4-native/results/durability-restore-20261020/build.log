@@ -1,0 +1,20 @@
+Running as unit: m4-durability-build-20261020.service
+[  8%] Building CXX object CMakeFiles/m4_research.dir/src/index.cc.o
+[ 16%] Building CXX object CMakeFiles/m4_research.dir/src/format.cc.o
+[ 25%] Building CXX object CMakeFiles/m4_research.dir/src/stream_merge.cc.o
+[ 33%] Building CXX object CMakeFiles/m4_research.dir/src/native_tokenizer_adapter.cc.o
+[ 41%] Building CXX object CMakeFiles/m4_research.dir/src/native_global_config_link_shim.cc.o
+[ 50%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/jieba_tokenizer.cc.o
+[ 58%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer.cc.o
+[ 66%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/unicode_utils.cc.o
+[ 75%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/token_filter.cc.o
+[ 83%] Linking CXX static library libm4_research.a
+[ 83%] Built target m4_research
+[ 91%] Building CXX object CMakeFiles/m4_bridge_integration.dir/tests/m4_bridge_integration.cc.o
+[100%] Linking CXX executable m4_bridge_integration
+[100%] Built target m4_bridge_integration
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 39.925s
+             CPU time consumed: 39.440s
+                   Memory peak: 630.7M (swap: 0B)

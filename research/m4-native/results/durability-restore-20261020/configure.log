@@ -1,0 +1,13 @@
+-- The CXX compiler identification is GNU 16.2.1
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/sbin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found OpenSSL: /usr/lib/libcrypto.so (found version "3.6.5") found components: Crypto
+-- Configuring done (0.5s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020

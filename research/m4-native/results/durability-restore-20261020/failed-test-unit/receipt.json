@@ -1,0 +1,13 @@
+{
+  "failure_class": "TEST_ASSERTION_FAILURE",
+  "performance_eligible": false,
+  "status": "NONZERO_EXIT",
+  "unit": "m4-durability-faults-20261020.service",
+  "unit_cleanup": {
+    "reset_failed_returncode": 0,
+    "stop_returncode": 0,
+    "unit_collected": true,
+    "verified": true
+  },
+  "workload_returncode": 1
+}

@@ -1,0 +1,8 @@
+Running as unit: m4-durability-correctness-20261020.service; invocation ID: 5d3d99999ca34c258c2df092bc3a95d8
+VECTOR_DELTA_CANDIDATE checks=1401 failures=0
+M4_INCREMENTAL_FTS_CANDIDATE checks=582 failures=0 changed_upserts=2 mutations=3 shared_runs=1
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 10.650s
+             CPU time consumed: 9.677s
+                   Memory peak: 933M (swap: 0B)
