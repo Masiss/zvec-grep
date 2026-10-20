@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "operation": "owner-authorized diagnostic same-binary A/A",
+  "operation_status": "OPERATION_BLOCKED",
+  "phase": "single readiness preflight",
+  "measurement_launched": false,
+  "ambient_baseline_started": false,
+  "arm_count": 0,
+  "automatic_retry": false,
+  "recorded_at_utc": "2026-10-20T04:08:56.094513135Z",
+  "snapshot_timestamp_note": "The host snapshot command did not print a timestamp; the directly observed values below are retained without claiming the receipt-record time is the exact sample time.",
+  "repository": {
+    "root": "/home/masis/src/zvec-grep",
+    "branch": "work/zg-optimization",
+    "workspace_migration_commit": "d6280b2"
+  },
+  "binary": {
+    "path": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/current-source-build-20261019/m4_bridge_integration",
+    "sha256": "57f3a19e0fb5dfe4d2d64ea4831f276a81a586c22ee30309d6249ed986ba342f",
+    "launched": false
+  },
+  "resource_root": "/var/tmp",
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "thresholds": {
+    "M4-RG-MEM": {"metric": "MemAvailable_kib", "operator": ">=", "threshold": 5477762},
+    "M4-RG-DISK": {"metric": "resource_root_available_bytes", "operator": ">=", "threshold": 18219000000},
+    "M4-RG-IOPSI": {"metric": "io_full_avg10", "operator": "<=", "threshold": 4.46},
+    "M4-RG-LOAD": {"metric": "load1", "operator": "<=", "threshold": 3.14}
+  },
+  "observed": {
+    "MemAvailable_kib": 1136008,
+    "SwapFree_kib": 13767716,
+    "load1": 6.11,
+    "io_full_avg10": 0.0,
+    "resource_root_available_bytes": 22254845952,
+    "user_systemd_state": "degraded",
+    "cgroup_v2_root_controllers": ["cpuset", "cpu", "io", "memory", "hugetlb", "pids", "rdma", "misc", "dmem"]
+  },
+  "gate_decisions": [
+    {"gate_id": "M4-RG-MEM", "status": "FAIL", "shortfall_kib": 4341754},
+    {"gate_id": "M4-RG-LOAD", "status": "FAIL", "excess": 2.97},
+    {"gate_id": "M4-RG-DISK", "status": "PASS", "headroom_bytes": 4035845952},
+    {"gate_id": "M4-RG-IOPSI", "status": "PASS", "headroom": 4.46}
+  ],
+  "decision": "Hard resource guards failed; do not start the 60-second ambient baseline or either A/A arm. No recovery snapshot/retry was taken.",
+  "recovery_condition": "A future attempt requires new explicit authorization and one fresh readiness snapshot with all unchanged policy guards passing, plus valid host-pressure, telemetry-integrity and containment prerequisites. Do not poll or automatically retry."
+}
