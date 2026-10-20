@@ -257,7 +257,7 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
         raise ValueError('contention context is only for tracing-off 500x20 same-binary A/A')
     if context.get('binary_sha256') != BENCHMARK_POLICY['contention_aware']['full_sync_binary_sha256']:
         raise ValueError('contention context requires the verified full-sync binary')
-    for key in ('memory_max_bytes', 'workspace_max_allocated_bytes', 'workspace_max_apparent_bytes',
+    for key in ('memory_max_bytes', 'pids_max', 'workspace_max_allocated_bytes', 'workspace_max_apparent_bytes',
                 'host_memory_reserve_bytes', 'disk_reserve_bytes', 'runtime_limit_seconds',
                 'max_monitor_gap_seconds'):
         v = context.get(key)
@@ -285,7 +285,7 @@ def contention_context_digest(context: dict[str, Any]) -> str:
 def contention_budget(context: dict[str, Any]) -> dict[str, Any]:
     validate_contention_context(context)
     return {key: context[key] for key in ('approval_reference', 'memory_max_bytes',
-            'memory_swap_max_bytes', 'cpu_max', 'workspace_max_allocated_bytes',
+            'memory_swap_max_bytes', 'cpu_max', 'pids_max', 'workspace_max_allocated_bytes',
             'workspace_max_apparent_bytes')}
 
 
@@ -357,7 +357,8 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
 
 
 def verify_contention_caps(cg: pathlib.Path, context: dict[str, Any]) -> None:
-    for key, name in (('memory_max_bytes', 'memory.max'), ('memory_swap_max_bytes', 'memory.swap.max'), ('cpu_max', 'cpu.max')):
+    for key, name in (('memory_max_bytes', 'memory.max'), ('memory_swap_max_bytes', 'memory.swap.max'),
+                      ('cpu_max', 'cpu.max'), ('pids_max', 'pids.max')):
         if read_text(cg / name).split() != str(context[key]).split():
             raise ValueError(f'contention cgroup cap not applied or changed: {name}')
 
@@ -366,7 +367,7 @@ def contention_runtime_failures(cgroup: dict[str, Any], previous: dict[str, Any]
     """Fail closed on unavailable attribution telemetry or observed M4 cap/reclaim distress."""
     if not cgroup.get('process_io_sample_complete') or not cgroup.get('process_memory_sample_complete'):
         raise ValueError('incomplete process-tree telemetry')
-    for key in ('memory_current_bytes', 'memory_swap_current_bytes'):
+    for key in ('memory_current_bytes', 'memory_swap_current_bytes', 'pids_current'):
         if isinstance(cgroup.get(key), bool) or not isinstance(cgroup.get(key), int) or cgroup[key] < 0:
             raise ValueError(f'invalid cgroup {key}')
     for family in ('memory_pressure', 'io_pressure', 'cpu_pressure'):
@@ -378,17 +379,21 @@ def contention_runtime_failures(cgroup: dict[str, Any], previous: dict[str, Any]
                         or val < 0 or (key == 'avg10' and val > 100)):
                     raise ValueError(f'invalid cgroup {family}.{kind}.{key}')
     for family, keys in (('memory_events', ('max', 'oom', 'oom_kill', 'oom_group_kill')),
-                         ('memory_swap_events', ('max', 'fail')), ('cpu_stat', ('usage_usec',))):
+                         ('memory_swap_events', ('max', 'fail')), ('pids_events', ('max',)),
+                         ('cpu_stat', ('usage_usec',))):
         for key in keys:
-            val = cgroup.get(family, {}).get(key)
+            metrics = cgroup.get(family)
+            if not isinstance(metrics, dict):
+                raise ValueError(f'missing cgroup {family}')
+            val = metrics.get(key)
             if isinstance(val, bool) or not isinstance(val, int) or val < 0:
                 raise ValueError(f'missing/invalid cgroup {family}.{key}')
             old = (previous or {}).get(family, {}).get(key, 0)
             if val < old:
                 raise ValueError(f'nonmonotonic cgroup {family}.{key}')
-    return [f'{family}.{key} increased; M4 allocation/swap limit distress'
+    return [f'{family}.{key} increased; M4 allocation/swap/task limit distress'
             for family, keys in (('memory_events', ('max', 'oom', 'oom_kill', 'oom_group_kill')),
-                                 ('memory_swap_events', ('max', 'fail')))
+                                 ('memory_swap_events', ('max', 'fail')), ('pids_events', ('max',)))
             for key in keys if cgroup[family][key] > (previous or {}).get(family, {}).get(key, 0)]
 
 
@@ -492,6 +497,8 @@ def read_cgroup_metric(cg: pathlib.Path) -> dict[str, Any]:
     controllers = read_text(cg / 'cgroup.controllers').split() if (cg / 'cgroup.controllers').exists() else []
     return {
         'controllers': controllers, 'pids': pids, 'populated': ev.get('populated'),
+        'pids_current': int(read_text(cg / 'pids.current')) if (cg / 'pids.current').exists() else None,
+        'pids_events': parse_kv(read_text(cg / 'pids.events')) if (cg / 'pids.events').exists() else None,
         'memory_current_bytes': int(read_text(cg / 'memory.current')),
         'memory_peak_bytes': int(read_text(cg / 'memory.peak')),
         'memory_events': events,
@@ -631,6 +638,9 @@ def load_approved_budget(path: pathlib.Path | None) -> dict[str, Any] | None:
         value = budget.get(key)
         if value is not None and (not isinstance(value, int) or value <= 0):
             raise ValueError(f'{key} must be a positive integer or null')
+    tasks = budget.get('pids_max')
+    if tasks is not None and (isinstance(tasks, bool) or not isinstance(tasks, int) or tasks <= 0):
+        raise ValueError('pids_max must be a positive integer or null')
     cpu_max = budget.get('cpu_max')
     if cpu_max is not None and (not isinstance(cpu_max, str) or not re.fullmatch(r'(?:max|[1-9]\d*)\s+[1-9]\d*', cpu_max)):
         raise ValueError('cpu_max must have cgroup-v2 syntax "QUOTA PERIOD"')
@@ -639,7 +649,7 @@ def load_approved_budget(path: pathlib.Path | None) -> dict[str, Any] | None:
 
 def apply_budget(cg: pathlib.Path, budget: dict[str, Any] | None) -> dict[str, Any]:
     applied: dict[str, Any] = {'approval_reference': None, 'memory_max_bytes': None,
-                              'memory_swap_max_bytes': None, 'cpu_max': None,
+                              'memory_swap_max_bytes': None, 'cpu_max': None, 'pids_max': None,
                               'workspace_limits': 'none'}
     if budget is None:
         return applied
@@ -648,6 +658,7 @@ def apply_budget(cg: pathlib.Path, budget: dict[str, Any] | None) -> dict[str, A
         'memory_max_bytes': ('memory.max', 'memory_max_bytes'),
         'memory_swap_max_bytes': ('memory.swap.max', 'memory_swap_max_bytes'),
         'cpu_max': ('cpu.max', 'cpu_max'),
+        'pids_max': ('pids.max', 'pids_max'),
     }
     for source, (filename, target) in mapping.items():
         value = budget.get(source)
@@ -1017,6 +1028,8 @@ def service_properties(budget: dict[str, Any] | None, runtime_seconds: float) ->
         f'RuntimeMaxSec={runtime_seconds + 5.0:.3f}s',
     ]
     if budget:
+        if budget.get('pids_max') is not None:
+            props.append(f"TasksMax={budget['pids_max']}")
         if budget.get('memory_max_bytes') is not None:
             props.append(f"MemoryMax={budget['memory_max_bytes']}")
         if budget.get('memory_swap_max_bytes') is not None:

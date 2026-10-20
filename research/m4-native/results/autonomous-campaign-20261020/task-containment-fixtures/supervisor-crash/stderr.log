@@ -1,0 +1,6 @@
+Running as unit: m4-contained-fb2ab37838994eac.service
+          Finished with result: signal
+Main processes terminated with: code=killed, status=9/KILL
+               Service runtime: 303ms
+             CPU time consumed: 177ms
+                   Memory peak: 24.3M (swap: 0B)

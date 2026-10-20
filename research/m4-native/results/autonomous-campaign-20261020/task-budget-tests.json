@@ -1,0 +1,42 @@
+{
+  "synthetic_only": true,
+  "benchmark_pairs_used": 0,
+  "resource_plan_approved": false,
+  "tested_source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "0da531ea75bc02ed92f50e52ddc930925cdf10cf00e0c68945553e56820e721b",
+    "research/m4-native/tools/test_m4_contention_policy.py": "8ebd0eadd848ac5d31d0b429f886dd7562743e848f89378d862e7d7bad15241e",
+    "research/m4-native/tools/test_m4_containment_runner.py": "9d52ba2a0074b477ff589dec1e1e2ee14fd20e96ec1b7c606323b90868ce5b8f",
+    "research/m4-native/docs/benchmark-policy.json": "be7eca5603ae4e29d9f8b42203fdf4b3b0be3beaf376fdc6ab613392810ef6bb"
+  },
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 24,
+      "log": "test_m4_contention_policy.py.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/autonomous-campaign-20261020/task-containment-fixtures"
+      ],
+      "exit_code": 0,
+      "tests": 13,
+      "log": "test_m4_containment_runner.py.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 5,
+      "log": "test_m4_benchmark_policy.py.log"
+    }
+  ]
+}

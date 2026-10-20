@@ -32,7 +32,7 @@ def context(root):
             'operation_id': 'm4-contention-fixture', 'operation_root': str(root/'m4-contention-fixture'),
             'resource_root': str(root), 'binary_sha256': ct.BENCHMARK_POLICY['contention_aware']['full_sync_binary_sha256'],
             'workload': {'docs': 500, 'rounds': 20, 'tracing': False},
-            'memory_max_bytes': 64*1024**2, 'memory_swap_max_bytes': 0, 'cpu_max': '50000 100000',
+            'memory_max_bytes': 64*1024**2, 'memory_swap_max_bytes': 0, 'cpu_max': '50000 100000', 'pids_max': 128,
             'workspace_max_allocated_bytes': 16*1024**2, 'workspace_max_apparent_bytes': 16*1024**2,
             'host_memory_reserve_bytes': 16*1024**2, 'disk_reserve_bytes': 16*1024**2,
             'runtime_limit_seconds': 60, 'max_monitor_gap_seconds': 2}
@@ -55,7 +55,8 @@ def cgroup():
             'memory_current_bytes': 1024, 'memory_swap_current_bytes': 0,
             'memory_peak_bytes': 2048, 'memory_swap_peak_bytes': 0,
             'memory_events': {'max': 0, 'oom': 0, 'oom_kill': 0, 'oom_group_kill': 0},
-            'memory_swap_events': {'max': 0, 'fail': 0}, 'cpu_stat': {'usage_usec': 100},
+            'memory_swap_events': {'max': 0, 'fail': 0}, 'pids_current': 2, 'pids_events': {'max':0},
+            'cpu_stat': {'usage_usec': 100},
             'memory_pressure': copy.deepcopy(pressure), 'io_pressure': copy.deepcopy(pressure),
             'cpu_pressure': copy.deepcopy(pressure), 'io_stat': None, 'io_max': None,
             'process_tree_pss_kib': 1, 'process_tree_write_bytes': 0, 'populated': 1}
@@ -161,7 +162,8 @@ class ContentionPolicyTests(unittest.TestCase):
 
     def watchdog_config(self):
         cg = self.root/'cg'; cg.mkdir(exist_ok=True); (cg/'cgroup.kill').touch()
-        for name,key in (('memory.max', 'memory_max_bytes'), ('memory.swap.max', 'memory_swap_max_bytes'), ('cpu.max','cpu_max')):
+        for name,key in (('memory.max', 'memory_max_bytes'), ('memory.swap.max', 'memory_swap_max_bytes'),
+                         ('cpu.max','cpu_max'), ('pids.max','pids_max')):
             (cg/name).write_text(str(self.ctx[key]))
         out = pathlib.Path(self.ctx['operation_root'])/'aa-first/containment'; out.mkdir(parents=True, exist_ok=True)
         sock = self.root/'socket'; sock.mkdir(exist_ok=True)
@@ -226,6 +228,29 @@ class ContentionPolicyTests(unittest.TestCase):
         summary, _, killed = self.run_watchdog(state(), g)
         self.assertEqual(summary['abort']['reason'], 'cgroup_oom_event')
         self.assertTrue(killed)
+
+    def test_task_limit_is_required_and_cap_changes_are_detected(self):
+        for value in (None, 0, -1, True, '128'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                ct.validate_contention_context(dict(self.ctx,pids_max=value))
+        config = self.watchdog_config()
+        cg = pathlib.Path(config['cgroup_path'])
+        budget = ct.contention_budget(self.ctx)
+        applied = ct.apply_budget(cg,budget)
+        self.assertEqual(applied['pids_max'],'128')
+        self.assertIn('TasksMax=128',ct.service_properties(budget,60))
+        self.assertFalse(any(p.startswith('TasksMax=') for p in ct.service_properties(None,60)))
+        (cg/'pids.max').write_text('max')
+        with self.assertRaisesRegex(ValueError,'pids.max'):
+            ct.verify_contention_caps(cg,self.ctx)
+
+    def test_task_distress_and_missing_task_telemetry_fail_closed(self):
+        previous = cgroup(); after = cgroup(); after['pids_events']['max'] = 1
+        self.assertTrue(any('pids_events.max' in f for f in ct.contention_runtime_failures(after,previous)))
+        for key in ('pids_events','pids_current'):
+            after = cgroup(); after[key] = None
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                ct.contention_runtime_failures(after,previous)
 
     def test_cap_mismatch_is_not_an_approved_budget(self):
         config = self.watchdog_config()

@@ -39,12 +39,13 @@ class ContainmentRunnerTests(unittest.TestCase):
         shutil.rmtree(cls.fixture_root)
         os.kill(cls.unrelated_pid, 0)
 
-    def run_fixture(self, name: str, command: list[str], timeout: float = 5.0) -> tuple[dict, pathlib.Path]:
+    def run_fixture(self, name: str, command: list[str], timeout: float = 5.0,
+                    budget: dict | None = None) -> tuple[dict, pathlib.Path]:
         receipt_dir = self.output_root / name
         receipt = runner.run_arm(
             command, receipt_dir, self.fixture_root, self.fixture_root / 'workspace',
             self.fixture_root.parent, timeout, sample_interval_ms=20,
-            enforce_host_gates=False,
+            enforce_host_gates=False, budget=budget,
         )
         self.assertEqual(json.loads((receipt_dir / 'receipt.json').read_text()), receipt)
         self.assertTrue((receipt_dir / 'runtime.jsonl').exists())
@@ -143,6 +144,23 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(receipt['mission_status'], 'NOT_EVALUATED_BY_RUNNER')
         self.assertTrue((receipt_dir / 'receipt.json').is_file())
         self.assertFalse(marker.exists())
+
+    def test_explicit_task_budget_is_applied_to_owned_unit(self) -> None:
+        command = [sys.executable, '-c', (
+            'import pathlib,threading; '
+            'rel=pathlib.Path("/proc/self/cgroup").read_text().strip().split("::",1)[1]; '
+            'cg=pathlib.Path("/sys/fs/cgroup")/rel.lstrip("/"); '
+            'print("TASK_LIMIT="+(cg/"pids.max").read_text().strip(),flush=True); '
+            'threading.Event().wait(0.15)'
+        )]
+        receipt, directory = self.run_fixture('task-budget', command, budget={
+            'approval_reference':'SYNTHETIC TASK-CAP TEST ONLY', 'pids_max':64})
+        self.assertEqual(receipt['status'],'PASS')
+        self.assertEqual(receipt['limits_applied']['pids_max'],'64')
+        self.assertIn('TASK_LIMIT=64', (directory/'stdout.log').read_text())
+        runtime = [json.loads(line) for line in (directory/'runtime.jsonl').read_text().splitlines()]
+        self.assertTrue(all(isinstance(row['cgroup']['pids_current'],int) for row in runtime))
+        self.assertTrue(all(row['cgroup']['pids_events']['max']==0 for row in runtime))
 
     def test_normal_exit_and_descendant_share_owned_cgroup(self) -> None:
         command = [sys.executable, '-c', (

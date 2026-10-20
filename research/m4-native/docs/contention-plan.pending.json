@@ -15,6 +15,7 @@
   "memory_max_bytes": null,
   "memory_swap_max_bytes": null,
   "cpu_max": null,
+  "pids_max": null,
   "workspace_max_allocated_bytes": null,
   "workspace_max_apparent_bytes": null,
   "host_memory_reserve_bytes": null,
