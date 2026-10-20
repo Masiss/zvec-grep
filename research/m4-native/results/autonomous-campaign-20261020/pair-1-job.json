@@ -1,0 +1,10 @@
+{
+  "job_id": "job-1335348-229",
+  "slot": 1,
+  "supervisor": "flock --nonblock campaign-execution.lock; GNU timeout TERM355s/KILL+5s",
+  "runner_log": "research/m4-native/results/autonomous-campaign-20261020/pair-1-execution/runner.log",
+  "exit_receipt": "research/m4-native/results/autonomous-campaign-20261020/pair-1-execution/exit.json",
+  "operation_root": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1",
+  "stop_conditions": "Any current capacity/identity/correctness/OOM/distress/telemetry/cap/timeout/cleanup guard; do not retry or launch another pair after refusal.",
+  "next_action": "On terminal notification inspect raw operation and per-arm receipts, verify only owned cleanup, then analyze offline before considering another slot."
+}

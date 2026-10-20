@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "flock",
+    "--nonblock",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/campaign-execution.lock",
+    "timeout",
+    "--signal=TERM",
+    "--kill-after=5s",
+    "355s",
+    "python3",
+    "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py",
+    "--mode",
+    "contention-aware",
+    "--contention-plan",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-1.json"
+  ],
+  "cwd": "/home/masis/src/zvec-grep",
+  "approved_plan_sha256": "a3992f21356bc61c1535cc5dbfc8627db49c1a9b2a8e4508407ff522a493c630",
+  "timestamp_utc": "2026-10-20T11:37:24.794268+00:00",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1",
+  "budget_slot": 1,
+  "no_retry": true
+}

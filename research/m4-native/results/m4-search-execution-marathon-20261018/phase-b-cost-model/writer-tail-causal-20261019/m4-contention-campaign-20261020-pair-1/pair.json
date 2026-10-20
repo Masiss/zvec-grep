@@ -1,0 +1,108 @@
+{
+  "experiment": "same-binary A/A host carry-over check",
+  "mode": "contention-aware",
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "policy_context": {
+    "schema_version": 1,
+    "mode": "contention-aware",
+    "approval_status": "approved",
+    "approval_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+    "execution_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+    "risk_acceptance_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+    "resource_basis": "Owner-approved diagnostic risk budget, not universal safety limits. Historical footprint basis retained in resource-plan.proposed.json; exact reconciliation and 115s watchdog / 120s kernel lifetime in owner-authorization.md.",
+    "policy_sha256": "be7eca5603ae4e29d9f8b42203fdf4b3b0be3beaf376fdc6ab613392810ef6bb",
+    "operation_id": "m4-contention-campaign-20261020-pair-1",
+    "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1",
+    "resource_root": "/var/tmp",
+    "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+    "workload": {
+      "docs": 500,
+      "rounds": 20,
+      "tracing": false
+    },
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "cpu_max": "200000 100000",
+    "pids_max": 128,
+    "workspace_max_allocated_bytes": 536870912,
+    "workspace_max_apparent_bytes": 1073741824,
+    "host_memory_reserve_bytes": 1073741824,
+    "disk_reserve_bytes": 2147483648,
+    "runtime_limit_seconds": 115,
+    "max_monitor_gap_seconds": 2,
+    "io_max": null,
+    "campaign_id": "m4-writer-tail-20261020",
+    "campaign_max_pairs": 3,
+    "pair_supervisor_command_prefix": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=5s",
+      "355s"
+    ],
+    "proposal_only": false
+  },
+  "quality_gate_policy": "contention is observed, not eliminated; capacity and telemetry integrity always required",
+  "binary": "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/m4_bridge_integration.full-sync",
+  "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+  "binary_runtime_identity": "binary hash + current source git revision/tree fingerprint + resolved shared-library path/hash; enforced before each arm",
+  "source_git_revision": "ac486529f4ee91c289848dfc5d24240314e128cf",
+  "current_source_tree_sha256": "e87fae19ea617b490e62f4c498e68290e2b6d0c776928860347260fb480de80a",
+  "loaded_shared_libraries": {
+    "/home/masis/src/zvec-grep/.local/native/zvec-native-build/lib/libzvec_c_api.so": "6d55b9131766d943fbad1f77dbebc6a2db7951ce8d89ad46a92b7619cc92d950",
+    "/usr/lib/libstdc++.so.6.0.36": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e",
+    "/usr/lib/libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+    "/usr/lib/libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+    "/usr/lib/libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+    "/usr/lib/ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+  },
+  "binary_build_source_provenance": {
+    "manifest": "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/current-corrected-tests-20261019/provenance.sha256",
+    "entries": [
+      {
+        "archived_sha256": "70eb45587252770b9f3fbcf8d057f6aff63ca03041a31d0a0981262853dd97a8",
+        "path": "/var/tmp/m4-writer-tail-current-corrected.iakWXv/build/m4_bridge_integration",
+        "current_sha256": null,
+        "matches_current": null
+      },
+      {
+        "archived_sha256": "ab3a20f94bd174585cf716515ecb51eee7e456f7fd923b95979695efeb63224e",
+        "path": "/var/tmp/m4-writer-tail-current-corrected.iakWXv/build/m4_correctness",
+        "current_sha256": null,
+        "matches_current": null
+      },
+      {
+        "archived_sha256": "01943e0cedc3fa121a65b4f62f6e50cc467ca611d9e1d6a46c90fe19d389004e",
+        "path": "/home/masis/src/zvec-grep/research/m4-native/tests/m4_bridge_integration.cc",
+        "current_sha256": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34",
+        "matches_current": false
+      },
+      {
+        "archived_sha256": "71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51",
+        "path": "/home/masis/src/zvec-grep/research/m4-native/src/index.cc",
+        "current_sha256": "71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51",
+        "matches_current": true
+      }
+    ],
+    "archived_build_log_sha256": {
+      "configure.log": "4f68b0c535a1ddbcc89be89024a36eee372aec21172057cdcb199d6ba13c61d7",
+      "build.log": "2ab845614d3e43ab898a32e8cb54f9b3db172bb2b48d077b8b4d46ba33f91b6f"
+    },
+    "compiler_flags_recovered": false,
+    "interpretation": "exact binary SHA is authoritative; archived source checksums are partial build provenance, and current source fingerprints are captured separately"
+  },
+  "workload": "500 docs x 20 rounds",
+  "fresh_roots": true,
+  "sampling_interval_ms": 50,
+  "baseline_observation_seconds": 60.0,
+  "recovery_rule": "3 consecutive valid 10-second capacity/integrity windows; no historical-envelope/idle matching",
+  "resource_thresholds": {
+    "MemAvailable_kib_min": 5477762,
+    "var_tmp_bytes_min": 18219000000,
+    "io_full_avg10_max": 4.46,
+    "load1_max": 3.14
+  },
+  "benchmark_policy_id": "m4-benchmark-operation-policy-v1",
+  "resource_threshold_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+  "whole_mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "durability_note": "Owner-approved bounded same-full-sync-binary A/A; outer mutable FTS WAL fsync retained; no sync elision; exploratory contention-aware only"
+}
