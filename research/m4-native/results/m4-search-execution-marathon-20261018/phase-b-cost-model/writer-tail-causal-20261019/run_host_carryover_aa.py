@@ -501,6 +501,12 @@ def read_arm_identity(arm_dir):
 
 def archived_build_source_provenance():
     import hashlib
+    current_receipt = os.environ.get("M4_AA_BUILD_RECEIPT")
+    if current_receipt:
+        path = pathlib.Path(current_receipt).resolve(strict=True)
+        return {"manifest": str(path), "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "build_receipt": json.loads(path.read_text()),
+                "interpretation": "current build receipt; inputs and runtime checked before this authorized attempt"}
     provenance = HERE / "current-corrected-tests-20261019/provenance.sha256"
     entries = []
     if provenance.is_file():
@@ -634,7 +640,7 @@ def main():
         "benchmark_policy_id": runner.BENCHMARK_POLICY["policy_id"],
         "resource_threshold_authority": runner.BENCHMARK_POLICY["authority"]["historical_envelope_source"],
         "whole_mission_status": "NOT_EVALUATED_BY_RUNNER",
-        "durability_note": "binary is the research fsync-elision diagnostic; this experiment makes no durability-equivalence claim",
+        "durability_note": runner.DESCRIPTION,
     }, indent=2) + "\n")
     write_operation_status(pair, "IN_PROGRESS", "baseline-preflight")
     if not runner.preflight("baseline"):
