@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/m4_bridge_integration.full-sync",
+    "/var/tmp/m4-writer-sync-pair-z9h8aj8w/root",
+    "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+    "--incremental-fts-sustained",
+    "500",
+    "20"
+  ],
+  "cwd": "/home/masis/src/zvec-grep",
+  "private_workdir": "/var/tmp/m4-writer-sync-pair-z9h8aj8w",
+  "resource_root": "/var/tmp"
+}

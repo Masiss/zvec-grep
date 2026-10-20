@@ -1,17 +1,17 @@
 {
   "campaign_id": "m4-writer-tail-20261020",
-  "status": "OPERATION_BLOCKED_ORIGINAL_SLOT2_MEMORY_CAPACITY",
+  "status": "BUDGET_EXHAUSTED_FINAL_NATIVE_WORKSPACE_TELEMETRY_ABORT",
   "engineering_authority": "Active owner GOAL-BOUNDED AUTONOMY mission; offline research and engineering effective immediately",
   "resource_plan_approval": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
   "benchmark_campaign_activated": true,
   "max_pairs_after_resource_approval": 3,
-  "pairs_consumed": 3,
-  "conditional_pairs_remaining": 1,
+  "pairs_consumed": 4,
+  "conditional_pairs_remaining": 0,
   "currently_authorized_real_pairs": 0,
-  "remaining_budget_slots": 1,
+  "remaining_budget_slots": 0,
   "currently_eligible_next_pairs": 0,
   "currently_active_benchmark_arms": 0,
-  "campaign_stop_reason": "Fresh formal M4-CA-MEM-CAPACITY FAIL before native invocation. Saved MemAvailable1972884KiB < required2097152KiB by124268KiB. No retry despite crash; original final slot remains conditional/unspent.",
+  "campaign_stop_reason": "Final slot native arm1 actually launched then mandatory watchdog workspace_telemetry_incomplete ENOENT on transient tombstone.tmp; SIGTERM contained. No arm2/retry,4/4 consumed.",
   "maximum_concurrent_heavy_operations": 1,
   "proposed_per_pair_supervisor_timeout_seconds": 360,
   "proposed_supervisor_timeout_mechanism": "GNU timeout --signal=TERM --kill-after=5s 355s; tool auto-background is not a hard deadline. Existing watchdog/systemd own the workload; verified cleanup still required after controller timeout.",
@@ -50,7 +50,19 @@
     {
       "slot": 3,
       "operation_id": "m4-contention-campaign-20261020-pair-3",
-      "status": "NOT_ELIGIBLE_AFTER_SLOT_1_NO_LAUNCH"
+      "status": "NATIVE_ARM1_WATCHDOG_ABORT_WORKSPACE_SCAN_ENOENT",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-3.json",
+      "debit_reason": "Last existing original slot consumed conservatively at preparation after current explicit run direction; no automatic retry, accounting reset or fifth slot.",
+      "job_id": "job-8740-9",
+      "native_arms_launched": 1,
+      "native_arms_completed": 0,
+      "second_arm_started": false,
+      "cleanup_verified": true,
+      "guard_reason": "workspace_telemetry_incomplete",
+      "workload_returncode": -15,
+      "workload_signal": 15,
+      "raw_receipt": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/receipt.json",
+      "raw_operation_status": "OPERATION_BLOCKED"
     }
   ],
   "offline_work": [
@@ -75,17 +87,17 @@
       "outcome": "Added pure offline conservative stage/cgroup counter bounds and synthetic tests; no interpolation or compute/wait overclaim"
     }
   ],
-  "research_completion_condition": "Actual strict end-to-end synthetic rehearsal completed PASS; continuation genuinely progressed to native fresh preflight, which formally refused capacity. Native measurement objective remains unfulfilled.",
-  "performance_conclusion": "INCONCLUSIVE: no native M4 stage or paired/order performance evidence",
-  "engineering_decision": "KEEP CPU/parser corrections and fixed tiny rehearsal admission with unchanged strict native binding/caps/fullsync. DEFER writer-tail optimization; no native latency evidence.",
+  "research_completion_condition": "Strict launch path demonstrated and first actual native child executed, but no completed native measurement or per-cycle payload. Overall writer-tail objective remains unfulfilled; evidence/report only after cleanup.",
+  "performance_conclusion": "INCONCLUSIVE: one aborted native arm, zero completed20-cycle payloads, no latency/order/coherence comparison.",
+  "engineering_decision": "KEEP strict telemetry/fullsync/resource caps and known parser/CPU corrections. No guard weakening or native optimization. DEFER scanner race-aware design until explicit scope; no further native budget.",
   "verification": "59 focused tests PASS and fresh4-file ty PASS after2 Path-typing corrections; actual contention rehearsal12 complete samples, exit0, verified cleanup. Native fresh fullsync static61-input/6-library/50-durability verification PASS; memory capacity FAIL. Current no owned units/processes after crash verified.",
-  "next_action": "Do not retry refused original slot2 or disguise it using last slot. Owner decision needed for further native execution after memory capacity recovery; final slot requires an explicitly discriminating question, not inferred from absent native data. No cap/budget increase or other-project intervention.",
+  "next_action": "No fifth attempt or remaining slot. Highest-value independent follow-up is a focused design/regression for dynamic workspace atomic-rename/stat races with explicit completeness/bounds, not ignoring ENOENT or reclassifying this receipt. Any future native campaign requires new owner authority, not an automatic retry.",
   "owner_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
   "max_total_attempts": 4,
   "max_executable_pairs": 3,
-  "original_pairs_consumed": 2,
+  "original_pairs_consumed": 3,
   "replacement_attempts_consumed": 1,
-  "total_attempts_consumed": 3,
+  "total_attempts_consumed": 4,
   "replacement_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-replacement-authorization.md (current explicit user amendment)",
   "replacement_attempts": [
     {
@@ -112,6 +124,7 @@
     "native_slots_consumed": 0,
     "result": "research/m4-native/results/autonomous-campaign-20261020/m4-contention-rehearsal-e2e-1/rehearsal-result.json"
   },
-  "native_arms_launched": 0,
-  "native_pairs_completed": 0
+  "native_arms_launched": 1,
+  "native_pairs_completed": 0,
+  "final_slot_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-final-slot-authorization.md"
 }

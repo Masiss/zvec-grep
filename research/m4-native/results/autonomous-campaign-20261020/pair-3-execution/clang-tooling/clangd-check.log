@@ -1,0 +1,103 @@
+I[23:21:08.955] clangd version 23.1.3
+I[23:21:08.955] Features: linux
+I[23:21:08.955] PID: 170238
+I[23:21:08.955] Working directory: /home/masis/src/zvec-grep
+I[23:21:08.955] argv[0]: clangd
+I[23:21:08.955] argv[1]: --check=/home/masis/src/zvec-grep/research/m4-native/src/index.cc
+I[23:21:08.955] argv[2]: --compile-commands-dir=/home/masis/src/zvec-grep/research/m4-native/.work/build/lsp
+I[23:21:08.955] Entering check mode (no LSP server)
+I[23:21:08.955] Testing on source file /home/masis/src/zvec-grep/research/m4-native/src/index.cc
+I[23:21:08.955] Loading config file at /home/masis/src/zvec-grep/research/m4-native/.clangd
+I[23:21:08.955] Loading compilation database...
+I[23:21:08.956] Loaded compilation database from /home/masis/src/zvec-grep/research/m4-native/.work/build/lsp/compile_commands.json
+I[23:21:08.957] Compile command from CDB is: [/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020] /usr/bin/c++ --driver-mode=g++ -DM4_USE_ZVEC_NATIVE_TOKENIZER=1 -I/home/masis/src/zvec-grep/research/m4-native/include -I/home/masis/src/zvec-grep/research/m4-native/src -I/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src -I/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/include -I/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/utf8proc/utf8proc-2.11.3 -isystem /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include -isystem /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include -O3 -DNDEBUG -std=gnu++17 -Wall -Wextra -o CMakeFiles/m4_research.dir/src/index.cc.o -c -resource-dir=/usr/lib/clang/23 -- /home/masis/src/zvec-grep/research/m4-native/src/index.cc
+I[23:21:08.958] Parsing command...
+I[23:21:08.959] internal (cc1) args are: -cc1 -triple x86_64-pc-linux-gnu -O3 -fsyntax-only -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name index.cc -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=none -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020 -fcoverage-compilation-dir=/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020 -resource-dir /usr/lib/clang/23 -isystem /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include -isystem /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include -D M4_USE_ZVEC_NATIVE_TOKENIZER=1 -I /home/masis/src/zvec-grep/research/m4-native/include -I /home/masis/src/zvec-grep/research/m4-native/src -I /home/masis/src/zvec-grep/.local/native/zvec-native-profile/src -I /home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/include -I /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/utf8proc/utf8proc-2.11.3 -D NDEBUG -internal-isystem /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/16/../../../../include/c++/16 -internal-isystem /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/16/../../../../include/c++/16/x86_64-pc-linux-gnu -internal-isystem /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/16/../../../../include/c++/16/backward -internal-isystem /usr/lib/clang/23/include -internal-isystem /usr/local/include -internal-isystem /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/16/../../../../x86_64-pc-linux-gnu/include -internal-externc-isystem /include -internal-externc-isystem /usr/include -Wall -Wextra -std=gnu++17 -fdeprecated-macro -ferror-limit 19 -stack-protector 2 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -vectorize-loops -vectorize-slp -no-round-trip-args -faddrsig -fdwarf2-cfi-asm -x c++ /home/masis/src/zvec-grep/research/m4-native/src/index.cc
+I[23:21:08.959] Building preamble...
+I[23:21:09.612] Built preamble of size 16212668 for file /home/masis/src/zvec-grep/research/m4-native/src/index.cc version null in 0.65 seconds
+I[23:21:09.612] Indexing headers...
+I[23:21:09.743] Building AST...
+I[23:21:10.080] Indexing AST...
+I[23:21:10.092] Building inlay hints
+I[23:21:10.094] Building semantic highlighting
+I[23:21:10.100] Testing features at each token (may be slow in large files)
+I[23:21:13.010] Found definition heuristically using nearby identifier fail_initialization
+I[23:21:13.010] Found definition heuristically using nearby identifier fail_initialization
+I[23:21:13.010] Found definition heuristically using nearby identifier Status
+I[23:21:13.010] Found definition heuristically using nearby identifier Status
+I[23:21:13.010] Found definition heuristically using nearby identifier Error
+I[23:21:13.010] Found definition heuristically using nearby identifier Error
+I[23:21:14.135] Found definition heuristically using nearby identifier Status
+I[23:21:14.135] Found definition heuristically using nearby identifier Status
+I[23:21:14.135] Found definition heuristically using nearby identifier Error
+I[23:21:14.135] Found definition heuristically using nearby identifier Error
+E[23:21:16.804]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:16.901]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:17.390]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:19.437]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:19.798]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:19.878]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:19.928]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:19.953]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:20.322]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:20.338]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:22.899]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:23.350]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:23.393]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:23.553]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:23.580]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:23.592]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:23.604]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:23.922]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:26.128]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:27.646]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:28.799]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:31.277]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:31.519]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:31.519]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.177]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.203]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.241]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.354]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.370]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.406]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.587]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.775]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:32.777]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:33.622]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:34.454]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:34.738]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:34.880]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:34.952]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:35.030]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:35.101]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:35.106]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:35.405]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:35.983]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:36.039]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:36.063]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:38.523]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:40.452]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:41.423]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:41.448]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:41.635]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:41.845]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:42.122]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:42.488]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:42.524]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:43.531]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:44.395]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:44.448]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:44.806]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:45.278]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:46.571]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:46.925]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.022]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.053]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.124]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.310]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.703]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.792]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.868]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+E[23:21:47.898]     tweak: ExtractFunction ==> FAIL: Cannot extract break/continue without corresponding loop/switch statement.
+I[23:21:50.316] All checks completed, 69 errors

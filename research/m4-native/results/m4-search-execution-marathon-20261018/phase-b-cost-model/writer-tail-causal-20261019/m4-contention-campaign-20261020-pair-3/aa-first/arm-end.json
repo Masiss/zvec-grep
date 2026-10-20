@@ -1,0 +1,11 @@
+{
+  "monotonic_ns": 1395363905456,
+  "epoch_ns": 1792512881904417438,
+  "exit_code": -15,
+  "duration_seconds": 1.551267586,
+  "containment_status": "WATCHDOG_ABORT",
+  "operation_outcome": "OPERATION_BLOCKED",
+  "failure_scope": "this arm only",
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "workload_started": true
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "operation_id": "m4-contention-campaign-20261020-pair-3",
+  "operation": "same-binary A/A host-carryover measurement",
+  "operation_status": "OPERATION_BLOCKED",
+  "phase": "uncaught-operation-exit",
+  "reason": "STOP: first arm operation-guard/containment gate failed; see aa-first artifacts",
+  "gate_id": [
+    "workspace_telemetry_incomplete"
+  ],
+  "gate_class": "OPERATION_LEVEL_GATE_REFUSAL",
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "recovery_conditions": "preserve original receipt; fix actual capacity/integrity/containment blocker; new explicit authorization for another operation, no idle wait or automatic retry",
+  "failure_scope": "this benchmark/A/A operation only",
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "mission_marked_done": false,
+  "safe_independent_work_may_continue": true,
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard"
+}

@@ -1,0 +1,4 @@
+AA_BASELINE_START duration_s=60 sample_ms=50
+AA_BASELINE_QUALITY_FAIL_NONBLOCKING mode=diagnostic reason=baseline drift: last half outside first-half envelope for memavailable_min_kib; evidence=EXPLORATORY_NOT_QUALIFICATION
+AA_ARM_START name=aa-first
+STOP: first arm operation-guard/containment gate failed; see aa-first artifacts
