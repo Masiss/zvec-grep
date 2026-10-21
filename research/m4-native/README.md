@@ -531,21 +531,25 @@ unapproved.
 
 `tests/m4_bridge_integration.cc` models a separate M4 FTS/INVERT store beside
 native Zvec vector/HNSW. Coordinator reads hold a shared snapshot lease across
-FTS+vector hybrid queries; a full publish and component compaction/optimize
-hold the exclusive lease. Three concurrent readers are tested against a
-staged publish; all resume with the exact old-generation hit set. This prevents
-native vector IDs from racing the forward-filter row bitmap during mutable
-segment writes, at the cost of blocking readers for the full commit. The
+FTS+vector hybrid queries. Commit stages M4 rows while readers may continue
+querying the prior published generation; it acquires the exclusive lease only
+for native vector mutation/flush and manifest publication. Component
+compaction/optimize and generation GC still hold the exclusive lease. A
+concurrency regression verifies readers finish during M4 staging and return the
+exact prior-generation hit set. This prevents native vector IDs from racing the
+forward-filter row bitmap during mutable segment writes while avoiding reader
+blocking during the M4-only staging phase. The
 shared-collection prototype also has a research-only leased-generation GC path
 in `tests/m4_bridge_integration.cc`; it searches all reclaimable generations
-with one OR filter and issues bounded 256-mutation delete batches before flush,
+with one `Uint32In` filter and issues bounded 256-mutation delete batches before flush,
 native deletion, checkpoint publication, and optional compaction. The exclusive
 snapshot lease remains held throughout GC, preserving the existing crash and
 reader-safety protocol. Correctness/crash evidence and the comparative
 reader-stall/GC measurements are in `results/M4-STATUS-20261021.md` and the
 linked operation report. The one measured pair found high reader latency and
-material GC cost; this batch optimization is not yet performance-evaluated and
-does not justify shared-collection promotion or any production claim.
+material GC cost. The GC batching and narrowed commit lock are correctness-
+verified research changes, not yet performance-evaluated; neither justifies
+shared-collection promotion or any production claim.
 
 ```sh
 cmake --build research/m4-native/.work/build/p4 --target m4_bridge_integration -j2

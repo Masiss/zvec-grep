@@ -494,8 +494,8 @@ class Coordinator {
               const std::string& stop_after = {},
               const std::function<void()>& after_vector_flush = {},
               const std::function<void()>& after_reserve = {},
-              SharedCommitTimings* timings = nullptr) {
-    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+              SharedCommitTimings* timings = nullptr,
+              const std::function<void()>& after_m4_apply = {}) {
     std::lock_guard<std::mutex> writer(commit_mutex_);
     if (generation_.load(std::memory_order_acquire) != expected_generation) return false;
     if (stop_after == "crash_before_reserve") ::_exit(79);
@@ -525,12 +525,18 @@ class Coordinator {
     }
     if (timings) timings->m4_apply_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - m4_apply_start).count();
+    if (after_m4_apply) after_m4_apply();
     const auto m4_flush_start = std::chrono::steady_clock::now();
     if (!fts_->Flush().ok) return false;
     if (timings) timings->m4_flush_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - m4_flush_start).count();
     if (stop_after == "after_m4") return false;
     if (stop_after == "crash_after_m4") ::_exit(81);
+    // M4 generation rows are append-only and filtered by snapshot generation,
+    // so they can be staged while readers query the prior published generation.
+    // Native vector writes mutate row-count-dependent filter bitmaps: acquire the
+    // exclusive lease before touching that backend and retain it through publish.
+    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     const auto native_upsert_start = std::chrono::steady_clock::now();
     for (size_t at = 0; at < complete_live_snapshot.size(); at += kMaxBatchDocs) {
       const size_t end = std::min(at + kMaxBatchDocs, complete_live_snapshot.size());
@@ -645,6 +651,7 @@ class Coordinator {
     return out;
   }
   bool CompactComponents() {
+    std::lock_guard<std::mutex> writer(commit_mutex_);
     std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     const auto fts_status = fts_->CompactNow();
     if (!fts_status.ok) return false;
@@ -653,12 +660,13 @@ class Coordinator {
   // Research-only in-place generation reclamation. Publication happens first;
   // this method is idempotent and may be retried after a crash. Readers hold
   // generation leases, and the exclusive snapshot lock drains active queries
-  // before either backend mutates old rows.
+  // before either backend mutates old rows. Writer lock is acquired first, as
+  // in Commit, so staging and GC cannot invert the lock order.
   bool CollectBeforeGeneration(uint32_t floor, bool force_compact = false,
                                const std::string& stop_after = {},
                                SharedGcTimings* timings = nullptr) {
-    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     std::lock_guard<std::mutex> writer(commit_mutex_);
+    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     last_gc_generations_examined_ = 0;
     const uint32_t current = generation_.load(std::memory_order_acquire);
     if (floor == 0 || floor > current) return false;
@@ -691,15 +699,10 @@ class Coordinator {
     if (timings) timings->generations_examined = reclaim_generations.size();
     const auto m4_delete_start = std::chrono::steady_clock::now();
     if (!reclaim_generations.empty()) {
-      std::vector<m4::FilterExpr> generation_filters;
-      generation_filters.reserve(reclaim_generations.size());
-      for (const uint32_t generation : reclaim_generations) {
-        generation_filters.push_back(
-            m4::FilterExpr::Uint32Eq("generation", generation));
-      }
       m4::SearchResult old_rows;
       const auto search = fts_->SearchFilter(
-          m4::FilterExpr::Or(std::move(generation_filters)), &old_rows);
+          m4::FilterExpr::Uint32In("generation", reclaim_generations),
+          &old_rows);
       if (!search.ok) {
         std::cerr << "reuse_gc search generations="
                   << reclaim_generations.size()
@@ -882,8 +885,9 @@ class Coordinator {
   std::atomic<uint32_t> generation_{0};
   // Native Zvec queries bind forward-filter row bitmaps to mutable segment row
   // counts. Keep queries out of the interval where vector rows are appended;
-  // Hybrid holds one read lease across both backends. Published generation
-  // rows are append-only, so an old generation remains queryable after unlock.
+  // Hybrid holds one read lease across both backends. M4 rows can be staged
+  // concurrently because unpublished generations are filtered out; published
+  // generation rows remain append-only and queryable after unlock.
   mutable std::shared_mutex snapshot_mutex_;
   std::mutex commit_mutex_;
   size_t last_gc_generations_examined_{0};
@@ -6230,36 +6234,48 @@ int main(int argc, char** argv) {
     std::vector<std::string> old_hybrid_pks;
     for (const auto& hit : old_hybrid) old_hybrid_pks.push_back(hit.pk);
     std::sort(old_hybrid_pks.begin(), old_hybrid_pks.end());
-    std::atomic<bool> vector_staged{false}, release_publish{false};
-    std::atomic<int> readers_attempted{0};
+    std::atomic<bool> m4_staged{false}, release_m4_stage{false};
+    std::atomic<int> readers_attempted{0}, readers_done{0};
     std::array<std::vector<std::string>, 3> pinned_hybrid_pks;
     std::array<std::thread, 3> readers;
     for (size_t i = 0; i < readers.size(); ++i) {
       readers[i] = std::thread([&, i] {
-        while (!vector_staged.load(std::memory_order_acquire)) std::this_thread::yield();
+        while (!m4_staged.load(std::memory_order_acquire)) std::this_thread::yield();
         readers_attempted.fetch_add(1, std::memory_order_release);
         auto hits = coordinator->Hybrid(gen2, base.front().vector, "recovery signal", 100);
         for (const auto& hit : hits) pinned_hybrid_pks[i].push_back(hit.pk);
         std::sort(pinned_hybrid_pks[i].begin(), pinned_hybrid_pks[i].end());
+        readers_done.fetch_add(1, std::memory_order_release);
       });
     }
     std::thread writer([&] {
-      Check(coordinator->Commit(next, gen2, {}, [&] {
-        vector_staged.store(true, std::memory_order_release);
+      Check(coordinator->Commit(next, gen2, {}, {}, {}, nullptr, [&] {
+        m4_staged.store(true, std::memory_order_release);
         while (readers_attempted.load(std::memory_order_acquire) != 3)
           std::this_thread::yield();
-        while (!release_publish.load(std::memory_order_acquire)) std::this_thread::yield();
+        while (!release_m4_stage.load(std::memory_order_acquire))
+          std::this_thread::yield();
       }), "deterministic staged generation publishes");
     });
-    while (readers_attempted.load(std::memory_order_acquire) != 3) std::this_thread::yield();
-    release_publish.store(true, std::memory_order_release);
+    while (readers_attempted.load(std::memory_order_acquire) != 3)
+      std::this_thread::yield();
+    const auto reader_deadline = std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(2);
+    while (readers_done.load(std::memory_order_acquire) != 3 &&
+           std::chrono::steady_clock::now() < reader_deadline)
+      std::this_thread::yield();
+    const bool readers_completed_during_m4_stage =
+        readers_done.load(std::memory_order_acquire) == 3;
+    release_m4_stage.store(true, std::memory_order_release);
     writer.join();
     for (auto& reader : readers) reader.join();
     const uint32_t gen3 = coordinator->generation();
     Check(gen3 == gen2 + 1, "generation advances exactly once after staged publish");
+    Check(readers_completed_during_m4_stage,
+        "hybrid readers complete while unpublished M4 generation is staged");
     for (const auto& pks : pinned_hybrid_pks)
       Check(pks == old_hybrid_pks,
-          "concurrent reader blocked during vector staging sees exact old FTS/vector hybrid after publish");
+          "readers during M4 staging observe the exact prior FTS/vector snapshot");
     const auto new_hybrid = coordinator->Hybrid(gen3, base.front().vector, "recovery signal", 100);
     Check(std::any_of(new_hybrid.begin(), new_hybrid.end(), [](const Hit& h) { return h.pk == "fragment-added"; }) &&
           std::none_of(new_hybrid.begin(), new_hybrid.end(), [](const Hit& h) { return h.pk == "fragment-3"; }),
