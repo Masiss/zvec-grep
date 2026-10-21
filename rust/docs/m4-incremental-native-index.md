@@ -1,8 +1,20 @@
 # M4 — Incremental Native Index Architecture
 
-Status: **S5 structural debt-policy GO for research; M4-P4/P4.1 native A/B PARTIAL; B3.1 research verification COMPLETE (reader-lock attribution shows execution, not lease wait); controlled reader/compaction crossover completed with no consistent material native-vector slowdown; search-execution Phase B/C continues. Research M4 `EvalFilter` now skips Boolean identity constants (strict oracle + sanitizers PASS); the filter-cache-cap branch remains closed at 64 KiB/default-off. Production NOT touched; migration NOT approved.**
+Current status (2026-10-21): **PARTIAL / OPERATION_BLOCKED for native writer-tail investigation. Observer correction verified in `6439ed2`; native launch path NOT ready. Campaign4/4 consumed, zero remaining; one historical native arm launched, zero completed arms/pairs. No native execution during observer repair. Production NOT touched; migration NOT approved.**
 
-Date: 2026-10-18
+### Resume here
+
+1. Read **§58** for the actual native launch/ENOENT abort and **§59** for the bounded observer correction. Earlier sections are historical evidence, not current launch authority.
+2. Verification: **72 distinct tests PASS**, including exit7/SIGTERM/SIGKILL/cleanup; eight relevant synthetic A/A tests rerun on the final pinned controller. Four changed Python files pass direct typecheck. Synthetic PASS does not certify native readiness or current host capacity.
+3. **Engineering blocker:** no independent correctly scoped conservative bound for both allocated and apparent workspace bytes. A complete traversal is not an atomic snapshot; partial known publication races still fail closed without that proof. No quota backend or verified lifetime peak exists.
+4. **Recovery condition:** separately bounded accounting design and focused validation, without raising caps, ignoring ENOENT, rescanning until green or changing native durability. This is remaining work, not authorization to implement host/quota infrastructure.
+5. **Execution boundary:** even after engineering recovery, native requires fresh explicit owner authority. No campaign budget remains; do not launch, retry, poll for admission or request another campaign under the completed observer-repair task.
+
+Evidence: [repair report](../../research/m4-native/results/workspace-observer-repair-20261020/REPORT.md), [RESULTS](../../research/m4-native/results/RESULTS.md), [policy](../../research/m4-native/docs/benchmark-policy.md); exact commands/source hashes in the report's `verification-v3/` and `consumer-final/` receipts. The repair checksum manifest describes commit **`6439ed2`**, including documentation as it stood then; verify at that revision. Later handoff edits do not reclassify raw failures or change ledger/binary provenance.
+
+Architecture baseline (2026-10-18): S5 structural debt-policy GO for research; M4-P4/P4.1 native A/B PARTIAL; B3.1 research verification COMPLETE (reader-lock attribution shows execution, not lease wait); controlled reader/compaction crossover found no consistent material native-vector slowdown. Research `EvalFilter` skips Boolean identity constants (strict oracle + sanitizers PASS); filter-cache-cap remains closed at64KiB/default-off. Earlier search-execution phases are recorded below, not permission for a new run.
+
+Date: 2026-10-21 (handoff); architecture baseline: 2026-10-18
 Prototype: `research/m4-native/` (standalone C++17, not linked into `zvec`)
 Upstream context: `rust/docs/m3.2-incremental-native-index-design.md`,
 `rust/docs/m3.3-feasibility.md`, `docs/base-delta-prototype.md`

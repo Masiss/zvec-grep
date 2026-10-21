@@ -1,4 +1,12 @@
-# M4 incremental index — evidence (2026-10-17)
+# M4 incremental index — evidence (historical series begins 2026-10-17)
+
+## Latest status — 2026-10-21
+
+**PARTIAL / OPERATION_BLOCKED; native writer-tail measurements remain incomplete.** Observer correction is committed in **`6439ed2`** with **72 distinct tests PASS**, final-controller synthetic reruns and four-file direct typecheck PASS. No native execution during this repair; campaign remains **4/4 consumed, zero remaining** (one historical native arm launched, zero completed arms/pairs).
+
+**Native launch path NOT ready:** the observer now reports known races honestly, but there is no independent correctly scoped conservative capacity evidence for both allocated and apparent bytes. Partial observations still fail closed; no verified lifetime workspace peak is available. Remaining recovery is bounded accounting design/validation, not another attempt or a cap relaxation. Fresh explicit authority would also be required for any later native execution.
+
+Start with [the correction report](workspace-observer-repair-20261020/REPORT.md) and [canonical handoff §58–§59](../../../rust/docs/m4-incremental-native-index.md). The detailed chronological entries below remain historical; older GO/next-step statements do not override current readiness or authority. The repair checksum manifest is pinned to **`6439ed2`** and must be checked at that revision when documentation has subsequently changed. Raw receipts, ledger and native binary provenance are unchanged.
 
 This file keeps the historical S2 evidence (streaming compaction via temp
 sections), the S3 slice (direct v2 writes, no temp-section copy), the S4

@@ -2,6 +2,12 @@
 
 **Scope:** standalone research prototype under `research/m4-native/`. This policy does not authorize production integration, migration, deployment, native checkout changes, or any change to the production ABI/schema. The machine-readable values are in adjacent `benchmark-policy.json`; runner code loads that file, and tests verify the enforcement mappings.
 
+## Current readiness and authority — 2026-10-21
+
+Observer correction **`6439ed2`** is verified by focused synthetic/containment checks; it is **not native admission**. The writer-tail campaign remains **4/4 attempts consumed, zero remaining**. Native launch readiness is **PARTIAL / OPERATION_BLOCKED** because no independent correctly scoped upper-bound evidence covers both allocated and apparent workspace bytes during concurrent mutation. Resource thresholds are unchanged; tests do not provide current host capacity or repair this missing proof.
+
+Engineering recovery requires separately bounded accounting design/validation. Native execution would additionally require fresh explicit authority; no new attempt or campaign request is authorized by the completed repair or these docs. See [canonical handoff §58–§59](../../../rust/docs/m4-incremental-native-index.md) and [repair report](../results/workspace-observer-repair-20261020/REPORT.md). Evidence/checksums remain pinned to **`6439ed2`**; later documentation updates do not rewrite the original receipts, ledger or provenance.
+
 ## Workspace observation integrity (observer schema 2)
 
 `workspace_observer` in the JSON controls one bounded, no-follow descriptor traversal per sample: entry/depth/issue/event limits and a cooperative deadline, no retry/rescan. A blocked filesystem syscall is not preempted by that deadline; independent containment remains required. Per-pass inotify/identity checks detect known mutations but are not an independent accounting backend (mmap/writeback, recursive coverage and queue loss remain limitations).

@@ -4,6 +4,20 @@ Status: **research only.** Nothing here is linked into `zvec`, `zg-engine`, the
 daemon, or the production index format. HNSW, the native build, and every
 production schema are untouched.
 
+## Current handoff — 2026-10-21
+
+**Research only; native writer-tail investigation remains PARTIAL / OPERATION_BLOCKED.**
+
+- Observer correction committed as **`6439ed2`**: bounded single-pass observation, explicit race/uncertainty states, no retry/rescan and no partial inventory promoted to a verified peak.
+- **72 distinct tests PASS**; the final A/A controller's eight relevant synthetic tests were rerun on its pinned source. Direct typecheck of four changed Python files PASS. These are software checks, not native measurements or fresh host admission.
+- Campaign budget: **4/4 attempts consumed, zero remaining**. Historical outcome: one actual native arm launched, zero completed arms/pairs. No native execution occurred during observer repair.
+- **Native launch path is NOT ready.** Shared Btrfs has no independently verified, correctly scoped capacity bound for both allocated and apparent bytes. Known publication races therefore still fail closed; inotify, sampled sizes and IO counters are not substitutes for that proof.
+- Recovery requires a separately bounded accounting design and validation. Any later native execution additionally requires fresh explicit authority; this documentation is not permission to run or request another campaign. Production migration remains unapproved.
+
+Read the [canonical handoff](../../rust/docs/m4-incremental-native-index.md), especially **§58** (original abort) and **§59** (observer correction), then the [repair report](results/workspace-observer-repair-20261020/REPORT.md) and [benchmark policy](docs/benchmark-policy.md). Exact test commands/source identities are in `results/workspace-observer-repair-20261020/verification-v3/test-receipt.json` and `consumer-final/test-receipt.json`.
+
+The repair evidence/checksum manifest is pinned to commit `6439ed2`; verify it against that revision, not against subsequently edited documentation. Historical receipts and campaign accounting are not rewritten by this handoff update.
+
 ## Local artifact workspace
 
 Run repository commands from the repository root and use the M4 project-local
