@@ -92,7 +92,7 @@ def main():
                           **{key: main_payload[key][i] for key in array_keys},
                           'post_m4_to_round_end_wall_ms': post_m4[i]})
     with (HERE / 'per-round.csv').open('w', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(per_round[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(per_round[0]), lineterminator='\n')
         writer.writeheader()
         writer.writerows(per_round)
     compacted = [r for r in per_round if r['compacted']]

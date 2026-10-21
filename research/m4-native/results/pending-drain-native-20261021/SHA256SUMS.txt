@@ -1,7 +1,7 @@
 5e38353ec26758cee0272dedea116a3a1c12bcaa49072a797fb4e6ad6acfd01f  research/m4-native/results/pending-drain-native-20261021/REPORT.md
 5e332a3798d9ed02155b46dda9a7f0128168fa0d24def6480b75b393c1a6a945  research/m4-native/results/pending-drain-native-20261021/analysis.json
 a28f9e41afa7bba739e626197033978fbc4b0834911e3ce6969ddf7bf4122534  research/m4-native/results/pending-drain-native-20261021/analysis.log
-cac2655561f9ee1b543cbd50b9a3000ee6f5bf5378e82691cb3151bfc5e6983c  research/m4-native/results/pending-drain-native-20261021/analyze.py
+7ebf4f628d6b4da8841921e2bb409b1122ce0b9c10b7463a0739f59f51770e35  research/m4-native/results/pending-drain-native-20261021/analyze.py
 aeabc41f8b71ff15a0c0cf766cf8dce2642b046e99bf65e606ae122a2451acf6  research/m4-native/results/pending-drain-native-20261021/approved-resource-plan.json
 291a02191164f1773089a91cf3f8a7717c4001edf69b1834a2ad047507396d85  research/m4-native/results/pending-drain-native-20261021/historical-identities.json
 cfc084b6ec169fc9774f046479f7e462c8be0a5afe0066dda470918755ba123f  research/m4-native/results/pending-drain-native-20261021/launch_once.py
@@ -52,11 +52,12 @@ a37fbc169dc3644be0e1aa6cf47cd6d6770ae915f56b948e2f67a4553ed81220  research/m4-na
 3d7f5db5196affddf07e25116dadefb197131cd8d157f0eb8d978302a9046647  research/m4-native/results/pending-drain-native-20261021/native-launch.log
 3098f29a2de2f546d7096b3c707478fe6170297c1f7d34cabda01332a047168b  research/m4-native/results/pending-drain-native-20261021/new-attempt-ledger.json
 3965642bbd3eda74dabe52341fd62c16fe2d75aef67cc67d7c279cecceb196e0  research/m4-native/results/pending-drain-native-20261021/owner-authorization.md
-fa0001e6f23c50510f7595724f7840ae17bf3e7815ad2dd06fb7f873d4fdc8d6  research/m4-native/results/pending-drain-native-20261021/per-round.csv
+42919e6a6df6554cbfd9c3e7570aff20a3b9bb0a25e41474095abbe69d7e310a  research/m4-native/results/pending-drain-native-20261021/per-round.csv
 4c6b95567b39d5bb1f7f2043131b604c6a47e1d7f64497ce095df065ccb8d3a9  research/m4-native/results/pending-drain-native-20261021/rehearse.py
 2a8b7850539d8417bdc17771caebbde0bc925a30b61754a8741cfe242e33bcb7  research/m4-native/results/pending-drain-native-20261021/tests/contention.log
 d03ce458f2a6cd2b4f27522f3aacad03ce1872c028853507c3ad02ca621bdcad  research/m4-native/results/pending-drain-native-20261021/tests/policy-docs.log
 c8f42bbf781241d2b2fdfefb914777bf34004422ad5fe440cde026290927af5b  research/m4-native/results/pending-drain-native-20261021/tests/rehearse.log
 9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  research/m4-native/results/pending-drain-native-20261021/tests/verification.exit
 82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18  research/m4-native/results/pending-drain-native-20261021/typecheck.log
-8a19e136bfc7f16def3d2f11b315159bd5a9e6ce18aa53c2652bab9e52400fc2  research/m4-native/results/pending-drain-native-20261021/verification.json
+1b805ed7874fe27d5cd0231c219bab728bb4ef33436139dcf5b79b411b9f7d02  research/m4-native/results/pending-drain-native-20261021/verification.json
+29d1515473fcba7222ea27e89e987660f937f45862fd610b0e360f4cf946fa61  research/m4-native/results/pending-drain-native-20261021/whitespace-audit.log
