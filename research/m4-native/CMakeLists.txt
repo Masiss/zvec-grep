@@ -216,6 +216,16 @@ if(M4_ZVEC_ROOT)
     BUILD_RPATH "${M4_ZVEC_BUILD_ROOT}/lib"
   )
 
+  add_executable(m4_native_scalar_open_latency_diagnostic
+    tests/native_scalar_open_resource_rehearsal.cc)
+  target_include_directories(m4_native_scalar_open_latency_diagnostic PRIVATE
+    "${M4_ZVEC_ROOT}/src/include"
+  )
+  target_link_libraries(m4_native_scalar_open_latency_diagnostic PRIVATE m4_research)
+  set_target_properties(m4_native_scalar_open_latency_diagnostic PROPERTIES
+    BUILD_RPATH "${M4_ZVEC_BUILD_ROOT}/lib"
+  )
+
   add_executable(m4_bridge_integration tests/m4_bridge_integration.cc)
   target_include_directories(m4_bridge_integration PRIVATE
     "${M4_ZVEC_ROOT}/src/include"

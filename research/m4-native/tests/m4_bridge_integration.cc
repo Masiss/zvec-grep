@@ -457,18 +457,44 @@ struct NativeCallMetric {
 struct BackendLockEvent {
   std::chrono::steady_clock::time_point wait_start{}, acquired{};
 };
+struct SharedGcProgress {
+  uint32_t reclaimed_below{1};
+  uint32_t orphan_reserved_through{0};
+};
+struct SharedCommitTimings {
+  double m4_apply_ms{0};
+  double m4_flush_ms{0};
+  double native_upsert_ms{0};
+  double native_flush_ms{0};
+  double publish_ms{0};
+};
+struct SharedGcTimings {
+  double m4_search_delete_ms{0};
+  double m4_flush_ms{0};
+  double native_delete_ms{0};
+  double native_flush_ms{0};
+  double compaction_ms{0};
+  double checkpoint_ms{0};
+  size_t generations_examined{0};
+};
+bool ReadSharedGcProgress(const fs::path& root, SharedGcProgress* progress,
+                          std::string* error);
+void WriteSharedGcProgress(const fs::path& root,
+                           const SharedGcProgress& progress);
 class Coordinator {
  public:
   Coordinator(fs::path root, zvec_collection_t* vector, m4::Index* fts)
       : root_(std::move(root)), vector_(vector), fts_(fts), generation_(Recover(root_)) {}
   uint32_t generation() const { return generation_.load(std::memory_order_acquire); }
+  size_t last_gc_generations_examined() const { return last_gc_generations_examined_; }
   // A new immutable generation is staged in both stores; the coordinator WAL
   // and atomic manifest are the only visibility point. Old generations remain
   // queryable for readers that pinned their manifest generation.
   bool Commit(const std::vector<Row>& complete_live_snapshot, uint32_t expected_generation,
               const std::string& stop_after = {},
               const std::function<void()>& after_vector_flush = {},
-              const std::function<void()>& after_reserve = {}) {
+              const std::function<void()>& after_reserve = {},
+              SharedCommitTimings* timings = nullptr) {
     std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     std::lock_guard<std::mutex> writer(commit_mutex_);
     if (generation_.load(std::memory_order_acquire) != expected_generation) return false;
@@ -479,6 +505,7 @@ class Coordinator {
     if (stop_after == "crash_after_reserve") ::_exit(80);
     constexpr size_t kMaxBatchDocs = 256;
     constexpr size_t kMaxBatchBytes = 7u << 20;
+    const auto m4_apply_start = std::chrono::steady_clock::now();
     for (size_t at = 0; at < complete_live_snapshot.size();) {
       size_t end = at, bytes = 0;
       std::vector<m4::Mutation> mutations;
@@ -496,9 +523,15 @@ class Coordinator {
       if (!fts_->ApplyBatch(mutations).ok) return false;
       at = end;
     }
+    if (timings) timings->m4_apply_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - m4_apply_start).count();
+    const auto m4_flush_start = std::chrono::steady_clock::now();
     if (!fts_->Flush().ok) return false;
+    if (timings) timings->m4_flush_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - m4_flush_start).count();
     if (stop_after == "after_m4") return false;
     if (stop_after == "crash_after_m4") ::_exit(81);
+    const auto native_upsert_start = std::chrono::steady_clock::now();
     for (size_t at = 0; at < complete_live_snapshot.size(); at += kMaxBatchDocs) {
       const size_t end = std::min(at + kMaxBatchDocs, complete_live_snapshot.size());
       std::vector<zvec_doc_t*> docs; docs.reserve(end - at);
@@ -512,7 +545,12 @@ class Coordinator {
       for (auto* doc : docs) zvec_doc_destroy(doc);
       if (!ok) return false;
     }
+    if (timings) timings->native_upsert_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - native_upsert_start).count();
+    const auto native_flush_start = std::chrono::steady_clock::now();
     if (zvec_collection_flush(vector_) != ZVEC_OK) return false;
+    if (timings) timings->native_flush_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - native_flush_start).count();
     if (std::getenv("M4_BRIDGE_TRACE"))
       std::cerr << "BRIDGE vector_staged generation=" << next << " rows="
                 << complete_live_snapshot.size() << " native_doc_count="
@@ -520,10 +558,13 @@ class Coordinator {
     if (after_vector_flush) after_vector_flush();
     if (stop_after == "after_vector") return false;
     if (stop_after == "crash_after_vector") ::_exit(82);
+    const auto publish_start = std::chrono::steady_clock::now();
     AppendSync(root_, "P " + std::to_string(next));
     if (stop_after == "after_publish_wal") return false;
     if (stop_after == "crash_after_publish_wal") ::_exit(83);
     AtomicManifest(root_, next);
+    if (timings) timings->publish_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - publish_start).count();
     generation_.store(next, std::memory_order_release);
     if (std::getenv("M4_BRIDGE_TRACE"))
       std::cerr << "BRIDGE publish generation=" << next << " owner=manifest+atomic\n";
@@ -614,22 +655,41 @@ class Coordinator {
   // generation leases, and the exclusive snapshot lock drains active queries
   // before either backend mutates old rows.
   bool CollectBeforeGeneration(uint32_t floor, bool force_compact = false,
-                               const std::string& stop_after = {}) {
+                               const std::string& stop_after = {},
+                               SharedGcTimings* timings = nullptr) {
     std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     std::lock_guard<std::mutex> writer(commit_mutex_);
+    last_gc_generations_examined_ = 0;
     const uint32_t current = generation_.load(std::memory_order_acquire);
     if (floor == 0 || floor > current) return false;
 
-    // Reclaim both unpinned published generations and reserved-but-unpublished
-    // generations left by a crash or failed commit. The snapshot and writer
-    // locks exclude in-flight publications while the WAL high-water is read.
+    SharedGcProgress progress;
+    std::string progress_error;
+    if (!ReadSharedGcProgress(root_, &progress, &progress_error)) {
+      std::cerr << "reuse_gc progress read error=" << progress_error << '\n';
+      return false;
+    }
+    if (progress.reclaimed_below > floor) {
+      std::cerr << "reuse_gc floor moved behind durable GC checkpoint\n";
+      return false;
+    }
+
+    // Reclaim only work newer than the durable cursors. Published generations
+    // below the oldest reader lease are a contiguous prefix; orphan reservations
+    // are above the published generation and never reused. Persist cursors only
+    // after both stores and any required compaction are durable.
     std::vector<uint32_t> reclaim_generations;
-    for (uint64_t generation = 1; generation < floor; ++generation)
+    for (uint64_t generation = progress.reclaimed_below; generation < floor; ++generation)
       reclaim_generations.push_back(static_cast<uint32_t>(generation));
     const uint32_t highest_reserved = NextGeneration(root_) - 1;
-    for (uint64_t generation = static_cast<uint64_t>(current) + 1;
-         generation <= highest_reserved; ++generation)
+    const uint64_t orphan_start = std::max(
+        static_cast<uint64_t>(current) + 1,
+        static_cast<uint64_t>(progress.orphan_reserved_through) + 1);
+    for (uint64_t generation = orphan_start; generation <= highest_reserved; ++generation)
       reclaim_generations.push_back(static_cast<uint32_t>(generation));
+    last_gc_generations_examined_ = reclaim_generations.size();
+    if (timings) timings->generations_examined = reclaim_generations.size();
+    const auto m4_delete_start = std::chrono::steady_clock::now();
     for (const uint32_t generation : reclaim_generations) {
       m4::SearchResult old_rows;
       const auto search = fts_->SearchFilter(m4::FilterExpr::Uint32Eq(
@@ -648,7 +708,12 @@ class Coordinator {
         }
       }
     }
+    if (timings) timings->m4_search_delete_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - m4_delete_start).count();
+    const auto m4_flush_start = std::chrono::steady_clock::now();
     const auto m4_flush = fts_->Flush();
+    if (timings) timings->m4_flush_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - m4_flush_start).count();
     if (!m4_flush.ok) {
       std::cerr << "reuse_gc M4 flush error=" << m4_flush.message << '\n';
       return false;
@@ -659,6 +724,7 @@ class Coordinator {
     // The pinned native delete_by_filter implementation rejects range scans
     // here with Arrow ExecBatch::ToRecordBatch schema mismatch; equality is
     // covered by the native API tests and is idempotent across recovery.
+    const auto native_delete_start = std::chrono::steady_clock::now();
     for (const uint32_t generation : reclaim_generations) {
       const std::string filter = "generation = " + std::to_string(generation);
       const auto vector_delete = zvec_collection_delete_by_filter(vector_, filter.c_str());
@@ -671,7 +737,12 @@ class Coordinator {
         return false;
       }
     }
+    if (timings) timings->native_delete_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - native_delete_start).count();
+    const auto native_flush_start = std::chrono::steady_clock::now();
     const auto vector_flush = zvec_collection_flush(vector_);
+    if (timings) timings->native_flush_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - native_flush_start).count();
     if (vector_flush != ZVEC_OK) {
       zvec_error_details_t details{};
       (void)zvec_get_last_error_details(&details);
@@ -688,6 +759,7 @@ class Coordinator {
     const bool native_compaction_due = native_before > native_after &&
         (native_after == 0 || native_before / native_after >= 3);
     if (force_compact || m4_compaction_due || native_compaction_due) {
+      const auto compaction_start = std::chrono::steady_clock::now();
       const auto compact = fts_->CompactNow();
       if (!compact.ok) {
         std::cerr << "reuse_gc M4 compact error=" << compact.message << '\n';
@@ -701,6 +773,20 @@ class Coordinator {
                   << " detail=" << (details.message ? details.message : "") << '\n';
         return false;
       }
+      if (timings) timings->compaction_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - compaction_start).count();
+    }
+    progress.reclaimed_below = floor;
+    progress.orphan_reserved_through =
+        std::max(progress.orphan_reserved_through, highest_reserved);
+    const auto checkpoint_start = std::chrono::steady_clock::now();
+    try {
+      WriteSharedGcProgress(root_, progress);
+      if (timings) timings->checkpoint_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - checkpoint_start).count();
+    } catch (const std::exception& error) {
+      std::cerr << "reuse_gc progress write error=" << error.what() << '\n';
+      return false;
     }
     return true;
   }
@@ -779,6 +865,7 @@ class Coordinator {
   // rows are append-only, so an old generation remains queryable after unlock.
   mutable std::shared_mutex snapshot_mutex_;
   std::mutex commit_mutex_;
+  size_t last_gc_generations_examined_{0};
 };
 
 // Process-local epoch leases constrain collection reuse. The owner must refuse
@@ -935,6 +1022,35 @@ void AtomicCheckedState(const fs::path& root, const char* filename,
   DurableWrite(temporary, EncodeCheckedState(magic, values));
   fs::rename(temporary, target);
   SyncDir(root);
+}
+bool ReadSharedGcProgress(const fs::path& root, SharedGcProgress* progress,
+                          std::string* error) {
+  const fs::path path = root / "shared-gc.state";
+  std::error_code ec;
+  const bool exists = fs::exists(path, ec);
+  if (ec) {
+    if (error) *error = "stat shared-gc.state: " + ec.message();
+    return false;
+  }
+  if (!exists) {
+    *progress = {};
+    return true;
+  }
+  std::vector<uint32_t> values;
+  if (!DecodeCheckedState(path, "M4GC", 2, &values) || values.size() != 2 || values[0] == 0) {
+    if (error) *error = "invalid or corrupt shared-gc.state";
+    return false;
+  }
+  progress->reclaimed_below = values[0];
+  progress->orphan_reserved_through = values[1];
+  return true;
+}
+void WriteSharedGcProgress(const fs::path& root,
+                           const SharedGcProgress& progress) {
+  if (progress.reclaimed_below == 0)
+    throw std::invalid_argument("shared GC checkpoint floor must be positive");
+  AtomicCheckedState(root, "shared-gc.state", "M4GC",
+                     {progress.reclaimed_below, progress.orphan_reserved_through});
 }
 void AppendGenerationWal(const fs::path& root, char kind, uint32_t generation) {
   const std::string body = std::string(1, kind) + " " + std::to_string(generation);
@@ -5442,7 +5558,7 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
   if (child < 0) throw std::runtime_error("fork GC crash child");
   if (child == 0) {
     ::execl(executable.c_str(), executable.c_str(), "--reuse-gc-crash-child",
-            root.c_str(), dictionary, static_cast<char*>(nullptr));
+            root.c_str(), dictionary, "crash_after_m4_gc", static_cast<char*>(nullptr));
     ::_exit(127);
   }
   int child_status = 0;
@@ -5464,6 +5580,49 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
   Check(recovered.Hybrid(12, ReusePrototypeRows(12).front().vector,
                          "incremental collection", 16).size() == 8,
         "published generation remains searchable after GC recovery");
+  Check(recovered.CollectBeforeGeneration(12) &&
+            recovered.last_gc_generations_examined() == 0,
+        "durable GC cursor makes repeated no-op collection constant work");
+
+  // A crash after native deletion but before the atomic cursor checkpoint must
+  // replay idempotently rather than skipping data or rescanning old history.
+  Check(recovered.Commit(ReusePrototypeRows(13), 12),
+        "publish generation before post-vector-GC crash");
+  fts.reset();
+  Check(native.Close(), "close native store before post-vector-GC crash");
+  native.value = nullptr;
+  Need(zvec_shutdown(), "shutdown before post-vector-GC crash");
+  const pid_t vector_gc_child = ::fork();
+  if (vector_gc_child < 0) throw std::runtime_error("fork vector-GC crash child");
+  if (vector_gc_child == 0) {
+    ::execl(executable.c_str(), executable.c_str(), "--reuse-gc-crash-child",
+            root.c_str(), dictionary, "crash_after_vector_gc", static_cast<char*>(nullptr));
+    ::_exit(127);
+  }
+  int vector_gc_status = 0;
+  if (::waitpid(vector_gc_child, &vector_gc_status, 0) != vector_gc_child)
+    throw std::runtime_error("wait for vector-GC crash child");
+  Check(WIFEXITED(vector_gc_status) && WEXITSTATUS(vector_gc_status) == 85,
+        "fault injection crashes after vector delete before durable GC cursor");
+  Need(zvec_initialize(nullptr), "reinitialize after vector-GC crash");
+  native = OpenVector(root / "vector", false);
+  const auto post_vector_status = m4::Index::Open((root / "fts").string(), options, &fts);
+  if (!post_vector_status.ok)
+    throw std::runtime_error("reopen M4 after vector-GC crash: " + post_vector_status.message);
+  Coordinator post_vector_recovery(root, native.value, fts.get());
+  Check(post_vector_recovery.generation() == 13,
+        "post-vector-GC recovery preserves the published generation");
+  Check(post_vector_recovery.CollectBeforeGeneration(13) &&
+            post_vector_recovery.last_gc_generations_examined() == 1,
+        "post-vector-GC recovery replays exactly the uncheckpointed generation");
+  Check(post_vector_recovery.CollectBeforeGeneration(13) &&
+            post_vector_recovery.last_gc_generations_examined() == 0,
+        "post-vector-GC replay advances a durable constant-work cursor");
+  Check(NativeDocCount(native.value) == 8 && fts->GetStats().live_docs == 8 &&
+            post_vector_recovery.Hybrid(13, ReusePrototypeRows(13).front().vector,
+                                        "incremental collection", 16).size() == 8,
+        "both stores and search remain coherent after cursor replay");
+  const uint32_t stable_generation = post_vector_recovery.generation();
 
   // Reserved-but-unpublished generations are invisible but still occupy both
   // stores. Recovery GC must reclaim them after each possible pre-publish crash.
@@ -5484,13 +5643,18 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
     const auto status = m4::Index::Open((root / "fts").string(), options, &fts);
     if (!status.ok) throw std::runtime_error("reopen M4 after unpublished crash: " + status.message);
     Coordinator orphan_recovery(root, native.value, fts.get());
-    Check(orphan_recovery.generation() == 12,
+    Check(orphan_recovery.generation() == stable_generation,
           std::string("unpublished generation stays hidden after ") + stage);
     Check(fts->GetStats().live_docs == expected_m4_docs &&
               NativeDocCount(native.value) == expected_native_docs,
           std::string("crash leaves expected recoverable staging rows after ") + stage);
-    Check(orphan_recovery.CollectBeforeGeneration(12),
+    Check(orphan_recovery.CollectBeforeGeneration(stable_generation),
           std::string("reclaim reserved unpublished generation after ") + stage);
+    Check(orphan_recovery.last_gc_generations_examined() == 1,
+          std::string("GC cursor examines only the new orphan after ") + stage);
+    Check(orphan_recovery.CollectBeforeGeneration(stable_generation) &&
+              orphan_recovery.last_gc_generations_examined() == 0,
+          std::string("durable GC cursor avoids rechecking prior orphan after ") + stage);
     Check(fts->GetStats().live_docs == 8 && NativeDocCount(native.value) == 8,
           std::string("reclamation bounds both stores after ") + stage);
   }
@@ -5499,7 +5663,7 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
             << " failures=" << failures.load()
             << " commit_samples=" << commit_ms.size()
             << " gc_samples=" << collect_ms.size()
-            << " current_generation=" << recovered.generation()
+            << " current_generation=" << stable_generation
             << " native_docs=" << NativeDocCount(native.value)
             << " m4_live_docs=" << fts->GetStats().live_docs
             << " architecture=shared_collection+epoch_gc+bounded_backpressure\n";
@@ -5509,7 +5673,292 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
   return failures.load() == 0 ? 0 : 1;
 }
 
+int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
+                                   size_t documents, size_t rounds) {
+  if (documents < 64 || rounds == 0 || (fs::exists(root) && !fs::is_empty(root)))
+    throw std::runtime_error("shared-collection benchmark requires a fresh root, >=64 docs and >=1 round");
+  fs::create_directories(root);
+  // Coordinator::Recover reads the initial generation before the first commit.
+  AtomicManifest(root, 0);
+  Need(zvec_initialize(nullptr), "initialize shared-collection performance arm");
+  auto rows = MakeChurnWorkload(documents);
+  const auto query_vector = rows.front().vector;
+  const size_t topk = std::min<size_t>(50, documents);
+  const uint64_t process_write_start = ProcessWriteBytes();
+  auto start = std::chrono::steady_clock::now();
+  const double native_open_cpu_start = CurrentThreadCpuMs();
+  Native native = OpenVector(root / "vector", true);
+  const double native_open_ms = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - start).count();
+  const double native_open_cpu_ms = CurrentThreadCpuMs() - native_open_cpu_start;
+  m4::Options options;
+  options.fts_field = "text";
+  options.fts_tokenizer_name = "jieba";
+  options.jieba_dict_dir = dictionary;
+  options.fsync_wal = true;
+  std::unique_ptr<m4::Index> fts;
+  start = std::chrono::steady_clock::now();
+  const double m4_open_cpu_start = CurrentThreadCpuMs();
+  const auto open_status = m4::Index::Open((root / "fts").string(), options, &fts);
+  const double m4_open_ms = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - start).count();
+  const double m4_open_cpu_ms = CurrentThreadCpuMs() - m4_open_cpu_start;
+  if (!open_status.ok) throw std::runtime_error("open shared M4 benchmark index: " + open_status.message);
+  Coordinator coordinator(root, native.value, fts.get());
+  EpochPins pins;
+  start = std::chrono::steady_clock::now();
+  const double initial_commit_cpu_start = CurrentThreadCpuMs();
+  if (!coordinator.Commit(rows, 0)) throw std::runtime_error("publish shared-collection base generation");
+  const double initial_commit_ms = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - start).count();
+  const double initial_commit_cpu_ms = CurrentThreadCpuMs() - initial_commit_cpu_start;
+  if (NativeDocCount(native.value) != documents || fts->GetStats().live_docs != documents)
+    throw std::runtime_error("shared-collection base row counts diverged");
+  {
+    GenerationLease warmup(coordinator, pins);
+    if (coordinator.Hybrid(warmup.generation(), query_vector, "request timeout", topk).size() != topk)
+      throw std::runtime_error("shared-collection warmup query was incomplete");
+  }
+
+  std::vector<double> writer_commit_ms, writer_gc_ms, writer_cycle_ms, reader_total_ms,
+      reader_cpu_ms, m4_apply_ms, m4_flush_ms, native_upsert_ms, native_flush_ms,
+      publish_ms, gc_m4_delete_ms, gc_m4_flush_ms, gc_native_delete_ms,
+      gc_native_flush_ms, gc_compaction_ms, gc_checkpoint_ms;
+  std::vector<size_t> mutation_counts, gc_examined;
+  std::vector<double> writer_write_bytes_per_round;
+  std::map<uint32_t, std::set<std::string>> expected_pks;
+  expected_pks.emplace(coordinator.generation(), RowPks(rows));
+  std::mutex sync_mutex;
+  std::condition_variable sync_cv;
+  size_t requested = 0, ready = 0, released = 0, completed = 0;
+  bool stop = false;
+  std::atomic<size_t> coherence_errors{0};
+  std::mutex sample_mutex;
+  std::vector<std::thread> readers;
+  for (size_t reader = 0; reader < 4; ++reader) readers.emplace_back([&] {
+    for (size_t round = 0; round < rounds; ++round) {
+      {
+        std::unique_lock<std::mutex> lock(sync_mutex);
+        sync_cv.wait(lock, [&] { return stop || requested > round; });
+        if (stop) return;
+        ++ready;
+        sync_cv.notify_all();
+        sync_cv.wait(lock, [&] { return stop || released > round; });
+        if (stop) return;
+      }
+      const auto query_start = std::chrono::steady_clock::now();
+      const double query_cpu_start = CurrentThreadCpuMs();
+      GenerationLease lease(coordinator, pins);
+      const uint32_t generation = lease.generation();
+      const auto hits = coordinator.Hybrid(generation, query_vector, "request timeout", topk);
+      const double elapsed_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - query_start).count();
+      const double cpu_ms = CurrentThreadCpuMs() - query_cpu_start;
+      std::set<std::string> seen;
+      bool coherent = hits.size() == topk;
+      {
+        std::lock_guard<std::mutex> lock(sync_mutex);
+        const auto expected = expected_pks.find(generation);
+        coherent = coherent && expected != expected_pks.end();
+        for (const auto& hit : hits) {
+          coherent = coherent && expected != expected_pks.end() &&
+                     expected->second.count(hit.pk) != 0 && seen.insert(hit.pk).second;
+        }
+      }
+      if (!coherent) coherence_errors.fetch_add(1, std::memory_order_relaxed);
+      {
+        std::lock_guard<std::mutex> lock(sample_mutex);
+        reader_total_ms.push_back(elapsed_ms);
+        reader_cpu_ms.push_back(cpu_ms);
+      }
+      {
+        std::lock_guard<std::mutex> lock(sync_mutex);
+        ++completed;
+      }
+      sync_cv.notify_all();
+    }
+  });
+
+  double writer_thread_cpu_ms = 0;
+  for (size_t round = 0; round < rounds; ++round) {
+    std::vector<Row> next_rows;
+    const auto mutations = ChurnBatch(rows, round, &next_rows);
+    const uint32_t expected_generation = coordinator.generation();
+    const uint32_t next_generation = expected_generation + 1;
+    {
+      std::unique_lock<std::mutex> lock(sync_mutex);
+      expected_pks.emplace(next_generation, RowPks(next_rows));
+      requested = round + 1;
+      sync_cv.notify_all();
+      sync_cv.wait(lock, [&] { return ready == (round + 1) * 4 || stop; });
+      if (stop) break;
+    }
+    const double cpu_before = CurrentThreadCpuMs();
+    const uint64_t write_before = ProcessWriteBytes();
+    const auto cycle_start = std::chrono::steady_clock::now();
+    {
+      std::lock_guard<std::mutex> lock(sync_mutex);
+      released = round + 1;
+    }
+    sync_cv.notify_all();
+    SharedCommitTimings commit_timing;
+    const auto commit_start = std::chrono::steady_clock::now();
+    const bool committed = coordinator.Commit(next_rows, expected_generation, {}, {}, {},
+                                               &commit_timing);
+    const double commit_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - commit_start).count();
+    SharedGcTimings gc_timing;
+    bool collected = false;
+    double gc_ms = 0;
+    if (committed) {
+      const auto gc_start = std::chrono::steady_clock::now();
+      collected = coordinator.CollectBeforeGeneration(pins.Oldest(coordinator.generation()),
+                                                        false, {}, &gc_timing);
+      gc_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - gc_start).count();
+    }
+    const double cycle_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - cycle_start).count();
+    writer_thread_cpu_ms += CurrentThreadCpuMs() - cpu_before;
+    if (committed && collected) {
+      writer_commit_ms.push_back(commit_ms);
+      writer_gc_ms.push_back(gc_ms);
+      writer_cycle_ms.push_back(cycle_ms);
+      m4_apply_ms.push_back(commit_timing.m4_apply_ms);
+      m4_flush_ms.push_back(commit_timing.m4_flush_ms);
+      native_upsert_ms.push_back(commit_timing.native_upsert_ms);
+      native_flush_ms.push_back(commit_timing.native_flush_ms);
+      publish_ms.push_back(commit_timing.publish_ms);
+      gc_m4_delete_ms.push_back(gc_timing.m4_search_delete_ms);
+      gc_m4_flush_ms.push_back(gc_timing.m4_flush_ms);
+      gc_native_delete_ms.push_back(gc_timing.native_delete_ms);
+      gc_native_flush_ms.push_back(gc_timing.native_flush_ms);
+      gc_compaction_ms.push_back(gc_timing.compaction_ms);
+      gc_checkpoint_ms.push_back(gc_timing.checkpoint_ms);
+      mutation_counts.push_back(mutations.size());
+      gc_examined.push_back(gc_timing.generations_examined);
+      writer_write_bytes_per_round.push_back(static_cast<double>(ProcessWriteBytes() - write_before));
+    }
+    {
+      std::unique_lock<std::mutex> lock(sync_mutex);
+      sync_cv.wait(lock, [&] { return completed == (round + 1) * 4; });
+    }
+    if (!committed || !collected) {
+      std::lock_guard<std::mutex> lock(sync_mutex);
+      stop = true;
+      sync_cv.notify_all();
+      break;
+    }
+    rows = std::move(next_rows);
+    if (NativeDocCount(native.value) != documents || fts->GetStats().live_docs != documents) {
+      coherence_errors.fetch_add(1, std::memory_order_relaxed);
+      std::lock_guard<std::mutex> lock(sync_mutex);
+      stop = true;
+      sync_cv.notify_all();
+      break;
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(sync_mutex);
+    stop = true;
+  }
+  sync_cv.notify_all();
+  for (auto& reader : readers) reader.join();
+
+  const auto final_generation = coordinator.generation();
+  GenerationLease final_lease(coordinator, pins);
+  const auto final_hits = coordinator.Hybrid(final_lease.generation(), query_vector,
+                                              "request timeout", topk);
+  if (final_generation != final_lease.generation() || final_hits.size() != topk ||
+      NativeDocCount(native.value) != documents || fts->GetStats().live_docs != documents)
+    coherence_errors.fetch_add(1, std::memory_order_relaxed);
+  final_lease.Reset();
+  const size_t failures = coherence_errors.load(std::memory_order_relaxed) +
+      (writer_cycle_ms.size() == rounds && reader_total_ms.size() == rounds * 4 ? 0 : 1);
+  const uint64_t process_write_bytes = ProcessWriteBytes() - process_write_start;
+  const uint64_t root_bytes = DirectoryBytes(root);
+  const auto fts_stats = fts->GetStats();
+  std::cout << std::fixed << std::setprecision(3)
+            << "{\"mode\":\"shared_collection\",\"documents\":" << documents
+            << ",\"rounds\":" << rounds << ",\"completed_rounds\":" << writer_cycle_ms.size()
+            << ",\"generation\":" << final_generation
+            << ",\"native_open_ms\":" << native_open_ms
+            << ",\"native_open_cpu_ms\":" << native_open_cpu_ms
+            << ",\"m4_open_ms\":" << m4_open_ms
+            << ",\"m4_open_cpu_ms\":" << m4_open_cpu_ms
+            << ",\"initial_commit_ms\":" << initial_commit_ms
+            << ",\"initial_commit_cpu_ms\":" << initial_commit_cpu_ms
+            << ",\"writer_cycle_p50_ms\":" << PercentileMs(writer_cycle_ms, .50)
+            << ",\"writer_cycle_p95_ms\":" << PercentileMs(writer_cycle_ms, .95)
+            << ",\"writer_cycle_p99_ms\":" << PercentileMs(writer_cycle_ms, .99)
+            << ",\"writer_cycle_max_ms\":" << PercentileMs(writer_cycle_ms, 1.0)
+            << ",\"reader_total_p50_ms\":" << PercentileMs(reader_total_ms, .50)
+            << ",\"reader_total_p95_ms\":" << PercentileMs(reader_total_ms, .95)
+            << ",\"reader_total_p99_ms\":" << PercentileMs(reader_total_ms, .99)
+            << ",\"reader_total_max_ms\":" << PercentileMs(reader_total_ms, 1.0)
+            << ",\"reader_thread_cpu_p50_ms\":" << PercentileMs(reader_cpu_ms, .50)
+            << ",\"reader_thread_cpu_p95_ms\":" << PercentileMs(reader_cpu_ms, .95)
+            << ",\"writer_thread_cpu_ms\":" << writer_thread_cpu_ms
+            << ",\"process_write_bytes\":" << process_write_bytes
+            << ",\"root_bytes\":" << root_bytes
+            << ",\"native_live_docs\":" << NativeDocCount(native.value)
+            << ",\"m4_live_docs\":" << fts_stats.live_docs
+            << ",\"m4_dead_docs\":" << fts_stats.dead_docs
+            << ",\"coherence_errors\":" << coherence_errors.load()
+            << ",\"failures\":" << failures;
+  auto write_samples = [](const char* name, const std::vector<double>& values) {
+    std::cout << ",\"" << name << "\":[";
+    for (size_t i = 0; i < values.size(); ++i) {
+      if (i) std::cout << ',';
+      std::cout << values[i];
+    }
+    std::cout << ']';
+  };
+  auto write_counts = [](const char* name, const std::vector<size_t>& values) {
+    std::cout << ",\"" << name << "\":[";
+    for (size_t i = 0; i < values.size(); ++i) {
+      if (i) std::cout << ',';
+      std::cout << values[i];
+    }
+    std::cout << ']';
+  };
+  write_samples("writer_commit_ms", writer_commit_ms);
+  write_samples("writer_gc_ms", writer_gc_ms);
+  write_samples("writer_cycle_ms", writer_cycle_ms);
+  write_samples("writer_write_bytes_per_round", writer_write_bytes_per_round);
+  write_samples("reader_total_ms", reader_total_ms);
+  write_samples("reader_thread_cpu_ms", reader_cpu_ms);
+  write_samples("m4_apply_ms", m4_apply_ms);
+  write_samples("m4_flush_ms", m4_flush_ms);
+  write_samples("native_upsert_ms", native_upsert_ms);
+  write_samples("native_flush_ms", native_flush_ms);
+  write_samples("publish_ms", publish_ms);
+  write_samples("gc_m4_search_delete_ms", gc_m4_delete_ms);
+  write_samples("gc_m4_flush_ms", gc_m4_flush_ms);
+  write_samples("gc_native_delete_ms", gc_native_delete_ms);
+  write_samples("gc_native_flush_ms", gc_native_flush_ms);
+  write_samples("gc_compaction_ms", gc_compaction_ms);
+  write_samples("gc_checkpoint_ms", gc_checkpoint_ms);
+  write_counts("logical_mutations_per_round", mutation_counts);
+  write_counts("gc_generations_examined", gc_examined);
+  std::cout << "}\n";
+  fts.reset();
+  if (!native.Close()) throw std::runtime_error("close shared-collection performance native store");
+  Need(zvec_shutdown(), "shutdown shared-collection performance arm");
+  return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
+  if (argc == 6 && std::string(argv[3]) == "--shared-collection-performance") {
+    try {
+      return RunSharedCollectionPerformance(argv[1], argv[2], std::stoull(argv[4]),
+                                            std::stoull(argv[5]));
+    } catch (const std::exception& error) {
+      std::cerr << "SHARED COLLECTION PERFORMANCE: " << error.what() << '\n';
+      (void)zvec_shutdown();
+      return 14;
+    }
+  }
   if (argc == 4 && std::string(argv[1]) == "--shared-collection-reuse-prototype") {
     try {
       return RunSharedCollectionReusePrototype(argv[2], fs::absolute(argv[0]).string(), argv[3]);
@@ -5519,7 +5968,7 @@ int main(int argc, char** argv) {
       return 3;
     }
   }
-  if (argc == 4 && std::string(argv[1]) == "--reuse-gc-crash-child") {
+  if (argc == 5 && std::string(argv[1]) == "--reuse-gc-crash-child") {
     try {
       Need(zvec_initialize(nullptr), "initialize GC crash child");
       const fs::path root(argv[2]);
@@ -5533,8 +5982,7 @@ int main(int argc, char** argv) {
       const auto status = m4::Index::Open((root / "fts").string(), options, &fts);
       if (!status.ok) throw std::runtime_error("open M4 in GC crash child: " + status.message);
       Coordinator coordinator(root, native.value, fts.get());
-      coordinator.CollectBeforeGeneration(coordinator.generation(), false,
-                                          "crash_after_m4_gc");
+      coordinator.CollectBeforeGeneration(coordinator.generation(), false, argv[4]);
       return 86;
     } catch (...) {
       (void)zvec_shutdown();
@@ -5681,7 +6129,7 @@ int main(int argc, char** argv) {
     catch (const std::exception& e) { std::cerr << "CHILD: " << e.what() << '\n'; return 91; }
   }
   if (argc != 3) {
-    std::cerr << "usage: m4_bridge_integration <fresh-root> <jieba-dict-dir> [--perf|--generation-lifecycle|--lock-sustained docs rounds|--generation-sustained docs rounds|--delta-vector-sustained docs rounds|--reader-compaction-crossover|--reader-search-diagnostics|--reader-search-control|--reader-search-counters|--reader-search-timing|--incremental-fts-candidate|--incremental-fts-sustained docs rounds|--incremental-fts-sustained-no-analyzer-cache docs rounds|--incremental-fts-sustained-cached-fingerprint docs rounds|--native-vector-reference docs rounds|--native-hnsw-counter-fixture docs queries|--native-counter-coverage-fixture|--native-route-cost-model-fixture docs queries]\n";
+    std::cerr << "usage: m4_bridge_integration <fresh-root> <jieba-dict-dir> [--perf|--generation-lifecycle|--lock-sustained docs rounds|--generation-sustained docs rounds|--delta-vector-sustained docs rounds|--shared-collection-performance docs rounds|--reader-compaction-crossover|--reader-search-diagnostics|--reader-search-control|--incremental-fts-candidate|--incremental-fts-sustained docs rounds|--incremental-fts-sustained-no-analyzer-cache docs rounds|--incremental-fts-sustained-cached-fingerprint docs rounds|--native-vector-reference docs rounds|--native-hnsw-counter-fixture docs queries|--native-counter-coverage-fixture|--native-route-cost-model-fixture docs queries]\n";
     return 2;
   }
   const fs::path root(argv[1]); fs::create_directories(root);

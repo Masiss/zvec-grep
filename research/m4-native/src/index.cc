@@ -1,0 +1,3814 @@
+// M4 research prototype implementation.
+//
+// Design summary:
+//   * One shared document/version catalog drives FTS and scalar INVERT.
+//   * Writes append to a bounded in-memory delta and a WAL.
+//   * Flush seals an immutable run; deletes only add tombstones.
+//   * Tiered leveling bounds run count and therefore query fan-out.
+//   * Compaction rewrites only live rows and drops tombstones.
+//   * FTS block metadata stores raw max_tf/min_dl; BM25 bounds are computed at
+//     query time from current global live stats (no stale IDF in the format).
+
+#include "m4/index.h"
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <cctype>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <future>
+#include <iterator>
+#include <limits>
+#include <map>
+#include <mutex>
+#include <memory>
+#include <optional>
+#include <queue>
+#include <set>
+#include <string>
+#include <unordered_set>
+
+#include "../include/m4/index.h"
+#include "format.h"
+#include "tokenizer.h"
+#include "util.h"
+
+#ifdef M4_USE_ZVEC_NATIVE_TOKENIZER
+#include "db/index/column/fts_column/tokenizer/jieba_tokenizer.h"
+#include "db/index/column/fts_column/tokenizer/token_filter.h"
+#endif
+
+namespace m4 {
+
+struct Analyzer::Impl {
+  bool initialized{false};
+  bool use_jieba{false};
+  std::string dictionary_snapshot_dir;
+#ifdef M4_USE_ZVEC_NATIVE_TOKENIZER
+  zvec::fts::JiebaTokenizer jieba;
+  zvec::fts::LowercaseTokenFilter lowercase;
+#endif
+  ~Impl() {
+    if (!dictionary_snapshot_dir.empty()) {
+      std::error_code error;
+      std::filesystem::remove_all(dictionary_snapshot_dir, error);
+    }
+  }
+};
+
+struct Analyzer::CacheRegistry {
+  struct FlightResult {
+    std::shared_ptr<Impl> impl;
+    Status status;
+  };
+  std::mutex mutex;
+  std::unordered_map<std::string, std::weak_ptr<Impl>> entries;
+  std::unordered_map<std::string, std::shared_future<FlightResult>> in_flight;
+  std::atomic<uint64_t> lookups{0};
+  std::atomic<uint64_t> lookup_hits{0};
+  std::atomic<uint64_t> lookup_misses{0};
+  std::atomic<uint64_t> expired_weak_entries{0};
+  std::atomic<uint64_t> initialization_attempts{0};
+  std::atomic<uint64_t> successful_initializations{0};
+  std::atomic<uint64_t> late_race_reuses{0};
+  std::atomic<uint64_t> cache_waits{0};
+  std::atomic<uint64_t> cache_wait_reuses{0};
+  std::atomic<uint64_t> cache_bypasses{0};
+  std::function<void()> after_cache_miss_hook;
+  std::function<void(const std::string&)> before_native_initialization_hook;
+  std::function<void()> after_initialization_hook;
+};
+
+Analyzer::CacheRegistry& Analyzer::Registry() {
+  static CacheRegistry registry;
+  return registry;
+}
+
+Analyzer::Analyzer() : impl_(std::make_shared<Impl>()) {}
+Analyzer::~Analyzer() = default;
+
+AnalyzerCacheStats Analyzer::CacheStats() {
+  auto& registry = Registry();
+  return AnalyzerCacheStats{
+      registry.lookups.load(),
+      registry.lookup_hits.load(),
+      registry.lookup_misses.load(),
+      registry.expired_weak_entries.load(),
+      registry.initialization_attempts.load(),
+      registry.successful_initializations.load(),
+      registry.late_race_reuses.load(),
+      registry.cache_waits.load(),
+      registry.cache_wait_reuses.load(),
+      registry.cache_bypasses.load()};
+}
+
+namespace analyzer_test {
+void SetAfterCacheMissHook(std::function<void()> hook) {
+  auto& registry = Analyzer::Registry();
+  std::lock_guard<std::mutex> lock(registry.mutex);
+  registry.after_cache_miss_hook = std::move(hook);
+}
+
+void SetBeforeNativeInitializationHook(
+    std::function<void(const std::string&)> hook) {
+  auto& registry = Analyzer::Registry();
+  std::lock_guard<std::mutex> lock(registry.mutex);
+  registry.before_native_initialization_hook = std::move(hook);
+}
+
+void SetAfterInitializationHook(std::function<void()> hook) {
+  auto& registry = Analyzer::Registry();
+  std::lock_guard<std::mutex> lock(registry.mutex);
+  registry.after_initialization_hook = std::move(hook);
+}
+}  // namespace analyzer_test
+
+Status Analyzer::Init(
+    const std::string& tokenizer_name, const std::string& jieba_dict_dir,
+    const std::string& cache_identity, bool* cache_hit,
+    AnalyzerInitDiagnostics* diagnostics,
+    const std::vector<AnalyzerDictionaryFileSnapshot>* dictionary_snapshot) {
+  (void)dictionary_snapshot;
+  if (cache_hit) *cache_hit = false;
+  if (diagnostics) *diagnostics = AnalyzerInitDiagnostics{};
+  auto& registry = Registry();
+  std::function<void()> after_miss_hook;
+  std::shared_ptr<std::promise<CacheRegistry::FlightResult>> leader_promise;
+  std::shared_future<CacheRegistry::FlightResult> wait_future;
+  std::string cache_key;
+  bool cache_enabled = !cache_identity.empty();
+  bool flight_owner = false;
+  if (cache_enabled) {
+    // The fingerprint is content-addressed by Index::Open; include the
+    // tokenizer selector as a second guard against accidental cross-config
+    // reuse by internal callers.
+    cache_key = tokenizer_name;
+    cache_key.push_back('\0');
+    cache_key += cache_identity;
+    std::lock_guard<std::mutex> lock(registry.mutex);
+    registry.lookups.fetch_add(1);
+    if (diagnostics) diagnostics->cache_lookup = true;
+    const auto found = registry.entries.find(cache_key);
+    if (found != registry.entries.end()) {
+      if (auto shared = found->second.lock()) {
+        impl_ = std::move(shared);
+        registry.lookup_hits.fetch_add(1);
+        if (cache_hit) *cache_hit = true;
+        if (diagnostics) diagnostics->initial_cache_hit = true;
+        return Status::OK();
+      }
+      registry.expired_weak_entries.fetch_add(1);
+      if (diagnostics) diagnostics->expired_weak_entry = true;
+      registry.entries.erase(found);
+    }
+    registry.lookup_misses.fetch_add(1);
+    if (diagnostics) diagnostics->cache_miss = true;
+    const auto flight = registry.in_flight.find(cache_key);
+    if (flight != registry.in_flight.end()) {
+      wait_future = flight->second;
+      registry.cache_waits.fetch_add(1);
+      if (diagnostics) diagnostics->cache_waited = true;
+    } else {
+      after_miss_hook = registry.after_cache_miss_hook;
+      leader_promise = std::make_shared<std::promise<CacheRegistry::FlightResult>>();
+      wait_future = leader_promise->get_future().share();
+      registry.in_flight.emplace(cache_key, wait_future);
+      flight_owner = true;
+    }
+  } else {
+    registry.cache_bypasses.fetch_add(1);
+  }
+  if (cache_enabled && !flight_owner) {
+    const CacheRegistry::FlightResult result = wait_future.get();
+    if (!result.status.ok) return result.status;
+    impl_ = result.impl;
+    registry.cache_wait_reuses.fetch_add(1);
+    if (cache_hit) *cache_hit = true;
+    if (diagnostics) diagnostics->cache_wait_reuse = true;
+    return Status::OK();
+  }
+  auto complete_flight = [&](Status status) {
+    if (!flight_owner) return;
+    {
+      std::lock_guard<std::mutex> lock(registry.mutex);
+      registry.in_flight.erase(cache_key);
+    }
+    CacheRegistry::FlightResult result;
+    result.impl = status.ok ? impl_ : nullptr;
+    result.status = std::move(status);
+    leader_promise->set_value(std::move(result));
+    flight_owner = false;
+  };
+  auto fail_initialization = [&](Status status) {
+    complete_flight(status);
+    return status;
+  };
+  auto note_initialization_attempt = [&]() {
+    registry.initialization_attempts.fetch_add(1);
+    if (diagnostics) diagnostics->initialization_attempted = true;
+  };
+  auto note_initialization_success = [&]() {
+    registry.successful_initializations.fetch_add(1);
+    if (diagnostics) diagnostics->initialization_succeeded = true;
+  };
+  auto run_after_init_hook = [&]() {
+    std::function<void()> hook;
+    {
+      std::lock_guard<std::mutex> lock(registry.mutex);
+      hook = registry.after_initialization_hook;
+    }
+    if (hook) hook();
+  };
+  auto publish_initialized = [&]() {
+    note_initialization_success();
+    run_after_init_hook();
+    if (!cache_enabled) return;
+    {
+      std::lock_guard<std::mutex> lock(registry.mutex);
+      auto& entry = registry.entries[cache_key];
+      if (auto shared = entry.lock()) {
+        // Retain a defensive late-race path for internal callers that may
+        // publish without joining the current single-flight entry.
+        impl_ = std::move(shared);
+        registry.late_race_reuses.fetch_add(1);
+        if (cache_hit) *cache_hit = true;
+        if (diagnostics) diagnostics->late_race_reuse = true;
+      } else {
+        entry = impl_;
+      }
+      if (registry.entries.size() > 64) {
+        for (auto it = registry.entries.begin(); it != registry.entries.end();) {
+          if (it->second.expired()) it = registry.entries.erase(it);
+          else ++it;
+        }
+      }
+    }
+    complete_flight(Status::OK());
+  };
+
+  try {
+  if (after_miss_hook) after_miss_hook();
+  impl_ = std::make_shared<Impl>();
+  impl_->initialized = false;
+  impl_->use_jieba = false;
+  if (tokenizer_name == "standard") {
+    note_initialization_attempt();
+    impl_->initialized = true;
+    publish_initialized();
+    return Status::OK();
+  }
+  if (tokenizer_name != "jieba") {
+    return fail_initialization(
+        Status::Error("unsupported M4 FTS tokenizer: " + tokenizer_name));
+  }
+  if (jieba_dict_dir.empty()) {
+    return fail_initialization(Status::Error(
+        "JiebaTokenizer: explicit jieba_dict_dir is required by M4"));
+  }
+#ifndef M4_USE_ZVEC_NATIVE_TOKENIZER
+  return fail_initialization(Status::Error(
+      "JiebaTokenizer requires an M4_ZVEC_ROOT native-source build"));
+#else
+  std::string init_dict_dir = jieba_dict_dir;
+  if (dictionary_snapshot && !dictionary_snapshot->empty()) {
+    const std::string temp_prefix =
+        (std::filesystem::temp_directory_path() / "m4-analyzer-snapshot-XXXXXX").string();
+    std::vector<char> temp_path(temp_prefix.begin(), temp_prefix.end());
+    temp_path.push_back('\0');
+    char* created = ::mkdtemp(temp_path.data());
+    if (!created)
+      return fail_initialization(Status::Error(
+          "JiebaTokenizer could not create immutable dictionary snapshot"));
+    impl_->dictionary_snapshot_dir = created;
+    init_dict_dir = created;
+    for (const auto& file : *dictionary_snapshot) {
+      if (file.filename != "jieba.dict.utf8" && file.filename != "hmm_model.utf8")
+        return fail_initialization(Status::Error(
+            "JiebaTokenizer snapshot contains an unexpected file name"));
+      const auto snapshot_file = std::filesystem::path(init_dict_dir) / file.filename;
+      std::ofstream output(snapshot_file, std::ios::binary | std::ios::trunc);
+      if (!output || !output.write(file.contents.data(),
+                                   static_cast<std::streamsize>(file.contents.size())))
+        return fail_initialization(Status::Error(
+            "JiebaTokenizer could not write immutable dictionary snapshot"));
+      output.close();
+      if (!output)
+        return fail_initialization(Status::Error(
+            "JiebaTokenizer could not close immutable dictionary snapshot"));
+    }
+    if (diagnostics) diagnostics->dictionary_snapshot_used = true;
+    std::function<void(const std::string&)> hook;
+    {
+      std::lock_guard<std::mutex> lock(registry.mutex);
+      hook = registry.before_native_initialization_hook;
+    }
+    if (hook) hook(init_dict_dir);
+  }
+  const std::filesystem::path dict_dir(init_dict_dir);
+  for (const char* filename : {"jieba.dict.utf8", "hmm_model.utf8"}) {
+    const auto path = dict_dir / filename;
+    std::error_code error;
+    const bool regular_file = std::filesystem::is_regular_file(path, error);
+    const auto size = regular_file ? std::filesystem::file_size(path, error) : 0;
+    std::ifstream readable(path, std::ios::binary);
+    if (error || !regular_file || size == 0 || !readable) {
+      return fail_initialization(Status::Error(
+          "JiebaTokenizer init failed: required dictionary file is missing, "
+          "empty, or unreadable: " + path.string()));
+    }
+  }
+  zvec::ailego::JsonObject config;
+  config.set(zvec::ailego::JsonString("jieba_dict_dir"),
+             zvec::ailego::JsonValue(init_dict_dir));
+  note_initialization_attempt();
+  const auto status = impl_->jieba.init(config);
+  if (!status.ok()) return fail_initialization(Status::Error(status.message()));
+  impl_->use_jieba = true;
+  impl_->initialized = true;
+  publish_initialized();
+  return Status::OK();
+#endif
+  } catch (const std::exception& error) {
+    return fail_initialization(Status::Error(
+        "M4 analyzer initialization threw: " + std::string(error.what())));
+  } catch (...) {
+    return fail_initialization(Status::Error(
+        "M4 analyzer initialization threw an unknown exception"));
+  }
+}
+
+std::vector<Token> Analyzer::Tokenize(const std::string& text) const {
+  if (!impl_->initialized) return {};
+  if (!impl_->use_jieba) return m4::Tokenize(text);
+#ifdef M4_USE_ZVEC_NATIVE_TOKENIZER
+  const auto native_tokens =
+      impl_->lowercase.filter(impl_->jieba.tokenize(text));
+  std::vector<Token> tokens;
+  tokens.reserve(native_tokens.size());
+  for (const auto& token : native_tokens) {
+    tokens.push_back(Token{token.text, token.position, token.offset});
+  }
+  return tokens;
+#else
+  return {};
+#endif
+}
+
+namespace {
+
+struct FingerprintWork {
+  uint64_t dictionary_bytes{0};
+  uint64_t sha256_calls{0};
+  uint64_t sha256_bytes{0};
+};
+
+Status BuildAnalyzerFingerprint(
+    const Options& options, std::string* out, FingerprintWork* work = nullptr,
+    std::vector<AnalyzerDictionaryFileSnapshot>* dictionary_snapshot = nullptr) {
+  (void)dictionary_snapshot;
+  if (!out) return Status::Error("null analyzer fingerprint output");
+  BufWriter identity;
+  identity.String("m4-analyzer-fingerprint-v1");
+  identity.String(options.fts_tokenizer_name);
+  if (options.fts_tokenizer_name == "standard") {
+    identity.String("builtin-standard-v1;filters=lowercase");
+  } else if (options.fts_tokenizer_name == "jieba") {
+    if (options.jieba_dict_dir.empty()) {
+      return Status::Error("JiebaTokenizer: explicit jieba_dict_dir is required by M4");
+    }
+#ifndef M4_USE_ZVEC_NATIVE_TOKENIZER
+    return Status::Error("JiebaTokenizer requires an M4_ZVEC_ROOT native-source build");
+#else
+    // These are exactly the files loaded by native Jieba's default search
+    // mode. user_dict_path is unset, cut_mode is search, and lowercase is
+    // applied after tokenization; all are part of this canonical config.
+    identity.String("native-jieba-v1;cut_mode=search;user_dict_path=empty;filters=lowercase");
+    const std::filesystem::path dict_dir(options.jieba_dict_dir);
+    for (const char* filename : {"jieba.dict.utf8", "hmm_model.utf8"}) {
+      const auto path = dict_dir / filename;
+      std::error_code ec;
+      if (!std::filesystem::is_regular_file(path, ec) || ec ||
+          std::filesystem::file_size(path, ec) == 0 || ec) {
+        return Status::Error("JiebaTokenizer identity requires a readable non-empty file: " + path.string());
+      }
+      std::ifstream in(path, std::ios::binary);
+      if (!in) return Status::Error("JiebaTokenizer identity cannot read: " + path.string());
+      const std::string contents((std::istreambuf_iterator<char>(in)),
+                                 std::istreambuf_iterator<char>());
+      if (in.bad()) return Status::Error("JiebaTokenizer identity read failed: " + path.string());
+      identity.String(filename);
+      if (work) {
+        work->dictionary_bytes += contents.size();
+        ++work->sha256_calls;
+        work->sha256_bytes += contents.size();
+      }
+      const std::string file_fingerprint = Sha256(contents);
+      if (dictionary_snapshot)
+        dictionary_snapshot->push_back({filename, std::move(contents)});
+      identity.String(file_fingerprint);
+    }
+#endif
+  } else {
+    return Status::Error("unsupported M4 FTS tokenizer: " + options.fts_tokenizer_name);
+  }
+  if (work) {
+    ++work->sha256_calls;
+    work->sha256_bytes += identity.data().size();
+  }
+  *out = Sha256(identity.data());
+  return Status::OK();
+}
+
+
+namespace fs = std::filesystem;
+
+double NowMs() {
+  struct timespec ts {};
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+}
+
+double ThreadCpuMs() {
+  struct timespec ts {};
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+  return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+}
+
+constexpr uint64_t kNoDoc = std::numeric_limits<uint64_t>::max();
+
+// ------------------------------- Manifest --------------------------------
+
+struct RunInfo {
+  uint64_t id{0};
+  uint64_t level{0};
+  uint64_t doc_count{0};
+  uint64_t dead_count{0};
+  uint64_t file_size{0};
+  std::string file;
+};
+
+struct Manifest {
+  std::string analyzer_fingerprint;
+  uint64_t next_doc_id{1};
+  uint64_t wal_seq{0};
+  uint64_t run_id_seq{0};
+  uint64_t stats_epoch{1};
+  uint64_t stats_log_end{0};
+  std::string tombstone_file;
+  std::vector<RunInfo> runs;
+};
+
+std::string ManifestPath(const std::string& dir) {
+  return (fs::path(dir) / "manifest").string();
+}
+
+std::string RunFileName(uint64_t id) {
+  return "run-" + std::to_string(id) + ".seg";
+}
+
+std::string StatsCkptName(uint64_t epoch) {
+  return "stats-" + std::to_string(epoch) + ".ckpt";
+}
+std::string StatsLogName(uint64_t epoch) {
+  return "stats-" + std::to_string(epoch) + ".log";
+}
+
+std::string EncodeManifest(const Manifest& m) {
+  BufWriter body;
+  body.U64(m.next_doc_id);
+  body.U64(m.wal_seq);
+  body.U64(m.run_id_seq);
+  body.U64(m.stats_epoch);
+  body.U64(m.stats_log_end);
+  body.String(m.tombstone_file);
+  body.Varint(m.runs.size());
+  for (const auto& r : m.runs) {
+    body.U64(r.id);
+    body.U64(r.level);
+    body.U64(r.doc_count);
+    body.U64(r.dead_count);
+    body.U64(r.file_size);
+    body.String(r.file);
+  }
+  body.String(m.analyzer_fingerprint);
+  BufWriter out;
+  out.U32(0x4D344D46);  // M4MF
+  out.U32(2);
+  out.Bytes(body.data().data(), body.size());
+  out.U64(Fnv1a(body.data().data(), body.size()));
+  return out.data();
+}
+
+bool DecodeManifest(const std::string& bytes, Manifest* out) {
+  if (bytes.size() < 16) return false;
+  BufReader head(bytes.data(), bytes.size());
+  if (head.U32() != 0x4D344D46) return false;
+  const uint32_t version = head.U32();
+  if (version != 1 && version != 2) return false;
+  const size_t body_size = bytes.size() - 8 - head.offset();
+  if (body_size > bytes.size()) return false;
+  const char* body = bytes.data() + head.offset();
+  uint64_t want = 0;
+  std::memcpy(&want, bytes.data() + bytes.size() - 8, 8);
+  if (Fnv1a(body, body_size) != want) return false;
+  BufReader r(body, body_size);
+  Manifest m;
+  m.next_doc_id = r.U64();
+  m.wal_seq = r.U64();
+  m.run_id_seq = r.U64();
+  m.stats_epoch = r.U64();
+  m.stats_log_end = r.U64();
+  m.tombstone_file = r.String();
+  const uint64_t run_count = r.Varint();
+  if (!r.ok() || run_count > 1000000) return false;
+  for (uint64_t i = 0; i < run_count; ++i) {
+    RunInfo info;
+    info.id = r.U64();
+    info.level = r.U64();
+    info.doc_count = r.U64();
+    info.dead_count = r.U64();
+    info.file_size = r.U64();
+    info.file = r.String();
+    if (!r.ok()) return false;
+    m.runs.push_back(std::move(info));
+  }
+  if (version >= 2) m.analyzer_fingerprint = r.String();
+  if (!r.ok() || !r.eof()) return false;
+  *out = std::move(m);
+  return true;
+}
+
+// ------------------------------- Stats -----------------------------------
+
+struct StatsEvent {
+  enum class Kind : uint8_t { kDf = 0, kDocs = 1, kTokens = 2 };
+  Kind kind{Kind::kDf};
+  std::string term;
+  int64_t delta{0};
+};
+
+struct StatsState {
+  uint64_t live_docs{0};
+  uint64_t live_tokens{0};
+  std::unordered_map<std::string, uint64_t> df;
+};
+
+void EncodeStatsEvent(BufWriter* w, const StatsEvent& e) {
+  w->U8(static_cast<uint8_t>(e.kind));
+  if (e.kind == StatsEvent::Kind::kDf) {
+    w->String(e.term);
+    w->VarintSigned(e.delta);
+  } else {
+    w->VarintSigned(e.delta);
+  }
+}
+
+bool DecodeStatsEvent(BufReader* r, StatsEvent* e) {
+  e->kind = static_cast<StatsEvent::Kind>(r->U8());
+  if (e->kind == StatsEvent::Kind::kDf) {
+    e->term = r->String();
+    e->delta = r->VarintSigned();
+  } else {
+    e->delta = r->VarintSigned();
+  }
+  return r->ok();
+}
+
+void ApplyStatsEvent(StatsState* s, const StatsEvent& e) {
+  switch (e.kind) {
+    case StatsEvent::Kind::kDocs:
+      s->live_docs = static_cast<uint64_t>(
+          static_cast<int64_t>(s->live_docs) + e.delta);
+      break;
+    case StatsEvent::Kind::kTokens:
+      s->live_tokens = static_cast<uint64_t>(
+          static_cast<int64_t>(s->live_tokens) + e.delta);
+      break;
+    case StatsEvent::Kind::kDf: {
+      auto it = s->df.find(e.term);
+      int64_t v = (it == s->df.end() ? 0 : static_cast<int64_t>(it->second)) +
+                  e.delta;
+      if (v <= 0) {
+        if (it != s->df.end()) s->df.erase(it);
+      } else {
+        s->df[e.term] = static_cast<uint64_t>(v);
+      }
+      break;
+    }
+  }
+}
+
+std::string EncodeStatsCkpt(const StatsState& s) {
+  BufWriter w;
+  w.U32(0x4D345354);  // M4ST
+  w.U32(1);
+  w.U64(s.live_docs);
+  w.U64(s.live_tokens);
+  w.Varint(s.df.size());
+  for (const auto& [term, df] : s.df) {
+    w.String(term);
+    w.Varint(df);
+  }
+  w.U64(Fnv1a(w.data().data() + 8, w.size() - 8));
+  return w.data();
+}
+
+bool DecodeStatsCkpt(const std::string& bytes, StatsState* s) {
+  if (bytes.size() < 16) return false;
+  BufReader h(bytes.data(), bytes.size());
+  if (h.U32() != 0x4D345354 || h.U32() != 1) return false;
+  const size_t body_size = bytes.size() - 8 - h.offset();
+  const char* body = bytes.data() + h.offset();
+  uint64_t want = 0;
+  std::memcpy(&want, bytes.data() + bytes.size() - 8, 8);
+  if (Fnv1a(body, body_size) != want) return false;
+  BufReader r(body, body_size);
+  StatsState out;
+  out.live_docs = r.U64();
+  out.live_tokens = r.U64();
+  const uint64_t n = r.Varint();
+  if (!r.ok() || n > 100000000ull) return false;
+  for (uint64_t i = 0; i < n; ++i) {
+    std::string term = r.String();
+    uint64_t df = r.Varint();
+    if (!r.ok()) return false;
+    out.df[term] = df;
+  }
+  if (!r.ok()) return false;
+  *s = std::move(out);
+  return true;
+}
+
+// -------------------------------- WAL ------------------------------------
+
+struct WalRecord {
+  uint64_t seq{0};
+  std::string payload;
+};
+
+class Wal {
+ public:
+  ~Wal() {
+    if (fd_ >= 0) ::close(fd_);
+  }
+
+  Status Open(const std::string& path) {
+    path_ = path;
+    fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_APPEND, 0644);
+    if (fd_ < 0) return Status::Error("open wal: " + path);
+    return Status::OK();
+  }
+
+  Status Append(uint64_t seq, const std::string& payload, bool sync) {
+    if (fd_ < 0) return Status::OK();
+    if (poisoned_) return Status::Error("wal requires reopen after prior I/O failure");
+    if (payload.size() > std::numeric_limits<uint32_t>::max()) {
+      return Status::Error("wal record exceeds format limit");
+    }
+    struct stat before {};
+    if (::fstat(fd_, &before) != 0) {
+      poisoned_ = true;
+      return Status::Error("wal stat before append failed");
+    }
+    BufWriter w;
+    w.U32(0x4D34574C);  // M4WL
+    w.U32(static_cast<uint32_t>(payload.size()));
+    w.U64(seq);
+    w.U32(static_cast<uint32_t>(Fnv1a(payload.data(), payload.size()) & 0xffffffffu));
+    w.Bytes(payload.data(), payload.size());
+    const std::string& rec = w.data();
+    size_t done = 0;
+    while (done < rec.size()) {
+      const ssize_t n = ::write(fd_, rec.data() + done, rec.size() - done);
+      if (n < 0) {
+        if (errno == EINTR) continue;
+        const int saved_errno = errno;
+        if (::ftruncate(fd_, before.st_size) != 0 || (sync && ::fsync(fd_) != 0)) {
+          poisoned_ = true;
+        }
+        return Status::Error("wal write failed: " + std::string(std::strerror(saved_errno)));
+      }
+      if (n == 0) {
+        if (::ftruncate(fd_, before.st_size) != 0 || (sync && ::fsync(fd_) != 0)) {
+          poisoned_ = true;
+        }
+        return Status::Error("wal write made no progress");
+      }
+      done += static_cast<size_t>(n);
+    }
+    if (sync) {
+      if (::fsync(fd_) != 0) {
+        poisoned_ = true;
+        return Status::Error("wal fsync failed: " + std::string(std::strerror(errno)));
+      }
+      ++fsync_count_;
+    }
+    return Status::OK();
+  }
+
+  Status Replay(std::vector<WalRecord>* out) {
+    if (fd_ < 0) return Status::OK();
+    struct stat st {};
+    if (::fstat(fd_, &st) != 0) return Status::Error("wal stat");
+    std::string bytes(static_cast<size_t>(st.st_size), '\0');
+    size_t done = 0;
+    while (done < bytes.size()) {
+      const ssize_t n = ::pread(fd_, bytes.data() + done, bytes.size() - done,
+                                static_cast<off_t>(done));
+      if (n <= 0) break;
+      done += static_cast<size_t>(n);
+    }
+    bytes.resize(done);
+    size_t off = 0;
+    while (off + 20 <= bytes.size()) {
+      BufReader r(bytes.data() + off, bytes.size() - off);
+      if (r.U32() != 0x4D34574C) break;
+      const uint32_t len = r.U32();
+      const uint64_t seq = r.U64();
+      const uint32_t crc = r.U32();
+      if (len > bytes.size() - off - 20) break;
+      const char* payload = bytes.data() + off + 20;
+      if ((Fnv1a(payload, len) & 0xffffffffu) != crc) break;
+      WalRecord rec;
+      rec.seq = seq;
+      rec.payload.assign(payload, len);
+      out->push_back(std::move(rec));
+      off += 20 + len;
+    }
+    if (off != bytes.size()) {
+      // Drop only the invalid/torn suffix, preserving every complete frame.
+      if (::ftruncate(fd_, static_cast<off_t>(off)) != 0 || ::fsync(fd_) != 0) {
+        poisoned_ = true;
+        return Status::Error("cannot repair torn wal suffix");
+      }
+      ++fsync_count_;
+    }
+    return Status::OK();
+  }
+
+  Status Reset() {
+    if (fd_ < 0) return Status::OK();
+    if (::ftruncate(fd_, 0) != 0) return Status::Error("wal truncate");
+    ::lseek(fd_, 0, SEEK_SET);
+    return Status::OK();
+  }
+
+  uint64_t fsync_count() const { return fsync_count_; }
+
+  uint64_t size() const {
+    if (fd_ < 0) return 0;
+    struct stat st {};
+    if (::fstat(fd_, &st) != 0) return 0;
+    return static_cast<uint64_t>(st.st_size);
+  }
+
+ private:
+  std::string path_;
+  int fd_{-1};
+  bool poisoned_{false};
+  uint64_t fsync_count_{0};
+};
+
+// ----------------------------- Manifest I/O ------------------------------
+
+Status AtomicWrite(const std::string& path, const std::string& data) {
+  const std::string tmp = path + ".tmp." + std::to_string(::getpid());
+  const int fd = ::open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd < 0) return Status::Error("open " + tmp + ": " + std::strerror(errno));
+  size_t done = 0;
+  Status s;
+  while (done < data.size()) {
+    const ssize_t n = ::write(fd, data.data() + done, data.size() - done);
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      s = Status::Error("write " + tmp);
+      break;
+    }
+    done += static_cast<size_t>(n);
+  }
+  if (s.ok) ::fsync(fd);
+  ::close(fd);
+  if (!s.ok) {
+    ::unlink(tmp.c_str());
+    return s;
+  }
+  if (::rename(tmp.c_str(), path.c_str()) != 0) {
+    const std::string err = std::strerror(errno);
+    ::unlink(tmp.c_str());
+    return Status::Error("rename manifest: " + err);
+  }
+  return Status::OK();
+}
+
+Status WriteManifest(const std::string& dir, const Manifest& m) {
+  const std::string path = ManifestPath(dir);
+  if (fs::exists(path)) {
+    std::error_code ec;
+    fs::copy_file(path, path + ".bak", fs::copy_options::overwrite_existing, ec);
+  }
+  Status s = AtomicWrite(path, EncodeManifest(m));
+  if (s.ok) {
+    // Make .bak a duplicate of the committed manifest. A later compaction may
+    // delete the old run files, so .bak must never point at a superseded set.
+    std::error_code ec;
+    fs::copy_file(path, path + ".bak", fs::copy_options::overwrite_existing, ec);
+  }
+  return s;
+}
+
+bool ReadManifestFile(const std::string& path, Manifest* out) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in) return false;
+  std::string bytes((std::istreambuf_iterator<char>(in)),
+                    std::istreambuf_iterator<char>());
+  return DecodeManifest(bytes, out);
+}
+
+// ----------------------------- Tombstones --------------------------------
+
+std::string EncodeTombstones(const std::unordered_set<DocId>& set) {
+  std::vector<DocId> ids(set.begin(), set.end());
+  std::sort(ids.begin(), ids.end());
+  BufWriter w;
+  w.U32(0x4D345442);  // M4TB
+  w.U32(1);
+  w.Varint(ids.size());
+  uint64_t prev = 0;
+  for (DocId id : ids) {
+    w.Varint(id - prev);
+    prev = id;
+  }
+  w.U64(Fnv1a(w.data().data() + 8, w.size() - 8));
+  return w.data();
+}
+
+bool DecodeTombstones(const std::string& bytes,
+                      std::unordered_set<DocId>* out) {
+  if (bytes.size() < 16) return false;
+  BufReader h(bytes.data(), bytes.size());
+  if (h.U32() != 0x4D345442 || h.U32() != 1) return false;
+  const size_t body_size = bytes.size() - 8 - h.offset();
+  const char* body = bytes.data() + h.offset();
+  uint64_t want = 0;
+  std::memcpy(&want, bytes.data() + bytes.size() - 8, 8);
+  if (Fnv1a(body, body_size) != want) return false;
+  BufReader r(body, body_size);
+  const uint64_t n = r.Varint();
+  if (!r.ok() || n > 100000000ull) return false;
+  uint64_t prev = 0;
+  for (uint64_t i = 0; i < n; ++i) {
+    prev += r.Varint();
+    out->insert(prev);
+  }
+  return r.ok();
+}
+
+// --------------------------- Posting cursors -----------------------------
+
+class PostingCursor {
+ public:
+  virtual ~PostingCursor() = default;
+  virtual bool valid() const = 0;
+  virtual DocId doc() const = 0;
+  virtual uint32_t tf() const = 0;
+  virtual uint32_t dl() const = 0;
+  virtual const std::vector<uint32_t>& positions() const = 0;
+  virtual float max_score() const = 0;
+  virtual bool Next() = 0;
+  virtual bool Advance(DocId target) = 0;
+};
+
+class SegmentCursor : public PostingCursor {
+ public:
+  SegmentCursor(const SegmentPtr& seg, const TermRef* term, bool decode_positions,
+                double idf, double k1, double b, double avg_dl,
+                QueryDiagnostics* diagnostics = nullptr)
+      : it_(seg, term, decode_positions),
+        idf_(idf),
+        k1_(k1),
+        b_(b),
+        avg_dl_(avg_dl),
+        diagnostics_(diagnostics) {
+    if (diagnostics_ && it_.valid()) ++diagnostics_->postings_scanned;
+  }
+
+  bool valid() const override { return it_.valid(); }
+  DocId doc() const override { return it_.doc(); }
+  uint32_t tf() const override { return it_.tf(); }
+  uint32_t dl() const override { return it_.dl(); }
+  const std::vector<uint32_t>& positions() const override {
+    return it_.positions();
+  }
+  float max_score() const override {
+    return it_.BlockMaxScore(idf_, k1_, b_, avg_dl_);
+  }
+  bool Next() override {
+    if (diagnostics_) ++diagnostics_->cursor_next_calls;
+    const bool ok = it_.Next();
+    if (ok && diagnostics_) ++diagnostics_->postings_scanned;
+    return ok;
+  }
+  bool Advance(DocId target) override {
+    if (diagnostics_) ++diagnostics_->cursor_advance_calls;
+    const DocId before = it_.doc();
+    const bool ok = it_.Advance(target);
+    if (ok && diagnostics_ && it_.doc() != before) {
+      ++diagnostics_->postings_scanned;
+    }
+    return ok;
+  }
+
+ private:
+  SegmentTermIterator it_;
+  double idf_;
+  double k1_;
+  double b_;
+  double avg_dl_;
+  QueryDiagnostics* diagnostics_{nullptr};
+};
+
+class DeltaCursor : public PostingCursor {
+ public:
+  DeltaCursor(const std::vector<BuildPosting>* postings, double idf, double k1,
+              double b, double avg_dl,
+              QueryDiagnostics* diagnostics = nullptr)
+      : postings_(postings),
+        idf_(idf),
+        k1_(k1),
+        b_(b),
+        avg_dl_(avg_dl),
+        diagnostics_(diagnostics) {
+    // A bounded delta is small; one exact bound over its postings is a valid
+    // (if conservative) WAND bound for the whole cursor.
+    max_score_ = 0.0f;
+    if (postings_) {
+      for (const auto& p : *postings_) {
+        const double denom = p.tf + k1_ * (1.0 - b_ + b_ * p.dl / avg_dl_);
+        const float s = denom <= 0.0
+                            ? 0.0f
+                            : static_cast<float>(idf_ * p.tf * (k1_ + 1.0) / denom);
+        max_score_ = std::max(max_score_, s);
+      }
+    }
+    idx_ = 0;
+    if (diagnostics_ && valid()) ++diagnostics_->postings_scanned;
+  }
+
+  bool valid() const override {
+    return postings_ && idx_ < postings_->size();
+  }
+  DocId doc() const override { return (*postings_)[idx_].doc; }
+  uint32_t tf() const override { return (*postings_)[idx_].tf; }
+  uint32_t dl() const override { return (*postings_)[idx_].dl; }
+  const std::vector<uint32_t>& positions() const override {
+    return (*postings_)[idx_].positions;
+  }
+  float max_score() const override { return max_score_; }
+  bool Next() override {
+    if (diagnostics_) ++diagnostics_->cursor_next_calls;
+    if (!valid()) return false;
+    ++idx_;
+    if (valid() && diagnostics_) ++diagnostics_->postings_scanned;
+    return valid();
+  }
+  bool Advance(DocId target) override {
+    if (diagnostics_) ++diagnostics_->cursor_advance_calls;
+    if (!valid()) return false;
+    if (target <= doc()) return true;
+    auto it = std::lower_bound(
+        postings_->begin() + static_cast<std::ptrdiff_t>(idx_),
+        postings_->end(), target,
+        [](const BuildPosting& p, DocId t) { return p.doc < t; });
+    const size_t before = idx_;
+    idx_ = static_cast<size_t>(it - postings_->begin());
+    if (valid() && diagnostics_ && idx_ != before) {
+      ++diagnostics_->postings_scanned;
+    }
+    return valid();
+  }
+
+ private:
+  const std::vector<BuildPosting>* postings_;
+  size_t idx_{0};
+  double idf_;
+  double k1_;
+  double b_;
+  double avg_dl_;
+  float max_score_{0.0f};
+  QueryDiagnostics* diagnostics_{nullptr};
+};
+
+// Union of one term's postings across all runs and the active delta.
+class TermUnionCursor {
+ public:
+  TermUnionCursor(std::string term,
+                  std::vector<std::unique_ptr<PostingCursor>> cursors,
+                  double idf, double k1, double b, double avg_dl,
+                  QueryDiagnostics* diagnostics)
+      : term_(std::move(term)),
+        cursors_(std::move(cursors)),
+        idf_(idf),
+        k1_(k1),
+        b_(b),
+        avg_dl_(avg_dl),
+        diagnostics_(diagnostics) {
+    Refresh();
+  }
+
+  bool valid() const { return valid_; }
+  DocId doc() const { return doc_; }
+  float score() const { return score_; }
+  float max_score() const { return max_score_; }
+  const std::vector<uint32_t>& positions() const { return positions_; }
+  const std::string& term() const { return term_; }
+
+  bool Next() {
+    if (!valid_) return false;
+    const DocId cur = doc_;
+    for (auto& c : cursors_) {
+      if (c->valid() && c->doc() == cur) c->Next();
+    }
+    Refresh();
+    return valid_;
+  }
+
+  bool Advance(DocId target) {
+    if (!valid_) return false;
+    if (target <= doc_) return true;
+    for (auto& c : cursors_) {
+      if (c->valid() && c->doc() < target) c->Advance(target);
+    }
+    Refresh();
+    return valid_;
+  }
+
+ private:
+  void Refresh() {
+    valid_ = false;
+    doc_ = kNoDoc;
+    score_ = 0.0f;
+    max_score_ = 0.0f;
+    positions_.clear();
+    for (auto& c : cursors_) {
+      if (!c->valid()) continue;
+      max_score_ = std::max(max_score_, c->max_score());
+      if (c->doc() < doc_) {
+        doc_ = c->doc();
+        score_ = Bm25(c->tf(), c->dl());
+        positions_ = c->positions();
+      } else if (c->doc() == doc_) {
+        score_ += Bm25(c->tf(), c->dl());
+        positions_.insert(positions_.end(), c->positions().begin(),
+                          c->positions().end());
+      }
+    }
+    if (doc_ != kNoDoc) valid_ = true;
+  }
+
+  float Bm25(uint32_t tf, uint32_t dl) const {
+    if (diagnostics_) ++diagnostics_->score_evaluations;
+    if (avg_dl_ <= 0.0 || tf == 0) return 0.0f;
+    const double denom = tf + k1_ * (1.0 - b_ + b_ * dl / avg_dl_);
+    if (denom <= 0.0) return 0.0f;
+    return static_cast<float>(idf_ * tf * (k1_ + 1.0) / denom);
+  }
+
+  std::string term_;
+  std::vector<std::unique_ptr<PostingCursor>> cursors_;
+  double idf_;
+  double k1_;
+  double b_;
+  double avg_dl_;
+  bool valid_{false};
+  DocId doc_{kNoDoc};
+  float score_{0.0f};
+  float max_score_{0.0f};
+  QueryDiagnostics* diagnostics_{nullptr};
+  std::vector<uint32_t> positions_;
+};
+
+// -------------------------------- Query ----------------------------------
+
+struct ParsedQuery {
+  std::vector<std::string> terms;  // unique, query order
+  std::vector<std::vector<std::string>> phrases;
+  bool and_mode{false};
+};
+
+ParsedQuery ParseQuery(const std::string& query, const Analyzer& analyzer) {
+  ParsedQuery q;
+  std::vector<std::string> words;
+  std::string cur;
+  bool in_quote = false;
+  for (char ch : query) {
+    if (ch == '"') {
+      if (!cur.empty()) {
+        words.push_back(cur);
+        cur.clear();
+      }
+      words.push_back("\"");
+      in_quote = !in_quote;
+      continue;
+    }
+    if (std::isspace(static_cast<unsigned char>(ch))) {
+      if (!cur.empty()) {
+        words.push_back(cur);
+        cur.clear();
+      }
+      continue;
+    }
+    cur.push_back(ch);
+  }
+  (void)in_quote;
+  if (!cur.empty()) words.push_back(cur);
+
+  bool quote_open = false;
+  std::string phrase_text;
+  for (const auto& w : words) {
+    if (w == "\"") {
+      if (quote_open) {
+        std::vector<std::string> phrase;
+        for (const auto& tok : analyzer.Tokenize(phrase_text)) {
+          phrase.push_back(tok.term);
+        }
+        if (!phrase.empty()) {
+          q.phrases.push_back(phrase);
+          for (const auto& term : phrase) q.terms.push_back(term);
+          q.and_mode = true;
+        }
+        phrase_text.clear();
+      }
+      quote_open = !quote_open;
+      continue;
+    }
+    if (quote_open) {
+      if (!phrase_text.empty()) phrase_text.push_back(' ');
+      phrase_text += w;
+      continue;
+    }
+    if (w == "AND" || w == "and") {
+      q.and_mode = true;
+      continue;
+    }
+    if (w == "OR" || w == "or") {
+      q.and_mode = false;
+      continue;
+    }
+    for (const auto& tok : analyzer.Tokenize(w)) q.terms.push_back(tok.term);
+  }
+  // Preserve first occurrence, drop duplicates.
+  std::vector<std::string> uniq;
+  std::unordered_set<std::string> seen;
+  for (auto& t : q.terms) {
+    if (seen.insert(t).second) uniq.push_back(std::move(t));
+  }
+  q.terms = std::move(uniq);
+  return q;
+}
+
+bool PhraseMatches(const std::vector<std::vector<uint32_t>>& positions) {
+  if (positions.empty()) return false;
+  for (size_t i = 1; i < positions.size(); ++i) {
+    if (positions[i].empty()) return false;
+  }
+  // Check whether the first term's positions have a consecutive chain.
+  std::vector<std::unordered_set<uint32_t>> sets;
+  for (const auto& p : positions) sets.emplace_back(p.begin(), p.end());
+  for (uint32_t start : positions[0]) {
+    bool ok = true;
+    for (size_t i = 1; i < sets.size(); ++i) {
+      if (sets[i].count(start + static_cast<uint32_t>(i)) == 0) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
+constexpr size_t kMaxArrayUint32Operands = 32;
+constexpr char kArrayUint32Presence[] = "\0a32p";
+
+std::string EncodeArrayUint32Element(uint32_t value) {
+  std::string encoded("\0a32", 4);
+  encoded.push_back(static_cast<char>(value / 16777216u));
+  encoded.push_back(static_cast<char>((value / 65536u) % 256u));
+  encoded.push_back(static_cast<char>((value / 256u) % 256u));
+  encoded.push_back(static_cast<char>(value % 256u));
+  return encoded;
+}
+
+Document NormalizeDocument(const Document& document) {
+  Document normalized = document;
+  std::map<std::string, std::set<uint32_t>> arrays;
+  for (const auto& array : document.array_uint32_values) {
+    arrays[array.field].insert(array.values.begin(), array.values.end());
+  }
+  normalized.array_uint32_values.clear();
+  for (const auto& [field, values] : arrays) {
+    normalized.values.push_back(
+        ScalarValue{field, std::string(kArrayUint32Presence, 5)});
+    for (uint32_t value : values) {
+      normalized.values.push_back(
+          ScalarValue{field, EncodeArrayUint32Element(value)});
+    }
+  }
+  return normalized;
+}
+
+}  // namespace
+
+FilterExpr FilterExpr::All() { return {}; }
+FilterExpr FilterExpr::None() {
+  FilterExpr expr;
+  expr.op = FilterKind::NONE;
+  return expr;
+}
+FilterExpr FilterExpr::StringEq(std::string field, std::string value) {
+  FilterExpr expr;
+  expr.op = FilterKind::STRING_EQ;
+  expr.field = std::move(field);
+  expr.string_value = std::move(value);
+  return expr;
+}
+FilterExpr FilterExpr::StringPrefix(std::string field, std::string value) {
+  FilterExpr expr;
+  expr.op = FilterKind::STRING_PREFIX;
+  expr.field = std::move(field);
+  expr.string_value = std::move(value);
+  return expr;
+}
+FilterExpr FilterExpr::StringSuffix(std::string field, std::string value) {
+  FilterExpr expr;
+  expr.op = FilterKind::STRING_SUFFIX;
+  expr.field = std::move(field);
+  expr.string_value = std::move(value);
+  return expr;
+}
+FilterExpr FilterExpr::Uint32Eq(std::string field, uint32_t value) {
+  FilterExpr expr;
+  expr.op = FilterKind::UINT32_EQ;
+  expr.field = std::move(field);
+  expr.uint32_value = value;
+  return expr;
+}
+FilterExpr FilterExpr::Uint32In(std::string field,
+                                std::vector<uint32_t> values) {
+  FilterExpr expr;
+  expr.op = FilterKind::UINT32_IN;
+  expr.field = std::move(field);
+  expr.uint32_values = std::move(values);
+  return expr;
+}
+FilterExpr FilterExpr::ArrayContainsAny(std::string field,
+                                        std::vector<uint32_t> values) {
+  FilterExpr expr;
+  expr.op = FilterKind::ARRAY_UINT32_CONTAINS_ANY;
+  expr.field = std::move(field);
+  expr.uint32_values = std::move(values);
+  return expr;
+}
+FilterExpr FilterExpr::ArrayNotContainsAny(
+    std::string field, std::vector<uint32_t> values) {
+  FilterExpr expr;
+  expr.op = FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY;
+  expr.field = std::move(field);
+  expr.uint32_values = std::move(values);
+  return expr;
+}
+FilterExpr FilterExpr::And(std::vector<FilterExpr> children) {
+  FilterExpr expr;
+  expr.op = FilterKind::AND;
+  expr.children = std::move(children);
+  return expr;
+}
+FilterExpr FilterExpr::Or(std::vector<FilterExpr> children) {
+  FilterExpr expr;
+  expr.op = FilterKind::OR;
+  expr.children = std::move(children);
+  return expr;
+}
+FilterExpr FilterExpr::Not(FilterExpr child) {
+  FilterExpr expr;
+  expr.op = FilterKind::NOT;
+  expr.children.push_back(std::move(child));
+  return expr;
+}
+
+ScalarValue ScalarValue::Unsigned32(std::string field, uint32_t value) {
+  std::string encoded("\0u32", 4);
+  encoded.push_back(static_cast<char>(value / 16777216u));
+  encoded.push_back(static_cast<char>((value / 65536u) % 256u));
+  encoded.push_back(static_cast<char>((value / 256u) % 256u));
+  encoded.push_back(static_cast<char>(value % 256u));
+  return ScalarValue{std::move(field), std::move(encoded)};
+}
+
+// ================================ Impl ====================================
+
+class Index::Impl {
+ public:
+  Impl(std::string dir, Options options)
+      : dir_(std::move(dir)), options_(std::move(options)) {}
+
+  ~Impl() {
+    // Deliberately do not flush: crash/restart semantics are tested by simply
+    // destroying the object with uncommitted WAL records.
+  }
+
+  Status Open(OpenDiagnostics* diagnostics) {
+    using Clock = std::chrono::steady_clock;
+    const auto open_started = Clock::now();
+    const double open_cpu_started = ThreadCpuMs();
+    auto record_stage = [](double* wall_target, double* cpu_target,
+                           Clock::time_point wall_start, double cpu_start) {
+      if (wall_target) *wall_target += std::chrono::duration<double, std::milli>(
+          Clock::now() - wall_start).count();
+      if (cpu_target) *cpu_target += ThreadCpuMs() - cpu_start;
+    };
+    auto build_fingerprint = [&](
+      std::string* out,
+      std::vector<AnalyzerDictionaryFileSnapshot>* dictionary_snapshot = nullptr) {
+      FingerprintWork work;
+      const Status status = BuildAnalyzerFingerprint(options_, out, &work,
+                                                     dictionary_snapshot);
+      if (diagnostics) {
+        ++diagnostics->analyzer_fingerprint_calls;
+        diagnostics->analyzer_fingerprint_sha256_calls += work.sha256_calls;
+        diagnostics->analyzer_fingerprint_dictionary_bytes += work.dictionary_bytes;
+        diagnostics->analyzer_fingerprint_sha256_bytes += work.sha256_bytes;
+      }
+      return status;
+    };
+    auto stage_started = Clock::now();
+    double stage_cpu_started = ThreadCpuMs();
+    std::string analyzer_fingerprint;
+    std::vector<AnalyzerDictionaryFileSnapshot> dictionary_snapshot;
+    const Status fingerprint_status =
+        build_fingerprint(&analyzer_fingerprint, &dictionary_snapshot);
+    record_stage(diagnostics ? &diagnostics->analyzer_fingerprint_ms : nullptr,
+                 diagnostics ? &diagnostics->analyzer_fingerprint_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+    if (!fingerprint_status.ok) return fingerprint_status;
+    bool analyzer_cache_hit = false;
+    AnalyzerInitDiagnostics analyzer_init_diagnostics;
+    auto initialize_analyzer = [&]() {
+      const Status status = analyzer_.Init(
+          options_.fts_tokenizer_name, options_.jieba_dict_dir,
+          options_.reuse_analyzer_cache ? analyzer_fingerprint : std::string(),
+          &analyzer_cache_hit, &analyzer_init_diagnostics,
+          &dictionary_snapshot);
+      if (diagnostics) {
+        diagnostics->analyzer_cache_hit = analyzer_cache_hit;
+        diagnostics->analyzer_cache_miss = analyzer_init_diagnostics.cache_miss;
+        diagnostics->analyzer_cache_race_reuse = analyzer_init_diagnostics.late_race_reuse;
+        diagnostics->analyzer_cache_waited = analyzer_init_diagnostics.cache_waited;
+        diagnostics->analyzer_cache_wait_reuse = analyzer_init_diagnostics.cache_wait_reuse;
+        diagnostics->analyzer_dictionary_snapshot_used =
+            analyzer_init_diagnostics.dictionary_snapshot_used;
+        diagnostics->analyzer_cache_expired_entry = analyzer_init_diagnostics.expired_weak_entry;
+        diagnostics->analyzer_initialization_attempted = analyzer_init_diagnostics.initialization_attempted;
+        diagnostics->analyzer_initialization_succeeded = analyzer_init_diagnostics.initialization_succeeded;
+      }
+      return status;
+    };
+
+    stage_started = Clock::now();
+    stage_cpu_started = ThreadCpuMs();
+    std::error_code ec;
+    fs::create_directories(dir_, ec);
+    if (ec) return Status::Error("create directory: " + ec.message());
+
+    Manifest m;
+    bool have_manifest = ReadManifestFile(ManifestPath(dir_), &m);
+    if (!have_manifest) {
+      have_manifest = ReadManifestFile(ManifestPath(dir_) + ".bak", &m);
+    }
+    if (have_manifest) {
+      if (m.analyzer_fingerprint.empty()) {
+        return Status::Error(
+            "index manifest has no analyzer identity (legacy/corrupt index); "
+            "rebuild into a new directory is required");
+      }
+      if (m.analyzer_fingerprint != analyzer_fingerprint) {
+        return Status::Error(
+            "analyzer identity mismatch; refusing to open or replay WAL "
+            "with different tokenizer/filter/dictionary contents");
+      }
+      const auto analyzer_init_wall_start = Clock::now();
+      const double analyzer_init_cpu_start = ThreadCpuMs();
+      const Status analyzer_status = initialize_analyzer();
+      record_stage(diagnostics ? &diagnostics->analyzer_init_ms : nullptr,
+                   diagnostics ? &diagnostics->analyzer_init_cpu_ms : nullptr,
+                   analyzer_init_wall_start, analyzer_init_cpu_start);
+      if (!analyzer_status.ok) return analyzer_status;
+      if (options_.skip_cached_analyzer_fingerprint_verification &&
+          analyzer_init_diagnostics.initial_cache_hit) {
+        if (diagnostics) diagnostics->fingerprint_verification_skipped = true;
+      } else {
+        std::string initialized_fingerprint;
+        const auto verify_wall_start = Clock::now();
+        const double verify_cpu_start = ThreadCpuMs();
+        const Status verify_status = build_fingerprint(&initialized_fingerprint);
+        record_stage(diagnostics ? &diagnostics->fingerprint_verification_ms : nullptr,
+                     diagnostics ? &diagnostics->fingerprint_verification_cpu_ms : nullptr,
+                     verify_wall_start, verify_cpu_start);
+        if (!verify_status.ok) return verify_status;
+        if (initialized_fingerprint != analyzer_fingerprint) {
+          return Status::Error(
+              "analyzer dictionary changed during initialization; refusing to "
+              "open or replay WAL");
+        }
+      }
+      manifest_ = m;
+    } else {
+      // A directory with data but no valid manifest is not silently
+      // reinitialized: that would orphan potentially recoverable runs.
+      bool has_data = false;
+      std::error_code ec2;
+      for (const auto& e : fs::directory_iterator(dir_, ec2)) {
+        const std::string name = e.path().filename().string();
+        if (name != "manifest.bak") {
+          has_data = true;
+          break;
+        }
+      }
+      if (has_data) {
+        return Status::Error("index has data but no valid manifest");
+      }
+      const auto analyzer_init_wall_start = Clock::now();
+      const double analyzer_init_cpu_start = ThreadCpuMs();
+      const Status analyzer_status = initialize_analyzer();
+      record_stage(diagnostics ? &diagnostics->analyzer_init_ms : nullptr,
+                   diagnostics ? &diagnostics->analyzer_init_cpu_ms : nullptr,
+                   analyzer_init_wall_start, analyzer_init_cpu_start);
+      if (!analyzer_status.ok) return analyzer_status;
+      if (options_.skip_cached_analyzer_fingerprint_verification &&
+          analyzer_init_diagnostics.initial_cache_hit) {
+        if (diagnostics) diagnostics->fingerprint_verification_skipped = true;
+      } else {
+        std::string initialized_fingerprint;
+        const auto verify_wall_start = Clock::now();
+        const double verify_cpu_start = ThreadCpuMs();
+        const Status verify_status = build_fingerprint(&initialized_fingerprint);
+        record_stage(diagnostics ? &diagnostics->fingerprint_verification_ms : nullptr,
+                     diagnostics ? &diagnostics->fingerprint_verification_cpu_ms : nullptr,
+                     verify_wall_start, verify_cpu_start);
+        if (!verify_status.ok) return verify_status;
+        if (initialized_fingerprint != analyzer_fingerprint) {
+          return Status::Error(
+              "analyzer dictionary changed during initialization; refusing to "
+              "create index");
+        }
+      }
+      manifest_ = Manifest{};
+      manifest_.analyzer_fingerprint = analyzer_fingerprint;
+      // Ensure an initial checkpoint/log exists.
+      StatsState empty;
+      const auto ckpt = fs::path(dir_) / StatsCkptName(1);
+      const auto log = fs::path(dir_) / StatsLogName(1);
+      AtomicWrite(ckpt.string(), EncodeStatsCkpt(empty));
+      AtomicWrite(log.string(), "");
+      const Status manifest_status = WriteManifest(dir_, manifest_);
+      if (!manifest_status.ok) return manifest_status;
+    }
+
+    // Analyzer identity is validated and the matching tokenizer initialized
+    // before loading runs or replaying WAL.
+    record_stage(diagnostics ? &diagnostics->manifest_and_analyzer_ms : nullptr,
+                 diagnostics ? &diagnostics->manifest_and_analyzer_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+    if (diagnostics) diagnostics->analyzer_cache_hit = analyzer_cache_hit;
+
+    // Load runs.
+    stage_started = Clock::now();
+    stage_cpu_started = ThreadCpuMs();
+    for (const auto& info : manifest_.runs) {
+      Run run;
+      run.info = info;
+      std::string err;
+      Status s =
+          Segment::Open((fs::path(dir_) / info.file).string(), &run.segment, &err);
+      if (!s.ok) {
+        return Status::Error("open run " + info.file + ": " + err);
+      }
+      if (run.segment->run_id() != info.id ||
+          run.segment->level() != info.level) {
+        return Status::Error("run metadata mismatch: " + info.file);
+      }
+      if (diagnostics) {
+        ++diagnostics->segment_count;
+        diagnostics->segment_bytes += run.segment->file_size();
+      }
+      runs_.push_back(std::move(run));
+    }
+    std::sort(runs_.begin(), runs_.end(), [](const Run& a, const Run& b) {
+      return a.segment->first_doc_id() < b.segment->first_doc_id();
+    });
+    record_stage(diagnostics ? &diagnostics->segment_open_ms : nullptr,
+                 diagnostics ? &diagnostics->segment_open_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+
+    // Tombstones.
+    stage_started = Clock::now();
+    stage_cpu_started = ThreadCpuMs();
+    if (!manifest_.tombstone_file.empty()) {
+      std::ifstream in((fs::path(dir_) / manifest_.tombstone_file).string(),
+                       std::ios::binary);
+      if (in) {
+        std::string bytes((std::istreambuf_iterator<char>(in)),
+                          std::istreambuf_iterator<char>());
+        if (!DecodeTombstones(bytes, &tombstones_)) {
+          return Status::Error("invalid tombstone snapshot");
+        }
+      }
+    }
+
+    record_stage(diagnostics ? &diagnostics->tombstones_ms : nullptr,
+                 diagnostics ? &diagnostics->tombstones_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+
+    // Stats checkpoint + delta log.
+    stage_started = Clock::now();
+    stage_cpu_started = ThreadCpuMs();
+    StatsState stats;
+    const auto ckpt_path =
+        (fs::path(dir_) / StatsCkptName(manifest_.stats_epoch)).string();
+    const auto log_path =
+        (fs::path(dir_) / StatsLogName(manifest_.stats_epoch)).string();
+    bool stats_ok = false;
+    {
+      std::ifstream in(ckpt_path, std::ios::binary);
+      if (in) {
+        std::string bytes((std::istreambuf_iterator<char>(in)),
+                          std::istreambuf_iterator<char>());
+        stats_ok = DecodeStatsCkpt(bytes, &stats);
+      }
+    }
+    if (!stats_ok) {
+      return Status::Error("missing stats checkpoint");
+    }
+    if (!ReplayStatsLog(log_path, manifest_.stats_log_end, &stats)) {
+      return Status::Error("invalid stats log");
+    }
+    stats_ = std::move(stats);
+    stats_log_end_ = manifest_.stats_log_end;
+    stats_epoch_ = manifest_.stats_epoch;
+    // Discard an uncommitted tail written before a crash (the manifest end is
+    // authoritative). Appending after a stale tail would corrupt replay.
+    {
+      const int fd = ::open(log_path.c_str(), O_WRONLY);
+      if (fd >= 0) {
+        ::ftruncate(fd, static_cast<off_t>(stats_log_end_));
+        ::close(fd);
+      }
+    }
+
+    record_stage(diagnostics ? &diagnostics->stats_load_ms : nullptr,
+                 diagnostics ? &diagnostics->stats_load_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+
+    // WAL replay (records not covered by the manifest).
+    stage_started = Clock::now();
+    stage_cpu_started = ThreadCpuMs();
+    {
+      Status s = wal_.Open((fs::path(dir_) / "wal.log").string());
+      if (!s.ok) return s;
+      std::vector<WalRecord> records;
+      s = wal_.Replay(&records);
+      if (!s.ok) return s;
+      for (const auto& rec : records) {
+        if (rec.seq <= manifest_.wal_seq) continue;
+        s = ReplayWalPayload(rec.payload);
+        if (!s.ok) return s;
+        manifest_.wal_seq = std::max(manifest_.wal_seq, rec.seq);
+        next_wal_seq_ = std::max(next_wal_seq_, rec.seq + 1);
+      }
+    }
+    next_wal_seq_ = std::max(next_wal_seq_, manifest_.wal_seq + 1);
+    last_wal_seq_ = manifest_.wal_seq;
+    // WAL replay may have appended DocIds beyond the last manifest commit.
+    // Preserve that high-water mark so the next write never reuses a replayed
+    // version's DocId.
+    next_doc_id_ = std::max(next_doc_id_, manifest_.next_doc_id);
+
+    record_stage(diagnostics ? &diagnostics->wal_replay_ms : nullptr,
+                 diagnostics ? &diagnostics->wal_replay_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+
+    // Build the live key map from persisted docs, then apply delta docs.
+    stage_started = Clock::now();
+    stage_cpu_started = ThreadCpuMs();
+    for (const auto& run : runs_) {
+      for (const auto& doc : run.segment->docs()) {
+        if (tombstones_.count(doc.id) == 0) pk_to_doc_[doc.pk] = doc.id;
+      }
+    }
+    for (const auto& doc : delta_docs_) {
+      if (tombstones_.count(doc.id) == 0) pk_to_doc_[doc.pk] = doc.id;
+    }
+
+    record_stage(diagnostics ? &diagnostics->live_key_map_ms : nullptr,
+                 diagnostics ? &diagnostics->live_key_map_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+    run_id_seq_ = manifest_.run_id_seq;
+    stage_started = Clock::now();
+    stage_cpu_started = ThreadCpuMs();
+    GarbageCollect();
+    record_stage(diagnostics ? &diagnostics->garbage_collect_ms : nullptr,
+                 diagnostics ? &diagnostics->garbage_collect_cpu_ms : nullptr,
+                 stage_started, stage_cpu_started);
+    if (diagnostics) {
+      diagnostics->total_ms = std::chrono::duration<double, std::milli>(
+          Clock::now() - open_started).count();
+      diagnostics->total_cpu_ms = ThreadCpuMs() - open_cpu_started;
+    }
+    return Status::OK();
+  }
+
+  Status Upsert(const std::string& pk, const Document& doc) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const Document normalized = NormalizeDocument(doc);
+    const uint64_t old_id = LookupPk(pk);
+    if (old_id != 0) {
+      Status s = DeleteInternal(old_id, true);
+      if (!s.ok) return s;
+    }
+    const DocId new_id = next_doc_id_++;
+    Status s = InsertInternal(new_id, pk, normalized);
+    if (!s.ok) return s;
+
+    // One WAL record carries the whole update (old tombstone + new doc).
+    BufWriter w;
+    w.U8(1);  // upsert
+    w.U64(old_id);
+    w.U64(new_id);
+    w.String(pk);
+    w.String(normalized.text);
+    w.Varint(normalized.values.size());
+    for (const auto& v : normalized.values) {
+      w.String(v.field);
+      w.String(v.value);
+    }
+    const uint64_t seq = next_wal_seq_++;
+    last_wal_seq_ = seq;
+    if (options_.wal_enabled) {
+      s = wal_.Append(seq, w.data(), options_.fsync_wal);
+      if (!s.ok) return s;
+    }
+    pending_flush_ = true;
+    return MaybeAutoFlush();
+  }
+
+  Status Delete(const std::string& pk) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const uint64_t id = LookupPk(pk);
+    if (id == 0) return Status::OK();
+    Status s = DeleteInternal(id, true);
+    if (!s.ok) return s;
+    BufWriter w;
+    w.U8(2);  // delete
+    w.U64(id);
+    w.String(pk);
+    const uint64_t seq = next_wal_seq_++;
+    last_wal_seq_ = seq;
+    if (options_.wal_enabled) {
+      s = wal_.Append(seq, w.data(), options_.fsync_wal);
+      if (!s.ok) return s;
+    }
+    pending_flush_ = true;
+    return MaybeAutoFlush();
+  }
+
+  Status ApplyBatch(const std::vector<Mutation>& mutations) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    constexpr size_t kMaxBatchMutations = 256;
+    constexpr size_t kMaxBatchBytes = 8u << 20;
+    if (mutations.empty()) return Status::OK();
+    if (mutations.size() > kMaxBatchMutations) {
+      return Status::Error("batch exceeds 256 mutations");
+    }
+
+    // Prepare the complete transaction without changing visible index state.
+    std::unordered_map<std::string, DocId> staged_ids;
+    std::vector<std::string> records;
+    records.reserve(mutations.size());
+    uint64_t staged_next_id = next_doc_id_;
+    size_t encoded_bytes = 0;
+    auto current_id = [&](const std::string& pk) {
+      const auto it = staged_ids.find(pk);
+      return it == staged_ids.end() ? LookupPk(pk) : it->second;
+    };
+    for (const Mutation& mutation : mutations) {
+      const uint64_t old_id = current_id(mutation.pk);
+      BufWriter record;
+      if (mutation.kind == MutationKind::DELETE) {
+        if (old_id == 0) continue;
+        record.U8(2);
+        record.U64(old_id);
+        record.String(mutation.pk);
+        staged_ids[mutation.pk] = 0;
+      } else if (mutation.kind == MutationKind::UPSERT) {
+        if (staged_next_id == std::numeric_limits<uint64_t>::max()) {
+          return Status::Error("DocId space exhausted");
+        }
+        const Document normalized = NormalizeDocument(mutation.document);
+        const uint64_t new_id = staged_next_id++;
+        record.U8(1);
+        record.U64(old_id);
+        record.U64(new_id);
+        record.String(mutation.pk);
+        record.String(normalized.text);
+        record.Varint(normalized.values.size());
+        for (const auto& value : normalized.values) {
+          record.String(value.field);
+          record.String(value.value);
+        }
+        staged_ids[mutation.pk] = new_id;
+      } else {
+        return Status::Error("unknown batch mutation kind");
+      }
+      encoded_bytes += record.data().size() + sizeof(uint64_t);
+      if (encoded_bytes > kMaxBatchBytes) {
+        return Status::Error("batch exceeds 8 MiB encoded limit");
+      }
+      records.push_back(record.data());
+    }
+    if (records.empty()) return Status::OK();
+
+    BufWriter batch;
+    batch.U8(3);  // atomic mutation batch
+    batch.Varint(records.size());
+    for (const auto& record : records) batch.String(record);
+    if (batch.data().size() > kMaxBatchBytes) {
+      return Status::Error("batch exceeds 8 MiB encoded limit");
+    }
+
+    const char* fault = std::getenv("M4_FAULT");
+    if (fault && std::string(fault) == "batch_before_wal") {
+      return Status::Error("injected fault before batch wal append");
+    }
+    const uint64_t seq = next_wal_seq_;
+    if (options_.wal_enabled) {
+      Status status = wal_.Append(seq, batch.data(), options_.fsync_wal);
+      if (!status.ok) return status;
+    }
+    if (fault && std::string(fault) == "batch_after_wal_sync") ::_exit(86);
+    ++next_wal_seq_;
+    last_wal_seq_ = seq;
+
+    // The WAL frame is complete (and fsynced when configured) before state is
+    // changed. All readers share this lock, so they observe old or new state.
+    size_t applied = 0;
+    for (const auto& record : records) {
+      Status status = ReplayWalPayload(record);
+      if (!status.ok) return Status::Error("durable batch apply failed: " + status.message);
+      if (++applied == 1 && fault &&
+          std::string(fault) == "batch_after_first_apply") {
+        ::_exit(87);
+      }
+    }
+    return MaybeAutoFlush();
+  }
+
+  Status Flush() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!pending_flush_) return Status::OK();
+    return FlushInternal();
+  }
+
+  Status CompactNow() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    Status s = Flush();
+    if (!s.ok) return s;
+    std::vector<size_t> all;
+    for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
+    if (all.empty()) return Status::OK();
+    return MergeRuns(all, /*target_level=*/0, /*force=*/true);
+  }
+
+  Status SearchFts(const std::string& query, uint32_t top_k, SearchResult* out,
+                   QueryDiagnostics* diagnostics = nullptr) const {
+    if (!diagnostics) {
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
+      return SearchFtsInternal(query, top_k, nullptr, out, nullptr);
+    }
+    const bool capture_timing = diagnostics->capture_timing;
+    const double wait_wall_start = capture_timing ? NowMs() : 0.0;
+    const double wait_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const double wait_ms = capture_timing ? NowMs() - wait_wall_start : 0.0;
+    const double wait_cpu_ms = capture_timing
+                                   ? ThreadCpuMs() - wait_cpu_start
+                                   : 0.0;
+    const Status status = SearchFtsInternal(query, top_k, nullptr, out,
+                                            diagnostics);
+    if (capture_timing) {
+      diagnostics->mutex_wait_ms = wait_ms;
+      diagnostics->mutex_wait_cpu_ms = wait_cpu_ms;
+    }
+    return status;
+  }
+
+  Status SearchFtsFiltered(const std::string& query, uint32_t top_k,
+                           const FilterExpr& filter, SearchResult* out,
+                           QueryDiagnostics* diagnostics) const {
+    if (!diagnostics) {
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
+      std::vector<DocId> candidates;
+      const std::vector<DocId>* allowed = &candidates;
+      Status status;
+      if (options_.cache_filter_candidates && filter_cache_valid_ &&
+          filter_cache_epoch_ == filter_state_epoch_ &&
+          FilterExprEqual(filter_cache_expr_, filter)) {
+        allowed = &filter_cache_candidates_;
+      } else {
+        status = FilterCandidates(filter, &candidates);
+        if (status.ok && options_.cache_filter_candidates &&
+            IsFilterCacheable(filter) &&
+            candidates.capacity() * sizeof(DocId) <=
+                kFilterCandidateCacheLimitBytes) {
+          filter_cache_expr_ = filter;
+          filter_cache_candidates_ = candidates;
+          filter_cache_epoch_ = filter_state_epoch_;
+          filter_cache_valid_ = true;
+        }
+      }
+      if (!status.ok) return status;
+      return SearchFtsInternal(query, top_k, allowed, out, nullptr);
+    }
+    const bool collect_counters = diagnostics->collect_counters;
+    const bool capture_timing = diagnostics->capture_timing;
+    const double wait_wall_start = capture_timing ? NowMs() : 0.0;
+    const double wait_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const double wait_ms = capture_timing ? NowMs() - wait_wall_start : 0.0;
+    const double wait_cpu_ms = capture_timing
+                                   ? ThreadCpuMs() - wait_cpu_start
+                                   : 0.0;
+    std::vector<DocId> candidates;
+    const std::vector<DocId>* allowed = &candidates;
+    std::optional<FilterLikeDiagnostics> filter_diag;
+    if (collect_counters) filter_diag.emplace();
+    bool filter_cache_hit = false;
+    const double filter_wall_start = capture_timing ? NowMs() : 0.0;
+    const double filter_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
+    Status status;
+    if (options_.cache_filter_candidates && filter_cache_valid_ &&
+        filter_cache_epoch_ == filter_state_epoch_ &&
+        FilterExprEqual(filter_cache_expr_, filter)) {
+      allowed = &filter_cache_candidates_;
+      filter_cache_hit = true;
+    } else {
+      status = FilterCandidates(filter, &candidates,
+                                filter_diag ? &*filter_diag : nullptr);
+      if (status.ok && options_.cache_filter_candidates &&
+          IsFilterCacheable(filter) &&
+          candidates.capacity() * sizeof(DocId) <= kFilterCandidateCacheLimitBytes) {
+        filter_cache_expr_ = filter;
+        filter_cache_candidates_ = candidates;
+        filter_cache_epoch_ = filter_state_epoch_;
+        filter_cache_valid_ = true;
+      }
+    }
+    const double filter_ms = capture_timing ? NowMs() - filter_wall_start : 0.0;
+    const double filter_cpu_ms = capture_timing
+                                     ? ThreadCpuMs() - filter_cpu_start
+                                     : 0.0;
+    if (!status.ok) {
+      const bool keep_counters = diagnostics->collect_counters;
+      const bool keep_timing = diagnostics->capture_timing;
+      *diagnostics = QueryDiagnostics{};
+      diagnostics->collect_counters = keep_counters;
+      diagnostics->capture_timing = keep_timing;
+      if (capture_timing) {
+        diagnostics->mutex_wait_ms = wait_ms;
+        diagnostics->mutex_wait_cpu_ms = wait_cpu_ms;
+        diagnostics->filter_ms = filter_ms;
+        diagnostics->filter_cpu_ms = filter_cpu_ms;
+      }
+      return status;
+    }
+    status = SearchFtsInternal(query, top_k, allowed, out, diagnostics);
+    {
+      if (capture_timing) {
+        diagnostics->mutex_wait_ms = wait_ms;
+        diagnostics->mutex_wait_cpu_ms = wait_cpu_ms;
+        diagnostics->filter_ms = filter_ms;
+        diagnostics->filter_cpu_ms = filter_cpu_ms;
+      }
+      if (collect_counters) {
+        diagnostics->filter_candidates = allowed->size();
+        diagnostics->filter_cache_hit = filter_cache_hit;
+        diagnostics->filter_candidate_bytes = allowed->capacity() * sizeof(DocId);
+        diagnostics->filter_like_strings_scanned = filter_diag->strings_scanned;
+        diagnostics->filter_like_candidate_capacity_bytes =
+            filter_diag->candidate_capacity_bytes;
+      }
+      const uint64_t nodes = collect_counters ? FilterNodeCount(filter) : 0;
+      // Logical-payload bound only: at most three candidate buffers per
+      // expression node, each bounded by twice the DocId high-water mark.
+      // This intentionally excludes vector capacity slack and Hit/PK storage.
+      const uint64_t high_water = next_doc_id_;
+      const uint64_t factor = 6 * sizeof(DocId);
+      const uint64_t maximum = std::numeric_limits<uint64_t>::max();
+      if (collect_counters) {
+        diagnostics->filter_docid_temp_payload_upper_bound_bytes =
+            high_water != 0 && nodes > maximum / high_water / factor
+                ? maximum
+                : nodes * high_water * factor;
+      }
+    }
+    return status;
+  }
+
+  Status SearchFilter(const FilterExpr& filter, SearchResult* out) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    out->hits.clear();
+    out->examined = 0;
+    std::vector<DocId> candidates;
+    Status status = FilterCandidates(filter, &candidates);
+    if (!status.ok) return status;
+    out->examined = candidates.size();
+    for (DocId id : candidates) {
+      const std::string* pk = PkForDoc(id);
+      if (pk) out->hits.push_back(Hit{id, *pk, 0.0f});
+    }
+    return Status::OK();
+  }
+
+ private:
+  Status SearchFtsInternal(const std::string& query, uint32_t top_k,
+                           const std::vector<DocId>* allowed, SearchResult* out,
+                           QueryDiagnostics* diagnostics) const {
+    QueryDiagnostics* diag = diagnostics;
+    const bool collect_counters = diag && diag->collect_counters;
+    const bool capture_timing = diag && diag->capture_timing;
+    QueryDiagnostics* counter_diag = collect_counters ? diag : nullptr;
+    if (diag) {
+      *diag = QueryDiagnostics{};
+      diag->collect_counters = collect_counters;
+      diag->capture_timing = capture_timing;
+    }
+    out->hits.clear();
+    out->examined = 0;
+    if (top_k == 0) return Status::OK();
+    const double setup_start = capture_timing ? NowMs() : 0.0;
+    const double setup_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
+    const double parse_start = capture_timing ? NowMs() : 0.0;
+    const double parse_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
+    const ParsedQuery q = ParseQuery(query, analyzer_);
+    if (capture_timing) {
+      diag->query_parse_ms = NowMs() - parse_start;
+      diag->query_parse_cpu_ms = ThreadCpuMs() - parse_cpu_start;
+    }
+    if (q.terms.empty()) {
+      if (capture_timing) {
+        diag->setup_ms = NowMs() - setup_start;
+        diag->setup_cpu_ms = ThreadCpuMs() - setup_cpu_start;
+      }
+      return Status::OK();
+    }
+
+    const double n = static_cast<double>(stats_.live_docs);
+    const double avg_dl =
+        stats_.live_docs == 0
+            ? 1.0
+            : static_cast<double>(stats_.live_tokens) / stats_.live_docs;
+
+    std::vector<std::unique_ptr<TermUnionCursor>> cursors;
+    cursors.reserve(q.terms.size());
+    std::unordered_set<size_t> touched_runs;
+    if (counter_diag) touched_runs.reserve(runs_.size());
+    bool missing = false;
+    for (const auto& term : q.terms) {
+      const uint64_t df = LiveDf(term);
+      const double idf =
+          n <= 0.0 ? 0.0
+                   : std::log((n - static_cast<double>(df) + 0.5) /
+                                  (static_cast<double>(df) + 0.5) +
+                              1.0);
+      std::vector<std::unique_ptr<PostingCursor>> parts;
+      for (size_t run_idx = 0; run_idx < runs_.size(); ++run_idx) {
+        const auto& run = runs_[run_idx];
+        const TermRef* t = run.segment->FindTerm(term);
+        if (!t) continue;
+        if (counter_diag) {
+          touched_runs.insert(run_idx);
+          ++counter_diag->run_term_parts;
+        }
+        parts.emplace_back(std::make_unique<SegmentCursor>(
+            run.segment, t,
+            options_.decode_positions || !q.phrases.empty(), idf,
+            options_.bm25_k1, options_.bm25_b, avg_dl, counter_diag));
+      }
+      const auto it = delta_postings_.find(term);
+      if (it != delta_postings_.end()) {
+        parts.emplace_back(std::make_unique<DeltaCursor>(
+            &it->second, idf, options_.bm25_k1, options_.bm25_b, avg_dl,
+            counter_diag));
+      }
+      if (parts.empty()) {
+        missing = true;
+        if (q.and_mode) break;
+        continue;
+      }
+      cursors.emplace_back(std::make_unique<TermUnionCursor>(
+          term, std::move(parts), idf, options_.bm25_k1, options_.bm25_b,
+          avg_dl, counter_diag));
+    }
+    if (counter_diag) counter_diag->runs_read = touched_runs.size();
+    if (capture_timing) {
+      diag->setup_ms = NowMs() - setup_start;
+      diag->setup_cpu_ms = ThreadCpuMs() - setup_cpu_start;
+    }
+    if (missing && q.and_mode) return Status::OK();
+    if (cursors.empty()) return Status::OK();
+    std::vector<std::string> term_pos = q.terms;
+    const double execution_start = capture_timing ? NowMs() : 0.0;
+    const double execution_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
+
+    auto live = [&](DocId id) { return tombstones_.count(id) == 0; };
+
+    struct HeapCmp {
+      bool operator()(const Hit& a, const Hit& b) const {
+        return a.score > b.score;  // min-heap by score
+      }
+    };
+    std::priority_queue<Hit, std::vector<Hit>, HeapCmp> heap;
+
+    auto push_hit = [&](DocId id, float score) {
+      if (allowed) {
+        if (counter_diag) ++counter_diag->filter_checks;
+        if (!std::binary_search(allowed->begin(), allowed->end(), id)) {
+          if (counter_diag) ++counter_diag->filter_rejections;
+          return;
+        }
+      }
+      if (counter_diag) ++counter_diag->liveness_lookups;
+      if (!live(id)) {
+        if (counter_diag) ++counter_diag->dead_postings_filtered;
+        return;
+      }
+      if (counter_diag) ++counter_diag->candidates;
+      if (heap.size() < top_k) {
+        if (counter_diag) ++counter_diag->topk_insertions;
+        const std::string* pk = PkForDoc(id);
+        heap.push(Hit{id, pk ? *pk : std::string(), score});
+        if (counter_diag) ++counter_diag->topk_pushes;
+      } else if (score > heap.top().score) {
+        if (counter_diag) {
+          ++counter_diag->topk_replacements;
+          ++counter_diag->topk_pops;
+        }
+        heap.pop();
+        const std::string* pk = PkForDoc(id);
+        heap.push(Hit{id, pk ? *pk : std::string(), score});
+        if (counter_diag) ++counter_diag->topk_pushes;
+      } else if (counter_diag) {
+        ++counter_diag->topk_rejections;
+      }
+    };
+
+    if (q.and_mode) {
+      // Document-at-a-time intersection. Phrase queries force AND mode.
+      while (true) {
+        DocId max_doc = 0;
+        bool any_invalid = false;
+        for (auto& c : cursors) {
+          if (!c->valid()) {
+            any_invalid = true;
+            break;
+          }
+          max_doc = std::max(max_doc, c->doc());
+        }
+        if (any_invalid) break;
+        bool all_equal = true;
+        for (auto& c : cursors) {
+          if (c->doc() != max_doc) {
+            c->Advance(max_doc);
+            all_equal = false;
+          }
+        }
+        if (!all_equal) continue;
+        float score = 0.0f;
+        for (auto& c : cursors) score += c->score();
+        bool phrase_ok = true;
+        if (!q.phrases.empty()) {
+          for (const auto& phrase : q.phrases) {
+            std::vector<std::vector<uint32_t>> positions;
+            for (const auto& pt : phrase) {
+              size_t idx = 0;
+              bool found = false;
+              for (; idx < term_pos.size(); ++idx) {
+                if (term_pos[idx] == pt) {
+                  found = true;
+                  break;
+                }
+              }
+              if (!found || idx >= cursors.size()) {
+                phrase_ok = false;
+                break;
+              }
+              positions.push_back(cursors[idx]->positions());
+            }
+            if (!phrase_ok || !PhraseMatches(positions)) {
+              phrase_ok = false;
+              break;
+            }
+          }
+        }
+        if (phrase_ok) push_hit(max_doc, score);
+        ++out->examined;
+        for (auto& c : cursors) c->Next();
+      }
+    } else {
+      // WAND over the union of terms.
+      std::vector<TermUnionCursor*> active;
+      for (auto& c : cursors) {
+        if (c->valid()) active.push_back(c.get());
+      }
+      while (!active.empty()) {
+        active.erase(std::remove_if(active.begin(), active.end(),
+                                    [](TermUnionCursor* c) {
+                                      return !c->valid();
+                                    }),
+                     active.end());
+        if (active.empty()) break;
+        std::sort(active.begin(), active.end(),
+                  [](TermUnionCursor* a, TermUnionCursor* b) {
+                    return a->doc() < b->doc();
+                  });
+        if (counter_diag) ++counter_diag->wand_pivots;
+        const float threshold =
+            heap.size() < top_k ? -std::numeric_limits<float>::infinity()
+                                : heap.top().score;
+        double acc = 0.0;
+        int pivot = -1;
+        for (size_t i = 0; i < active.size(); ++i) {
+          if (counter_diag) ++counter_diag->upper_bound_evaluations;
+          acc += active[i]->max_score();
+          if (acc > threshold) {
+            pivot = static_cast<int>(i);
+            break;
+          }
+        }
+        if (pivot < 0) break;
+        const DocId pivot_doc = active[pivot]->doc();
+        if (active[0]->doc() == pivot_doc) {
+          float score = 0.0f;
+          for (auto* c : active) {
+            if (c->doc() == pivot_doc) score += c->score();
+          }
+          push_hit(pivot_doc, score);
+          ++out->examined;
+          for (auto* c : active) {
+            if (c->doc() == pivot_doc) c->Next();
+          }
+        } else {
+          for (int i = 0; i < pivot; ++i) active[i]->Advance(pivot_doc);
+        }
+      }
+    }
+
+    if (capture_timing) {
+      diag->execution_ms = NowMs() - execution_start;
+      diag->execution_cpu_ms = ThreadCpuMs() - execution_cpu_start;
+    }
+    const double finalize_start = capture_timing ? NowMs() : 0.0;
+    const double finalize_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
+    std::vector<Hit> hits;
+    hits.reserve(heap.size());
+    while (!heap.empty()) {
+      hits.push_back(heap.top());
+      heap.pop();
+      if (counter_diag) ++counter_diag->topk_finalize_pops;
+    }
+    std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) {
+      if (a.score != b.score) return a.score > b.score;
+      return a.doc_id < b.doc_id;
+    });
+    if (counter_diag) diag->sorted_hits = hits.size();
+    out->hits = std::move(hits);
+    if (capture_timing) {
+      diag->finalize_ms = NowMs() - finalize_start;
+      diag->finalize_cpu_ms = ThreadCpuMs() - finalize_cpu_start;
+    }
+    if (diag) diag->examined = out->examined;
+    return Status::OK();
+  }
+
+ public:
+  Status SearchInvertUint32(const std::string& field, uint32_t value,
+                             SearchResult* out) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const auto encoded = ScalarValue::Unsigned32(field, value);
+    return SearchInvert(field, encoded.value, CompareOp::EQ, out);
+  }
+
+  Status SearchInvertUint32In(const std::string& field,
+                              const std::vector<uint32_t>& values,
+                              SearchResult* out) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    out->hits.clear();
+    out->examined = 0;
+    std::set<std::string> wanted;
+    for (const uint32_t value : values) {
+      wanted.insert(ScalarValue::Unsigned32(field, value).value);
+    }
+    std::vector<DocId> docs;
+    for (const auto& encoded : wanted) {
+      std::vector<DocId> part;
+      CollectValueDocs(field, encoded, &part);
+      docs.insert(docs.end(), part.begin(), part.end());
+    }
+    std::sort(docs.begin(), docs.end());
+    docs.erase(std::unique(docs.begin(), docs.end()), docs.end());
+    out->examined = docs.size();
+    for (DocId id : docs) {
+      if (tombstones_.count(id) != 0) continue;
+      const std::string* pk = PkForDoc(id);
+      out->hits.push_back(Hit{id, pk ? *pk : std::string(), 0.0f});
+    }
+    return Status::OK();
+  }
+
+  Status SearchArrayUint32(const std::string& field,
+                           const std::vector<uint32_t>& values,
+                           bool negate, SearchResult* out) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    out->hits.clear();
+    out->examined = 0;
+    if (values.size() > kMaxArrayUint32Operands) {
+      return Status::Error("ArrayUint32 filter accepts at most 32 operands");
+    }
+
+    std::vector<DocId> matched;
+    std::set<uint32_t> wanted(values.begin(), values.end());
+    for (uint32_t value : wanted) {
+      std::vector<DocId> part;
+      CollectValueDocs(field, EncodeArrayUint32Element(value), &part);
+      out->examined += part.size();
+      std::sort(part.begin(), part.end());
+      part.erase(std::unique(part.begin(), part.end()), part.end());
+      part.erase(std::remove_if(part.begin(), part.end(), [&](DocId id) {
+                   return tombstones_.count(id) != 0;
+                 }),
+                 part.end());
+      std::vector<DocId> merged;
+      merged.reserve(matched.size() + part.size());
+      std::set_union(matched.begin(), matched.end(), part.begin(), part.end(),
+                     std::back_inserter(merged));
+      matched.swap(merged);
+    }
+
+    if (!negate) {
+      for (DocId id : matched) {
+        const std::string* pk = PkForDoc(id);
+        out->hits.push_back(Hit{id, pk ? *pk : std::string(), 0.0f});
+      }
+      return Status::OK();
+    }
+
+    // Native NOT CONTAIN ANY is complement within the non-null field bitmap,
+    // not within every live document. The marker preserves empty arrays and
+    // excludes missing fields. Only this query materializes that universe.
+    std::vector<DocId> universe;
+    CollectValueDocs(field, std::string(kArrayUint32Presence, 5), &universe);
+    out->examined += universe.size();
+    std::sort(universe.begin(), universe.end());
+    universe.erase(std::unique(universe.begin(), universe.end()),
+                   universe.end());
+    universe.erase(std::remove_if(universe.begin(), universe.end(),
+                                  [&](DocId id) {
+                                    return tombstones_.count(id) != 0;
+                                  }),
+                   universe.end());
+    size_t match_index = 0;
+    for (DocId id : universe) {
+      while (match_index < matched.size() && matched[match_index] < id) {
+        ++match_index;
+      }
+      if (match_index < matched.size() && matched[match_index] == id) continue;
+      const std::string* pk = PkForDoc(id);
+      out->hits.push_back(Hit{id, pk ? *pk : std::string(), 0.0f});
+    }
+    return Status::OK();
+  }
+
+  Status SearchInvert(const std::string& field, const std::string& value,
+                      CompareOp op, SearchResult* out) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    out->hits.clear();
+    out->examined = 0;
+    std::set<std::string> wanted;
+    auto in_range = [&](const std::string& v) {
+      switch (op) {
+        case CompareOp::EQ: return v == value;
+        case CompareOp::LT: return v < value;
+        case CompareOp::LE: return v <= value;
+        case CompareOp::GT: return v > value;
+        case CompareOp::GE: return v >= value;
+      }
+      return false;
+    };
+    if (op == CompareOp::EQ) {
+      // Point lookup must not scan the whole dictionary.
+      wanted.insert(value);
+    } else {
+      for (const auto& run : runs_) {
+        const InvertFieldRef* f = run.segment->FindField(field);
+        if (!f) continue;
+        const auto& values = f->values;
+        auto begin = values.begin();
+        auto end = values.end();
+        auto key = [](const InvertValueRef& v) -> const std::string& {
+          return v.value;
+        };
+        switch (op) {
+          case CompareOp::LT:
+            end = std::lower_bound(values.begin(), values.end(), value,
+                                   [&](const InvertValueRef& v,
+                                       const std::string& k) {
+                                     return v.value < k;
+                                   });
+            break;
+          case CompareOp::LE:
+            end = std::upper_bound(values.begin(), values.end(), value,
+                                   [](const std::string& k,
+                                      const InvertValueRef& v) {
+                                     return k < v.value;
+                                   });
+            break;
+          case CompareOp::GT:
+            begin = std::upper_bound(values.begin(), values.end(), value,
+                                     [](const std::string& k,
+                                        const InvertValueRef& v) {
+                                       return k < v.value;
+                                     });
+            break;
+          case CompareOp::GE:
+            begin = std::lower_bound(values.begin(), values.end(), value,
+                                     [&](const InvertValueRef& v,
+                                         const std::string& k) {
+                                       return v.value < k;
+                                     });
+            break;
+          case CompareOp::EQ:
+            break;
+        }
+        for (auto it = begin; it != end; ++it) wanted.insert(key(*it));
+      }
+      const auto dit = delta_invert_.find(field);
+      if (dit != delta_invert_.end()) {
+        for (const auto& [v, docs] : dit->second) {
+          (void)docs;
+          if (in_range(v)) wanted.insert(v);
+        }
+      }
+    }
+    std::vector<DocId> docs;
+    for (const auto& v : wanted) {
+      std::vector<DocId> part;
+      CollectValueDocs(field, v, &part);
+      docs.insert(docs.end(), part.begin(), part.end());
+    }
+    std::sort(docs.begin(), docs.end());
+    docs.erase(std::unique(docs.begin(), docs.end()), docs.end());
+    out->examined = docs.size();
+    for (DocId id : docs) {
+      if (tombstones_.count(id) != 0) continue;
+      const std::string* pk = PkForDoc(id);
+      out->hits.push_back(Hit{id, pk ? *pk : std::string(), 0.0f});
+    }
+    return Status::OK();
+  }
+
+  Status SearchHybrid(
+      const std::string& query, uint32_t top_k, double alpha,
+      const std::unordered_map<std::string, float>& vector_scores,
+      SearchResult* out) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    SearchResult fts;
+    Status s = SearchFts(query, std::max<uint32_t>(top_k * 4, top_k), &fts);
+    if (!s.ok) return s;
+
+    float fmin = std::numeric_limits<float>::max();
+    float fmax = std::numeric_limits<float>::lowest();
+    for (const auto& h : fts.hits) {
+      fmin = std::min(fmin, h.score);
+      fmax = std::max(fmax, h.score);
+    }
+    float vmin = std::numeric_limits<float>::max();
+    float vmax = std::numeric_limits<float>::lowest();
+    for (const auto& [pk, score] : vector_scores) {
+      (void)pk;
+      vmin = std::min(vmin, score);
+      vmax = std::max(vmax, score);
+    }
+    if (fts.hits.empty()) return Status::OK();
+
+    std::unordered_map<std::string, float> fts_by_pk;
+    for (const auto& h : fts.hits) {
+      float norm = fmax > fmin ? (h.score - fmin) / (fmax - fmin) : 0.0f;
+      fts_by_pk[h.pk] = norm;
+    }
+    std::unordered_map<std::string, Hit> merged;
+    for (const auto& [pk, norm] : fts_by_pk) {
+      const auto vit = vector_scores.find(pk);
+      float vn = 0.0f;
+      if (vit != vector_scores.end() && vmax > vmin) {
+        vn = (vit->second - vmin) / (vmax - vmin);
+      }
+      const uint64_t id = LookupPk(pk);
+      if (id == 0 || tombstones_.count(id) != 0) continue;
+      Hit h{id, pk, static_cast<float>(alpha * norm + (1.0 - alpha) * vn)};
+      merged[pk] = h;
+    }
+    for (const auto& [pk, score] : vector_scores) {
+      if (merged.count(pk) != 0) continue;
+      const uint64_t id = LookupPk(pk);
+      if (id == 0 || tombstones_.count(id) != 0) continue;
+      float vn = vmax > vmin ? (score - vmin) / (vmax - vmin) : 0.0f;
+      merged[pk] = Hit{id, pk, static_cast<float>((1.0 - alpha) * vn)};
+    }
+    out->hits.clear();
+    for (auto& [pk, h] : merged) out->hits.push_back(h);
+    std::sort(out->hits.begin(), out->hits.end(),
+              [](const Hit& a, const Hit& b) {
+                if (a.score != b.score) return a.score > b.score;
+                return a.pk < b.pk;
+              });
+    if (out->hits.size() > top_k) out->hits.resize(top_k);
+    return Status::OK();
+  }
+
+  IndexStats GetStats() const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    IndexStats s;
+    s.live_docs = stats_.live_docs;
+    s.live_tokens = stats_.live_tokens;
+    s.dead_docs = tombstones_.size();
+    s.runs = runs_.size();
+    s.wal_fsyncs = wal_.fsync_count();
+    s.fsyncs = fsyncs_;
+    s.compactions = compactions_;
+    s.compacted_docs = compacted_docs_;
+    s.bytes_written = bytes_written_;
+    s.segment_bytes_written = segment_bytes_written_;
+    s.run_ids_created = run_id_seq_;
+    s.compaction_wall_ms = compaction_wall_ms_;
+    s.compaction_merges = compaction_merges_;
+    s.compaction_input_docs = compaction_input_docs_;
+    s.compaction_output_docs = compaction_output_docs_;
+    s.compaction_peak_bytes = compaction_peak_bytes_;
+    uint64_t max_level = 0;
+    for (const auto& r : runs_) max_level = std::max(max_level, r.info.level);
+    s.runs_per_level.assign(max_level + 1, 0);
+    for (const auto& r : runs_) ++s.runs_per_level[r.info.level];
+    auto add_size = [&](const std::string& name, uint64_t* field) {
+      if (name.empty()) return;
+      std::error_code ec;
+      const auto sz = fs::file_size(fs::path(dir_) / name, ec);
+      if (!ec) *field += sz;
+    };
+    for (const auto& r : runs_) add_size(r.info.file, &s.segments_bytes);
+    add_size(manifest_.tombstone_file, &s.tombstone_bytes);
+    add_size(StatsLogName(stats_epoch_), &s.stats_log_bytes);
+    add_size("wal.log", &s.wal_bytes);
+    return s;
+  }
+
+
+ private:
+  struct Run {
+    RunInfo info;
+    SegmentPtr segment;
+  };
+
+  struct DeltaDoc {
+    DocId id{0};
+    uint32_t dl{0};
+    std::string pk;
+    std::string text;
+    std::vector<ScalarValue> values;
+    std::vector<std::string> unique_terms;
+  };
+
+  // ---------------------------- mutation --------------------------------
+
+  Status MaybeAutoFlush() {
+    if (delta_docs_.size() >= options_.max_delta_docs ||
+        delta_bytes_ >= options_.max_delta_bytes) {
+      return FlushInternal();
+    }
+    return Status::OK();
+  }
+
+  uint64_t LookupPk(const std::string& pk) const {
+    const auto it = pk_to_doc_.find(pk);
+    return it == pk_to_doc_.end() ? 0 : it->second;
+  }
+
+  const std::string* PkForDoc(DocId id) const {
+    for (const auto& d : delta_docs_) {
+      if (d.id == id) return &d.pk;
+    }
+    const Run* run = FindRunForDoc(id);
+    if (!run) return nullptr;
+    const DocMeta* doc = run->segment->FindDoc(id);
+    return doc ? &doc->pk : nullptr;
+  }
+
+  const Run* FindRunForDoc(DocId id) const {
+    // Runs are sorted by first_doc_id and ranges are non-overlapping.
+    auto it = std::upper_bound(
+        runs_.begin(), runs_.end(), id,
+        [](DocId target, const Run& r) {
+          return target < r.segment->first_doc_id();
+        });
+    if (it == runs_.begin()) return nullptr;
+    --it;
+    if (id >= it->segment->first_doc_id() &&
+        id <= it->segment->last_doc_id()) {
+      return &*it;
+    }
+    return nullptr;
+  }
+
+  Run* FindRunForDoc(DocId id) {
+    return const_cast<Run*>(static_cast<const Impl*>(this)->FindRunForDoc(id));
+  }
+
+  std::vector<std::string> DocTerms(DocId id) const {
+    for (const auto& d : delta_docs_) {
+      if (d.id == id) return d.unique_terms;
+    }
+    const Run* run = FindRunForDoc(id);
+    if (!run) return {};
+    const DocMeta* doc = run->segment->FindDoc(id);
+    if (!doc) return {};
+    std::vector<std::string> out;
+    out.reserve(doc->term_ids.size());
+    for (uint32_t tid : doc->term_ids) out.push_back(run->segment->terms()[tid].term);
+    return out;
+  }
+
+  uint32_t DocLen(DocId id) const {
+    for (const auto& d : delta_docs_) {
+      if (d.id == id) return d.dl;
+    }
+    const Run* run = FindRunForDoc(id);
+    if (!run) return 0;
+    const DocMeta* doc = run->segment->FindDoc(id);
+    return doc ? doc->dl : 0;
+  }
+
+  void AddStatsEvent(StatsEvent e) {
+    ApplyStatsEvent(&stats_, e);
+    pending_events_.push_back(std::move(e));
+  }
+
+  Status DeleteInternal(DocId id, bool from_wal) {
+    (void)from_wal;
+    if (id == 0 || tombstones_.count(id) != 0) return Status::OK();
+    InvalidateFilterCache();
+    const uint32_t dl = DocLen(id);
+    const std::vector<std::string> terms = DocTerms(id);
+    std::string pk;
+    if (const std::string* p = PkForDoc(id)) pk = *p;
+
+    if (Run* run = FindRunForDoc(id)) {
+      ++run->info.dead_count;
+    }
+    tombstones_.insert(id);
+    if (!pk.empty()) pk_to_doc_.erase(pk);
+
+    AddStatsEvent({StatsEvent::Kind::kDocs, "", -1});
+    AddStatsEvent({StatsEvent::Kind::kTokens, "", -static_cast<int64_t>(dl)});
+    for (const auto& term : terms) {
+      AddStatsEvent({StatsEvent::Kind::kDf, term, -1});
+    }
+    return Status::OK();
+  }
+
+  Status InsertInternal(DocId id, const std::string& pk, const Document& doc) {
+    InvalidateFilterCache();
+    const auto tokens = analyzer_.Tokenize(doc.text);
+    DeltaDoc d;
+    d.id = id;
+    d.dl = static_cast<uint32_t>(tokens.size());
+    d.pk = pk;
+    d.text = doc.text;
+    d.values = doc.values;
+
+    std::unordered_map<std::string, std::vector<uint32_t>> by_term;
+    for (const auto& t : tokens) by_term[t.term].push_back(t.pos);
+    d.unique_terms.reserve(by_term.size());
+    for (auto& [term, positions] : by_term) {
+      BuildPosting p;
+      p.doc = id;
+      p.dl = d.dl;
+      p.tf = static_cast<uint32_t>(positions.size());
+      p.positions = std::move(positions);
+      delta_postings_[term].push_back(std::move(p));
+      d.unique_terms.push_back(term);
+    }
+    for (const auto& v : doc.values) {
+      delta_invert_[v.field][v.value].push_back(id);
+    }
+
+    AddStatsEvent({StatsEvent::Kind::kDocs, "", 1});
+    AddStatsEvent({StatsEvent::Kind::kTokens, "", static_cast<int64_t>(d.dl)});
+    for (const auto& term : d.unique_terms) {
+      AddStatsEvent({StatsEvent::Kind::kDf, term, 1});
+    }
+
+    delta_bytes_ += doc.text.size() + 64 +
+                    static_cast<uint64_t>(d.unique_terms.size()) * 32;
+    for (const auto& value : doc.values) {
+      delta_bytes_ += value.field.size() + value.value.size() + 32;
+    }
+    delta_docs_.push_back(std::move(d));
+    pk_to_doc_[pk] = id;
+    next_doc_id_ = std::max(next_doc_id_, id + 1);
+    return Status::OK();
+  }
+
+  // ------------------------------ flush ----------------------------------
+
+  Status FlushInternal() {
+    // Docs that were created and deleted inside this delta were never
+    // persisted. Their tombstones are dropped only after the segment build has
+    // filtered them out; dropping them before the build would resurrect them.
+    std::vector<DocId> never_persisted;
+    for (const auto& d : delta_docs_) {
+      if (tombstones_.count(d.id) != 0 && FindRunForDoc(d.id) == nullptr) {
+        never_persisted.push_back(d.id);
+      }
+    }
+
+    bool wrote_run = false;
+    Run new_run;
+    if (!delta_docs_.empty()) {
+      SegmentBuild build;
+      build.run_id = run_id_seq_ + 1;
+      build.level = 0;
+      build.block_size = options_.block_size;
+
+      std::vector<DocId> live_ids;
+      live_ids.reserve(delta_docs_.size());
+      for (const auto& d : delta_docs_) {
+        if (tombstones_.count(d.id) == 0) live_ids.push_back(d.id);
+      }
+      std::sort(live_ids.begin(), live_ids.end());
+      std::unordered_map<DocId, uint32_t> doc_index;
+      doc_index.reserve(live_ids.size() * 2);
+      for (size_t i = 0; i < live_ids.size(); ++i) {
+        doc_index[live_ids[i]] = static_cast<uint32_t>(i);
+      }
+
+      // Terms that still have at least one live posting.
+      std::vector<std::string> terms;
+      terms.reserve(delta_postings_.size());
+      for (const auto& [term, postings] : delta_postings_) {
+        bool any = false;
+        for (const auto& p : postings) {
+          if (tombstones_.count(p.doc) == 0) {
+            any = true;
+            break;
+          }
+        }
+        if (any) terms.push_back(term);
+      }
+      std::sort(terms.begin(), terms.end());
+      std::unordered_map<std::string, uint32_t> term_id;
+      term_id.reserve(terms.size() * 2);
+      for (size_t i = 0; i < terms.size(); ++i) {
+        term_id[terms[i]] = static_cast<uint32_t>(i);
+      }
+
+      build.terms = terms;
+      build.postings.resize(terms.size());
+      for (const auto& term : terms) {
+        auto& dst = build.postings[term_id[term]];
+        for (const auto& p : delta_postings_.at(term)) {
+          if (tombstones_.count(p.doc) == 0) dst.push_back(p);
+        }
+        std::sort(dst.begin(), dst.end(),
+                  [](const BuildPosting& a, const BuildPosting& b) {
+                    return a.doc < b.doc;
+                  });
+      }
+
+      std::unordered_map<DocId, const DeltaDoc*> doc_by_id;
+      for (const auto& d : delta_docs_) doc_by_id[d.id] = &d;
+      build.docs.reserve(live_ids.size());
+      for (DocId id : live_ids) {
+        const DeltaDoc* d = doc_by_id[id];
+        BuildDoc bd;
+        bd.id = id;
+        bd.dl = d->dl;
+        bd.pk = d->pk;
+        for (const auto& t : d->unique_terms) {
+          const auto it = term_id.find(t);
+          if (it != term_id.end()) bd.term_ids.push_back(it->second);
+        }
+        std::sort(bd.term_ids.begin(), bd.term_ids.end());
+        bd.term_ids.erase(std::unique(bd.term_ids.begin(), bd.term_ids.end()),
+                          bd.term_ids.end());
+        build.total_tokens += bd.dl;
+        build.docs.push_back(std::move(bd));
+      }
+
+      for (const auto& [field, values] : delta_invert_) {
+        BuildField bf;
+        bf.name = field;
+        for (const auto& [value, docs] : values) {
+          BuildValue bv;
+          bv.value = value;
+          for (DocId id : docs) {
+            if (tombstones_.count(id) == 0) bv.docs.push_back(id);
+          }
+          if (!bv.docs.empty()) {
+            std::sort(bv.docs.begin(), bv.docs.end());
+            bf.values.push_back(std::move(bv));
+          }
+        }
+        if (!bf.values.empty()) build.fields.push_back(std::move(bf));
+      }
+
+      if (!build.docs.empty()) {
+        const std::string file = RunFileName(build.run_id);
+        std::string err;
+        Status s = WriteSegment((fs::path(dir_) / file).string(),
+                                std::move(build), &err);
+        if (!s.ok) return Status::Error("write segment: " + err);
+        new_run.info.id = run_id_seq_ + 1;
+        new_run.info.level = 0;
+        new_run.info.doc_count = live_ids.size();
+        new_run.info.dead_count = 0;
+        new_run.info.file = file;
+        std::error_code ec;
+        new_run.info.file_size =
+            fs::file_size(fs::path(dir_) / file, ec);
+        s = Segment::Open((fs::path(dir_) / file).string(), &new_run.segment,
+                          &err);
+        if (!s.ok) return Status::Error("reopen new run: " + err);
+        ++run_id_seq_;
+        segment_bytes_written_ += new_run.info.file_size;
+        bytes_written_ += new_run.info.file_size;
+        wrote_run = true;
+      }
+    }
+
+    // The build above already excluded these rows; now they are guaranteed
+    // absent from every persisted run, so the tombstone is unnecessary.
+    for (DocId id : never_persisted) tombstones_.erase(id);
+
+    // Persist stats deltas.
+    Status s = AppendStatsEvents();
+    if (!s.ok) return s;
+
+    // Tombstone snapshot.
+    const std::string tb_file =
+        "tombstones-" + std::to_string(last_wal_seq_) + "-" +
+        std::to_string(run_id_seq_) + ".bin";
+    s = AtomicWrite((fs::path(dir_) / tb_file).string(),
+                    EncodeTombstones(tombstones_));
+    if (!s.ok) return s;
+    bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
+
+    if (wrote_run) {
+      runs_.push_back(std::move(new_run));
+      std::sort(runs_.begin(), runs_.end(), [](const Run& a, const Run& b) {
+        return a.segment->first_doc_id() < b.segment->first_doc_id();
+      });
+    }
+
+    manifest_.next_doc_id = next_doc_id_;
+    manifest_.wal_seq = last_wal_seq_;
+    manifest_.run_id_seq = run_id_seq_;
+    manifest_.stats_epoch = stats_epoch_;
+    manifest_.stats_log_end = stats_log_end_;
+    manifest_.tombstone_file = tb_file;
+    manifest_.runs.clear();
+    for (const auto& r : runs_) manifest_.runs.push_back(r.info);
+    s = WriteManifest(dir_, manifest_);
+    if (!s.ok) return s;
+    bytes_written_ += EncodeManifest(manifest_).size();
+
+    if (options_.wal_enabled) {
+      s = wal_.Reset();
+      if (!s.ok) return s;
+    }
+    // Remove superseded stats/tombstone files even when no compaction runs.
+    GarbageCollect();
+
+    // Reset active delta.
+    delta_docs_.clear();
+    delta_postings_.clear();
+    delta_invert_.clear();
+    delta_bytes_ = 0;
+    pending_events_.clear();
+    pending_flush_ = false;
+
+    if (options_.rebuild_on_flush) {
+      std::vector<size_t> all;
+      for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
+      if (all.size() > 1) return MergeRuns(all, 0, true);
+    }
+    return MaybeCompact();
+  }
+
+  Status AppendStatsEvents() {
+    if (pending_events_.empty()) return Status::OK();
+    const std::string log_path =
+        (fs::path(dir_) / StatsLogName(stats_epoch_)).string();
+    const int fd = ::open(log_path.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd < 0) return Status::Error("open stats log");
+    BufWriter w;
+    for (const auto& e : pending_events_) {
+      BufWriter payload;
+      EncodeStatsEvent(&payload, e);
+      w.U32(0x4D345354);
+      w.U32(static_cast<uint32_t>(payload.size()));
+      w.Bytes(payload.data().data(), payload.size());
+      w.U32(static_cast<uint32_t>(
+          Fnv1a(payload.data().data(), payload.size()) & 0xffffffffu));
+    }
+    size_t done = 0;
+    while (done < w.size()) {
+      const ssize_t n =
+          ::write(fd, w.data().data() + done, w.size() - done);
+      if (n < 0) {
+        if (errno == EINTR) continue;
+        ::close(fd);
+        return Status::Error("stats log write");
+      }
+      done += static_cast<size_t>(n);
+    }
+    ::fsync(fd);
+    ::close(fd);
+    ++fsyncs_;
+    bytes_written_ += w.size();
+    stats_log_end_ += w.size();
+
+    if (stats_log_end_ >= options_.stats_log_threshold) {
+      return CheckpointStats();
+    }
+    return Status::OK();
+  }
+
+  Status CheckpointStats() {
+    const uint64_t new_epoch = stats_epoch_ + 1;
+    const std::string ckpt =
+        (fs::path(dir_) / StatsCkptName(new_epoch)).string();
+    const std::string log = (fs::path(dir_) / StatsLogName(new_epoch)).string();
+    Status s = AtomicWrite(ckpt, EncodeStatsCkpt(stats_));
+    if (!s.ok) return s;
+    s = AtomicWrite(log, "");
+    if (!s.ok) return s;
+    stats_epoch_ = new_epoch;
+    stats_log_end_ = 0;
+    bytes_written_ += fs::file_size(ckpt);
+    return Status::OK();
+  }
+
+  bool ReplayStatsLog(const std::string& path, uint64_t end,
+                      StatsState* stats) const {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return end == 0;
+    std::string bytes((std::istreambuf_iterator<char>(in)),
+                      std::istreambuf_iterator<char>());
+    if (end > bytes.size()) return false;
+    size_t off = 0;
+    while (off + 12 <= end) {
+      BufReader r(bytes.data() + off, end - off);
+      if (r.U32() != 0x4D345354) return false;
+      const uint32_t len = r.U32();
+      if (len > end - off - 12) return false;
+      const char* payload = bytes.data() + off + 8;
+      BufReader cr(bytes.data() + off + 8 + len, 4);
+      const uint32_t want = cr.U32();
+      if ((Fnv1a(payload, len) & 0xffffffffu) != want) return false;
+      BufReader pr(payload, len);
+      StatsEvent e;
+      if (!DecodeStatsEvent(&pr, &e)) return false;
+      ApplyStatsEvent(stats, e);
+      off += 12 + len;
+    }
+    return off == end;
+  }
+
+  void RebuildStats(StatsState* stats) const {
+    for (const auto& run : runs_) {
+      for (const auto& term : run.segment->terms()) {
+        SegmentTermIterator it(run.segment, &term, false);
+        while (it.valid()) {
+          if (tombstones_.count(it.doc()) == 0) ++stats->df[term.term];
+          it.Next();
+        }
+      }
+      for (const auto& doc : run.segment->docs()) {
+        if (tombstones_.count(doc.id) == 0) {
+          ++stats->live_docs;
+          stats->live_tokens += doc.dl;
+        }
+      }
+    }
+  }
+
+  // ---------------------------- compaction -------------------------------
+
+  bool AnyLevelOverflow() const {
+    std::map<uint64_t, uint32_t> counts;
+    for (const auto& r : runs_) ++counts[r.info.level];
+    for (const auto& [level, count] : counts) {
+      (void)level;
+      if (count > options_.max_runs_per_level) return true;
+    }
+    return false;
+  }
+
+  bool TombstonePressure() const {
+    if (stats_.live_docs == 0) return false;
+    const double ratio = static_cast<double>(tombstones_.size()) /
+                         static_cast<double>(stats_.live_docs);
+    if (ratio > options_.tombstone_compact_ratio) return true;
+    for (const auto& r : runs_) {
+      if (r.info.dead_count > 0 && r.info.doc_count > 0 &&
+          static_cast<double>(r.info.dead_count) / r.info.doc_count >
+              options_.tombstone_compact_ratio) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Status MaybeDebtCompact(bool* merged) {
+    *merged = false;
+    if (!options_.debt_policy_enabled || options_.debt_max_merges_per_flush == 0) {
+      return Status::OK();
+    }
+    if (runs_.size() < options_.debt_min_runs || stats_.live_docs == 0) {
+      return Status::OK();
+    }
+    const double now = NowMs();
+    if (now - last_debt_compact_ms_ < options_.debt_cooldown_ms) {
+      return Status::OK();
+    }
+    const double global_ratio =
+        static_cast<double>(tombstones_.size()) /
+        static_cast<double>(stats_.live_docs);
+    bool pressure = global_ratio >= options_.debt_compact_ratio;
+    if (!pressure) {
+      for (const auto& r : runs_) {
+        if (r.info.doc_count == 0 || r.info.dead_count == 0) continue;
+        if (static_cast<double>(r.info.dead_count) / r.info.doc_count >=
+            options_.debt_compact_ratio) {
+          pressure = true;
+          break;
+        }
+      }
+    }
+    if (!pressure) return Status::OK();
+
+    const uint64_t cap = options_.debt_max_merge_docs != 0
+                             ? options_.debt_max_merge_docs
+                             : std::max<uint64_t>(1, stats_.live_docs / 4);
+    size_t best = 0;
+    bool found = false;
+    uint64_t best_cost = std::numeric_limits<uint64_t>::max();
+    uint64_t best_dead = 0;
+    for (size_t i = 0; i + 1 < runs_.size(); ++i) {
+      const uint64_t cost = runs_[i].info.doc_count +
+                            runs_[i + 1].info.doc_count;
+      const uint64_t dead = runs_[i].info.dead_count +
+                            runs_[i + 1].info.dead_count;
+      if (dead == 0 || cost == 0 || cost > cap) continue;
+      // Prefer the pair that removes the most dead postings per rewritten
+      // doc; break ties by smaller rewrite cost.
+      const double score = static_cast<double>(dead) / static_cast<double>(cost);
+      const double best_score = found && best_cost != 0
+                                    ? static_cast<double>(best_dead) /
+                                          static_cast<double>(best_cost)
+                                    : -1.0;
+      if (!found || score > best_score + 1e-12 ||
+          (std::abs(score - best_score) <= 1e-12 && cost < best_cost)) {
+        found = true;
+        best = i;
+        best_cost = cost;
+        best_dead = dead;
+      }
+    }
+    if (!found) return Status::OK();
+    Status s = MergeRuns({best, best + 1}, /*target_level=*/0,
+                         /*force=*/false);
+    if (!s.ok) return s;
+    last_debt_compact_ms_ = NowMs();
+    *merged = true;
+    return Status::OK();
+  }
+
+  Status MaybeCompact() {
+    bool debt_merged = false;
+    Status debt_status = MaybeDebtCompact(&debt_merged);
+    if (!debt_status.ok) return debt_status;
+    for (int iter = 0; iter < 256; ++iter) {
+      const bool over_cap = runs_.size() > options_.max_total_runs;
+      const bool level_overflow = AnyLevelOverflow();
+      const bool tombstone = TombstonePressure();
+      if (!over_cap && !level_overflow && !tombstone) break;
+
+      std::vector<size_t> group;
+      if (over_cap) {
+        // Merge the two smallest adjacent runs. Picking the oldest pair would
+        // pair the huge base run with a one-doc delta and reintroduce the
+        // O(collection) cost the architecture removes.
+        uint64_t best_cost = std::numeric_limits<uint64_t>::max();
+        size_t best = 0;
+        for (size_t i = 0; i + 1 < runs_.size(); ++i) {
+          const uint64_t cost = runs_[i].info.doc_count +
+                                runs_[i + 1].info.doc_count;
+          if (cost < best_cost) {
+            best_cost = cost;
+            best = i;
+          }
+        }
+        group = {best, best + 1};
+      } else if (level_overflow) {
+        // Pick the level that is over its run budget and merge the smallest
+        // adjacent pair that includes a run at that level. Merging a fixed
+        // R+1 window can accidentally include the huge base when the whole
+        // collection has few runs; a pair is enough to restore the budget and
+        // the loop repeats while the level stays overfull.
+        std::map<uint64_t, uint32_t> counts;
+        for (const auto& r : runs_) ++counts[r.info.level];
+        uint64_t over_level = 0;
+        uint32_t over_count = 0;
+        for (const auto& [level, count] : counts) {
+          if (count > options_.max_runs_per_level && count > over_count) {
+            over_count = count;
+            over_level = level;
+          }
+        }
+        uint64_t best_cost = std::numeric_limits<uint64_t>::max();
+        size_t best = 0;
+        bool found = false;
+        for (size_t i = 0; i + 1 < runs_.size(); ++i) {
+          if (runs_[i].info.level != over_level &&
+              runs_[i + 1].info.level != over_level) {
+            continue;
+          }
+          const uint64_t cost = runs_[i].info.doc_count +
+                                runs_[i + 1].info.doc_count;
+          if (!found || cost < best_cost) {
+            found = true;
+            best_cost = cost;
+            best = i;
+          }
+        }
+        if (!found) {
+          // Degenerate layout: merge the smallest adjacent pair.
+          for (size_t i = 0; i + 1 < runs_.size(); ++i) {
+            const uint64_t cost = runs_[i].info.doc_count +
+                                  runs_[i + 1].info.doc_count;
+            if (!found || cost < best_cost) {
+              found = true;
+              best_cost = cost;
+              best = i;
+            }
+          }
+        }
+        group = {best, best + 1};
+      } else {
+        // Tombstone pressure: rewrite the run with the highest dead ratio,
+        // together with its smaller neighbour when one exists.
+        size_t best = 0;
+        double best_ratio = -1.0;
+        for (size_t i = 0; i < runs_.size(); ++i) {
+          const auto& r = runs_[i];
+          const double ratio =
+              r.info.doc_count == 0
+                  ? 0.0
+                  : static_cast<double>(r.info.dead_count) / r.info.doc_count;
+          if (ratio > best_ratio) {
+            best_ratio = ratio;
+            best = i;
+          }
+        }
+        group.push_back(best);
+        if (runs_.size() > 1) {
+          if (best == 0) {
+            group.push_back(1);
+          } else if (best + 1 == runs_.size()) {
+            group.insert(group.begin(), best - 1);
+          } else {
+            const uint64_t left = runs_[best - 1].info.doc_count;
+            const uint64_t right = runs_[best + 1].info.doc_count;
+            group.push_back(left <= right ? best - 1 : best + 1);
+          }
+        }
+      }
+      if (group.size() == 1) {
+        const auto& r = runs_[group[0]];
+        if (r.info.dead_count == 0) break;
+      }
+      Status s = MergeRuns(group, /*target_level=*/0, /*force=*/false);
+      if (!s.ok) return s;
+      if (runs_.empty()) break;
+    }
+    return Status::OK();
+  }
+
+  Status MergeRuns(const std::vector<size_t>& indices, uint64_t target_level,
+                   bool force) {
+    const double merge_start_ms = NowMs();
+    if (indices.empty()) return Status::OK();
+    std::vector<size_t> idx = indices;
+    std::sort(idx.begin(), idx.end());
+    idx.erase(std::unique(idx.begin(), idx.end()), idx.end());
+    if (idx.empty()) return Status::OK();
+
+    std::vector<Run*> group;
+    uint64_t max_level = 0;
+    for (size_t i : idx) {
+      if (i >= runs_.size()) return Status::Error("bad merge index");
+      group.push_back(&runs_[i]);
+      max_level = std::max(max_level, runs_[i].info.level);
+    }
+    const DocId group_first = group.front()->segment->first_doc_id();
+    const DocId group_last = group.back()->segment->last_doc_id();
+    const uint64_t new_level = force ? target_level : max_level + 1;
+    uint64_t input_docs = 0;
+    std::vector<SegmentPtr> input_segments;
+    input_segments.reserve(group.size());
+    for (Run* run : group) {
+      input_docs += run->info.doc_count;
+      input_segments.push_back(run->segment);
+    }
+
+    const uint64_t new_run_id = run_id_seq_ + 1;
+    const std::string file = RunFileName(new_run_id);
+    StreamMergeOptions merge_options;
+    merge_options.run_id = new_run_id;
+    merge_options.level = new_level;
+    merge_options.block_size = options_.block_size;
+    merge_options.fts_field = options_.fts_field;
+    merge_options.memory_limit_bytes = options_.compaction_memory_limit_bytes;
+    StreamMergeStats merge_stats;
+    std::string err;
+    Status s = MergeSegmentsStreaming((fs::path(dir_) / file).string(),
+                                      input_segments, tombstones_,
+                                      merge_options, &merge_stats, &err);
+    if (!s.ok) {
+      // No manifest was published; the old runs and tombstones stay active.
+      return Status::Error("compaction stream: " + err);
+    }
+    compaction_peak_bytes_ =
+        std::max(compaction_peak_bytes_, merge_stats.tracked_peak_bytes);
+
+    Run new_run;
+    const uint64_t new_doc_count = merge_stats.output_docs;
+    if (new_doc_count > 0) {
+      new_run.info.id = new_run_id;
+      new_run.info.level = new_level;
+      new_run.info.doc_count = new_doc_count;
+      new_run.info.dead_count = 0;
+      new_run.info.file = file;
+      std::error_code ec;
+      new_run.info.file_size = fs::file_size(fs::path(dir_) / file, ec);
+      s = Segment::Open((fs::path(dir_) / file).string(), &new_run.segment,
+                        &err);
+      if (!s.ok) return Status::Error("compaction reopen: " + err);
+      ++run_id_seq_;
+      segment_bytes_written_ += new_run.info.file_size;
+      bytes_written_ += new_run.info.file_size +
+                        merge_stats.temporary_bytes_written;
+    }
+
+    const char* fault = std::getenv("M4_FAULT");
+    if (fault && std::string(fault) == "before_manifest") {
+      return Status::Error("injected fault before manifest");
+    }
+
+    std::vector<std::string> removed_files;
+    for (size_t i : idx) removed_files.push_back(runs_[i].info.file);
+
+    // Replace the contiguous group with the new run.
+    std::vector<Run> next;
+    next.reserve(runs_.size() - idx.size() + 1);
+    for (size_t i = 0; i < runs_.size(); ++i) {
+      if (std::binary_search(idx.begin(), idx.end(), i)) continue;
+      next.push_back(std::move(runs_[i]));
+    }
+    if (!new_run.info.file.empty()) next.push_back(std::move(new_run));
+    std::sort(next.begin(), next.end(), [](const Run& a, const Run& b) {
+      return a.segment->first_doc_id() < b.segment->first_doc_id();
+    });
+    runs_ = std::move(next);
+
+    // Compute the post-compaction tombstone set without mutating the live
+    // set until the manifest is durable.
+    std::unordered_set<DocId> new_tombstones = tombstones_;
+    for (auto it = new_tombstones.begin(); it != new_tombstones.end();) {
+      if (*it >= group_first && *it <= group_last) {
+        it = new_tombstones.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    const std::string tb_file =
+        "tombstones-" + std::to_string(last_wal_seq_) + "-" +
+        std::to_string(run_id_seq_) + ".bin";
+    s = AtomicWrite((fs::path(dir_) / tb_file).string(),
+                    EncodeTombstones(new_tombstones));
+    if (!s.ok) return s;
+    bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
+
+    manifest_.next_doc_id = next_doc_id_;
+    manifest_.wal_seq = last_wal_seq_;
+    manifest_.run_id_seq = run_id_seq_;
+    manifest_.stats_epoch = stats_epoch_;
+    manifest_.stats_log_end = stats_log_end_;
+    manifest_.tombstone_file = tb_file;
+    manifest_.runs.clear();
+    for (const auto& r : runs_) manifest_.runs.push_back(r.info);
+    s = WriteManifest(dir_, manifest_);
+    if (!s.ok) return s;
+    fault = std::getenv("M4_FAULT");
+    if (fault && std::string(fault) == "after_manifest") {
+      return Status::Error("injected fault after manifest");
+    }
+
+    tombstones_ = std::move(new_tombstones);
+    ++compactions_;
+    ++compaction_merges_;
+    compaction_input_docs_ += input_docs;
+    compaction_output_docs_ += new_doc_count;
+    compaction_wall_ms_ += NowMs() - merge_start_ms;
+    compacted_docs_ += new_doc_count;
+    for (const auto& f : removed_files) {
+      std::error_code ec;
+      fs::remove(fs::path(dir_) / f, ec);
+    }
+    GarbageCollect();
+    return Status::OK();
+  }
+
+  void GarbageCollect() {
+    std::unordered_set<std::string> keep;
+    auto add_manifest = [&](const Manifest& m) {
+      for (const auto& r : m.runs) keep.insert(r.file);
+      keep.insert(m.tombstone_file);
+      keep.insert(StatsCkptName(m.stats_epoch));
+      keep.insert(StatsLogName(m.stats_epoch));
+    };
+    add_manifest(manifest_);
+    // Keep one previous generation so manifest.bak remains a usable fallback.
+    Manifest bak;
+    if (ReadManifestFile(ManifestPath(dir_) + ".bak", &bak)) {
+      add_manifest(bak);
+    }
+    keep.insert("manifest");
+    keep.insert("manifest.bak");
+    keep.insert("wal.log");
+    std::error_code ec;
+    for (const auto& entry : fs::directory_iterator(dir_, ec)) {
+      if (ec) break;
+      const std::string name = entry.path().filename().string();
+      if (keep.count(name) != 0) continue;
+      if (name.rfind("run-", 0) == 0 || name.rfind("tombstones-", 0) == 0 ||
+          name.rfind("stats-", 0) == 0 || name.rfind("manifest.tmp", 0) == 0 ||
+          name.rfind("wal.log.tmp", 0) == 0) {
+        fs::remove(entry.path(), ec);
+      }
+    }
+  }
+
+  // ------------------------------ readers --------------------------------
+
+  uint64_t LiveDf(const std::string& term) const {
+    const auto it = stats_.df.find(term);
+    return it == stats_.df.end() ? 0 : it->second;
+  }
+
+  std::vector<DocId> LiveUniverse() const {
+    std::vector<DocId> ids;
+    ids.reserve(pk_to_doc_.size());
+    for (const auto& [pk, id] : pk_to_doc_) {
+      (void)pk;
+      ids.push_back(id);
+    }
+    std::sort(ids.begin(), ids.end());
+    return ids;
+  }
+
+  struct FilterLikeDiagnostics {
+    uint64_t strings_scanned{0};
+    uint64_t candidate_capacity_bytes{0};
+  };
+
+  std::vector<DocId> FieldPresent(const std::string& field) const {
+    std::vector<DocId> ids;
+    for (const auto& run : runs_) {
+      const InvertFieldRef* ref = run.segment->FindField(field);
+      if (!ref) continue;
+      for (const auto& value : ref->values) {
+        CollectValueDocsFromRun(run, *ref, value, &ids);
+      }
+    }
+    const auto delta = delta_invert_.find(field);
+    if (delta != delta_invert_.end()) {
+      for (const auto& [value, docs] : delta->second) {
+        (void)value;
+        ids.insert(ids.end(), docs.begin(), docs.end());
+      }
+    }
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [&](DocId id) {
+                return tombstones_.count(id) != 0;
+              }),
+              ids.end());
+    return ids;
+  }
+
+  Status SearchStringPattern(const std::string& field,
+                             const std::string& literal, bool prefix,
+                             std::vector<DocId>* out,
+                             FilterLikeDiagnostics* diagnostics) const {
+    auto matches = [&](const std::string& value) {
+      if (prefix) {
+        return value.size() >= literal.size() &&
+               value.compare(0, literal.size(), literal) == 0;
+      }
+      return value.size() >= literal.size() &&
+             value.compare(value.size() - literal.size(), literal.size(),
+                           literal) == 0;
+    };
+    for (const auto& run : runs_) {
+      const InvertFieldRef* ref = run.segment->FindField(field);
+      if (!ref) continue;
+      for (const auto& value : ref->values) {
+        if (diagnostics) ++diagnostics->strings_scanned;
+        if (matches(value.value)) {
+          CollectValueDocsFromRun(run, *ref, value, out);
+        }
+      }
+    }
+    const auto delta = delta_invert_.find(field);
+    if (delta != delta_invert_.end()) {
+      for (const auto& [value, docs] : delta->second) {
+        if (diagnostics) ++diagnostics->strings_scanned;
+        if (matches(value)) out->insert(out->end(), docs.begin(), docs.end());
+      }
+    }
+    std::sort(out->begin(), out->end());
+    out->erase(std::unique(out->begin(), out->end()), out->end());
+    out->erase(std::remove_if(out->begin(), out->end(), [&](DocId id) {
+                 return tombstones_.count(id) != 0;
+               }),
+               out->end());
+    if (diagnostics) {
+      diagnostics->candidate_capacity_bytes += out->capacity() * sizeof(DocId);
+    }
+    return Status::OK();
+  }
+
+  uint64_t FilterNodeCount(const FilterExpr& expr) const {
+    uint64_t count = 1;
+    for (const auto& child : expr.children) {
+      const uint64_t child_count = FilterNodeCount(child);
+      if (child_count > std::numeric_limits<uint64_t>::max() - count) {
+        return std::numeric_limits<uint64_t>::max();
+      }
+      count += child_count;
+    }
+    return count;
+  }
+
+  static bool FilterExprEqual(const FilterExpr& a, const FilterExpr& b) {
+    if (a.op != b.op || a.field != b.field ||
+        a.string_value != b.string_value || a.uint32_value != b.uint32_value ||
+        a.uint32_values != b.uint32_values || a.children.size() != b.children.size())
+      return false;
+    for (size_t i = 0; i < a.children.size(); ++i) {
+      if (!FilterExprEqual(a.children[i], b.children[i])) return false;
+    }
+    return true;
+  }
+
+  static bool FilterExprCacheableImpl(const FilterExpr& expr, size_t depth,
+                                      size_t* nodes, size_t* bytes) {
+    if (depth > 8 || ++*nodes > 64) return false;
+    *bytes += expr.field.size() + expr.string_value.size() +
+              expr.uint32_values.size() * sizeof(uint32_t);
+    if (*bytes > 4096) return false;
+    for (const auto& child : expr.children) {
+      if (!FilterExprCacheableImpl(child, depth + 1, nodes, bytes)) return false;
+    }
+    return true;
+  }
+
+  static bool IsFilterCacheable(const FilterExpr& expr) {
+    size_t nodes = 0, bytes = 0;
+    return FilterExprCacheableImpl(expr, 0, &nodes, &bytes);
+  }
+
+  void InvalidateFilterCache() {
+    filter_cache_valid_ = false;
+    if (++filter_state_epoch_ == 0) filter_state_epoch_ = 1;
+  }
+
+  Status FilterCandidates(const FilterExpr& expr, std::vector<DocId>* out,
+                          FilterLikeDiagnostics* diagnostics = nullptr) const {
+    return EvalFilter(expr, false, out, diagnostics);
+  }
+
+  Status EvalFilter(const FilterExpr& expr, bool negated,
+                    std::vector<DocId>* out,
+                    FilterLikeDiagnostics* diagnostics) const {
+    out->clear();
+    if (expr.op == FilterKind::NOT) {
+      if (expr.children.size() != 1) {
+        return Status::Error("NOT filter requires exactly one child");
+      }
+      return EvalFilter(expr.children.front(), !negated, out, diagnostics);
+    }
+    if (expr.op == FilterKind::ALL || expr.op == FilterKind::NONE) {
+      const bool matches = (expr.op == FilterKind::ALL) != negated;
+      if (matches) *out = LiveUniverse();
+      return Status::OK();
+    }
+    if (expr.op == FilterKind::AND || expr.op == FilterKind::OR) {
+      const bool intersect = (expr.op == FilterKind::AND) != negated;
+      size_t first_nonconstant = expr.children.size();
+      for (size_t i = 0; i < expr.children.size(); ++i) {
+        const auto child_op = expr.children[i].op;
+        if (child_op == FilterKind::ALL || child_op == FilterKind::NONE) {
+          const bool child_matches = (child_op == FilterKind::ALL) != negated;
+          if ((intersect && !child_matches) || (!intersect && child_matches)) {
+            if (!intersect) *out = LiveUniverse();
+            return Status::OK();
+          }
+        } else if (first_nonconstant == expr.children.size()) {
+          first_nonconstant = i;
+        }
+      }
+      if (first_nonconstant == expr.children.size()) {
+        if (intersect) *out = LiveUniverse();
+        return Status::OK();
+      }
+      Status status = EvalFilter(expr.children[first_nonconstant], negated, out,
+                                 diagnostics);
+      if (!status.ok) return status;
+      for (size_t i = first_nonconstant + 1; i < expr.children.size(); ++i) {
+        const auto child_op = expr.children[i].op;
+        if (child_op == FilterKind::ALL || child_op == FilterKind::NONE)
+          continue;
+        std::vector<DocId> rhs;
+        status = EvalFilter(expr.children[i], negated, &rhs, diagnostics);
+        if (!status.ok) return status;
+        std::vector<DocId> combined;
+        combined.reserve(intersect ? std::min(out->size(), rhs.size())
+                                   : out->size() + rhs.size());
+        if (intersect) {
+          std::set_intersection(out->begin(), out->end(), rhs.begin(), rhs.end(),
+                                std::back_inserter(combined));
+        } else {
+          std::set_union(out->begin(), out->end(), rhs.begin(), rhs.end(),
+                         std::back_inserter(combined));
+        }
+        out->swap(combined);
+      }
+      return Status::OK();
+    }
+
+    SearchResult result;
+    Status status;
+    switch (expr.op) {
+      case FilterKind::STRING_EQ:
+        status = SearchInvert(expr.field, expr.string_value, CompareOp::EQ,
+                              &result);
+        break;
+      case FilterKind::STRING_PREFIX:
+      case FilterKind::STRING_SUFFIX:
+        if (negated) {
+          return Status::Error("native-compatible NOT LIKE is unsupported");
+        }
+        return SearchStringPattern(expr.field, expr.string_value,
+                                   expr.op == FilterKind::STRING_PREFIX, out,
+                                   diagnostics);
+      case FilterKind::UINT32_EQ:
+        status = SearchInvertUint32(expr.field, expr.uint32_value, &result);
+        break;
+      case FilterKind::UINT32_IN:
+        status = SearchInvertUint32In(expr.field, expr.uint32_values, &result);
+        break;
+      case FilterKind::ARRAY_UINT32_CONTAINS_ANY:
+        // Native normalizes CONTAIN_ANY () to constant false before
+        // complementing Boolean expressions. Thus generic NOT(predicate) is
+        // all live rows for the empty positive predicate, while the explicit
+        // NOT CONTAIN ANY () primitive remains IS NOT NULL.
+        if (negated && expr.uint32_values.empty()) {
+          *out = LiveUniverse();
+          return Status::OK();
+        }
+        status = SearchArrayUint32(expr.field, expr.uint32_values, negated,
+                                   &result);
+        break;
+      case FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY:
+        if (negated && expr.uint32_values.empty()) {
+          const std::vector<DocId> universe = LiveUniverse();
+          const std::vector<DocId> present = FieldPresent(expr.field);
+          std::set_difference(universe.begin(), universe.end(), present.begin(),
+                              present.end(), std::back_inserter(*out));
+          return Status::OK();
+        }
+        status = SearchArrayUint32(expr.field, expr.uint32_values, !negated,
+                                   &result);
+        break;
+      default:
+        return Status::Error("invalid Boolean filter node");
+    }
+    if (!status.ok) return status;
+    for (const auto& hit : result.hits) out->push_back(hit.doc_id);
+    if (negated && expr.op != FilterKind::ARRAY_UINT32_CONTAINS_ANY &&
+        expr.op != FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY) {
+      std::vector<DocId> present = FieldPresent(expr.field);
+      std::vector<DocId> complement;
+      complement.reserve(present.size());
+      std::set_difference(present.begin(), present.end(), out->begin(),
+                          out->end(), std::back_inserter(complement));
+      out->swap(complement);
+    }
+    return Status::OK();
+  }
+
+  void CollectValueDocsFromRun(const Run& run, const InvertFieldRef& field,
+                               const InvertValueRef& value,
+                               std::vector<DocId>* out) const {
+    (void)field;
+    if (value.block_count == 0) return;
+    for (uint32_t b = 0; b < value.block_count; ++b) {
+      const InvertBlockMeta meta = run.segment->invert_meta_at(
+          value.meta_base + static_cast<uint64_t>(b) * 24);
+      const char* payload = run.segment->data() + value.payload_base +
+                            meta.payload_offset;
+      if (value.payload_base + meta.payload_offset + meta.payload_size >
+          run.segment->size()) {
+        continue;
+      }
+      BufReader r(payload, meta.payload_size);
+      const uint64_t count = r.Varint();
+      uint64_t prev = 0;
+      for (uint64_t i = 0; i < count; ++i) {
+        prev += r.Varint();
+        out->push_back(prev);
+      }
+      if (!r.ok()) break;
+    }
+  }
+
+  void CollectValueDocs(const std::string& field, const std::string& value,
+                        std::vector<DocId>* out) const {
+    for (const auto& run : runs_) {
+      const InvertFieldRef* f = run.segment->FindField(field);
+      if (!f) continue;
+      const InvertValueRef* v = run.segment->FindValue(*f, value);
+      if (!v) continue;
+      CollectValueDocsFromRun(run, *f, *v, out);
+    }
+    const auto fit = delta_invert_.find(field);
+    if (fit != delta_invert_.end()) {
+      const auto vit = fit->second.find(value);
+      if (vit != fit->second.end()) {
+        out->insert(out->end(), vit->second.begin(), vit->second.end());
+      }
+    }
+  }
+
+  Status ReplayWalPayload(const std::string& payload) {
+    BufReader r(payload.data(), payload.size());
+    const uint8_t type = r.U8();
+    if (type == 3) {
+      const uint64_t count = r.Varint();
+      if (!r.ok() || count == 0 || count > 256) {
+        return Status::Error("bad batch wal record count");
+      }
+      std::vector<std::string> records;
+      records.reserve(static_cast<size_t>(count));
+      for (uint64_t i = 0; i < count; ++i) records.push_back(r.String());
+      if (!r.ok() || r.remaining() != 0) {
+        return Status::Error("bad batch wal record framing");
+      }
+
+      // Validate every child before applying any child: a malformed transaction
+      // must never replay as a visible prefix.
+      for (const std::string& child : records) {
+        BufReader c(child.data(), child.size());
+        const uint8_t child_type = c.U8();
+        if (child_type == 1) {
+          const uint64_t old_id = c.U64();
+          const uint64_t new_id = c.U64();
+          const std::string pk = c.String();
+          (void)c.String();  // text
+          const uint64_t n = c.Varint();
+          if (!c.ok() || new_id == 0 || n > 1000000ull) {
+            return Status::Error("bad upsert in batch wal record");
+          }
+          for (uint64_t i = 0; i < n; ++i) {
+            (void)c.String();
+            (void)c.String();
+          }
+          (void)old_id;
+        } else if (child_type == 2) {
+          const uint64_t id = c.U64();
+          const std::string pk = c.String();
+          if (!c.ok() || id == 0) {
+            return Status::Error("bad delete in batch wal record");
+          }
+        } else {
+          return Status::Error("unknown child in batch wal record");
+        }
+        if (!c.ok() || c.remaining() != 0) {
+          return Status::Error("bad child framing in batch wal record");
+        }
+      }
+      for (const std::string& child : records) {
+        Status status = ReplayWalPayload(child);
+        if (!status.ok) return status;
+      }
+      pending_flush_ = true;
+      return Status::OK();
+    }
+    if (type == 1) {
+      const uint64_t old_id = r.U64();
+      const uint64_t new_id = r.U64();
+      const std::string pk = r.String();
+      Document doc;
+      doc.text = r.String();
+      const uint64_t n = r.Varint();
+      for (uint64_t i = 0; i < n; ++i) {
+        ScalarValue v;
+        v.field = r.String();
+        v.value = r.String();
+        doc.values.push_back(std::move(v));
+      }
+      if (!r.ok() || r.remaining() != 0 || new_id == 0) {
+        return Status::Error("bad upsert wal record");
+      }
+      if (old_id != 0) {
+        Status s = DeleteInternal(old_id, true);
+        if (!s.ok) return s;
+      }
+      Status s = InsertInternal(new_id, pk, doc);
+      if (!s.ok) return s;
+      pending_flush_ = true;
+      return Status::OK();
+    }
+    if (type == 2) {
+      const uint64_t id = r.U64();
+      const std::string pk = r.String();
+      (void)pk;
+      if (!r.ok() || r.remaining() != 0 || id == 0) {
+        return Status::Error("bad delete wal record");
+      }
+      Status s = DeleteInternal(id, true);
+      if (!s.ok) return s;
+      pending_flush_ = true;
+      return Status::OK();
+    }
+    return Status::Error("unknown wal record");
+  }
+
+ private:
+  static constexpr size_t kFilterCandidateCacheLimitBytes = 64u << 10;
+  mutable std::recursive_mutex mutex_;
+  uint64_t filter_state_epoch_{1};
+  mutable uint64_t filter_cache_epoch_{0};
+  mutable bool filter_cache_valid_{false};
+  mutable FilterExpr filter_cache_expr_;
+  mutable std::vector<DocId> filter_cache_candidates_;
+  std::string dir_;
+  Options options_;
+  Analyzer analyzer_;
+  Manifest manifest_;
+  std::vector<Run> runs_;
+  std::unordered_map<std::string, DocId> pk_to_doc_;
+  std::unordered_set<DocId> tombstones_;
+  StatsState stats_;
+
+  std::vector<DeltaDoc> delta_docs_;
+  std::unordered_map<std::string, std::vector<BuildPosting>> delta_postings_;
+  std::unordered_map<std::string,
+                     std::unordered_map<std::string, std::vector<DocId>>>
+      delta_invert_;
+  uint64_t delta_bytes_{0};
+  std::vector<StatsEvent> pending_events_;
+  bool pending_flush_{false};
+
+  uint64_t next_doc_id_{1};
+  uint64_t next_wal_seq_{1};
+  uint64_t last_wal_seq_{0};
+  uint64_t run_id_seq_{0};
+  uint64_t stats_epoch_{1};
+  uint64_t stats_log_end_{0};
+
+  Wal wal_;
+  uint64_t bytes_written_{0};
+  uint64_t segment_bytes_written_{0};
+  mutable uint64_t fsyncs_{0};
+  mutable uint64_t compactions_{0};
+  mutable uint64_t compacted_docs_{0};
+  mutable double compaction_wall_ms_{0.0};
+  mutable uint64_t compaction_merges_{0};
+  double last_debt_compact_ms_{-1e9};
+  mutable uint64_t compaction_input_docs_{0};
+  mutable uint64_t compaction_output_docs_{0};
+  mutable uint64_t compaction_peak_bytes_{0};
+};
+
+// ============================== Public API ================================
+
+Index::Index(Impl* impl) : impl_(impl) {}
+Index::~Index() = default;
+
+Status Index::Open(const std::string& directory, const Options& options,
+                   std::unique_ptr<Index>* out,
+                   OpenDiagnostics* diagnostics) {
+  if (diagnostics) *diagnostics = OpenDiagnostics{};
+  auto impl = std::make_unique<Impl>(directory, options);
+  Status s = impl->Open(diagnostics);
+  if (!s.ok) return s;
+  *out = std::unique_ptr<Index>(new Index(impl.release()));
+  return Status::OK();
+}
+
+Status Index::Upsert(const std::string& pk, const Document& document) {
+  return impl_->Upsert(pk, document);
+}
+Status Index::Delete(const std::string& pk) { return impl_->Delete(pk); }
+Status Index::ApplyBatch(const std::vector<Mutation>& mutations) {
+  return impl_->ApplyBatch(mutations);
+}
+Status Index::Flush() { return impl_->Flush(); }
+Status Index::CompactNow() { return impl_->CompactNow(); }
+Status Index::SearchFts(const std::string& query, uint32_t top_k,
+                        SearchResult* out,
+                        QueryDiagnostics* diagnostics) const {
+  return impl_->SearchFts(query, top_k, out, diagnostics);
+}
+Status Index::SearchFtsFiltered(const std::string& query, uint32_t top_k,
+                                const FilterExpr& filter, SearchResult* out,
+                                QueryDiagnostics* diagnostics) const {
+  return impl_->SearchFtsFiltered(query, top_k, filter, out, diagnostics);
+}
+Status Index::SearchFilter(const FilterExpr& filter, SearchResult* out) const {
+  return impl_->SearchFilter(filter, out);
+}
+Status Index::SearchInvert(const std::string& field, const std::string& value,
+                           CompareOp op, SearchResult* out) const {
+  return impl_->SearchInvert(field, value, op, out);
+}
+Status Index::SearchInvertUint32(const std::string& field, uint32_t value,
+                                 SearchResult* out) const {
+  return impl_->SearchInvertUint32(field, value, out);
+}
+Status Index::SearchInvertUint32In(
+    const std::string& field, const std::vector<uint32_t>& values,
+    SearchResult* out) const {
+  return impl_->SearchInvertUint32In(field, values, out);
+}
+Status Index::SearchArrayUint32ContainsAny(
+    const std::string& field, const std::vector<uint32_t>& values,
+    SearchResult* out) const {
+  return impl_->SearchArrayUint32(field, values, false, out);
+}
+Status Index::SearchArrayUint32NotContainsAny(
+    const std::string& field, const std::vector<uint32_t>& values,
+    SearchResult* out) const {
+  return impl_->SearchArrayUint32(field, values, true, out);
+}
+Status Index::SearchHybrid(
+    const std::string& query, uint32_t top_k, double alpha,
+    const std::unordered_map<std::string, float>& vector_scores,
+    SearchResult* out) const {
+  return impl_->SearchHybrid(query, top_k, alpha, vector_scores, out);
+}
+IndexStats Index::GetStats() const { return impl_->GetStats(); }
+
+}  // namespace m4

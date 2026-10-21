@@ -1,13 +1,15 @@
-// One bounded, non-performance rehearsal of the exact M4 0–6 scalar-open workload.
-// Runs 7 scalar counts x HNSW/FLAT x 3 repetitions; each case creates, closes,
-// reopens, closes, then removes one empty collection root. Emits resource-oriented
-// totals only; it does not report latency or qualify performance.
+// Bounded resource rehearsal or API-latency diagnostic for the exact M4 0–6
+// scalar-open workload. Runs 7 scalar counts x HNSW/FLAT x 3 repetitions; each
+// case creates, closes, reopens, closes, then removes one empty collection root.
+// Latency mode emits per-call wall intervals, excludes close/schema/cleanup work,
+// and is exploratory/non-qualifying; it is not an internal phase trace.
 #include <zvec/c_api.h>
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -65,6 +67,14 @@ static zvec_collection_schema_t* MakeSchema(unsigned scalar_count, zvec_index_ty
   }
 }
 
+struct ApiSample {
+  unsigned scalar_count;
+  const char* vector_type;
+  unsigned repetition;
+  const char* operation;
+  double latency_us;
+};
+
 static std::pair<uintmax_t, uintmax_t> TreeBytes(const fs::path& root) {
   uintmax_t apparent = 0, allocated = 0;
   for (const auto& entry : fs::recursive_directory_iterator(root)) {
@@ -79,7 +89,11 @@ static std::pair<uintmax_t, uintmax_t> TreeBytes(const fs::path& root) {
 }
 
 int main(int argc, char** argv) {
-  if (argc != 3 || std::string(argv[2]) != "--m4-scalar-open-resource-rehearsal") return 2;
+  if (argc != 3) return 2;
+  const std::string mode(argv[2]);
+  const bool latency_mode = mode == "--m4-scalar-open-latency-diagnostic";
+  const bool resource_mode = mode == "--m4-scalar-open-resource-rehearsal";
+  if (!latency_mode && !resource_mode) return 2;
   const fs::path root(argv[1]);
   if (fs::exists(root)) throw std::runtime_error("rehearsal root already exists");
   fs::create_directories(root);
@@ -87,6 +101,8 @@ int main(int argc, char** argv) {
   const auto started = std::chrono::steady_clock::now();
   uint64_t opens = 0;
   uintmax_t max_apparent = 0, max_allocated = 0;
+  std::vector<ApiSample> samples;
+  samples.reserve(84);
   try {
     for (unsigned count = 0; count <= 6; ++count) {
       for (auto type : {ZVEC_INDEX_TYPE_HNSW, ZVEC_INDEX_TYPE_FLAT}) {
@@ -95,17 +111,34 @@ int main(int argc, char** argv) {
           const fs::path collection_path = root / (std::to_string(count) + "-" + type_name + "-" + std::to_string(rep));
           auto* schema = MakeSchema(count, type);
           zvec_collection_t* collection = nullptr;
-          Check(zvec_collection_create_and_open(collection_path.c_str(), schema, nullptr, &collection), "create and open collection");
+          const auto create_started = std::chrono::steady_clock::now();
+          const auto create_status = zvec_collection_create_and_open(
+              collection_path.c_str(), schema, nullptr, &collection);
+          const auto create_finished = std::chrono::steady_clock::now();
+          Check(create_status, "create and open collection");
           ++opens;
+          if (latency_mode) {
+            samples.push_back({count, type_name, rep, "create_and_open",
+                std::chrono::duration<double, std::micro>(create_finished - create_started).count()});
+          }
           zvec_collection_schema_destroy(schema);
           Check(zvec_collection_close(collection), "close created collection");
           collection = nullptr;
-          Check(zvec_collection_open(collection_path.c_str(), nullptr, &collection), "reopen collection");
+          const auto reopen_started = std::chrono::steady_clock::now();
+          const auto reopen_status = zvec_collection_open(collection_path.c_str(), nullptr, &collection);
+          const auto reopen_finished = std::chrono::steady_clock::now();
+          Check(reopen_status, "reopen collection");
           ++opens;
+          if (latency_mode) {
+            samples.push_back({count, type_name, rep, "reopen",
+                std::chrono::duration<double, std::micro>(reopen_finished - reopen_started).count()});
+          }
           Check(zvec_collection_close(collection), "close reopened collection");
-          const auto sizes = TreeBytes(collection_path);
-          max_apparent = std::max(max_apparent, sizes.first);
-          max_allocated = std::max(max_allocated, sizes.second);
+          if (resource_mode) {
+            const auto sizes = TreeBytes(collection_path);
+            max_apparent = std::max(max_apparent, sizes.first);
+            max_allocated = std::max(max_allocated, sizes.second);
+          }
           fs::remove_all(collection_path);
         }
       }
@@ -117,6 +150,18 @@ int main(int argc, char** argv) {
   }
   const auto elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   fs::remove_all(root);
+  if (latency_mode) {
+    std::cout << std::fixed << std::setprecision(3);
+    for (const auto& sample : samples) {
+      std::cout << "{\"row_kind\":\"api_latency\",\"scalar_count\":" << sample.scalar_count
+                << ",\"vector_type\":\"" << sample.vector_type << "\",\"repetition\":" << sample.repetition
+                << ",\"operation\":\"" << sample.operation << "\",\"latency_us\":" << sample.latency_us << "}\n";
+    }
+    std::cout << "{\"row_kind\":\"summary\",\"workload\":\"m4-scalar-open-latency-diagnostic\",\"scalar_counts\":[0,1,2,3,4,5,6],\"vector_types\":[\"HNSW\",\"FLAT\"],\"repetitions\":3,\"api_opens\":" << opens
+              << ",\"api_latency_samples\":" << samples.size()
+              << ",\"collection_roots_at_once\":1,\"documents\":0,\"queries\":0,\"elapsed_ms\":" << elapsed_ms << "}\n";
+    return opens == 84 && samples.size() == 84 ? 0 : 1;
+  }
   std::cout << "{\"workload\":\"m4-scalar-open-resource-rehearsal\",\"scalar_counts\":[0,1,2,3,4,5,6],\"vector_types\":[\"HNSW\",\"FLAT\"],\"repetitions\":3,\"api_opens\":" << opens
             << ",\"collection_roots_at_once\":1,\"documents\":0,\"queries\":0,\"elapsed_ms\":" << elapsed_ms
             << ",\"max_collection_apparent_bytes\":" << max_apparent

@@ -1,0 +1,928 @@
+{
+  "arm_name": "pair-second",
+  "result": {
+    "approved_budget": {
+      "approval_reference": "Current owner instruction in active M4 session: run the corrected matched pair; owner confirms the agent may decide and proceed.",
+      "cpu_max": "200000 100000",
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 0,
+      "pids_max": 128,
+      "workspace_max_allocated_bytes": 268435456,
+      "workspace_max_apparent_bytes": 536870912
+    },
+    "benchmark_started": true,
+    "bootstrap_exit_status": 0,
+    "cgroup_io_controller_available": false,
+    "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-a4e6b3b8f706471b.service",
+    "command_end": {
+      "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-a4e6b3b8f706471b.service",
+      "monotonic_ns": 50457753343601,
+      "pid": 4150957,
+      "returncode": 0,
+      "timestamp_utc": "2026-10-21T15:11:16.267656+00:00"
+    },
+    "command_start": {
+      "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-a4e6b3b8f706471b.service",
+      "monotonic_ns": 50454813904602,
+      "pid": 4150957,
+      "timestamp_utc": "2026-10-21T15:11:13.328212+00:00"
+    },
+    "controller_cleanup": null,
+    "diagnostic_decision": {
+      "approval_reference": "Current owner instruction in active M4 session: run the corrected matched pair; owner confirms the agent may decide and proceed.",
+      "blocking_failures": [],
+      "continuation_allowed": true,
+      "continuation_reason": "approved workload capacity and containment plan, not an idle-envelope waiver or safety certification",
+      "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+      "historical_gate_decisions": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-MEM",
+          "metric": "MemAvailable",
+          "observed": 7654092,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 5477762,
+          "threshold_key": "MemAvailable_kib_min",
+          "unit": "KiB"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-DISK",
+          "metric": "resource-root available bytes",
+          "observed": 86615724032,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 18219000000,
+          "threshold_key": "var_tmp_bytes_min",
+          "unit": "bytes"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-IOPSI",
+          "metric": "host I/O PSI full avg10",
+          "observed": 10.11,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "selected_mode_disposition": "record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 4.46,
+          "threshold_key": "io_full_avg10_max",
+          "unit": "percent"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-LOAD",
+          "metric": "host load-1",
+          "observed": 2.54,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 3.14,
+          "threshold_key": "load1_max",
+          "unit": "load average"
+        }
+      ],
+      "historical_guard_failures": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-IOPSI",
+          "metric": "host I/O PSI full avg10",
+          "observed": 10.11,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "selected_mode_disposition": "record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 4.46,
+          "threshold_key": "io_full_avg10_max",
+          "unit": "percent"
+        }
+      ],
+      "host_io_pressure_observation": {
+        "disposition": "observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate",
+        "full_avg10_percent": 10.11,
+        "full_avg300_percent": 3.88,
+        "full_avg60_percent": 6.07,
+        "some_avg10_percent": 10.57
+      },
+      "mode": "contention-aware",
+      "monotonic_ns": 50454531364627,
+      "operation_id": "m4-shared-collection-pair-20261021-221036-a40ca2",
+      "phase": "pair-second",
+      "timestamp_utc": "2026-10-21T15:11:13.045681+00:00"
+    },
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "failure_class": "NORMAL_EXIT_WITH_WORKSPACE_CAVEATS",
+    "failure_scope": "this arm only",
+    "final_process_status": "exit=0 and complete hard safety telemetry may complete exploratory operation with workspace caveats; INCOMPLETE is never PASS",
+    "gate_decisions": [
+      {
+        "enforced": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-MEM",
+        "metric": "MemAvailable",
+        "observed": 7654092,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 5477762,
+        "threshold_key": "MemAvailable_kib_min",
+        "unit": "KiB"
+      },
+      {
+        "enforced": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-DISK",
+        "metric": "resource-root available bytes",
+        "observed": 86615724032,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 18219000000,
+        "threshold_key": "var_tmp_bytes_min",
+        "unit": "bytes"
+      },
+      {
+        "enforced": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-IOPSI",
+        "metric": "host I/O PSI full avg10",
+        "observed": 10.11,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 4.46,
+        "threshold_key": "io_full_avg10_max",
+        "unit": "percent"
+      },
+      {
+        "enforced": false,
+        "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-LOAD",
+        "metric": "host load-1",
+        "observed": 2.54,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 3.14,
+        "threshold_key": "load1_max",
+        "unit": "load average"
+      }
+    ],
+    "hard_guards": {
+      "io_full_avg10_max": 4.46,
+      "load1_max": 3.14,
+      "memavailable_min_kib": 5477762,
+      "var_tmp_free_min_bytes": 18219000000
+    },
+    "io_control": {
+      "fallback": "process-tree /proc/<pid>/io plus host /proc/diskstats; not a per-arm physical-write attribution",
+      "io_limit_applied": false,
+      "status": "UNAVAILABLE"
+    },
+    "limits_applied": {
+      "approval_reference": "Current owner instruction in active M4 session: run the corrected matched pair; owner confirms the agent may decide and proceed.",
+      "cpu_max": "200000 100000",
+      "memory_max_bytes": "1073741824",
+      "memory_swap_max_bytes": "0",
+      "pids_max": "128",
+      "workspace_limits": "monitored-soft-budgets; warnings only; no kernel/filesystem quota"
+    },
+    "measurement_quality": "INCOMPLETE",
+    "memory_swap_pressure_limits": null,
+    "mission_status": "NOT_EVALUATED_BY_RUNNER",
+    "operation_outcome": "OPERATION_COMPLETE_WITH_WORKSPACE_CAVEATS",
+    "performance_eligible": false,
+    "policy_context": {
+      "approval_reference": "Current owner instruction in active M4 session: run the corrected matched pair; owner confirms the agent may decide and proceed.",
+      "approval_status": "approved",
+      "approved_binary_sha256": "3388c930b675f4f404c43d918cf51a329346c59838bf45d6789255f58365ac9b",
+      "approved_dictionary_tree_sha256": "9c05e30b201663f0045db0cd9d810b831b7adba59055b1658353a1bd7ae5fa5c",
+      "arm_role": "shared-collection",
+      "binary_path": "/home/masis/src/zvec-grep/research/m4-native/.work/build/m4-stage-trace-bridge-test/m4_bridge_integration",
+      "binary_sha256": "3388c930b675f4f404c43d918cf51a329346c59838bf45d6789255f58365ac9b",
+      "cpu_max": "200000 100000",
+      "dictionary_path": "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+      "dictionary_tree_sha256": "9c05e30b201663f0045db0cd9d810b831b7adba59055b1658353a1bd7ae5fa5c",
+      "disk_reserve_bytes": 18219000000,
+      "execution_authorization_reference": "Owner explicitly authorized one new matched immutable-shard versus shared-collection pair after the manifest initialization fix; retain this operation's unchanged resource caps, correctness/durability requirements, and hard gates; no automatic retries.",
+      "host_memory_reserve_bytes": 3221225472,
+      "io_pressure_mode": "observational-only",
+      "max_monitor_gap_seconds": 2,
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 0,
+      "mode": "contention-aware",
+      "operation_id": "m4-shared-collection-pair-20261021-221036-a40ca2",
+      "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/shared-collection-pair-20261021/m4-shared-collection-pair-20261021-221036-a40ca2",
+      "pids_max": 128,
+      "policy_sha256": "a3fed3f89e844a7b2affc4cad567ec27a00bc25db87c11e7d3cd58ff035ca7af",
+      "purpose": "m4-shared-collection-pair",
+      "resource_basis": "owner-approved single exploratory pair; operation-specific 1-GiB cgroup and 3-GiB host reserve",
+      "resource_root": "/var/tmp",
+      "risk_acceptance_reference": "Explicit acceptance for this one pair of shared /var/tmp Btrfs I/O with no per-arm I/O throttling or physical-write attribution; do not stop unrelated workloads.",
+      "runtime_limit_seconds": 180,
+      "schema_version": 1,
+      "workload": {
+        "baseline_mode": "--incremental-fts-sustained-no-analyzer-cache",
+        "candidate_mode": "--shared-collection-performance",
+        "documents": 500,
+        "durability": "M4 fsync_wal plus native collection flush",
+        "m4_analyzer_cache": "disabled; fingerprint verification remains strict",
+        "queries_per_reader_per_round": 1,
+        "readers": 4,
+        "rounds": 5
+      },
+      "workspace_max_allocated_bytes": 268435456,
+      "workspace_max_apparent_bytes": 536870912
+    },
+    "policy_id": "m4-benchmark-operation-policy-v1",
+    "postflight_decision": {
+      "approval_reference": "Current owner instruction in active M4 session: run the corrected matched pair; owner confirms the agent may decide and proceed.",
+      "blocking_failures": [],
+      "continuation_allowed": true,
+      "continuation_reason": "approved workload capacity and containment plan, not an idle-envelope waiver or safety certification",
+      "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+      "historical_gate_decisions": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-MEM",
+          "metric": "MemAvailable",
+          "observed": 7776396,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 5477762,
+          "threshold_key": "MemAvailable_kib_min",
+          "unit": "KiB"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-DISK",
+          "metric": "resource-root available bytes",
+          "observed": 86608855040,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 18219000000,
+          "threshold_key": "var_tmp_bytes_min",
+          "unit": "bytes"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-IOPSI",
+          "metric": "host I/O PSI full avg10",
+          "observed": 9.63,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "selected_mode_disposition": "record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 4.46,
+          "threshold_key": "io_full_avg10_max",
+          "unit": "percent"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-LOAD",
+          "metric": "host load-1",
+          "observed": 2.57,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 3.14,
+          "threshold_key": "load1_max",
+          "unit": "load average"
+        }
+      ],
+      "historical_guard_failures": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-IOPSI",
+          "metric": "host I/O PSI full avg10",
+          "observed": 9.63,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "selected_mode_disposition": "record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 4.46,
+          "threshold_key": "io_full_avg10_max",
+          "unit": "percent"
+        }
+      ],
+      "host_io_pressure_observation": {
+        "disposition": "observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate",
+        "full_avg10_percent": 9.63,
+        "full_avg300_percent": 3.94,
+        "full_avg60_percent": 6.23,
+        "some_avg10_percent": 10.08
+      },
+      "mode": "contention-aware",
+      "monotonic_ns": 50457839757933,
+      "operation_id": "m4-shared-collection-pair-20261021-221036-a40ca2",
+      "phase": "runtime-second",
+      "timestamp_utc": "2026-10-21T15:11:16.354076+00:00"
+    },
+    "postflight_workspace": {
+      "allocated_semantics": "observed sum st_blocks*512, deduplicated hardlinks; Btrfs shared extents may be counted more than once",
+      "allocated_st_blocks_bytes_gross": 9740288,
+      "apparent_bytes": 34665429,
+      "complete_snapshot": false,
+      "directory_count": 6,
+      "entries_observed": 68,
+      "file_count": 62,
+      "generation_apparent_bytes": 0,
+      "generation_directory_names": [],
+      "independent_capacity_upper_bound": null,
+      "inventory_status": "COMPLETE_TRAVERSAL_NOT_ATOMIC",
+      "issue_count": 0,
+      "issues": [],
+      "limitations": "No atomic snapshot/quota backend. A traversal can miss creates/growth/mmap/replacements between observations; no upper bound or verified lifetime peak. One pass, no retry. Deadline is cooperative, not a bound on one blocked kernel syscall.",
+      "mutation_observer": "bounded per-pass inotify; not independent capacity proof; mmap/writeback not covered",
+      "reservation_credit_bytes": 0,
+      "root": "/var/tmp/m4-shared-collection-pair-20261021-221036-a40ca2/pair-second",
+      "root_identity": [
+        37,
+        30940837
+      ],
+      "scan_complete": true,
+      "scan_duration_ns": 776371,
+      "scan_errors": [],
+      "schema_version": 2,
+      "staging_named_apparent_bytes": 0,
+      "symlink_count": 0,
+      "verified_peak": null
+    },
+    "postflight_workspace_capacity": {
+      "continuation_allowed": true,
+      "errors": [],
+      "independent_capacity_upper_bound": null,
+      "inventory_status": "COMPLETE_TRAVERSAL_NOT_ATOMIC",
+      "measurement_quality": "COMPLETE_TRAVERSAL_NOT_PROOF",
+      "proof_semantics": "owner-approved monitored soft budgets only; NOT hard enforcement/capacity proof",
+      "reason": null,
+      "state": "SAMPLED_SOFT_BUDGET_NOT_EXCEEDED",
+      "warnings": []
+    },
+    "preflight": {
+      "cpu_pressure": {
+        "full": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 0.0
+        },
+        "some": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 395244058.0
+        }
+      },
+      "diskstats": {
+        "dm-0": {
+          "io_in_progress": 0,
+          "io_ms": 2308121,
+          "major": 253,
+          "minor": 0,
+          "read_ms": 8139095,
+          "reads_completed": 13348248,
+          "sectors_read": 1515011064,
+          "sectors_written": 342102888,
+          "weighted_io_ms": 407892769,
+          "write_ms": 399753674,
+          "writes_completed": 6823800
+        },
+        "nvme0n1": {
+          "io_in_progress": 0,
+          "io_ms": 3286648,
+          "major": 259,
+          "minor": 0,
+          "read_ms": 7278052,
+          "reads_completed": 27722210,
+          "sectors_read": 1712379036,
+          "sectors_written": 603603218,
+          "weighted_io_ms": 246674476,
+          "write_ms": 239186011,
+          "writes_completed": 12974034
+        },
+        "nvme0n1p1": {
+          "io_in_progress": 0,
+          "io_ms": 32,
+          "major": 259,
+          "minor": 1,
+          "read_ms": 171,
+          "reads_completed": 637,
+          "sectors_read": 11627,
+          "sectors_written": 10,
+          "weighted_io_ms": 172,
+          "write_ms": 1,
+          "writes_completed": 12
+        },
+        "nvme0n1p2": {
+          "io_in_progress": 0,
+          "io_ms": 1645492,
+          "major": 259,
+          "minor": 2,
+          "read_ms": 3511416,
+          "reads_completed": 17839434,
+          "sectors_read": 197352336,
+          "sectors_written": 261500320,
+          "weighted_io_ms": 202142977,
+          "write_ms": 198631561,
+          "writes_completed": 7247301
+        },
+        "nvme0n1p3": {
+          "io_in_progress": 0,
+          "io_ms": 1897450,
+          "major": 259,
+          "minor": 3,
+          "read_ms": 3766455,
+          "reads_completed": 9882041,
+          "sectors_read": 1515012073,
+          "sectors_written": 342102888,
+          "weighted_io_ms": 44320904,
+          "write_ms": 40554449,
+          "writes_completed": 5726718
+        },
+        "zram0": {
+          "io_in_progress": 0,
+          "io_ms": 411897,
+          "major": 252,
+          "minor": 0,
+          "read_ms": 99042,
+          "reads_completed": 8366218,
+          "sectors_read": 66931992,
+          "sectors_written": 114576040,
+          "weighted_io_ms": 588368,
+          "write_ms": 489326,
+          "writes_completed": 13793594
+        }
+      },
+      "io_pressure": {
+        "full": {
+          "avg10": 10.11,
+          "avg300": 3.88,
+          "avg60": 6.07,
+          "total": 1179839489.0
+        },
+        "some": {
+          "avg10": 10.57,
+          "avg300": 4.09,
+          "avg60": 6.37,
+          "total": 1324204708.0
+        }
+      },
+      "loadavg": [
+        2.54,
+        2.41,
+        2.42
+      ],
+      "meminfo_kib": {
+        "MemAvailable_kib": 7654092,
+        "MemTotal_kib": 16051136,
+        "SwapFree_kib": 16175828,
+        "SwapTotal_kib": 24802296
+      },
+      "memory_pressure": {
+        "full": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 207726915.0
+        },
+        "some": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 220045846.0
+        }
+      },
+      "monotonic_ns": 50454531364627,
+      "resource_root_free_bytes": 86615724032,
+      "timestamp_utc": "2026-10-21T15:11:13.045681+00:00",
+      "vmstat": {
+        "allocstall_device": 2,
+        "allocstall_dma": 0,
+        "allocstall_dma32": 0,
+        "allocstall_movable": 355452,
+        "allocstall_normal": 77848,
+        "oom_kill": 7,
+        "pgscan_direct": 55890726,
+        "pgsteal_direct": 26958870,
+        "pswpin_pages": 33034617,
+        "pswpout_pages": 47009544
+      }
+    },
+    "process_returncode": 0,
+    "reason": "workspace accounting INCOMPLETE/UNKNOWN",
+    "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+    "schema_version": 1,
+    "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+    "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+    "test_fixture_mode": false,
+    "timestamp_utc": "2026-10-21T15:11:16.353890+00:00",
+    "unit": "m4-contained-a4e6b3b8f706471b.service",
+    "unit_cleanup": {
+      "stop_returncode": 5,
+      "unit_collected": true,
+      "verified": true
+    },
+    "watchdog_abort": null,
+    "watchdog_summary": {
+      "abort": null,
+      "cgroup_io_stat_available": false,
+      "final_cgroup": {
+        "cgroup_io_controller": false,
+        "controllers": [
+          "cpu",
+          "memory",
+          "pids"
+        ],
+        "cpu_pressure": {
+          "full": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 7545.0
+          },
+          "some": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 7548.0
+          }
+        },
+        "cpu_stat": {
+          "burst_usec": 0,
+          "core_sched.force_idle_usec": 0,
+          "nice_usec": 0,
+          "nr_bursts": 0,
+          "nr_periods": 32,
+          "nr_throttled": 0,
+          "system_usec": 682101,
+          "throttled_usec": 0,
+          "usage_usec": 1432845,
+          "user_usec": 750744
+        },
+        "io_max": null,
+        "io_pressure": {
+          "full": {
+            "avg10": 1.44,
+            "avg300": 0.05,
+            "avg60": 0.26,
+            "total": 336904.0
+          },
+          "some": {
+            "avg10": 1.44,
+            "avg300": 0.05,
+            "avg60": 0.26,
+            "total": 337342.0
+          }
+        },
+        "io_stat": null,
+        "memory_current_bytes": 48087040,
+        "memory_events": {
+          "high": 0,
+          "low": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "sock_throttled": 0
+        },
+        "memory_peak_bytes": 221908992,
+        "memory_pressure": {
+          "full": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 0.0
+          },
+          "some": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 0.0
+          }
+        },
+        "memory_swap_current_bytes": 0,
+        "memory_swap_events": {
+          "fail": 0,
+          "high": 0,
+          "max": 0
+        },
+        "memory_swap_peak_bytes": 0,
+        "pids": [
+          4150947
+        ],
+        "pids_current": 1,
+        "pids_events": {
+          "max": 0
+        },
+        "populated": 1,
+        "process_io_sample_complete": true,
+        "process_memory_sample_complete": true,
+        "process_tree_pss_kib": 18316,
+        "process_tree_read_bytes": 0,
+        "process_tree_rss_kib": 27884,
+        "process_tree_swap_kib": 0,
+        "process_tree_write_bytes": 209297408
+      },
+      "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+      "hard_safety_telemetry_complete": true,
+      "max_observed_complete_traversal_allocated_bytes": 10719232,
+      "max_observed_complete_traversal_apparent_bytes": 34665429,
+      "measurement_quality": "INCOMPLETE",
+      "peak_cgroup_memory_current_bytes_sampled": 221163520,
+      "peak_cgroup_memory_peak_bytes_observed": 221908992,
+      "peak_cgroup_swap_current_bytes_sampled": 0,
+      "peak_cgroup_swap_peak_bytes_observed": 0,
+      "peak_sampled_generation_apparent_bytes": null,
+      "peak_sampled_staging_named_apparent_bytes": null,
+      "peak_sampled_workspace_allocated_st_blocks_bytes_gross": null,
+      "peak_sampled_workspace_apparent_bytes": null,
+      "policy_context_digest": "9a216dc7850cbb8203e847f400f3c8ca2adc97d8e0854f1a0beabc3ea0746765",
+      "policy_mode": "contention-aware",
+      "process_tree_samples_complete": true,
+      "safety_outcome": "WATCHDOG_COMPLETED_NO_ABORT",
+      "sample_interval_ms_requested": 100,
+      "samples": 22,
+      "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+      "schema_version": 1,
+      "workspace_accounting_status": "UNKNOWN",
+      "workspace_samples_complete": false,
+      "workspace_shared_extent_inspection": {
+        "available": false,
+        "reason": "No extra recursive FIEMAP walk in bounded observer; extent sharing unknown, never capacity proof"
+      },
+      "workspace_snapshot_semantics": "sampled traversals, NOT atomic snapshots or verified lifetime peaks",
+      "workspace_soft_budget_warning_samples": 0,
+      "workspace_verified_peak": null
+    },
+    "workload_returncode": 0,
+    "workload_signal": null,
+    "workspace_capacity_status": null
+  },
+  "role": "shared-collection",
+  "workload": {
+    "coherence_errors": 0,
+    "completed_rounds": 5,
+    "documents": 500,
+    "failures": 0,
+    "gc_checkpoint_ms": [
+      1.336,
+      1.546,
+      1.678,
+      1.345,
+      1.541
+    ],
+    "gc_compaction_ms": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "gc_generations_examined": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "gc_m4_flush_ms": [
+      8.357,
+      13.407,
+      9.337,
+      9.565,
+      11.108
+    ],
+    "gc_m4_search_delete_ms": [
+      357.969,
+      372.733,
+      349.761,
+      382.538,
+      367.184
+    ],
+    "gc_native_delete_ms": [
+      2.88,
+      8.306,
+      4.03,
+      2.209,
+      2.126
+    ],
+    "gc_native_flush_ms": [
+      4.738,
+      6.967,
+      5.646,
+      5.14,
+      5.047
+    ],
+    "generation": 6,
+    "initial_commit_cpu_ms": 27.527,
+    "initial_commit_ms": 62.106,
+    "logical_mutations_per_round": [
+      7,
+      7,
+      7,
+      7,
+      7
+    ],
+    "m4_apply_ms": [
+      9.224,
+      8.774,
+      13.461,
+      12.427,
+      10.418
+    ],
+    "m4_dead_docs": 0,
+    "m4_flush_ms": [
+      7.256,
+      7.755,
+      8.947,
+      9.203,
+      7.205
+    ],
+    "m4_live_docs": 500,
+    "m4_open_cpu_ms": 399.706,
+    "m4_open_ms": 412.027,
+    "mode": "shared_collection",
+    "native_flush_ms": [
+      32.562,
+      23.671,
+      51.92,
+      39.513,
+      26.824
+    ],
+    "native_live_docs": 500,
+    "native_open_cpu_ms": 31.823,
+    "native_open_ms": 58.064,
+    "native_upsert_ms": [
+      10.916,
+      12.232,
+      17.145,
+      14.259,
+      12.888
+    ],
+    "process_write_bytes": 209240064,
+    "publish_ms": [
+      2.151,
+      3.656,
+      2.955,
+      2.767,
+      2.583
+    ],
+    "reader_thread_cpu_ms": [
+      1.301,
+      1.265,
+      1.263,
+      1.461,
+      2.553,
+      3.089,
+      2.841,
+      2.689,
+      2.082,
+      2.121,
+      2.384,
+      2.328,
+      2.086,
+      2.219,
+      2.4,
+      2.364,
+      3.03,
+      2.964,
+      2.983,
+      3.036
+    ],
+    "reader_thread_cpu_p50_ms": 2.364,
+    "reader_thread_cpu_p95_ms": 3.036,
+    "reader_total_max_ms": 97.887,
+    "reader_total_ms": [
+      64.619,
+      64.776,
+      64.961,
+      65.359,
+      59.323,
+      59.818,
+      59.996,
+      60.467,
+      97.352,
+      97.552,
+      97.687,
+      97.887,
+      80.883,
+      81.069,
+      81.2,
+      81.223,
+      63.844,
+      63.94,
+      64.045,
+      64.151
+    ],
+    "reader_total_p50_ms": 64.776,
+    "reader_total_p95_ms": 97.687,
+    "reader_total_p99_ms": 97.887,
+    "root_bytes": 34665429,
+    "rounds": 5,
+    "writer_commit_ms": [
+      62.83,
+      56.574,
+      95.1,
+      78.671,
+      60.744
+    ],
+    "writer_cycle_max_ms": 482.362,
+    "writer_cycle_ms": [
+      440.759,
+      463.836,
+      468.629,
+      482.362,
+      451.5
+    ],
+    "writer_cycle_p50_ms": 463.836,
+    "writer_cycle_p95_ms": 482.362,
+    "writer_cycle_p99_ms": 482.362,
+    "writer_gc_ms": [
+      377.927,
+      407.261,
+      373.526,
+      403.69,
+      390.753
+    ],
+    "writer_thread_cpu_ms": 654.874,
+    "writer_write_bytes_per_round": [
+      40472576.0,
+      39768064.0,
+      41271296.0,
+      39964672.0,
+      41267200.0
+    ]
+  }
+}

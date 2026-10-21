@@ -183,7 +183,8 @@ class ContentionPolicyTests(unittest.TestCase):
             )
 
     def test_m4_scalar_rehearsal_binds_84_open_workload_and_approved_host_floors(self):
-        binary_path = pathlib.Path(sys.executable).resolve()
+        binary_path = self.root / "m4_native_scalar_open_resource_rehearsal"
+        binary_path.write_bytes(b"synthetic pinned binary identity; never launched")
         ctx: dict[str, Any] = dict(
             self.ctx,
             purpose="m4-scalar-open-resource-rehearsal",
@@ -235,6 +236,47 @@ class ContentionPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exact 84-open"):
             ct.validate_contention_context(malformed)
 
+    def test_m4_latency_diagnostic_binds_exact_workload_and_nonqualifying_class(self):
+        binary_path = self.root / "m4_native_scalar_open_latency_diagnostic"
+        binary_path.write_bytes(b"synthetic pinned binary identity; never launched")
+        binary_sha = hashlib.sha256(binary_path.read_bytes()).hexdigest()
+        ctx = dict(
+            self.ctx,
+            purpose=ct.M4_SCALAR_LATENCY_PURPOSE,
+            operation_id="m4-scalar-open-latency-diagnostic-test",
+            operation_root=str(self.root / "m4-scalar-open-latency-diagnostic-test"),
+            binary_path=str(binary_path),
+            binary_sha256=binary_sha,
+            approved_binary_sha256=binary_sha,
+            workload={"scalar_counts": list(range(7)), "vector_types": ["HNSW", "FLAT"],
+                      "repetitions": 3, "api_opens": 84, "documents": 0, "queries": 0},
+            host_memory_reserve_bytes=3 * 1024**3,
+            disk_reserve_bytes=8 * 1024**3,
+        )
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ct.contention_evidence_class(ctx), "EXPLORATORY / NON-QUALIFYING")
+        workspace = self.root / "workspace-latency"
+        workspace.mkdir()
+        with self.assertRaisesRegex(ValueError, "binding mismatch"):
+            ct.run_arm(
+                [str(binary_path), str(workspace / "wrong-root"), "--m4-scalar-open-resource-rehearsal"],
+                self.root / "m4-scalar-open-latency-diagnostic-test/aa-first/containment",
+                self.root, workspace, workspace, ctx["runtime_limit_seconds"],
+                budget=ct.contention_budget(ctx), policy_context=ctx,
+            )
+        current = state()
+        current["meminfo_kib"]["MemAvailable_kib"] = 3 * 1024**2
+        current["resource_root_free_bytes"] = 8 * 1024**3
+        current["loadavg"] = [5.0]
+        for family in ("io_pressure", "memory_pressure", "cpu_pressure"):
+            current[family]["some"]["avg10"] = 1.0
+            current[family]["full"]["avg10"] = 1.0
+        decision = ct.contention_decision(current, ctx, "aa-first")
+        self.assertTrue(decision["continuation_allowed"])
+        load_gate = next(g for g in decision["historical_gate_decisions"] if g["gate_id"] == "M4-RG-LOAD")
+        self.assertEqual(load_gate["status"], "FAIL")
+        self.assertFalse(load_gate["enforced_in_selected_mode"])
+
     def test_m4_scalar_rehearsal_records_swap_reclaim_without_blocking(self):
         baseline = {"pswpin_pages": 10, "pswpout_pages": 20, "pgscan_direct": 30,
                     "pgsteal_direct": 25, "allocstall_dma": 0, "oom_kill": 0}
@@ -252,6 +294,85 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertTrue(ct.m4_scalar_rehearsal_host_observation({"vmstat": oom}, baseline)["blocking_failures"])
         reset = dict(changed, pswpout_pages=19)
         self.assertTrue(ct.m4_scalar_rehearsal_host_observation({"vmstat": reset}, baseline)["telemetry_errors"])
+
+    def shared_collection_pair_context(self) -> dict[str, Any]:
+        contract = ct.BENCHMARK_POLICY["shared_collection_pair"]
+        binary_path = self.root / contract["binary_name"]
+        binary_path.write_bytes(b"synthetic pinned binary; never launched")
+        dictionary_path = self.root / "jieba-dict"
+        dictionary_path.mkdir()
+        (dictionary_path / "dict.txt").write_text("synthetic dictionary fixture\n")
+        binary_sha = hashlib.sha256(binary_path.read_bytes()).hexdigest()
+        dictionary_sha = ct.directory_sha256(dictionary_path)
+        operation_id = "m4-shared-collection-pair-test"
+        ctx: dict[str, Any] = {
+            "schema_version": 1,
+            "mode": ct.CONTENTION_MODE,
+            "approval_status": "approved",
+            "approval_reference": contract["approval_reference"],
+            "execution_authorization_reference": contract["execution_authorization_reference"],
+            "risk_acceptance_reference": contract["risk_acceptance_reference"],
+            "resource_basis": "synthetic policy test only",
+            "policy_sha256": hashlib.sha256(ct.POLICY_PATH.read_bytes()).hexdigest(),
+            "operation_id": operation_id,
+            "operation_root": str((self.root / operation_id).resolve()),
+            "resource_root": contract["resource_root"],
+            "purpose": contract["purpose"],
+            "binary_path": str(binary_path.resolve()),
+            "binary_sha256": binary_sha,
+            "approved_binary_sha256": binary_sha,
+            "dictionary_path": str(dictionary_path.resolve()),
+            "dictionary_tree_sha256": dictionary_sha,
+            "approved_dictionary_tree_sha256": dictionary_sha,
+            "workload": contract["workload"],
+            "arm_role": "immutable-shard",
+            "io_pressure_mode": contract["io_pressure_mode"],
+        }
+        ctx.update(contract["resource_controls"])
+        return ctx
+
+    def test_shared_collection_pair_binds_approved_workload_and_input_identities(self):
+        ctx = self.shared_collection_pair_context()
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ct.contention_evidence_class(ctx), ct.CONTENTION_EVIDENCE)
+        bad_workload = dict(ctx, workload={**ctx["workload"], "rounds": 20})
+        with self.assertRaisesRegex(ValueError, "owner-approved operation contract"):
+            ct.validate_contention_context(bad_workload)
+        bad_dictionary = dict(ctx, dictionary_tree_sha256="0" * 64)
+        with self.assertRaisesRegex(ValueError, "owner-approved operation contract"):
+            ct.validate_contention_context(bad_dictionary)
+        workspace = self.root / "pair-workspace"
+        workspace.mkdir()
+        wrong_command = [ctx["binary_path"], str(workspace / "root"), ctx["dictionary_path"],
+                         "--shared-collection-performance", "500", "5"]
+        with self.assertRaisesRegex(ValueError, "binding mismatch"):
+            ct.run_arm(
+                wrong_command,
+                pathlib.Path(ctx["operation_root"]) / "pair-first/containment",
+                pathlib.Path(ctx["resource_root"]), workspace, workspace,
+                ctx["runtime_limit_seconds"], budget=ct.contention_budget(ctx),
+                policy_context=ctx,
+            )
+
+    def test_shared_collection_pair_enforces_capacity_and_records_io_pressure_only(self):
+        ctx = self.shared_collection_pair_context()
+        current = state()
+        current["meminfo_kib"]["MemAvailable_kib"] = 4 * 1024**2
+        current["resource_root_free_bytes"] = 32 * 1024**3
+        current["io_pressure"]["full"]["avg10"] = 4.48
+        current["loadavg"] = [12.0]
+        decision = ct.contention_decision(current, ctx, "pair-first")
+        self.assertTrue(decision["continuation_allowed"])
+        self.assertTrue(any(g["gate_id"] == "M4-RG-MEM" and g["status"] == "FAIL"
+                            for g in decision["historical_gate_decisions"]))
+        io_gate = next(g for g in decision["historical_gate_decisions"] if g["gate_id"] == "M4-RG-IOPSI")
+        self.assertEqual(io_gate["status"], "FAIL")
+        self.assertFalse(io_gate["enforced_in_selected_mode"])
+        self.assertIn("not an admission or abort gate", io_gate["selected_mode_disposition"])
+        self.assertEqual(decision["host_io_pressure_observation"]["full_avg10_percent"], 4.48)
+        self.assertIn("observational-only", decision["host_io_pressure_observation"]["disposition"])
+        current["meminfo_kib"]["MemAvailable_kib"] -= 1
+        self.assertFalse(ct.contention_decision(current, ctx, "pair-first")["continuation_allowed"])
 
     def test_all_four_historical_failures_are_raw_not_passes(self):
         d = ct.contention_decision(state(), self.ctx, "baseline")
@@ -398,6 +519,32 @@ class ContentionPolicyTests(unittest.TestCase):
         after["cpu_stat"]["usage_usec"] = 0
         with self.assertRaises(ValueError):
             ct.contention_runtime_failures(after, before)
+
+    def test_watchdog_phase_preserves_first_arm_reserve_for_pair(self):
+        self.assertEqual(ct.watchdog_phase("pair-first", False), "pair-first")
+        self.assertEqual(ct.watchdog_phase("pair-first", True), "runtime-first")
+        self.assertEqual(ct.watchdog_phase("pair-second", False), "pair-second")
+        self.assertEqual(ct.watchdog_phase("pair-second", True), "runtime-second")
+        with self.assertRaises(ValueError):
+            ct.watchdog_phase("unknown", True)
+
+    def test_shared_pair_watchdog_accepts_only_pair_arm_names(self):
+        ctx = self.shared_collection_pair_context()
+        base = self.watchdog_config()
+        for arm_name in ("pair-first", "pair-second"):
+            output = pathlib.Path(ctx["operation_root"]) / arm_name / "containment"
+            output.mkdir(parents=True, exist_ok=True)
+            config = dict(base, policy_context=ctx, policy_context_digest=ct.contention_context_digest(ctx),
+                          arm_name=arm_name, watchdog_output=str(output),
+                          resource_root=ctx["resource_root"], runtime_limit_seconds=ctx["runtime_limit_seconds"],
+                          budget=ct.contention_budget(ctx))
+            path = self.root / f"{arm_name}.json"
+            path.write_text(json.dumps(config))
+            self.assertEqual(ct.read_watchdog_config(path)["arm_name"], arm_name)
+        config["arm_name"] = "aa-first"
+        path.write_text(json.dumps(config))
+        with self.assertRaisesRegex(ValueError, "binding mismatch"):
+            ct.read_watchdog_config(path)
 
     def test_watchdog_policy_binding_cannot_drop_or_swap_context(self):
         config = self.watchdog_config()
