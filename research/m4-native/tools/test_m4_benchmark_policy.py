@@ -52,6 +52,16 @@ class BenchmarkPolicyTests(unittest.TestCase):
         self.assertEqual(decisions["M4-RG-IOPSI"]["status"], "FAIL")
         self.assertTrue(any("M4-RG-IOPSI" in reason for reason in runner.hard_gate_failures(state)))
 
+    def test_resource_only_contract_reclassifies_load_and_host_deltas_only_in_scope(self):
+        contract = self.policy["resource_only_exploratory_contract"]
+        self.assertIn("observation-only", contract["load1"])
+        self.assertIn("observation-only", self.policy["resource_guard_metadata"]["M4-RG-LOAD"]["enforcement"])
+        self.assertIn("not distress", contract["host_swap_reclaim"])
+        self.assertIn("OOM", contract["hard_stop_signals"])
+        self.assertIn("UNKNOWN/INCOMPLETE", contract["workspace"])
+        self.assertIn("never report a soft-budget observation as PASS", contract["workspace"])
+        self.assertIn("no effect on qualification", contract["scope"])
+
     def test_policy_separates_integrity_quality_baseline_pressure_and_correctness(self):
         self.assertEqual(self.policy["measurement_quality"]["telemetry_integrity"]["gate_id"], "M4-MQ-INTEGRITY")
         self.assertEqual(self.policy["measurement_quality"]["stability_envelope"]["gate_id"], "M4-MQ-STABILITY")

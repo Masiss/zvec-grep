@@ -414,15 +414,21 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
                          'required_bytes': disk_required, 'attribution': 'shared filesystem capacity; cause not established'})
     raw = resource_guard_decisions(state)
     if single_rehearsal:
-        # Only MemAvailable and disk-free historical floors were explicitly
-        # replaced for this one rehearsal. Preserve every other admission gate.
+        # Capacity uses the operation-specific reserves; load-1 is retained as
+        # host context only. Other historical hard guards remain enforced.
         failures.extend({'gate_id': gate['gate_id'], 'observed': gate['observed'],
                          'threshold': gate['threshold'], 'reason': 'non-overridden historical admission gate'}
                         for gate in raw if gate['status'] == 'FAIL' and
-                        gate['gate_id'] not in ('M4-RG-MEM', 'M4-RG-DISK'))
+                        gate['gate_id'] not in ('M4-RG-MEM', 'M4-RG-DISK', 'M4-RG-LOAD'))
     for gate in raw:
+        gate_id = gate['gate_id']
         gate['enforced_in_selected_mode'] = (
-            gate['gate_id'] not in ('M4-RG-MEM', 'M4-RG-DISK') if single_rehearsal else False)
+            gate_id not in ('M4-RG-MEM', 'M4-RG-DISK', 'M4-RG-LOAD')
+            if single_rehearsal else False)
+        if single_rehearsal and gate_id == 'M4-RG-LOAD':
+            gate['selected_mode_disposition'] = 'record and analyze only; not an admission or abort gate'
+        elif single_rehearsal and gate_id in ('M4-RG-MEM', 'M4-RG-DISK'):
+            gate['selected_mode_disposition'] = 'replaced by approved operation-specific capacity reservation'
     return {'mode': CONTENTION_MODE, 'operation_id': context['operation_id'], 'phase': phase,
             'timestamp_utc': state.get('timestamp_utc'), 'monotonic_ns': state.get('monotonic_ns'),
             'historical_gate_decisions': raw, 'historical_guard_failures': [g for g in raw if g['status'] == 'FAIL'],
@@ -431,14 +437,35 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
             'evidence_class': CONTENTION_EVIDENCE, 'approval_reference': context['approval_reference']}
 
 
-def m4_scalar_rehearsal_host_distress(state: dict[str, Any], baseline: dict[str, Any]) -> list[str]:
-    """Fail closed on host swap/reclaim/OOM movement during the one-off rehearsal."""
+def m4_scalar_rehearsal_host_observation(state: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
+    """Record host swap/reclaim deltas; only OOM or telemetry-integrity loss blocks."""
     current = state.get('vmstat', {})
-    failures = []
-    for key in ('pswpin_pages', 'pswpout_pages', 'pgscan_direct', 'oom_kill'):
-        if current.get(key) != baseline.get(key):
-            failures.append(f'host {key} changed during rehearsal; attribution not established')
-    return failures
+    required = ('pswpin_pages', 'pswpout_pages', 'pgscan_direct', 'oom_kill')
+    errors = []
+    deltas = {}
+    for key in required:
+        if key not in baseline or key not in current:
+            errors.append(f'host vmstat telemetry missing/invalid for {key}')
+    for key in sorted(set(baseline) | set(current)):
+        before, after = baseline.get(key), current.get(key)
+        if isinstance(before, bool) or not isinstance(before, int) or isinstance(after, bool) or not isinstance(after, int):
+            if key in required:
+                errors.append(f'host vmstat telemetry missing/invalid for {key}')
+            continue
+        if after < before:
+            errors.append(f'host vmstat counter regressed: {key}')
+            continue
+        deltas[key] = after - before
+    blocking = list(errors)
+    if deltas.get('oom_kill', 0) > 0:
+        blocking.append('host OOM kill observed; attribution to M4 not established')
+    return {
+        'baseline_to_sample_deltas': deltas,
+        'positive_swap_or_reclaim_deltas_are_observational': True,
+        'blocking_failures': blocking,
+        'telemetry_errors': errors,
+        'oom_kill_delta': deltas.get('oom_kill'),
+    }
 
 
 def verify_contention_caps(cg: pathlib.Path, context: dict[str, Any]) -> None:
@@ -1100,6 +1127,11 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 'cgroup': cgroup_row, 'host': host_row, 'workspace': work_row,
                 'workspace_capacity_decision': workspace_decision,
             }
+            host_observation: dict[str, Any] | None = None
+            if (config.get('policy_context') or {}).get('purpose') == 'm4-scalar-open-resource-rehearsal':
+                host_observation = m4_scalar_rehearsal_host_observation(host_row, config['baseline_host_vmstat'])
+                row['host_vmstat_observation'] = host_observation
+                row['load1_disposition'] = 'observation-only; not an admission or abort gate'
             if config.get('policy_context') is not None:
                 row['sample_start_monotonic_ns'] = sample_started_ns
                 row['sample_duration_ns'] = row['monotonic_ns'] - sample_started_ns
@@ -1117,7 +1149,9 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 previous = samples[-2] if len(samples) > 1 else None
                 distress = contention_runtime_failures(cgroup_row, None if previous is None else previous['cgroup'])
                 if context.get('purpose') == 'm4-scalar-open-resource-rehearsal':
-                    distress.extend(m4_scalar_rehearsal_host_distress(host_row, config['baseline_host_vmstat']))
+                    if host_observation is None:
+                        raise ValueError('missing resource-only host observation')
+                    distress.extend(host_observation['blocking_failures'])
                 if previous is not None:
                     elapsed = (row['monotonic_ns'] - previous['monotonic_ns']) / 1e9
                     if elapsed <= 0 or elapsed > context['max_monitor_gap_seconds']:
@@ -1230,6 +1264,19 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         'cgroup_io_stat_available': any(r['cgroup']['io_stat'] is not None for r in samples),
         'final_cgroup_sampling': 'captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable',
     }
+    if (config.get('policy_context') or {}).get('purpose') == 'm4-scalar-open-resource-rehearsal':
+        load_samples = [r['host'].get('loadavg', [None])[0] for r in samples
+                        if isinstance(r['host'].get('loadavg'), list) and r['host']['loadavg']]
+        final_host = samples[-1]['host'] if samples else {}
+        summary['host_resource_observations'] = {
+            'load1_min': min(load_samples) if load_samples else None,
+            'load1_max': max(load_samples) if load_samples else None,
+            'load1_samples': len(load_samples),
+            'load1_disposition': 'observational-only; not admission or abort criterion',
+            'vmstat_baseline_to_final': m4_scalar_rehearsal_host_observation(
+                final_host, config['baseline_host_vmstat']) if samples else None,
+            'vmstat_interpretation': 'positive swap/reclaim deltas are recorded temporal observations, not standalone distress proof; OOM increments and counter-integrity failures block; no host-wide attribution to M4',
+        }
     write_json(outdir / 'watchdog-summary.json', summary)
     if abort is not None:
         abort['final_cleanup'] = {'method': 'cgroup.kill', 'attempted': True, 'success': False}
@@ -1349,6 +1396,20 @@ def retire_unit(unit: str, cg: pathlib.Path | None, receipt_dir: pathlib.Path,
                        performance_eligible=False)
     write_json(receipt_dir / 'unit-cleanup.json', cleanup)
     write_json(receipt_dir / 'receipt.json', receipt)
+
+
+def contention_completion_status(status: str, hard_complete: bool, measurement_complete: bool,
+                                workspace_warning_samples: int) -> tuple[str, str | None]:
+    """Keep workspace caveats distinct from PASS in exploratory receipts."""
+    if status != 'PASS':
+        return status, None
+    if not hard_complete:
+        return 'TELEMETRY_INCOMPLETE', 'incomplete required contention safety/process telemetry'
+    if not measurement_complete:
+        return 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'workspace accounting INCOMPLETE/UNKNOWN'
+    if workspace_warning_samples:
+        return 'COMPLETED_WITH_WORKSPACE_WARNINGS', 'workspace soft budget exceeded; see raw warnings'
+    return status, None
 
 
 def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathlib.Path,
@@ -1724,13 +1785,9 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                              and summary.get('policy_mode') == CONTENTION_MODE
                              and summary.get('policy_context_digest') == contention_context_digest(policy_context))
             measurement_complete = measurement_complete and hard_complete and summary.get('measurement_quality') == 'COMPLETE'
-            if status == 'PASS':
-                if not hard_complete:
-                    status, reason = 'TELEMETRY_INCOMPLETE', 'incomplete required contention safety/process telemetry'
-                elif not measurement_complete:
-                    status, reason = 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'workspace accounting INCOMPLETE/UNKNOWN'
-                elif summary.get('workspace_soft_budget_warning_samples', 0):
-                    status, reason = 'COMPLETED_WITH_WORKSPACE_WARNINGS', 'workspace soft budget exceeded; see raw warnings'
+            status, reason = contention_completion_status(
+                status, hard_complete, measurement_complete,
+                summary.get('workspace_soft_budget_warning_samples', 0))
         completed_statuses = {'PASS', 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'COMPLETED_WITH_WORKSPACE_WARNINGS'}
         measurement_quality = 'COMPLETE' if measurement_complete else 'INCOMPLETE'
         if status == 'PREFLIGHT_BLOCKED':

@@ -1,6 +1,10 @@
 # Bounded 0–6 scalar-open probe: footprint and resource plan
 
-**Status: PARTIAL / OPERATION_BLOCKED.** One owner-authorized 84-open resource rehearsal completed its workload, but is **not a valid complete resource measurement**: the workspace observer lost mutation coverage, host load exceeded an unchanged historical admission guard, and host swap/direct-reclaim counters increased. No retry was made. No latency benchmark or qualification run occurred.
+## Current interpretation after contract amendment — 2026-10-21
+
+**Current status: PARTIAL / MEASUREMENT_INCOMPLETE.** Under the amended resource-only exploratory contract, load-1 is observational rather than a hard gate, and positive host swap/reclaim deltas alone are not distress. The 84-open run's load 5.19 and positive swap/direct-scan deltas therefore are not independent blockers; attribution remains unknown. The workspace observer's `MUTATION_COVERAGE_LOST` still leaves accounting `UNKNOWN`/`INCOMPLETE`, so this is not a complete resource measurement, verified peak, PASS, or qualification result. The workload completed and cleanup was verified; no retry or new run is authorized. See [contract amendment](CONTRACT-AMENDMENT-20261021.md). The detail below preserves the report's original contemporaneous evaluation and raw facts; the amendment supersedes its prior load/delta gate interpretation without rewriting receipts.
+
+**Original contemporaneous status: PARTIAL / OPERATION_BLOCKED.** One owner-authorized 84-open resource rehearsal completed its workload, but the initial interpretation treated workspace coverage loss, load above the historical gate, and host swap/direct-reclaim movement as independent reasons the resource measurement was incomplete. The workspace coverage loss remains a current limitation; the load/delta classification is superseded by the amendment above. No retry was made. No latency benchmark or qualification run occurred.
 
 ## Findings
 
@@ -63,8 +67,8 @@ ctest --test-dir research/m4-native/.work/build/durability-restore-20261020 \
 
 CTest log: `research/m4-native/.work/build/durability-restore-20261020/Testing/Temporary/LastTest.log` reports 38 checks, 0 failures. Test cleanup left the prior 20 snapshot directories unchanged. Active LSP for the changed C++ file timed out at 20 s and is inconclusive. The new exact-workload harness builds; focused containment-policy tests pass 36/36. One resource rehearsal ran as detailed above; it is incomplete and not a benchmark.
 
-## Current disposition
+## Original disposition (superseded by the contract amendment above)
 
-**OPERATION_BLOCKED.** One rehearsal was consumed; its host-load gate failure and incomplete workspace telemetry invalidate it as a complete resource measurement. No auto-retry, diagnostic, latency benchmark, or qualification run. The operation-specific runner now accepts only the exact 84-open workload and preserves all admission/distress checks except the explicitly approved 3 GiB / 8 GiB host floors; focused guard tests pass.
+**At report time: OPERATION_BLOCKED.** The contemporaneous evaluation treated the load and positive swap/reclaim observations as gate failures, alongside the incomplete workspace telemetry. The contract amendment above supersedes only the load/delta classification; workspace accounting remains UNKNOWN/INCOMPLETE and the resource measurement remains incomplete. The one rehearsal is spent; no retry, diagnostic, latency benchmark, or qualification run is authorized. The runner now enforces the scoped amended contract and the focused policy tests pass.
 
 *Research only. No production, schema, durability, or qualification claim.*

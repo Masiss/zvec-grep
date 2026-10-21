@@ -53,12 +53,21 @@
       "unit": "load average",
       "operator": "<=",
       "threshold_key": "load1_max",
-      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
       "evidence_class": "historical successful-run envelope; not a universal safety limit",
       "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
       "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
       "owner_approval_required_to_change": true
     }
+  },
+  "resource_only_exploratory_contract": {
+    "scope": "M4 scalar-open resource-only exploratory operations explicitly bound to an operation plan; no effect on qualification, paired benchmarks, legacy diagnostics, or production",
+    "load1": "Load-1 is observation-only: record baseline and runtime values and analyze them as host context; never use M4-RG-LOAD as a hard admission or abort gate in this scope. Keep the historical threshold and raw PASS/FAIL observations unchanged.",
+    "host_swap_reclaim": "Record baseline-to-runtime pswpin, pswpout, direct scan/steal, and allocstall deltas; analyze direction and magnitude without attributing host-wide movement to M4. Positive deltas alone are not distress and do not block.",
+    "hard_stop_signals": "Host OOM kill increment, telemetry counter regression or missing required counters, host RAM/disk reserve or approved swap-capacity failure, retained host I/O PSI guard failure, cgroup cap/limit/OOM distress, timeout, workload correctness failure, required telemetry loss, or cleanup/containment failure remain blocking.",
+    "reserve_policy": "Preserve the host RAM/disk reserve values explicitly approved for the operation; this contract neither lowers nor supplies a default reserve.",
+    "workspace": "Retain UNKNOWN/INCOMPLETE for races or lost coverage. Never claim verified peak storage from sampled traversal, and never report a soft-budget observation as PASS or hard-cap proof. Existing fatal scope/permission/I/O/overflow and safety-telemetry failures still block.",
+    "no_retroactive_rewrite": "A contract amendment changes interpretation only; raw receipts and historical execution records remain immutable, and no retry is implied."
   },
   "contention_aware": {
     "mode": "contention-aware",

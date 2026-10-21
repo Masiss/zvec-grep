@@ -216,9 +216,12 @@ class ContentionPolicyTests(unittest.TestCase):
             current[family]["full"]["avg10"] = 1.0
         self.assertTrue(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
         current["loadavg"] = [5.0]
-        blocked = ct.contention_decision(current, ctx, "aa-first")
-        self.assertFalse(blocked["continuation_allowed"])
-        self.assertTrue(any(f["gate_id"] == "M4-RG-LOAD" for f in blocked["blocking_failures"]))
+        observed = ct.contention_decision(current, ctx, "aa-first")
+        self.assertTrue(observed["continuation_allowed"])
+        load_gate = next(g for g in observed["historical_gate_decisions"] if g["gate_id"] == "M4-RG-LOAD")
+        self.assertEqual(load_gate["status"], "FAIL")
+        self.assertFalse(load_gate["enforced_in_selected_mode"])
+        self.assertIn("not an admission or abort gate", load_gate["selected_mode_disposition"])
         current["meminfo_kib"]["MemAvailable_kib"] -= 1
         self.assertFalse(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
         current["meminfo_kib"]["MemAvailable_kib"] = 3 * 1024**2
@@ -232,11 +235,23 @@ class ContentionPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exact 84-open"):
             ct.validate_contention_context(malformed)
 
-    def test_m4_scalar_rehearsal_blocks_host_swap_and_reclaim_movement(self):
-        baseline = {"pswpin_pages": 10, "pswpout_pages": 20, "pgscan_direct": 30, "oom_kill": 0}
-        self.assertEqual(ct.m4_scalar_rehearsal_host_distress({"vmstat": dict(baseline)}, baseline), [])
-        changed = dict(baseline, pswpout_pages=21)
-        self.assertTrue(ct.m4_scalar_rehearsal_host_distress({"vmstat": changed}, baseline))
+    def test_m4_scalar_rehearsal_records_swap_reclaim_without_blocking(self):
+        baseline = {"pswpin_pages": 10, "pswpout_pages": 20, "pgscan_direct": 30,
+                    "pgsteal_direct": 25, "allocstall_dma": 0, "oom_kill": 0}
+        observed = ct.m4_scalar_rehearsal_host_observation({"vmstat": dict(baseline)}, baseline)
+        self.assertEqual(observed["blocking_failures"], [])
+        changed = dict(baseline, pswpin_pages=11, pswpout_pages=21, pgscan_direct=33,
+                       pgsteal_direct=27, allocstall_dma=2)
+        observed = ct.m4_scalar_rehearsal_host_observation({"vmstat": changed}, baseline)
+        self.assertEqual(observed["blocking_failures"], [])
+        self.assertEqual(observed["baseline_to_sample_deltas"], {
+            "pswpin_pages": 1, "pswpout_pages": 1, "pgscan_direct": 3,
+            "pgsteal_direct": 2, "allocstall_dma": 2, "oom_kill": 0,
+        })
+        oom = dict(changed, oom_kill=1)
+        self.assertTrue(ct.m4_scalar_rehearsal_host_observation({"vmstat": oom}, baseline)["blocking_failures"])
+        reset = dict(changed, pswpout_pages=19)
+        self.assertTrue(ct.m4_scalar_rehearsal_host_observation({"vmstat": reset}, baseline)["telemetry_errors"])
 
     def test_all_four_historical_failures_are_raw_not_passes(self):
         d = ct.contention_decision(state(), self.ctx, "baseline")
@@ -491,6 +506,20 @@ class ContentionPolicyTests(unittest.TestCase):
             **changes,
         )
 
+    def test_soft_budget_and_workspace_uncertainty_never_become_pass(self):
+        self.assertEqual(
+            ct.contention_completion_status("PASS", True, True, 1)[0],
+            "COMPLETED_WITH_WORKSPACE_WARNINGS",
+        )
+        self.assertEqual(
+            ct.contention_completion_status("PASS", True, False, 0)[0],
+            "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        )
+        self.assertEqual(
+            ct.contention_completion_status("PASS", False, False, 0)[0],
+            "TELEMETRY_INCOMPLETE",
+        )
+
     def test_soft_budgets_record_both_overages_without_hard_abort(self):
         work = self.workspace_row(
             apparent_bytes=self.ctx["workspace_max_apparent_bytes"] + 17,
@@ -507,6 +536,9 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertIsNone(summary["abort"])
         self.assertFalse(killed)
         self.assertTrue(all(r["workspace_capacity_decision"]["warnings"] for r in rows))
+        self.assertTrue(all(r["workspace_capacity_decision"]["state"] == "SOFT_BUDGET_EXCEEDED" for r in rows))
+        self.assertEqual(summary["measurement_quality"], "COMPLETE")
+        self.assertIsNone(summary["workspace_verified_peak"])
         self.assertEqual(summary["workspace_soft_budget_warning_samples"], len(rows))
         self.assertTrue(summary["hard_safety_telemetry_complete"])
 
