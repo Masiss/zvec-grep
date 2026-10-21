@@ -1,0 +1,6 @@
+Running as unit: m4-open-strace-no-scalar-hnsw-20261021T033400Z.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 312ms
+             CPU time consumed: 297ms
+                   Memory peak: 23.9M (swap: 0B)

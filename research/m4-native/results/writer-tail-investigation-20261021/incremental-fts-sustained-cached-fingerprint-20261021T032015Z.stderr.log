@@ -1,0 +1,6 @@
+Running as unit: m4-writer-incremental-fts-sustained-cached-fingerprint-20261021T032015Z.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.521s
+             CPU time consumed: 1.787s
+                   Memory peak: 275.9M (swap: 0B)

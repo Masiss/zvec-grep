@@ -1,0 +1,9 @@
+{"case":"exact-hnsw","iteration":0,"open_wall_ms":79.3176,"open_thread_cpu_ms":49.8371}
+{"case":"exact-hnsw","iteration":1,"open_wall_ms":74.3598,"open_thread_cpu_ms":49.4899}
+{"case":"exact-hnsw","iteration":2,"open_wall_ms":74.3827,"open_thread_cpu_ms":48.4529}
+{"case":"exact-flat","iteration":0,"open_wall_ms":84.4399,"open_thread_cpu_ms":43.9679}
+{"case":"exact-flat","iteration":1,"open_wall_ms":79.6485,"open_thread_cpu_ms":51.0019}
+{"case":"exact-flat","iteration":2,"open_wall_ms":76.8343,"open_thread_cpu_ms":45.7442}
+{"case":"no-scalar-hnsw","iteration":0,"open_wall_ms":8.58918,"open_thread_cpu_ms":4.29024}
+{"case":"no-scalar-hnsw","iteration":1,"open_wall_ms":8.55071,"open_thread_cpu_ms":4.34699}
+{"case":"no-scalar-hnsw","iteration":2,"open_wall_ms":9.98161,"open_thread_cpu_ms":4.6989}

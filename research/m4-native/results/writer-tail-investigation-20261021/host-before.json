@@ -1,0 +1,17 @@
+{
+  "meminfo_kib": {
+    "MemAvailable": 5881720,
+    "SwapFree": 12035292
+  },
+  "resource_root_free_bytes": 14650077184,
+  "loadavg": [
+    "5.65",
+    "4.92",
+    "5.49"
+  ],
+  "pressure": {
+    "io": "some avg10=1.02 avg60=1.53 avg300=1.86 total=220875995\nfull avg10=0.94 avg60=1.40 avg300=1.57 total=191356552",
+    "memory": "some avg10=0.53 avg60=1.04 avg300=0.86 total=96478160\nfull avg10=0.53 avg60=1.03 avg300=0.82 total=89298517",
+    "cpu": "some avg10=0.00 avg60=0.02 avg300=0.25 total=182439818\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0"
+  }
+}

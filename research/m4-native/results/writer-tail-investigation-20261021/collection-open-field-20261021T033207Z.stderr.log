@@ -1,0 +1,6 @@
+Running as unit: m4-open-field-20261021T033207Z.service; invocation ID: 6eed784f4dad4c9aa0608585c62c90b8
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1.383s
+             CPU time consumed: 945ms
+                   Memory peak: 53.3M (swap: 0B)

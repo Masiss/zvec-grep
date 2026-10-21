@@ -1,6 +1,10 @@
 # M4 incremental index — evidence (historical series begins 2026-10-17)
 
-## Latest result — 2026-10-21 completed native500x20 after4579e5a
+## Latest result — 2026-10-21 bounded writer-tail diagnosis
+
+No new sustained/native arm. Bounded collection-open probes found exact six-scalar-field HNSW/FLAT medians ~64–80 ms across runs (sample ranges59–91 ms) versus ~8–13 ms without scalar fields; schema assembly was <0.1 ms. One-field controls show no lone dominant scalar field; a heavily perturbed strace summary saw substantially more futex/fsync/fdatasync activity with scalar indexes. This supports scalar-index setup/synchronization as recurring ordinary cost but leaves cycle 7's 180.306 ms open unexplained. One 500×5-per-arm diagnostic of the existing opt-in cached-fingerprint mode reduced M4 open by ~38–42 ms and the compaction-cycle M4 open by 41.40 ms; commit percentiles are directional, not qualification. Existing analyzer lifecycle (1/1) and M4 candidate integration (582 checks, 0 failures) passed. Strict mode remains default; no runtime/native/production change. **No further native measurement authorization.** Full report and raw microbench/host receipts: [writer-tail investigation](writer-tail-investigation-20261021/REPORT.md).
+
+### Previous result — 2026-10-21 completed native500x20 after4579e5a
 
 **Requested single exploratory diagnostic completed, with workspace-accounting caveats.** [Full report](pending-drain-native-20261021/REPORT.md), [analysis](pending-drain-native-20261021/analysis.json), [20rounds CSV](pending-drain-native-20261021/per-round.csv). Fresh provenance/readiness PASS; exactly one native arm(PID784988), exit0,20commits/80queries, coherence0; generation21/live500 post-close reopen/errors0. No retry/second arm. Runtime controller/policy/native code unchanged from4579e5a;34focusedtests plus actual same-controller32KiBwatchdog e2e PASS.
 

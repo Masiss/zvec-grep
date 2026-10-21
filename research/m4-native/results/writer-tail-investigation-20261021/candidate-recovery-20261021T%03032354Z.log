@@ -1,0 +1,8 @@
+Invalid unit name "m4-candidate-recovery-20261021T%03032354Z.service" escaped as "m4-candidate-recovery-20261021T\x2503032354Z.service" (maybe you should use systemd-escape?).
+Running as unit: m4-candidate-recovery-20261021T\x2503032354Z.service
+M4_INCREMENTAL_FTS_CANDIDATE checks=582 failures=0 changed_upserts=2 mutations=3 shared_runs=1
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.458s
+             CPU time consumed: 2.264s
+                   Memory peak: 331.2M (swap: 0B)

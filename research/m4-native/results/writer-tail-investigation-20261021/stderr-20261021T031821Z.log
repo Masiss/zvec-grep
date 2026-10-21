@@ -1,0 +1,7 @@
+Running as unit: m4-open-probe-20261021T031821Z.service
+timeout: the monitored command dumped core
+          Finished with result: signal
+Main processes terminated with: code=killed, status=6/ABRT
+               Service runtime: 619ms
+             CPU time consumed: 115ms
+                   Memory peak: 31.4M (swap: 0B)

@@ -1,0 +1,6 @@
+Running as unit: m4-open-strace-exact-hnsw-20261021T033356Z.service; invocation ID: 41d28fa9416e4d439114f531aed010ac
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 3.063s
+             CPU time consumed: 2.645s
+                   Memory peak: 49.5M (swap: 0B)

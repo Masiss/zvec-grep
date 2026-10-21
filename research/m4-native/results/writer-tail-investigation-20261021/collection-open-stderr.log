@@ -1,0 +1,6 @@
+Running as unit: m4-open-probe-20261021T031747Z.service; invocation ID: 8b9c4ecd8e3244549d72360275784ee8
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=127/n/a
+               Service runtime: 9ms
+             CPU time consumed: 7ms
+                   Memory peak: 3.7M (swap: 0B)

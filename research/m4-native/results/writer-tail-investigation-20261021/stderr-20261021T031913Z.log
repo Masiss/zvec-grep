@@ -1,0 +1,6 @@
+Running as unit: m4-open-probe-20261021T031913Z.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 534ms
+             CPU time consumed: 362ms
+                   Memory peak: 27.8M (swap: 0B)
