@@ -690,20 +690,41 @@ class Coordinator {
     last_gc_generations_examined_ = reclaim_generations.size();
     if (timings) timings->generations_examined = reclaim_generations.size();
     const auto m4_delete_start = std::chrono::steady_clock::now();
-    for (const uint32_t generation : reclaim_generations) {
+    if (!reclaim_generations.empty()) {
+      std::vector<m4::FilterExpr> generation_filters;
+      generation_filters.reserve(reclaim_generations.size());
+      for (const uint32_t generation : reclaim_generations) {
+        generation_filters.push_back(
+            m4::FilterExpr::Uint32Eq("generation", generation));
+      }
       m4::SearchResult old_rows;
-      const auto search = fts_->SearchFilter(m4::FilterExpr::Uint32Eq(
-          "generation", generation), &old_rows);
+      const auto search = fts_->SearchFilter(
+          m4::FilterExpr::Or(std::move(generation_filters)), &old_rows);
       if (!search.ok) {
-        std::cerr << "reuse_gc search generation=" << generation
+        std::cerr << "reuse_gc search generations="
+                  << reclaim_generations.size()
                   << " error=" << search.message << '\n';
         return false;
       }
+      std::vector<m4::Mutation> deletions;
+      deletions.reserve(old_rows.hits.size());
       for (const auto& hit : old_rows.hits) {
-        const auto status = fts_->Delete(hit.pk);
+        deletions.emplace_back(m4::MutationKind::DELETE, hit.pk);
+      }
+      constexpr size_t kDeleteBatchSize = 256;
+      for (size_t begin = 0; begin < deletions.size();
+           begin += kDeleteBatchSize) {
+        const size_t end = std::min(deletions.size(), begin + kDeleteBatchSize);
+        std::vector<m4::Mutation> batch(
+            deletions.begin() + static_cast<std::ptrdiff_t>(begin),
+            deletions.begin() + static_cast<std::ptrdiff_t>(end));
+        const auto status = fts_->ApplyBatch(batch);
         if (!status.ok) {
-          std::cerr << "reuse_gc delete generation=" << generation
-                    << " pk=" << hit.pk << " error=" << status.message << '\n';
+          std::cerr << "reuse_gc batch delete generations="
+                    << reclaim_generations.size()
+                    << " documents=" << deletions.size()
+                    << " batch_begin=" << begin
+                    << " error=" << status.message << '\n';
           return false;
         }
       }
