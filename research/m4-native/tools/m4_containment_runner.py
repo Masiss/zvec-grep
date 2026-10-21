@@ -188,6 +188,8 @@ def failure_class(status: str | None = None, reason: str | None = None,
         return 'WORKSPACE_LIMIT_OBSERVED_EXCEEDED'
     if status == 'PREFLIGHT_BLOCKED':
         return 'OPERATION_GUARD_REFUSAL'
+    if status in {'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'COMPLETED_WITH_WORKSPACE_WARNINGS'} and returncode == 0:
+        return 'NORMAL_EXIT_WITH_WORKSPACE_CAVEATS'
     if status == 'PASS' and returncode == 0:
         return 'NORMAL_EXIT'
     if status == 'SIGNAL_EXIT' or (returncode is not None and returncode < 0):
@@ -725,7 +727,8 @@ def workspace_usage(root: pathlib.Path) -> dict[str, Any]:
     }
 
 
-def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, Any] | None) -> dict[str, Any]:
+def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, Any] | None,
+                                policy_mode: str = 'legacy') -> dict[str, Any]:
     """No caller-supplied assertion can manufacture an independent capacity proof."""
     if not isinstance(observation.get('scan_complete'), bool):
         raise ValueError('missing/invalid workspace scan completeness')
@@ -733,6 +736,27 @@ def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, A
         value = observation.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError('missing/invalid workspace counter: ' + key)
+    if policy_mode == CONTENTION_MODE:
+        contract = BENCHMARK_POLICY['workspace_observer']['contention_aware']
+        if contract['enforcement'] != 'monitored-soft-budgets':
+            raise ValueError('unknown exploratory workspace contract')
+        warnings = []
+        for key, limit_key in (('allocated_st_blocks_bytes_gross', 'workspace_max_allocated_bytes'),
+                               ('apparent_bytes', 'workspace_max_apparent_bytes')):
+            limit = (budget or {}).get(limit_key)
+            if limit is not None and observation[key] > limit:
+                warnings.append({'metric': key, 'observed_bytes': observation[key], 'budget_bytes': limit,
+                                 'excess_bytes': observation[key] - limit, 'scan_complete': observation['scan_complete']})
+        known_race = observation.get('inventory_status') == contract['race_continuation_inventory_status']
+        return {'state': ('SOFT_BUDGET_EXCEEDED' if warnings else 'SAMPLED_SOFT_BUDGET_NOT_EXCEEDED')
+                        if observation['scan_complete'] else 'UNKNOWN',
+                'continuation_allowed': observation['scan_complete'] or known_race,
+                'reason': None if observation['scan_complete'] or known_race else 'workspace_capacity_unverifiable',
+                'inventory_status': observation.get('inventory_status'),
+                'measurement_quality': 'COMPLETE_TRAVERSAL_NOT_PROOF' if observation['scan_complete'] else 'INCOMPLETE',
+                'warnings': warnings, 'errors': observation.get('scan_errors', []),
+                'proof_semantics': 'owner-approved monitored soft budgets only; NOT hard enforcement/capacity proof',
+                'independent_capacity_upper_bound': None}
     for key, limit_key, reason in (
             ('allocated_st_blocks_bytes_gross', 'workspace_max_allocated_bytes', 'workspace_allocated_watchdog'),
             ('apparent_bytes', 'workspace_max_apparent_bytes', 'workspace_apparent_watchdog')):
@@ -1027,7 +1051,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
             cgroup_row = read_cgroup_metric(cg)
             host_row = host_snapshot(resource_root)
             work_row = workspace_usage(workspace)
-            workspace_decision = workspace_capacity_decision(work_row, config.get('budget'))
+            workspace_decision = workspace_capacity_decision(work_row, config.get('budget'), config.get('policy_mode', 'legacy'))
             row = {
                 'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
                 'elapsed_ns': None if started_ns is None else time.monotonic_ns() - started_ns,
@@ -1135,6 +1159,9 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     summary = {
         'schema_version': SCHEMA_VERSION, 'samples': len(samples),
         'workspace_samples_complete': workspace_samples_complete,
+        'workspace_accounting_status': 'SAMPLED_NOT_PROOF' if workspace_samples_complete else 'UNKNOWN',
+        'workspace_soft_budget_warning_samples': sum(bool(r['workspace_capacity_decision'].get('warnings')) for r in samples),
+        'hard_safety_telemetry_complete': bool(samples and process_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error')),
         'workspace_snapshot_semantics': 'sampled traversals, NOT atomic snapshots or verified lifetime peaks',
         'workspace_verified_peak': None,
         'max_observed_complete_traversal_apparent_bytes': max((w['apparent_bytes'] for w in complete_workspace_rows), default=None),
@@ -1286,9 +1313,9 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             env: dict[str, str] | None = None, enforce_host_gates: bool = True,
             pressure_limits: dict[str, Any] | None = None,
             policy_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    arm_name = receipt_dir.parent.name
     if policy_context is not None:
         validate_contention_context(policy_context)
-        arm_name = receipt_dir.parent.name
         rehearsal = policy_context.get('purpose') == 'synthetic-containment-rehearsal'
         command_bound = (command == [sys.executable, '-c', REHEARSAL_CODE]) if rehearsal else (
             len(command) == 6 and command[-3:] == ['--incremental-fts-sustained', '500', '20'] and
@@ -1499,6 +1526,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         applied = apply_budget(cg, budget)
         if policy_context is not None:
             verify_contention_caps(cg, policy_context)
+            applied['workspace_limits'] = 'monitored-soft-budgets; warnings only; no kernel/filesystem quota'
         wconfig = {
             'cgroup_path': str(cg), 'cgroup_rel': expected_path,
             'workspace_root': str(workspace_root), 'resource_root': str(resource_root),
@@ -1641,16 +1669,24 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             and watchdog_summary.get('workspace_samples_complete') is True
         )
         if policy_context is not None:
-            measurement_complete = (measurement_complete and watchdog_summary.get('measurement_quality') == 'COMPLETE'
-                                    and watchdog_summary.get('policy_mode') == CONTENTION_MODE
-                                    and watchdog_summary.get('policy_context_digest') == contention_context_digest(policy_context))
-            if status == 'PASS' and not measurement_complete:
-                status, reason = 'TELEMETRY_INCOMPLETE', 'incomplete required contention process telemetry'
+            summary = watchdog_summary or {}
+            hard_complete = (summary.get('hard_safety_telemetry_complete') is True
+                             and summary.get('policy_mode') == CONTENTION_MODE
+                             and summary.get('policy_context_digest') == contention_context_digest(policy_context))
+            measurement_complete = measurement_complete and hard_complete and summary.get('measurement_quality') == 'COMPLETE'
+            if status == 'PASS':
+                if not hard_complete:
+                    status, reason = 'TELEMETRY_INCOMPLETE', 'incomplete required contention safety/process telemetry'
+                elif not measurement_complete:
+                    status, reason = 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'workspace accounting INCOMPLETE/UNKNOWN'
+                elif summary.get('workspace_soft_budget_warning_samples', 0):
+                    status, reason = 'COMPLETED_WITH_WORKSPACE_WARNINGS', 'workspace soft budget exceeded; see raw warnings'
+        completed_statuses = {'PASS', 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'COMPLETED_WITH_WORKSPACE_WARNINGS'}
         measurement_quality = 'COMPLETE' if measurement_complete else 'INCOMPLETE'
         if status == 'PREFLIGHT_BLOCKED':
             safety_outcome = 'NOT_STARTED'
-        elif status == 'PASS':
-            safety_outcome = 'SAFE_COMPLETE'
+        elif status in completed_statuses:
+            safety_outcome = 'SAFE_COMPLETE' if status == 'PASS' else 'NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED'
         elif status == 'WATCHDOG_ABORT':
             watchdog_cleanup = (abort or {}).get('final_cleanup', {})
             cleanup_verified = bool(watchdog_cleanup.get('success') or
@@ -1676,7 +1712,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'policy_context': policy_context,
             'diagnostic_decision': diagnostic_decision,
             'evidence_class': CONTENTION_EVIDENCE if policy_context is not None else None,
-            'operation_outcome': ('OPERATION_COMPLETE' if status == 'PASS' else
+            'operation_outcome': ('OPERATION_COMPLETE_WITH_WORKSPACE_CAVEATS' if status in completed_statuses - {'PASS'} else
+                                  'OPERATION_COMPLETE' if status == 'PASS' else
                                   'OPERATION_BLOCKED' if status in {'PREFLIGHT_BLOCKED', 'WATCHDOG_ABORT', 'TELEMETRY_INCOMPLETE'} else
                                   'OPERATION_FAILED'),
             'failure_scope': 'this arm only', 'mission_status': 'NOT_EVALUATED_BY_RUNNER',
@@ -1693,24 +1730,37 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'controller_cleanup': controller_cleanup,
             'command_start': json.loads((receipt_dir / 'command-start.json').read_text()) if (receipt_dir / 'command-start.json').exists() else None,
             'command_end': json.loads((receipt_dir / 'command-exit.json').read_text()) if (receipt_dir / 'command-exit.json').exists() else None,
-            'final_process_status': 'PASS only when exit=0, no watchdog/OOM abort, and telemetry is complete',
+            'final_process_status': 'exit=0 and complete hard safety telemetry may complete exploratory operation with workspace caveats; INCOMPLETE is never PASS',
         }
         post_state = host_snapshot(resource_root)
         if policy_context is not None:
             phase = 'runtime-first' if arm_name == 'aa-first' else 'runtime-second'
             post_workspace = workspace_usage(workspace_root)
-            post_workspace_decision = workspace_capacity_decision(post_workspace, budget)
+            post_workspace_decision = workspace_capacity_decision(post_workspace, budget, CONTENTION_MODE)
             post_decision = contention_decision(post_state, policy_context, phase,
                                                 workspace_reservation_credit(post_workspace))
             result['postflight_workspace'] = post_workspace
             result['postflight_workspace_capacity'] = post_workspace_decision
             result['postflight_decision'] = post_decision
-            if status == 'PASS' and not post_workspace_decision['continuation_allowed']:
-                result.update(status='POSTFLIGHT_BLOCKED', reason=post_workspace_decision['reason'],
-                              operation_outcome='OPERATION_BLOCKED', performance_eligible=False,
-                              measurement_quality='INCOMPLETE')
+            if status in completed_statuses:
+                if not post_workspace_decision['continuation_allowed']:
+                    result.update(status='POSTFLIGHT_BLOCKED', reason=post_workspace_decision['reason'],
+                                  operation_outcome='OPERATION_BLOCKED', performance_eligible=False,
+                                  measurement_quality='INCOMPLETE', safety_outcome='WORKSPACE_SCOPE_UNVERIFIED')
+                elif not post_workspace['scan_complete']:
+                    result.update(status='COMPLETED_WITH_WORKSPACE_UNCERTAINTY', measurement_quality='INCOMPLETE',
+                                  reason='postflight workspace accounting INCOMPLETE/UNKNOWN',
+                                  operation_outcome='OPERATION_COMPLETE_WITH_WORKSPACE_CAVEATS',
+                                  safety_outcome='NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED')
+                elif post_workspace_decision['warnings'] and result['status'] == 'PASS':
+                    result.update(status='COMPLETED_WITH_WORKSPACE_WARNINGS',
+                                  reason='postflight workspace soft budget exceeded',
+                                  operation_outcome='OPERATION_COMPLETE_WITH_WORKSPACE_CAVEATS',
+                                  safety_outcome='NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED')
             if not post_decision['continuation_allowed']:
-                result.update(status='POSTFLIGHT_BLOCKED', operation_outcome='OPERATION_BLOCKED', performance_eligible=False)
+                result.update(status='POSTFLIGHT_BLOCKED', reason='postflight hard reserve failure',
+                              operation_outcome='OPERATION_BLOCKED', performance_eligible=False,
+                              safety_outcome='POSTFLIGHT_CAPACITY_FAILURE')
         write_json(receipt_dir / 'receipt.json', result)
         write_json(receipt_dir / 'host-after.json', post_state)
         retire_unit(unit, cg, receipt_dir, result)

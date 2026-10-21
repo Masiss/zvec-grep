@@ -2,11 +2,19 @@
 
 **Scope:** standalone research prototype under `research/m4-native/`. This policy does not authorize production integration, migration, deployment, native checkout changes, or any change to the production ABI/schema. The machine-readable values are in adjacent `benchmark-policy.json`; runner code loads that file, and tests verify the enforcement mappings.
 
-## Current readiness and authority — 2026-10-21
+## Current authority — 2026-10-21 exploratory soft-budget amendment
+
+Owner explicitly approved **monitored workspace soft budgets only in operation-bound contention-aware exploratory mode**, with one separately authorized new native diagnostic attempt. [Authority, tests and execution boundary](../results/workspace-soft-budget-20261021/REPORT.md). The JSON remains the sole machine-readable source. Threshold values are not raised: sampled overages warn with observed/budget/excess bytes. Known publication races retain raw INCOMPLETE/UNKNOWN without abort; scope/permission/EIO/coverage failures remain fatal. Legacy/qualification/other benchmark decisions are unchanged. No hard aggregate workspace or deterministic overshoot guarantee is claimed.
+
+Hard memory/swap/CPU/tasks/time, host RAM/disk reserves, OOM/distress, complete independent safety telemetry, correctness/durability and verified owned-only cleanup remain mandatory. Reserve failure aborts, even during workspace uncertainty/overage. Runtime measurements and summary completeness stay explicit: an exit0 diagnostic may be COMPLETED_WITH_WORKSPACE_UNCERTAINTY or COMPLETED_WITH_WORKSPACE_WARNINGS, never fake PASS. No quiet telemetry reclassification, retry or other-project intervention. Historical campaign4/4 and raw receipts are unchanged; fresh single-attempt authority is separately recorded.
+
+Engineering79tests plus real independent-watchdog rehearsal PASS; this is not native readiness or a resource snapshot. One fresh operation-bound provenance/readiness check must pass before the single new arm. A formal safety refusal consumes that opportunity without retry. See [approved plan](../results/workspace-soft-budget-20261021/approved-resource-plan.json) and [new ledger](../results/workspace-soft-budget-20261021/new-attempt-ledger.json).
+
+### Prior strict-contract readiness (historical; soft-budget authority above supersedes its no-launch decision)
 
 Observer correction **`6439ed2`** is verified by focused synthetic/containment checks; it is **not native admission**. The writer-tail campaign remains **4/4 attempts consumed, zero remaining**. Native launch readiness is **PARTIAL / OPERATION_BLOCKED** because no independent correctly scoped upper-bound evidence covers both allocated and apparent workspace bytes during concurrent mutation. Resource thresholds are unchanged; tests do not provide current host capacity or repair this missing proof.
 
-Engineering recovery requires separately bounded accounting design/validation. Native execution would additionally require fresh explicit authority; no new attempt or campaign request is authorized by the completed repair or these docs. See [canonical handoff §58–§59](../../../rust/docs/m4-incremental-native-index.md) and [repair report](../results/workspace-observer-repair-20261020/REPORT.md). Evidence/checksums remain pinned to **`6439ed2`**; later documentation updates do not rewrite the original receipts, ledger or provenance.
+**Focused feasibility investigation COMPLETE; retain NO-LAUNCH under this unchanged contract.** Read-only inspection found shared Btrfs subvol5 and unverified quota state; an M4-only logical ledger does not cover native-vector writes. No cheap whole-arm proof was established. Do not continue an open-ended observer repair. A weaker, explicitly accepted residual-risk resource contract or separately isolated storage would require a new owner decision; neither is adopted. Fresh native execution authority/budget would additionally be required. See [feasibility report](../results/capacity-feasibility-20261021/REPORT.md), [canonical handoff §58–§60](../../../rust/docs/m4-incremental-native-index.md) and [repair report](../results/workspace-observer-repair-20261020/REPORT.md). Evidence/checksums remain pinned to **`6439ed2`**; later documentation updates do not rewrite the original receipts, ledger or provenance.
 
 ## Workspace observation integrity (observer schema 2)
 

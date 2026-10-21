@@ -4,17 +4,21 @@ Status: **research only.** Nothing here is linked into `zvec`, `zg-engine`, the
 daemon, or the production index format. HNSW, the native build, and every
 production schema are untouched.
 
-## Current handoff — 2026-10-21
+## Current handoff — 2026-10-21 workspace amendment
 
-**Research only; native writer-tail investigation remains PARTIAL / OPERATION_BLOCKED.**
+**Research only. Owner APPROVED contention-aware exploratory workspace soft budgets; engineering verified with79tests plus actual watchdog rehearsal.** Hard cgroup/time/RAM/disk reserves/distress/correctness/durability/cleanup remain unchanged. Known workspace races stay UNKNOWN/INCOMPLETE, budget breaches warn; neither becomes fake PASS. Qualification/other benchmarks remain strict. One NEW single-arm full-sync500x20 diagnostic is authorized after fresh readiness/provenance PASS, no retry on refusal. The old4/4campaign stays exhausted. See [amendment report](results/workspace-soft-budget-20261021/REPORT.md) and [new attempt ledger](results/workspace-soft-budget-20261021/new-attempt-ledger.json); native results pending at this engineering commit.
+
+### Prior feasibility conclusion (superseded only by the explicit soft-budget authority)
+
+**Historical strict-contract result: PARTIAL / OPERATION_BLOCKED.**
 
 - Observer correction committed as **`6439ed2`**: bounded single-pass observation, explicit race/uncertainty states, no retry/rescan and no partial inventory promoted to a verified peak.
 - **72 distinct tests PASS**; the final A/A controller's eight relevant synthetic tests were rerun on its pinned source. Direct typecheck of four changed Python files PASS. These are software checks, not native measurements or fresh host admission.
 - Campaign budget: **4/4 attempts consumed, zero remaining**. Historical outcome: one actual native arm launched, zero completed arms/pairs. No native execution occurred during observer repair.
 - **Native launch path is NOT ready.** Shared Btrfs has no independently verified, correctly scoped capacity bound for both allocated and apparent bytes. Known publication races therefore still fail closed; inotify, sampled sizes and IO counters are not substitutes for that proof.
-- Recovery requires a separately bounded accounting design and validation. Any later native execution additionally requires fresh explicit authority; this documentation is not permission to run or request another campaign. Production migration remains unapproved.
+- **Focused capacity-feasibility investigation COMPLETE; decision: retain NO-LAUNCH.** Read-only ioctl confirms shared Btrfs subvol5; quota status is EPERM/unverified. M4-only logical accounting misses native-vector writes. No low-cost whole-arm proof was established; do not continue an indefinite repair loop. A revised residual-risk contract or isolated-storage scope requires a separate owner decision; later native execution also needs fresh authority/budget. Neither change is adopted here. Production migration remains unapproved.
 
-Read the [canonical handoff](../../rust/docs/m4-incremental-native-index.md), especially **§58** (original abort) and **§59** (observer correction), then the [repair report](results/workspace-observer-repair-20261020/REPORT.md) and [benchmark policy](docs/benchmark-policy.md). Exact test commands/source identities are in `results/workspace-observer-repair-20261020/verification-v3/test-receipt.json` and `consumer-final/test-receipt.json`.
+Read the [feasibility decision](results/capacity-feasibility-20261021/REPORT.md) and [canonical handoff](../../rust/docs/m4-incremental-native-index.md), especially **§60** (closed investigation), **§58** (original abort) and **§59** (observer correction), then the [repair report](results/workspace-observer-repair-20261020/REPORT.md) and [benchmark policy](docs/benchmark-policy.md). Exact test commands/source identities are in `results/workspace-observer-repair-20261020/verification-v3/test-receipt.json` and `consumer-final/test-receipt.json`.
 
 The repair evidence/checksum manifest is pinned to commit `6439ed2`; verify it against that revision, not against subsequently edited documentation. Historical receipts and campaign accounting are not rewritten by this handoff update.
 

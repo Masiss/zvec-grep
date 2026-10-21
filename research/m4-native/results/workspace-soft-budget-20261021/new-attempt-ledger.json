@@ -1,0 +1,8 @@
+{
+  "authority_reference": "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/owner-authorization.md",
+  "maximum": 1,
+  "consumed": 0,
+  "remaining": 1,
+  "state": "AUTHORIZED_NOT_CHECKED",
+  "historical_campaign_unchanged": "4/4 exhausted; not a replacement or automatic retry"
+}

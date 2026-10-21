@@ -1,12 +1,16 @@
 # M4 incremental index — evidence (historical series begins 2026-10-17)
 
-## Latest status — 2026-10-21
+## Latest status — 2026-10-21 exploratory workspace amendment
+
+Owner approved contention-aware-only workspace soft budgets plus **one new native diagnostic arm**, separate from the exhausted4/4campaign. [Amendment report](workspace-soft-budget-20261021/REPORT.md):79distincttests PASS, final32contention rerun, direct4path typecheck PASS; actual independent-watchdog32KiB rehearsal PASS with18budget-warning samples and verified cleanup. Raw receipt is COMPLETED_WITH_WORKSPACE_WARNINGS, not fake PASS. Known scanner races may continue as UNKNOWN/INCOMPLETE; hard reserve/distress/telemetry/time/cgroup checks remain aborting. Qualification/other benchmarks untouched. Native single-arm outcome pending the fresh provenance/readiness check at this engineering commit; no native success inferred.
+
+### Previous strict-contract conclusion (historical)
 
 **PARTIAL / OPERATION_BLOCKED; native writer-tail measurements remain incomplete.** Observer correction is committed in **`6439ed2`** with **72 distinct tests PASS**, final-controller synthetic reruns and four-file direct typecheck PASS. No native execution during this repair; campaign remains **4/4 consumed, zero remaining** (one historical native arm launched, zero completed arms/pairs).
 
-**Native launch path NOT ready:** the observer now reports known races honestly, but there is no independent correctly scoped conservative capacity evidence for both allocated and apparent bytes. Partial observations still fail closed; no verified lifetime workspace peak is available. Remaining recovery is bounded accounting design/validation, not another attempt or a cap relaxation. Fresh explicit authority would also be required for any later native execution.
+**Focused capacity-feasibility investigation COMPLETE; choose NO-LAUNCH under the current contract.** [Report and receipts](capacity-feasibility-20261021/REPORT.md): read-only ioctl confirms shared Btrfs subvol5 for both roots, quota status EPERM/unverified; no cheap scoped quota. Writer-side logical reservation is feasible for participating M4 code, not demonstrated for the whole native-vector arm. Six tiny model/filesystem checks PASS; final direct typecheck and active LSP clean. No runtime source, cap, ledger or native execution change. Hard dual-cap proof is not established; the small historical final footprint does not bound transient occupancy or monitor overshoot. Investigation ends here, not another repair loop. Any revised risk contract or isolated storage scope requires a separate owner decision, and native still requires fresh authority/budget.
 
-Start with [the correction report](workspace-observer-repair-20261020/REPORT.md) and [canonical handoff §58–§59](../../../rust/docs/m4-incremental-native-index.md). The detailed chronological entries below remain historical; older GO/next-step statements do not override current readiness or authority. The repair checksum manifest is pinned to **`6439ed2`** and must be checked at that revision when documentation has subsequently changed. Raw receipts, ledger and native binary provenance are unchanged.
+Start with [the feasibility decision](capacity-feasibility-20261021/REPORT.md), [the correction report](workspace-observer-repair-20261020/REPORT.md) and [canonical handoff §58–§60](../../../rust/docs/m4-incremental-native-index.md). The detailed chronological entries below remain historical; older GO/next-step statements do not override current readiness or authority. The repair checksum manifest is pinned to **`6439ed2`** and must be checked at that revision when documentation has subsequently changed. Raw receipts, ledger and native binary provenance are unchanged.
 
 This file keeps the historical S2 evidence (streaming compaction via temp
 sections), the S3 slice (direct v2 writes, no temp-section copy), the S4

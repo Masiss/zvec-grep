@@ -1,0 +1,61 @@
+{
+  "status": "ENGINEERING_VERIFIED_NOT_FRESH_NATIVE_ADMISSION",
+  "distinct_unit_integration_tests": 79,
+  "suites": [
+    {
+      "suite": "test_m4_contention_policy",
+      "distinct_tests": 32,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/contention-final.log"
+    },
+    {
+      "suite": "test_m4_workspace_observer",
+      "distinct_tests": 19,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_workspace_observer.log"
+    },
+    {
+      "suite": "test_m4_containment_runner",
+      "distinct_tests": 15,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_containment_runner.log"
+    },
+    {
+      "suite": "test_m4_benchmark_policy",
+      "distinct_tests": 5,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_benchmark_policy.log"
+    },
+    {
+      "suite": "test_aa_gate_policy",
+      "distinct_tests": 7,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_aa_gate_policy.log"
+    },
+    {
+      "suite": "test_aa_containment_integration",
+      "distinct_tests": 1,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_aa_containment_integration.log"
+    }
+  ],
+  "actual_watchdog_rehearsal": {
+    "cleanup_verified": true,
+    "measurement_quality": "COMPLETE",
+    "native_attempts_consumed": 0,
+    "runner_sha256": "f18f4048fc12f764cf7822d537cce9ee0b167fb05f7b913cf1c8b45cf705c17f",
+    "synthetic_only": true,
+    "test_status": "PASS",
+    "unit_state": "LoadState=not-found\nActiveState=inactive\n",
+    "workload_receipt_status": "COMPLETED_WITH_WORKSPACE_WARNINGS",
+    "workspace_warning_samples": 18
+  },
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "f18f4048fc12f764cf7822d537cce9ee0b167fb05f7b913cf1c8b45cf705c17f",
+    "research/m4-native/tools/test_m4_contention_policy.py": "bc442db69cb3fb706cd46c75d17626f2271024eef93c375ef08b3ae3f8295a16",
+    "research/m4-native/docs/benchmark-policy.json": "f975b5699a98c260704cee8557ac64c50103e9d575e820ba661046df398a7b74",
+    "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/launch_once.py": "cfc084b6ec169fc9774f046479f7e462c8be0a5afe0066dda470918755ba123f",
+    "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/rehearse.py": "4c6b95567b39d5bb1f7f2043131b604c6a47e1d7f64497ce095df065ccb8d3a9"
+  },
+  "unchanged_history_ledger_sha256": "93c32e64ebb999c7ffef4d11cc85c8924fd64aa995079f01b9a2bf71d2d85d97",
+  "native_attempts_consumed": 0,
+  "notes": [
+    "Initial added disk test expected wrong abort reason; real guard correctly aborted, assertion corrected only.",
+    "Initial lifecycle command parser exit2: missing output-dir, no operation ran. Both logs preserved.",
+    "Final32test contention rerun on pinned formatted source. Prior strict workspace tests, OOM/distress/cleanup/timeout suites passed."
+  ]
+}

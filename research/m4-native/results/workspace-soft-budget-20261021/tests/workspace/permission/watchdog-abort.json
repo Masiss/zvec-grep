@@ -1,0 +1,29 @@
+{
+  "cleanup_complete": true,
+  "continuation_allowed": false,
+  "errors": [
+    "/home/masis/src/zvec-grep/research/m4-native/.work/tmp/m4-workspace-contained-0d25znfs/permission/denied: [Errno 13] Permission denied: 'denied'"
+  ],
+  "failure_class": "WORKSPACE_CAPACITY_UNVERIFIABLE",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "independent_capacity_upper_bound": null,
+  "inventory_status": "UNVERIFIABLE",
+  "reason": "workspace_capacity_unverifiable",
+  "state": "CAPACITY_UNVERIFIABLE",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      680918
+    ],
+    "term_pids": [
+      680923
+    ]
+  },
+  "timestamp_utc": "2026-10-21T02:26:54.615469+00:00"
+}

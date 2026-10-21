@@ -1,0 +1,95 @@
+{
+  "utc": "2026-10-21T02:12:20.800441+00:00",
+  "status": "PASS",
+  "investigation": "COMPLETE; decision NO-LAUNCH, native mission still PARTIAL / OPERATION_BLOCKED",
+  "probes": [
+    {
+      "probe": "research/m4-native/results/capacity-feasibility-20261021/probe-initial.json",
+      "script_identity_matches": true,
+      "six_checks_pass": true,
+      "scratch_removed": true,
+      "input_sources_unchanged": true
+    },
+    {
+      "probe": "research/m4-native/results/capacity-feasibility-20261021/probe.json",
+      "script_identity_matches": true,
+      "six_checks_pass": true,
+      "scratch_removed": true,
+      "input_sources_unchanged": true
+    }
+  ],
+  "distinct_tiny_checks": 6,
+  "native_runs": 0,
+  "quota_mutations": 0,
+  "policy_ledger_byte_identical_to_HEAD": true,
+  "direct_typecheck": "PASS; typecheck.log",
+  "active_lsp": {
+    "paths": [
+      "research/m4-native/results/capacity-feasibility-20261021/investigate.py"
+    ],
+    "diagnostics": 0,
+    "outcome": "clean=1; findings=0; unavailable=0; inconclusive=0"
+  },
+  "python_ast_parse": "PASS",
+  "git_diff_check": "PASS",
+  "local_document_links": "all checked targets exist",
+  "new_evidence_links": [
+    {
+      "document": "research/m4-native/README.md",
+      "target": "results/capacity-feasibility-20261021/REPORT.md"
+    },
+    {
+      "document": "research/m4-native/results/RESULTS.md",
+      "target": "capacity-feasibility-20261021/REPORT.md"
+    },
+    {
+      "document": "research/m4-native/results/RESULTS.md",
+      "target": "capacity-feasibility-20261021/REPORT.md"
+    },
+    {
+      "document": "research/m4-native/docs/benchmark-policy.md",
+      "target": "../results/capacity-feasibility-20261021/REPORT.md"
+    },
+    {
+      "document": "research/m4-native/results/capacity-feasibility-20261021/REPORT.md",
+      "target": "probe.json"
+    },
+    {
+      "document": "research/m4-native/results/capacity-feasibility-20261021/REPORT.md",
+      "target": "probe.log"
+    },
+    {
+      "document": "research/m4-native/results/capacity-feasibility-20261021/REPORT.md",
+      "target": "investigate.py"
+    },
+    {
+      "document": "research/m4-native/results/capacity-feasibility-20261021/REPORT.md",
+      "target": "typecheck.log"
+    }
+  ],
+  "tracked_changes": [
+    "research/m4-native/README.md",
+    "research/m4-native/docs/benchmark-policy.md",
+    "research/m4-native/results/RESULTS.md",
+    "rust/crates/zg-daemon/src/job_scheduler.rs",
+    "rust/crates/zg-engine/src/storage/store/mod.rs",
+    "rust/crates/zg-engine/src/storage/store/tests.rs",
+    "rust/docs/m4-incremental-native-index.md"
+  ],
+  "runtime_input_sha256": {
+    "research/m4-native/src/index.cc": "71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51",
+    "research/m4-native/src/format.cc": "580e244ca680fb63fa623661d0a75530a22d7615ea48c651b45f43e3da4422b7",
+    "research/m4-native/src/stream_merge.cc": "8e04fe2b5428a252fbdd9987004f7e84624a9c3322b2ba9eb8220e3d61d79d22",
+    "research/m4-native/tests/m4_bridge_integration.cc": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34",
+    "research/m4-native/tools/m4_containment_runner.py": "0c9300eb34508d5f39a355e7e02448d9a515dcc47f1ac33b8cf3f53765651ead",
+    "research/m4-native/docs/benchmark-policy.json": "7399535d179f739a26304f0b78369139714df12c4d2e89f57e19edd254906d2c",
+    "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-3.json": "6ea926e18aed6afc0251343bcacd3e484f231ed4279321d41b3a8909e0ab405c",
+    "research/m4-native/results/autonomous-campaign-20261020/campaign-ledger.json": "93c32e64ebb999c7ffef4d11cc85c8924fd64aa995079f01b9a2bf71d2d85d97",
+    "research/m4-native/results/autonomous-campaign-20261020/retained-resource-evidence.json": "1044175b028415e03528bc515a83b2ada0b7a5dea4fb14f9a3497fb6eda01c2f"
+  },
+  "notes": [
+    "Initial probe/source retained before static corrections, not a gate retry.",
+    "No native gate or benchmark was exercised.",
+    "Three pre-existing Rust modifications not edited."
+  ]
+}

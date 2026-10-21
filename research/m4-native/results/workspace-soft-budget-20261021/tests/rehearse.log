@@ -1,0 +1,12 @@
+{
+  "cleanup_verified": true,
+  "measurement_quality": "COMPLETE",
+  "native_attempts_consumed": 0,
+  "runner_sha256": "f18f4048fc12f764cf7822d537cce9ee0b167fb05f7b913cf1c8b45cf705c17f",
+  "synthetic_only": true,
+  "test_status": "PASS",
+  "unit_state": "LoadState=not-found\nActiveState=inactive\n",
+  "workload_receipt_status": "COMPLETED_WITH_WORKSPACE_WARNINGS",
+  "workspace_warning_samples": 18
+}
+

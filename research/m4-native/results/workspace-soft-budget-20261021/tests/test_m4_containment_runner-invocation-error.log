@@ -1,0 +1,2 @@
+usage: test_m4_containment_runner.py [-h] --output-dir OUTPUT_DIR
+test_m4_containment_runner.py: error: the following arguments are required: --output-dir
