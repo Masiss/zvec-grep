@@ -1,0 +1,41 @@
+AA_ARM_START name=aa-first
+AA_ARM_COMPLETE name=aa-first
+AA_INTERARM_RECOVERY_START
+AA_RECOVERY_WINDOW n=1 integrity=VALID recovered=True consecutive=1
+AA_RECOVERY_WINDOW n=2 integrity=VALID recovered=True consecutive=2
+AA_RECOVERY_WINDOW n=3 integrity=VALID recovered=True consecutive=3
+AA_ARM_START name=aa-second
+AA_ARM_COMPLETE name=aa-second
+AA_ARM_START name=aa-first
+AA_ARM_COMPLETE name=aa-first
+AA_INTERARM_RECOVERY_START
+test_all_four_historical_failures_are_raw_not_passes (__main__.ContentionPolicyTests.test_all_four_historical_failures_are_raw_not_passes) ... ok
+test_baseline_integrity_not_waived_by_contention (__main__.ContentionPolicyTests.test_baseline_integrity_not_waived_by_contention) ... ok
+test_cap_mismatch_is_not_an_approved_budget (__main__.ContentionPolicyTests.test_cap_mismatch_is_not_an_approved_budget) ... ok
+test_capacity_failures_do_not_become_quality_failures (__main__.ContentionPolicyTests.test_capacity_failures_do_not_become_quality_failures) ... ok
+test_contained_preflight_capacity_failure_prevents_any_launch (__main__.ContentionPolicyTests.test_contained_preflight_capacity_failure_prevents_any_launch) ... ok
+test_contention_cannot_write_an_existing_index (__main__.ContentionPolicyTests.test_contention_cannot_write_an_existing_index) ... ok
+test_contention_mode_without_plan_never_probes_host (__main__.ContentionPolicyTests.test_contention_mode_without_plan_never_probes_host) ... ok
+test_correctness_durability_failure_is_not_a_quality_exception (__main__.ContentionPolicyTests.test_correctness_durability_failure_is_not_a_quality_exception) ... ok
+test_duplicate_operation_does_not_overwrite_prior_receipt (__main__.ContentionPolicyTests.test_duplicate_operation_does_not_overwrite_prior_receipt) ... ok
+test_independent_watchdog_aborts_capacity_and_invalid_telemetry (__main__.ContentionPolicyTests.test_independent_watchdog_aborts_capacity_and_invalid_telemetry) ... ok
+test_independent_watchdog_allows_historical_failures_with_correct_context (__main__.ContentionPolicyTests.test_independent_watchdog_allows_historical_failures_with_correct_context) ... ok
+test_missing_nonfinite_nonnumeric_out_of_range_telemetry_fails_closed (__main__.ContentionPolicyTests.test_missing_nonfinite_nonnumeric_out_of_range_telemetry_fails_closed) ... ok
+test_no_ambient_or_cross_operation_override (__main__.ContentionPolicyTests.test_no_ambient_or_cross_operation_override) ... ok
+test_observation_integrity_uses_declared_resolution_not_idle_cadence (__main__.ContentionPolicyTests.test_observation_integrity_uses_declared_resolution_not_idle_cadence) ... ok
+test_outer_preflight_retains_failures_without_requiring_idle (__main__.ContentionPolicyTests.test_outer_preflight_retains_failures_without_requiring_idle) ... ok
+test_owned_limit_distress_and_incomplete_attribution_fail_closed (__main__.ContentionPolicyTests.test_owned_limit_distress_and_incomplete_attribution_fail_closed) ... ok
+test_pair_recovery_observes_contention_without_idle_matching (__main__.ContentionPolicyTests.test_pair_recovery_observes_contention_without_idle_matching) ... ok
+test_pair_stops_on_recovery_capacity_failure_without_retry (__main__.ContentionPolicyTests.test_pair_stops_on_recovery_capacity_failure_without_retry) ... ok
+test_qualification_and_default_diagnostic_still_block_mixed_history (__main__.ContentionPolicyTests.test_qualification_and_default_diagnostic_still_block_mixed_history) ... ok
+test_real_oom_evidence_stops_independent_watchdog (__main__.ContentionPolicyTests.test_real_oom_evidence_stops_independent_watchdog) ... ok
+test_rehearsal_admission_cannot_substitute_native_or_arbitrary_code (__main__.ContentionPolicyTests.test_rehearsal_admission_cannot_substitute_native_or_arbitrary_code) ... ok
+test_swap_capacity_reserves_only_remaining_approved_workload_budget (__main__.ContentionPolicyTests.test_swap_capacity_reserves_only_remaining_approved_workload_budget) ... ok
+test_task_distress_and_missing_task_telemetry_fail_closed (__main__.ContentionPolicyTests.test_task_distress_and_missing_task_telemetry_fail_closed) ... ok
+test_task_limit_is_required_and_cap_changes_are_detected (__main__.ContentionPolicyTests.test_task_limit_is_required_and_cap_changes_are_detected) ... ok
+test_watchdog_policy_binding_cannot_drop_or_swap_context (__main__.ContentionPolicyTests.test_watchdog_policy_binding_cannot_drop_or_swap_context) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.510s
+
+OK

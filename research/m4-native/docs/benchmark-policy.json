@@ -77,6 +77,20 @@
     "no_attribution_shortcut": "Host-wide pressure is not evidence that M4 caused it; observed during-minus-baseline is temporal association, not identified incremental causality",
     "no_automatic_retry": true
   },
+  "workspace_observer": {
+    "schema_version": 2,
+    "max_entries_per_scan": 16384,
+    "max_depth": 64,
+    "max_issue_examples": 32,
+    "max_event_bytes_per_scan": 65536,
+    "scan_time_budget_seconds": 0.25,
+    "passes_per_sample": 1,
+    "cost_semantics": "Bounded streaming descriptor walk; cooperative deadline cannot bound a single blocked kernel filesystem syscall. No retry/rescan.",
+    "snapshot_semantics": "Complete traversal is a sampled observation, not an atomic snapshot, capacity upper bound or verified lifetime peak",
+    "known_race": "Retain ENOENT/directory mutation as partial observation; without independent scoped capacity proof fail closed. No proof backend is available in this runner.",
+    "reservation_credit": "Zero: sampled gross allocated bytes are not a conservative lower bound on scoped physical allocation and cannot reduce shared-disk reserve requirements",
+    "independent_capacity_proof": "UNAVAILABLE; no external JSON, environment or fixture assertion can certify a bound"
+  },
   "baseline_pressure_guard": {
     "gate_id": "M4-RG-MEMSWAP-BASELINE",
     "evidence_class": "baseline-derived operation guard from the first three valid 10-second windows; not a universal host limit",

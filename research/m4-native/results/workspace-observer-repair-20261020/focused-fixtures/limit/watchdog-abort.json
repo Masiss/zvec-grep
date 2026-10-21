@@ -1,0 +1,27 @@
+{
+  "cleanup_complete": true,
+  "continuation_allowed": false,
+  "failure_class": "WORKSPACE_LIMIT_OBSERVED_EXCEEDED",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "limit_bytes": 4096,
+  "observed_bytes": 65536,
+  "proof_semantics": "sampled aggregate breach; not an atomic/coexisting inventory proof",
+  "reason": "workspace_allocated_watchdog",
+  "state": "OBSERVED_LIMIT_EXCEEDED",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      299390
+    ],
+    "term_pids": [
+      299396
+    ]
+  },
+  "timestamp_utc": "2026-10-20T16:49:39.574297+00:00"
+}

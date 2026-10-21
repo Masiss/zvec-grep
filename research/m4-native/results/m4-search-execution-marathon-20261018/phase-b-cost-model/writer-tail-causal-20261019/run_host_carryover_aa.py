@@ -519,11 +519,11 @@ def read_arm_identity(arm_dir):
     result_path = pathlib.Path(arm_dir) / "arm-result.json"
     if not result_path.is_file():
         return None
-    result = json.loads(result_path.read_text())
+    result = runner.containment.strict_json_file(result_path)
     hash_path = pathlib.Path(arm_dir) / "binary-sha256.txt"
     digest = hash_path.read_text().split()[0] if hash_path.is_file() else None
     identity_path = pathlib.Path(arm_dir) / "binary-identity.json"
-    runtime_identity = json.loads(identity_path.read_text()) if identity_path.is_file() else None
+    runtime_identity = runner.containment.strict_json_file(identity_path) if identity_path.is_file() else None
     return {"arm": pathlib.Path(arm_dir).name, "unit": result.get("unit"),
             "binary_sha256": digest, "runtime_identity": runtime_identity, "private_workdir": result.get("private_workdir"),
             "workload_root": result.get("workload_root"), "status": result.get("status"),
@@ -536,7 +536,7 @@ def archived_build_source_provenance():
     if current_receipt:
         path = pathlib.Path(current_receipt).resolve(strict=True)
         return {"manifest": str(path), "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                "build_receipt": json.loads(path.read_text()),
+                "build_receipt": runner.containment.strict_json_file(path),
                 "interpretation": "current build receipt; inputs and runtime checked before this authorized attempt"}
     provenance = HERE / "current-corrected-tests-20261019/provenance.sha256"
     entries = []
@@ -595,7 +595,7 @@ def contention_rows_decisions(rows, context, phase):
     decisions = []
     previous = None
     for row in rows:
-        state = json.loads(row['contention_host_json'])
+        state = runner.containment.strict_json_text(row['contention_host_json'])
         decisions.append(runner.containment.contention_decision(state, context, phase))
         if previous is not None:
             for key in ('pswpin_pages', 'pswpout_pages', 'oom_kill', 'pgscan_direct'):
@@ -759,7 +759,7 @@ def write_contention_analysis(pair, baseline_rows, context):
             raise ValueError('insufficient monotonic pressure evidence')
         return {key: (states[-1]['vmstat'][key]-states[0]['vmstat'][key])/elapsed
                 for key in ('pswpin_pages', 'pswpout_pages')}
-    baseline = [json.loads(r['contention_host_json']) for r in baseline_rows]
+    baseline = [runner.containment.strict_json_text(r['contention_host_json']) for r in baseline_rows]
     result = {'evidence_class': runner.containment.CONTENTION_EVIDENCE,
               'operation_id': context['operation_id'], 'ambient_host_psi': host_summary(baseline),
               'ambient_host_swap_pages_per_second': swap_rates(baseline), 'arms': {},
@@ -769,14 +769,15 @@ def write_contention_analysis(pair, baseline_rows, context):
         path = pair/arm/'containment/runtime.jsonl'
         if not path.is_file():
             continue
-        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        rows = [runner.containment.strict_json_text(line) for line in path.read_text().splitlines()]
         active = [r for r in rows if r.get('elapsed_ns') is not None]
         if len(active) < 2:
             raise ValueError('insufficient active-arm contention telemetry')
         states = [r['host'] for r in active]
         for row in active:
             runner.containment.contention_decision(row['host'], context,
-                'runtime-first' if arm == 'aa-first' else 'runtime-second', row['workspace']['allocated_st_blocks_bytes_gross'])
+                'runtime-first' if arm == 'aa-first' else 'runtime-second',
+                runner.containment.workspace_reservation_credit(row['workspace']))
         elapsed = (active[-1]['monotonic_ns'] - active[0]['monotonic_ns'])/1e9
         host_psi = host_summary(states)
         result['arms'][arm] = {'host_psi': host_psi, 'host_swap_pages_per_second': swap_rates(states),
@@ -803,7 +804,7 @@ def main():
     if mode == runner.containment.CONTENTION_MODE:
         if args.contention_plan is None:
             raise SystemExit('NO_LAUNCH: approved operation-bound resource plan and separate execution authorization required')
-        policy_context = json.loads(args.contention_plan.read_text())
+        policy_context = runner.containment.strict_json_file(args.contention_plan)
         runner.containment.validate_contention_context(policy_context)
         operation = HERE / policy_context['operation_id']
         if (str(operation.resolve()) != policy_context['operation_root'] or
@@ -854,7 +855,7 @@ def main():
     }, indent=2) + "\n")
     write_operation_status(pair, "IN_PROGRESS", "baseline-preflight")
     if not (runner.preflight('baseline', policy_context) if policy_context is not None else runner.preflight('baseline')):
-        preflight = json.loads((pair / "baseline" / "preflight.json").read_text())
+        preflight = runner.containment.strict_json_file(pair / "baseline" / "preflight.json")
         failures = (preflight.get('diagnostic_decision', {}).get('blocking_failures', [])
                     if policy_context is not None and preflight.get('diagnostic_decision') is not None else
                     preflight.get("resource_guard_failures", preflight.get("hard_safety_failures", [])))
@@ -906,7 +907,7 @@ def main():
     baseline_quality_pass = profile is not None
     pressure_limits = baseline_pressure_limits(baseline_rows) if integrity["status"] == "VALID" else None
     if policy_context is not None and pressure_limits is not None:
-        pressure_limits['contention_baseline_host_oom_kill'] = json.loads(baseline_rows[-1]['contention_host_json'])['vmstat']['oom_kill']
+        pressure_limits['contention_baseline_host_oom_kill'] = runner.containment.strict_json_text(baseline_rows[-1]['contention_host_json'])['vmstat']['oom_kill']
     resource_failures = resource_guard_baseline_failures(baseline_rows, runner.THRESHOLDS) if integrity["status"] == "VALID" else []
     pressure_failures = (baseline_pressure_failures(ten_second_windows(baseline_rows), pressure_limits)
                          if pressure_limits is not None else [])
@@ -956,7 +957,7 @@ def record_unhandled_operation_exit(pair, exc):
     if not pair.is_dir():
         return
     status_path = pair / "operation-status.json"
-    current = json.loads(status_path.read_text()) if status_path.is_file() else {}
+    current = runner.containment.strict_json_file(status_path) if status_path.is_file() else {}
     if current.get("operation_status") not in {None, "IN_PROGRESS"}:
         return
     receipts = []
@@ -980,7 +981,7 @@ def record_unhandled_operation_exit(pair, exc):
     else:
         status, gate_class = "OPERATION_FAILED", "RUNNER_OR_ANALYSIS_FAILURE"
     decision_path = pair / "baseline-gate-decision.json"
-    decision = json.loads(decision_path.read_text()) if decision_path.is_file() else {}
+    decision = runner.containment.strict_json_file(decision_path) if decision_path.is_file() else {}
     gate_id = decision.get("gate_id")
     evidence_class = decision.get("evidence_class")
     recovery = decision.get("recovery_conditions")
@@ -993,7 +994,7 @@ def record_unhandled_operation_exit(pair, exc):
                 recovery = "; ".join(sorted({gate.get("recovery", "") for gate in failed}))
                 break
     pair_path = pair / 'pair.json'
-    pair_info = json.loads(pair_path.read_text()) if pair_path.is_file() else {}
+    pair_info = runner.containment.strict_json_file(pair_path) if pair_path.is_file() else {}
     if pair_info.get('mode') == runner.containment.CONTENTION_MODE:
         evidence_class = runner.containment.CONTENTION_EVIDENCE
         gate_id = [item.get('reason') for item in receipts if item.get('reason')] or gate_id

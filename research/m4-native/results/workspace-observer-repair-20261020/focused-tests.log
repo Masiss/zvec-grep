@@ -1,0 +1,22 @@
+test_atomic_create_rename (__main__.WorkspaceTests.test_atomic_create_rename) ... ok
+test_concurrent_allocation_near_cap (__main__.WorkspaceTests.test_concurrent_allocation_near_cap) ... ok
+test_create_after_enumeration (__main__.WorkspaceTests.test_create_after_enumeration) ... ok
+test_directory_removal (__main__.WorkspaceTests.test_directory_removal) ... ok
+test_entries_depth_and_deadline_are_bounded_no_retry (__main__.WorkspaceTests.test_entries_depth_and_deadline_are_bounded_no_retry) ... ok
+test_growing_file_after_stat (__main__.WorkspaceTests.test_growing_file_after_stat) ... ok
+test_missing_root_never_empty_complete (__main__.WorkspaceTests.test_missing_root_never_empty_complete) ... ok
+test_partial_totals_and_forged_bound_cannot_authorize (__main__.WorkspaceTests.test_partial_totals_and_forged_bound_cannot_authorize) ... ok
+test_permission_error_is_not_enoent (__main__.WorkspaceTests.test_permission_error_is_not_enoent) ... ok
+test_replacement_even_without_enoent (__main__.WorkspaceTests.test_replacement_even_without_enoent) ... ok
+test_sparse_apparent_not_bounded_by_allocated_or_io (__main__.WorkspaceTests.test_sparse_apparent_not_bounded_by_allocated_or_io) ... ok
+test_stable_traversal_is_not_snapshot_or_proof (__main__.WorkspaceTests.test_stable_traversal_is_not_snapshot_or_proof) ... ok
+test_symlink_not_followed (__main__.WorkspaceTests.test_symlink_not_followed) ... ok
+test_temporary_unlink (__main__.WorkspaceTests.test_temporary_unlink) ... ok
+test_real_unknown_and_limit_abort_cleanup (__main__.ContainmentTests.test_real_unknown_and_limit_abort_cleanup) ... REAL_OBSERVER_FIXTURE permission WATCHDOG_ABORT workspace_capacity_unverifiable m4-contained-3cee24753af04a10.service
+REAL_OBSERVER_FIXTURE limit WATCHDOG_ABORT workspace_allocated_watchdog m4-contained-d6814ec69eb34f73.service
+ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.663s
+
+OK

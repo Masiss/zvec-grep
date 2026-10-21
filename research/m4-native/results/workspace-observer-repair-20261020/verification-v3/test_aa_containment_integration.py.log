@@ -1,0 +1,15 @@
+AA_ARM_START name=aa-first
+AA_ARM_COMPLETE name=aa-first
+AA_INTERARM_RECOVERY_START
+AA_RECOVERY_WINDOW n=1 integrity=VALID recovered=False consecutive=0
+AA_RECOVERY_WINDOW n=2 integrity=VALID recovered=True consecutive=1
+AA_RECOVERY_WINDOW n=3 integrity=VALID recovered=True consecutive=2
+AA_RECOVERY_WINDOW n=4 integrity=VALID recovered=True consecutive=3
+AA_ARM_START name=aa-second
+AA_ARM_COMPLETE name=aa-second
+test_two_ordered_arms_wait_for_recovery_and_leave_receipts (__main__.ContainedPairIntegrationTests.test_two_ordered_arms_wait_for_recovery_and_leave_receipts) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.921s
+
+OK

@@ -1,0 +1,22 @@
+{
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "controller_sha256": "b08df542eb72e29da653ac26f6b040d67831bd3637c5794d1014dea4e2f56c61",
+  "source_unchanged": true,
+  "native_executions": 0,
+  "scope": "Seven existing A/A gate tests and one tiny Python contained-pair regression, final controller source"
+}

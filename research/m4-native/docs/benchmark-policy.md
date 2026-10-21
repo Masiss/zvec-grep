@@ -2,6 +2,14 @@
 
 **Scope:** standalone research prototype under `research/m4-native/`. This policy does not authorize production integration, migration, deployment, native checkout changes, or any change to the production ABI/schema. The machine-readable values are in adjacent `benchmark-policy.json`; runner code loads that file, and tests verify the enforcement mappings.
 
+## Workspace observation integrity (observer schema 2)
+
+`workspace_observer` in the JSON controls one bounded, no-follow descriptor traversal per sample: entry/depth/issue/event limits and a cooperative deadline, no retry/rescan. A blocked filesystem syscall is not preempted by that deadline; independent containment remains required. Per-pass inotify/identity checks detect known mutations but are not an independent accounting backend (mmap/writeback, recursive coverage and queue loss remain limitations).
+
+Complete traversal means **sampled, not atomic**. Known-race partial observations remain incomplete, with raw issues retained; permission/EIO/scope/budget/coverage failures remain unverifiable. Without independently verified scoped capacity evidence, incomplete observations abort (`workspace_capacity_unverifiable`), never PASS. Sampled limit excess aborts with observed value/threshold, without overclaiming simultaneous aggregate usage. No upper-bound or complete-snapshot backend is implemented; verified capacity/peak stays unavailable. Externally supplied assertions cannot certify one.
+
+Runtime/postflight use the same capacity decision. Incomplete workspace sampling makes measurement quality INCOMPLETE; partial totals cannot update sampled workspace peaks, and incomplete series have null sampled peaks. Gross Btrfs/time-skewed allocation receives **zero shared-disk reserve credit**, not a deduction from approved reserves. Existing resource thresholds and native durability remain unchanged. Details, limitations, raw test failures and final 72-test verification: `../results/workspace-observer-repair-20261020/REPORT.md`. Native launch readiness remains blocked; this correction authorizes no native attempt.
+
 ## Authority and interpretation
 
 The active user instruction authorizes the operation. Repository-wide mission and execution rules are in root `AGENTS.md`; M4 design/workflow constraints are in `research/m4-native/AGENTS.md`. `benchmark-policy.json` is the sole machine-readable source of resource-guard values and classifications. This Markdown document explains policy meaning and control flow; it is not parsed by enforcement code and intentionally does not duplicate numeric thresholds. Guard values are owner-controlled.

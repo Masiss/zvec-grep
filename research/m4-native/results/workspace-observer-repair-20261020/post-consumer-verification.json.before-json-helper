@@ -1,0 +1,21 @@
+{
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "controller_sha256": "c39a264d6fbc219a06045c070765c7d8b2ed5f68fefc2ea7bdfd74d24d476875",
+  "native_executions": 0,
+  "scope": "Existing seven gate tests and one tiny Python contained-pair test after file-only analysis reserve-credit alignment"
+}

@@ -10,7 +10,8 @@ budget this is process-tree containment/telemetry, not a claim that use is bound
 from __future__ import annotations
 
 import argparse
-import csv
+import contextlib
+import ctypes
 import hashlib
 import json
 import math
@@ -18,20 +19,46 @@ import os
 import pathlib
 import platform
 import re
+import select
 import shutil
 import signal
 import socket
+import stat
+import struct
 import subprocess
 import sys
 import tempfile
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
+
+def strict_json_text(text: str | bytes) -> Any:
+    """Malformed control/evidence data must raise, never become a default/PASS."""
+    try:
+        return json.loads(text)
+    except (ValueError, UnicodeError):
+        raise
+
+
+def strict_json_file(path: pathlib.Path) -> Any:
+    try:
+        return strict_json_text(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError, UnicodeError):
+        raise
+
+
+def writable_capability(path: pathlib.Path) -> bool:
+    try:
+        return path.exists() and os.access(path, os.W_OK)
+    except OSError:
+        return False  # absent/unreadable capability cannot authorize a resource cap
+
 
 CGROOT = pathlib.Path('/sys/fs/cgroup')
 POLICY_PATH = pathlib.Path(__file__).resolve().parents[1] / 'docs' / 'benchmark-policy.json'
-BENCHMARK_POLICY = json.loads(POLICY_PATH.read_text(encoding='utf-8'))
+BENCHMARK_POLICY = strict_json_file(POLICY_PATH)
 if BENCHMARK_POLICY.get('schema_version') != 1 or BENCHMARK_POLICY.get('policy_id') != 'm4-benchmark-operation-policy-v1':
     raise RuntimeError(f'unsupported M4 benchmark policy: {POLICY_PATH}')
 RESOURCE_THRESHOLDS = BENCHMARK_POLICY['resource_guards']
@@ -45,7 +72,7 @@ SCHEMA_VERSION = 1
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec='microseconds')
+    return datetime.now(UTC).isoformat(timespec='microseconds')
 
 
 def read_text(path: pathlib.Path) -> str:
@@ -155,6 +182,10 @@ def failure_class(status: str | None = None, reason: str | None = None,
         return 'CONTROLLER_CRASH_ABORT'
     if reason == 'runtime_timeout':
         return 'TIMEOUT_ABORT'
+    if reason == 'workspace_capacity_unverifiable':
+        return 'WORKSPACE_CAPACITY_UNVERIFIABLE'
+    if reason in ('workspace_allocated_watchdog', 'workspace_apparent_watchdog'):
+        return 'WORKSPACE_LIMIT_OBSERVED_EXCEEDED'
     if status == 'PREFLIGHT_BLOCKED':
         return 'OPERATION_GUARD_REFUSAL'
     if status == 'PASS' and returncode == 0:
@@ -189,7 +220,7 @@ def pressure_baseline_failures(state: dict[str, Any], limits: dict[str, Any] | N
 def load_pressure_baseline(path: pathlib.Path | None) -> dict[str, Any] | None:
     if path is None:
         return None
-    value = json.loads(path.read_text(encoding='utf-8'))
+    value = strict_json_file(path)
     required = ('swapfree_min_kib', 'memory_some_avg10_max', 'memory_full_avg10_max')
     for key in required:
         if (key not in value or isinstance(value[key], bool) or not isinstance(value[key], (int, float))
@@ -353,8 +384,8 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
     memory_required = context['host_memory_reserve_bytes'] + (0 if runtime else context['memory_max_bytes'])
     # Retain first-arm roots; reserve space for both arms before the first, one before second.
     arms = 2 if phase in ('baseline', 'aa-first', 'runtime-first') else 1
-    disk_required = context['disk_reserve_bytes'] + max(
-        0, arms * context['workspace_max_allocated_bytes'] - workspace_bytes)
+    # A time-skewed gross st_blocks count cannot safely credit physical disk use.
+    disk_required = context['disk_reserve_bytes'] + arms * context['workspace_max_allocated_bytes']
     failures = []
     if mem['MemAvailable_kib'] * 1024 < memory_required:
         failures.append({'gate_id': 'M4-CA-MEM-CAPACITY', 'observed_bytes': mem['MemAvailable_kib'] * 1024,
@@ -543,64 +574,185 @@ def read_cgroup_metric(cg: pathlib.Path) -> dict[str, Any]:
 
 
 def workspace_usage(root: pathlib.Path) -> dict[str, Any]:
+    """One bounded, no-follow descriptor walk; never an atomic/capacity snapshot."""
+    limits = BENCHMARK_POLICY['workspace_observer']
     start = time.monotonic_ns()
+    deadline = start + int(limits['scan_time_budget_seconds'] * 1e9)
     apparent = allocated = generation_apparent = staging_apparent = 0
-    files = directories = symlinks = 0
+    files = directories = symlinks = entries = issue_count = 0
     seen: set[tuple[int, int]] = set()
     generations: set[str] = set()
-    errors: list[str] = []
-    try:
-        for current, dirnames, filenames in os.walk(root, followlinks=False):
-            current_path = pathlib.Path(current)
-            dirnames[:] = [d for d in dirnames if not (current_path / d).is_symlink()]
-            for name in dirnames:
-                p = current_path / name
+    issues: list[dict[str, Any]] = []
+    stopped = False
+    root_stat = None
+    notify_fd = -1
+    libc = ctypes.CDLL(None, use_errno=True)
+    # Names/content events detect known mutations; mmap/writeback are NOT covered.
+    watch_mask = 0x00000002 | 0x00000004 | 0x00000040 | 0x00000080 | 0x00000100 | 0x00000200 | 0x00000400 | 0x00000800 | 0x00002000
+
+    def issue(path, kind, detail, race=False):
+        nonlocal issue_count, stopped
+        issue_count += 1
+        if len(issues) < limits['max_issue_examples']:
+            issues.append({'path': str(path), 'kind': kind, 'detail': str(detail), 'known_race': race})
+        if not race:
+            stopped = True
+
+    def version(s):
+        return (s.st_dev, s.st_ino, s.st_mtime_ns, s.st_ctime_ns, s.st_nlink, s.st_size)
+
+    def visit(fd, relative, depth):
+        nonlocal apparent, allocated, generation_apparent, staging_apparent
+        nonlocal files, directories, symlinks, entries
+        if depth > limits['max_depth']:
+            issue(root / relative, 'WORK_BUDGET_EXHAUSTED', 'directory depth')
+            return
+        before = os.fstat(fd)
+        if libc.inotify_add_watch(notify_fd, os.fsencode(f'/proc/self/fd/{fd}'), watch_mask | 0x01000000) < 0:
+            raise OSError(ctypes.get_errno(), 'cannot establish directory mutation observation')
+        with os.scandir(fd) as iterator:
+            for entry in iterator:
+                if stopped:
+                    break
+                if entries >= limits['max_entries_per_scan'] or time.monotonic_ns() > deadline:
+                    issue(root / relative, 'WORK_BUDGET_EXHAUSTED', 'entry/time budget')
+                    break
+                entries += 1
+                rel = relative / entry.name
+                path = root / rel
                 try:
-                    s = p.stat(follow_symlinks=False)
-                    directories += 1
-                    key = (s.st_dev, s.st_ino)
-                    if key not in seen:
-                        seen.add(key)
-                        allocated += getattr(s, 'st_blocks', 0) * 512
-                    for part in p.relative_to(root).parts:
-                        if part.startswith('generation-'):
-                            generations.add(part)
-                except OSError as exc:
-                    errors.append(f'{p}: {exc}')
-            for name in filenames:
-                p = current_path / name
-                try:
-                    s = p.stat(follow_symlinks=False)
-                    if pathlib.Path(p).is_symlink():
+                    s = entry.stat(follow_symlinks=False)
+                    if stat.S_ISLNK(s.st_mode):
                         symlinks += 1
                         continue
-                    files += 1
-                    rel = p.relative_to(root)
+                    if s.st_dev != before.st_dev:
+                        issue(path, 'SCOPE_UNVERIFIABLE', 'cross-device entry')
+                        continue
                     key = (s.st_dev, s.st_ino)
                     if key not in seen:
                         seen.add(key)
-                        allocated += getattr(s, 'st_blocks', 0) * 512
-                    apparent += s.st_size
-                    if any(part.startswith('generation-') for part in rel.parts):
-                        generation_apparent += s.st_size
-                    low = str(rel).lower()
-                    if any(token in low for token in ('.tmp.', '.tmp', 'staging', '/stage', 'compact', 'temporary')):
-                        staging_apparent += s.st_size
+                        allocated += s.st_blocks * 512
+                    if stat.S_ISDIR(s.st_mode):
+                        directories += 1
+                        generations.update(part for part in rel.parts if part.startswith('generation-'))
+                        child = os.open(entry.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+                        try:
+                            opened = os.fstat(child)
+                            if (opened.st_dev, opened.st_ino) != key:
+                                issue(path, 'ENTRY_REPLACED', 'directory identity changed', race=True)
+                            else:
+                                visit(child, rel, depth + 1)
+                        finally:
+                            os.close(child)
+                    elif stat.S_ISREG(s.st_mode):
+                        files += 1
+                        apparent += s.st_size
+                        if any(part.startswith('generation-') for part in rel.parts):
+                            generation_apparent += s.st_size
+                        low = str(rel).lower()
+                        if any(token in low for token in ('.tmp.', '.tmp', 'staging', '/stage', 'compact', 'temporary')):
+                            staging_apparent += s.st_size
+                    else:
+                        issue(path, 'SCOPE_UNVERIFIABLE', 'unsupported special file')
+                except FileNotFoundError as exc:
+                    issue(path, 'ENTRY_DISAPPEARED', exc, race=True)
                 except OSError as exc:
-                    errors.append(f'{p}: {exc}')
+                    # Permission/EIO/ENOTDIR/ELOOP are not silently reclassified as ENOENT.
+                    issue(path, 'FILESYSTEM_ERROR', exc)
+        if version(os.fstat(fd)) != version(before):
+            issue(root / relative, 'DIRECTORY_CHANGED', 'metadata changed during traversal', race=True)
+
+    try:
+        notify_fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+        if notify_fd < 0:
+            raise OSError(ctypes.get_errno(), 'inotify unavailable; no mutation coverage')
+        fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            root_stat = os.fstat(fd)
+            visit(fd, pathlib.Path(), 0)
+            current = root.stat(follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != (root_stat.st_dev, root_stat.st_ino):
+                issue(root, 'SCOPE_UNVERIFIABLE', 'workspace root replaced')
+        finally:
+            os.close(fd)
     except OSError as exc:
-        errors.append(f'{root}: {exc}')
+        issue(root, 'ROOT_OR_TRAVERSAL_ERROR', exc)
+    finally:
+        if notify_fd >= 0:
+            try:
+                try:
+                    events = os.read(notify_fd, limits['max_event_bytes_per_scan'])  # one bounded drain
+                except BlockingIOError:
+                    events = b''
+                offset = 0
+                while offset < len(events):
+                    _, mask, _, length = struct.unpack_from('iIII', events, offset)
+                    if offset + 16 + length > len(events):
+                        issue(root, 'MUTATION_COVERAGE_LOST', 'truncated event record')
+                        break
+                    offset += 16 + length
+                    if mask & (0x00004000 | 0x00002000):
+                        issue(root, 'MUTATION_COVERAGE_LOST', 'event overflow or unmount')
+                    else:
+                        issue(root, 'DIRECTORY_ACTIVITY', f'inotify mask={mask}', race=True)
+                if select.select([notify_fd], [], [], 0)[0]:
+                    issue(root, 'MUTATION_COVERAGE_LOST', 'events exceed one bounded drain')
+            except (OSError, struct.error) as exc:
+                issue(root, 'MUTATION_COVERAGE_LOST', exc)
+            finally:
+                os.close(notify_fd)
+    if time.monotonic_ns() > deadline:
+        issue(root, 'WORK_BUDGET_EXHAUSTED', 'cooperative time deadline exceeded')
+    complete = issue_count == 0
+    known_race_only = bool(issues) and all(item['known_race'] for item in issues) and not stopped
     return {
-        'root': str(root), 'apparent_bytes': apparent,
-        'allocated_st_blocks_bytes_gross': allocated,
-        'allocated_semantics': 'sum st_blocks*512, deduplicated hardlinks; Btrfs shared extents may be counted more than once',
+        'schema_version': 2, 'root': str(root),
+        'root_identity': None if root_stat is None else [root_stat.st_dev, root_stat.st_ino],
+        'apparent_bytes': apparent, 'allocated_st_blocks_bytes_gross': allocated,
+        'allocated_semantics': 'observed sum st_blocks*512, deduplicated hardlinks; Btrfs shared extents may be counted more than once',
         'file_count': files, 'directory_count': directories, 'symlink_count': symlinks,
-        'generation_directory_names': sorted(generations),
-        'generation_apparent_bytes': generation_apparent,
+        'generation_directory_names': sorted(generations), 'generation_apparent_bytes': generation_apparent,
         'staging_named_apparent_bytes': staging_apparent,
-        'scan_duration_ns': time.monotonic_ns() - start,
-        'scan_complete': not errors, 'scan_errors': errors,
+        'scan_duration_ns': time.monotonic_ns() - start, 'entries_observed': entries,
+        'scan_complete': complete, 'scan_errors': [f"{i['path']}: {i['detail']}" for i in issues],
+        'inventory_status': 'COMPLETE_TRAVERSAL_NOT_ATOMIC' if complete else
+                            'PARTIAL_KNOWN_RACE' if known_race_only else 'UNVERIFIABLE',
+        'complete_snapshot': False, 'issues': issues, 'issue_count': issue_count,
+        'mutation_observer': 'bounded per-pass inotify; not independent capacity proof; mmap/writeback not covered',
+        'independent_capacity_upper_bound': None, 'verified_peak': None,
+        'reservation_credit_bytes': 0,
+        'limitations': 'No atomic snapshot/quota backend. A traversal can miss creates/growth/mmap/replacements between observations; no upper bound or verified lifetime peak. One pass, no retry. Deadline is cooperative, not a bound on one blocked kernel syscall.',
     }
+
+
+def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, Any] | None) -> dict[str, Any]:
+    """No caller-supplied assertion can manufacture an independent capacity proof."""
+    if not isinstance(observation.get('scan_complete'), bool):
+        raise ValueError('missing/invalid workspace scan completeness')
+    for key in ('allocated_st_blocks_bytes_gross', 'apparent_bytes'):
+        value = observation.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError('missing/invalid workspace counter: ' + key)
+    for key, limit_key, reason in (
+            ('allocated_st_blocks_bytes_gross', 'workspace_max_allocated_bytes', 'workspace_allocated_watchdog'),
+            ('apparent_bytes', 'workspace_max_apparent_bytes', 'workspace_apparent_watchdog')):
+        limit = (budget or {}).get(limit_key)
+        if limit is not None and observation[key] > limit:
+            return {'state': 'OBSERVED_LIMIT_EXCEEDED', 'continuation_allowed': False,
+                    'reason': reason, 'observed_bytes': observation[key], 'limit_bytes': limit,
+                    'proof_semantics': 'sampled aggregate breach; not an atomic/coexisting inventory proof'}
+    if not observation['scan_complete']:
+        return {'state': 'CAPACITY_UNVERIFIABLE', 'continuation_allowed': False,
+                'reason': 'workspace_capacity_unverifiable', 'inventory_status': observation['inventory_status'],
+                'errors': observation['scan_errors'], 'independent_capacity_upper_bound': None}
+    return {'state': 'SAMPLED_NOT_EXCEEDED', 'continuation_allowed': True,
+            'proof_semantics': 'existing sampled-abort policy only; NOT a capacity proof/atomic snapshot/verified peak',
+            'independent_capacity_upper_bound': None}
+
+
+def workspace_reservation_credit(_observation: dict[str, Any]) -> int:
+    # Gross shared st_blocks and time-skewed inventory are not physical allocation lower bounds.
+    return 0
 
 
 def inspect_shared_extents(roots: list[pathlib.Path]) -> dict[str, Any]:
@@ -648,7 +800,7 @@ def write_json(path: pathlib.Path, value: Any) -> None:
 def load_approved_budget(path: pathlib.Path | None) -> dict[str, Any] | None:
     if path is None:
         return None
-    budget = json.loads(path.read_text(encoding='utf-8'))
+    budget = strict_json_file(path)
     if budget.get('schema_version') != SCHEMA_VERSION or budget.get('approval_status') != 'approved':
         raise ValueError('budget must have schema_version=1 and approval_status=approved')
     if not isinstance(budget.get('approval_reference'), str) or not budget['approval_reference'].strip():
@@ -686,7 +838,7 @@ def apply_budget(cg: pathlib.Path, budget: dict[str, Any] | None) -> dict[str, A
         if value is None:
             continue
         file = cg / filename
-        if not file.exists() or not os.access(file, os.W_OK):
+        if not writable_capability(file):
             raise RuntimeError(f'approved {source} cannot be enforced: {file} absent/not writable')
         file.write_text(str(value) + '\n', encoding='ascii')
         applied[target] = str(value)
@@ -727,9 +879,8 @@ def kill_owned_cgroup(cg: pathlib.Path, expected_rel: str, grace_seconds: float 
         except OSError:
             pids = []
         targets = [pid for pid in pids if pid not in preserve]
-        if not targets:
-            if preserve or not pids:
-                return {'term_pids': signalled, 'kill_pids': killed, 'preserved_pids': sorted(preserve & set(pids)), 'kill_fallback': False, 'errors': errors}
+        if not targets and (preserve or not pids):
+            return {'term_pids': signalled, 'kill_pids': killed, 'preserved_pids': sorted(preserve & set(pids)), 'kill_fallback': False, 'errors': errors}
         for pid in targets:
             try:
                 if signal_verified_member(pid, expected_rel, signal.SIGTERM):
@@ -780,7 +931,7 @@ def _bootstrap(sock_path: str, command: list[str]) -> int:
         line = stream.readline()
         if not line:
             return 125
-        payload = json.loads(line)
+        payload = strict_json_text(line)
         if payload.get('go') is not True:
             return 125
         env = payload.get('env')
@@ -798,7 +949,7 @@ def _bootstrap(sock_path: str, command: list[str]) -> int:
         write_json(done_marker, {'returncode': child_rc, 'timestamp_utc': utc_now(), 'pid': child.pid})
         client.sendall((json.dumps({'command_returncode': child_rc}) + '\n').encode())
         final_line = stream.readline()
-        if not final_line or json.loads(final_line).get('finalize') is not True:
+        if not final_line or strict_json_text(final_line).get('finalize') is not True:
             return 125
         # subprocess uses -signal; sys.exit(-signal) would wrap modulo 256.
         # Keep the signed child result in the protocol/receipt, but expose the
@@ -811,7 +962,7 @@ def cgroup_populated(cg: pathlib.Path) -> int:
 
 
 def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
-    config = json.loads(path.read_text(encoding='utf-8'))
+    config = strict_json_file(path)
     for key in ('cgroup_path', 'cgroup_rel', 'workspace_root', 'resource_root', 'sample_interval_ms',
                 'runtime_limit_seconds', 'watchdog_output', 'controller_pid', 'bootstrap_pid', 'start_marker',
                 'command_done_marker', 'watchdog_ready_path', 'socket_dir', 'pressure_limits'):
@@ -856,7 +1007,6 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         pidfd = -1
     poller = None
     if pidfd >= 0:
-        import select
         poller = select.poll()
         poller.register(pidfd, select.POLLIN)
     start_marker = pathlib.Path(config['start_marker'])
@@ -864,10 +1014,9 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     ready_marker = pathlib.Path(config['watchdog_ready_path'])
     socket_dir = pathlib.Path(config['socket_dir'])
     while abort is None:
-        if poller is not None and poller.poll(0):
-            if cg.exists() and cgroup_populated(cg) == 1:
-                abort = {'reason': 'supervisor_lost', 'timestamp_utc': utc_now()}
-                break
+        if poller is not None and poller.poll(0) and cg.exists() and cgroup_populated(cg) == 1:
+            abort = {'reason': 'supervisor_lost', 'timestamp_utc': utc_now()}
+            break
         if started_ns is None and start_marker.exists():
             started_ns = time.monotonic_ns()
         try:
@@ -878,10 +1027,12 @@ def watchdog_main(config_path: pathlib.Path) -> int:
             cgroup_row = read_cgroup_metric(cg)
             host_row = host_snapshot(resource_root)
             work_row = workspace_usage(workspace)
+            workspace_decision = workspace_capacity_decision(work_row, config.get('budget'))
             row = {
                 'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
                 'elapsed_ns': None if started_ns is None else time.monotonic_ns() - started_ns,
                 'cgroup': cgroup_row, 'host': host_row, 'workspace': work_row,
+                'workspace_capacity_decision': workspace_decision,
             }
             if config.get('policy_context') is not None:
                 row['sample_start_monotonic_ns'] = sample_started_ns
@@ -894,7 +1045,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
             if context is not None:
                 verify_contention_caps(cg, context)
                 phase = ('runtime-first' if config['arm_name'] == 'aa-first' else 'runtime-second') if started_ns is not None else config['arm_name']
-                decision = contention_decision(host_row, context, phase, work_row['allocated_st_blocks_bytes_gross'],
+                decision = contention_decision(host_row, context, phase, workspace_reservation_credit(work_row),
                                                 cgroup_row['memory_swap_current_bytes'])
                 row['diagnostic_decision'] = decision
                 previous = samples[-2] if len(samples) > 1 else None
@@ -914,13 +1065,8 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 context_failures = decision['blocking_failures'] + distress
                 if context_failures:
                     abort = {'reason': 'contention_resource_risk', 'failures': context_failures, 'timestamp_utc': utc_now()}
-            if not ready_marker.exists() and abort is None:
-                if context is not None:
-                    write_json(ready_marker, {'mode': CONTENTION_MODE, 'policy_context_digest': contention_context_digest(context)})
-                else:
-                    ready_marker.write_text(str(time.monotonic_ns()), encoding='ascii')
-            if not work_row['scan_complete']:
-                abort = {'reason': 'workspace_telemetry_incomplete', 'errors': work_row['scan_errors'], 'timestamp_utc': utc_now()}
+            if not workspace_decision['continuation_allowed']:
+                abort = dict(workspace_decision, timestamp_utc=utc_now())
             elif started_ns is not None:
                 context = config.get('policy_context')
                 if context is not None:
@@ -935,12 +1081,6 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                         'failures': failures, 'pressure_failures': pressure_failures,
                         'timestamp_utc': utc_now(),
                     }
-                elif config.get('budget'):
-                    b = config['budget']
-                    if b.get('workspace_max_allocated_bytes') is not None and work_row['allocated_st_blocks_bytes_gross'] > b['workspace_max_allocated_bytes']:
-                        abort = {'reason': 'workspace_allocated_watchdog', 'observed_bytes': work_row['allocated_st_blocks_bytes_gross'], 'limit_bytes': b['workspace_max_allocated_bytes'], 'timestamp_utc': utc_now()}
-                    if b.get('workspace_max_apparent_bytes') is not None and work_row['apparent_bytes'] > b['workspace_max_apparent_bytes']:
-                        abort = {'reason': 'workspace_apparent_watchdog', 'observed_bytes': work_row['apparent_bytes'], 'limit_bytes': b['workspace_max_apparent_bytes'], 'timestamp_utc': utc_now()}
                 if abort is None and time.monotonic_ns() - started_ns >= int(runtime_limit * 1e9):
                     abort = {'reason': 'runtime_timeout', 'limit_seconds': runtime_limit, 'timestamp_utc': utc_now()}
             baseline_events = config.get('baseline_memory_events', {})
@@ -948,6 +1088,11 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 if cgroup_row['memory_events'].get(k, 0) > baseline_events.get(k, 0):
                     abort = {'reason': 'cgroup_oom_event', 'event': k, 'observed': cgroup_row['memory_events'].get(k), 'timestamp_utc': utc_now()}
                     break
+            if not ready_marker.exists() and abort is None:
+                if context is not None:
+                    write_json(ready_marker, {'mode': CONTENTION_MODE, 'policy_context_digest': contention_context_digest(context)})
+                else:
+                    ready_marker.write_text(str(time.monotonic_ns()), encoding='ascii')
             if cgroup_row.get('populated') == 0 or command_done_marker.exists():
                 break
         except Exception as exc:
@@ -955,7 +1100,6 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         if abort is not None:
             break
         time.sleep(interval)
-    kill_result = None
     if abort is not None and cg.exists():
         kill_result = kill_owned_cgroup(cg, expected, preserve_pids={bootstrap_pid})
         abort['termination'] = kill_result
@@ -969,7 +1113,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                     abort = {'reason': 'contention_resource_risk', 'failures': final_distress, 'timestamp_utc': utc_now()}
     except Exception as exc:
         final_cgroup = {'error': f'{type(exc).__name__}: {exc}'}
-    fiemap = inspect_shared_extents([workspace]) if workspace.exists() else {'available': False, 'reason': 'workspace absent'}
+    fiemap = {'available': False, 'reason': 'No extra recursive FIEMAP walk in bounded observer; extent sharing unknown, never capacity proof'}
     outdir = pathlib.Path(config['watchdog_output'])
     runtime_path = outdir / 'runtime.jsonl'
     tmp = runtime_path.with_suffix('.jsonl.tmp')
@@ -986,21 +1130,28 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         row['cgroup'].get('process_io_sample_complete') and
         row['cgroup'].get('process_memory_sample_complete') for row in samples
     )
+    workspace_samples_complete = bool(samples) and all(r['workspace']['scan_complete'] for r in samples)
+    complete_workspace_rows = [r['workspace'] for r in samples if r['workspace']['scan_complete']]
     summary = {
         'schema_version': SCHEMA_VERSION, 'samples': len(samples),
+        'workspace_samples_complete': workspace_samples_complete,
+        'workspace_snapshot_semantics': 'sampled traversals, NOT atomic snapshots or verified lifetime peaks',
+        'workspace_verified_peak': None,
+        'max_observed_complete_traversal_apparent_bytes': max((w['apparent_bytes'] for w in complete_workspace_rows), default=None),
+        'max_observed_complete_traversal_allocated_bytes': max((w['allocated_st_blocks_bytes_gross'] for w in complete_workspace_rows), default=None),
         'policy_mode': config.get('policy_mode', 'legacy'),
         'policy_context_digest': config.get('policy_context_digest'),
-        'measurement_quality': 'COMPLETE' if samples and process_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error') else 'INCOMPLETE',
+        'measurement_quality': 'COMPLETE' if samples and process_samples_complete and workspace_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error') else 'INCOMPLETE',
         'process_tree_samples_complete': process_samples_complete,
         'safety_outcome': 'ABORTED_CONTAINED' if abort is not None else 'WATCHDOG_COMPLETED_NO_ABORT',
         'sample_interval_ms_requested': config['sample_interval_ms'],
         'sampling_scope': 'external watchdog; workspace scans are sampled and may miss short-lived files',
         'abort': abort, 'final_cgroup': final_cgroup,
         'workspace_shared_extent_inspection': fiemap,
-        'peak_sampled_workspace_apparent_bytes': max((r['workspace']['apparent_bytes'] for r in samples), default=None),
-        'peak_sampled_workspace_allocated_st_blocks_bytes_gross': max((r['workspace']['allocated_st_blocks_bytes_gross'] for r in samples), default=None),
-        'peak_sampled_staging_named_apparent_bytes': max((r['workspace']['staging_named_apparent_bytes'] for r in samples), default=None),
-        'peak_sampled_generation_apparent_bytes': max((r['workspace']['generation_apparent_bytes'] for r in samples), default=None),
+        'peak_sampled_workspace_apparent_bytes': max((w['apparent_bytes'] for w in complete_workspace_rows), default=None) if workspace_samples_complete else None,
+        'peak_sampled_workspace_allocated_st_blocks_bytes_gross': max((w['allocated_st_blocks_bytes_gross'] for w in complete_workspace_rows), default=None) if workspace_samples_complete else None,
+        'peak_sampled_staging_named_apparent_bytes': max((w['staging_named_apparent_bytes'] for w in complete_workspace_rows), default=None) if workspace_samples_complete else None,
+        'peak_sampled_generation_apparent_bytes': max((w['generation_apparent_bytes'] for w in complete_workspace_rows), default=None) if workspace_samples_complete else None,
         'peak_cgroup_memory_current_bytes_sampled': max((r['cgroup']['memory_current_bytes'] for r in samples), default=None),
         'peak_cgroup_memory_peak_bytes_observed': max((r['cgroup']['memory_peak_bytes'] for r in samples), default=None),
         'peak_cgroup_swap_current_bytes_sampled': max((r['cgroup']['memory_swap_current_bytes'] for r in samples), default=None),
@@ -1031,7 +1182,10 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         except (OSError, subprocess.TimeoutExpired) as exc:
             abort['final_cleanup']['error'] = f'{type(exc).__name__}: {exc}'
         if abort.get('reason') == 'supervisor_lost':
-            shutil.rmtree(socket_dir, ignore_errors=True)
+            try:
+                shutil.rmtree(socket_dir, ignore_errors=True)
+            except OSError as exc:
+                abort['socket_cleanup_error'] = str(exc)
             abort['socket_cleanup_verified'] = not socket_dir.exists()
             if not abort['socket_cleanup_verified']:
                 abort['final_cleanup']['success'] = False
@@ -1354,7 +1508,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'watchdog_ready_path': str(socket_dir / 'watchdog.ready'), 'socket_dir': str(socket_dir),
             'baseline_memory_events': baseline_events, 'budget': budget,
             'pressure_limits': pressure_limits,
-            'enforce_host_gates': enforce_host_gates, 'pressure_limits': pressure_limits, 'unit': unit,
+            'enforce_host_gates': enforce_host_gates, 'unit': unit,
             'policy_context': policy_context,
             'policy_mode': CONTENTION_MODE if policy_context is not None else 'legacy',
             'policy_context_digest': contention_context_digest(policy_context) if policy_context is not None else None,
@@ -1484,6 +1638,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             and isinstance(watchdog_summary.get('final_cgroup'), dict)
             and not watchdog_summary['final_cgroup'].get('error')
             and (receipt_dir / 'runtime.jsonl').exists()
+            and watchdog_summary.get('workspace_samples_complete') is True
         )
         if policy_context is not None:
             measurement_complete = (measurement_complete and watchdog_summary.get('measurement_quality') == 'COMPLETE'
@@ -1543,9 +1698,17 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         post_state = host_snapshot(resource_root)
         if policy_context is not None:
             phase = 'runtime-first' if arm_name == 'aa-first' else 'runtime-second'
+            post_workspace = workspace_usage(workspace_root)
+            post_workspace_decision = workspace_capacity_decision(post_workspace, budget)
             post_decision = contention_decision(post_state, policy_context, phase,
-                                                workspace_usage(workspace_root)['allocated_st_blocks_bytes_gross'])
+                                                workspace_reservation_credit(post_workspace))
+            result['postflight_workspace'] = post_workspace
+            result['postflight_workspace_capacity'] = post_workspace_decision
             result['postflight_decision'] = post_decision
+            if status == 'PASS' and not post_workspace_decision['continuation_allowed']:
+                result.update(status='POSTFLIGHT_BLOCKED', reason=post_workspace_decision['reason'],
+                              operation_outcome='OPERATION_BLOCKED', performance_eligible=False,
+                              measurement_quality='INCOMPLETE')
             if not post_decision['continuation_allowed']:
                 result.update(status='POSTFLIGHT_BLOCKED', operation_outcome='OPERATION_BLOCKED', performance_eligible=False)
         write_json(receipt_dir / 'receipt.json', result)
@@ -1621,13 +1784,12 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
     finally:
         server.close()
         if stream is not None:
-            try:
+            with contextlib.suppress(OSError):
                 stream.close()
-            except OSError:
-                pass
         if conn is not None:
             conn.close()
-        stdout.close(); stderr.close()
+        stdout.close()
+        stderr.close()
         if watchdog_stdout is not None:
             watchdog_stdout.close()
         if watchdog_stderr is not None:
@@ -1659,9 +1821,9 @@ def probe() -> dict[str, Any]:
         'controllers': read_text(leaf / 'cgroup.controllers').split() if (leaf / 'cgroup.controllers').exists() else [],
         'io_stat': (leaf / 'io.stat').exists(), 'io_max': (leaf / 'io.max').exists(),
         'io_pressure': (leaf / 'io.pressure').exists(),
-        'memory_max_writable': os.access(leaf / 'memory.max', os.W_OK) if (leaf / 'memory.max').exists() else False,
-        'memory_swap_max_writable': os.access(leaf / 'memory.swap.max', os.W_OK) if (leaf / 'memory.swap.max').exists() else False,
-        'cgroup_kill_writable': os.access(leaf / 'cgroup.kill', os.W_OK) if (leaf / 'cgroup.kill').exists() else False,
+        'memory_max_writable': writable_capability(leaf / 'memory.max'),
+        'memory_swap_max_writable': writable_capability(leaf / 'memory.swap.max'),
+        'cgroup_kill_writable': writable_capability(leaf / 'cgroup.kill'),
     }
     out['host_telemetry'] = {
         'vmstat_swap': pathlib.Path('/proc/vmstat').exists(),

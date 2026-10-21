@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_workspace_observer.py",
+        "--output-dir",
+        "research/m4-native/results/workspace-observer-repair-20261020/verification-v3/focused-fixtures",
+        "--containment"
+      ],
+      "exit_code": 0,
+      "tests": 19
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/workspace-observer-repair-20261020/verification-v3/lifecycle-fixtures"
+      ],
+      "exit_code": 0,
+      "tests": 15
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 25
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 5
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 7
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0,
+      "tests": 1
+    }
+  ],
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "0c9300eb34508d5f39a355e7e02448d9a515dcc47f1ac33b8cf3f53765651ead",
+    "research/m4-native/tools/test_m4_workspace_observer.py": "d8d387f9e5b11687ba45229a1c57683abf86c2bbee9be39d6af03926f32c2ee7",
+    "research/m4-native/docs/benchmark-policy.json": "7399535d179f739a26304f0b78369139714df12c4d2e89f57e19edd254906d2c"
+  },
+  "sources_unchanged": true,
+  "native_executions": 0,
+  "campaign_budget_unchanged": "4/4 consumed,0remaining"
+}
