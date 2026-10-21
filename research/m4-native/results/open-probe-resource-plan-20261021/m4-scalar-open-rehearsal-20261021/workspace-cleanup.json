@@ -1,0 +1,11 @@
+{
+  "cgroup_unit_path_absent": true,
+  "method": "independent find showed only owned empty workspace directories; rmdir of both levels; subsequent test -e absent",
+  "other_m4_paths_touched": false,
+  "path": "/var/tmp/m4-scalar-open-rehearsal-20261021",
+  "path_absent": true,
+  "transient_unit": "m4-contained-7b4e99c0d5d04926.service",
+  "unit_active_state": "inactive",
+  "unit_load_state": "not-found",
+  "verified": true
+}

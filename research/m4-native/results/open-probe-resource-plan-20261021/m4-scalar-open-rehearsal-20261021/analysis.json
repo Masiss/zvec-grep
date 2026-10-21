@@ -1,0 +1,98 @@
+{
+  "api_opens": 84,
+  "approved_host_floors": {
+    "disk_free_bytes": 8589934592,
+    "memavailable_bytes": 3221225472,
+    "passed": true,
+    "readiness_disk_free_bytes": 10738757632,
+    "readiness_memavailable_kib": 3626200,
+    "runtime_min_disk_free_bytes": 10730123264,
+    "runtime_min_memavailable_kib": 3438784
+  },
+  "cgroup": {
+    "cpu_max": "200000 100000",
+    "cpu_throttled_periods": 0,
+    "cpu_usage_usec": 2845805,
+    "io_controller_available": false,
+    "memory_max_bytes": 1073741824,
+    "memory_max_events": 0,
+    "memory_oom_events": 0,
+    "memory_peak_bytes": 49082368,
+    "pids_max": 128,
+    "pids_max_events": 0,
+    "pids_observed_max": 66,
+    "process_tree_pss_kib_max": 54908,
+    "process_tree_rss_kib_max": 69136,
+    "process_tree_write_bytes_max_sampled": 117190656,
+    "swap_max_bytes": 0,
+    "swap_peak_bytes": 0
+  },
+  "cleanup": {
+    "cgroup_unit_path_absent": true,
+    "method": "independent find showed only owned empty workspace directories; rmdir of both levels; subsequent test -e absent",
+    "other_m4_paths_touched": false,
+    "path": "/var/tmp/m4-scalar-open-rehearsal-20261021",
+    "path_absent": true,
+    "transient_unit": "m4-contained-7b4e99c0d5d04926.service",
+    "unit_active_state": "inactive",
+    "unit_load_state": "not-found",
+    "verified": true
+  },
+  "command_start_to_exit_seconds": 3.491849974,
+  "fresh_readiness_to_host_after_seconds": 3.994850412,
+  "guard_and_integrity": {
+    "cgroup_hard_distress_observed": false,
+    "host_swap_reclaim_movement_observed": true,
+    "measurement_quality": "INCOMPLETE",
+    "old_load_gate_failed": true,
+    "retry_performed": false
+  },
+  "host_vmstat_delta": {
+    "oom_kill": 0,
+    "pgscan_direct": 270,
+    "pswpin_pages": 177,
+    "pswpout_pages": 1576
+  },
+  "no_latency_benchmark_or_qualification": true,
+  "status": "INCOMPLETE_OPERATION_BLOCKED",
+  "storage": {
+    "collection_roots_measured": 42,
+    "interpretation": "maximum final size after close, before each root removal; not transient peak",
+    "max_collection_final_allocated_bytes": 163840,
+    "max_collection_final_apparent_bytes": 126779
+  },
+  "timeouts": {
+    "controller_wait_seconds": 28,
+    "interpretation": "Per-stage deadlines bound the execution; no 20-second end-to-end start-to-cleanup deadline.",
+    "systemd_runtime_max_seconds": 25,
+    "watchdog_parent_wait_seconds": 32,
+    "workload_runtime_limit_seconds": 20
+  },
+  "unchanged_guard_violation": {
+    "gate": "M4-RG-LOAD",
+    "initial_runner_failed_to_enforce": true,
+    "limit": 3.14,
+    "readiness_load1": 5.19,
+    "run_valid_for_resource_plan": false,
+    "runtime_range": [
+      5.02,
+      5.19
+    ]
+  },
+  "watchdog_observation_window_seconds": 3.555099531,
+  "workload_completed": true,
+  "workload_elapsed_ms": 3470.62,
+  "workload_exit_code": 0,
+  "workspace_telemetry": {
+    "complete": false,
+    "incomplete_samples": 6,
+    "inventory_status_counts": {
+      "COMPLETE_TRAVERSAL_NOT_ATOMIC": 28,
+      "PARTIAL_KNOWN_RACE": 4,
+      "UNVERIFIABLE": 2
+    },
+    "peak_verified": false,
+    "reason": "MUTATION_COVERAGE_LOST: events exceed one bounded drain; active RocksDB log disappearance and directory mutations",
+    "sample_count": 34
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "collected_at_utc": "2026-10-21T07:21:35.454429+00:00",
+  "purpose": "read-only inventory snapshot only; not an operation preflight, launch receipt, or authorization",
+  "meminfo_kib": {
+    "MemAvailable": 5089764,
+    "SwapTotal": 24802296,
+    "SwapFree": 12234788
+  },
+  "pressure": {
+    "cpu": "some avg10=0.00 avg60=0.00 avg300=0.03 total=254183131\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+    "io": "some avg10=1.66 avg60=1.71 avg300=2.04 total=570500395\nfull avg10=1.47 avg60=1.43 avg300=1.68 total=498594086",
+    "memory": "some avg10=0.17 avg60=0.46 avg300=0.39 total=129107434\nfull avg10=0.17 avg60=0.45 avg300=0.37 total=120601970"
+  },
+  "loadavg": "3.61 3.59 3.56 2/2164 2138134",
+  "var_tmp_filesystem": {
+    "source": "/dev/mapper/cryptroot",
+    "fstype": "btrfs",
+    "size_bytes": 493838401536,
+    "used_bytes": 481772285952,
+    "available_bytes": 10809724928,
+    "use_percent": "98%"
+  },
+  "m4_named_var_tmp_directory_count": 209,
+  "m4_named_var_tmp_du_allocated_bytes": 1415430144,
+  "m4_named_var_tmp_owners": {
+    "masis:masis": 209
+  },
+  "m4_workspaces_allocated_bytes_du": {
+    "research/m4-native/.work/build": 10788864,
+    "research/m4-native/.work/tmp": 112660480,
+    "research/m4-native/results": 598994944,
+    ".local/native/zvec-native-profile": 947531776,
+    ".local/native/zvec-native-build": 1636302848
+  },
+  "analyzer_snapshot_count": 20,
+  "analyzer_snapshot_allocated_bytes_du": 111902720,
+  "collection_started_utc": "2026-10-21T07:21:35.454429+00:00",
+  "collection_finished_utc": "2026-10-21T07:21:36.499163+00:00",
+  "var_tmp_m4_root_inventory_collected_at_utc": "2026-10-21T07:13:06Z"
+}

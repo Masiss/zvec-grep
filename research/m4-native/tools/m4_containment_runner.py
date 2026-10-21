@@ -292,7 +292,7 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
     if context.get('policy_sha256') != hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest():
         raise ValueError('contention plan policy identity mismatch')
     operation = context.get('operation_id', '')
-    if not re.fullmatch(r'm4-contention-[a-zA-Z0-9_-]+', operation):
+    if not re.fullmatch(r'(?:m4-contention-[a-zA-Z0-9_-]+|m4-scalar-open-rehearsal-[a-zA-Z0-9_-]+)', operation):
         raise ValueError('invalid contention operation_id')
     for key in ('operation_root', 'resource_root'):
         if str(pathlib.Path(context[key]).resolve()) != context[key]:
@@ -304,6 +304,15 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
                 context.get('workload') != REHEARSAL_WORKLOAD or
                 context.get('binary_sha256') != hashlib.sha256(pathlib.Path(sys.executable).read_bytes()).hexdigest()):
             raise ValueError('rehearsal requires fixed synthetic workload and current Python identity')
+    elif context.get('purpose') == 'm4-scalar-open-resource-rehearsal':
+        expected = {'scalar_counts': list(range(7)), 'vector_types': ['HNSW', 'FLAT'],
+                    'repetitions': 3, 'api_opens': 84, 'documents': 0, 'queries': 0}
+        binary_path = pathlib.Path(context.get('binary_path', '')).resolve()
+        if (not operation.startswith('m4-scalar-open-rehearsal-') or
+                context.get('workload') != expected or not binary_path.is_file() or
+                context.get('binary_sha256') != hashlib.sha256(binary_path.read_bytes()).hexdigest() or
+                context.get('approved_binary_sha256') != context.get('binary_sha256')):
+            raise ValueError('M4 rehearsal requires exact 84-open workload and pinned binary identity')
     else:
         if context.get('purpose') is not None:
             raise ValueError('unknown contention purpose')
@@ -383,11 +392,15 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
     number(workspace_bytes, 'workspace_bytes')
     number(owned_swap_bytes, 'owned_swap_bytes')
     runtime = phase.startswith('runtime-')
-    memory_required = context['host_memory_reserve_bytes'] + (0 if runtime else context['memory_max_bytes'])
-    # Retain first-arm roots; reserve space for both arms before the first, one before second.
-    arms = 2 if phase in ('baseline', 'aa-first', 'runtime-first') else 1
-    # A time-skewed gross st_blocks count cannot safely credit physical disk use.
-    disk_required = context['disk_reserve_bytes'] + arms * context['workspace_max_allocated_bytes']
+    single_rehearsal = context.get('purpose') == 'm4-scalar-open-resource-rehearsal'
+    memory_required = (context['host_memory_reserve_bytes'] if single_rehearsal else
+                       context['host_memory_reserve_bytes'] + (0 if runtime else context['memory_max_bytes']))
+    # Paired studies reserve retained roots; the one-arm rehearsal applies its
+    # explicitly approved host free-space floor directly, while its workspace
+    # has an independent cgroup-observed cap.
+    arms = 1 if single_rehearsal else (2 if phase in ('baseline', 'aa-first', 'runtime-first') else 1)
+    disk_required = (context['disk_reserve_bytes'] if single_rehearsal else
+                     context['disk_reserve_bytes'] + arms * context['workspace_max_allocated_bytes'])
     failures = []
     if mem['MemAvailable_kib'] * 1024 < memory_required:
         failures.append({'gate_id': 'M4-CA-MEM-CAPACITY', 'observed_bytes': mem['MemAvailable_kib'] * 1024,
@@ -400,14 +413,32 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
         failures.append({'gate_id': 'M4-CA-DISK-CAPACITY', 'observed_bytes': state['resource_root_free_bytes'],
                          'required_bytes': disk_required, 'attribution': 'shared filesystem capacity; cause not established'})
     raw = resource_guard_decisions(state)
+    if single_rehearsal:
+        # Only MemAvailable and disk-free historical floors were explicitly
+        # replaced for this one rehearsal. Preserve every other admission gate.
+        failures.extend({'gate_id': gate['gate_id'], 'observed': gate['observed'],
+                         'threshold': gate['threshold'], 'reason': 'non-overridden historical admission gate'}
+                        for gate in raw if gate['status'] == 'FAIL' and
+                        gate['gate_id'] not in ('M4-RG-MEM', 'M4-RG-DISK'))
     for gate in raw:
-        gate['enforced_in_selected_mode'] = False
+        gate['enforced_in_selected_mode'] = (
+            gate['gate_id'] not in ('M4-RG-MEM', 'M4-RG-DISK') if single_rehearsal else False)
     return {'mode': CONTENTION_MODE, 'operation_id': context['operation_id'], 'phase': phase,
             'timestamp_utc': state.get('timestamp_utc'), 'monotonic_ns': state.get('monotonic_ns'),
             'historical_gate_decisions': raw, 'historical_guard_failures': [g for g in raw if g['status'] == 'FAIL'],
             'blocking_failures': failures, 'continuation_allowed': not failures,
             'continuation_reason': 'approved workload capacity and containment plan, not an idle-envelope waiver or safety certification',
             'evidence_class': CONTENTION_EVIDENCE, 'approval_reference': context['approval_reference']}
+
+
+def m4_scalar_rehearsal_host_distress(state: dict[str, Any], baseline: dict[str, Any]) -> list[str]:
+    """Fail closed on host swap/reclaim/OOM movement during the one-off rehearsal."""
+    current = state.get('vmstat', {})
+    failures = []
+    for key in ('pswpin_pages', 'pswpout_pages', 'pgscan_direct', 'oom_kill'):
+        if current.get(key) != baseline.get(key):
+            failures.append(f'host {key} changed during rehearsal; attribution not established')
+    return failures
 
 
 def verify_contention_caps(cg: pathlib.Path, context: dict[str, Any]) -> None:
@@ -1085,6 +1116,8 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 row['diagnostic_decision'] = decision
                 previous = samples[-2] if len(samples) > 1 else None
                 distress = contention_runtime_failures(cgroup_row, None if previous is None else previous['cgroup'])
+                if context.get('purpose') == 'm4-scalar-open-resource-rehearsal':
+                    distress.extend(m4_scalar_rehearsal_host_distress(host_row, config['baseline_host_vmstat']))
                 if previous is not None:
                     elapsed = (row['monotonic_ns'] - previous['monotonic_ns']) / 1e9
                     if elapsed <= 0 or elapsed > context['max_monitor_gap_seconds']:
@@ -1328,7 +1361,13 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
     if policy_context is not None:
         validate_contention_context(policy_context)
         rehearsal = policy_context.get('purpose') == 'synthetic-containment-rehearsal'
+        m4_rehearsal = policy_context.get('purpose') == 'm4-scalar-open-resource-rehearsal'
         command_bound = (command == [sys.executable, '-c', REHEARSAL_CODE]) if rehearsal else (
+            len(command) == 3 and command[1] == str(workspace_root.resolve() / 'root') and
+            command[2] == '--m4-scalar-open-resource-rehearsal' and
+            pathlib.Path(command[0]).resolve() == pathlib.Path(policy_context['binary_path']).resolve() and
+            hashlib.sha256(pathlib.Path(command[0]).read_bytes()).hexdigest() == policy_context['binary_sha256']
+        ) if m4_rehearsal else (
             len(command) == 6 and command[-3:] == ['--incremental-fts-sustained', '500', '20'] and
             pathlib.Path(command[1]).resolve() == workspace_root.resolve() / 'root' and
             not pathlib.Path(command[1]).exists() and
@@ -1339,7 +1378,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 not enforce_host_gates or budget != contention_budget(policy_context) or
                 runtime_seconds != policy_context['runtime_limit_seconds'] or
                 not command_bound or
-                (rehearsal and cwd.resolve() != workspace_root.resolve()) or
+                ((rehearsal or m4_rehearsal) and cwd.resolve() != workspace_root.resolve()) or
                 (env or {}).get('LD_PRELOAD') or any(k.startswith('M4_FAULT') for k in (env or {}))):
             raise ValueError('contained arm contention operation/command/budget binding mismatch')
     if not command:
@@ -1545,7 +1584,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'watchdog_output': str(receipt_dir), 'controller_pid': os.getpid(), 'bootstrap_pid': pid,
             'start_marker': str(start_marker), 'command_done_marker': str(socket_dir / 'command.done'),
             'watchdog_ready_path': str(socket_dir / 'watchdog.ready'), 'socket_dir': str(socket_dir),
-            'baseline_memory_events': baseline_events, 'budget': budget,
+            'baseline_memory_events': baseline_events, 'baseline_host_vmstat': start_state['vmstat'], 'budget': budget,
             'pressure_limits': pressure_limits,
             'enforce_host_gates': enforce_host_gates, 'unit': unit,
             'policy_context': policy_context,

@@ -10,6 +10,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from typing import Any
 from unittest import mock
 
 BASE = pathlib.Path(__file__).resolve().parents[1]
@@ -180,6 +181,62 @@ class ContentionPolicyTests(unittest.TestCase):
                 budget=ct.contention_budget(self.ctx),
                 policy_context=self.ctx,
             )
+
+    def test_m4_scalar_rehearsal_binds_84_open_workload_and_approved_host_floors(self):
+        binary_path = pathlib.Path(sys.executable).resolve()
+        ctx: dict[str, Any] = dict(
+            self.ctx,
+            purpose="m4-scalar-open-resource-rehearsal",
+            operation_id="m4-scalar-open-rehearsal-test",
+            operation_root=str(self.root / "m4-scalar-open-rehearsal-test"),
+            binary_path=str(binary_path),
+            binary_sha256=hashlib.sha256(binary_path.read_bytes()).hexdigest(),
+            approved_binary_sha256=hashlib.sha256(binary_path.read_bytes()).hexdigest(),
+            workload={"scalar_counts": list(range(7)), "vector_types": ["HNSW", "FLAT"],
+                      "repetitions": 3, "api_opens": 84, "documents": 0, "queries": 0},
+            host_memory_reserve_bytes=3 * 1024**3,
+            disk_reserve_bytes=8 * 1024**3,
+        )
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        workspace = self.root / "workspace"
+        workspace.mkdir()
+        with self.assertRaisesRegex(ValueError, "binding mismatch"):
+            ct.run_arm(
+                [str(binary_path), str(workspace / "wrong-root"), "--not-the-approved-workload"],
+                pathlib.Path(ctx["operation_root"]) / "aa-first/containment",
+                self.root, workspace, workspace, ctx["runtime_limit_seconds"],
+                budget=ct.contention_budget(ctx), policy_context=ctx,
+            )
+        current = state()
+        current["meminfo_kib"]["MemAvailable_kib"] = 3 * 1024**2
+        current["resource_root_free_bytes"] = 8 * 1024**3
+        current["loadavg"] = [1.0]
+        for family in ("io_pressure", "memory_pressure", "cpu_pressure"):
+            current[family]["some"]["avg10"] = 1.0
+            current[family]["full"]["avg10"] = 1.0
+        self.assertTrue(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
+        current["loadavg"] = [5.0]
+        blocked = ct.contention_decision(current, ctx, "aa-first")
+        self.assertFalse(blocked["continuation_allowed"])
+        self.assertTrue(any(f["gate_id"] == "M4-RG-LOAD" for f in blocked["blocking_failures"]))
+        current["meminfo_kib"]["MemAvailable_kib"] -= 1
+        self.assertFalse(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
+        current["meminfo_kib"]["MemAvailable_kib"] = 3 * 1024**2
+        current["resource_root_free_bytes"] -= 1
+        self.assertFalse(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
+        malformed: dict[str, Any] = dict(ctx)
+        malformed["workload"] = {
+            "scalar_counts": list(range(7)), "vector_types": ["HNSW", "FLAT"],
+            "repetitions": 3, "api_opens": 28, "documents": 0, "queries": 0,
+        }
+        with self.assertRaisesRegex(ValueError, "exact 84-open"):
+            ct.validate_contention_context(malformed)
+
+    def test_m4_scalar_rehearsal_blocks_host_swap_and_reclaim_movement(self):
+        baseline = {"pswpin_pages": 10, "pswpout_pages": 20, "pgscan_direct": 30, "oom_kill": 0}
+        self.assertEqual(ct.m4_scalar_rehearsal_host_distress({"vmstat": dict(baseline)}, baseline), [])
+        changed = dict(baseline, pswpout_pages=21)
+        self.assertTrue(ct.m4_scalar_rehearsal_host_distress({"vmstat": changed}, baseline))
 
     def test_all_four_historical_failures_are_raw_not_passes(self):
         d = ct.contention_decision(state(), self.ctx, "baseline")
