@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run the single approved operation-bound immutable/shared M4 comparison."""
+"""Run one bounded exploratory immutable/shared M4 comparison per operation."""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import pathlib
 import secrets
@@ -20,7 +21,8 @@ BUILD = BASE / ".work/build/m4-stage-trace-bridge-test"
 BINARY = BUILD / "m4_bridge_integration"
 DICTIONARY = BASE.parent.parent / ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
 POLICY_PATH = BASE / "docs/benchmark-policy.json"
-RESULTS = BASE / "results/shared-collection-pair-20261021"
+UTC_DATE = time.strftime("%Y%m%d", time.gmtime())
+RESULTS = BASE / f"results/shared-collection-pair-{UTC_DATE}"
 
 
 def load_module(name: str, path: pathlib.Path):
@@ -117,6 +119,18 @@ def verify_arm(result: dict[str, Any], data: dict[str, Any], role: str) -> None:
             raise RuntimeError("shared-collection arm incomplete or failed")
         if data.get("native_live_docs") != 500 or data.get("m4_live_docs") != 500:
             raise RuntimeError("shared-collection final live counts mismatch")
+        for field in ("writer_commit_ms", "writer_gc_ms", "writer_cycle_ms"):
+            values = data.get(field)
+            if not isinstance(values, list) or len(values) != 5:
+                raise RuntimeError(f"shared-collection arm missing five {field} samples")
+        for field in ("reader_total_ms", "reader_thread_cpu_ms", "reader_pin_wall_ms",
+                      "reader_snapshot_lock_wait_ms", "reader_vector_stage_ms",
+                      "reader_fts_stage_ms", "reader_merge_stage_ms"):
+            values = data.get(field)
+            if (not isinstance(values, list) or len(values) != 20 or
+                    any(isinstance(value, bool) or not isinstance(value, (int, float)) or
+                        not math.isfinite(value) or value < 0 for value in values)):
+                raise RuntimeError(f"shared-collection arm missing valid 20-sample {field} series")
     else:
         if data.get("queries") != 20 or len(data.get("commit_samples_ms", [])) != 5:
             raise RuntimeError("immutable-shard arm missing required writer/reader samples")
@@ -200,7 +214,7 @@ def main() -> int:
         raise SystemExit(f"cannot load approved operation contract: {exc}") from exc
     contract = policy["shared_collection_pair"]
     resource_root = pathlib.Path(contract["resource_root"]).resolve(strict=True)
-    operation_id = f"m4-shared-collection-pair-20261021-{time.strftime('%H%M%S')}-{secrets.token_hex(3)}"
+    operation_id = f"m4-shared-collection-pair-{UTC_DATE}-{time.strftime('%H%M%S', time.gmtime())}-{secrets.token_hex(3)}"
     operation_root = (RESULTS / operation_id).resolve()
     workspace_base = (resource_root / operation_id).resolve()
     binary_sha, dictionary_sha = sha256(BINARY), runner.directory_sha256(DICTIONARY)

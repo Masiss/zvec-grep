@@ -138,7 +138,12 @@ struct Native {
   zvec_collection_t* value{nullptr};
 };
 struct Hit { std::string pk; double score; };
-struct HybridStageTimes { double vector_ms{0}; double fts_ms{0}; double merge_ms{0}; };
+struct HybridStageTimes {
+  double snapshot_lock_wait_ms{0};
+  double vector_ms{0};
+  double fts_ms{0};
+  double merge_ms{0};
+};
 
 zvec_field_schema_t* AddField(std::vector<zvec_field_schema_t*>* owned_fields,
                              const char* name, zvec_data_type_t type, bool nullable,
@@ -629,7 +634,12 @@ class Coordinator {
                           const std::function<void()>& after_vector_query = {},
                           HybridStageTimes* stage_times = nullptr,
                           m4::QueryDiagnostics* m4_diagnostics = nullptr) const {
+    const auto snapshot_lock_start = stage_times ? std::chrono::steady_clock::now()
+                                                  : std::chrono::steady_clock::time_point{};
     std::shared_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+    if (stage_times)
+      stage_times->snapshot_lock_wait_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - snapshot_lock_start).count();
     if (std::getenv("M4_BRIDGE_TRACE"))
       std::cerr << "BRIDGE hybrid_pin generation=" << snapshot << " owner=read_lease\n";
     const auto vector_start = stage_times ? std::chrono::steady_clock::now()
@@ -5855,7 +5865,9 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
   }
 
   std::vector<double> writer_commit_ms, writer_gc_ms, writer_cycle_ms, reader_total_ms,
-      reader_cpu_ms, m4_apply_ms, m4_flush_ms, native_upsert_ms, native_flush_ms,
+      reader_cpu_ms, reader_pin_wall_ms, reader_snapshot_lock_wait_ms,
+      reader_vector_stage_ms, reader_fts_stage_ms, reader_merge_stage_ms,
+      m4_apply_ms, m4_flush_ms, native_upsert_ms, native_flush_ms,
       publish_ms, gc_m4_delete_ms, gc_m4_flush_ms, gc_native_delete_ms,
       gc_native_flush_ms, gc_compaction_ms, gc_checkpoint_ms;
   std::vector<size_t> mutation_counts, gc_examined;
@@ -5882,9 +5894,14 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
       }
       const auto query_start = std::chrono::steady_clock::now();
       const double query_cpu_start = CurrentThreadCpuMs();
+      const auto pin_start = std::chrono::steady_clock::now();
       GenerationLease lease(coordinator, pins);
+      const double pin_wall_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - pin_start).count();
       const uint32_t generation = lease.generation();
-      const auto hits = coordinator.Hybrid(generation, query_vector, "request timeout", topk);
+      HybridStageTimes stages;
+      const auto hits = coordinator.Hybrid(generation, query_vector, "request timeout", topk,
+                                           {}, &stages);
       const double elapsed_ms = std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now() - query_start).count();
       const double cpu_ms = CurrentThreadCpuMs() - query_cpu_start;
@@ -5904,6 +5921,11 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
         std::lock_guard<std::mutex> lock(sample_mutex);
         reader_total_ms.push_back(elapsed_ms);
         reader_cpu_ms.push_back(cpu_ms);
+        reader_pin_wall_ms.push_back(pin_wall_ms);
+        reader_snapshot_lock_wait_ms.push_back(stages.snapshot_lock_wait_ms);
+        reader_vector_stage_ms.push_back(stages.vector_ms);
+        reader_fts_stage_ms.push_back(stages.fts_ms);
+        reader_merge_stage_ms.push_back(stages.merge_ms);
       }
       {
         std::lock_guard<std::mutex> lock(sync_mutex);
@@ -6030,6 +6052,16 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
             << ",\"reader_total_p95_ms\":" << PercentileMs(reader_total_ms, .95)
             << ",\"reader_total_p99_ms\":" << PercentileMs(reader_total_ms, .99)
             << ",\"reader_total_max_ms\":" << PercentileMs(reader_total_ms, 1.0)
+            << ",\"reader_pin_wall_p50_ms\":" << PercentileMs(reader_pin_wall_ms, .50)
+            << ",\"reader_pin_wall_p95_ms\":" << PercentileMs(reader_pin_wall_ms, .95)
+            << ",\"reader_snapshot_lock_wait_p50_ms\":" << PercentileMs(reader_snapshot_lock_wait_ms, .50)
+            << ",\"reader_snapshot_lock_wait_p95_ms\":" << PercentileMs(reader_snapshot_lock_wait_ms, .95)
+            << ",\"reader_vector_stage_p50_ms\":" << PercentileMs(reader_vector_stage_ms, .50)
+            << ",\"reader_vector_stage_p95_ms\":" << PercentileMs(reader_vector_stage_ms, .95)
+            << ",\"reader_fts_stage_p50_ms\":" << PercentileMs(reader_fts_stage_ms, .50)
+            << ",\"reader_fts_stage_p95_ms\":" << PercentileMs(reader_fts_stage_ms, .95)
+            << ",\"reader_merge_stage_p50_ms\":" << PercentileMs(reader_merge_stage_ms, .50)
+            << ",\"reader_merge_stage_p95_ms\":" << PercentileMs(reader_merge_stage_ms, .95)
             << ",\"reader_thread_cpu_p50_ms\":" << PercentileMs(reader_cpu_ms, .50)
             << ",\"reader_thread_cpu_p95_ms\":" << PercentileMs(reader_cpu_ms, .95)
             << ",\"writer_thread_cpu_ms\":" << writer_thread_cpu_ms
@@ -6062,6 +6094,11 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
   write_samples("writer_write_bytes_per_round", writer_write_bytes_per_round);
   write_samples("reader_total_ms", reader_total_ms);
   write_samples("reader_thread_cpu_ms", reader_cpu_ms);
+  write_samples("reader_pin_wall_ms", reader_pin_wall_ms);
+  write_samples("reader_snapshot_lock_wait_ms", reader_snapshot_lock_wait_ms);
+  write_samples("reader_vector_stage_ms", reader_vector_stage_ms);
+  write_samples("reader_fts_stage_ms", reader_fts_stage_ms);
+  write_samples("reader_merge_stage_ms", reader_merge_stage_ms);
   write_samples("m4_apply_ms", m4_apply_ms);
   write_samples("m4_flush_ms", m4_flush_ms);
   write_samples("native_upsert_ms", native_upsert_ms);
@@ -6082,7 +6119,79 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
   return failures == 0 ? 0 : 1;
 }
 
+int NativeReadOnlyOpenProbe(const fs::path& root) {
+  Need(zvec_initialize(nullptr), "initialize native read-only lock probe");
+  auto* options = zvec_collection_options_create();
+  if (!options) throw std::runtime_error("create native collection options");
+  const auto options_status = zvec_collection_options_set_read_only(options, true);
+  if (options_status != ZVEC_OK) {
+    zvec_collection_options_destroy(options);
+    Need(options_status, "set native collection read-only");
+  }
+  zvec_collection_t* collection = nullptr;
+  const auto open_status = zvec_collection_open(root.c_str(), options, &collection);
+  zvec_collection_options_destroy(options);
+  if (open_status == ZVEC_OK) {
+    (void)zvec_collection_close(collection);
+    Need(zvec_shutdown(), "shutdown successful read-only lock probe");
+    return 0;
+  }
+  zvec_error_details_t details{};
+  (void)zvec_get_last_error_details(&details);
+  std::cerr << "readonly_open_rejected code=" << zvec_error_code_to_string(open_status)
+            << " detail=" << (details.message ? details.message : "") << '\n';
+  (void)zvec_shutdown();
+  return 42;
+}
+
+int SpawnReadOnlyOpenProbe(const fs::path& executable, const fs::path& root) {
+  const pid_t child = ::fork();
+  if (child < 0) throw std::runtime_error("fork native read-only lock probe");
+  if (child == 0) {
+    ::execl(executable.c_str(), executable.c_str(), root.c_str(),
+            "--native-readonly-open-probe", static_cast<char*>(nullptr));
+    ::_exit(127);
+  }
+  int status = 0;
+  if (::waitpid(child, &status, 0) != child)
+    throw std::runtime_error("wait native read-only lock probe");
+  if (!WIFEXITED(status)) return 128;
+  return WEXITSTATUS(status);
+}
+
+int RunNativeReadOnlyLockContract(const fs::path& root, const fs::path& executable) {
+  if (fs::exists(root))
+    throw std::runtime_error("native lock contract root must not exist before collection creation");
+  Need(zvec_initialize(nullptr), "initialize native collection lock contract");
+  Native writer = OpenVector(root, true);
+  const int concurrent_read_only = SpawnReadOnlyOpenProbe(executable, root);
+  if (concurrent_read_only != 42) {
+    (void)writer.Close();
+    (void)zvec_shutdown();
+    throw std::runtime_error("read-only child unexpectedly opened alongside read-write owner");
+  }
+  if (!writer.Close()) throw std::runtime_error("close native writer in lock contract");
+  Need(zvec_shutdown(), "shutdown native writer before read-only probe");
+  const int after_writer_close = SpawnReadOnlyOpenProbe(executable, root);
+  if (after_writer_close != 0)
+    throw std::runtime_error("read-only child failed after read-write owner closed");
+  std::cout << "native_cross_process_lock_contract=PASS"
+            << " read_only_while_writer_open=REJECTED"
+            << " read_only_after_writer_close=OPENED\n";
+  return 0;
+}
+
 int main(int argc, char** argv) {
+  if (argc == 3 && std::string(argv[2]) == "--native-readonly-open-probe")
+    return NativeReadOnlyOpenProbe(argv[1]);
+  if (argc == 4 && std::string(argv[3]) == "--native-readonly-lock-contract") {
+    try { return RunNativeReadOnlyLockContract(argv[1], fs::absolute(argv[0])); }
+    catch (const std::exception& error) {
+      std::cerr << "NATIVE CROSS-PROCESS LOCK CONTRACT: " << error.what() << '\n';
+      (void)zvec_shutdown();
+      return 24;
+    }
+  }
   if (argc == 6 && std::string(argv[3]) == "--shared-collection-performance") {
     try {
       return RunSharedCollectionPerformance(argv[1], argv[2], std::stoull(argv[4]),

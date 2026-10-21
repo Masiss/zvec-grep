@@ -1163,19 +1163,11 @@ class ContentionPolicyTests(unittest.TestCase):
         snapshot.assert_not_called()
 
     def test_correctness_durability_failure_is_not_a_quality_exception(self):
-        binary = pathlib.Path(os.environ["M4_AA_BINARY"])
-        original = pathlib.Path.read_text
-
-        def read(path, *args, **kwargs):
-            if str(path).endswith("faults-corrected/summary.json"):
-                return json.dumps({"status": "FAIL"})
-            return original(path, *args, **kwargs)
-
-        with (
-            mock.patch.object(pathlib.Path, "read_text", read),
-            self.assertRaisesRegex(ValueError, "correctness/durability"),
-        ):
-            aa.runner.verify_full_sync(binary)
+        with self.assertRaisesRegex(ValueError, "correctness/durability"):
+            aa.runner.verify_correctness_durability(
+                {"status": "FAIL", "binary_sha256": "expected"},
+                "expected", "0", "0",
+            )
 
     def test_duplicate_operation_does_not_overwrite_prior_receipt(self):
         pair = self.root / "m4-contention-existing"

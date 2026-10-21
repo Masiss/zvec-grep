@@ -48,6 +48,13 @@ def parse_number(value, cast):
         raise RuntimeError(f"invalid host resource value: {value!r}") from exc
 
 
+def read_json_file(path, description):
+    try:
+        return json.loads(pathlib.Path(path).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read {description}: {path}") from exc
+
+
 def read_meminfo():
     return {line.split(":", 1)[0]: parse_number(line.split()[1].split()[0], int)
             for line in pathlib.Path("/proc/meminfo").read_text().splitlines() if ":" in line}
@@ -124,10 +131,17 @@ def binary_runtime_identity(binary):
     }
 
 
+def verify_correctness_durability(fault, binary_sha256, correctness_exit, fault_tests_exit):
+    """Reject a failed or mismatched retained correctness/durability prerequisite."""
+    if (fault.get('status') != 'PASS' or fault.get('binary_sha256') != binary_sha256 or
+            correctness_exit.strip() != '0' or fault_tests_exit.strip() != '0'):
+        raise ValueError('correctness/durability prerequisite did not pass')
+
+
 def verify_full_sync(binary):
     """Static verification only: never run the benchmark or redo completed correctness tests."""
     archive = REPO_ROOT / 'research/m4-native/results/durability-restore-20261020'
-    manifest = json.loads((archive / 'build-provenance.json').read_text())
+    manifest = read_json_file(archive / 'build-provenance.json', 'build provenance')
     identity = binary_runtime_identity(binary)
     if (identity['binary_sha256'] != BENCHMARK_POLICY['contention_aware']['full_sync_binary_sha256'] or
             identity['binary_sha256'] != manifest['binary_sha256'] or
@@ -143,11 +157,12 @@ def verify_full_sync(binary):
         expected, name = line.split(maxsplit=1)
         if hashlib.sha256((archive / name.lstrip('*')).read_bytes()).hexdigest() != expected:
             raise ValueError(f'durability evidence changed: {name}')
-    fault = json.loads((archive / 'faults-corrected/summary.json').read_text())
-    if (fault.get('status') != 'PASS' or fault.get('binary_sha256') != identity['binary_sha256'] or
-            (archive / 'correctness-exit.txt').read_text().strip() != '0' or
-            (archive / 'fault-tests-corrected-exit.txt').read_text().strip() != '0'):
-        raise ValueError('correctness/durability prerequisite did not pass')
+    fault = read_json_file(archive / 'faults-corrected/summary.json', 'correctness/durability receipt')
+    verify_correctness_durability(
+        fault, identity['binary_sha256'],
+        (archive / 'correctness-exit.txt').read_text(),
+        (archive / 'fault-tests-corrected-exit.txt').read_text(),
+    )
     return {'build_manifest': manifest, 'runtime_identity': identity,
             'durability_evidence': fault, 'verification': 'static hashes and retained completed tests; no new binary execution'}
 
@@ -370,10 +385,13 @@ def sample_pss(proc, path, runtime_path, pressure_limits=None):
 def write_containment_compatibility_samples(out, receipt_dir):
     runtime_rows = []
     pss_rows = []
-    for line in (receipt_dir / "runtime.jsonl").read_text().splitlines():
+    for line_number, line in enumerate((receipt_dir / "runtime.jsonl").read_text().splitlines(), 1):
         if not line.strip():
             continue
-        sample = json.loads(line)
+        try:
+            sample = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid runtime telemetry JSON at line {line_number}") from exc
         host = sample["host"]
         cg = sample["cgroup"]
         mem = host["meminfo_kib"]
@@ -475,7 +493,7 @@ def run_arm(name, binary, mode="qualification", pressure_limits=None, policy_con
         if src.exists():
             (out / target).write_bytes(src.read_bytes())
     receipt_path = receipt_dir / "receipt.json"
-    receipt = json.loads(receipt_path.read_text()) if receipt_path.exists() else result
+    receipt = read_json_file(receipt_path, "arm receipt") if receipt_path.exists() else result
     if (receipt_dir / "runtime.jsonl").is_file():
         write_containment_compatibility_samples(out, receipt_dir)
     exit_code = receipt.get("workload_returncode")
@@ -560,8 +578,8 @@ def main():
         if not run_arm(name, binary, mode):
             receipt_path = PAIR / name / "containment" / "receipt.json"
             preflight_path = PAIR / name / "preflight.json"
-            receipt = json.loads(receipt_path.read_text()) if receipt_path.is_file() else {}
-            preflight_result = json.loads(preflight_path.read_text()) if preflight_path.is_file() else {}
+            receipt = read_json_file(receipt_path, "arm receipt") if receipt_path.is_file() else {}
+            preflight_result = read_json_file(preflight_path, "arm preflight receipt") if preflight_path.is_file() else {}
             failed_gates = [g.get("gate_id") for g in receipt.get("gate_decisions", []) if g.get("status") == "FAIL"]
             failed_gates.extend(f.get("gate_id") for f in preflight_result.get("resource_guard_failures", [])
                                 if f.get("gate_id"))
@@ -582,7 +600,7 @@ def record_pair_exception(exc):
     current_path = PAIR / "operation-status.json"
     if not current_path.is_file():
         return
-    current = json.loads(current_path.read_text())
+    current = read_json_file(current_path, "operation status receipt")
     if current.get("operation_status") not in {"IN_PROGRESS", "NOT_STARTED"}:
         return
     message = str(exc)
