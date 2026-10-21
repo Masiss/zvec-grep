@@ -4,7 +4,17 @@ Status: **research only.** Nothing here is linked into `zvec`, `zg-engine`, the
 daemon, or the production index format. HNSW, the native build, and every
 production schema are untouched.
 
-## Latest follow-up — resource-only exploratory contract amendment (2026-10-21)
+## Latest follow-up — writer-tail optimization review (2026-10-21)
+
+Three directions were evaluated separately. **Scalar-index initialization — DEFER:** earlier empty-collection measurements associate most create+open growth with scalar-index count, not HNSW graph construction; per-field timings are noisy/non-additive, and the requested internal phase split was blocked by its failed preflight. **Compaction collection reuse — DEFER:** an existing mutable-generation prototype reuses one collection under generation filters and reader/writer exclusion, but retains historical rows; it is not a drop-in replacement for immutable-shard compaction and has no safe version-GC protocol. **Cached fingerprint — KEEP opt-in only; reject default promotion:** the 500×5 exploratory run saved ~38–42 ms per M4 open by skipping a second source hash, with native open unchanged. Same-size/same-mtime mutation before open invalidates the digest; a source change after the first hash can be accepted by the opt-in path, while cold-process reopen performs both passes. Strict verification remains default. Detailed evidence, limits, and follow-ups: [phase-trace and direction review](results/writer-tail-phase-trace-20261021/REPORT.md) and [timing report](results/writer-tail-investigation-20261021/REPORT.md).
+
+## Previous follow-up — bounded scalar-open latency diagnostic (2026-10-21)
+
+The owner separately authorized one direct scalar-open latency diagnostic under the amended exploratory contract. The bounded workload completed once: scalar counts 0–6 × HNSW/FLAT × three repetitions, **84 API opens**, zero documents/queries, 5.721 s contained runtime, exit 0. Per-call create+open and reopen timings are recorded in the [full report](results/scalar-open-latency-diagnostic-20261021/m4-scalar-open-latency-diagnostic-20261021-r1/REPORT.md) and raw [latency analysis](results/scalar-open-latency-diagnostic-20261021/m4-scalar-open-latency-diagnostic-20261021-r1/latency-analysis.json).
+
+Outcome: **COMPLETED_WITH_WORKSPACE_UNCERTAINTY / WORKSPACE_CAPACITY_UNVERIFIED**. The workload completed, but sampled workspace scans are not atomic and mutation coverage was lost in one bounded drain; no verified peak or capacity PASS is claimed. Cleanup was independently verified. This is **EXPLORATORY / NON-QUALIFYING**, not an internal stage trace, qualification, stable-tail estimate, or causal comparison. No retry or additional native operation is authorized.
+
+## Earlier follow-up — resource-only exploratory contract amendment (2026-10-21)
 
 One owner-approved 84-open rehearsal ran: 7 scalar counts × HNSW/FLAT × 3 repetitions, create/close/reopen/close, no documents or queries. Workload completed in 3.49 s under MemoryMax 1 GiB / swap 0 / CPU 200% / tasks 128 / 20 s workload watchdog; sampled cgroup peak 49,082,368 B, swap 0, tasks 66. The approved operation-specific 3 GiB MemAvailable / 8 GiB free-disk floors passed. **Contract amendment:** in resource-only exploratory runs, load-1 is observation-only, and positive host swap/reclaim deltas are recorded/analyzed rather than automatic distress. Neither alone blocks. The observed load (5.19 vs historical 3.14), swap-in/out and direct-scan deltas remain raw context, not M4-attributed impact.
 
@@ -12,7 +22,7 @@ The workspace observer lost inotify coverage, so accounting remains **UNKNOWN / 
 
 Read-only inventory remains unchanged: 209 `/var/tmp/m4-*` roots, retained builds/results/source preserved. Twenty analyzer snapshots (111.9 MB allocated) are reproducible, but live-consumer inspection was incomplete; no unrelated cleanup. Focused cache lifecycle test build/CTest passed 1/1 (3.95 s, 38 checks). Current state: **PARTIAL / MEASUREMENT_INCOMPLETE**.
 
-## Current handoff — 2026-10-21 owner-authorized phase trace blocked at preflight
+## Earlier handoff — 2026-10-21 owner-authorized phase trace blocked at preflight (historical)
 
 **The owner authorized one bounded 0–6 scalar-index phase trace** (three repetitions, HNSW and FLAT in separate matched conditions, fresh create and reopen) and accepted the shared-Btrfs I/O risk. It was **not launched**: fresh mandatory preflight failed MemAvailable (**3,992,232 KiB < 5,477,762 KiB**) and `/var/tmp` free space (**10,815,062,016 B < 18,219,000,000 B**). I/O PSI and load passed. No native source/binary changes, systemd unit, cgroup, or timing samples were created. Do not bypass these unchanged hard gates; no automatic retry. Details and raw receipts: [phase-trace report](results/writer-tail-phase-trace-20261021/REPORT.md); canonical [handoff §64](../../rust/docs/m4-incremental-native-index.md).
 
