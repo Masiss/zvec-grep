@@ -532,8 +532,9 @@ unapproved.
 `tests/m4_bridge_integration.cc` models a separate M4 FTS/INVERT store beside
 native Zvec vector/HNSW. Coordinator reads hold a shared snapshot lease across
 FTS+vector hybrid queries. Commit stages M4 rows while readers may continue
-querying the prior published generation; it acquires the exclusive lease only
-for native vector mutation/flush and manifest publication. Component
+querying the prior published generation; it excludes readers only during each
+native vector upsert call, then releases between batches. It reacquires the
+exclusive lease for final vector flush and manifest publication. Component
 compaction/optimize and generation GC still hold the exclusive lease. A
 concurrency regression verifies readers finish during M4 staging and return the
 exact prior-generation hit set. This prevents native vector IDs from racing the

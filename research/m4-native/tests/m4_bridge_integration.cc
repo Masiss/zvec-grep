@@ -495,7 +495,8 @@ class Coordinator {
               const std::function<void()>& after_vector_flush = {},
               const std::function<void()>& after_reserve = {},
               SharedCommitTimings* timings = nullptr,
-              const std::function<void()>& after_m4_apply = {}) {
+              const std::function<void()>& after_m4_apply = {},
+              const std::function<void()>& after_vector_batch = {}) {
     std::lock_guard<std::mutex> writer(commit_mutex_);
     if (generation_.load(std::memory_order_acquire) != expected_generation) return false;
     if (stop_after == "crash_before_reserve") ::_exit(79);
@@ -534,9 +535,8 @@ class Coordinator {
     if (stop_after == "crash_after_m4") ::_exit(81);
     // M4 generation rows are append-only and filtered by snapshot generation,
     // so they can be staged while readers query the prior published generation.
-    // Native vector writes mutate row-count-dependent filter bitmaps: acquire the
-    // exclusive lease before touching that backend and retain it through publish.
-    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+    // Native vector writes mutate row-count-dependent filter bitmaps: acquire an
+    // exclusive lease around each mutation call and final flush/publication.
     const auto native_upsert_start = std::chrono::steady_clock::now();
     for (size_t at = 0; at < complete_live_snapshot.size(); at += kMaxBatchDocs) {
       const size_t end = std::min(at + kMaxBatchDocs, complete_live_snapshot.size());
@@ -544,15 +544,26 @@ class Coordinator {
       for (size_t i = at; i < end; ++i) docs.push_back(VectorDoc(complete_live_snapshot[i], next));
       std::vector<const zvec_doc_t*> refs(docs.begin(), docs.end());
       zvec_write_result_t* results = nullptr; size_t count = 0;
-      const auto code = zvec_collection_upsert_with_results(vector_, refs.data(), refs.size(), &results, &count);
+      zvec_error_code_t code;
+      {
+        // Each native mutation call is an indivisible row-count transition for
+        // query safety; readers of the old generation may run between batches.
+        std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+        code = zvec_collection_upsert_with_results(
+            vector_, refs.data(), refs.size(), &results, &count);
+      }
       bool ok = code == ZVEC_OK && count == refs.size();
       for (size_t i = 0; ok && i < count; ++i) ok = results[i].code == ZVEC_OK;
       zvec_write_results_free(results, count);
       for (auto* doc : docs) zvec_doc_destroy(doc);
       if (!ok) return false;
+      if (after_vector_batch) after_vector_batch();
     }
     if (timings) timings->native_upsert_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - native_upsert_start).count();
+    // No mutation is in flight between upsert calls. Reacquire an exclusive
+    // lease for final flush and keep it through durable generation publication.
+    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     const auto native_flush_start = std::chrono::steady_clock::now();
     if (zvec_collection_flush(vector_) != ZVEC_OK) return false;
     if (timings) timings->native_flush_ms = std::chrono::duration<double, std::milli>(
@@ -884,8 +895,8 @@ class Coordinator {
   fs::path root_; zvec_collection_t* vector_; m4::Index* fts_;
   std::atomic<uint32_t> generation_{0};
   // Native Zvec queries bind forward-filter row bitmaps to mutable segment row
-  // counts. Keep queries out of the interval where vector rows are appended;
-  // Hybrid holds one read lease across both backends. M4 rows can be staged
+  // counts. Keep queries out of each vector mutation call; Hybrid holds one
+  // read lease across both backends. M4 rows can be staged
   // concurrently because unpublished generations are filtered out; published
   // generation rows remain append-only and queryable after unlock.
   mutable std::shared_mutex snapshot_mutex_;
@@ -6234,48 +6245,71 @@ int main(int argc, char** argv) {
     std::vector<std::string> old_hybrid_pks;
     for (const auto& hit : old_hybrid) old_hybrid_pks.push_back(hit.pk);
     std::sort(old_hybrid_pks.begin(), old_hybrid_pks.end());
-    std::atomic<bool> m4_staged{false}, release_m4_stage{false};
-    std::atomic<int> readers_attempted{0}, readers_done{0};
-    std::array<std::vector<std::string>, 3> pinned_hybrid_pks;
+    std::array<std::atomic<bool>, 2> stage_reached{}, release_stage{};
+    std::array<std::atomic<int>, 2> readers_attempted{}, readers_done{};
+    std::array<std::array<std::vector<std::string>, 3>, 2> pinned_hybrid_pks;
+    for (size_t phase = 0; phase < 2; ++phase) {
+      stage_reached[phase].store(false, std::memory_order_relaxed);
+      release_stage[phase].store(false, std::memory_order_relaxed);
+      readers_attempted[phase].store(0, std::memory_order_relaxed);
+      readers_done[phase].store(0, std::memory_order_relaxed);
+    }
     std::array<std::thread, 3> readers;
     for (size_t i = 0; i < readers.size(); ++i) {
       readers[i] = std::thread([&, i] {
-        while (!m4_staged.load(std::memory_order_acquire)) std::this_thread::yield();
-        readers_attempted.fetch_add(1, std::memory_order_release);
-        auto hits = coordinator->Hybrid(gen2, base.front().vector, "recovery signal", 100);
-        for (const auto& hit : hits) pinned_hybrid_pks[i].push_back(hit.pk);
-        std::sort(pinned_hybrid_pks[i].begin(), pinned_hybrid_pks[i].end());
-        readers_done.fetch_add(1, std::memory_order_release);
+        for (size_t phase = 0; phase < 2; ++phase) {
+          while (!stage_reached[phase].load(std::memory_order_acquire))
+            std::this_thread::yield();
+          readers_attempted[phase].fetch_add(1, std::memory_order_release);
+          auto hits = coordinator->Hybrid(gen2, base.front().vector,
+                                          "recovery signal", 100);
+          for (const auto& hit : hits)
+            pinned_hybrid_pks[phase][i].push_back(hit.pk);
+          std::sort(pinned_hybrid_pks[phase][i].begin(),
+                    pinned_hybrid_pks[phase][i].end());
+          readers_done[phase].fetch_add(1, std::memory_order_release);
+        }
       });
     }
+    auto pause_for_readers = [&](size_t phase) {
+      stage_reached[phase].store(true, std::memory_order_release);
+      while (readers_attempted[phase].load(std::memory_order_acquire) != 3)
+        std::this_thread::yield();
+      while (!release_stage[phase].load(std::memory_order_acquire))
+        std::this_thread::yield();
+    };
     std::thread writer([&] {
-      Check(coordinator->Commit(next, gen2, {}, {}, {}, nullptr, [&] {
-        m4_staged.store(true, std::memory_order_release);
-        while (readers_attempted.load(std::memory_order_acquire) != 3)
-          std::this_thread::yield();
-        while (!release_m4_stage.load(std::memory_order_acquire))
-          std::this_thread::yield();
-      }), "deterministic staged generation publishes");
+      Check(coordinator->Commit(next, gen2, {}, {}, {}, nullptr,
+          [&] { pause_for_readers(0); },
+          [&] { pause_for_readers(1); }),
+          "deterministic staged generation publishes");
     });
-    while (readers_attempted.load(std::memory_order_acquire) != 3)
-      std::this_thread::yield();
-    const auto reader_deadline = std::chrono::steady_clock::now() +
-                                 std::chrono::seconds(2);
-    while (readers_done.load(std::memory_order_acquire) != 3 &&
-           std::chrono::steady_clock::now() < reader_deadline)
-      std::this_thread::yield();
-    const bool readers_completed_during_m4_stage =
-        readers_done.load(std::memory_order_acquire) == 3;
-    release_m4_stage.store(true, std::memory_order_release);
+    std::array<bool, 2> readers_completed_during_stage{};
+    for (size_t phase = 0; phase < 2; ++phase) {
+      while (readers_attempted[phase].load(std::memory_order_acquire) != 3)
+        std::this_thread::yield();
+      const auto reader_deadline = std::chrono::steady_clock::now() +
+                                   std::chrono::seconds(2);
+      while (readers_done[phase].load(std::memory_order_acquire) != 3 &&
+             std::chrono::steady_clock::now() < reader_deadline)
+        std::this_thread::yield();
+      readers_completed_during_stage[phase] =
+          readers_done[phase].load(std::memory_order_acquire) == 3;
+      release_stage[phase].store(true, std::memory_order_release);
+    }
     writer.join();
     for (auto& reader : readers) reader.join();
     const uint32_t gen3 = coordinator->generation();
     Check(gen3 == gen2 + 1, "generation advances exactly once after staged publish");
-    Check(readers_completed_during_m4_stage,
+    Check(readers_completed_during_stage[0],
         "hybrid readers complete while unpublished M4 generation is staged");
-    for (const auto& pks : pinned_hybrid_pks)
-      Check(pks == old_hybrid_pks,
-          "readers during M4 staging observe the exact prior FTS/vector snapshot");
+    Check(readers_completed_during_stage[1],
+        "hybrid readers complete between native vector upsert and flush");
+    for (size_t phase = 0; phase < 2; ++phase) {
+      for (const auto& pks : pinned_hybrid_pks[phase])
+        Check(pks == old_hybrid_pks,
+            "reader during backend staging observes the exact prior FTS/vector snapshot");
+    }
     const auto new_hybrid = coordinator->Hybrid(gen3, base.front().vector, "recovery signal", 100);
     Check(std::any_of(new_hybrid.begin(), new_hybrid.end(), [](const Hit& h) { return h.pk == "fragment-added"; }) &&
           std::none_of(new_hybrid.begin(), new_hybrid.end(), [](const Hit& h) { return h.pk == "fragment-3"; }),
