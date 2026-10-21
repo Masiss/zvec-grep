@@ -1,0 +1,19 @@
+{
+  "head": "4579e5a7269b8fe9d56fcf30cc4259f02558486a",
+  "unchanged_source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "8f9d288db847384f8f9c249009966520a4963abc03e5682e60efe1e69a5ed8bf",
+    "research/m4-native/tools/test_m4_contention_policy.py": "e9a7ceaf746753d5d1b29c14dfa3d96bbc9660e30c398b4ed28b6305102fb5d0",
+    "research/m4-native/docs/benchmark-policy.json": "38278043b417f6f84bad62d1c36fbf09936423df3a5b913ff1e43f3311b456e3",
+    "research/m4-native/results/workspace-soft-budget-20261021/launch_once.py": "cfc084b6ec169fc9774f046479f7e462c8be0a5afe0066dda470918755ba123f",
+    "research/m4-native/results/workspace-soft-budget-20261021/rehearse.py": "4c6b95567b39d5bb1f7f2043131b604c6a47e1d7f64497ce095df065ccb8d3a9",
+    "research/m4-native/results/workspace-soft-budget-20261021/analyze_native.py": "db36203aeca7ea7856fcaf6c08e2da0dc43e2efad76ba1faf2fd2329046c21ce"
+  },
+  "history_sha256": {
+    "research/m4-native/results/autonomous-campaign-20261020/campaign-ledger.json": "93c32e64ebb999c7ffef4d11cc85c8924fd64aa995079f01b9a2bf71d2d85d97",
+    "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/new-attempt-ledger.json": "f72e512c68a90967bc56411cc28e9e04455c286e1b62b4613625d89d2f4f7970",
+    "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/approved-resource-plan.json": "ea303d5626ba368a2e4eda34658a2f355c9530c0403eb780b6123f55e8c87d3d",
+    "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/SHA256SUMS.txt": "086249ae5528a1e605b0582512498cc7936e606fbdff3d044f201023cf270161",
+    "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/final-verification.json": "d27ea0a526c12bcc83c15b0a8afb15e06cd844912df0c906a308e94a70f3c248"
+  },
+  "reused_scripts_byte_identical": true
+}

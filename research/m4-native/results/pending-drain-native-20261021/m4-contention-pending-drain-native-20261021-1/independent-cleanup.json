@@ -1,0 +1,9 @@
+{
+  "unit": "m4-contained-a92795d9db7a4185.service",
+  "unit_show_returncode": 0,
+  "unit_show": "LoadState=not-found\nActiveState=inactive\n",
+  "owned_units_returncode": 0,
+  "owned_units": "",
+  "cgroup_absent": true,
+  "socket_absent": true
+}

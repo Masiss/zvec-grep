@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "mode": "contention-aware",
+  "approval_status": "approved",
+  "approval_reference": "/home/masis/src/zvec-grep/research/m4-native/results/pending-drain-native-20261021/owner-authorization.md",
+  "execution_authorization_reference": "/home/masis/src/zvec-grep/research/m4-native/results/pending-drain-native-20261021/owner-authorization.md",
+  "risk_acceptance_reference": "/home/masis/src/zvec-grep/research/m4-native/results/pending-drain-native-20261021/owner-authorization.md",
+  "resource_basis": "Fresh explicit owner authority after4579e5a: one full-sync500x20 diagnostic arm, no retry; existing hard caps/reserves and monitored512MiB/1GiBworkspace budgets unchanged. Conservative two-root disk reservation retained. Not reuse of any exhausted previous budget.",
+  "policy_sha256": "38278043b417f6f84bad62d1c36fbf09936423df3a5b913ff1e43f3311b456e3",
+  "operation_id": "m4-contention-pending-drain-native-20261021-1",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/pending-drain-native-20261021/m4-contention-pending-drain-native-20261021-1",
+  "resource_root": "/var/tmp",
+  "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+  "workload": {
+    "docs": 500,
+    "rounds": 20,
+    "tracing": false
+  },
+  "memory_max_bytes": 1073741824,
+  "memory_swap_max_bytes": 0,
+  "cpu_max": "200000 100000",
+  "pids_max": 128,
+  "workspace_max_allocated_bytes": 536870912,
+  "workspace_max_apparent_bytes": 1073741824,
+  "host_memory_reserve_bytes": 1073741824,
+  "disk_reserve_bytes": 2147483648,
+  "runtime_limit_seconds": 115,
+  "max_monitor_gap_seconds": 2,
+  "io_max": null,
+  "proposal_only": false,
+  "attempt_maximum": 1,
+  "attempt_kind": "single native exploratory diagnostic arm; not A/A pair"
+}

@@ -1,0 +1,633 @@
+{
+  "status": "EXPLORATORY_NATIVE_DIAGNOSTIC_COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+  "qualification_eligible": false,
+  "arm_count": 1,
+  "no_repeat_or_comparator": true,
+  "raw_receipt_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+  "raw_measurement_quality": "INCOMPLETE",
+  "native_pid": 784988,
+  "command_start": {
+    "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-a92795d9db7a4185.service",
+    "monotonic_ns": 8806438629429,
+    "pid": 784988,
+    "timestamp_utc": "2026-10-21T02:44:03.108833+00:00"
+  },
+  "command_end": {
+    "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-a92795d9db7a4185.service",
+    "monotonic_ns": 8812550810607,
+    "pid": 784988,
+    "returncode": 0,
+    "timestamp_utc": "2026-10-21T02:44:09.221028+00:00"
+  },
+  "command_wall_seconds": 6.112181178,
+  "completed_rounds": 20,
+  "completed_queries": 80,
+  "coherence_errors": 0,
+  "post_close_reopen": {
+    "arm": "incremental-fts-verified-cache-post-close-reopen",
+    "generation": 21,
+    "snapshot_reopen_wall_ms": 460.21665,
+    "reopen_process_cpu_ms": 510.993,
+    "reopen_physical_write_bytes": 6086656,
+    "peak_rss_kb": 305504,
+    "fts_live_docs": 500,
+    "vector_fts_coherence_errors": 0
+  },
+  "percentile_definition": "Source PercentileMs nearest-rank ceil(q*n)-1; n20 p95 is second-largest, p99=max, single-run exploratory only",
+  "timings_ms": {
+    "commit_samples_ms": {
+      "n": 20,
+      "min": 208.91139,
+      "p50": 231.39875,
+      "p95": 267.35863,
+      "p99": 369.42798,
+      "max": 369.42798,
+      "mean": 241.8808155,
+      "sum": 4837.61631
+    },
+    "writer_commit_thread_cpu_samples_ms": {
+      "n": 20,
+      "min": 140.51562,
+      "p50": 155.78458,
+      "p95": 187.6034,
+      "p99": 278.17488,
+      "max": 278.17488,
+      "mean": 165.4432805,
+      "sum": 3308.86561
+    },
+    "native_vector_build_wall_samples_ms": {
+      "n": 20,
+      "min": 88.837625,
+      "p50": 102.03176,
+      "p95": 117.60302,
+      "p99": 223.50286,
+      "max": 223.50286,
+      "mean": 108.77421254999999,
+      "sum": 2175.484251
+    },
+    "native_vector_build_writer_thread_cpu_samples_ms": {
+      "n": 20,
+      "min": 44.114332,
+      "p50": 54.730525,
+      "p95": 68.39072,
+      "p99": 166.89338,
+      "max": 166.89338,
+      "mean": 60.45044765,
+      "sum": 1209.008953
+    },
+    "native_vector_open_wall_samples_ms": {
+      "n": 20,
+      "min": 61.91444,
+      "p50": 68.376962,
+      "p95": 89.673611,
+      "p99": 180.30576,
+      "max": 180.30576,
+      "mean": 77.6776249,
+      "sum": 1553.552498
+    },
+    "native_vector_document_conversion_wall_samples_ms": {
+      "n": 20,
+      "min": 0.014723,
+      "p50": 0.0223,
+      "p95": 0.784155,
+      "p99": 0.794783,
+      "max": 0.794783,
+      "mean": 0.1902313,
+      "sum": 3.804626
+    },
+    "native_vector_upsert_wall_samples_ms": {
+      "n": 20,
+      "min": 3.619426,
+      "p50": 4.663885,
+      "p95": 19.289971,
+      "p99": 20.465307,
+      "max": 20.465307,
+      "mean": 7.78679875,
+      "sum": 155.735975
+    },
+    "native_vector_flush_wall_samples_ms": {
+      "n": 20,
+      "min": 18.007808,
+      "p50": 19.391348,
+      "p95": 24.452641,
+      "p99": 31.130824,
+      "max": 31.130824,
+      "mean": 20.82181095,
+      "sum": 416.436219
+    },
+    "m4_update_wall_samples_ms": {
+      "n": 20,
+      "min": 90.837235,
+      "p50": 103.35685,
+      "p95": 119.27115,
+      "p99": 121.15006,
+      "max": 121.15006,
+      "mean": 103.26047575,
+      "sum": 2065.209515
+    },
+    "m4_update_writer_thread_cpu_samples_ms": {
+      "n": 20,
+      "min": 81.370267,
+      "p50": 94.770051,
+      "p95": 108.26673,
+      "p99": 109.14844,
+      "max": 109.14844,
+      "mean": 93.95813165,
+      "sum": 1879.162633
+    },
+    "m4_clone_wall_samples_ms": {
+      "n": 20,
+      "min": 4.65037,
+      "p50": 8.699812,
+      "p95": 13.961066,
+      "p99": 28.630627,
+      "max": 28.630627,
+      "mean": 9.769549000000001,
+      "sum": 195.39098
+    },
+    "m4_open_wall_samples_ms": {
+      "n": 20,
+      "min": 76.888985,
+      "p50": 85.989243,
+      "p95": 95.473226,
+      "p99": 96.289603,
+      "max": 96.289603,
+      "mean": 85.67879245,
+      "sum": 1713.575849
+    },
+    "m4_open_analyzer_fingerprint_wall_ms": {
+      "n": 20,
+      "min": 38.410093,
+      "p50": 41.957926,
+      "p95": 51.233567,
+      "p99": 52.674158,
+      "max": 52.674158,
+      "mean": 43.357005349999994,
+      "sum": 867.140107
+    },
+    "m4_open_fingerprint_verification_wall_ms": {
+      "n": 20,
+      "min": 36.051635,
+      "p50": 40.08646,
+      "p95": 42.495218,
+      "p99": 42.73063,
+      "max": 42.73063,
+      "mean": 40.0022746,
+      "sum": 800.045492
+    },
+    "m4_apply_wall_samples_ms": {
+      "n": 20,
+      "min": 1.10792,
+      "p50": 1.42591,
+      "p95": 2.278701,
+      "p99": 2.369074,
+      "max": 2.369074,
+      "mean": 1.59456445,
+      "sum": 31.891289
+    },
+    "m4_flush_wall_samples_ms": {
+      "n": 20,
+      "min": 3.898047,
+      "p50": 4.805127,
+      "p95": 10.579465,
+      "p99": 12.245548,
+      "max": 12.245548,
+      "mean": 6.18171855,
+      "sum": 123.634371
+    },
+    "generation_metadata_wall_samples_ms": {
+      "n": 20,
+      "min": 2.594901,
+      "p50": 3.110782,
+      "p95": 3.668681,
+      "p99": 3.966716,
+      "max": 3.966716,
+      "mean": 3.1419047,
+      "sum": 62.838094
+    },
+    "post_m4_sync_tree_wall_samples_ms": {
+      "n": 20,
+      "min": 11.560073,
+      "p50": 15.384595,
+      "p95": 26.211858,
+      "p99": 26.303594,
+      "max": 26.303594,
+      "mean": 18.51875135,
+      "sum": 370.375027
+    },
+    "snapshot_finalize_wall_samples_ms": {
+      "n": 20,
+      "min": 0.184339,
+      "p50": 0.285921,
+      "p95": 0.352446,
+      "p99": 0.414821,
+      "max": 0.414821,
+      "mean": 0.29008955,
+      "sum": 5.801791
+    },
+    "generation_publish_samples_ms": {
+      "n": 20,
+      "min": 3.188005,
+      "p50": 3.698223,
+      "p95": 4.477519,
+      "p99": 5.178841,
+      "max": 5.178841,
+      "mean": 3.7440613,
+      "sum": 74.881226
+    },
+    "retirement_samples_ms": {
+      "n": 20,
+      "min": 0.447995,
+      "p50": 0.614111,
+      "p95": 4.92369,
+      "p99": 6.709222,
+      "max": 6.709222,
+      "mean": 1.7186622,
+      "sum": 34.373244
+    },
+    "reader_samples_ms": {
+      "n": 80,
+      "min": 0.983632,
+      "p50": 2.092289,
+      "p95": 2.966312,
+      "p99": 4.331794,
+      "max": 4.331794,
+      "mean": 2.1580479,
+      "sum": 172.643832
+    },
+    "post_m4_to_round_end_wall_ms": {
+      "n": 20,
+      "min": 18.322799999999916,
+      "p50": 24.050500000000284,
+      "p95": 37.65779999999995,
+      "p99": 40.92890000000011,
+      "max": 40.92890000000011,
+      "mean": 25.79427199999993,
+      "sum": 515.8854399999985
+    }
+  },
+  "commit_by_compaction": {
+    "compacted": {
+      "n": 5,
+      "min": 238.82328,
+      "p50": 246.01929,
+      "p95": 369.42798,
+      "p99": 369.42798,
+      "max": 369.42798,
+      "mean": 272.306106,
+      "sum": 1361.53053
+    },
+    "not_compacted": {
+      "n": 15,
+      "min": 208.91139,
+      "p50": 229.66956,
+      "p95": 261.354,
+      "p99": 261.354,
+      "max": 261.354,
+      "mean": 231.739052,
+      "sum": 3476.08578
+    }
+  },
+  "slowest_three_rounds": [
+    {
+      "round_zero_based": 7,
+      "compacted": true,
+      "commit_samples_ms": 369.42798,
+      "writer_commit_thread_cpu_samples_ms": 278.17488,
+      "native_vector_build_wall_samples_ms": 223.50286,
+      "native_vector_build_writer_thread_cpu_samples_ms": 166.89338,
+      "native_vector_open_wall_samples_ms": 180.30576,
+      "native_vector_document_conversion_wall_samples_ms": 0.618592,
+      "native_vector_upsert_wall_samples_ms": 19.289971,
+      "native_vector_flush_wall_samples_ms": 20.59113,
+      "m4_update_wall_samples_ms": 104.60621,
+      "m4_update_writer_thread_cpu_samples_ms": 90.357407,
+      "m4_clone_wall_samples_ms": 4.995016,
+      "m4_open_wall_samples_ms": 85.989243,
+      "m4_open_analyzer_fingerprint_wall_ms": 42.178274,
+      "m4_open_fingerprint_verification_wall_ms": 41.680439,
+      "m4_apply_wall_samples_ms": 1.350709,
+      "m4_flush_wall_samples_ms": 12.245548,
+      "generation_metadata_wall_samples_ms": 2.594901,
+      "post_m4_sync_tree_wall_samples_ms": 21.366536,
+      "snapshot_finalize_wall_samples_ms": 0.277166,
+      "generation_publish_samples_ms": 3.741687,
+      "retirement_samples_ms": 6.709222,
+      "post_m4_to_round_end_wall_ms": 37.65779999999995
+    },
+    {
+      "round_zero_based": 3,
+      "compacted": true,
+      "commit_samples_ms": 267.35863,
+      "writer_commit_thread_cpu_samples_ms": 178.57707,
+      "native_vector_build_wall_samples_ms": 117.60302,
+      "native_vector_build_writer_thread_cpu_samples_ms": 62.824002,
+      "native_vector_open_wall_samples_ms": 68.376962,
+      "native_vector_document_conversion_wall_samples_ms": 0.5658,
+      "native_vector_upsert_wall_samples_ms": 14.550432,
+      "native_vector_flush_wall_samples_ms": 31.130824,
+      "m4_update_wall_samples_ms": 104.05273,
+      "m4_update_writer_thread_cpu_samples_ms": 94.770051,
+      "m4_clone_wall_samples_ms": 5.940245,
+      "m4_open_wall_samples_ms": 89.17951,
+      "m4_open_analyzer_fingerprint_wall_ms": 48.913548,
+      "m4_open_fingerprint_verification_wall_ms": 38.413997,
+      "m4_apply_wall_samples_ms": 1.424458,
+      "m4_flush_wall_samples_ms": 7.474183,
+      "generation_metadata_wall_samples_ms": 3.668681,
+      "post_m4_sync_tree_wall_samples_ms": 26.303594,
+      "snapshot_finalize_wall_samples_ms": 0.284044,
+      "generation_publish_samples_ms": 3.826255,
+      "retirement_samples_ms": 4.92369,
+      "post_m4_to_round_end_wall_ms": 40.92890000000011
+    },
+    {
+      "round_zero_based": 8,
+      "compacted": false,
+      "commit_samples_ms": 261.354,
+      "writer_commit_thread_cpu_samples_ms": 187.6034,
+      "native_vector_build_wall_samples_ms": 113.26235,
+      "native_vector_build_writer_thread_cpu_samples_ms": 68.39072,
+      "native_vector_open_wall_samples_ms": 86.96754,
+      "native_vector_document_conversion_wall_samples_ms": 0.0223,
+      "native_vector_upsert_wall_samples_ms": 5.501293,
+      "native_vector_flush_wall_samples_ms": 18.759431,
+      "m4_update_wall_samples_ms": 121.15006,
+      "m4_update_writer_thread_cpu_samples_ms": 109.14844,
+      "m4_clone_wall_samples_ms": 28.630627,
+      "m4_open_wall_samples_ms": 86.798633,
+      "m4_open_analyzer_fingerprint_wall_ms": 43.482121,
+      "m4_open_fingerprint_verification_wall_ms": 41.164789,
+      "m4_apply_wall_samples_ms": 1.513917,
+      "m4_flush_wall_samples_ms": 4.17552,
+      "generation_metadata_wall_samples_ms": 3.067772,
+      "post_m4_sync_tree_wall_samples_ms": 15.78899,
+      "snapshot_finalize_wall_samples_ms": 0.351582,
+      "generation_publish_samples_ms": 5.178841,
+      "retirement_samples_ms": 0.941881,
+      "post_m4_to_round_end_wall_ms": 22.975099999999657
+    }
+  ],
+  "stage_sum_shares_of_summed_commit_time": {
+    "native_vector_build_wall_samples_ms": 0.4497016943040693,
+    "m4_update_wall_samples_ms": 0.4269064313205112,
+    "post_m4_sync_tree_wall_samples_ms": 0.07656147227600198,
+    "post_m4_to_round_end_wall_ms": 0.10664042101346366
+  },
+  "native_resource_payload_before_reopen": {
+    "arm": "incremental-fts-verified-cache-resources",
+    "whole_process_cpu_ms": 4336.282,
+    "reader_query_cpu_total_ms": 126.89008,
+    "reader_thread_cpu_total_ms": 136.4756,
+    "reader_coordination_cpu_ms": 9.585516,
+    "writer_commit_thread_cpu_total_ms": 3308.8656,
+    "base_writer_thread_cpu_ms": 585.10773,
+    "process_cpu_excluding_reader_threads_ms": 4199.8064,
+    "unattributed_process_cpu_ms": 305.83307,
+    "physical_write_bytes": 214171648,
+    "peak_rss_kb": 223556,
+    "peak_pss_kb": "NOT_MEASURED",
+    "peak_cpu_percent": "NOT_MEASURED",
+    "root_bytes_after_close": 6181823,
+    "whole_wall_ms": 5575.8474
+  },
+  "process_reported_write_bytes_main_plus_reopen": 220258304,
+  "owned_cgroup_whole_lifetime": {
+    "memory_peak_bytes": 323055616,
+    "swap_peak_bytes": 0,
+    "cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 63,
+      "nr_throttled": 0,
+      "system_usec": 1213151,
+      "throttled_usec": 0,
+      "usage_usec": 4978732,
+      "user_usec": 3765580
+    },
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "tasks_events": {
+      "max": 0
+    },
+    "sampled_tasks_peak": 80,
+    "sampled_process_tree_pss_kib": 275706,
+    "sampled_process_tree_rss_kib": 290228,
+    "sampled_process_tree_write_bytes": 220262400
+  },
+  "runtime_host_context": {
+    "load1": {
+      "n": 104,
+      "min": 6.12,
+      "p50": 6.22,
+      "p95": 6.32,
+      "p99": 6.32,
+      "max": 6.32,
+      "mean": 6.216153846153846,
+      "sum": 646.48
+    },
+    "memavailable_kib": {
+      "n": 104,
+      "min": 3184020,
+      "p50": 3454704,
+      "p95": 4052896,
+      "p99": 4195984,
+      "max": 4239384,
+      "mean": 3534516.5384615385,
+      "sum": 367589720
+    },
+    "disk_available_bytes": {
+      "n": 104,
+      "min": 16304246784,
+      "p50": 16306872320,
+      "p95": 16325726208,
+      "p99": 16327147520,
+      "max": 16327151616,
+      "mean": 16311772160.0,
+      "sum": 1696424304640
+    },
+    "io_pressure.full.avg10": {
+      "n": 104,
+      "min": 0.75,
+      "p50": 0.98,
+      "p95": 1.34,
+      "p99": 1.34,
+      "max": 1.34,
+      "mean": 1.0254807692307693,
+      "sum": 106.65
+    },
+    "io_pressure.some.avg10": {
+      "n": 104,
+      "min": 1.25,
+      "p50": 1.39,
+      "p95": 1.68,
+      "p99": 1.68,
+      "max": 1.68,
+      "mean": 1.4395192307692308,
+      "sum": 149.71
+    },
+    "memory_pressure.full.avg10": {
+      "n": 104,
+      "min": 5.63,
+      "p50": 7.96,
+      "p95": 9.73,
+      "p99": 9.73,
+      "max": 9.73,
+      "mean": 8.14576923076923,
+      "sum": 847.16
+    },
+    "memory_pressure.some.avg10": {
+      "n": 104,
+      "min": 6.07,
+      "p50": 8.61,
+      "p95": 10.52,
+      "p99": 10.52,
+      "max": 10.52,
+      "mean": 8.79875,
+      "sum": 915.0699999999999
+    },
+    "cpu_pressure.some.avg10": {
+      "n": 104,
+      "min": 2.0,
+      "p50": 2.99,
+      "p95": 3.66,
+      "p99": 3.66,
+      "max": 3.66,
+      "mean": 3.015576923076923,
+      "sum": 313.62
+    }
+  },
+  "host_vmstat_deltas_first_last": {
+    "pswpin_pages": 51823,
+    "pswpout_pages": 0,
+    "oom_kill": 0,
+    "pgscan_direct": 0
+  },
+  "observer_cost_wall_ms_not_cpu": {
+    "workspace_scan": {
+      "n": 104,
+      "min": 0.464082,
+      "p50": 5.056696,
+      "p95": 9.007605,
+      "p99": 10.808487,
+      "max": 14.240245,
+      "mean": 5.055566317307693,
+      "sum": 525.778897
+    },
+    "whole_sample": {
+      "n": 104,
+      "min": 2.050917,
+      "p50": 9.134355,
+      "p95": 14.484656,
+      "p99": 16.073341,
+      "max": 19.437071,
+      "mean": 8.829618298076923,
+      "sum": 918.280303
+    },
+    "limitations": "External observer cost/perturbation not isolated by a comparator; timings are not observer CPU time."
+  },
+  "host_diskstat_sector_deltas_first_last": {
+    "dm-0": {
+      "sectors_read": 135920,
+      "sectors_written": 898456,
+      "io_ms": 1607
+    },
+    "nvme0n1": {
+      "sectors_read": 279712,
+      "sectors_written": 898456,
+      "io_ms": 1751
+    },
+    "nvme0n1p1": {
+      "sectors_read": 0,
+      "sectors_written": 0,
+      "io_ms": 0
+    },
+    "nvme0n1p2": {
+      "sectors_read": 143792,
+      "sectors_written": 0,
+      "io_ms": 665
+    },
+    "nvme0n1p3": {
+      "sectors_read": 135920,
+      "sectors_written": 898456,
+      "io_ms": 1284
+    },
+    "zram0": {
+      "sectors_read": 270776,
+      "sectors_written": 0,
+      "io_ms": 311
+    }
+  },
+  "workspace_accounting": {
+    "sample_count": 104,
+    "inventory_counts": {
+      "COMPLETE_TRAVERSAL_NOT_ATOMIC": 77,
+      "UNVERIFIABLE": 3,
+      "PARTIAL_KNOWN_RACE": 24
+    },
+    "pending_after_drain_unknown_samples": 3,
+    "soft_budget_warning_samples": 0,
+    "verified_peak": null,
+    "reservation_credit": 0,
+    "complete_traversal_max_allocated_bytes_not_peak": 18665472,
+    "complete_traversal_max_apparent_bytes_not_peak": 34150594
+  },
+  "max_runtime_sample_gap_seconds": 0.070061093,
+  "hard_safety_telemetry_complete": true,
+  "cleanup": {
+    "unit": "m4-contained-a92795d9db7a4185.service",
+    "unit_show_returncode": 0,
+    "unit_show": "LoadState=not-found\nActiveState=inactive\n",
+    "owned_units_returncode": 0,
+    "owned_units": "",
+    "cgroup_absent": true,
+    "socket_absent": true
+  },
+  "ledger": {
+    "authority_reference": "/home/masis/src/zvec-grep/research/m4-native/results/pending-drain-native-20261021/owner-authorization.md",
+    "consumed": 1,
+    "historical_campaign_unchanged": "campaign4/4 exhausted and prior separate1/1spent; this is distinct authority after4579e5a",
+    "maximum": 1,
+    "measurement_quality": "INCOMPLETE",
+    "native_arms_completed": 1,
+    "native_arms_launched": 1,
+    "operation_id": "m4-contention-pending-drain-native-20261021-1",
+    "receipt_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+    "remaining": 0,
+    "state": "DIAGNOSTIC_COMPLETED_WITH_REPORTED_CAVEATS"
+  },
+  "old_histories_unchanged": true,
+  "limitations": [
+    "One arm and20commits only; p99=max is not a stable population-tail estimate.",
+    "No comparison, statistical repeat, arm-order variability or candidate performance claim.",
+    "Workspace remains UNKNOWN/INCOMPLETE, no allocated/apparent lifetime proof or hard cap.",
+    "Process write_bytes is kernel-accounted write traffic, not physical device attribution; payload label physical_write_bytes retained.",
+    "Cgroup/process scope includes workers/readers/base/reopen; not isolated writer CPU/IO/RAM.",
+    "Host contention/PSI/diskstats observed contemporaneously; no identified causal host-impact attribution or stationary baseline."
+  ],
+  "input_sha256": {
+    "m4-contention-pending-drain-native-20261021-1/aa-first/containment/stdout.log": "f19311fd87d30d618bc2e1095e23597a0c889a24cc61c593f3980e951a67cbc1",
+    "m4-contention-pending-drain-native-20261021-1/aa-first/containment/runtime.jsonl": "fcbbd5775762326e56a30cdacc64a62e2fcbb3067d2ecab91d600ee5ca435783",
+    "m4-contention-pending-drain-native-20261021-1/aa-first/containment/receipt.json": "c48b2af8e5b5bebc75ce2c7e5ae2d760a8db6d0e71857924224846873dbe7dfd",
+    "m4-contention-pending-drain-native-20261021-1/aa-first/containment/watchdog-summary.json": "92440fe93009869564829cdd77153d0955a78c423910a4e72d3d3c74eaf4e13e",
+    "m4-contention-pending-drain-native-20261021-1/readiness.json": "88088a94ff5b22296a4d208e2fe9ba1675d7342c17084f6f43cc96309c61c4fd",
+    "m4-contention-pending-drain-native-20261021-1/independent-cleanup.json": "363a3c98d6c84d92e87cf43fc0b2e02594e6ff993a4f6889caf731e6a20cbff0",
+    "approved-resource-plan.json": "aeabc41f8b71ff15a0c0cf766cf8dce2642b046e99bf65e606ae122a2451acf6",
+    "new-attempt-ledger.json": "3098f29a2de2f546d7096b3c707478fe6170297c1f7d34cabda01332a047168b",
+    "historical-identities.json": "291a02191164f1773089a91cf3f8a7717c4001edf69b1834a2ad047507396d85"
+  }
+}

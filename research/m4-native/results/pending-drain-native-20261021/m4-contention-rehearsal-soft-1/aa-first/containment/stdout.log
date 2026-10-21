@@ -1,0 +1,1 @@
+{"synthetic_only": true, "proc_io": "rchar: 1326881\nwchar: 32768\nsyscr: 142\nsyscw: 1\nread_bytes: 0\nwrite_bytes: 49152\ncancelled_write_bytes: 0\n", "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-75008db1724648e6.service\n"}

@@ -1,6 +1,20 @@
 # M4 incremental index — evidence (historical series begins 2026-10-17)
 
-## Latest status — 2026-10-21 exploratory workspace amendment
+## Latest result — 2026-10-21 completed native500x20 after4579e5a
+
+**Requested single exploratory diagnostic completed, with workspace-accounting caveats.** [Full report](pending-drain-native-20261021/REPORT.md), [analysis](pending-drain-native-20261021/analysis.json), [20rounds CSV](pending-drain-native-20261021/per-round.csv). Fresh provenance/readiness PASS; exactly one native arm(PID784988), exit0,20commits/80queries, coherence0; generation21/live500 post-close reopen/errors0. No retry/second arm. Runtime controller/policy/native code unchanged from4579e5a;34focusedtests plus actual same-controller32KiBwatchdog e2e PASS.
+
+| Wall stage, ms | p50 | p95 | p99=max(n20) |
+|---|---:|---:|---:|
+| Writer commit |231.399|267.359|369.428|
+| Native vector build |102.032|117.603|223.503|
+| M4 update |103.357|119.271|121.150|
+| Post-M4 SyncTree |15.385|26.212|26.304|
+| Whole post-M4-to-round-end |24.051|37.658|40.929|
+
+Main phase processCPU4.336s, reopening0.511s; owned cgroup totalCPU4.979s/RAMpeak323,055,616B(308.090MiB)/swap0/tasksmax80. Process-reported writes(main+reopen)220,258,304B, not physical-device attribution. No hard reserve/OOM/task/swap/distress/throttle failure; verified cleanup. Host load6.12–6.32, memoryfullPSI5.63–9.73%, IOfull0.75–1.34%, swap-in+51,823pages: shared contention context, not M4-caused impact. Raw **COMPLETED_WITH_WORKSPACE_UNCERTAINTY / measurementINCOMPLETE**:77complete traversals(notatomic),24knownraces,3pending-drainUNVERIFIABLErows remain UNKNOWN;0sampled budgetoverages, no verified lifetime peak. No fake qualification PASS, stablep99/comparator/candidatewin claim. This new1/1spent; historical4/4campaign and preceding1/1abort/receipts unchanged. No further native authority.
+
+### Previous workspace amendment and aborted attempt (historical)
 
 Owner approved contention-aware-only workspace soft budgets plus **one new native diagnostic arm**, separate from the exhausted4/4campaign. [Amendment report](workspace-soft-budget-20261021/REPORT.md):79distincttests PASS, final32contention rerun, direct4path typecheck PASS; actual independent-watchdog32KiB rehearsal PASS with18budget-warning samples and verified cleanup. Raw receipt is COMPLETED_WITH_WORKSPACE_WARNINGS, not fake PASS. Known scanner races may continue as UNKNOWN/INCOMPLETE; hard reserve/distress/telemetry/time/cgroup checks remain aborting. Qualification/other benchmarks untouched. **Actual outcome: PARTIAL / OPERATION_BLOCKED / NEW_ATTEMPT_EXHAUSTED.** Commitfdef863 preceded fresh readiness/provenance PASS and one native launch(PID716330); after1.175346733s, bounded-drain pending inotify events were treated as fatal coverage loss. Raw WATCHDOG_ABORT/INCOMPLETE, exit-15;0completedarms/0cyclepayloads, writer-tail/stage/coherence unavailable. No OOM/distress/reserve failure observed in20partial samples; cgroup peak229,666,816B/swap0,CPU824,026us,tasks76,process-treewrites39,514,112Bpartial. Cleanup independently verified; no retry. New1/1spent, old4/4unchanged. Exact pending-event accounting case corrected prospectively, raw UNKNOWN retained;81finalsynthetic tests PASS, no native validation of correction. See report/raw/native-analysis.json for full scope/uncertainties.
 

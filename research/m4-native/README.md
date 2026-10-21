@@ -4,7 +4,11 @@ Status: **research only.** Nothing here is linked into `zvec`, `zg-engine`, the
 daemon, or the production index format. HNSW, the native build, and every
 production schema are untouched.
 
-## Current handoff — 2026-10-21 workspace amendment
+## Current handoff — 2026-10-21 completed exploratory native diagnostic
+
+**After correction4579e5a, the separately authorized single500x20arm completed:20commits/80readerqueries, exit0, coherence/reopen errors0. Writer p50/p95/p99 =231.399/267.359/369.428ms.** Native-vector stage p50=102.032ms; post-M4SyncTree p50=15.385ms. Kernel cgroup RAMpeak308.090MiB/swap0/CPU4.979s; no observed hard distress or reserve failure, cleanup verified. Raw receipt remains **COMPLETED_WITH_WORKSPACE_UNCERTAINTY / INCOMPLETE**:27/104workspace samples UNKNOWN, including3pending-drain cases correctly continued without fake PASS. One run/20samples, p99=max, not qualification or a stable performance comparison. See [completed-arm report](results/pending-drain-native-20261021/REPORT.md), [analysis](results/pending-drain-native-20261021/analysis.json) and [handoff §62](../../rust/docs/m4-incremental-native-index.md). New1/1spent, no further run authorized; old4/4campaign and preceding1/1abort unchanged. Production/migration unapproved.
+
+### Previous amendment and aborted attempt (historical)
 
 **Research only. Owner APPROVED contention-aware exploratory workspace soft budgets; engineering verified with79tests plus actual watchdog rehearsal.** Hard cgroup/time/RAM/disk reserves/distress/correctness/durability/cleanup remain unchanged. Known workspace races stay UNKNOWN/INCOMPLETE, budget breaches warn; neither becomes fake PASS. Qualification/other benchmarks remain strict. One NEW single-arm full-sync500x20 diagnostic is authorized after fresh readiness/provenance PASS, no retry on refusal. The old4/4campaign stays exhausted. See [amendment report](results/workspace-soft-budget-20261021/REPORT.md) and [new attempt ledger](results/workspace-soft-budget-20261021/new-attempt-ledger.json); **Latest outcome: readiness PASS, native PID716330 launched once then workspace-accounting abort after1.175s; zero complete cycle payloads or writer-tail results. New1/1attempt spent, no retry.** Pending-after-drain classification corrected prospectively with81finaltests PASS, not natively revalidated. Exact raw abort/cleanup remain unchanged; follow the report for resource impact and remaining uncertainty.
 
