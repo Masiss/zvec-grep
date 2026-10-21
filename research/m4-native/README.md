@@ -541,8 +541,10 @@ exact prior-generation hit set. This prevents native vector IDs from racing the
 forward-filter row bitmap during mutable segment writes while avoiding reader
 blocking during M4 staging and between completed native upsert calls. The
 shared-collection prototype also has a research-only leased-generation GC path
-in `tests/m4_bridge_integration.cc`; it searches all reclaimable generations
-with one `Uint32In` filter and issues bounded 256-mutation delete batches. M4
+in `tests/m4_bridge_integration.cc`; it searches one reclaimable generation
+at a time and issues deletion batches capped at 256 mutations and a conservative
+7 MiB encoded-size budget. This avoids a second full-sized copy of all stale
+primary keys in memory. M4
 reclamation is limited to generations older than all registered reader leases,
 so current-generation readers may continue during M4 search/delete/flush. The
 exclusive snapshot lease is acquired around each native deletion call and

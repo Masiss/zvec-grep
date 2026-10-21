@@ -712,39 +712,60 @@ class Coordinator {
     last_gc_generations_examined_ = reclaim_generations.size();
     if (timings) timings->generations_examined = reclaim_generations.size();
     const auto m4_delete_start = std::chrono::steady_clock::now();
-    if (!reclaim_generations.empty()) {
+    constexpr size_t kDeleteBatchSize = 256;
+    constexpr size_t kDeleteBatchBytes = 7u << 20;
+    for (const uint32_t generation : reclaim_generations) {
+      // Keep the SearchResult bounded to one generation; batch mutations rather
+      // than retaining a second full copy of all primary keys in memory.
       m4::SearchResult old_rows;
       const auto search = fts_->SearchFilter(
-          m4::FilterExpr::Uint32In("generation", reclaim_generations),
-          &old_rows);
+          m4::FilterExpr::Uint32Eq("generation", generation), &old_rows);
       if (!search.ok) {
-        std::cerr << "reuse_gc search generations="
-                  << reclaim_generations.size()
+        std::cerr << "reuse_gc search generation=" << generation
                   << " error=" << search.message << '\n';
         return false;
       }
-      std::vector<m4::Mutation> deletions;
-      deletions.reserve(old_rows.hits.size());
-      for (const auto& hit : old_rows.hits) {
-        deletions.emplace_back(m4::MutationKind::DELETE, hit.pk);
-      }
-      constexpr size_t kDeleteBatchSize = 256;
-      for (size_t begin = 0; begin < deletions.size();
-           begin += kDeleteBatchSize) {
-        const size_t end = std::min(deletions.size(), begin + kDeleteBatchSize);
-        std::vector<m4::Mutation> batch(
-            deletions.begin() + static_cast<std::ptrdiff_t>(begin),
-            deletions.begin() + static_cast<std::ptrdiff_t>(end));
+      std::vector<m4::Mutation> batch;
+      batch.reserve(kDeleteBatchSize);
+      size_t batch_bytes = 0;
+      size_t deleted = 0;
+      auto flush_deletions = [&]() {
+        if (batch.empty()) return true;
         const auto status = fts_->ApplyBatch(batch);
         if (!status.ok) {
-          std::cerr << "reuse_gc batch delete generations="
-                    << reclaim_generations.size()
-                    << " documents=" << deletions.size()
-                    << " batch_begin=" << begin
+          std::cerr << "reuse_gc batch delete generation=" << generation
+                    << " documents=" << old_rows.hits.size()
+                    << " batch_begin=" << deleted
                     << " error=" << status.message << '\n';
           return false;
         }
+        deleted += batch.size();
+        batch.clear();
+        batch_bytes = 0;
+        return true;
+      };
+      for (const auto& hit : old_rows.hits) {
+        const size_t encoded_bytes = hit.pk.size() + 32;
+        if (encoded_bytes > kDeleteBatchBytes) {
+          if (!flush_deletions()) return false;
+          const auto status = fts_->Delete(hit.pk);
+          if (!status.ok) {
+            std::cerr << "reuse_gc delete generation=" << generation
+                      << " pk=" << hit.pk << " error=" << status.message
+                      << '\n';
+            return false;
+          }
+          ++deleted;
+          continue;
+        }
+        if (batch.size() == kDeleteBatchSize ||
+            batch_bytes + encoded_bytes > kDeleteBatchBytes) {
+          if (!flush_deletions()) return false;
+        }
+        batch.emplace_back(m4::MutationKind::DELETE, hit.pk);
+        batch_bytes += encoded_bytes;
       }
+      if (!flush_deletions()) return false;
     }
     if (timings) timings->m4_search_delete_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - m4_delete_start).count();
