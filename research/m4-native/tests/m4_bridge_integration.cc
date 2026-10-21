@@ -670,15 +670,16 @@ class Coordinator {
   }
   // Research-only in-place generation reclamation. Publication happens first;
   // this method is idempotent and may be retried after a crash. Readers hold
-  // generation leases. The oldest pinned generation bounds M4 reclamation;
-  // stale M4 rows can be deleted while current-generation readers continue.
-  // Acquire the exclusive snapshot lock before native deletion/compaction, whose
-  // row-count and cross-backend transitions must not overlap readers. Writer
+  // generation leases. The oldest pinned generation bounds reclamation in
+  // both stores, so stale rows can be deleted while current-generation readers
+  // continue. Snapshot locks surround individual native mutation calls and the
+  // final flush/compaction/checkpoint window. Writer
   // lock is acquired first, as in Commit, so staging and GC cannot invert order.
   bool CollectBeforeGeneration(uint32_t floor, bool force_compact = false,
                                const std::string& stop_after = {},
                                SharedGcTimings* timings = nullptr,
-                               const std::function<void()>& after_m4_delete = {}) {
+                               const std::function<void()>& after_m4_delete = {},
+                               const std::function<void()>& after_native_delete = {}) {
     std::lock_guard<std::mutex> writer(commit_mutex_);
     last_gc_generations_examined_ = 0;
     const uint32_t current = generation_.load(std::memory_order_acquire);
@@ -759,8 +760,8 @@ class Coordinator {
     if (stop_after == "crash_after_m4_gc") ::_exit(84);
 
     // M4 reclamation is restricted to generations older than every registered
-    // lease. Drain current queries only before mutating the native collection.
-    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+    // lease. Native deletes only those stale generations, so current readers
+    // may run between completed mutation calls.
     const uint64_t native_before = NativeDocCount(vector_);
     // The pinned native delete_by_filter implementation rejects range scans
     // here with Arrow ExecBatch::ToRecordBatch schema mismatch; equality is
@@ -768,7 +769,11 @@ class Coordinator {
     const auto native_delete_start = std::chrono::steady_clock::now();
     for (const uint32_t generation : reclaim_generations) {
       const std::string filter = "generation = " + std::to_string(generation);
-      const auto vector_delete = zvec_collection_delete_by_filter(vector_, filter.c_str());
+      zvec_error_code_t vector_delete;
+      {
+        std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+        vector_delete = zvec_collection_delete_by_filter(vector_, filter.c_str());
+      }
       if (vector_delete != ZVEC_OK) {
         zvec_error_details_t details{};
         (void)zvec_get_last_error_details(&details);
@@ -780,6 +785,10 @@ class Coordinator {
     }
     if (timings) timings->native_delete_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - native_delete_start).count();
+    if (after_native_delete) after_native_delete();
+    // Reacquire the snapshot lease for final native durability and keep it
+    // through compaction and publication of the durable GC cursor.
+    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     const auto native_flush_start = std::chrono::steady_clock::now();
     const auto vector_flush = zvec_collection_flush(vector_);
     if (timings) timings->native_flush_ms = std::chrono::duration<double, std::milli>(
@@ -5546,10 +5555,11 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
     return coordinator.Commit(rows, expected);
   };
   auto collect = [&](bool force = false,
-                     const std::function<void()>& after_m4_delete = {}) {
+                     const std::function<void()>& after_m4_delete = {},
+                     const std::function<void()>& after_native_delete = {}) {
     return coordinator.CollectBeforeGeneration(
         pins.Oldest(coordinator.generation()), force, {}, nullptr,
-        after_m4_delete);
+        after_m4_delete, after_native_delete);
   };
   std::vector<double> commit_ms, collect_ms;
   auto commit_timed = [&](uint32_t generation) {
@@ -5578,40 +5588,64 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
         "writer backpressure enforces the three-generation lease cap");
   pinned_first.Reset();
   GenerationLease current_during_gc(coordinator, pins);
-  std::atomic<bool> m4_gc_staged{false}, release_m4_gc{false};
-  std::atomic<bool> current_reader_done{false};
-  std::vector<Hit> current_during_gc_hits;
+  std::array<std::atomic<bool>, 2> gc_stage_reached{}, gc_release_stage{};
+  std::array<std::atomic<int>, 2> gc_reader_done{};
+  std::array<std::vector<Hit>, 2> current_during_gc_hits;
+  for (size_t phase = 0; phase < 2; ++phase) {
+    gc_stage_reached[phase].store(false, std::memory_order_relaxed);
+    gc_release_stage[phase].store(false, std::memory_order_relaxed);
+    gc_reader_done[phase].store(0, std::memory_order_relaxed);
+  }
   bool gc_ok = false;
+  std::atomic<bool> gc_done{false};
   std::thread current_reader([&] {
-    while (!m4_gc_staged.load(std::memory_order_acquire))
-      std::this_thread::yield();
-    current_during_gc_hits = coordinator.Hybrid(
-        current_during_gc.generation(), ReusePrototypeRows(3).front().vector,
-        "incremental collection", 16);
-    current_reader_done.store(true, std::memory_order_release);
-  });
-  std::thread gc_writer([&] {
-    gc_ok = collect(false, [&] {
-      m4_gc_staged.store(true, std::memory_order_release);
-      while (!release_m4_gc.load(std::memory_order_acquire))
+    for (size_t phase = 0; phase < 2; ++phase) {
+      while (!gc_stage_reached[phase].load(std::memory_order_acquire) &&
+             !gc_done.load(std::memory_order_acquire))
         std::this_thread::yield();
-    });
+      if (!gc_stage_reached[phase].load(std::memory_order_acquire)) break;
+      current_during_gc_hits[phase] = coordinator.Hybrid(
+          current_during_gc.generation(), ReusePrototypeRows(3).front().vector,
+          "incremental collection", 16);
+      gc_reader_done[phase].fetch_add(1, std::memory_order_release);
+    }
   });
-  while (!m4_gc_staged.load(std::memory_order_acquire))
-    std::this_thread::yield();
-  const auto gc_reader_deadline = std::chrono::steady_clock::now() +
-                                  std::chrono::seconds(2);
-  while (!current_reader_done.load(std::memory_order_acquire) &&
-         std::chrono::steady_clock::now() < gc_reader_deadline)
-    std::this_thread::yield();
-  const bool reader_completed_during_m4_gc =
-      current_reader_done.load(std::memory_order_acquire);
-  release_m4_gc.store(true, std::memory_order_release);
+  auto pause_gc_for_reader = [&](size_t phase) {
+    gc_stage_reached[phase].store(true, std::memory_order_release);
+    while (!gc_release_stage[phase].load(std::memory_order_acquire))
+      std::this_thread::yield();
+  };
+  std::thread gc_writer([&] {
+    gc_ok = collect(false, [&] { pause_gc_for_reader(0); },
+                    [&] { pause_gc_for_reader(1); });
+    gc_done.store(true, std::memory_order_release);
+  });
+  std::array<bool, 2> reader_completed_during_gc{};
+  for (size_t phase = 0; phase < 2; ++phase) {
+    const auto gc_stage_deadline = std::chrono::steady_clock::now() +
+                                   std::chrono::seconds(5);
+    while (!gc_stage_reached[phase].load(std::memory_order_acquire) &&
+           !gc_done.load(std::memory_order_acquire) &&
+           std::chrono::steady_clock::now() < gc_stage_deadline)
+      std::this_thread::yield();
+    if (gc_stage_reached[phase].load(std::memory_order_acquire)) {
+      const auto gc_reader_deadline = std::chrono::steady_clock::now() +
+                                      std::chrono::seconds(2);
+      while (gc_reader_done[phase].load(std::memory_order_acquire) != 1 &&
+             std::chrono::steady_clock::now() < gc_reader_deadline)
+        std::this_thread::yield();
+      reader_completed_during_gc[phase] =
+          gc_reader_done[phase].load(std::memory_order_acquire) == 1;
+    }
+    gc_release_stage[phase].store(true, std::memory_order_release);
+  }
   gc_writer.join();
   current_reader.join();
   Check(gc_ok, "released epoch permits old generation reclamation");
-  Check(reader_completed_during_m4_gc && current_during_gc_hits.size() == 8,
-        "current-generation Hybrid reader completes coherently during stale M4 GC");
+  Check(reader_completed_during_gc[0] && current_during_gc_hits[0].size() == 8,
+        "current-generation Hybrid reader completes during stale M4 GC");
+  Check(reader_completed_during_gc[1] && current_during_gc_hits[1].size() == 8,
+        "current-generation Hybrid reader completes after native delete before flush");
   current_during_gc.Reset();
   Check(NativeDocCount(native.value) == 8 && fts->GetStats().live_docs == 8,
         "reclamation removes old rows from both reused stores");

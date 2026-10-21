@@ -545,8 +545,10 @@ in `tests/m4_bridge_integration.cc`; it searches all reclaimable generations
 with one `Uint32In` filter and issues bounded 256-mutation delete batches. M4
 reclamation is limited to generations older than all registered reader leases,
 so current-generation readers may continue during M4 search/delete/flush. The
-exclusive snapshot lease is acquired before native deletion and held through
-native flush, optional compaction, and checkpoint publication. Correctness/crash evidence and the comparative
+exclusive snapshot lease is acquired around each native deletion call and
+reacquired for native flush, optional compaction, and checkpoint publication.
+Current readers may proceed between completed delete calls; queries for reclaimed
+old generations must hold a registered lease. Correctness/crash evidence and the comparative
 reader-stall/GC measurements are in `results/M4-STATUS-20261021.md` and the
 linked operation report. The one measured pair found high reader latency and
 material GC cost. The GC batching and narrowed commit lock are correctness-
