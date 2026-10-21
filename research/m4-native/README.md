@@ -539,13 +539,14 @@ compaction/optimize and generation GC still hold the exclusive lease. A
 concurrency regression verifies readers finish during M4 staging and return the
 exact prior-generation hit set. This prevents native vector IDs from racing the
 forward-filter row bitmap during mutable segment writes while avoiding reader
-blocking during the M4-only staging phase. The
+blocking during M4 staging and between completed native upsert calls. The
 shared-collection prototype also has a research-only leased-generation GC path
 in `tests/m4_bridge_integration.cc`; it searches all reclaimable generations
-with one `Uint32In` filter and issues bounded 256-mutation delete batches before flush,
-native deletion, checkpoint publication, and optional compaction. The exclusive
-snapshot lease remains held throughout GC, preserving the existing crash and
-reader-safety protocol. Correctness/crash evidence and the comparative
+with one `Uint32In` filter and issues bounded 256-mutation delete batches. M4
+reclamation is limited to generations older than all registered reader leases,
+so current-generation readers may continue during M4 search/delete/flush. The
+exclusive snapshot lease is acquired before native deletion and held through
+native flush, optional compaction, and checkpoint publication. Correctness/crash evidence and the comparative
 reader-stall/GC measurements are in `results/M4-STATUS-20261021.md` and the
 linked operation report. The one measured pair found high reader latency and
 material GC cost. The GC batching and narrowed commit lock are correctness-
