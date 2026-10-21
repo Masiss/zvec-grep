@@ -93,8 +93,20 @@ struct PsiReceipt {
   std::string label, cpu, io, memory;
 };
 void Need(zvec_error_code_t code, const std::string& label) {
-  Check(code == ZVEC_OK, label + (code == ZVEC_OK ? "" : ": " + std::string(zvec_error_code_to_string(code))));
-  if (code != ZVEC_OK) throw std::runtime_error(label);
+  if (code == ZVEC_OK) {
+    Check(true, label);
+    return;
+  }
+  zvec_error_details_t details{};
+  (void)zvec_get_last_error_details(&details);
+  std::ostringstream message;
+  message << label << ": " << zvec_error_code_to_string(code);
+  if (details.message != nullptr && details.message[0] != '\0')
+    message << ": " << details.message;
+  if (details.file != nullptr && details.file[0] != '\0')
+    message << " (" << details.file << ':' << details.line << ' ' << (details.function ? details.function : "") << ')';
+  Check(false, message.str());
+  throw std::runtime_error(message.str());
 }
 struct Row {
   std::string pk;
@@ -521,6 +533,12 @@ class Coordinator {
     std::shared_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
     return generation_.load(std::memory_order_acquire);
   }
+  uint32_t PinCurrent(const std::function<void(uint32_t)>& register_pin) const {
+    std::shared_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+    const uint32_t current = generation_.load(std::memory_order_acquire);
+    register_pin(current);
+    return current;
+  }
   std::vector<Hit> SearchFts(uint32_t snapshot, const std::string& query,
                              const m4::FilterExpr& filter, size_t topk,
                              BackendLockEvent* lock_event = nullptr,
@@ -590,6 +608,101 @@ class Coordinator {
     const auto fts_status = fts_->CompactNow();
     if (!fts_status.ok) return false;
     return zvec_collection_optimize(vector_) == ZVEC_OK;
+  }
+  // Research-only in-place generation reclamation. Publication happens first;
+  // this method is idempotent and may be retried after a crash. Readers hold
+  // generation leases, and the exclusive snapshot lock drains active queries
+  // before either backend mutates old rows.
+  bool CollectBeforeGeneration(uint32_t floor, bool force_compact = false,
+                               const std::string& stop_after = {}) {
+    std::unique_lock<std::shared_mutex> snapshot_guard(snapshot_mutex_);
+    std::lock_guard<std::mutex> writer(commit_mutex_);
+    const uint32_t current = generation_.load(std::memory_order_acquire);
+    if (floor == 0 || floor > current) return false;
+
+    // Reclaim both unpinned published generations and reserved-but-unpublished
+    // generations left by a crash or failed commit. The snapshot and writer
+    // locks exclude in-flight publications while the WAL high-water is read.
+    std::vector<uint32_t> reclaim_generations;
+    for (uint64_t generation = 1; generation < floor; ++generation)
+      reclaim_generations.push_back(static_cast<uint32_t>(generation));
+    const uint32_t highest_reserved = NextGeneration(root_) - 1;
+    for (uint64_t generation = static_cast<uint64_t>(current) + 1;
+         generation <= highest_reserved; ++generation)
+      reclaim_generations.push_back(static_cast<uint32_t>(generation));
+    for (const uint32_t generation : reclaim_generations) {
+      m4::SearchResult old_rows;
+      const auto search = fts_->SearchFilter(m4::FilterExpr::Uint32Eq(
+          "generation", generation), &old_rows);
+      if (!search.ok) {
+        std::cerr << "reuse_gc search generation=" << generation
+                  << " error=" << search.message << '\n';
+        return false;
+      }
+      for (const auto& hit : old_rows.hits) {
+        const auto status = fts_->Delete(hit.pk);
+        if (!status.ok) {
+          std::cerr << "reuse_gc delete generation=" << generation
+                    << " pk=" << hit.pk << " error=" << status.message << '\n';
+          return false;
+        }
+      }
+    }
+    const auto m4_flush = fts_->Flush();
+    if (!m4_flush.ok) {
+      std::cerr << "reuse_gc M4 flush error=" << m4_flush.message << '\n';
+      return false;
+    }
+    if (stop_after == "crash_after_m4_gc") ::_exit(84);
+
+    const uint64_t native_before = NativeDocCount(vector_);
+    // The pinned native delete_by_filter implementation rejects range scans
+    // here with Arrow ExecBatch::ToRecordBatch schema mismatch; equality is
+    // covered by the native API tests and is idempotent across recovery.
+    for (const uint32_t generation : reclaim_generations) {
+      const std::string filter = "generation = " + std::to_string(generation);
+      const auto vector_delete = zvec_collection_delete_by_filter(vector_, filter.c_str());
+      if (vector_delete != ZVEC_OK) {
+        zvec_error_details_t details{};
+        (void)zvec_get_last_error_details(&details);
+        std::cerr << "reuse_gc vector delete generation=" << generation
+                  << " error=" << zvec_error_code_to_string(vector_delete)
+                  << " detail=" << (details.message ? details.message : "") << '\n';
+        return false;
+      }
+    }
+    const auto vector_flush = zvec_collection_flush(vector_);
+    if (vector_flush != ZVEC_OK) {
+      zvec_error_details_t details{};
+      (void)zvec_get_last_error_details(&details);
+      std::cerr << "reuse_gc vector flush error=" << zvec_error_code_to_string(vector_flush)
+                << " detail=" << (details.message ? details.message : "") << '\n';
+      return false;
+    }
+    if (stop_after == "crash_after_vector_gc") ::_exit(85);
+
+    const auto fts_stats = fts_->GetStats();
+    const uint64_t native_after = NativeDocCount(vector_);
+    const bool m4_compaction_due = fts_stats.dead_docs >=
+        std::max<uint64_t>(8, fts_stats.live_docs * 2);
+    const bool native_compaction_due = native_before > native_after &&
+        (native_after == 0 || native_before / native_after >= 3);
+    if (force_compact || m4_compaction_due || native_compaction_due) {
+      const auto compact = fts_->CompactNow();
+      if (!compact.ok) {
+        std::cerr << "reuse_gc M4 compact error=" << compact.message << '\n';
+        return false;
+      }
+      const auto optimize = zvec_collection_optimize(vector_);
+      if (optimize != ZVEC_OK) {
+        zvec_error_details_t details{};
+        (void)zvec_get_last_error_details(&details);
+        std::cerr << "reuse_gc native optimize error=" << zvec_error_code_to_string(optimize)
+                  << " detail=" << (details.message ? details.message : "") << '\n';
+        return false;
+      }
+    }
+    return true;
   }
  private:
   std::vector<Hit> SearchFtsUnlocked(uint32_t snapshot, const std::string& query,
@@ -666,6 +779,63 @@ class Coordinator {
   // rows are append-only, so an old generation remains queryable after unlock.
   mutable std::shared_mutex snapshot_mutex_;
   std::mutex commit_mutex_;
+};
+
+// Process-local epoch leases constrain collection reuse. The owner must refuse
+// to publish beyond its retention cap while an old lease remains pinned.
+class EpochPins {
+ public:
+  void Acquire(uint32_t generation) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++counts_[generation];
+  }
+  void Release(uint32_t generation) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = counts_.find(generation);
+    if (it == counts_.end() || it->second == 0)
+      throw std::logic_error("release of unpinned generation");
+    if (--it->second == 0) counts_.erase(it);
+  }
+  uint32_t Oldest(uint32_t current) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return counts_.empty() ? current : std::min(current, counts_.begin()->first);
+  }
+  size_t Count() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return counts_.size();
+  }
+ private:
+  mutable std::mutex mutex_;
+  std::map<uint32_t, size_t> counts_;
+};
+class GenerationLease {
+ public:
+  GenerationLease(Coordinator& coordinator, EpochPins& pins)
+      : pins_(&pins), generation_(coordinator.PinCurrent(
+            [&](uint32_t generation) { pins.Acquire(generation); })) {}
+  GenerationLease(const GenerationLease&) = delete;
+  GenerationLease& operator=(const GenerationLease&) = delete;
+  GenerationLease(GenerationLease&& other) noexcept
+      : pins_(std::exchange(other.pins_, nullptr)), generation_(other.generation_) {}
+  GenerationLease& operator=(GenerationLease&& other) noexcept {
+    if (this != &other) {
+      Reset();
+      pins_ = std::exchange(other.pins_, nullptr);
+      generation_ = other.generation_;
+    }
+    return *this;
+  }
+  ~GenerationLease() { Reset(); }
+  uint32_t generation() const { return generation_; }
+  void Reset() {
+    if (pins_) {
+      pins_->Release(generation_);
+      pins_ = nullptr;
+    }
+  }
+ private:
+  EpochPins* pins_;
+  uint32_t generation_;
 };
 
 // Branch A candidate: one physical M4+native vector collection per immutable
@@ -5174,7 +5344,203 @@ int RunLockPerformance(const fs::path& root, const char* dictionary) {
   Need(zvec_shutdown(), "shutdown lock performance test");
   return 0;
 }
+std::vector<Row> ReusePrototypeRows(uint32_t generation) {
+  std::vector<Row> rows;
+  for (uint32_t i = 0; i < 8; ++i) {
+    Row row;
+    row.pk = "reuse-" + std::to_string(i);
+    row.text = "incremental collection reuse generation " + std::to_string(generation) +
+               " document " + std::to_string(i);
+    row.file_name = "reuse-" + std::to_string(i) + ".cc";
+    row.symbol_type = "function";
+    row.file_id = 100 + i;
+    row.directories = {7, 17 + i};
+    row.vector = {1.0f + static_cast<float>(i),
+                  1.0f + static_cast<float>(generation % 5),
+                  0.25f * static_cast<float>(i + 1), 0.5f};
+    rows.push_back(std::move(row));
+  }
+  return rows;
+}
+int RunSharedCollectionReusePrototype(const fs::path& root,
+                                      const std::string& executable,
+                                      const char* dictionary) {
+  if (fs::exists(root)) throw std::runtime_error("reuse prototype root already exists");
+  fs::create_directories(root);
+  Need(zvec_initialize(nullptr), "initialize shared-collection prototype");
+  AtomicManifest(root, 0);
+  Native native = OpenVector(root / "vector", true);
+  m4::Options options;
+  options.fts_field = "text";
+  options.fts_tokenizer_name = "jieba";
+  options.jieba_dict_dir = dictionary;
+  options.fsync_wal = true;
+  std::unique_ptr<m4::Index> fts;
+  const auto open_status = m4::Index::Open((root / "fts").string(), options, &fts);
+  if (!open_status.ok) throw std::runtime_error("open shared M4 index: " + open_status.message);
+  Coordinator coordinator(root, native.value, fts.get());
+  EpochPins pins;
+  auto try_commit = [&](const std::vector<Row>& rows, uint32_t expected) {
+    const uint32_t next = expected + 1;
+    const uint32_t oldest = pins.Oldest(next);
+    const uint64_t retained_after = static_cast<uint64_t>(next) - oldest + 1;
+    if (retained_after > 3) return false;
+    return coordinator.Commit(rows, expected);
+  };
+  auto collect = [&](bool force = false) {
+    return coordinator.CollectBeforeGeneration(
+        pins.Oldest(coordinator.generation()), force);
+  };
+  std::vector<double> commit_ms, collect_ms;
+  auto commit_timed = [&](uint32_t generation) {
+    const auto start = std::chrono::steady_clock::now();
+    const bool ok = try_commit(ReusePrototypeRows(generation), generation - 1);
+    commit_ms.push_back(std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count());
+    return ok;
+  };
+  auto collect_timed = [&](bool force = false) {
+    const auto start = std::chrono::steady_clock::now();
+    const bool ok = collect(force);
+    collect_ms.push_back(std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count());
+    return ok;
+  };
+  Check(commit_timed(1), "reuse prototype publishes initial generation");
+  GenerationLease pinned_first(coordinator, pins);
+  Check(pinned_first.generation() == 1, "first generation lease pins publication");
+  Check(commit_timed(2) && collect_timed(), "reuse commit retains leased generation 1");
+  Check(commit_timed(3) && collect_timed(), "reuse commit reaches three-generation cap");
+  Check(coordinator.Hybrid(pinned_first.generation(), ReusePrototypeRows(1).front().vector,
+                           "incremental collection", 16).size() == 8,
+        "old pinned generation remains queryable across commits");
+  Check(!commit_timed(4) && coordinator.generation() == 3,
+        "writer backpressure enforces the three-generation lease cap");
+  pinned_first.Reset();
+  Check(collect_timed(), "released epoch permits old generation reclamation");
+  Check(NativeDocCount(native.value) == 8 && fts->GetStats().live_docs == 8,
+        "reclamation removes old rows from both reused stores");
+
+  for (uint32_t generation = 4; generation <= 11; ++generation) {
+    Check(commit_timed(generation), "bounded reuse commit generation " + std::to_string(generation));
+    Check(collect_timed(), "bounded reuse GC generation " + std::to_string(generation));
+    Check(NativeDocCount(native.value) <= 24 && fts->GetStats().live_docs <= 24,
+          "retained live rows stay within the three-generation cap");
+    Check(NativeDocCount(native.value) == 8 && fts->GetStats().live_docs == 8,
+          "unpinned generation is reclaimed after each bounded cycle");
+  }
+
+  // Simulate process death after durable M4 tombstones but before native vector
+  // deletion. Restart must keep the published generation and make GC replayable.
+  Check(commit_timed(12), "publish pre-crash generation 12");
+  Check(NativeDocCount(native.value) == 16 && fts->GetStats().live_docs == 16,
+        "pre-crash fixture contains current and one stale generation");
+  fts.reset();
+  Check(native.Close(), "close native store before GC crash injection");
+  Need(zvec_shutdown(), "shutdown before GC crash injection");
+  const pid_t child = ::fork();
+  if (child < 0) throw std::runtime_error("fork GC crash child");
+  if (child == 0) {
+    ::execl(executable.c_str(), executable.c_str(), "--reuse-gc-crash-child",
+            root.c_str(), dictionary, static_cast<char*>(nullptr));
+    ::_exit(127);
+  }
+  int child_status = 0;
+  if (::waitpid(child, &child_status, 0) != child)
+    throw std::runtime_error("wait for GC crash child");
+  Check(WIFEXITED(child_status) && WEXITSTATUS(child_status) == 84,
+        "fault injection crashes after durable M4 delete before vector delete");
+
+  Need(zvec_initialize(nullptr), "reinitialize after GC crash");
+  native = OpenVector(root / "vector", false);
+  const auto reopen_status = m4::Index::Open((root / "fts").string(), options, &fts);
+  if (!reopen_status.ok) throw std::runtime_error("reopen M4 after GC crash: " + reopen_status.message);
+  Coordinator recovered(root, native.value, fts.get());
+  Check(recovered.generation() == 12, "recovery retains the published shared-collection generation");
+  Check(recovered.CollectBeforeGeneration(12, true), "recovery replays GC idempotently");
+  Check(NativeDocCount(native.value) == 8 && fts->GetStats().live_docs == 8 &&
+            fts->GetStats().dead_docs == 0,
+        "post-crash GC converges both stores to the current generation");
+  Check(recovered.Hybrid(12, ReusePrototypeRows(12).front().vector,
+                         "incremental collection", 16).size() == 8,
+        "published generation remains searchable after GC recovery");
+
+  // Reserved-but-unpublished generations are invisible but still occupy both
+  // stores. Recovery GC must reclaim them after each possible pre-publish crash.
+  const std::array<std::tuple<const char*, int, uint64_t, uint64_t>, 3> commit_crashes = {{
+      {"after_reserve", 80, 8, 8},
+      {"after_m4", 81, 32, 8},
+      {"after_vector", 82, 32, 32},
+  }};
+  for (const auto& [stage, expected_exit, expected_m4_docs, expected_native_docs] : commit_crashes) {
+    fts.reset();
+    Check(native.Close(), "close native before unpublished-generation crash probe");
+    native.value = nullptr;
+    Need(zvec_shutdown(), "shutdown before unpublished-generation crash probe");
+    Check(SpawnCrash(executable.c_str(), root, dictionary, stage) == expected_exit,
+          std::string("process crash at ") + stage);
+    Need(zvec_initialize(nullptr), "reopen after unpublished-generation crash");
+    native = OpenVector(root / "vector", false);
+    const auto status = m4::Index::Open((root / "fts").string(), options, &fts);
+    if (!status.ok) throw std::runtime_error("reopen M4 after unpublished crash: " + status.message);
+    Coordinator orphan_recovery(root, native.value, fts.get());
+    Check(orphan_recovery.generation() == 12,
+          std::string("unpublished generation stays hidden after ") + stage);
+    Check(fts->GetStats().live_docs == expected_m4_docs &&
+              NativeDocCount(native.value) == expected_native_docs,
+          std::string("crash leaves expected recoverable staging rows after ") + stage);
+    Check(orphan_recovery.CollectBeforeGeneration(12),
+          std::string("reclaim reserved unpublished generation after ") + stage);
+    Check(fts->GetStats().live_docs == 8 && NativeDocCount(native.value) == 8,
+          std::string("reclamation bounds both stores after ") + stage);
+  }
+  std::cout << std::fixed << std::setprecision(3)
+            << "reuse_prototype checks=" << checks.load()
+            << " failures=" << failures.load()
+            << " commit_samples=" << commit_ms.size()
+            << " gc_samples=" << collect_ms.size()
+            << " current_generation=" << recovered.generation()
+            << " native_docs=" << NativeDocCount(native.value)
+            << " m4_live_docs=" << fts->GetStats().live_docs
+            << " architecture=shared_collection+epoch_gc+bounded_backpressure\n";
+  fts.reset();
+  Check(native.Close(), "close native store after shared-collection prototype");
+  Need(zvec_shutdown(), "shutdown shared-collection prototype");
+  return failures.load() == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
+  if (argc == 4 && std::string(argv[1]) == "--shared-collection-reuse-prototype") {
+    try {
+      return RunSharedCollectionReusePrototype(argv[2], fs::absolute(argv[0]).string(), argv[3]);
+    } catch (const std::exception& error) {
+      std::cerr << "FATAL reuse prototype: " << error.what() << '\n';
+      (void)zvec_shutdown();
+      return 3;
+    }
+  }
+  if (argc == 4 && std::string(argv[1]) == "--reuse-gc-crash-child") {
+    try {
+      Need(zvec_initialize(nullptr), "initialize GC crash child");
+      const fs::path root(argv[2]);
+      Native native = OpenVector(root / "vector", false);
+      m4::Options options;
+      options.fts_field = "text";
+      options.fts_tokenizer_name = "jieba";
+      options.jieba_dict_dir = argv[3];
+      options.fsync_wal = true;
+      std::unique_ptr<m4::Index> fts;
+      const auto status = m4::Index::Open((root / "fts").string(), options, &fts);
+      if (!status.ok) throw std::runtime_error("open M4 in GC crash child: " + status.message);
+      Coordinator coordinator(root, native.value, fts.get());
+      coordinator.CollectBeforeGeneration(coordinator.generation(), false,
+                                          "crash_after_m4_gc");
+      return 86;
+    } catch (...) {
+      (void)zvec_shutdown();
+      return 87;
+    }
+  }
   // Focused process-crash recovery oracle, not a performance workload.
   if (argc == 6 && std::string(argv[1]) == "--delta-recover-check") {
     try {
