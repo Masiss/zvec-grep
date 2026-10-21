@@ -6288,6 +6288,16 @@ int main(int argc, char** argv) {
     std::vector<std::string> old_hybrid_pks;
     for (const auto& hit : old_hybrid) old_hybrid_pks.push_back(hit.pk);
     std::sort(old_hybrid_pks.begin(), old_hybrid_pks.end());
+    // Cross the coordinator's 256-row native upsert boundary so the lock
+    // regression exercises multiple native mutation calls in one generation.
+    for (size_t i = 0; i < 240; ++i) {
+      Row extra = base.front();
+      extra.pk = "batch-window-" + std::to_string(i);
+      extra.text = "unmatched batch-window staging fixture";
+      extra.file_name = "batch-window/" + std::to_string(i) + ".cc";
+      extra.vector = {1000.0f + static_cast<float>(i), 1000.0f, 1000.0f, 1000.0f};
+      next.push_back(std::move(extra));
+    }
     std::array<std::atomic<bool>, 2> stage_reached{}, release_stage{};
     std::array<std::atomic<int>, 2> readers_attempted{}, readers_done{};
     std::array<std::array<std::vector<std::string>, 3>, 2> pinned_hybrid_pks;
@@ -6394,8 +6404,8 @@ int main(int argc, char** argv) {
       Check(visible.size() == (recovered_publish ? 0u : 2u),
           std::string("FTS visibility matches commit point after ") + stage);
       const auto visible_vector = coordinator->SearchVector(expected_generation,
-          base.front().vector, "", 100);
-      Check(visible_vector.size() == base.size(),
+          base.front().vector, "", std::max<size_t>(100, next.size()));
+      Check(visible_vector.size() == (recovered_publish ? base.size() : next.size()),
           std::string("vector snapshot cardinality after ") + stage);
       Check(std::any_of(visible_vector.begin(), visible_vector.end(), [&](const Hit& h) {
               return h.pk == (recovered_publish ? "fragment-3" : "fragment-added");
