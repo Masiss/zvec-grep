@@ -473,6 +473,41 @@ class ContentionPolicyTests(unittest.TestCase):
         )
         self.assertTrue(all(not r["workspace"]["scan_complete"] for r in rows))
 
+    def test_pending_drain_is_unknown_without_extra_drain_or_fake_complete(self):
+        with mock.patch.object(ct.select, "select", return_value=([1], [], [])):
+            work = ct.workspace_usage(self.root)
+        self.assertFalse(work["scan_complete"])
+        self.assertEqual(work["inventory_status"], "UNVERIFIABLE")
+        self.assertEqual(work["issues"][-1]["detail"], "events exceed one bounded drain")
+        before = copy.deepcopy(work)
+        decision = ct.workspace_capacity_decision(work, ct.contention_budget(self.ctx), "contention-aware")
+        self.assertTrue(decision["continuation_allowed"])
+        self.assertEqual(decision["state"], "UNKNOWN")
+        self.assertEqual(decision["measurement_quality"], "INCOMPLETE")
+        self.assertEqual(work, before)
+        self.assertFalse(ct.workspace_capacity_decision(work, ct.contention_budget(self.ctx))["continuation_allowed"])
+        summary, _, killed = self.run_watchdog(state(), workspace=work)
+        self.assertFalse(killed)
+        self.assertIsNone(summary["abort"])
+        self.assertEqual(summary["measurement_quality"], "INCOMPLETE")
+
+    def test_pending_drain_cannot_hide_overflow_scope_error_or_missing_examples(self):
+        with mock.patch.object(ct.select, "select", return_value=([1], [], [])):
+            work = ct.workspace_usage(self.root)
+        for kind, detail in (("MUTATION_COVERAGE_LOST", "event overflow or unmount"),
+                             ("MUTATION_COVERAGE_LOST", "truncated event record"),
+                             ("SCOPE_UNVERIFIABLE", "workspace root replaced"),
+                             ("FILESYSTEM_ERROR", "permission or EIO"),
+                             ("WORK_BUDGET_EXHAUSTED", "entry/time budget")):
+            row = copy.deepcopy(work)
+            row["issues"].append({"kind": kind, "detail": detail, "known_race": False})
+            row["issue_count"] += 1
+            self.assertFalse(ct.workspace_capacity_decision(row, ct.contention_budget(self.ctx), "contention-aware")["continuation_allowed"])
+        row = dict(work, issue_count=work["issue_count"] + 1)
+        self.assertFalse(ct.workspace_capacity_decision(row, ct.contention_budget(self.ctx), "contention-aware")["continuation_allowed"])
+        row = dict(work, root_identity=None)
+        self.assertFalse(ct.workspace_capacity_decision(row, ct.contention_budget(self.ctx), "contention-aware")["continuation_allowed"])
+
     def test_soft_unknown_scope_still_aborts_watchdog(self):
         work = self.workspace_row(
             scan_complete=False,

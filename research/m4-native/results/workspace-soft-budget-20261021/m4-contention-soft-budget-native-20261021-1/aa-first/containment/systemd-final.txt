@@ -1,0 +1,7 @@
+Result=signal
+ExecMainCode=2
+ExecMainStatus=9
+ControlGroup=
+MemoryPeak=229666816
+MemorySwapPeak=0
+CPUUsageNSec=836758000

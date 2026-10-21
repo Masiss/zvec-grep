@@ -1,0 +1,158 @@
+{
+  "abort": {
+    "continuation_allowed": false,
+    "errors": [
+      "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+      "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+      "/var/tmp/m4-soft-native-ilm3j5wc: events exceed one bounded drain"
+    ],
+    "failure_class": "WORKSPACE_CAPACITY_UNVERIFIABLE",
+    "independent_capacity_upper_bound": null,
+    "inventory_status": "UNVERIFIABLE",
+    "measurement_quality": "INCOMPLETE",
+    "proof_semantics": "owner-approved monitored soft budgets only; NOT hard enforcement/capacity proof",
+    "reason": "workspace_capacity_unverifiable",
+    "state": "UNKNOWN",
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        716259
+      ],
+      "term_pids": [
+        716330
+      ]
+    },
+    "timestamp_utc": "2026-10-21T02:32:54.073089+00:00",
+    "warnings": []
+  },
+  "cgroup_io_stat_available": false,
+  "final_cgroup": {
+    "cgroup_io_controller": false,
+    "controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "cpu_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 2809.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 2932.0
+      }
+    },
+    "cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 13,
+      "nr_throttled": 0,
+      "system_usec": 295135,
+      "throttled_usec": 0,
+      "usage_usec": 824026,
+      "user_usec": 528890
+    },
+    "io_max": null,
+    "io_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 119774.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 119818.0
+      }
+    },
+    "io_stat": null,
+    "memory_current_bytes": 91017216,
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "memory_peak_bytes": 229666816,
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 109.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 109.0
+      }
+    },
+    "memory_swap_current_bytes": 0,
+    "memory_swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "memory_swap_peak_bytes": 0,
+    "pids": [
+      716259
+    ],
+    "pids_current": 2,
+    "pids_events": {
+      "max": 0
+    },
+    "populated": 1,
+    "process_io_sample_complete": true,
+    "process_memory_sample_complete": true,
+    "process_tree_pss_kib": 17277,
+    "process_tree_read_bytes": 1867776,
+    "process_tree_rss_kib": 27352,
+    "process_tree_swap_kib": 0,
+    "process_tree_write_bytes": 0
+  },
+  "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+  "hard_safety_telemetry_complete": true,
+  "max_observed_complete_traversal_allocated_bytes": 14499840,
+  "max_observed_complete_traversal_apparent_bytes": 22896842,
+  "measurement_quality": "INCOMPLETE",
+  "peak_cgroup_memory_current_bytes_sampled": 229666816,
+  "peak_cgroup_memory_peak_bytes_observed": 229666816,
+  "peak_cgroup_swap_current_bytes_sampled": 0,
+  "peak_cgroup_swap_peak_bytes_observed": 0,
+  "peak_sampled_generation_apparent_bytes": null,
+  "peak_sampled_staging_named_apparent_bytes": null,
+  "peak_sampled_workspace_allocated_st_blocks_bytes_gross": null,
+  "peak_sampled_workspace_apparent_bytes": null,
+  "policy_context_digest": "46999ace7fc97f22995e405c7d4eaa1930562265c3edf7f6224fa2dec4ce8a31",
+  "policy_mode": "contention-aware",
+  "process_tree_samples_complete": true,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "sample_interval_ms_requested": 50,
+  "samples": 20,
+  "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+  "schema_version": 1,
+  "workspace_accounting_status": "UNKNOWN",
+  "workspace_samples_complete": false,
+  "workspace_shared_extent_inspection": {
+    "available": false,
+    "reason": "No extra recursive FIEMAP walk in bounded observer; extent sharing unknown, never capacity proof"
+  },
+  "workspace_snapshot_semantics": "sampled traversals, NOT atomic snapshots or verified lifetime peaks",
+  "workspace_soft_budget_warning_samples": 0,
+  "workspace_verified_peak": null
+}

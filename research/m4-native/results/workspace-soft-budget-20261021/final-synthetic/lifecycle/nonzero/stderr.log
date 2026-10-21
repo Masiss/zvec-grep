@@ -1,0 +1,6 @@
+Running as unit: m4-contained-ed8ff354e5264dbc.service
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=7/NOTRUNNING
+               Service runtime: 271ms
+             CPU time consumed: 106ms
+                   Memory peak: 20M (swap: 0B)

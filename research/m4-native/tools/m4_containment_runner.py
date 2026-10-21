@@ -748,10 +748,21 @@ def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, A
                 warnings.append({'metric': key, 'observed_bytes': observation[key], 'budget_bytes': limit,
                                  'excess_bytes': observation[key] - limit, 'scan_complete': observation['scan_complete']})
         known_race = observation.get('inventory_status') == contract['race_continuation_inventory_status']
+        # Readable-after-drain is not an observed overflow/unmount: it can be a
+        # new event from a writer still running. Keep the raw UNVERIFIABLE row;
+        # accept only this exact accounting uncertainty, never scope/I/O errors.
+        issues = observation.get('issues', [])
+        pending = contract['pending_event_drain_issue']
+        pending_only = (observation.get('root_identity') is not None and bool(issues)
+                        and observation.get('issue_count') == len(issues)
+                        and all(item.get('known_race') is True or
+                                (item.get('kind') == pending['kind'] and item.get('detail') == pending['detail'])
+                                for item in issues))
+        tolerated_uncertainty = known_race or pending_only
         return {'state': ('SOFT_BUDGET_EXCEEDED' if warnings else 'SAMPLED_SOFT_BUDGET_NOT_EXCEEDED')
                         if observation['scan_complete'] else 'UNKNOWN',
-                'continuation_allowed': observation['scan_complete'] or known_race,
-                'reason': None if observation['scan_complete'] or known_race else 'workspace_capacity_unverifiable',
+                'continuation_allowed': observation['scan_complete'] or tolerated_uncertainty,
+                'reason': None if observation['scan_complete'] or tolerated_uncertainty else 'workspace_capacity_unverifiable',
                 'inventory_status': observation.get('inventory_status'),
                 'measurement_quality': 'COMPLETE_TRAVERSAL_NOT_PROOF' if observation['scan_complete'] else 'INCOMPLETE',
                 'warnings': warnings, 'errors': observation.get('scan_errors', []),

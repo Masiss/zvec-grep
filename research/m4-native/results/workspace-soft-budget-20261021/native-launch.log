@@ -1,0 +1,2 @@
+ONE_NEW_NATIVE_DIAGNOSTIC_READINESS_PASS
+{'authority_reference': '/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/owner-authorization.md', 'maximum': 1, 'consumed': 1, 'remaining': 0, 'state': 'OPERATION_BLOCKED', 'historical_campaign_unchanged': '4/4 exhausted; not a replacement or automatic retry', 'operation_id': 'm4-contention-soft-budget-native-20261021-1', 'native_arms_launched': 1, 'native_arms_completed': 0, 'receipt_status': 'WATCHDOG_ABORT', 'measurement_quality': 'INCOMPLETE'}

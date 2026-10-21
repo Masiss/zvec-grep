@@ -1,8 +1,13 @@
 {
   "authority_reference": "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/owner-authorization.md",
+  "consumed": 1,
+  "historical_campaign_unchanged": "4/4 exhausted; not a replacement or automatic retry",
   "maximum": 1,
-  "consumed": 0,
-  "remaining": 1,
-  "state": "AUTHORIZED_NOT_CHECKED",
-  "historical_campaign_unchanged": "4/4 exhausted; not a replacement or automatic retry"
+  "measurement_quality": "INCOMPLETE",
+  "native_arms_completed": 0,
+  "native_arms_launched": 1,
+  "operation_id": "m4-contention-soft-budget-native-20261021-1",
+  "receipt_status": "WATCHDOG_ABORT",
+  "remaining": 0,
+  "state": "OPERATION_BLOCKED"
 }

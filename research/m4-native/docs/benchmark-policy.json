@@ -92,8 +92,13 @@
       "enforcement": "monitored-soft-budgets",
       "approval_reference": "Owner explicit approval 2026-10-21; results/workspace-soft-budget-20261021/owner-authorization.md",
       "race_continuation_inventory_status": "PARTIAL_KNOWN_RACE",
+      "pending_event_drain_issue": {
+        "kind": "MUTATION_COVERAGE_LOST",
+        "detail": "events exceed one bounded drain"
+      },
+      "pending_event_semantics": "A readable queue after one drain is accounting UNKNOWN, not observed overflow. Only this exact issue plus known mutations may continue with raw UNVERIFIABLE/INCOMPLETE retained, valid root identity and all issue examples present. Actual overflow/unmount/truncated events, scope, permissions and I/O errors remain fatal. No extra drain/rescan.",
       "breach_action": "warn with raw observed/limit/excess bytes; never claim hard-cap enforcement",
-      "scope_error_action": "abort; unknown scope, permission/EIO, watch/scan budget failures are not accepted publication races",
+      "scope_error_action": "abort; unknown scope, permission/EIO, actual overflow/unmount/truncated records and watch/scan work-budget failures are not accepted publication races. Pending readable queue alone is handled by the exact accounting-uncertainty rule, not fabricated complete telemetry",
       "completion_semantics": "Workspace uncertainty remains INCOMPLETE/UNKNOWN; completion with warnings is not PASS or qualifying evidence. All independent hard safety telemetry remains mandatory."
     },
     "reservation_credit": "Zero: sampled gross allocated bytes are not a conservative lower bound on scoped physical allocation and cannot reduce shared-disk reserve requirements",

@@ -1,0 +1,64 @@
+{
+  "utc": "2026-10-21T02:39:41.584402+00:00",
+  "status": "PASS_SOFTWARE_EVIDENCE_VERIFICATION_NOT_NATIVE_SUCCESS",
+  "mission_status": "PARTIAL / OPERATION_BLOCKED / NEW_ATTEMPT_EXHAUSTED",
+  "distinct_final_tests": 81,
+  "direct_five_path_typecheck": "PASS",
+  "final_active_lsp": {
+    "diagnostics": 0,
+    "errors": 0,
+    "confirmed_clean": 0,
+    "inconclusive": 3,
+    "interpretation": "not clean proof; direct ty independently PASS"
+  },
+  "native_attempts": {
+    "new_consumed": 1,
+    "maximum": 1,
+    "remaining": 0,
+    "launched": 1,
+    "completed": 0,
+    "no_retry": true
+  },
+  "historical_ledger_unchanged": true,
+  "executed_plan_byte_identical_fdef863": true,
+  "executed_policy_and_controller_identity_pinned_fdef863": true,
+  "current_policy_change_prospective_only": true,
+  "native_compiler_inputs_unchanged": true,
+  "raw_input_hashes_verified": true,
+  "cleanup_independently_verified": true,
+  "document_links_checked": [
+    {
+      "doc": "research/m4-native/README.md",
+      "target": "results/workspace-soft-budget-20261021/REPORT.md"
+    },
+    {
+      "doc": "research/m4-native/README.md",
+      "target": "results/workspace-soft-budget-20261021/new-attempt-ledger.json"
+    },
+    {
+      "doc": "research/m4-native/docs/benchmark-policy.md",
+      "target": "../results/workspace-soft-budget-20261021/REPORT.md"
+    },
+    {
+      "doc": "research/m4-native/docs/benchmark-policy.md",
+      "target": "../results/workspace-soft-budget-20261021/approved-resource-plan.json"
+    },
+    {
+      "doc": "research/m4-native/docs/benchmark-policy.md",
+      "target": "../results/workspace-soft-budget-20261021/new-attempt-ledger.json"
+    },
+    {
+      "doc": "research/m4-native/results/RESULTS.md",
+      "target": "workspace-soft-budget-20261021/REPORT.md"
+    }
+  ],
+  "git_diff_check": "PASS",
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "8f9d288db847384f8f9c249009966520a4963abc03e5682e60efe1e69a5ed8bf",
+    "research/m4-native/tools/test_m4_contention_policy.py": "e9a7ceaf746753d5d1b29c14dfa3d96bbc9660e30c398b4ed28b6305102fb5d0",
+    "research/m4-native/docs/benchmark-policy.json": "38278043b417f6f84bad62d1c36fbf09936423df3a5b913ff1e43f3311b456e3",
+    "research/m4-native/results/workspace-soft-budget-20261021/launch_once.py": "cfc084b6ec169fc9774f046479f7e462c8be0a5afe0066dda470918755ba123f",
+    "research/m4-native/results/workspace-soft-budget-20261021/rehearse.py": "4c6b95567b39d5bb1f7f2043131b604c6a47e1d7f64497ce095df065ccb8d3a9",
+    "research/m4-native/results/workspace-soft-budget-20261021/analyze_native.py": "db36203aeca7ea7856fcaf6c08e2da0dc43e2efad76ba1faf2fd2329046c21ce"
+  }
+}
