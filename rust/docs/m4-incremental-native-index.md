@@ -2376,9 +2376,9 @@ Both arms are `COMPLETED_WITH_WORKSPACE_UNCERTAINTY`: full filesystem traversals
 
 The candidate's `gc_m4_search_delete_ms` was 350–383 ms per round (total GC 374–407 ms; compaction 0 ms). `Coordinator::Commit` and `CollectBeforeGeneration` hold the exclusive snapshot mutex; `Hybrid` needs its shared form across both stores. This aligns with reader-wait concerns, but host I/O PSI was substantially higher in the shared arm and one run cannot allocate all observed delay to the lock. The pair is exploratory and does not complete the broader M4 design goal.
 
-## 75. Overall M4 status and owner-requested stop — 2026-10-21
+## 75. Historical M4 status checkpoint — 2026-10-21 (superseded)
 
-**PARTIAL / NOT COMPLETE.** The owner requested a detailed report and no further engineering. No final architecture has been selected; immutable-shard remains the working baseline, not a demonstrated winner, and shared-collection promotion is deferred. The latest evidence and outstanding completion gaps are recorded in `research/m4-native/results/M4-STATUS-20261021.md`, linked from the M4 README and RESULTS index. This was the status at that handoff; the subsequent owner request authorizes continued in-scope research, without authorizing new benchmark attempts or changing resource gates.
+**Historical status: PARTIAL / NOT COMPLETE.** At this checkpoint the owner had requested a report and a pause. That pause was superseded by the 2026-10-22 mission instruction to continue M4 engineering and evaluation. Do not treat the historical stop as current authorization or as a reason to end the mission. The 2026-10-21 comparative evidence and its limitations remain valid as evidence, not as current mission status: no final architecture was selected, immutable-shard was only a working baseline, and shared-collection promotion was deferred. See `research/m4-native/results/M4-STATUS-20261021.md` for that historical report.
 
 ## 76. Shared-collection GC search/delete batching — 2026-10-22
 
