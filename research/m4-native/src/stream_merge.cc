@@ -212,7 +212,16 @@ uint64_t EstimateDictEntryBytes(std::string_view key) {
   return key.size() + 64;
 }
 
-Status EncodeFtsBlock(const std::vector<BuildPosting>& block,
+struct StreamPosting {
+  DocId doc{0};
+  uint32_t tf{0};
+  uint32_t dl{0};
+  size_t positions_offset{0};
+  size_t positions_count{0};
+};
+
+Status EncodeFtsBlock(const std::vector<StreamPosting>& block,
+                      const std::vector<uint32_t>& positions,
                       std::string* payload, FtsBlockMeta* meta,
                       uint64_t payload_offset) {
   if (block.empty()) return Status::Error("empty fts block");
@@ -222,13 +231,19 @@ Status EncodeFtsBlock(const std::vector<BuildPosting>& block,
   uint32_t max_tf = 0;
   uint32_t min_dl = std::numeric_limits<uint32_t>::max();
   for (const auto& p : block) {
+    if (p.positions_offset > positions.size() ||
+        p.positions_count > positions.size() - p.positions_offset) {
+      return Status::Error("invalid streamed posting positions");
+    }
     w.Varint(p.doc - prev_doc);
     prev_doc = p.doc;
     w.Varint(p.tf);
     w.Varint(p.dl);
-    w.Varint(p.positions.size());
+    w.Varint(p.positions_count);
     uint32_t prev_pos = 0;
-    for (uint32_t pos : p.positions) {
+    const size_t positions_end = p.positions_offset + p.positions_count;
+    for (size_t i = p.positions_offset; i < positions_end; ++i) {
+      const uint32_t pos = positions[i];
       w.Varint(pos - prev_pos);
       prev_pos = pos;
     }
@@ -469,8 +484,9 @@ Status MergeSegmentsStreaming(const std::string& path,
     }
 
     const uint64_t payload_start = out.size() - fts_off;
-    std::vector<BuildPosting> block;
+    std::vector<StreamPosting> block;
     block.reserve(bs);
+    std::vector<uint32_t> block_positions;
     std::vector<FtsBlockMeta> metas;
     uint64_t df = 0;
     uint64_t local_payload = 0;
@@ -479,7 +495,8 @@ Status MergeSegmentsStreaming(const std::string& path,
       if (block.empty()) return Status::OK();
       std::string payload;
       FtsBlockMeta meta;
-      Status st = EncodeFtsBlock(block, &payload, &meta, local_payload);
+      Status st = EncodeFtsBlock(block, block_positions, &payload, &meta,
+                                 local_payload);
       if (!st.ok) return st;
       st = write_hashed_str(payload);
       if (!st.ok) return st;
@@ -490,6 +507,7 @@ Status MergeSegmentsStreaming(const std::string& path,
         return Status::Error("compaction memory budget exceeded");
       }
       block.clear();
+      block_positions.clear();
       ++fts_block_cursor;
       return Status::OK();
     };
@@ -504,12 +522,16 @@ Status MergeSegmentsStreaming(const std::string& path,
       for (auto& it : its) {
         if (!it->valid() || it->doc() != min_doc) continue;
         if (tombstones.count(min_doc) == 0 && !emitted) {
-          BuildPosting p;
+          StreamPosting p;
           p.doc = min_doc;
           p.tf = it->tf();
           p.dl = it->dl();
-          p.positions = it->positions();
-          block.push_back(std::move(p));
+          p.positions_offset = block_positions.size();
+          const auto& source_positions = it->positions();
+          p.positions_count = source_positions.size();
+          block_positions.insert(block_positions.end(), source_positions.begin(),
+                                 source_positions.end());
+          block.push_back(p);
           ++df;
           emitted = true;
           if (block.size() >= bs) {

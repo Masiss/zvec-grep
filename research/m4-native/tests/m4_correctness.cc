@@ -1088,6 +1088,9 @@ void TestPhrase(const std::string& dir) {
   put("c", "beta gamma");
   put("d", "alpha beta");
   Check(index->Flush().ok, "phrase flush");
+  put("e", "alpha beta gamma alpha beta");
+  Check(index->Flush().ok, "phrase second flush");
+  Check(index->CompactNow().ok, "phrase compaction");
   CheckFts(*index, ref, "\"alpha beta\"",
            MakeRefQuery({}, false, {{"alpha", "beta"}}), 10, "phrase ab");
   CheckFts(*index, ref, "\"beta gamma\"",
