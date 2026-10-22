@@ -718,6 +718,8 @@ def read_cgroup_metric(cg: pathlib.Path) -> dict[str, Any]:
         except (FileNotFoundError, ProcessLookupError, PermissionError, KeyError, ValueError):
             proc_memory_complete = False
     events = parse_kv(read_text(cg / 'memory.events'))
+    memory_stat_path = cg / 'memory.stat'
+    memory_stat = parse_kv(read_text(memory_stat_path)) if memory_stat_path.is_file() else None
     swap_events = parse_kv(read_text(cg / 'memory.swap.events'))
     cpu = parse_kv(read_text(cg / 'cpu.stat'))
     ev = parse_kv(read_text(cg / 'cgroup.events'))
@@ -729,6 +731,7 @@ def read_cgroup_metric(cg: pathlib.Path) -> dict[str, Any]:
         'memory_current_bytes': int(read_text(cg / 'memory.current')),
         'memory_peak_bytes': int(read_text(cg / 'memory.peak')),
         'memory_events': events,
+        'memory_stat_bytes': memory_stat,
         'memory_swap_current_bytes': int(read_text(cg / 'memory.swap.current')),
         'memory_swap_peak_bytes': int(read_text(cg / 'memory.swap.peak')),
         'memory_swap_events': swap_events,
@@ -1387,6 +1390,9 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     )
     workspace_samples_complete = bool(samples) and all(r['workspace']['scan_complete'] for r in samples)
     complete_workspace_rows = [r['workspace'] for r in samples if r['workspace']['scan_complete']]
+    memory_stat_rows = [r['cgroup']['memory_stat_bytes'] for r in samples
+                        if isinstance(r['cgroup'].get('memory_stat_bytes'), dict)]
+    memory_stat_keys = set().union(*(row.keys() for row in memory_stat_rows)) if memory_stat_rows else set()
     summary = {
         'schema_version': SCHEMA_VERSION, 'samples': len(samples),
         'workspace_samples_complete': workspace_samples_complete,
@@ -1412,6 +1418,12 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         'peak_sampled_generation_apparent_bytes': max((w['generation_apparent_bytes'] for w in complete_workspace_rows), default=None) if workspace_samples_complete else None,
         'peak_cgroup_memory_current_bytes_sampled': max((r['cgroup']['memory_current_bytes'] for r in samples), default=None),
         'peak_cgroup_memory_peak_bytes_observed': max((r['cgroup']['memory_peak_bytes'] for r in samples), default=None),
+        'cgroup_memory_stat_available': bool(samples) and len(memory_stat_rows) == len(samples),
+        'peak_sampled_cgroup_memory_stat_bytes_by_field': {
+            key: max((row.get(key, 0) for row in memory_stat_rows), default=None)
+            for key in sorted(memory_stat_keys)
+        } if memory_stat_rows else None,
+        'memory_stat_peak_semantics': 'per-field maxima may come from different samples; not an atomic decomposition of memory.current',
         'peak_cgroup_swap_current_bytes_sampled': max((r['cgroup']['memory_swap_current_bytes'] for r in samples), default=None),
         'peak_cgroup_swap_peak_bytes_observed': max((r['cgroup']['memory_swap_peak_bytes'] for r in samples), default=None),
         'cgroup_io_stat_available': any(r['cgroup']['io_stat'] is not None for r in samples),

@@ -128,6 +128,34 @@ class ContentionPolicyTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.ctx = context(self.root)
 
+    def test_cgroup_memory_stat_is_captured_when_available_and_optional_when_absent(self):
+        cgroot = self.root / "fake-cgroup-root"
+        cg = cgroot / "owned"
+        cg.mkdir(parents=True)
+        required = {
+            "cgroup.procs": "",
+            "cgroup.events": "populated 0\nfrozen 0\n",
+            "memory.current": "4096\n",
+            "memory.peak": "8192\n",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\n",
+            "memory.swap.current": "0\n",
+            "memory.swap.peak": "0\n",
+            "memory.swap.events": "max 0\nfail 0\n",
+            "cpu.stat": "usage_usec 0\n",
+            "memory.pressure": "some avg10=0 avg60=0 avg300=0 total=0\nfull avg10=0 avg60=0 avg300=0 total=0\n",
+            "io.pressure": "some avg10=0 avg60=0 avg300=0 total=0\nfull avg10=0 avg60=0 avg300=0 total=0\n",
+            "cpu.pressure": "some avg10=0 avg60=0 avg300=0 total=0\n",
+        }
+        for name, contents in required.items():
+            (cg / name).write_text(contents)
+        with mock.patch.object(ct, "CGROOT", cgroot):
+            (cg / "memory.stat").write_text("anon 1024\nfile 2048\nfile_mapped 512\n")
+            sampled = ct.read_cgroup_metric(cg)
+            self.assertEqual(sampled["memory_stat_bytes"],
+                             {"anon": 1024, "file": 2048, "file_mapped": 512})
+            (cg / "memory.stat").unlink()
+            self.assertIsNone(ct.read_cgroup_metric(cg)["memory_stat_bytes"])
+
     def test_rehearsal_admission_cannot_substitute_native_or_arbitrary_code(self):
         ctx = dict(
             self.ctx,
