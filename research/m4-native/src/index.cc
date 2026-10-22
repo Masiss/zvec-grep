@@ -2455,31 +2455,30 @@ class Index::Impl {
       vmin = std::min(vmin, score);
       vmax = std::max(vmax, score);
     }
-    std::unordered_map<std::string, float> fts_by_pk;
+    // Borrow map keys from stable inputs; Hit owns the pk moved into output.
+    std::unordered_map<std::string_view, Hit> merged;
     for (const auto& h : fts.hits) {
-      float norm = fmax > fmin ? (h.score - fmin) / (fmax - fmin) : 0.0f;
-      fts_by_pk[h.pk] = norm;
-    }
-    std::unordered_map<std::string, Hit> merged;
-    for (const auto& [pk, norm] : fts_by_pk) {
-      const auto vit = vector_scores.find(pk);
+      const float norm =
+          fmax > fmin ? (h.score - fmin) / (fmax - fmin) : 0.0f;
+      const auto vit = vector_scores.find(h.pk);
       float vn = 0.0f;
       if (vit != vector_scores.end() && vmax > vmin) {
         vn = (vit->second - vmin) / (vmax - vmin);
       }
-      const uint64_t id = LookupPk(pk);
+      const uint64_t id = LookupPk(h.pk);
       if (id == 0 || tombstones_.count(id) != 0) continue;
-      Hit h{id, pk, static_cast<float>(alpha * norm + (1.0 - alpha) * vn)};
-      merged[pk] = h;
+      merged[std::string_view(h.pk)] =
+          Hit{id, h.pk, static_cast<float>(alpha * norm + (1.0 - alpha) * vn)};
     }
     for (const auto& [pk, score] : vector_scores) {
-      if (merged.count(pk) != 0) continue;
+      if (merged.count(std::string_view(pk)) != 0) continue;
       const uint64_t id = LookupPk(pk);
       if (id == 0 || tombstones_.count(id) != 0) continue;
-      float vn = vmax > vmin ? (score - vmin) / (vmax - vmin) : 0.0f;
-      merged[pk] = Hit{id, pk, static_cast<float>((1.0 - alpha) * vn)};
+      const float vn = vmax > vmin ? (score - vmin) / (vmax - vmin) : 0.0f;
+      merged[std::string_view(pk)] =
+          Hit{id, pk, static_cast<float>((1.0 - alpha) * vn)};
     }
-    for (auto& [pk, h] : merged) out->hits.push_back(h);
+    for (auto& entry : merged) out->hits.push_back(std::move(entry.second));
     std::sort(out->hits.begin(), out->hits.end(),
               [](const Hit& a, const Hit& b) {
                 if (a.score != b.score) return a.score > b.score;
