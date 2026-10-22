@@ -332,8 +332,13 @@ class ContentionPolicyTests(unittest.TestCase):
         ctx.update(contract["resource_controls"])
         return ctx
 
-    def lock_contention_microbench_context(self) -> dict[str, Any]:
+    def lock_contention_microbench_context(self, workload_profile: str = "contention") -> dict[str, Any]:
         contract = ct.BENCHMARK_POLICY["lock_contention_microbench"]
+        workload = (contract["workload"] if workload_profile == "contention" else
+                    contract["memory_probe"]["workload"]) if workload_profile in (
+                        "contention", "memory_probe") else None
+        if workload is None:
+            raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
         binary_path.write_bytes(b"synthetic pinned binary; never launched")
         dictionary_path = self.root / "microbench-jieba-dict"
@@ -353,13 +358,13 @@ class ContentionPolicyTests(unittest.TestCase):
             "operation_id": operation_id,
             "operation_root": str((self.root / operation_id).resolve()),
             "resource_root": contract["resource_root"],
-            "purpose": contract["purpose"],
+            "purpose": contract["purpose"], "workload_profile": workload_profile,
             "binary_path": str(binary_path.resolve()),
             "binary_sha256": binary_sha, "approved_binary_sha256": binary_sha,
             "dictionary_path": str(dictionary_path.resolve()),
             "dictionary_tree_sha256": dictionary_sha,
             "approved_dictionary_tree_sha256": dictionary_sha,
-            "workload": contract["workload"], "arm_role": "microbench",
+            "workload": workload, "arm_role": "microbench",
             "io_pressure_mode": contract["io_pressure_mode"],
         }
         ctx.update(contract["resource_controls"])
@@ -388,8 +393,25 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertFalse(denied["continuation_allowed"])
         self.assertEqual(denied["blocking_failures"][0]["gate_id"], "M4-CA-MEM-CAPACITY")
 
+    def test_memory_probe_binds_its_registered_workload_and_same_caps(self):
+        ctx = self.lock_contention_microbench_context("memory_probe")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ctx["workload"]["documents"], 4096)
+        self.assertEqual(ctx["memory_max_bytes"],
+                         ct.BENCHMARK_POLICY["lock_contention_microbench"]["resource_controls"]["memory_max_bytes"])
+        bad_workload = dict(ctx, workload={**ctx["workload"], "documents": 8192})
+        with self.assertRaisesRegex(ValueError, "explicit operation contract"):
+            ct.validate_contention_context(bad_workload)
+        current = state()
+        current["meminfo_kib"]["MemAvailable_kib"] = int(3.5 * 1024**2)
+        current["resource_root_free_bytes"] = 32 * 1024**3
+        decision = ct.contention_decision(current, ctx, "microbench")
+        self.assertTrue(decision["continuation_allowed"])
+        self.assertEqual(ctx["host_memory_reserve_bytes"] + ctx["memory_max_bytes"],
+                         3_758_096_384)
+
     def test_lock_microbench_rejects_pair_sized_command_binding(self):
-        ctx = self.lock_contention_microbench_context()
+        ctx = self.lock_contention_microbench_context("memory_probe")
         workspace = self.root / "microbench-workspace"
         workspace.mkdir()
         wrong_command = [ctx["binary_path"], str(workspace / "root"), ctx["dictionary_path"],

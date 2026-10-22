@@ -281,10 +281,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--validate-only", action="store_true",
                         help="validate binary, dictionary, policy binding and command without host preflight or launch")
+    parser.add_argument("--workload-profile", choices=("contention", "memory_probe"),
+                        default="contention", help="select the separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:
         policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
         contract = policy["lock_contention_microbench"]
+        workload_profile = args.workload_profile
+        workload = (contract["workload"] if workload_profile == "contention" else
+                    contract["memory_probe"]["workload"])
         resource_root = pathlib.Path(contract["resource_root"]).resolve(strict=True)
     except (OSError, json.JSONDecodeError, KeyError) as exc:
         raise SystemExit(f"cannot load M4 benchmark contract/resource root: {exc}") from exc
@@ -293,7 +298,9 @@ def main() -> int:
     dictionary_sha = runner.directory_sha256(DICTIONARY)
     binary_sha = sha256(BINARY)
     now = dt.datetime.now(dt.UTC)
-    operation_id = "m4-lock-contention-microbench-" + now.strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3)
+    profile_suffix = "memory-probe-" if workload_profile == "memory_probe" else ""
+    operation_id = ("m4-lock-contention-microbench-" + profile_suffix +
+                    now.strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3))
     operation_root = RESULTS / now.strftime("%Y%m%d") / operation_id
     resource_workspace = resource_root / operation_id
     workspace_root = resource_workspace / "workspace"
@@ -304,25 +311,29 @@ def main() -> int:
         "approval_reference": contract["approval_reference"],
         "execution_authorization_reference": contract["execution_authorization_reference"],
         "risk_acceptance_reference": contract["risk_acceptance_reference"],
-        "resource_basis": "Four-arm 8,192-document M4 fixture; each arm runs 4 concurrent writers, 2 readers (32 searches each), one compaction, flush and reopen verification. Three arms use 32 individual WAL-durable Upsert calls; the explicit batching arm uses four atomic WAL-durable ApplyBatch calls for the same 32 logical mutations. The 512 MiB cgroup cap, fixed 3 GiB host reserve, and all containment/integrity/cleanup gates remain unchanged.",
+        "resource_basis": (contract["memory_probe"]["measurement_semantics"]
+                           if workload_profile == "memory_probe" else
+                           "Four-arm 8,192-document M4 fixture; each arm runs 4 concurrent writers, 2 readers (32 searches each), one compaction, flush and reopen verification. Three arms use 32 individual WAL-durable Upsert calls; the explicit batching arm uses four atomic WAL-durable ApplyBatch calls for the same 32 logical mutations. The 512 MiB cgroup cap, fixed 3 GiB host reserve, and all containment/integrity/cleanup gates remain unchanged."),
         "policy_sha256": sha256(POLICY_PATH),
         "operation_id": operation_id, "operation_root": str(operation_root.resolve()),
         "resource_root": str(resource_root),
-        "purpose": contract["purpose"], "binary_path": str(BINARY.resolve()),
+        "purpose": contract["purpose"], "workload_profile": workload_profile,
+        "binary_path": str(BINARY.resolve()),
         "binary_sha256": binary_sha, "approved_binary_sha256": binary_sha,
         "dictionary_path": str(DICTIONARY.resolve()),
         "dictionary_tree_sha256": dictionary_sha,
         "approved_dictionary_tree_sha256": dictionary_sha,
-        "workload": contract["workload"], "arm_role": "microbench",
+        "workload": workload, "arm_role": "microbench",
         "io_pressure_mode": contract["io_pressure_mode"],
         **contract["resource_controls"],
     }
     runner.validate_contention_context(ctx)
     command = [str(BINARY.resolve()), str((workspace_root / "root").resolve()),
-               str(DICTIONARY.resolve()), contract["workload"]["mode"],
-               str(contract["workload"]["documents"]), str(contract["workload"]["rounds"])]
+               str(DICTIONARY.resolve()), workload["mode"],
+               str(workload["documents"]), str(workload["rounds"])]
     if args.validate_only:
         print(json.dumps({"status": "VALIDATED_NO_LAUNCH", "operation_id": operation_id,
+                          "workload_profile": workload_profile,
                           "binary_sha256": binary_sha, "dictionary_tree_sha256": dictionary_sha,
                           "policy_sha256": ctx["policy_sha256"], "command": command,
                           "resource_controls": contract["resource_controls"]}, sort_keys=True))
@@ -335,7 +346,11 @@ def main() -> int:
     receipt_dir = operation_root / "microbench" / "containment"
     plan: dict[str, Any] = {
         "schema_version": 1, "operation_id": operation_id, "status": "PREFLIGHT",
-        "benchmark_started": False, "contract": contract, "policy_sha256": ctx["policy_sha256"],
+        "benchmark_started": False, "workload_profile": workload_profile,
+        "measurement_semantics": (contract["memory_probe"]["measurement_semantics"]
+                                   if workload_profile == "memory_probe" else
+                                   contract["measurement_semantics"]),
+        "contract": contract, "policy_sha256": ctx["policy_sha256"],
         "binary_path": str(BINARY.resolve()), "binary_sha256": binary_sha,
         "dictionary_path": str(DICTIONARY.resolve()), "dictionary_tree_sha256": dictionary_sha,
         "command": command, "resource_controls": contract["resource_controls"],
@@ -362,7 +377,8 @@ def main() -> int:
             if result.get("workload_returncode") == 0:
                 data = read_workload(receipt_dir / "stdout.log")
                 plan["workload"] = data
-                verify(result, data, contract)
+                verification_contract = {**contract, "workload": workload}
+                verify(result, data, verification_contract)
         plan["contained_result"] = result
         plan["end_host_snapshot"] = runner.host_snapshot(resource_root)
         plan["operator_host_context_after"] = host_context()

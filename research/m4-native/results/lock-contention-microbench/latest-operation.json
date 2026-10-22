@@ -1,5 +1,5 @@
 {
-  "operation_id": "m4-lock-contention-microbench-20261022-145824-f0e7c1",
-  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-20261022-145824-f0e7c1",
+  "operation_id": "m4-lock-contention-microbench-memory-probe-20261022-152438-8f6561",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-memory-probe-20261022-152438-8f6561",
   "status": "WATCHDOG_ABORT"
 }

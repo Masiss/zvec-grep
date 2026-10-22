@@ -151,6 +151,21 @@
       "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
       "tracing": false
     },
+    "memory_probe": {
+      "profile_id": "memory_probe",
+      "workload": {
+        "documents": 4096,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false
+      },
+      "measurement_semantics": "Independent memory-scaling diagnostic: seed 4,096 documents instead of 8,192, retaining the same four arms, four writers, 32 logical writes, 64 reader queries, and all unchanged resource caps. This smaller fixture is explicitly non-comparable to the 8,192-document contract and all prior measurements; analyze memory growth and tracked compaction scratch only, not latency, causal effects, or architecture performance. One fresh operation only; all preflight, containment, telemetry, correctness, durability, and cleanup gates remain mandatory. No retry after any gate failure."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {

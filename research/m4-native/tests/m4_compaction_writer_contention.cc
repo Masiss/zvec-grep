@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <cstdio>
 #include <filesystem>
 #include <functional>
 #include <iostream>
@@ -12,6 +13,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <time.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -21,6 +23,17 @@ namespace {
 
 double ElapsedMs(Clock::time_point start, Clock::time_point end) {
   return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+void EmitPhase(const std::string& arm, const char* phase, size_t ordinal = 0) {
+  timespec now{};
+  if (::clock_gettime(CLOCK_BOOTTIME, &now) != 0) return;
+  const uint64_t boot_ns = static_cast<uint64_t>(now.tv_sec) * 1000000000ull +
+                           static_cast<uint64_t>(now.tv_nsec);
+  std::fprintf(stderr, "M4_PHASE %llu %s %s %zu\n",
+               static_cast<unsigned long long>(boot_ns), arm.c_str(), phase,
+               ordinal);
+  std::fflush(stderr);
 }
 
 double Percentile(std::vector<double> values, double q) {
@@ -64,13 +77,15 @@ struct ArmResult {
   uint64_t compaction_tracked_peak_bytes{0};
 };
 
-m4::Status SeedIndex(m4::Index* index, size_t documents) {
+m4::Status SeedIndex(m4::Index* index, size_t documents,
+                     const std::string& arm) {
   constexpr size_t kDocsPerRun = 1024;
   constexpr size_t kBatch = 128;
   const std::string body =
       "needle alpha beta gamma delta epsilon zeta eta theta iota kappa lambda "
       "mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega ";
   for (size_t run = 0; run < documents; run += kDocsPerRun) {
+    EmitPhase(arm, "seed_run_start", run / kDocsPerRun);
     const size_t run_end = std::min(documents, run + kDocsPerRun);
     for (size_t batch_start = run; batch_start < run_end; batch_start += kBatch) {
       const size_t batch_end = std::min(run_end, batch_start + kBatch);
@@ -88,6 +103,7 @@ m4::Status SeedIndex(m4::Index* index, size_t documents) {
     }
     const m4::Status status = index->Flush();
     if (!status.ok) return status;
+    EmitPhase(arm, "seed_run_complete", run / kDocsPerRun);
   }
   return m4::Status::OK();
 }
@@ -95,6 +111,7 @@ m4::Status SeedIndex(m4::Index* index, size_t documents) {
 ArmResult RunArm(const fs::path& root, const std::string& name,
                  const std::string& dict_dir, size_t documents,
                  size_t writers, size_t ops_per_writer) {
+  EmitPhase(name, "arm_start");
   fs::remove_all(root);
   fs::create_directories(root);
   m4::Options options;
@@ -112,16 +129,22 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   result.writer_api_calls = batch_api ? writers : writers * ops_per_writer;
   result.logical_upserts = writers * ops_per_writer;
   std::unique_ptr<m4::Index> index;
+  EmitPhase(name, "open_start");
   m4::Status status = m4::Index::Open(root.string(), options, &index);
+  EmitPhase(name, status.ok ? "open_complete" : "open_failed");
   if (!status.ok) {
     result.compaction_status = "open-error:" + status.message;
     ++result.writer_failures;
+    EmitPhase(name, "arm_end");
     return result;
   }
-  status = SeedIndex(index.get(), documents);
+  EmitPhase(name, "seed_start");
+  status = SeedIndex(index.get(), documents, name);
+  EmitPhase(name, status.ok ? "seed_complete" : "seed_failed");
   if (!status.ok) {
     result.compaction_status = "seed-error:" + status.message;
     ++result.writer_failures;
+    EmitPhase(name, "arm_end");
     return result;
   }
   // Prepare identical API inputs before the start barrier so client-side string
@@ -155,6 +178,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   std::thread compactor([&] {
     wait_start();
     compaction_start = Clock::now();
+    EmitPhase(name, "compactor_start");
     if (name == "snapshot") {
       compaction =
           index->CompactNowSnapshotPrototype(&compaction_diagnostics);
@@ -165,6 +189,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
       compaction = index->CompactNow(&compaction_diagnostics);
     }
     compaction_end = Clock::now();
+    EmitPhase(name, compaction.ok ? "compactor_complete" : "compactor_failed");
   });
 
   std::vector<std::vector<double>> writer_samples(writers);
@@ -182,6 +207,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   for (size_t writer = 0; writer < writers; ++writer) {
     writer_threads.emplace_back([&, writer] {
       wait_start();
+      EmitPhase(name, "writer_start", writer);
       auto& samples = writer_samples[writer];
       samples.reserve(ops_per_writer);
       if (name == "apply_batch") {
@@ -211,6 +237,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
         if (!write_status.ok) {
           writer_failures.fetch_add(1, std::memory_order_relaxed);
         }
+        EmitPhase(name, "writer_complete", writer);
         return;
       }
       for (size_t op = 0; op < ops_per_writer; ++op) {
@@ -242,6 +269,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
           writer_failures.fetch_add(1, std::memory_order_relaxed);
         }
       }
+      EmitPhase(name, "writer_complete", writer);
     });
   }
 
@@ -253,6 +281,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   for (size_t reader = 0; reader < reader_samples.size(); ++reader) {
     readers.emplace_back([&, reader] {
       wait_start();
+      EmitPhase(name, "reader_start", reader);
       auto& samples = reader_samples[reader];
       auto& mutex_waits = reader_mutex_wait_samples[reader];
       samples.reserve(kQueriesPerReader);
@@ -271,8 +300,10 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
           reader_failures.fetch_add(1, std::memory_order_relaxed);
         }
       }
+      EmitPhase(name, "reader_complete", reader);
     });
   }
+  EmitPhase(name, "concurrent_start");
   {
     std::lock_guard<std::mutex> lock(start_mutex);
     start = true;
@@ -281,6 +312,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   for (auto& thread : writer_threads) thread.join();
   for (auto& thread : readers) thread.join();
   compactor.join();
+  EmitPhase(name, "concurrent_complete");
   result.writer_failures = writer_failures.load(std::memory_order_relaxed);
   result.reader_failures = reader_failures.load(std::memory_order_relaxed);
   result.compaction_ms = ElapsedMs(compaction_start, compaction_end);
@@ -314,7 +346,9 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
       compaction.message.find("superseded") != std::string::npos;
   if (!compaction.ok && !expected_abort) ++result.writer_failures;
 
+  EmitPhase(name, "post_writer_flush_start");
   status = index->Flush(&result.post_writer_flush_diagnostics);
+  EmitPhase(name, status.ok ? "post_writer_flush_complete" : "post_writer_flush_failed");
   if (!status.ok) ++result.writer_failures;
   m4::SearchResult output;
   status = index->SearchFts("writerterm", writers * ops_per_writer + 1,
@@ -328,7 +362,9 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   index.reset();
 
   std::unique_ptr<m4::Index> reopened;
+  EmitPhase(name, "reopen_start");
   status = m4::Index::Open(root.string(), options, &reopened);
+  EmitPhase(name, status.ok ? "reopen_complete" : "reopen_failed");
   if (!status.ok) {
     ++result.durability_failures;
   } else {
@@ -338,6 +374,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
       ++result.durability_failures;
     }
   }
+  EmitPhase(name, "arm_end");
   return result;
 }
 

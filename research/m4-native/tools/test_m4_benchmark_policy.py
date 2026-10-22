@@ -278,6 +278,19 @@ class BenchmarkPolicyTests(unittest.TestCase):
                          3_758_096_384)
         self.assertTrue(self.policy["lock_contention_microbench"]["no_automatic_retry"])
 
+    def test_memory_probe_is_a_non_comparable_same_caps_profile(self):
+        contract = self.policy["lock_contention_microbench"]
+        probe = contract["memory_probe"]
+        self.assertEqual(probe["profile_id"], "memory_probe")
+        self.assertEqual(probe["workload"]["documents"], 4096)
+        self.assertEqual({key: value for key, value in probe["workload"].items()
+                          if key != "documents"},
+                         {key: value for key, value in contract["workload"].items()
+                          if key != "documents"})
+        self.assertIn("non-comparable", probe["measurement_semantics"])
+        self.assertIn("not latency", probe["measurement_semantics"])
+        self.assertTrue(contract["no_automatic_retry"])
+
     def test_lock_contention_policy_matches_wal_preserving_rebase(self):
         contract = self.policy["lock_contention_microbench"]
         semantics = contract["measurement_semantics"]

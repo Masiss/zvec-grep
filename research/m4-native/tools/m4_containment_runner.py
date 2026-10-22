@@ -294,6 +294,16 @@ M4_SCALAR_LATENCY_PURPOSE = 'm4-scalar-open-latency-diagnostic'
 M4_SHARED_COLLECTION_PAIR_PURPOSE = 'm4-shared-collection-pair'
 M4_LOCK_CONTENTION_MICROBENCH_PURPOSE = 'm4-lock-contention-microbench'
 M4_SCALAR_OPEN_PURPOSES = frozenset({M4_SCALAR_RESOURCE_PURPOSE, M4_SCALAR_LATENCY_PURPOSE})
+
+
+def lock_contention_workload(context: dict[str, Any]) -> dict[str, Any]:
+    contract = BENCHMARK_POLICY['lock_contention_microbench']
+    profile = context.get('workload_profile', 'contention')
+    if profile == 'contention':
+        return contract['workload']
+    if profile == 'memory_probe':
+        return contract['memory_probe']['workload']
+    raise ValueError('unknown lock-contention workload profile')
 M4_SCALAR_LATENCY_EVIDENCE = 'EXPLORATORY / NON-QUALIFYING'
 
 
@@ -384,13 +394,14 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
             raise ValueError('shared-collection pair context differs from the owner-approved operation contract')
     elif context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE:
         contract = BENCHMARK_POLICY['lock_contention_microbench']
+        expected_workload = lock_contention_workload(context)
         binary_path = pathlib.Path(context.get('binary_path', '')).resolve()
         dictionary_path = pathlib.Path(context.get('dictionary_path', '')).resolve()
         if (not operation.startswith('m4-lock-contention-microbench-') or
                 context.get('approval_reference') != contract['approval_reference'] or
                 context.get('execution_authorization_reference') != contract['execution_authorization_reference'] or
                 context.get('risk_acceptance_reference') != contract['risk_acceptance_reference'] or
-                context.get('workload') != contract['workload'] or
+                context.get('workload') != expected_workload or
                 context.get('arm_role') != 'microbench' or
                 context.get('resource_root') != contract['resource_root'] or
                 binary_path.name != contract['binary_name'] or not binary_path.is_file() or
@@ -1589,7 +1600,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 not pathlib.Path(command[1]).exists() and
                 hashlib.sha256(binary_path.read_bytes()).hexdigest() == policy_context['binary_sha256'])
         elif m4_lock_microbench:
-            contract_workload = BENCHMARK_POLICY['lock_contention_microbench']['workload']
+            contract_workload = lock_contention_workload(policy_context)
             command_bound = (
                 len(command) == 6 and command[1] == str(workspace_root.resolve() / 'root') and
                 binary_path == pathlib.Path(command[0]).resolve() and
