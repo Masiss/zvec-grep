@@ -1196,18 +1196,33 @@ ParsedQuery ParseQuery(const std::string& query, const Analyzer& analyzer) {
   return q;
 }
 
-bool PhraseMatches(const std::vector<std::vector<uint32_t>>& positions) {
-  if (positions.empty()) return false;
-  for (size_t i = 1; i < positions.size(); ++i) {
-    if (positions[i].empty()) return false;
+bool PhraseMatches(
+    const std::vector<const std::vector<uint32_t>*>& positions,
+    std::vector<size_t>* scan_indices) {
+  if (positions.empty() || !positions[0] || !scan_indices ||
+      scan_indices->size() < positions.size()) {
+    return false;
   }
-  // Check whether the first term's positions have a consecutive chain.
-  std::vector<std::unordered_set<uint32_t>> sets;
-  for (const auto& p : positions) sets.emplace_back(p.begin(), p.end());
-  for (uint32_t start : positions[0]) {
+  for (size_t i = 1; i < positions.size(); ++i) {
+    if (!positions[i] || positions[i]->empty()) return false;
+  }
+  std::fill(scan_indices->begin(),
+            scan_indices->begin() + static_cast<std::ptrdiff_t>(positions.size()),
+            0);
+  // Position lists are sorted by the analyzer and delta-coded on disk. Scan
+  // each list monotonically instead of copying it into per-candidate sets.
+  for (uint32_t start : *positions[0]) {
     bool ok = true;
-    for (size_t i = 1; i < sets.size(); ++i) {
-      if (sets[i].count(start + static_cast<uint32_t>(i)) == 0) {
+    for (size_t i = 1; i < positions.size(); ++i) {
+      const auto& term_positions = *positions[i];
+      const uint32_t target = start + static_cast<uint32_t>(i);
+      size_t& cursor = (*scan_indices)[i];
+      while (cursor < term_positions.size() &&
+             term_positions[cursor] < target) {
+        ++cursor;
+      }
+      if (cursor == term_positions.size() ||
+          term_positions[cursor] != target) {
         ok = false;
         break;
       }
@@ -2020,6 +2035,16 @@ class Index::Impl {
 
     std::vector<std::unique_ptr<TermUnionCursor>> cursors;
     cursors.reserve(q.terms.size());
+    std::vector<const std::vector<uint32_t>*> phrase_positions;
+    std::vector<size_t> phrase_scan_indices;
+    if (!q.phrases.empty()) {
+      size_t max_phrase_terms = 0;
+      for (const auto& phrase : q.phrases) {
+        max_phrase_terms = std::max(max_phrase_terms, phrase.size());
+      }
+      phrase_positions.reserve(max_phrase_terms);
+      phrase_scan_indices.resize(max_phrase_terms);
+    }
     std::unordered_set<size_t> touched_runs;
     if (counter_diag) touched_runs.reserve(runs_.size());
     bool missing = false;
@@ -2066,7 +2091,6 @@ class Index::Impl {
     }
     if (missing && q.and_mode) return Status::OK();
     if (cursors.empty()) return Status::OK();
-    std::vector<std::string> term_pos = q.terms;
     const double execution_start = capture_timing ? NowMs() : 0.0;
     const double execution_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
 
@@ -2136,28 +2160,25 @@ class Index::Impl {
         float score = 0.0f;
         for (auto& c : cursors) score += c->score();
         bool phrase_ok = true;
-        if (!q.phrases.empty()) {
-          for (const auto& phrase : q.phrases) {
-            std::vector<std::vector<uint32_t>> positions;
-            for (const auto& pt : phrase) {
-              size_t idx = 0;
-              bool found = false;
-              for (; idx < term_pos.size(); ++idx) {
-                if (term_pos[idx] == pt) {
-                  found = true;
-                  break;
-                }
-              }
-              if (!found || idx >= cursors.size()) {
-                phrase_ok = false;
-                break;
-              }
-              positions.push_back(cursors[idx]->positions());
-            }
-            if (!phrase_ok || !PhraseMatches(positions)) {
+        for (const auto& phrase : q.phrases) {
+          phrase_positions.clear();
+          for (const auto& term : phrase) {
+            const auto it = std::find(q.terms.begin(), q.terms.end(), term);
+            if (it == q.terms.end()) {
               phrase_ok = false;
               break;
             }
+            const size_t idx = static_cast<size_t>(it - q.terms.begin());
+            if (idx >= cursors.size()) {
+              phrase_ok = false;
+              break;
+            }
+            phrase_positions.push_back(&cursors[idx]->positions());
+          }
+          if (!phrase_ok ||
+              !PhraseMatches(phrase_positions, &phrase_scan_indices)) {
+            phrase_ok = false;
+            break;
           }
         }
         if (phrase_ok) push_hit(max_doc, score);

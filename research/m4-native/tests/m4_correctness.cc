@@ -1087,7 +1087,19 @@ void TestPhrase(const std::string& dir) {
   put("b", "alpha x beta");
   put("c", "beta gamma");
   put("d", "alpha beta");
+  CheckFts(*index, ref, "\"alpha beta\"",
+           MakeRefQuery({}, false, {{"alpha", "beta"}}), 10,
+           "phrase ab delta");
+  CheckFts(*index, ref, "\"beta gamma\"",
+           MakeRefQuery({}, false, {{"beta", "gamma"}}), 10,
+           "phrase bg delta");
   Check(index->Flush().ok, "phrase flush");
+  CheckFts(*index, ref, "\"alpha beta\"",
+           MakeRefQuery({}, false, {{"alpha", "beta"}}), 10,
+           "phrase ab v1");
+  CheckFts(*index, ref, "\"beta gamma\"",
+           MakeRefQuery({}, false, {{"beta", "gamma"}}), 10,
+           "phrase bg v1");
   put("e", "alpha beta gamma alpha beta");
   Check(index->Flush().ok, "phrase second flush");
   Check(index->CompactNow().ok, "phrase compaction");
