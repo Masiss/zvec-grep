@@ -21,8 +21,8 @@ def shared_workload():
                 "writer_commit_ms": [1.0] * 5, "writer_gc_ms": [1.0] * 5,
                 "writer_cycle_ms": [2.0] * 5}
     for field in ("reader_total_ms", "reader_thread_cpu_ms", "reader_pin_wall_ms",
-                  "reader_snapshot_lock_wait_ms", "reader_vector_stage_ms",
-                  "reader_fts_stage_ms", "reader_merge_stage_ms"):
+                  "reader_snapshot_lock_wait_ms", "reader_m4_query_lock_wait_ms",
+                  "reader_vector_stage_ms", "reader_fts_stage_ms", "reader_merge_stage_ms"):
         workload[field] = [0.1] * 20
     return workload
 
@@ -58,8 +58,8 @@ class SharedPairReceiptTests(unittest.TestCase):
         result = {"status": "PASS", "workload_returncode": 0,
                   "unit_cleanup": {"verified": True}}
         workload = shared_workload()
-        workload.pop("reader_snapshot_lock_wait_ms")
-        with self.assertRaisesRegex(RuntimeError, "reader_snapshot_lock_wait_ms"):
+        workload.pop("reader_m4_query_lock_wait_ms")
+        with self.assertRaisesRegex(RuntimeError, "reader_m4_query_lock_wait_ms"):
             pair.verify_arm(result, workload, "shared-collection")
 
 

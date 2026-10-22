@@ -124,8 +124,8 @@ def verify_arm(result: dict[str, Any], data: dict[str, Any], role: str) -> None:
             if not isinstance(values, list) or len(values) != 5:
                 raise RuntimeError(f"shared-collection arm missing five {field} samples")
         for field in ("reader_total_ms", "reader_thread_cpu_ms", "reader_pin_wall_ms",
-                      "reader_snapshot_lock_wait_ms", "reader_vector_stage_ms",
-                      "reader_fts_stage_ms", "reader_merge_stage_ms"):
+                      "reader_snapshot_lock_wait_ms", "reader_m4_query_lock_wait_ms",
+                      "reader_vector_stage_ms", "reader_fts_stage_ms", "reader_merge_stage_ms"):
             values = data.get(field)
             if (not isinstance(values, list) or len(values) != 20 or
                     any(isinstance(value, bool) or not isinstance(value, (int, float)) or

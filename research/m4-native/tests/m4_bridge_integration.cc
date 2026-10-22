@@ -140,6 +140,7 @@ struct Native {
 struct Hit { std::string pk; double score; };
 struct HybridStageTimes {
   double snapshot_lock_wait_ms{0};
+  double m4_query_lock_wait_ms{0};
   double vector_ms{0};
   double fts_ms{0};
   double merge_ms{0};
@@ -652,9 +653,12 @@ class Coordinator {
     const auto fts_start = stage_times ? std::chrono::steady_clock::now()
                                        : std::chrono::steady_clock::time_point{};
     auto f = SearchFtsUnlocked(snapshot, text, m4::FilterExpr::All(), topk, m4_diagnostics);
-    if (stage_times)
+    if (stage_times) {
       stage_times->fts_ms = std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now() - fts_start).count();
+      if (m4_diagnostics)
+        stage_times->m4_query_lock_wait_ms = m4_diagnostics->mutex_wait_ms;
+    }
     const auto merge_start = stage_times ? std::chrono::steady_clock::now()
                                          : std::chrono::steady_clock::time_point{};
     std::map<std::string, double> scores;
@@ -5866,8 +5870,8 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
 
   std::vector<double> writer_commit_ms, writer_gc_ms, writer_cycle_ms, reader_total_ms,
       reader_cpu_ms, reader_pin_wall_ms, reader_snapshot_lock_wait_ms,
-      reader_vector_stage_ms, reader_fts_stage_ms, reader_merge_stage_ms,
-      m4_apply_ms, m4_flush_ms, native_upsert_ms, native_flush_ms,
+      reader_m4_query_lock_wait_ms, reader_vector_stage_ms, reader_fts_stage_ms,
+      reader_merge_stage_ms, m4_apply_ms, m4_flush_ms, native_upsert_ms, native_flush_ms,
       publish_ms, gc_m4_delete_ms, gc_m4_flush_ms, gc_native_delete_ms,
       gc_native_flush_ms, gc_compaction_ms, gc_checkpoint_ms;
   std::vector<size_t> mutation_counts, gc_examined;
@@ -5900,8 +5904,10 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
           std::chrono::steady_clock::now() - pin_start).count();
       const uint32_t generation = lease.generation();
       HybridStageTimes stages;
+      m4::QueryDiagnostics m4_diagnostics;
+      m4_diagnostics.collect_counters = false;
       const auto hits = coordinator.Hybrid(generation, query_vector, "request timeout", topk,
-                                           {}, &stages);
+                                           {}, &stages, &m4_diagnostics);
       const double elapsed_ms = std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now() - query_start).count();
       const double cpu_ms = CurrentThreadCpuMs() - query_cpu_start;
@@ -5923,6 +5929,7 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
         reader_cpu_ms.push_back(cpu_ms);
         reader_pin_wall_ms.push_back(pin_wall_ms);
         reader_snapshot_lock_wait_ms.push_back(stages.snapshot_lock_wait_ms);
+        reader_m4_query_lock_wait_ms.push_back(stages.m4_query_lock_wait_ms);
         reader_vector_stage_ms.push_back(stages.vector_ms);
         reader_fts_stage_ms.push_back(stages.fts_ms);
         reader_merge_stage_ms.push_back(stages.merge_ms);
@@ -6056,6 +6063,8 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
             << ",\"reader_pin_wall_p95_ms\":" << PercentileMs(reader_pin_wall_ms, .95)
             << ",\"reader_snapshot_lock_wait_p50_ms\":" << PercentileMs(reader_snapshot_lock_wait_ms, .50)
             << ",\"reader_snapshot_lock_wait_p95_ms\":" << PercentileMs(reader_snapshot_lock_wait_ms, .95)
+            << ",\"reader_m4_query_lock_wait_p50_ms\":" << PercentileMs(reader_m4_query_lock_wait_ms, .50)
+            << ",\"reader_m4_query_lock_wait_p95_ms\":" << PercentileMs(reader_m4_query_lock_wait_ms, .95)
             << ",\"reader_vector_stage_p50_ms\":" << PercentileMs(reader_vector_stage_ms, .50)
             << ",\"reader_vector_stage_p95_ms\":" << PercentileMs(reader_vector_stage_ms, .95)
             << ",\"reader_fts_stage_p50_ms\":" << PercentileMs(reader_fts_stage_ms, .50)
@@ -6096,6 +6105,7 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
   write_samples("reader_thread_cpu_ms", reader_cpu_ms);
   write_samples("reader_pin_wall_ms", reader_pin_wall_ms);
   write_samples("reader_snapshot_lock_wait_ms", reader_snapshot_lock_wait_ms);
+  write_samples("reader_m4_query_lock_wait_ms", reader_m4_query_lock_wait_ms);
   write_samples("reader_vector_stage_ms", reader_vector_stage_ms);
   write_samples("reader_fts_stage_ms", reader_fts_stage_ms);
   write_samples("reader_merge_stage_ms", reader_merge_stage_ms);

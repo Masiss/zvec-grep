@@ -34,6 +34,7 @@
 #include <optional>
 #include <queue>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <unordered_set>
 
@@ -1638,6 +1639,7 @@ class Index::Impl {
 
   Status Upsert(const std::string& pk, const Document& doc) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
     const Document normalized = NormalizeDocument(doc);
     const uint64_t old_id = LookupPk(pk);
     if (old_id != 0) {
@@ -1667,11 +1669,12 @@ class Index::Impl {
       if (!s.ok) return s;
     }
     pending_flush_ = true;
-    return MaybeAutoFlush();
+    return MaybeAutoFlush(&query_guard);
   }
 
   Status Delete(const std::string& pk) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
     const uint64_t id = LookupPk(pk);
     if (id == 0) return Status::OK();
     Status s = DeleteInternal(id, true);
@@ -1687,7 +1690,7 @@ class Index::Impl {
       if (!s.ok) return s;
     }
     pending_flush_ = true;
-    return MaybeAutoFlush();
+    return MaybeAutoFlush(&query_guard);
   }
 
   Status ApplyBatch(const std::vector<Mutation>& mutations) {
@@ -1767,8 +1770,11 @@ class Index::Impl {
     ++next_wal_seq_;
     last_wal_seq_ = seq;
 
-    // The WAL frame is complete (and fsynced when configured) before state is
-    // changed. All readers share this lock, so they observe old or new state.
+    // WAL construction and sync do not mutate query-visible state. Keep readers
+    // on the old snapshot until the durable frame is ready, then exclude them
+    // while applying the state transition. FlushInternal may later release this
+    // lock while building a segment, but only after the batch state is complete.
+    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
     size_t applied = 0;
     for (const auto& record : records) {
       Status status = ReplayWalPayload(record);
@@ -1778,18 +1784,20 @@ class Index::Impl {
         ::_exit(87);
       }
     }
-    return MaybeAutoFlush();
+    return MaybeAutoFlush(&query_guard);
   }
 
   Status Flush() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
     if (!pending_flush_) return Status::OK();
-    return FlushInternal();
+    return FlushInternal(query_guard);
   }
 
   Status CompactNow() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    Status s = Flush();
+    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    Status s = pending_flush_ ? FlushInternal(query_guard) : Status::OK();
     if (!s.ok) return s;
     std::vector<size_t> all;
     for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
@@ -1824,7 +1832,15 @@ class Index::Impl {
                            const FilterExpr& filter, SearchResult* out,
                            QueryDiagnostics* diagnostics) const {
     if (!diagnostics) {
-      std::lock_guard<std::recursive_mutex> lock(mutex_);
+      std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_, std::defer_lock);
+      std::unique_lock<std::shared_mutex> query_write_lock(query_mutex_, std::defer_lock);
+      std::unique_lock<std::recursive_mutex> state_lock(mutex_, std::defer_lock);
+      if (options_.cache_filter_candidates) {
+        state_lock.lock();
+        query_write_lock.lock();
+      } else {
+        query_read_lock.lock();
+      }
       std::vector<DocId> candidates;
       const std::vector<DocId>* allowed = &candidates;
       Status status;
@@ -1851,7 +1867,19 @@ class Index::Impl {
     const bool capture_timing = diagnostics->capture_timing;
     const double wait_wall_start = capture_timing ? NowMs() : 0.0;
     const double wait_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    // Cache-enabled filtered queries update shared cache state and therefore
+    // remain exclusive. The normal uncached search path is read-only and may
+    // run concurrently with other readers; writers take the exclusive query
+    // lock before mutating any index state.
+    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_, std::defer_lock);
+    std::unique_lock<std::shared_mutex> query_write_lock(query_mutex_, std::defer_lock);
+    std::unique_lock<std::recursive_mutex> state_lock(mutex_, std::defer_lock);
+    if (options_.cache_filter_candidates) {
+      state_lock.lock();
+      query_write_lock.lock();
+    } else {
+      query_read_lock.lock();
+    }
     const double wait_ms = capture_timing ? NowMs() - wait_wall_start : 0.0;
     const double wait_cpu_ms = capture_timing
                                    ? ThreadCpuMs() - wait_cpu_start
@@ -2507,10 +2535,10 @@ class Index::Impl {
 
   // ---------------------------- mutation --------------------------------
 
-  Status MaybeAutoFlush() {
+  Status MaybeAutoFlush(std::unique_lock<std::shared_mutex>* query_guard) {
     if (delta_docs_.size() >= options_.max_delta_docs ||
         delta_bytes_ >= options_.max_delta_bytes) {
-      return FlushInternal();
+      return FlushInternal(*query_guard);
     }
     return Status::OK();
   }
@@ -2647,7 +2675,13 @@ class Index::Impl {
 
   // ------------------------------ flush ----------------------------------
 
-  Status FlushInternal() {
+  Status FlushInternal(std::unique_lock<std::shared_mutex>& query_guard) {
+    // Segment construction and its durable write read the current delta but do
+    // not alter query-visible state. Let uncached readers continue against that
+    // state; re-acquire exclusively before publishing any in-memory or durable
+    // transition. The state mutex remains held to serialize writers.
+    if (query_guard.owns_lock()) query_guard.unlock();
+
     // Docs that were created and deleted inside this delta were never
     // persisted. Their tombstones are dropped only after the segment build has
     // filtered them out; dropping them before the build would resurrect them.
@@ -2765,11 +2799,15 @@ class Index::Impl {
         s = Segment::Open((fs::path(dir_) / file).string(), &new_run.segment,
                           &err);
         if (!s.ok) return Status::Error("reopen new run: " + err);
-        ++run_id_seq_;
-        segment_bytes_written_ += new_run.info.file_size;
-        bytes_written_ += new_run.info.file_size;
         wrote_run = true;
       }
+    }
+
+    if (!query_guard.owns_lock()) query_guard.lock();
+    if (wrote_run) {
+      ++run_id_seq_;
+      segment_bytes_written_ += new_run.info.file_size;
+      bytes_written_ += new_run.info.file_size;
     }
 
     // The build above already excluded these rows; now they are guaranteed
@@ -3697,6 +3735,7 @@ class Index::Impl {
 
  private:
   static constexpr size_t kFilterCandidateCacheLimitBytes = 64u << 10;
+  mutable std::shared_mutex query_mutex_;
   mutable std::recursive_mutex mutex_;
   uint64_t filter_state_epoch_{1};
   mutable uint64_t filter_cache_epoch_{0};
