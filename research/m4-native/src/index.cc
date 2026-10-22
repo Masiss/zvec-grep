@@ -40,6 +40,7 @@
 #include <unordered_set>
 
 #include "../include/m4/index.h"
+#include "writer_preferred_shared_mutex.h"
 #include "format.h"
 #include "tokenizer.h"
 #include "util.h"
@@ -1670,7 +1671,7 @@ class Index::Impl {
     s = WaitForTestWalApplyBarrier();
     if (!s.ok) return s;
 
-    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
     if (old_id != 0) {
       s = DeleteInternal(old_id, true);
       if (!s.ok) return s;
@@ -1701,7 +1702,7 @@ class Index::Impl {
     s = WaitForTestWalApplyBarrier();
     if (!s.ok) return s;
 
-    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
     s = DeleteInternal(id, true);
     if (!s.ok) return s;
     pending_flush_ = true;
@@ -1789,7 +1790,7 @@ class Index::Impl {
     // on the old snapshot until the durable frame is ready, then exclude them
     // while applying the state transition. FlushInternal may later release this
     // lock while building a segment, but only after the batch state is complete.
-    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
     size_t applied = 0;
     for (const auto& record : records) {
       Status status = ReplayWalPayload(record);
@@ -1804,14 +1805,14 @@ class Index::Impl {
 
   Status Flush() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
     if (!pending_flush_) return Status::OK();
     return FlushInternal(query_guard);
   }
 
   Status CompactNow() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
     Status s = pending_flush_ ? FlushInternal(query_guard) : Status::OK();
     if (!s.ok) return s;
     std::vector<size_t> all;
@@ -1823,13 +1824,13 @@ class Index::Impl {
   Status SearchFts(const std::string& query, uint32_t top_k, SearchResult* out,
                    QueryDiagnostics* diagnostics = nullptr) const {
     if (!diagnostics) {
-      std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+      std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
       return SearchFtsInternal(query, top_k, nullptr, out, nullptr);
     }
     const bool capture_timing = diagnostics->capture_timing;
     const double wait_wall_start = capture_timing ? NowMs() : 0.0;
     const double wait_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
-    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+    std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
     const double wait_ms = capture_timing ? NowMs() - wait_wall_start : 0.0;
     const double wait_cpu_ms = capture_timing
                                    ? ThreadCpuMs() - wait_cpu_start
@@ -1847,7 +1848,7 @@ class Index::Impl {
                            const FilterExpr& filter, SearchResult* out,
                            QueryDiagnostics* diagnostics) const {
     if (!diagnostics) {
-      std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+      std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
       std::vector<DocId> candidates;
       bool cache_hit = options_.cache_filter_candidates &&
                        ReadFilterCache(filter, &candidates);
@@ -1868,7 +1869,7 @@ class Index::Impl {
     // Filtered queries are read-only against the query-locked index snapshot.
     // Candidate-cache state has its own short mutex, so cache hits/misses do
     // not serialize readers or require the writer state mutex.
-    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_, std::defer_lock);
+    std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_, std::defer_lock);
     query_read_lock.lock();
     const double wait_ms = capture_timing ? NowMs() - wait_wall_start : 0.0;
     const double wait_cpu_ms = capture_timing
@@ -1944,7 +1945,7 @@ class Index::Impl {
   }
 
   Status SearchFilter(const FilterExpr& filter, SearchResult* out) const {
-    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+    std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     std::vector<DocId> candidates;
@@ -2229,7 +2230,7 @@ class Index::Impl {
   Status SearchInvertUint32In(const std::string& field,
                               const std::vector<uint32_t>& values,
                               SearchResult* out) const {
-    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+    std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     std::set<std::string> wanted;
@@ -2256,7 +2257,7 @@ class Index::Impl {
   Status SearchArrayUint32(const std::string& field,
                            const std::vector<uint32_t>& values,
                            bool negate, SearchResult* out) const {
-    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+    std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     if (values.size() > kMaxArrayUint32Operands) {
@@ -2318,7 +2319,7 @@ class Index::Impl {
 
   Status SearchInvert(const std::string& field, const std::string& value,
                       CompareOp op, SearchResult* out) const {
-    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+    std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     std::set<std::string> wanted;
@@ -2408,7 +2409,7 @@ class Index::Impl {
       const std::string& query, uint32_t top_k, double alpha,
       const std::unordered_map<std::string, float>& vector_scores,
       SearchResult* out) const {
-    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
+    std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
     SearchResult fts;
     Status s = SearchFtsInternal(query, std::max<uint32_t>(top_k * 4, top_k),
                                  nullptr, &fts, nullptr);
@@ -2518,7 +2519,7 @@ class Index::Impl {
 
   // ---------------------------- mutation --------------------------------
 
-  Status MaybeAutoFlush(std::unique_lock<std::shared_mutex>* query_guard) {
+  Status MaybeAutoFlush(std::unique_lock<detail::WriterPreferredSharedMutex>* query_guard) {
     if (delta_docs_.size() >= options_.max_delta_docs ||
         delta_bytes_ >= options_.max_delta_bytes) {
       return FlushInternal(*query_guard);
@@ -2683,7 +2684,7 @@ class Index::Impl {
 
   // ------------------------------ flush ----------------------------------
 
-  Status FlushInternal(std::unique_lock<std::shared_mutex>& query_guard) {
+  Status FlushInternal(std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard) {
     // Segment construction and its durable write read the current delta but do
     // not alter query-visible state. Let uncached readers continue against that
     // state; re-acquire exclusively before publishing any in-memory or durable
@@ -3029,7 +3030,7 @@ class Index::Impl {
   }
 
   Status MaybeDebtCompact(bool* merged,
-                          std::unique_lock<std::shared_mutex>& query_guard) {
+                          std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard) {
     *merged = false;
     if (!options_.debt_policy_enabled || options_.debt_max_merges_per_flush == 0) {
       return Status::OK();
@@ -3094,7 +3095,7 @@ class Index::Impl {
     return Status::OK();
   }
 
-  Status MaybeCompact(std::unique_lock<std::shared_mutex>& query_guard) {
+  Status MaybeCompact(std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard) {
     bool debt_merged = false;
     Status debt_status = MaybeDebtCompact(&debt_merged, query_guard);
     if (!debt_status.ok) return debt_status;
@@ -3208,7 +3209,7 @@ class Index::Impl {
 
   Status MergeRuns(const std::vector<size_t>& indices, uint64_t target_level,
                    bool force,
-                   std::unique_lock<std::shared_mutex>& query_guard) {
+                   std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard) {
     const double merge_start_ms = NowMs();
     if (indices.empty()) return Status::OK();
     std::vector<size_t> idx = indices;
@@ -3852,7 +3853,7 @@ class Index::Impl {
 
  private:
   static constexpr size_t kFilterCandidateCacheLimitBytes = 64u << 10;
-  mutable std::shared_mutex query_mutex_;
+  mutable detail::WriterPreferredSharedMutex query_mutex_;
   mutable std::recursive_mutex mutex_;
   mutable std::mutex filter_cache_mutex_;
   uint64_t filter_state_epoch_{1};

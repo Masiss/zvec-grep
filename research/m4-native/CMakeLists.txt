@@ -77,6 +77,17 @@ add_executable(m4_benchmark tests/m4_benchmark.cc)
 target_link_libraries(m4_benchmark PRIVATE m4_research)
 
 find_package(Threads REQUIRED)
+
+add_executable(m4_writer_preferred_mutex_test
+  tests/writer_preferred_shared_mutex_test.cc)
+target_include_directories(m4_writer_preferred_mutex_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(m4_writer_preferred_mutex_test PRIVATE
+  -Wall -Wextra -Werror -pthread)
+target_link_libraries(m4_writer_preferred_mutex_test PRIVATE Threads::Threads)
+add_test(NAME m4_writer_preferred_mutex_test
+  COMMAND m4_writer_preferred_mutex_test)
+
 if(M4_ZVEC_ROOT)
   add_executable(m4_native_fts_differential tests/native_fts_differential.cc)
   target_include_directories(m4_native_fts_differential PRIVATE
