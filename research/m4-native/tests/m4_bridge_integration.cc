@@ -6395,6 +6395,61 @@ int main(int argc, char** argv) {
     std::unique_ptr<m4::Index> fts; auto status = m4::Index::Open((root / "fts").string(), options, &fts);
     if (!status.ok) throw std::runtime_error(status.message);
     auto coordinator = std::make_unique<Coordinator>(root, native.value, fts.get());
+    {
+      const fs::path barrier_root = root / "m4-flush-publication-barrier";
+      const fs::path barrier = barrier_root / "barrier";
+      fs::remove_all(barrier_root);
+      m4::Options barrier_options = options;
+      std::unique_ptr<m4::Index> barrier_index;
+      const auto barrier_open = m4::Index::Open(
+          (barrier_root / "index").string(), barrier_options, &barrier_index);
+      if (!barrier_open.ok) throw std::runtime_error("open flush barrier fixture: " + barrier_open.message);
+      m4::Document stable; stable.text = "marker stable";
+      m4::Document old; old.text = "retired obsolete";
+      if (!barrier_index->Upsert("stable", stable).ok ||
+          !barrier_index->Upsert("replace", old).ok ||
+          !barrier_index->Flush().ok)
+        throw std::runtime_error("seed flush publication barrier fixture");
+      m4::Document replacement; replacement.text = "marker replacement";
+      m4::Document added; added.text = "marker added";
+      const std::vector<m4::Mutation> publish_batch = {
+          {m4::MutationKind::UPSERT, "replace", replacement},
+          {m4::MutationKind::UPSERT, "added", added},
+      };
+      if (!barrier_index->ApplyBatch(publish_batch).ok)
+        throw std::runtime_error("apply flush publication barrier batch");
+      if (::setenv("M4_TEST_FLUSH_PUBLICATION_BARRIER", barrier.c_str(), 1) != 0)
+        throw std::runtime_error("set flush publication test barrier");
+      std::atomic<bool> barrier_reader_ok{false};
+      std::thread barrier_reader([&] {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!fs::exists(barrier / "segment-ready") &&
+               std::chrono::steady_clock::now() < deadline)
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        m4::SearchResult during;
+        bool ok = fs::exists(barrier / "segment-ready") &&
+            barrier_index->SearchFtsFiltered("marker", 10, m4::FilterExpr::All(),
+                                              &during).ok;
+        std::set<std::string> during_pks;
+        for (const auto& hit : during.hits) during_pks.insert(hit.pk);
+        ok = ok && during_pks == std::set<std::string>({"stable", "replace", "added"});
+        { std::ofstream release(barrier / "reader-finished", std::ios::binary); release << "done\n"; }
+        barrier_reader_ok.store(ok, std::memory_order_release);
+      });
+      const auto barrier_flush = barrier_index->Flush();
+      ::unsetenv("M4_TEST_FLUSH_PUBLICATION_BARRIER");
+      barrier_reader.join();
+      Check(barrier_flush.ok, "flush resumes after reader observes unpublished segment");
+      Check(barrier_reader_ok.load(std::memory_order_acquire),
+            "reader sees complete current delta while new segment is not yet published");
+      m4::SearchResult after;
+      const auto after_status = barrier_index->SearchFtsFiltered(
+          "marker", 10, m4::FilterExpr::All(), &after);
+      std::set<std::string> after_pks;
+      for (const auto& hit : after.hits) after_pks.insert(hit.pk);
+      Check(after_status.ok && after_pks == std::set<std::string>({"stable", "replace", "added"}),
+            "published segment preserves the reader-visible snapshot");
+    }
     const auto base = Fixtures(); Check(coordinator->Commit(base, 0), "publish base generation");
     const uint32_t gen1 = coordinator->SearchSnapshot();
     const auto lexical = coordinator->SearchFts(gen1, "json request",

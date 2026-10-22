@@ -36,6 +36,7 @@
 #include <set>
 #include <shared_mutex>
 #include <string>
+#include <thread>
 #include <unordered_set>
 
 #include "../include/m4/index.h"
@@ -2803,6 +2804,32 @@ class Index::Impl {
       }
     }
 
+    if (wrote_run) {
+      // Deterministic research-test barrier: exercise readers after the new
+      // segment exists on disk but before it is published in memory/manifest.
+      // Never configured in normal execution.
+      const char* barrier_dir = std::getenv("M4_TEST_FLUSH_PUBLICATION_BARRIER");
+      if (barrier_dir && *barrier_dir) {
+        const fs::path barrier(barrier_dir);
+        std::error_code ec;
+        fs::create_directories(barrier, ec);
+        if (ec) return Status::Error("create test flush publication barrier: " + ec.message());
+        {
+          std::ofstream ready(barrier / "segment-ready", std::ios::binary);
+          if (!ready) return Status::Error("write test flush publication barrier");
+          ready << "ready\\n";
+        }
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::seconds(5);
+        while (!fs::exists(barrier / "reader-finished", ec) &&
+               std::chrono::steady_clock::now() < deadline) {
+          if (ec) return Status::Error("inspect test flush publication barrier: " + ec.message());
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        if (!fs::exists(barrier / "reader-finished", ec))
+          return Status::Error("test flush publication barrier timed out");
+      }
+    }
     if (!query_guard.owns_lock()) query_guard.lock();
     if (wrote_run) {
       ++run_id_seq_;
