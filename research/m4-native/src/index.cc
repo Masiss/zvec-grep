@@ -2429,11 +2429,18 @@ class Index::Impl {
       const std::string& query, uint32_t top_k, double alpha,
       const std::unordered_map<std::string, float>& vector_scores,
       SearchResult* out) const {
+    out->hits.clear();
+    out->examined = 0;
+    if (top_k == 0) return Status::OK();
     std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
     SearchResult fts;
-    Status s = SearchFtsInternal(query, std::max<uint32_t>(top_k * 4, top_k),
+    const uint64_t fts_top_k = std::min<uint64_t>(
+        static_cast<uint64_t>(top_k) * 4,
+        std::numeric_limits<uint32_t>::max());
+    Status s = SearchFtsInternal(query, static_cast<uint32_t>(fts_top_k),
                                  nullptr, &fts, nullptr);
     if (!s.ok) return s;
+    out->examined = fts.examined;
 
     float fmin = std::numeric_limits<float>::max();
     float fmax = std::numeric_limits<float>::lowest();
@@ -2448,8 +2455,6 @@ class Index::Impl {
       vmin = std::min(vmin, score);
       vmax = std::max(vmax, score);
     }
-    if (fts.hits.empty()) return Status::OK();
-
     std::unordered_map<std::string, float> fts_by_pk;
     for (const auto& h : fts.hits) {
       float norm = fmax > fmin ? (h.score - fmin) / (fmax - fmin) : 0.0f;
@@ -2474,7 +2479,6 @@ class Index::Impl {
       float vn = vmax > vmin ? (score - vmin) / (vmax - vmin) : 0.0f;
       merged[pk] = Hit{id, pk, static_cast<float>((1.0 - alpha) * vn)};
     }
-    out->hits.clear();
     for (auto& [pk, h] : merged) out->hits.push_back(h);
     std::sort(out->hits.begin(), out->hits.end(),
               [](const Hit& a, const Hit& b) {

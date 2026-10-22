@@ -1465,6 +1465,7 @@ void TestHybrid(const std::string& dir) {
   s = index->SearchHybrid("alpha beta", 3, 0.5, vec, &out);
   Check(s.ok, "hybrid search");
   Check(!out.hits.empty(), "hybrid non-empty");
+  Check(out.examined > 0, "hybrid reports lexical postings examined");
   Check(out.hits.size() <= 3, "hybrid top-k bound");
   // The blend must be deterministic and sorted.
   for (size_t i = 1; i < out.hits.size(); ++i) {
@@ -1474,6 +1475,21 @@ void TestHybrid(const std::string& dir) {
   for (const auto& h : out.hits) {
     Check(vec.count(h.pk) != 0, "hybrid pk domain");
   }
+
+  out.hits = {m4::Hit{999, "stale", 1.0f}};
+  out.examined = 99;
+  s = index->SearchHybrid("no_such_term", 2, 0.5, vec, &out);
+  Check(s.ok, "hybrid vector-only status");
+  Check(out.hits.size() == 2 && out.hits[0].pk == "e" &&
+            out.hits[1].pk == "b",
+        "hybrid returns vector-only candidates when FTS has no hits");
+  Check(out.examined == 0, "hybrid clears stale examined count");
+
+  out.hits = {m4::Hit{999, "stale", 1.0f}};
+  out.examined = 99;
+  s = index->SearchHybrid("alpha", 0, 0.5, vec, &out);
+  Check(s.ok && out.hits.empty() && out.examined == 0,
+        "hybrid top-k zero clears prior results");
 }
 
 
