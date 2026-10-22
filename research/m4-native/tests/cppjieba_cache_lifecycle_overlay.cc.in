@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -28,6 +29,24 @@ void WriteDictionary(const fs::path& path, const std::string& contents) {
   if (!output) throw std::runtime_error("cannot write dictionary fixture");
 }
 
+void CheckDefaultUserWordWeight(const fs::path& dict_path,
+                                cppjieba::DictTrie::UserWordWeightOption option,
+                                double expected_weight,
+                                const std::string& label) {
+  cppjieba::DictTrie analyzer(dict_path.string(), "", option);
+  const double expected_minimum = std::log(25.0 / 175.0);
+  Check(std::abs(analyzer.GetMinWeight() - expected_minimum) < 1e-12,
+        label + " min weight changed");
+  Check(analyzer.InsertUserWord("weightprobe"), label + " insertion failed");
+  cppjieba::RuneStrArray runes;
+  Check(cppjieba::DecodeUTF8RunesInString(std::string("weightprobe"), runes),
+        label + " UTF-8 decoding failed");
+  const cppjieba::DictUnit* unit = analyzer.Find(runes.begin(), runes.end());
+  Check(unit != nullptr, label + " inserted term was not found");
+  Check(std::abs(unit->weight - expected_weight) < 1e-12,
+        label + " default user-word weight changed");
+}
+
 }  // namespace
 
 int main() {
@@ -39,7 +58,7 @@ int main() {
     const fs::path first_path = root / "dictionary-a.txt";
     const fs::path second_path = root / "dictionary-b.txt";
     const fs::path shared_path = root / "dictionary-shared.txt";
-    WriteDictionary(first_path, "alpha 100 n\nshared 50 n\n");
+    WriteDictionary(first_path, "alpha 100 n\nshared 50 n\ngamma 25 n\n");
     WriteDictionary(second_path, "beta 100 n\nshared 50 n\n");
     WriteDictionary(shared_path, "shared 100 n\n");
 
@@ -146,6 +165,13 @@ int main() {
           "expired older version did not rebuild its own cache entry");
     Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
           "reopening an older version left multiple unleased cache entries");
+
+    CheckDefaultUserWordWeight(first_path, cppjieba::DictTrie::WordWeightMin,
+                               std::log(25.0 / 175.0), "minimum");
+    CheckDefaultUserWordWeight(first_path, cppjieba::DictTrie::WordWeightMedian,
+                               std::log(50.0 / 175.0), "median");
+    CheckDefaultUserWordWeight(first_path, cppjieba::DictTrie::WordWeightMax,
+                               std::log(100.0 / 175.0), "maximum");
 
     std::error_code cleanup_error;
     fs::remove_all(root, cleanup_error);

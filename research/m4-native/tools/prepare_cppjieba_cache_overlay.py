@@ -33,8 +33,12 @@ def tree_sha256(root: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
-def prepare(source: pathlib.Path, output: pathlib.Path) -> tuple[pathlib.Path, str, bool]:
+def prepare(source: pathlib.Path, output: pathlib.Path,
+            patch: pathlib.Path = PATCH) -> tuple[pathlib.Path, str, bool]:
     source = source.resolve(strict=True)
+    patch = patch.resolve(strict=True)
+    if not patch.is_file():
+        raise ValueError(f"cppjieba overlay patch is not a file: {patch}")
     scratch = (M4_ROOT / ".work/scratch").resolve()
     scratch.mkdir(parents=True, exist_ok=True)
     output = output.resolve()
@@ -49,7 +53,7 @@ def prepare(source: pathlib.Path, output: pathlib.Path) -> tuple[pathlib.Path, s
         staged_headers = pathlib.Path(temporary) / "cppjieba"
         shutil.copytree(source, staged_headers)
         result = subprocess.run(
-            ["patch", "--batch", "--forward", "-p1", "-i", str(PATCH)],
+            ["patch", "--batch", "--forward", "-p1", "-i", str(patch)],
             cwd=staged_headers, text=True, capture_output=True, check=False)
         if result.returncode != 0:
             raise RuntimeError(f"could not apply the pinned cppjieba cache patch: {result.stderr.strip()}")
@@ -81,12 +85,15 @@ def main() -> int:
                         help="pinned cppjieba include/cppjieba directory")
     parser.add_argument("--output", type=pathlib.Path, default=DEFAULT_OUTPUT,
                         help="new or already-matching disposable output under .work/scratch")
+    parser.add_argument("--patch", type=pathlib.Path, default=PATCH,
+                        help="research patch to apply (defaults to the bounded lifecycle patch)")
     args = parser.parse_args()
     try:
-        output, digest, created = prepare(args.source, args.output)
+        output, digest, created = prepare(args.source, args.output, args.patch)
     except (OSError, ValueError, RuntimeError) as exc:
         parser.error(str(exc))
     print({"overlay": str(output), "cppjieba_headers_sha256": digest,
+           "patch_sha256": hashlib.sha256(args.patch.read_bytes()).hexdigest(),
            "created": created, "testing_instrumentation": "compile-only macro"})
     return 0
 

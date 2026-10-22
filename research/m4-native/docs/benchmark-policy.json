@@ -245,6 +245,27 @@
       },
       "measurement_semantics": "One distinct contained profile using the research-only cppjieba DictTrie cache-eviction overlay at the exact repository-relative binary path. First run the same 1,024-seed/four-arm workload under unchanged hard/soft caps, then initialize two distinct dictionary versions in one process and record per-version PSS/RSS before and after release. Compare retained/live-entry evidence against the prior uncapped one-entry cache implementation and same-workload baseline descriptively; this is not an isolated benchmark, causal attribution, latency comparison, or capacity claim. The source-level regression separately checks same-key coalescing, concurrent analyzer lifecycle, generation release, and reopening an older version. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried."
     },
+    "memory_churn_two_versions_memory_opt": {
+      "profile_id": "memory_churn_two_versions_memory_opt",
+      "binary_relative_path": ".work/build/dict-cache-eviction-memory-opt-final/m4_compaction_writer_contention",
+      "binary_sha256": "722a6ac23d7121ec7b37a6cab910e09433a756335f3a616af275d3a4956e38bc",
+      "cppjieba_patch_relative_path": "patches/cppjieba-dict-cache-lifecycle-memory-optimized.patch",
+      "cppjieba_patch_sha256": "2e81ef69aebfd221aae604bc1e077acdb34b89eafd6c383b5caaff0af602a864",
+      "cppjieba_overlay_sha256": "93635d1eed3c9e31f61c732d056e6f0c06cea40c75004221489dbb8547729f1a",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One exploratory same-workload/same-cap comparison with memory_churn_two_versions_eviction. The source-only research patch replaces a full DictUnit sort-copy with scalar weight min/max/median selection and moves parsed DictUnit storage into the immutable cache entry. Lifecycle and exact min/median/max user-weight tests pass. Capture cgroup memory.stat and per-version PSS/init timing; this single run is directional, not an isolated causal measurement, stable performance result, or capacity claim. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {

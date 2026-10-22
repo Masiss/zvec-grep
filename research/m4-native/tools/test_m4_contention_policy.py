@@ -370,7 +370,8 @@ class ContentionPolicyTests(unittest.TestCase):
                         "memory_trace_after_snapshot_fix",
                         "memory_trace_scale2_after_snapshot_fix",
                         "memory_churn_two_versions",
-                        "memory_churn_two_versions_eviction") else None
+                        "memory_churn_two_versions_eviction",
+                        "memory_churn_two_versions_memory_opt") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -598,6 +599,42 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertRegex(profile["binary_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(profile["workload"],
                          contract["memory_churn_two_versions"]["workload"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertEqual(ctx["pids_max"], 128)
+
+    def test_memory_optimized_cache_profile_binds_exact_patch_binary_and_caps(self):
+        name = "memory_churn_two_versions_memory_opt"
+        ctx = self.lock_contention_microbench_context(name)
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        contract = ct.BENCHMARK_POLICY["lock_contention_microbench"]
+        profile = contract[name]
+        self.assertEqual(microbench.profile_binary(profile),
+                         (microbench.BASE / profile["binary_relative_path"]).resolve())
+        patch_path = microbench.BASE / profile["cppjieba_patch_relative_path"]
+        self.assertEqual(hashlib.sha256(patch_path.read_bytes()).hexdigest(),
+                         profile["cppjieba_patch_sha256"])
+        overlay_spec = importlib.util.spec_from_file_location(
+            "cppjieba_cache_overlay",
+            microbench.BASE / "tools/prepare_cppjieba_cache_overlay.py")
+        if overlay_spec is None or overlay_spec.loader is None:
+            raise RuntimeError("failed to load cppjieba overlay hashing helper")
+        overlay_module = importlib.util.module_from_spec(overlay_spec)
+        overlay_spec.loader.exec_module(overlay_module)
+        scratch = microbench.BASE / ".work/scratch"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="m4-cppjieba-overlay-test-",
+                                         dir=scratch) as temporary:
+            overlay_path = pathlib.Path(temporary) / "overlay"
+            _, overlay_sha256, created = overlay_module.prepare(
+                overlay_module.DEFAULT_SOURCE, overlay_path, patch_path)
+            self.assertTrue(created)
+            self.assertEqual(overlay_module.tree_sha256(overlay_path / "cppjieba"),
+                             profile["cppjieba_overlay_sha256"])
+            self.assertEqual(overlay_sha256, profile["cppjieba_overlay_sha256"])
+        self.assertEqual(profile["workload"],
+                         contract["memory_churn_two_versions_eviction"]["workload"])
         self.assertEqual(ctx["memory_max_bytes"], 536870912)
         self.assertEqual(ctx["memory_swap_max_bytes"], 0)
         self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
