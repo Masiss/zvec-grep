@@ -165,6 +165,8 @@ struct WriteDiagnostics {
   double wal_encode_cpu_ms{0.0};
   double wal_append_ms{0.0};
   double wal_append_cpu_ms{0.0};
+  double wal_write_ms{0.0};
+  double wal_fsync_ms{0.0};
   double query_mutex_wait_ms{0.0};
   double query_mutex_wait_cpu_ms{0.0};
   double apply_ms{0.0};

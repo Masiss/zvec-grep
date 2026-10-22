@@ -703,7 +703,8 @@ class Wal {
     return Status::OK();
   }
 
-  Status Append(uint64_t seq, const std::string& payload, bool sync) {
+  Status Append(uint64_t seq, const std::string& payload, bool sync,
+                double* write_ms = nullptr, double* fsync_ms = nullptr) {
     if (fd_ < 0) return Status::OK();
     if (poisoned_) return Status::Error("wal requires reopen after prior I/O failure");
     if (payload.size() > std::numeric_limits<uint32_t>::max()) {
@@ -721,6 +722,7 @@ class Wal {
     w.U32(static_cast<uint32_t>(Fnv1a(payload.data(), payload.size()) & 0xffffffffu));
     w.Bytes(payload.data(), payload.size());
     const std::string& rec = w.data();
+    const double write_started = write_ms ? NowMs() : 0.0;
     size_t done = 0;
     while (done < rec.size()) {
       const ssize_t n = ::write(fd_, rec.data() + done, rec.size() - done);
@@ -740,8 +742,12 @@ class Wal {
       }
       done += static_cast<size_t>(n);
     }
+    if (write_ms) *write_ms = NowMs() - write_started;
     if (sync) {
-      if (::fsync(fd_) != 0) {
+      const double fsync_started = fsync_ms ? NowMs() : 0.0;
+      const int fsync_result = ::fsync(fd_);
+      if (fsync_ms) *fsync_ms = NowMs() - fsync_started;
+      if (fsync_result != 0) {
         poisoned_ = true;
         return Status::Error("wal fsync failed: " + std::string(std::strerror(errno)));
       }
@@ -1829,7 +1835,9 @@ class Index::Impl {
         wall_start = NowMs();
         cpu_start = ThreadCpuMs();
       }
-      s = wal_.Append(seq, w.data(), options_.fsync_wal);
+      s = wal_.Append(seq, w.data(), options_.fsync_wal,
+                      capture ? &diagnostics->wal_write_ms : nullptr,
+                      capture ? &diagnostics->wal_fsync_ms : nullptr);
       if (capture) {
         diagnostics->wal_append_ms = NowMs() - wall_start;
         diagnostics->wal_append_cpu_ms = ThreadCpuMs() - cpu_start;
@@ -2027,7 +2035,10 @@ class Index::Impl {
     if (options_.wal_enabled) {
       const double wal_wall = capture ? NowMs() : 0.0;
       const double wal_cpu = capture ? ThreadCpuMs() : 0.0;
-      Status status = wal_.Append(seq, batch.data(), options_.fsync_wal);
+      Status status = wal_.Append(
+          seq, batch.data(), options_.fsync_wal,
+          capture ? &diagnostics->wal_write_ms : nullptr,
+          capture ? &diagnostics->wal_fsync_ms : nullptr);
       if (capture) {
         diagnostics->wal_append_ms = NowMs() - wal_wall;
         diagnostics->wal_append_cpu_ms = ThreadCpuMs() - wal_cpu;
@@ -4732,7 +4743,11 @@ Status Index::Upsert(const std::string& pk, const Document& document) {
 }
 Status Index::Upsert(const std::string& pk, const Document& document,
                      WriteDiagnostics* diagnostics) {
-  if (diagnostics) *diagnostics = WriteDiagnostics{};
+  if (diagnostics) {
+    const bool requested = diagnostics->capture_timing;
+    *diagnostics = WriteDiagnostics{};
+    diagnostics->capture_timing = requested;
+  }
   return impl_->Upsert(pk, document, diagnostics);
 }
 Status Index::Delete(const std::string& pk) { return impl_->Delete(pk); }

@@ -50,6 +50,8 @@ struct ArmResult {
   std::vector<double> wal_encode_cpu_ms;
   std::vector<double> wal_append_ms;
   std::vector<double> wal_append_cpu_ms;
+  std::vector<double> wal_write_ms;
+  std::vector<double> wal_fsync_ms;
   std::vector<double> query_wait_ms;
   std::vector<double> apply_ms;
   std::vector<double> auto_flush_ms;
@@ -170,7 +172,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
       state_wait_cpu_samples(writers), state_hold_samples(writers),
       state_hold_cpu_samples(writers), wal_encode_samples(writers),
       wal_encode_cpu_samples(writers), wal_append_samples(writers),
-      wal_append_cpu_samples(writers), query_wait_samples(writers),
+      wal_append_cpu_samples(writers), wal_write_samples(writers),
+      wal_fsync_samples(writers), query_wait_samples(writers),
       apply_samples(writers), auto_flush_samples(writers);
   std::atomic<size_t> writer_failures{0};
   std::vector<std::thread> writer_threads;
@@ -199,6 +202,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
         wal_append_samples[writer].push_back(diagnostics.wal_append_ms);
         wal_append_cpu_samples[writer].push_back(
             diagnostics.wal_append_cpu_ms);
+        wal_write_samples[writer].push_back(diagnostics.wal_write_ms);
+        wal_fsync_samples[writer].push_back(diagnostics.wal_fsync_ms);
         query_wait_samples[writer].push_back(diagnostics.query_mutex_wait_ms);
         apply_samples[writer].push_back(diagnostics.apply_ms);
         auto_flush_samples[writer].push_back(diagnostics.auto_flush_ms);
@@ -227,6 +232,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
         wal_append_samples[writer].push_back(diagnostics.wal_append_ms);
         wal_append_cpu_samples[writer].push_back(
             diagnostics.wal_append_cpu_ms);
+        wal_write_samples[writer].push_back(diagnostics.wal_write_ms);
+        wal_fsync_samples[writer].push_back(diagnostics.wal_fsync_ms);
         query_wait_samples[writer].push_back(diagnostics.query_mutex_wait_ms);
         apply_samples[writer].push_back(diagnostics.apply_ms);
         auto_flush_samples[writer].push_back(diagnostics.auto_flush_ms);
@@ -295,6 +302,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   append_samples(&result.wal_encode_cpu_ms, wal_encode_cpu_samples);
   append_samples(&result.wal_append_ms, wal_append_samples);
   append_samples(&result.wal_append_cpu_ms, wal_append_cpu_samples);
+  append_samples(&result.wal_write_ms, wal_write_samples);
+  append_samples(&result.wal_fsync_ms, wal_fsync_samples);
   append_samples(&result.query_wait_ms, query_wait_samples);
   append_samples(&result.apply_ms, apply_samples);
   append_samples(&result.auto_flush_ms, auto_flush_samples);
@@ -516,6 +525,10 @@ void PrintArm(const ArmResult& arm, bool last) {
   std::cout << ",\"wal_append_p95_ms\":" << Percentile(arm.wal_append_ms, 0.95)
             << ",\"wal_append_cpu_samples\":";
   PrintValues(arm.wal_append_cpu_ms);
+  std::cout << ",\"wal_write_samples\":";
+  PrintValues(arm.wal_write_ms);
+  std::cout << ",\"wal_fsync_samples\":";
+  PrintValues(arm.wal_fsync_ms);
   std::cout << ",\"query_wait_samples\":";
   PrintValues(arm.query_wait_ms);
   std::cout << ",\"query_wait_p95_ms\":" << Percentile(arm.query_wait_ms, 0.95)
@@ -580,7 +593,7 @@ int main(int argc, char** argv) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
   }
-  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":5,\"documents\":"
+  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":6,\"documents\":"
             << documents << ",\"writers\":" << writers
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count

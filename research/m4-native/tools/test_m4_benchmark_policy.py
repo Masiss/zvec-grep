@@ -42,6 +42,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
             "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
             "apply_samples", "auto_flush_samples", "normalize_samples",
             "normalize_cpu_samples", "wal_encode_samples", "wal_encode_cpu_samples")
+        if timing_schema >= 6:
+            writer_series += ("wal_write_samples", "wal_fsync_samples")
         timing_fields = (
             "total_ms", "total_cpu_ms", "state_mutex_wait_ms",
             "state_mutex_wait_cpu_ms", "state_mutex_hold_ms",
@@ -63,6 +65,9 @@ class BenchmarkPolicyTests(unittest.TestCase):
             api_calls = (workload["writers"] if include_compaction_timing and batch_api
                          else rounds)
             arm = {key: [0.25] * api_calls for key in writer_series}
+            if timing_schema >= 6:
+                arm["wal_write_samples"] = [0.01] * api_calls
+                arm["wal_fsync_samples"] = [0.01] * api_calls
             arm.update({
                 "name": name,
                 "compaction_status": "ok",
@@ -147,6 +152,13 @@ class BenchmarkPolicyTests(unittest.TestCase):
         flush = data["arms"][0]["post_writer_flush_diagnostics"]
         flush["flush_stage_timing"]["segment_write_ms"] = 0.25
         with self.assertRaisesRegex(RuntimeError, "post-writer flush stages exceed"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_bounded_wal_substages(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=6)
+        lock_runner.verify(result, data, contract)
+        data["arms"][0]["wal_fsync_samples"][0] = 1.0
+        with self.assertRaisesRegex(RuntimeError, "WAL write/fsync substage"):
             lock_runner.verify(result, data, contract)
 
     def test_contention_verifier_checks_new_compaction_timing_fields(self):

@@ -1186,6 +1186,7 @@ void TestAtomicMutationBatch(const std::string& root) {
         diagnostics.state_mutex_hold_ms, diagnostics.state_mutex_hold_cpu_ms,
         diagnostics.wal_encode_ms, diagnostics.wal_encode_cpu_ms,
         diagnostics.wal_append_ms, diagnostics.wal_append_cpu_ms,
+        diagnostics.wal_write_ms, diagnostics.wal_fsync_ms,
         diagnostics.query_mutex_wait_ms, diagnostics.query_mutex_wait_cpu_ms,
         diagnostics.apply_ms, diagnostics.apply_cpu_ms,
         diagnostics.auto_flush_ms, diagnostics.auto_flush_cpu_ms};
@@ -1193,14 +1194,28 @@ void TestAtomicMutationBatch(const std::string& root) {
       Check(std::isfinite(timing) && timing >= 0.0,
             "batch diagnostics are finite and nonnegative");
     }
+    Check(diagnostics.wal_write_ms + diagnostics.wal_fsync_ms <=
+              diagnostics.wal_append_ms + 1e-3,
+          "WAL write and fsync timings are contained in append duration");
     m4::WriteDiagnostics disabled;
     disabled.capture_timing = false;
     Check(index->ApplyBatch({{m4::MutationKind::UPSERT, "untimed",
                               doc("untimed batch")}}, &disabled).ok,
           "untimed batch apply");
     Check(disabled.state_mutex_hold_ms == 0.0 &&
-              disabled.wal_append_ms == 0.0 && disabled.apply_ms == 0.0,
+              disabled.wal_append_ms == 0.0 && disabled.wal_write_ms == 0.0 &&
+              disabled.wal_fsync_ms == 0.0 && disabled.apply_ms == 0.0,
           "disabled batch diagnostics stay zero");
+    m4::WriteDiagnostics disabled_upsert;
+    disabled_upsert.capture_timing = false;
+    Check(index->Upsert("untimed-upsert", doc("untimed writer"),
+                        &disabled_upsert).ok,
+          "untimed Upsert");
+    Check(!disabled_upsert.capture_timing &&
+              disabled_upsert.wal_append_ms == 0.0 &&
+              disabled_upsert.wal_write_ms == 0.0 &&
+              disabled_upsert.wal_fsync_ms == 0.0,
+          "disabled Upsert WAL diagnostics stay zero");
 
     m4::CompactionDiagnostics flush_diagnostics;
     Check(index->Flush(&flush_diagnostics).ok,
@@ -1649,6 +1664,13 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
             write_diagnostics.state_mutex_hold_ms > 0.0 &&
             write_diagnostics.state_mutex_hold_ms >=
                 write_diagnostics.wal_append_ms &&
+            std::isfinite(write_diagnostics.wal_write_ms) &&
+            std::isfinite(write_diagnostics.wal_fsync_ms) &&
+            write_diagnostics.wal_write_ms >= 0.0 &&
+            write_diagnostics.wal_fsync_ms >= 0.0 &&
+            write_diagnostics.wal_write_ms +
+                    write_diagnostics.wal_fsync_ms <=
+                write_diagnostics.wal_append_ms + 1e-3 &&
             std::isfinite(write_diagnostics.state_mutex_hold_cpu_ms) &&
             write_diagnostics.state_mutex_hold_cpu_ms >= 0.0,
         "writer diagnostics measure state-lock hold wall and CPU time");
