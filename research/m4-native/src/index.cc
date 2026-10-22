@@ -2080,11 +2080,44 @@ class Index::Impl {
     return flush_status;
   }
 
-  Status Flush() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+  Status Flush() { return Flush(nullptr); }
+
+  Status Flush(CompactionDiagnostics* diagnostics) {
+    const bool capture = diagnostics && diagnostics->capture_timing;
+    if (diagnostics) {
+      const bool requested = diagnostics->capture_timing;
+      *diagnostics = CompactionDiagnostics{};
+      diagnostics->capture_timing = requested;
+    }
+    ScopedStageTimer total_timer(capture ? &diagnostics->total_ms : nullptr,
+                                 capture ? &diagnostics->total_cpu_ms : nullptr);
+    const double state_wait_wall = capture ? NowMs() : 0.0;
+    const double state_wait_cpu = capture ? ThreadCpuMs() : 0.0;
+    std::unique_lock<std::recursive_mutex> state_guard(mutex_);
+    if (capture) {
+      diagnostics->state_mutex_wait_ms = NowMs() - state_wait_wall;
+      diagnostics->state_mutex_wait_cpu_ms =
+          ThreadCpuMs() - state_wait_cpu;
+    }
+    ScopedStageTimer state_hold_timer(
+        capture ? &diagnostics->state_mutex_hold_ms : nullptr,
+        capture ? &diagnostics->state_mutex_hold_cpu_ms : nullptr);
+    const double query_wait_wall = capture ? NowMs() : 0.0;
+    const double query_wait_cpu = capture ? ThreadCpuMs() : 0.0;
     std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
+    if (capture) {
+      diagnostics->query_mutex_wait_ms = NowMs() - query_wait_wall;
+      diagnostics->query_mutex_wait_cpu_ms = ThreadCpuMs() - query_wait_cpu;
+    }
     if (!pending_flush_) return Status::OK();
-    return FlushInternal(query_guard);
+    const double flush_wall = capture ? NowMs() : 0.0;
+    const double flush_cpu = capture ? ThreadCpuMs() : 0.0;
+    Status status = FlushInternal(query_guard, diagnostics);
+    if (capture) {
+      diagnostics->pending_flush_ms = NowMs() - flush_wall;
+      diagnostics->pending_flush_cpu_ms = ThreadCpuMs() - flush_cpu;
+    }
+    return status;
   }
 
   Status CompactNow() {
@@ -4708,6 +4741,9 @@ Status Index::ApplyBatch(const std::vector<Mutation>& mutations,
   return impl_->ApplyBatch(mutations, diagnostics);
 }
 Status Index::Flush() { return impl_->Flush(); }
+Status Index::Flush(CompactionDiagnostics* diagnostics) {
+  return impl_->Flush(diagnostics);
+}
 Status Index::CompactNow() { return impl_->CompactNow(); }
 Status Index::CompactNow(CompactionDiagnostics* diagnostics) {
   return impl_->CompactNow(diagnostics);

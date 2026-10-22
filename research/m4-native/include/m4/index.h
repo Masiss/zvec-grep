@@ -414,6 +414,8 @@ class Index {
   // Seal the active delta into an immutable run, commit a manifest, then apply
   // the compaction policy. Cost is O(change), not O(collection).
   Status Flush();
+  // Research-only stage timing for an explicit flush; null adds no timers.
+  Status Flush(CompactionDiagnostics* diagnostics);
 
   // Research/maintenance hook: merge all runs and drop tombstones. Cost is
   // O(live collection); used by tests and compaction benchmarks.

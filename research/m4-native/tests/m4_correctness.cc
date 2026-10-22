@@ -1201,6 +1201,59 @@ void TestAtomicMutationBatch(const std::string& root) {
     Check(disabled.state_mutex_hold_ms == 0.0 &&
               disabled.wal_append_ms == 0.0 && disabled.apply_ms == 0.0,
           "disabled batch diagnostics stay zero");
+
+    m4::CompactionDiagnostics flush_diagnostics;
+    Check(index->Flush(&flush_diagnostics).ok,
+          "explicit flush diagnostics flush pending batch");
+    const double flush_timings[] = {
+        flush_diagnostics.total_ms, flush_diagnostics.total_cpu_ms,
+        flush_diagnostics.state_mutex_wait_ms,
+        flush_diagnostics.state_mutex_wait_cpu_ms,
+        flush_diagnostics.state_mutex_hold_ms,
+        flush_diagnostics.state_mutex_hold_cpu_ms,
+        flush_diagnostics.query_mutex_wait_ms,
+        flush_diagnostics.query_mutex_wait_cpu_ms,
+        flush_diagnostics.pending_flush_ms,
+        flush_diagnostics.pending_flush_cpu_ms,
+        flush_diagnostics.flush_segment_build_ms,
+        flush_diagnostics.flush_segment_build_cpu_ms,
+        flush_diagnostics.flush_segment_write_ms,
+        flush_diagnostics.flush_segment_write_cpu_ms,
+        flush_diagnostics.flush_segment_open_ms,
+        flush_diagnostics.flush_segment_open_cpu_ms,
+        flush_diagnostics.flush_query_mutex_wait_ms,
+        flush_diagnostics.flush_query_mutex_wait_cpu_ms,
+        flush_diagnostics.flush_stats_append_ms,
+        flush_diagnostics.flush_stats_append_cpu_ms,
+        flush_diagnostics.flush_tombstone_write_ms,
+        flush_diagnostics.flush_tombstone_write_cpu_ms,
+        flush_diagnostics.flush_manifest_write_ms,
+        flush_diagnostics.flush_manifest_write_cpu_ms,
+        flush_diagnostics.flush_wal_reset_ms,
+        flush_diagnostics.flush_wal_reset_cpu_ms,
+        flush_diagnostics.flush_gc_ms,
+        flush_diagnostics.flush_gc_cpu_ms,
+        flush_diagnostics.flush_delta_reset_ms,
+        flush_diagnostics.flush_delta_reset_cpu_ms};
+    for (double timing : flush_timings) {
+      Check(std::isfinite(timing) && timing >= 0.0,
+            "explicit flush diagnostics are finite and nonnegative");
+    }
+    Check(flush_diagnostics.total_ms >= flush_diagnostics.pending_flush_ms &&
+              flush_diagnostics.state_mutex_hold_ms >=
+                  flush_diagnostics.pending_flush_ms,
+          "explicit flush phase lies within lock and total durations");
+
+    m4::CompactionDiagnostics disabled_flush;
+    disabled_flush.capture_timing = false;
+    Check(index->Upsert("untimed-flush", doc("flush without timers")).ok,
+          "prepare untimed explicit flush");
+    Check(index->Flush(&disabled_flush).ok, "untimed explicit flush");
+    Check(disabled_flush.total_ms == 0.0 &&
+              disabled_flush.state_mutex_hold_ms == 0.0 &&
+              disabled_flush.pending_flush_ms == 0.0 &&
+              disabled_flush.flush_manifest_write_ms == 0.0,
+          "disabled explicit flush diagnostics stay zero");
   }
 
   auto seed = [&](const std::string& dir) {

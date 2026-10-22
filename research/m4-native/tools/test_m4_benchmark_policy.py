@@ -31,7 +31,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
     def setUp(self):
         self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
 
-    def _valid_contention_receipt(self, include_compaction_timing=True):
+    def _valid_contention_receipt(self, include_compaction_timing=True,
+                                  timing_schema=4):
         contract = self.policy["lock_contention_microbench"]
         workload = contract["workload"]
         rounds = workload["rounds"]
@@ -95,6 +96,22 @@ class BenchmarkPolicyTests(unittest.TestCase):
                         **dict.fromkeys(flush_stage_fields, 0.01),
                     },
                 }
+                if timing_schema >= 5:
+                    arm["post_writer_flush_diagnostics"] = {
+                        "total_ms": 0.5, "total_cpu_ms": 0.2,
+                        "state_mutex_wait_ms": 0.01,
+                        "state_mutex_wait_cpu_ms": 0.001,
+                        "state_mutex_hold_ms": 0.3,
+                        "state_mutex_hold_cpu_ms": 0.1,
+                        "query_mutex_wait_ms": 0.01,
+                        "query_mutex_wait_cpu_ms": 0.001,
+                        "pending_flush_ms": 0.2,
+                        "pending_flush_cpu_ms": 0.1,
+                        "flush_stage_timing": {
+                            "schema_version": 1,
+                            **dict.fromkeys(flush_stage_fields, 0.005),
+                        },
+                    }
             arms.append(arm)
         data = {
             "mode": "m4_compaction_contention",
@@ -110,10 +127,24 @@ class BenchmarkPolicyTests(unittest.TestCase):
             "arms": arms,
         }
         if include_compaction_timing:
-            data["timing_schema_version"] = 4
+            data["timing_schema_version"] = timing_schema
         result = {"status": "PASS", "workload_returncode": 0,
                   "controller_cleanup": {"verified": True}}
         return result, data, contract
+
+    def test_contention_verifier_requires_post_writer_flush_diagnostics(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        lock_runner.verify(result, data, contract)
+        data["arms"][0].pop("post_writer_flush_diagnostics")
+        with self.assertRaisesRegex(RuntimeError, "post-writer flush diagnostics"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_rejects_post_writer_flush_stages_outside_duration(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        flush = data["arms"][0]["post_writer_flush_diagnostics"]
+        flush["flush_stage_timing"]["segment_write_ms"] = 0.25
+        with self.assertRaisesRegex(RuntimeError, "post-writer flush stages exceed"):
+            lock_runner.verify(result, data, contract)
 
     def test_contention_verifier_checks_new_compaction_timing_fields(self):
         result, data, contract = self._valid_contention_receipt()

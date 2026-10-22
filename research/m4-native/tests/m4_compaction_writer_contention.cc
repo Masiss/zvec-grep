@@ -37,6 +37,7 @@ struct ArmResult {
   size_t logical_upserts{0};
   double compaction_ms{0.0};
   m4::CompactionDiagnostics compaction_diagnostics;
+  m4::CompactionDiagnostics post_writer_flush_diagnostics;
   std::string compaction_status;
   std::vector<double> writer_ms;
   std::vector<double> normalize_ms;
@@ -303,7 +304,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
       compaction.message.find("superseded") != std::string::npos;
   if (!compaction.ok && !expected_abort) ++result.writer_failures;
 
-  status = index->Flush();
+  status = index->Flush(&result.post_writer_flush_diagnostics);
   if (!status.ok) ++result.writer_failures;
   m4::SearchResult output;
   status = index->SearchFts("writerterm", writers * ops_per_writer + 1,
@@ -335,6 +336,64 @@ void PrintValues(const std::vector<double>& values) {
     std::cout << values[i];
   }
   std::cout << ']';
+}
+
+void PrintFlushDiagnostics(const m4::CompactionDiagnostics& diagnostics) {
+  std::cout << "{\"total_ms\":" << diagnostics.total_ms
+            << ",\"total_cpu_ms\":" << diagnostics.total_cpu_ms
+            << ",\"state_mutex_wait_ms\":"
+            << diagnostics.state_mutex_wait_ms
+            << ",\"state_mutex_wait_cpu_ms\":"
+            << diagnostics.state_mutex_wait_cpu_ms
+            << ",\"state_mutex_hold_ms\":"
+            << diagnostics.state_mutex_hold_ms
+            << ",\"state_mutex_hold_cpu_ms\":"
+            << diagnostics.state_mutex_hold_cpu_ms
+            << ",\"query_mutex_wait_ms\":"
+            << diagnostics.query_mutex_wait_ms
+            << ",\"query_mutex_wait_cpu_ms\":"
+            << diagnostics.query_mutex_wait_cpu_ms
+            << ",\"pending_flush_ms\":" << diagnostics.pending_flush_ms
+            << ",\"pending_flush_cpu_ms\":"
+            << diagnostics.pending_flush_cpu_ms
+            << ",\"flush_stage_timing\":{\"schema_version\":1"
+            << ",\"segment_build_ms\":"
+            << diagnostics.flush_segment_build_ms
+            << ",\"segment_build_cpu_ms\":"
+            << diagnostics.flush_segment_build_cpu_ms
+            << ",\"segment_write_ms\":"
+            << diagnostics.flush_segment_write_ms
+            << ",\"segment_write_cpu_ms\":"
+            << diagnostics.flush_segment_write_cpu_ms
+            << ",\"segment_open_ms\":"
+            << diagnostics.flush_segment_open_ms
+            << ",\"segment_open_cpu_ms\":"
+            << diagnostics.flush_segment_open_cpu_ms
+            << ",\"query_mutex_wait_ms\":"
+            << diagnostics.flush_query_mutex_wait_ms
+            << ",\"query_mutex_wait_cpu_ms\":"
+            << diagnostics.flush_query_mutex_wait_cpu_ms
+            << ",\"stats_append_ms\":"
+            << diagnostics.flush_stats_append_ms
+            << ",\"stats_append_cpu_ms\":"
+            << diagnostics.flush_stats_append_cpu_ms
+            << ",\"tombstone_write_ms\":"
+            << diagnostics.flush_tombstone_write_ms
+            << ",\"tombstone_write_cpu_ms\":"
+            << diagnostics.flush_tombstone_write_cpu_ms
+            << ",\"manifest_write_ms\":"
+            << diagnostics.flush_manifest_write_ms
+            << ",\"manifest_write_cpu_ms\":"
+            << diagnostics.flush_manifest_write_cpu_ms
+            << ",\"wal_reset_ms\":" << diagnostics.flush_wal_reset_ms
+            << ",\"wal_reset_cpu_ms\":"
+            << diagnostics.flush_wal_reset_cpu_ms
+            << ",\"gc_ms\":" << diagnostics.flush_gc_ms
+            << ",\"gc_cpu_ms\":" << diagnostics.flush_gc_cpu_ms
+            << ",\"delta_reset_ms\":"
+            << diagnostics.flush_delta_reset_ms
+            << ",\"delta_reset_cpu_ms\":"
+            << diagnostics.flush_delta_reset_cpu_ms << "}}";
 }
 
 void PrintArm(const ArmResult& arm, bool last) {
@@ -415,7 +474,9 @@ void PrintArm(const ArmResult& arm, bool last) {
             << compaction.flush_delta_reset_ms
             << ",\"delta_reset_cpu_ms\":"
             << compaction.flush_delta_reset_cpu_ms
-            << "}},\"writer_samples\":";
+            << "}},\"post_writer_flush_diagnostics\":";
+  PrintFlushDiagnostics(arm.post_writer_flush_diagnostics);
+  std::cout << ",\"writer_samples\":";
   PrintValues(arm.writer_ms);
   std::cout << ",\"writer_p50_ms\":" << Percentile(arm.writer_ms, 0.50)
             << ",\"writer_p95_ms\":" << Percentile(arm.writer_ms, 0.95)
@@ -511,7 +572,7 @@ int main(int argc, char** argv) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
   }
-  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":4,\"documents\":"
+  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":5,\"documents\":"
             << documents << ",\"writers\":" << writers
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count
