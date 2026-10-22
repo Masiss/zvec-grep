@@ -1817,7 +1817,7 @@ class Index::Impl {
     std::vector<size_t> all;
     for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
     if (all.empty()) return Status::OK();
-    return MergeRuns(all, /*target_level=*/0, /*force=*/true);
+    return MergeRuns(all, /*target_level=*/0, /*force=*/true, query_guard);
   }
 
   Status SearchFts(const std::string& query, uint32_t top_k, SearchResult* out,
@@ -2898,9 +2898,9 @@ class Index::Impl {
     if (options_.rebuild_on_flush) {
       std::vector<size_t> all;
       for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
-      if (all.size() > 1) return MergeRuns(all, 0, true);
+      if (all.size() > 1) return MergeRuns(all, 0, true, query_guard);
     }
-    return MaybeCompact();
+    return MaybeCompact(query_guard);
   }
 
   Status AppendStatsEvents() {
@@ -3028,7 +3028,8 @@ class Index::Impl {
     return false;
   }
 
-  Status MaybeDebtCompact(bool* merged) {
+  Status MaybeDebtCompact(bool* merged,
+                          std::unique_lock<std::shared_mutex>& query_guard) {
     *merged = false;
     if (!options_.debt_policy_enabled || options_.debt_max_merges_per_flush == 0) {
       return Status::OK();
@@ -3086,16 +3087,16 @@ class Index::Impl {
     }
     if (!found) return Status::OK();
     Status s = MergeRuns({best, best + 1}, /*target_level=*/0,
-                         /*force=*/false);
+                         /*force=*/false, query_guard);
     if (!s.ok) return s;
     last_debt_compact_ms_ = NowMs();
     *merged = true;
     return Status::OK();
   }
 
-  Status MaybeCompact() {
+  Status MaybeCompact(std::unique_lock<std::shared_mutex>& query_guard) {
     bool debt_merged = false;
-    Status debt_status = MaybeDebtCompact(&debt_merged);
+    Status debt_status = MaybeDebtCompact(&debt_merged, query_guard);
     if (!debt_status.ok) return debt_status;
     for (int iter = 0; iter < 256; ++iter) {
       const bool over_cap = runs_.size() > options_.max_total_runs;
@@ -3197,7 +3198,8 @@ class Index::Impl {
         const auto& r = runs_[group[0]];
         if (r.info.dead_count == 0) break;
       }
-      Status s = MergeRuns(group, /*target_level=*/0, /*force=*/false);
+      Status s = MergeRuns(group, /*target_level=*/0, /*force=*/false,
+                           query_guard);
       if (!s.ok) return s;
       if (runs_.empty()) break;
     }
@@ -3205,7 +3207,8 @@ class Index::Impl {
   }
 
   Status MergeRuns(const std::vector<size_t>& indices, uint64_t target_level,
-                   bool force) {
+                   bool force,
+                   std::unique_lock<std::shared_mutex>& query_guard) {
     const double merge_start_ms = NowMs();
     if (indices.empty()) return Status::OK();
     std::vector<size_t> idx = indices;
@@ -3241,29 +3244,84 @@ class Index::Impl {
     merge_options.memory_limit_bytes = options_.compaction_memory_limit_bytes;
     StreamMergeStats merge_stats;
     std::string err;
+    std::string build_error;
+    Run new_run;
+    uint64_t new_doc_count = 0;
+
+    // The state mutex keeps writers from changing runs/tombstones while the
+    // merge reads them; shared queries can continue against the old snapshot.
+    if (!query_guard.owns_lock()) {
+      return Status::Error("compaction requires exclusive query admission");
+    }
+    query_guard.unlock();
     Status s = MergeSegmentsStreaming((fs::path(dir_) / file).string(),
                                       input_segments, tombstones_,
                                       merge_options, &merge_stats, &err);
+    if (!s.ok) build_error = "compaction stream: " + err;
+    if (s.ok) {
+      new_doc_count = merge_stats.output_docs;
+      if (new_doc_count > 0) {
+        new_run.info.id = new_run_id;
+        new_run.info.level = new_level;
+        new_run.info.doc_count = new_doc_count;
+        new_run.info.dead_count = 0;
+        new_run.info.file = file;
+        std::error_code ec;
+        new_run.info.file_size = fs::file_size(fs::path(dir_) / file, ec);
+        s = Segment::Open((fs::path(dir_) / file).string(), &new_run.segment,
+                          &err);
+        if (!s.ok) build_error = "compaction reopen: " + err;
+      }
+    }
+    if (s.ok) {
+      // Deterministic test barrier proves reads can finish while the durable
+      // replacement run exists locally but is not yet query-visible.
+      const char* barrier_dir =
+          std::getenv("M4_TEST_COMPACTION_BUILD_BARRIER");
+      if (barrier_dir && *barrier_dir) {
+        const fs::path barrier(barrier_dir);
+        std::error_code ec;
+        fs::create_directories(barrier, ec);
+        if (ec) {
+          build_error = "create test compaction barrier: " + ec.message();
+          s = Status::Error(build_error);
+        }
+        if (s.ok) {
+          std::ofstream ready(barrier / "run-ready", std::ios::binary);
+          if (!ready) {
+            build_error = "write test compaction barrier marker";
+            s = Status::Error(build_error);
+          } else {
+            ready << "ready\n";
+          }
+        }
+        if (s.ok) {
+          const auto deadline = std::chrono::steady_clock::now() +
+                                std::chrono::seconds(5);
+          while (!fs::exists(barrier / "reader-finished", ec) &&
+                 std::chrono::steady_clock::now() < deadline) {
+            if (ec) {
+              build_error = "inspect test compaction barrier: " + ec.message();
+              s = Status::Error(build_error);
+              break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+          }
+          if (s.ok && !fs::exists(barrier / "reader-finished", ec)) {
+            build_error = "test compaction barrier timed out";
+            s = Status::Error(build_error);
+          }
+        }
+      }
+    }
+    query_guard.lock();
     if (!s.ok) {
       // No manifest was published; the old runs and tombstones stay active.
-      return Status::Error("compaction stream: " + err);
+      return Status::Error(build_error);
     }
     compaction_peak_bytes_ =
         std::max(compaction_peak_bytes_, merge_stats.tracked_peak_bytes);
-
-    Run new_run;
-    const uint64_t new_doc_count = merge_stats.output_docs;
     if (new_doc_count > 0) {
-      new_run.info.id = new_run_id;
-      new_run.info.level = new_level;
-      new_run.info.doc_count = new_doc_count;
-      new_run.info.dead_count = 0;
-      new_run.info.file = file;
-      std::error_code ec;
-      new_run.info.file_size = fs::file_size(fs::path(dir_) / file, ec);
-      s = Segment::Open((fs::path(dir_) / file).string(), &new_run.segment,
-                        &err);
-      if (!s.ok) return Status::Error("compaction reopen: " + err);
       ++run_id_seq_;
       segment_bytes_written_ += new_run.info.file_size;
       bytes_written_ += new_run.info.file_size +

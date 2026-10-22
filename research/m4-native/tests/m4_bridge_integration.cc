@@ -6471,6 +6471,52 @@ int main(int argc, char** argv) {
       Check(after_status.ok && after_pks == std::set<std::string>({"stable", "replace", "added"}),
             "published segment preserves the reader-visible snapshot");
 
+      const fs::path compaction_barrier = barrier_root / "compaction-build";
+      fs::remove_all(compaction_barrier);
+      if (::setenv("M4_TEST_COMPACTION_BUILD_BARRIER",
+                   compaction_barrier.c_str(), 1) != 0)
+        throw std::runtime_error("set compaction build test barrier");
+      std::atomic<bool> compaction_done{false};
+      std::atomic<bool> compaction_ok{false};
+      std::thread compaction_writer([&] {
+        compaction_ok.store(barrier_index->CompactNow().ok,
+                            std::memory_order_release);
+        compaction_done.store(true, std::memory_order_release);
+      });
+      const auto compaction_deadline = std::chrono::steady_clock::now() +
+                                       std::chrono::seconds(5);
+      while (!fs::exists(compaction_barrier / "run-ready") &&
+             !compaction_done.load(std::memory_order_acquire) &&
+             std::chrono::steady_clock::now() < compaction_deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      const bool compaction_ready =
+          fs::exists(compaction_barrier / "run-ready");
+      m4::SearchResult during_compaction, filter_during_compaction;
+      const auto compaction_fts_status = barrier_index->SearchFts(
+          "marker", 10, &during_compaction);
+      const auto compaction_filter_status = barrier_index->SearchFilter(
+          m4::FilterExpr::All(), &filter_during_compaction);
+      std::set<std::string> compaction_fts_pks, compaction_filter_pks;
+      for (const auto& hit : during_compaction.hits)
+        compaction_fts_pks.insert(hit.pk);
+      for (const auto& hit : filter_during_compaction.hits)
+        compaction_filter_pks.insert(hit.pk);
+      {
+        std::ofstream release(compaction_barrier / "reader-finished",
+                              std::ios::binary);
+        release << "done\n";
+      }
+      compaction_writer.join();
+      ::unsetenv("M4_TEST_COMPACTION_BUILD_BARRIER");
+      const std::set<std::string> compaction_live = {
+          "stable", "replace", "added"};
+      Check(compaction_ready && compaction_ok.load(std::memory_order_acquire),
+            "compaction writer resumes after a shared reader completes");
+      Check(compaction_fts_status.ok && compaction_fts_pks == compaction_live &&
+                compaction_filter_status.ok &&
+                compaction_filter_pks == compaction_live,
+            "readers see the complete pre-publication snapshot during compaction");
+
       auto run_wal_apply_barrier = [&](const std::string& name,
                                        auto mutation,
                                        const std::string& query,
