@@ -21,7 +21,7 @@ Afterward, a fresh pair attempt `m4-shared-collection-pair-20261022-022933-88a9e
 ## Next work
 
 1. Keep WAL-before-apply, shared reader admission, cache locking, and crash recovery as unpromoted research prototypes. The pre-existing untracked `m4_correctness.cc` remains untouched and was not staged wholesale.
-2. The remaining stats path is intentionally state-locked because of pre-query-lock WAL telemetry; any further decoupling needs a separate telemetry-synchronization design. Audit writer tails/cross-process lease safety independently.
+2. `GetStats` remains state-locked because it reads WAL telemetry updated before query exclusion. The local libstdc++ `std::shared_mutex` backend delegates to a default pthread rwlock, and C++ does not guarantee writer-fair admission; writer starvation under sustained readers remains an unmeasured risk. The Rust service already has writer-intent and read-cache-drain locks (`workspace/lock/wait.rs`, `storage/read_session.rs`), but M4 integration with that boundary is unvalidated. The separate native lock-contract fixture only proves that a read-only native open is rejected while a writer is open; it is not an M4 multi-process lease proof (see `../shared-collection-pair-20261021/native-cross-process-lock-contract-20261021.md`).
 3. No performance result exists for the latest variant. Pair `022933` was refused before workload launch by the unchanged selected hard memory capacity gate; do not retry or poll. Do not bypass the gate. Any future pair requires a fresh unique operation ID and unchanged preflight pass.
 
 No production source, ABI, or schema was changed. Raw operation receipts remain untouched; this file is derived analysis.
