@@ -1642,7 +1642,9 @@ class Index::Impl {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     const Document normalized = NormalizeDocument(doc);
     const uint64_t old_id = LookupPk(pk);
-    const DocId new_id = next_doc_id_++;
+    // Keep the high-water mark stable for shared readers until InsertInternal
+    // advances it under exclusive query admission; writers are state-serialized.
+    const DocId new_id = next_doc_id_;
 
     // Persist the complete replacement before changing query-visible state.
     BufWriter w;
@@ -1821,13 +1823,13 @@ class Index::Impl {
   Status SearchFts(const std::string& query, uint32_t top_k, SearchResult* out,
                    QueryDiagnostics* diagnostics = nullptr) const {
     if (!diagnostics) {
-      std::lock_guard<std::recursive_mutex> lock(mutex_);
+      std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
       return SearchFtsInternal(query, top_k, nullptr, out, nullptr);
     }
     const bool capture_timing = diagnostics->capture_timing;
     const double wait_wall_start = capture_timing ? NowMs() : 0.0;
     const double wait_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
     const double wait_ms = capture_timing ? NowMs() - wait_wall_start : 0.0;
     const double wait_cpu_ms = capture_timing
                                    ? ThreadCpuMs() - wait_cpu_start
@@ -1942,7 +1944,7 @@ class Index::Impl {
   }
 
   Status SearchFilter(const FilterExpr& filter, SearchResult* out) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     std::vector<DocId> candidates;
@@ -2220,7 +2222,6 @@ class Index::Impl {
  public:
   Status SearchInvertUint32(const std::string& field, uint32_t value,
                              SearchResult* out) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto encoded = ScalarValue::Unsigned32(field, value);
     return SearchInvert(field, encoded.value, CompareOp::EQ, out);
   }
@@ -2228,7 +2229,7 @@ class Index::Impl {
   Status SearchInvertUint32In(const std::string& field,
                               const std::vector<uint32_t>& values,
                               SearchResult* out) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     std::set<std::string> wanted;
@@ -2255,7 +2256,7 @@ class Index::Impl {
   Status SearchArrayUint32(const std::string& field,
                            const std::vector<uint32_t>& values,
                            bool negate, SearchResult* out) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     if (values.size() > kMaxArrayUint32Operands) {
@@ -2317,7 +2318,7 @@ class Index::Impl {
 
   Status SearchInvert(const std::string& field, const std::string& value,
                       CompareOp op, SearchResult* out) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
     out->hits.clear();
     out->examined = 0;
     std::set<std::string> wanted;

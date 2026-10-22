@@ -6499,6 +6499,13 @@ int main(int argc, char** argv) {
             query, 10, m4::FilterExpr::All(), &during, &during_diagnostics);
         std::set<std::string> during_pks;
         for (const auto& hit : during.hits) during_pks.insert(hit.pk);
+        m4::SearchResult during_plain, during_filter;
+        const auto plain_status = barrier_index->SearchFts(query, 10, &during_plain);
+        const auto filter_status = barrier_index->SearchFilter(
+            m4::FilterExpr::All(), &during_filter);
+        std::set<std::string> plain_pks, filter_pks;
+        for (const auto& hit : during_plain.hits) plain_pks.insert(hit.pk);
+        for (const auto& hit : during_filter.hits) filter_pks.insert(hit.pk);
         const std::unordered_map<std::string, float> vector_scores = {{"replace", 0.5f}};
         m4::SearchResult during_hybrid;
         const auto hybrid_status = barrier_index->SearchHybrid(
@@ -6513,6 +6520,13 @@ int main(int argc, char** argv) {
               name + " cached reader completes against the pre-apply snapshot after durable WAL append");
         Check(hybrid_status.ok && hybrid_pks == expected,
               name + " hybrid reader completes against the pre-apply snapshot after durable WAL append");
+        Check(plain_status.ok && plain_pks == expected,
+              name + " unfiltered FTS reader completes against the pre-apply "
+                     "snapshot after durable WAL append");
+        Check(filter_status.ok &&
+                  filter_pks == std::set<std::string>({"stable", "replace", "added"}),
+              name + " scalar-filter reader completes against the pre-apply "
+                     "snapshot after durable WAL append");
         Check(writer_ok.load(std::memory_order_acquire),
               name + " mutation applies after the reader leaves the WAL/apply interval");
       };
