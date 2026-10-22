@@ -341,7 +341,8 @@ class ContentionPolicyTests(unittest.TestCase):
                         "contention", "memory_probe", "memory_trace",
                         "memory_trace_after_snapshot_fix",
                         "memory_trace_scale2_after_snapshot_fix",
-                        "memory_churn_two_versions") else None
+                        "memory_churn_two_versions",
+                        "memory_churn_two_versions_eviction") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -540,6 +541,39 @@ class ContentionPolicyTests(unittest.TestCase):
         versions[1]["identity_sha256"] = versions[0]["identity_sha256"]
         with self.assertRaisesRegex(RuntimeError, "invalid or incomplete"):
             microbench.verify_analyzer_churn_trace(receipt, workload)
+
+    def test_profile_binary_rejects_path_escape_and_digest_mismatch(self):
+        with self.assertRaisesRegex(ValueError, "escapes the M4 repository"):
+            microbench.profile_binary({"binary_relative_path": ".."})
+        scratch = microbench.BASE / ".work" / "scratch"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="m4-profile-binary-", dir=scratch) as temp:
+            binary = pathlib.Path(temp) / "m4_compaction_writer_contention"
+            binary.write_bytes(b"synthetic profile binary; never launched")
+            profile = {
+                "binary_relative_path": str(binary.relative_to(microbench.BASE)),
+                "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+            }
+            self.assertEqual(microbench.profile_binary(profile), binary.resolve())
+            profile["binary_sha256"] = "0" * 64
+            with self.assertRaisesRegex(ValueError, "registered SHA-256"):
+                microbench.profile_binary(profile)
+
+    def test_eviction_profile_binds_same_workload_caps_and_exact_overlay_binary(self):
+        name = "memory_churn_two_versions_eviction"
+        ctx = self.lock_contention_microbench_context(name)
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        contract = ct.BENCHMARK_POLICY["lock_contention_microbench"]
+        profile = contract[name]
+        self.assertEqual(profile["binary_relative_path"],
+                         ".work/build/dict-cache-eviction-safe/m4_compaction_writer_contention")
+        self.assertRegex(profile["binary_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(profile["workload"],
+                         contract["memory_churn_two_versions"]["workload"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertEqual(ctx["pids_max"], 128)
 
     def test_lock_microbench_rejects_pair_sized_command_binding(self):
         ctx = self.lock_contention_microbench_context("memory_probe")

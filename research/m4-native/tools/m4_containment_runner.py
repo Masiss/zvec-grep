@@ -302,7 +302,8 @@ def lock_contention_workload(context: dict[str, Any]) -> dict[str, Any]:
     if profile == 'contention':
         return contract['workload']
     if profile in ('memory_probe', 'memory_trace', 'memory_trace_after_snapshot_fix',
-                   'memory_trace_scale2_after_snapshot_fix', 'memory_churn_two_versions'):
+                   'memory_trace_scale2_after_snapshot_fix', 'memory_churn_two_versions',
+                   'memory_churn_two_versions_eviction'):
         return contract[profile]['workload']
     raise ValueError('unknown lock-contention workload profile')
 M4_SCALAR_LATENCY_EVIDENCE = 'EXPLORATORY / NON-QUALIFYING'

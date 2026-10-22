@@ -30,6 +30,25 @@ def sha256(path: pathlib.Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def profile_binary(profile_contract: dict[str, Any]) -> pathlib.Path:
+    relative = profile_contract.get("binary_relative_path")
+    if relative is None:
+        return BINARY
+    if not isinstance(relative, str) or pathlib.Path(relative).is_absolute():
+        raise ValueError("profile binary path must be repository-relative")
+    binary = (BASE / relative).resolve(strict=True)
+    try:
+        binary.relative_to(BASE)
+    except ValueError as exc:
+        raise ValueError("profile binary path escapes the M4 repository") from exc
+    if binary.name != "m4_compaction_writer_contention" or not binary.is_file():
+        raise ValueError("profile binary path is not the registered contention harness")
+    expected_sha = profile_contract.get("binary_sha256")
+    if expected_sha is not None and sha256(binary) != expected_sha:
+        raise ValueError("profile binary differs from its registered SHA-256")
+    return binary
+
+
 def write_json(path: pathlib.Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -88,8 +107,37 @@ def cleanup_operation_tmp_root(
 
 
 def host_context() -> dict[str, Any]:
-    ps = subprocess.run(["ps", "-eo", "pid,ppid,comm,%cpu,rss,args", "--sort=-%cpu"],
+    ps = subprocess.run(["ps", "-eo", "pid,ppid,pcpu,etime,cputime,rss,args", "--sort=-pcpu"],
                         capture_output=True, text=True, check=True, timeout=5).stdout.splitlines()[:24]
+    process_telemetry: list[dict[str, Any]] = []
+    for line in ps:
+        fields = line.split(None, 6)
+        if len(fields) < 6:
+            continue
+        try:
+            pid = int(fields[0])
+            ppid = int(fields[1])
+            rss_kib = int(fields[5])
+            cpu_percent = float(fields[2])
+        except ValueError:
+            continue
+        memory: dict[str, int] = {}
+        memory_error = None
+        try:
+            for entry in pathlib.Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+                values = entry.split()
+                if len(values) >= 2 and values[0] in ("Pss:", "Rss:", "Swap:"):
+                    memory[values[0][:-1].lower() + "_kib"] = int(values[1])
+        except (OSError, ValueError) as exc:
+            memory_error = f"{type(exc).__name__}: {exc}"
+        process_telemetry.append({
+            "pid": pid, "ppid": ppid, "cpu_percent": cpu_percent,
+            "elapsed": fields[3], "cpu_time": fields[4], "rss_kib": rss_kib,
+            "pss_kib": memory.get("pss_kib"), "swap_kib": memory.get("swap_kib"),
+            "memory_sample_complete": "pss_kib" in memory and "rss_kib" in memory,
+            "memory_sample_error": memory_error,
+            "command": fields[6] if len(fields) == 7 else "",
+        })
     affinity = subprocess.run(["taskset", "-pc", str(os.getpid())], capture_output=True,
                               text=True, timeout=5).stdout.strip()
     units = subprocess.run(["systemctl", "--user", "list-units", "m4-contained-*", "--all",
@@ -98,8 +146,11 @@ def host_context() -> dict[str, Any]:
     if units.returncode != 0:
         raise RuntimeError(f"cannot verify user M4 units: {units.stderr.strip()}")
     active = [line for line in units.stdout.splitlines() if ".service" in line and "not-found" not in line]
-    return {"top_processes": ps, "operator_affinity": affinity,
-            "preexisting_m4_units": active, "unit_list_raw": units.stdout}
+    return {"top_processes": ps, "top_process_telemetry": process_telemetry,
+            "process_memory_samples_complete": all(
+                sample["memory_sample_complete"] for sample in process_telemetry),
+            "operator_affinity": affinity, "preexisting_m4_units": active,
+            "unit_list_raw": units.stdout}
 
 
 def read_workload(stdout_path: pathlib.Path) -> dict[str, Any]:
@@ -385,7 +436,8 @@ def main() -> int:
                             "contention", "memory_probe", "memory_trace",
                             "memory_trace_after_snapshot_fix",
                             "memory_trace_scale2_after_snapshot_fix",
-                            "memory_churn_two_versions"),
+                            "memory_churn_two_versions",
+                            "memory_churn_two_versions_eviction"),
                         default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:
@@ -400,10 +452,14 @@ def main() -> int:
         resource_root = pathlib.Path(contract["resource_root"]).resolve(strict=True)
     except (OSError, json.JSONDecodeError, KeyError) as exc:
         raise SystemExit(f"cannot load M4 benchmark contract/resource root: {exc}") from exc
-    if not BINARY.is_file() or not DICTIONARY.is_dir():
-        raise SystemExit(f"missing required input: {BINARY}, {DICTIONARY}")
+    try:
+        binary = profile_binary(profile_contract)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"invalid registered workload binary: {exc}") from exc
+    if not binary.is_file() or not DICTIONARY.is_dir():
+        raise SystemExit(f"missing required input: {binary}, {DICTIONARY}")
     dictionary_sha = runner.directory_sha256(DICTIONARY)
-    binary_sha = sha256(BINARY)
+    binary_sha = sha256(binary)
     now = dt.datetime.now(dt.UTC)
     profile_suffix = ("" if workload_profile == "contention" else
                       workload_profile.replace("_", "-") + "-")
@@ -424,7 +480,7 @@ def main() -> int:
         "operation_id": operation_id, "operation_root": str(operation_root.resolve()),
         "resource_root": str(resource_root),
         "purpose": contract["purpose"], "workload_profile": workload_profile,
-        "binary_path": str(BINARY.resolve()),
+        "binary_path": str(binary.resolve()),
         "binary_sha256": binary_sha, "approved_binary_sha256": binary_sha,
         "dictionary_path": str(DICTIONARY.resolve()),
         "dictionary_tree_sha256": dictionary_sha,
@@ -434,7 +490,7 @@ def main() -> int:
         **contract["resource_controls"],
     }
     runner.validate_contention_context(ctx)
-    command = [str(BINARY.resolve()), str((workspace_root / "root").resolve()),
+    command = [str(binary.resolve()), str((workspace_root / "root").resolve()),
                str(DICTIONARY.resolve()), workload["mode"],
                str(workload["documents"]), str(workload["rounds"])]
     if args.validate_only:
@@ -455,7 +511,7 @@ def main() -> int:
         "benchmark_started": False, "workload_profile": workload_profile,
         "measurement_semantics": measurement_semantics,
         "contract": contract, "policy_sha256": ctx["policy_sha256"],
-        "binary_path": str(BINARY.resolve()), "binary_sha256": binary_sha,
+        "binary_path": str(binary.resolve()), "binary_sha256": binary_sha,
         "dictionary_path": str(DICTIONARY.resolve()), "dictionary_tree_sha256": dictionary_sha,
         "command": command, "resource_controls": contract["resource_controls"],
         "resource_workspace": str(resource_workspace), "evidence_class": contract["evidence_class"],

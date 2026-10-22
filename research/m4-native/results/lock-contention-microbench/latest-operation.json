@@ -1,5 +1,5 @@
 {
-  "operation_id": "m4-lock-contention-microbench-memory-churn-two-versions-20261022-170148-b72ef4",
-  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-memory-churn-two-versions-20261022-170148-b72ef4",
+  "operation_id": "m4-lock-contention-microbench-memory-churn-two-versions-eviction-20261022-173407-15b7e6",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-memory-churn-two-versions-eviction-20261022-173407-15b7e6",
   "status": "PASS"
 }

@@ -227,6 +227,24 @@
       },
       "measurement_semantics": "One distinct contained operation: run the existing 1,024-seed/four-arm workload under unchanged hard/soft caps, then initialize two sequential uncached Jieba analyzers from distinct content-addressed dictionary snapshots in the same process. Capture process smaps_rollup before, while live, and after each analyzer release; outer cgroup/PSS cadence captures transient peaks. This observes process residency across version-keyed analyzer initialization and release, alongside outer cgroup/PSS transient sampling; source tracing is needed to attribute retained bytes, and this is not allocator-stack attribution. This is a single exploratory probe, not a latency comparison or capacity claim. Any preflight/runtime abort consumes the profile and is not retried; do not increase caps."
     },
+    "memory_churn_two_versions_eviction": {
+      "profile_id": "memory_churn_two_versions_eviction",
+      "binary_relative_path": ".work/build/dict-cache-eviction-safe/m4_compaction_writer_contention",
+      "binary_sha256": "3ce5aa71573a09854cefb5a9542f49720e15431770ec4a8ae68d84b4fca0c823",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct contained profile using the research-only cppjieba DictTrie cache-eviction overlay at the exact repository-relative binary path. First run the same 1,024-seed/four-arm workload under unchanged hard/soft caps, then initialize two distinct dictionary versions in one process and record per-version PSS/RSS before and after release. Compare retained/live-entry evidence against the prior uncapped one-entry cache implementation and same-workload baseline descriptively; this is not an isolated benchmark, causal attribution, latency comparison, or capacity claim. The source-level regression separately checks same-key coalescing, concurrent analyzer lifecycle, generation release, and reopening an older version. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {

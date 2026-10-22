@@ -21,6 +21,11 @@ target_compile_options(m4_research PRIVATE -Wall -Wextra)
 # Optional compatibility mode: compile pinned native Zvec tokenizer and
 # lowercase-filter sources while keeping M4 files and storage research-only.
 set(M4_ZVEC_ROOT "" CACHE PATH "Native Zvec source checkout")
+set(M4_CPPJIEBA_INCLUDE_OVERLAY "" CACHE PATH
+  "Optional research-only overlay placed before pinned cppjieba headers")
+if(M4_CPPJIEBA_INCLUDE_OVERLAY AND NOT M4_ZVEC_ROOT)
+  message(FATAL_ERROR "M4_CPPJIEBA_INCLUDE_OVERLAY requires M4_ZVEC_ROOT")
+endif()
 if(M4_ZVEC_ROOT)
   find_library(M4_ZVEC_LIBRARY
     NAMES zvec_c_api
@@ -55,6 +60,11 @@ if(M4_ZVEC_ROOT)
     "${M4_ZVEC_ROOT}/src/include"
     "${M4_ZVEC_ROOT}/thirdparty/utf8proc/utf8proc-2.11.3"
   )
+  if(M4_CPPJIEBA_INCLUDE_OVERLAY)
+    target_include_directories(m4_research SYSTEM BEFORE PRIVATE
+      "${M4_CPPJIEBA_INCLUDE_OVERLAY}"
+    )
+  endif()
   target_include_directories(m4_research SYSTEM PRIVATE
     "${M4_ZVEC_ROOT}/thirdparty/cppjieba/cppjieba-5.6.7/include"
     "${M4_ZVEC_ROOT}/thirdparty/limonp/limonp-v1.0.2/include"
@@ -77,6 +87,29 @@ add_executable(m4_benchmark tests/m4_benchmark.cc)
 target_link_libraries(m4_benchmark PRIVATE m4_research)
 
 find_package(Threads REQUIRED)
+
+if(M4_CPPJIEBA_INCLUDE_OVERLAY)
+  configure_file(
+    tests/cppjieba_cache_lifecycle_overlay.cc.in
+    "${CMAKE_CURRENT_BINARY_DIR}/cppjieba_cache_lifecycle_overlay.cc"
+    COPYONLY
+  )
+  add_executable(m4_cppjieba_cache_lifecycle_overlay
+    "${CMAKE_CURRENT_BINARY_DIR}/cppjieba_cache_lifecycle_overlay.cc")
+  target_include_directories(m4_cppjieba_cache_lifecycle_overlay SYSTEM PRIVATE
+    "${M4_CPPJIEBA_INCLUDE_OVERLAY}"
+    "${M4_ZVEC_ROOT}/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba"
+    "${M4_ZVEC_ROOT}/thirdparty/cppjieba/cppjieba-5.6.7/include"
+    "${M4_ZVEC_ROOT}/thirdparty/limonp/limonp-v1.0.2/include"
+  )
+  target_compile_definitions(m4_cppjieba_cache_lifecycle_overlay PRIVATE
+    CPPJIEBA_CACHE_LIFECYCLE_TESTING=1)
+  target_compile_options(m4_cppjieba_cache_lifecycle_overlay PRIVATE
+    -Wall -Wextra -Werror)
+  target_link_libraries(m4_cppjieba_cache_lifecycle_overlay PRIVATE Threads::Threads)
+  add_test(NAME m4_cppjieba_cache_lifecycle_overlay
+    COMMAND m4_cppjieba_cache_lifecycle_overlay)
+endif()
 
 # Bounded diagnostic for writer tail latency under concurrent compaction.
 # Intentionally not a CTest target; run only through the contained harness.
