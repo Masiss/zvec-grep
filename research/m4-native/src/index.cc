@@ -839,8 +839,7 @@ bool ReadManifestFile(const std::string& path, Manifest* out) {
 
 // ----------------------------- Tombstones --------------------------------
 
-std::string EncodeTombstones(const std::unordered_set<DocId>& set) {
-  std::vector<DocId> ids(set.begin(), set.end());
+std::string EncodeSortedTombstones(std::vector<DocId> ids) {
   std::sort(ids.begin(), ids.end());
   BufWriter w;
   w.U32(0x4D345442);  // M4TB
@@ -853,6 +852,24 @@ std::string EncodeTombstones(const std::unordered_set<DocId>& set) {
   }
   w.U64(Fnv1a(w.data().data() + 8, w.size() - 8));
   return w.data();
+}
+
+std::string EncodeTombstones(const std::unordered_set<DocId>& set) {
+  return EncodeSortedTombstones(std::vector<DocId>(set.begin(), set.end()));
+}
+
+std::string EncodeTombstonesOutsideRange(
+    const std::unordered_set<DocId>& set, DocId first, DocId last) {
+  size_t retained_count = 0;
+  for (DocId id : set) {
+    if (id < first || id > last) ++retained_count;
+  }
+  std::vector<DocId> ids;
+  ids.reserve(retained_count);
+  for (DocId id : set) {
+    if (id < first || id > last) ids.push_back(id);
+  }
+  return EncodeSortedTombstones(std::move(ids));
 }
 
 bool DecodeTombstones(const std::string& bytes,
@@ -3347,22 +3364,15 @@ class Index::Impl {
     });
     runs_ = std::move(next);
 
-    // Compute the post-compaction tombstone set without mutating the live
-    // set until the manifest is durable.
-    std::unordered_set<DocId> new_tombstones = tombstones_;
-    for (auto it = new_tombstones.begin(); it != new_tombstones.end();) {
-      if (*it >= group_first && *it <= group_last) {
-        it = new_tombstones.erase(it);
-      } else {
-        ++it;
-      }
-    }
-
+    // Encode the post-compaction snapshot without cloning the full tombstone
+    // hash set. Keep the live set intact until the replacement manifest is
+    // durable, then erase the compacted range in place.
     const std::string tb_file =
         "tombstones-" + std::to_string(last_wal_seq_) + "-" +
         std::to_string(run_id_seq_) + ".bin";
     s = AtomicWrite((fs::path(dir_) / tb_file).string(),
-                    EncodeTombstones(new_tombstones));
+                    EncodeTombstonesOutsideRange(tombstones_, group_first,
+                                                 group_last));
     if (!s.ok) return s;
     bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
 
@@ -3381,7 +3391,13 @@ class Index::Impl {
       return Status::Error("injected fault after manifest");
     }
 
-    tombstones_ = std::move(new_tombstones);
+    for (auto it = tombstones_.begin(); it != tombstones_.end();) {
+      if (*it >= group_first && *it <= group_last) {
+        it = tombstones_.erase(it);
+      } else {
+        ++it;
+      }
+    }
     ++compactions_;
     ++compaction_merges_;
     compaction_input_docs_ += input_docs;
