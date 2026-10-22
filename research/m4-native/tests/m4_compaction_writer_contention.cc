@@ -61,6 +61,7 @@ struct ArmResult {
   size_t reader_failures{0};
   size_t durability_failures{0};
   uint64_t runs_after_flush{0};
+  uint64_t compaction_tracked_peak_bytes{0};
 };
 
 m4::Status SeedIndex(m4::Index* index, size_t documents) {
@@ -321,7 +322,9 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   if (!status.ok || output.hits.size() != writers * ops_per_writer) {
     ++result.durability_failures;
   }
-  result.runs_after_flush = index->GetStats().runs;
+  const auto stats_after_flush = index->GetStats();
+  result.runs_after_flush = stats_after_flush.runs;
+  result.compaction_tracked_peak_bytes = stats_after_flush.compaction_peak_bytes;
   index.reset();
 
   std::unique_ptr<m4::Index> reopened;
@@ -549,7 +552,9 @@ void PrintArm(const ArmResult& arm, bool last) {
             << ",\"writer_failures\":" << arm.writer_failures
             << ",\"reader_failures\":" << arm.reader_failures
             << ",\"durability_failures\":" << arm.durability_failures
-            << ",\"runs_after_flush\":" << arm.runs_after_flush << '}'
+            << ",\"runs_after_flush\":" << arm.runs_after_flush
+            << ",\"compaction_tracked_peak_bytes\":"
+            << arm.compaction_tracked_peak_bytes << '}'
             << (last ? "\n" : ",");
 }
 
@@ -593,7 +598,7 @@ int main(int argc, char** argv) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
   }
-  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":6,\"documents\":"
+  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":7,\"documents\":"
             << documents << ",\"writers\":" << writers
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count

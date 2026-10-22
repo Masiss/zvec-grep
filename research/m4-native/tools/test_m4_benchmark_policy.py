@@ -68,6 +68,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
             if timing_schema >= 6:
                 arm["wal_write_samples"] = [0.01] * api_calls
                 arm["wal_fsync_samples"] = [0.01] * api_calls
+            if timing_schema >= 7:
+                arm["compaction_tracked_peak_bytes"] = 1024
             arm.update({
                 "name": name,
                 "compaction_status": "ok",
@@ -159,6 +161,13 @@ class BenchmarkPolicyTests(unittest.TestCase):
         lock_runner.verify(result, data, contract)
         data["arms"][0]["wal_fsync_samples"][0] = 1.0
         with self.assertRaisesRegex(RuntimeError, "WAL write/fsync substage"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_compaction_memory_peak(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=7)
+        lock_runner.verify(result, data, contract)
+        data["arms"][0]["compaction_tracked_peak_bytes"] = -1
+        with self.assertRaisesRegex(RuntimeError, "compaction tracked memory peak"):
             lock_runner.verify(result, data, contract)
 
     def test_contention_verifier_checks_new_compaction_timing_fields(self):

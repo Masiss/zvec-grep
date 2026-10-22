@@ -77,7 +77,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         raise RuntimeError("contention workload counts/coherence do not match the contract")
     arms = data.get("arms")
     timing_schema = data.get("timing_schema_version")
-    if timing_schema not in (None, 2, 3, 4, 5, 6):
+    if timing_schema not in (None, 2, 3, 4, 5, 6, 7):
         raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
     expected_modes = set(workload.get("compaction_modes", ("default", "snapshot")))
     if timing_schema in (None, 2, 3):
@@ -105,13 +105,13 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         compaction = arm.get("compaction_diagnostics")
         # Older operation receipts predate lock-stage compaction diagnostics;
         # retain their exact recorded validity while checking new receipts.
-        if timing_schema in (2, 3, 4, 5, 6) and not isinstance(compaction, dict):
+        if timing_schema in (2, 3, 4, 5, 6, 7) and not isinstance(compaction, dict):
             raise RuntimeError("missing compaction phase timing object")
         if compaction is not None and not isinstance(compaction, dict):
             raise RuntimeError("invalid compaction phase timing object")
         if compaction is not None:
             required_compaction_fields = compaction_timing_fields
-            if timing_schema in (3, 4, 5, 6):
+            if timing_schema in (3, 4, 5, 6, 7):
                 required_compaction_fields += (
                     "state_mutex_hold_ms", "state_mutex_hold_cpu_ms")
             for key in required_compaction_fields:
@@ -120,7 +120,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         not isinstance(value, (int, float)) or
                         not math.isfinite(value) or value < 0):
                     raise RuntimeError("missing/invalid compaction phase timing")
-            if timing_schema in (3, 4, 5, 6):
+            if timing_schema in (3, 4, 5, 6, 7):
                 hold = compaction["state_mutex_hold_ms"]
                 if (hold + 1e-6 < compaction["publication_ms"] or
                         hold > compaction["total_ms"] + 1e-6):
@@ -143,7 +143,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     if isinstance(flush_stages, dict) else None
                 )
                 if (stage_version not in (1, 2) or
-                        (timing_schema in (5, 6) and stage_version != 2)):
+                        (timing_schema in (5, 6, 7) and stage_version != 2)):
                     raise RuntimeError("invalid optional flush-stage timing object")
                 if stage_version == 2:
                     stage_fields += (
@@ -165,7 +165,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         flush_stages["query_mutex_hold_ms"] >
                         compaction["pending_flush_ms"] + 1e-3):
                     raise RuntimeError("flush query-lock hold exceeds pending-flush duration")
-        if timing_schema in (5, 6):
+        if timing_schema in (5, 6, 7):
             explicit_flush = arm.get("post_writer_flush_diagnostics")
             if not isinstance(explicit_flush, dict):
                 raise RuntimeError("missing post-writer flush diagnostics")
@@ -219,7 +219,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 raise RuntimeError(
                     "post-writer flush query-lock hold exceeds flush duration")
         api_calls = rounds
-        if timing_schema in (4, 5, 6):
+        if timing_schema in (4, 5, 6, 7):
             batch_api = arm.get("name") == "apply_batch"
             expected_api = "ApplyBatch" if batch_api else "Upsert"
             expected_calls = workload["writers"] if batch_api else rounds
@@ -235,11 +235,11 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         for key in required_writer_series:
             if not valid_series(arm.get(key), api_calls):
                 raise RuntimeError(f"missing/invalid writer timing series: {key}")
-        if timing_schema in (3, 4, 5, 6):
+        if timing_schema in (3, 4, 5, 6, 7):
             for key in ("state_hold_samples", "state_hold_cpu_samples"):
                 if not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
-        if timing_schema == 6:
+        if timing_schema in (6, 7):
             for key in ("wal_write_samples", "wal_fsync_samples"):
                 if not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
@@ -247,11 +247,16 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     arm["wal_write_samples"], arm["wal_fsync_samples"],
                     arm["wal_append_samples"], strict=True)):
                 raise RuntimeError("WAL write/fsync substage exceeds append duration")
+        if timing_schema == 7:
+            tracked_peak = arm.get("compaction_tracked_peak_bytes")
+            if (isinstance(tracked_peak, bool) or
+                    not isinstance(tracked_peak, int) or tracked_peak < 0):
+                raise RuntimeError("missing/invalid compaction tracked memory peak")
         # New binaries also emit normalization and WAL-encoding timings. Keep
         # replay compatibility with older raw receipts that predate these fields.
         for key in ("normalize_samples", "normalize_cpu_samples",
                     "wal_encode_samples", "wal_encode_cpu_samples"):
-            if timing_schema in (2, 3, 4, 5, 6) and not valid_series(arm.get(key), api_calls):
+            if timing_schema in (2, 3, 4, 5, 6, 7) and not valid_series(arm.get(key), api_calls):
                 raise RuntimeError(f"missing/invalid writer timing series: {key}")
             if key in arm and not valid_series(arm[key], api_calls):
                 raise RuntimeError(f"invalid optional writer timing series: {key}")
