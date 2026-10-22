@@ -24,6 +24,10 @@ The query-lock release is reader-side only. `Upsert`, `Delete`, and `ApplyBatch`
 
 Detached compaction is not a safe `mutex_.unlock()` change: it would need pinned input `SegmentPtr`s and stable run IDs, a tombstone snapshot plus publish-time preservation of later deletes, a pending-output registry so an intervening flush/GC does not delete unpublished `run-*`, manifest/WAL reconciliation for concurrent mutations, and a bounded run-cap/backpressure rule. Do not weaken existing delta/run/memory limits to make this work. The current performance receipt cannot establish whether state-lock hold or I/O is the dominant writer-tail cause; defer any writer-async architecture claim until an eligible measurement distinguishes it.
 
+## Process and lease boundary
+
+`Index::Open` in `src/index.cc` opens the M4 manifest/segments and `wal.log`; the research M4 source has no process-level file lock. By contrast, Rust `ReadSessionCache::acquire` holds a shared `home/locks/read-cache` lease with cached native handles, and workspace writes take the home writer lock, retire read sessions, and then acquire the exclusive read-cache lease (`rust/crates/zg-engine/src/storage/read_session.rs`, `workspace/lock.rs`). M4 is not wired into that lease lifecycle. The source-supported integration implication is one resident M4 owner in the service process, with client reads brokered through it; direct multi-process opens of one M4 directory are unsupported. This remains a design implication, not a validated M4 integration or production change.
+
 ## Next work
 
 1. Keep WAL-before-apply, shared reader admission, cache locking, crash recovery, and compaction build unlock as unpromoted research prototypes. The pre-existing untracked `m4_correctness.cc` remains untouched and was not staged wholesale.
