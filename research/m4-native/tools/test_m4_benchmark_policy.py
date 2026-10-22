@@ -89,10 +89,13 @@ class BenchmarkPolicyTests(unittest.TestCase):
                     "manifest_write_ms", "manifest_write_cpu_ms",
                     "wal_reset_ms", "wal_reset_cpu_ms", "gc_ms",
                     "gc_cpu_ms", "delta_reset_ms", "delta_reset_cpu_ms")
+                if timing_schema >= 5:
+                    flush_stage_fields += (
+                        "query_mutex_hold_ms", "query_mutex_hold_cpu_ms")
                 arm["compaction_diagnostics"] = {
                     **dict.fromkeys(timing_fields, 0.25),
                     "flush_stage_timing": {
-                        "schema_version": 1,
+                        "schema_version": 2 if timing_schema >= 5 else 1,
                         **dict.fromkeys(flush_stage_fields, 0.01),
                     },
                 }
@@ -108,7 +111,7 @@ class BenchmarkPolicyTests(unittest.TestCase):
                         "pending_flush_ms": 0.2,
                         "pending_flush_cpu_ms": 0.1,
                         "flush_stage_timing": {
-                            "schema_version": 1,
+                            "schema_version": 2,
                             **dict.fromkeys(flush_stage_fields, 0.005),
                         },
                     }
@@ -151,6 +154,19 @@ class BenchmarkPolicyTests(unittest.TestCase):
         lock_runner.verify(result, data, contract)
         data["arms"][0]["compaction_diagnostics"]["merge_build_ms"] = float("nan")
         with self.assertRaisesRegex(RuntimeError, "compaction phase timing"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_bounds_flush_query_lock_hold(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        stages = data["arms"][0]["compaction_diagnostics"]["flush_stage_timing"]
+        stages["query_mutex_hold_ms"] = 0.3
+        with self.assertRaisesRegex(RuntimeError, "flush query-lock hold"):
+            lock_runner.verify(result, data, contract)
+
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        stages = data["arms"][0]["post_writer_flush_diagnostics"]["flush_stage_timing"]
+        stages["query_mutex_hold_ms"] = 0.3
+        with self.assertRaisesRegex(RuntimeError, "query-lock hold exceeds"):
             lock_runner.verify(result, data, contract)
 
     def test_contention_verifier_checks_optional_flush_stage_timing(self):

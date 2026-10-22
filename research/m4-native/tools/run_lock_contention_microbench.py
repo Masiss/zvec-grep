@@ -138,8 +138,16 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     "manifest_write_ms", "manifest_write_cpu_ms",
                     "wal_reset_ms", "wal_reset_cpu_ms", "gc_ms",
                     "gc_cpu_ms", "delta_reset_ms", "delta_reset_cpu_ms")
-                if not isinstance(flush_stages, dict) or flush_stages.get("schema_version") != 1:
+                stage_version = (
+                    flush_stages.get("schema_version")
+                    if isinstance(flush_stages, dict) else None
+                )
+                if (stage_version not in (1, 2) or
+                        (timing_schema == 5 and stage_version != 2)):
                     raise RuntimeError("invalid optional flush-stage timing object")
+                if stage_version == 2:
+                    stage_fields += (
+                        "query_mutex_hold_ms", "query_mutex_hold_cpu_ms")
                 for key in stage_fields:
                     value = flush_stages.get(key)
                     if (isinstance(value, bool) or
@@ -153,6 +161,10 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     "gc_ms", "delta_reset_ms"))
                 if stage_wall_sum > compaction["pending_flush_ms"] + 1e-3:
                     raise RuntimeError("flush-stage timing exceeds pending-flush duration")
+                if (stage_version == 2 and
+                        flush_stages["query_mutex_hold_ms"] >
+                        compaction["pending_flush_ms"] + 1e-3):
+                    raise RuntimeError("flush query-lock hold exceeds pending-flush duration")
         if timing_schema == 5:
             explicit_flush = arm.get("post_writer_flush_diagnostics")
             if not isinstance(explicit_flush, dict):
@@ -175,13 +187,15 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     explicit_flush["total_ms"] + 1e-6):
                 raise RuntimeError("post-writer flush lock timing lies outside total")
             flush_stages = explicit_flush.get("flush_stage_timing")
-            if not isinstance(flush_stages, dict) or flush_stages.get("schema_version") != 1:
+            if (not isinstance(flush_stages, dict) or
+                    flush_stages.get("schema_version") != 2):
                 raise RuntimeError("missing/invalid post-writer flush-stage timing")
             stage_fields = (
                 "segment_build_ms", "segment_build_cpu_ms",
                 "segment_write_ms", "segment_write_cpu_ms",
                 "segment_open_ms", "segment_open_cpu_ms",
                 "query_mutex_wait_ms", "query_mutex_wait_cpu_ms",
+                "query_mutex_hold_ms", "query_mutex_hold_cpu_ms",
                 "stats_append_ms", "stats_append_cpu_ms",
                 "tombstone_write_ms", "tombstone_write_cpu_ms",
                 "manifest_write_ms", "manifest_write_cpu_ms",
@@ -200,6 +214,10 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 "gc_ms", "delta_reset_ms"))
             if stage_wall_sum > explicit_flush["pending_flush_ms"] + 1e-3:
                 raise RuntimeError("post-writer flush stages exceed flush duration")
+            if (flush_stages["query_mutex_hold_ms"] >
+                    explicit_flush["pending_flush_ms"] + 1e-3):
+                raise RuntimeError(
+                    "post-writer flush query-lock hold exceeds flush duration")
         api_calls = rounds
         if timing_schema in (4, 5):
             batch_api = arm.get("name") == "apply_batch"

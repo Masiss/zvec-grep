@@ -3260,6 +3260,9 @@ class Index::Impl {
             ThreadCpuMs() - wait_cpu;
       }
     }
+    ScopedStageTimer flush_query_hold_timer(
+        capture ? &diagnostics->flush_query_mutex_hold_ms : nullptr,
+        capture ? &diagnostics->flush_query_mutex_hold_cpu_ms : nullptr);
     if (wrote_run) {
       ++run_id_seq_;
       segment_bytes_written_ += new_run.info.file_size;

@@ -194,6 +194,8 @@ struct CompactionDiagnostics {
   double flush_segment_open_cpu_ms{0.0};
   double flush_query_mutex_wait_ms{0.0};
   double flush_query_mutex_wait_cpu_ms{0.0};
+  double flush_query_mutex_hold_ms{0.0};
+  double flush_query_mutex_hold_cpu_ms{0.0};
   double flush_stats_append_ms{0.0};
   double flush_stats_append_cpu_ms{0.0};
   double flush_tombstone_write_ms{0.0};

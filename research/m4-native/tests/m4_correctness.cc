@@ -1223,6 +1223,8 @@ void TestAtomicMutationBatch(const std::string& root) {
         flush_diagnostics.flush_segment_open_cpu_ms,
         flush_diagnostics.flush_query_mutex_wait_ms,
         flush_diagnostics.flush_query_mutex_wait_cpu_ms,
+        flush_diagnostics.flush_query_mutex_hold_ms,
+        flush_diagnostics.flush_query_mutex_hold_cpu_ms,
         flush_diagnostics.flush_stats_append_ms,
         flush_diagnostics.flush_stats_append_cpu_ms,
         flush_diagnostics.flush_tombstone_write_ms,
@@ -1241,8 +1243,10 @@ void TestAtomicMutationBatch(const std::string& root) {
     }
     Check(flush_diagnostics.total_ms >= flush_diagnostics.pending_flush_ms &&
               flush_diagnostics.state_mutex_hold_ms >=
+                  flush_diagnostics.pending_flush_ms &&
+              flush_diagnostics.flush_query_mutex_hold_ms <=
                   flush_diagnostics.pending_flush_ms,
-          "explicit flush phase lies within lock and total durations");
+          "explicit flush phase and query-lock hold lie within outer durations");
 
     m4::CompactionDiagnostics disabled_flush;
     disabled_flush.capture_timing = false;
@@ -1252,7 +1256,8 @@ void TestAtomicMutationBatch(const std::string& root) {
     Check(disabled_flush.total_ms == 0.0 &&
               disabled_flush.state_mutex_hold_ms == 0.0 &&
               disabled_flush.pending_flush_ms == 0.0 &&
-              disabled_flush.flush_manifest_write_ms == 0.0,
+              disabled_flush.flush_manifest_write_ms == 0.0 &&
+              disabled_flush.flush_query_mutex_hold_ms == 0.0,
           "disabled explicit flush diagnostics stay zero");
   }
 

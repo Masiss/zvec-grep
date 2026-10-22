@@ -356,7 +356,7 @@ void PrintFlushDiagnostics(const m4::CompactionDiagnostics& diagnostics) {
             << ",\"pending_flush_ms\":" << diagnostics.pending_flush_ms
             << ",\"pending_flush_cpu_ms\":"
             << diagnostics.pending_flush_cpu_ms
-            << ",\"flush_stage_timing\":{\"schema_version\":1"
+            << ",\"flush_stage_timing\":{\"schema_version\":2"
             << ",\"segment_build_ms\":"
             << diagnostics.flush_segment_build_ms
             << ",\"segment_build_cpu_ms\":"
@@ -373,6 +373,10 @@ void PrintFlushDiagnostics(const m4::CompactionDiagnostics& diagnostics) {
             << diagnostics.flush_query_mutex_wait_ms
             << ",\"query_mutex_wait_cpu_ms\":"
             << diagnostics.flush_query_mutex_wait_cpu_ms
+            << ",\"query_mutex_hold_ms\":"
+            << diagnostics.flush_query_mutex_hold_ms
+            << ",\"query_mutex_hold_cpu_ms\":"
+            << diagnostics.flush_query_mutex_hold_cpu_ms
             << ",\"stats_append_ms\":"
             << diagnostics.flush_stats_append_ms
             << ",\"stats_append_cpu_ms\":"
@@ -435,7 +439,7 @@ void PrintArm(const ArmResult& arm, bool last) {
             << ",\"publication_ms\":" << compaction.publication_ms
             << ",\"publication_cpu_ms\":"
             << compaction.publication_cpu_ms
-            << ",\"flush_stage_timing\":{\"schema_version\":1"
+            << ",\"flush_stage_timing\":{\"schema_version\":2"
             << ",\"segment_build_ms\":"
             << compaction.flush_segment_build_ms
             << ",\"segment_build_cpu_ms\":"
@@ -452,6 +456,10 @@ void PrintArm(const ArmResult& arm, bool last) {
             << compaction.flush_query_mutex_wait_ms
             << ",\"query_mutex_wait_cpu_ms\":"
             << compaction.flush_query_mutex_wait_cpu_ms
+            << ",\"query_mutex_hold_ms\":"
+            << compaction.flush_query_mutex_hold_ms
+            << ",\"query_mutex_hold_cpu_ms\":"
+            << compaction.flush_query_mutex_hold_cpu_ms
             << ",\"stats_append_ms\":"
             << compaction.flush_stats_append_ms
             << ",\"stats_append_cpu_ms\":"
