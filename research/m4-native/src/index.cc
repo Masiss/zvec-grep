@@ -1672,17 +1672,35 @@ class Index::Impl {
     return Status::OK();
   }
 
-  Status Upsert(const std::string& pk, const Document& doc) {
+  Status Upsert(const std::string& pk, const Document& doc,
+                WriteDiagnostics* diagnostics) {
+    const bool capture = diagnostics && diagnostics->capture_timing;
+    double wall_start = capture ? NowMs() : 0.0;
+    double cpu_start = capture ? ThreadCpuMs() : 0.0;
     // Array normalization is pure input preparation. Do it before acquiring
     // the writer-state mutex so competing writers do not queue behind it.
     const Document normalized = NormalizeDocument(doc);
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (capture) {
+      diagnostics->normalize_ms = NowMs() - wall_start;
+      diagnostics->normalize_cpu_ms = ThreadCpuMs() - cpu_start;
+      wall_start = NowMs();
+      cpu_start = ThreadCpuMs();
+    }
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    if (capture) {
+      diagnostics->state_mutex_wait_ms = NowMs() - wall_start;
+      diagnostics->state_mutex_wait_cpu_ms = ThreadCpuMs() - cpu_start;
+    }
     const uint64_t old_id = LookupPk(pk);
     // Keep the high-water mark stable for shared readers until InsertInternal
     // advances it under exclusive query admission; writers are state-serialized.
     const DocId new_id = next_doc_id_;
 
     // Persist the complete replacement before changing query-visible state.
+    if (capture) {
+      wall_start = NowMs();
+      cpu_start = ThreadCpuMs();
+    }
     BufWriter w;
     w.U8(1);  // upsert
     w.U64(old_id);
@@ -1694,11 +1712,23 @@ class Index::Impl {
       w.String(v.field);
       w.String(v.value);
     }
+    if (capture) {
+      diagnostics->wal_encode_ms = NowMs() - wall_start;
+      diagnostics->wal_encode_cpu_ms = ThreadCpuMs() - cpu_start;
+    }
     const uint64_t seq = next_wal_seq_++;
     last_wal_seq_ = seq;
     Status s;
     if (options_.wal_enabled) {
+      if (capture) {
+        wall_start = NowMs();
+        cpu_start = ThreadCpuMs();
+      }
       s = wal_.Append(seq, w.data(), options_.fsync_wal);
+      if (capture) {
+        diagnostics->wal_append_ms = NowMs() - wall_start;
+        diagnostics->wal_append_cpu_ms = ThreadCpuMs() - cpu_start;
+      }
       if (!s.ok) return s;
       const char* fault = std::getenv("M4_FAULT");
       if (fault && std::string(fault) == "upsert_after_wal_sync") ::_exit(88);
@@ -1706,15 +1736,44 @@ class Index::Impl {
     s = WaitForTestWalApplyBarrier();
     if (!s.ok) return s;
 
+    if (capture) {
+      wall_start = NowMs();
+      cpu_start = ThreadCpuMs();
+    }
     std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
+    if (capture) {
+      diagnostics->query_mutex_wait_ms = NowMs() - wall_start;
+      diagnostics->query_mutex_wait_cpu_ms = ThreadCpuMs() - cpu_start;
+      wall_start = NowMs();
+      cpu_start = ThreadCpuMs();
+    }
     if (old_id != 0) {
       s = DeleteInternal(old_id, true);
-      if (!s.ok) return s;
+      if (!s.ok) {
+        if (capture) {
+          diagnostics->apply_ms = NowMs() - wall_start;
+          diagnostics->apply_cpu_ms = ThreadCpuMs() - cpu_start;
+        }
+        return s;
+      }
     }
     s = InsertInternal(new_id, pk, normalized);
+    if (capture) {
+      diagnostics->apply_ms = NowMs() - wall_start;
+      diagnostics->apply_cpu_ms = ThreadCpuMs() - cpu_start;
+    }
     if (!s.ok) return s;
     pending_flush_ = true;
-    return MaybeAutoFlush(&query_guard);
+    if (capture) {
+      wall_start = NowMs();
+      cpu_start = ThreadCpuMs();
+    }
+    s = MaybeAutoFlush(&query_guard);
+    if (capture) {
+      diagnostics->auto_flush_ms = NowMs() - wall_start;
+      diagnostics->auto_flush_cpu_ms = ThreadCpuMs() - cpu_start;
+    }
+    return s;
   }
 
   Status Delete(const std::string& pk) {
@@ -3340,11 +3399,31 @@ class Index::Impl {
         }
         run_snapshot_charge += file_charge;
       }
-      uint64_t tombstone_count = 0;
+      // Snapshot only tombstones that may refer to the selected runs. Walking
+      // every document twice here made snapshot admission O(input documents)
+      // while both writer-state and query-admission locks were held. Run ID
+      // ranges are ordered and non-overlapping; a tombstone in a range gap is
+      // harmless because the merge can only match IDs present in its inputs.
+      std::vector<std::pair<DocId, DocId>> input_ranges;
+      input_ranges.reserve(input_segments.size());
       for (const SegmentPtr& segment : input_segments) {
-        for (const auto& doc : segment->docs()) {
-          if (tombstones_.count(doc.id) != 0) ++tombstone_count;
+        if (!segment->docs().empty()) {
+          input_ranges.emplace_back(segment->first_doc_id(),
+                                    segment->last_doc_id());
         }
+      }
+      std::sort(input_ranges.begin(), input_ranges.end());
+      auto belongs_to_input = [&input_ranges](DocId id) {
+        const auto it = std::upper_bound(
+            input_ranges.begin(), input_ranges.end(), id,
+            [](DocId value, const std::pair<DocId, DocId>& range) {
+              return value < range.first;
+            });
+        return it != input_ranges.begin() && id <= std::prev(it)->second;
+      };
+      uint64_t tombstone_count = 0;
+      for (DocId id : tombstones_) {
+        if (belongs_to_input(id)) ++tombstone_count;
       }
       const uint64_t set_charge = sizeof(snapshot_tombstones);
       if (limit - fixed_charge - run_snapshot_charge < set_charge ||
@@ -3357,10 +3436,8 @@ class Index::Impl {
           run_snapshot_charge + set_charge + tombstone_count * 128;
       snapshot_runs = runs_;
       snapshot_tombstones.reserve(static_cast<size_t>(tombstone_count));
-      for (const SegmentPtr& segment : input_segments) {
-        for (const auto& doc : segment->docs()) {
-          if (tombstones_.count(doc.id) != 0) snapshot_tombstones.insert(doc.id);
-        }
+      for (DocId id : tombstones_) {
+        if (belongs_to_input(id)) snapshot_tombstones.insert(id);
       }
       merge_tombstones = &snapshot_tombstones;
     }
@@ -4114,7 +4191,12 @@ Status Index::Open(const std::string& directory, const Options& options,
 }
 
 Status Index::Upsert(const std::string& pk, const Document& document) {
-  return impl_->Upsert(pk, document);
+  return impl_->Upsert(pk, document, nullptr);
+}
+Status Index::Upsert(const std::string& pk, const Document& document,
+                     WriteDiagnostics* diagnostics) {
+  if (diagnostics) *diagnostics = WriteDiagnostics{};
+  return impl_->Upsert(pk, document, diagnostics);
 }
 Status Index::Delete(const std::string& pk) { return impl_->Delete(pk); }
 Status Index::ApplyBatch(const std::vector<Mutation>& mutations) {

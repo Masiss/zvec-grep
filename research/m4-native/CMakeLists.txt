@@ -78,6 +78,15 @@ target_link_libraries(m4_benchmark PRIVATE m4_research)
 
 find_package(Threads REQUIRED)
 
+# Bounded diagnostic for writer tail latency under concurrent compaction.
+# Intentionally not a CTest target; run only through the contained harness.
+add_executable(m4_compaction_writer_contention
+  tests/m4_compaction_writer_contention.cc)
+target_compile_options(m4_compaction_writer_contention PRIVATE
+  -Wall -Wextra -Werror)
+target_link_libraries(m4_compaction_writer_contention PRIVATE
+  m4_research Threads::Threads)
+
 add_executable(m4_writer_preferred_mutex_test
   tests/writer_preferred_shared_mutex_test.cc)
 target_include_directories(m4_writer_preferred_mutex_test PRIVATE

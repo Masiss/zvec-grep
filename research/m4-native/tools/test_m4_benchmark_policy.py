@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
 """Regression tests for the shared research M4 operation/gate policy."""
+import importlib.util
 import json
 import pathlib
 import sys
+import tempfile
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import m4_containment_runner as runner  # noqa: E402
 
+SCRIPT = HERE / "run_lock_contention_microbench.py"
+spec = importlib.util.spec_from_file_location("m4_lock_contention_runner", SCRIPT)
+assert spec and spec.loader
+lock_runner = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(lock_runner)
+
 POLICY_PATH = HERE.parent / "docs" / "benchmark-policy.json"
 
 
 class BenchmarkPolicyTests(unittest.TestCase):
+    def test_contention_output_parser_accepts_pretty_printed_json(self):
+        payload = {"mode": "m4_compaction_contention", "arms": []}
+        with tempfile.TemporaryDirectory() as tmp:
+            stdout = pathlib.Path(tmp) / "stdout.log"
+            stdout.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            self.assertEqual(lock_runner.read_workload(stdout), payload)
+
     def setUp(self):
         self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
 

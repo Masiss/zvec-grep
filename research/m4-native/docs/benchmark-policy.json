@@ -84,7 +84,7 @@
     "recovery": "Three consecutive valid ten-second capacity/integrity windows; no historical-envelope or stationary-baseline requirement. First-arm failure blocks arm two; recovery timeout/integrity/capacity failure consumes the attempt without retry",
     "full_sync_binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
     "max_arm_runtime_seconds": 3600,
-    "isolation_scope": "Operation-bound full-sync 500x20 A/A, the owner-authorized shared-collection 500x5 A/B follow-up pair defined below, or separately authorized single-arm exploratory diagnostics only; qualification, legacy diagnostics, other benchmarks and production unchanged",
+    "isolation_scope": "Operation-bound full-sync 500x20 A/A, the owner-authorized shared-collection 500x5 A/B follow-up pair defined below, or separately authorized bounded M4 exploratory diagnostics including paired compaction-contention; qualification, legacy diagnostics, other benchmarks and production unchanged",
     "no_attribution_shortcut": "Host-wide pressure is not evidence that M4 caused it; observed during-minus-baseline is temporal association, not identified incremental causality",
     "no_automatic_retry": true
   },
@@ -133,22 +133,25 @@
   "lock_contention_microbench": {
     "purpose": "m4-lock-contention-microbench",
     "approval_status": "approved",
-    "approval_reference": "Current explicit owner instruction 2026-10-22: design and execute a bounded, contained M4 microbenchmark if safe; preserve all hard safety checks.",
-    "execution_authorization_reference": "Current explicit owner instruction 2026-10-22 authorizes this single-arm lock/reader/GC/writer diagnostic; no pair retry and no hard-gate bypass.",
-    "risk_acceptance_reference": "Exploratory single-arm results are descriptive only; shared-host pressure and absent A/B control prohibit causal or architecture-win claims.",
+    "approval_reference": "Current explicit owner instruction 2026-10-22: independently investigate M4 writer-tail and reader contention with bounded contained workloads; preserve all hard safety checks.",
+    "execution_authorization_reference": "Current explicit owner instruction 2026-10-22 authorizes one contained, within-process default-vs-snapshot compaction comparison with concurrent durable writers/readers; no hard-gate bypass or automatic retry.",
+    "risk_acceptance_reference": "One paired exploratory operation is descriptive only; shared-host pressure, one round per arm and test-scale workloads prohibit causal, qualification or architecture-win claims.",
     "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
-    "binary_name": "m4_bridge_integration",
+    "binary_name": "m4_compaction_writer_contention",
     "resource_root": "/var/tmp",
     "io_pressure_mode": "observational-only",
     "workload": {
-      "documents": 64,
-      "rounds": 10,
-      "readers": 4,
-      "queries_per_reader_per_round": 1,
-      "mode": "--shared-collection-performance",
+      "documents": 8192,
+      "rounds": 32,
+      "writers": 4,
+      "ops_per_writer": 8,
+      "readers": 2,
+      "queries_per_reader": 32,
+      "mode": "--m4-compaction-contention",
       "tracing": false
     },
-    "single_arm": true,
+    "single_arm": false,
+    "paired_within_operation": true,
     "resource_controls": {
       "memory_max_bytes": 536870912,
       "memory_swap_max_bytes": 0,
@@ -161,7 +164,7 @@
       "workspace_max_allocated_bytes": 134217728,
       "workspace_max_apparent_bytes": 268435456
     },
-    "measurement_semantics": "One contained 64-document, 10-writer-cycle workload: 40 concurrent reader samples and 10 writer/GC samples. Record per-sample lock wait, reader latency, GC, writer commit and cycle latency. Nearest-rank p95 is descriptive at these sample counts. No baseline arm, no qualification, no causal attribution, no architecture winner.",
+    "measurement_semantics": "Within each arm, seed 8,192 Jieba-tokenized documents, run one compaction concurrently with four WAL-durable writers (8 Upserts each) and two search readers (32 queries each), then Flush and verify after reopen. Compare default compaction with the snapshot prototype in alternating root-hash order. Record total writer wall times plus opt-in stage wall/CPU timings for normalization, state-mutex wait, WAL encoding/append, query-mutex wait, apply and auto-flush; record query wall times and total compaction duration/status. State-mutex wait is exact API lock acquisition time; residual wall time is not labeled scheduler time because it also includes test hooks and uninstrumented work. This 32-write/64-query, one-round-per-arm operation is diagnostic only: no stable-tail claim, no cause attribution beyond instrumented stages, no qualification or architecture winner. Any superseded snapshot compaction is reported as such rather than hidden or retried.",
     "no_automatic_retry": true
   },
   "workspace_observer": {

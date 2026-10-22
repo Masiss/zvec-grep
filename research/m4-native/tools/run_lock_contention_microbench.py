@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the explicitly authorized, single-arm contained M4 lock microbenchmark."""
+"""Run the explicitly authorized, contained M4 compaction-contention comparison."""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +16,7 @@ from typing import Any
 
 BASE = pathlib.Path(__file__).resolve().parents[1]
 POLICY_PATH = BASE / "docs/benchmark-policy.json"
-BINARY = BASE / ".work/build/m4-stage-trace-bridge-test/m4_bridge_integration"
+BINARY = BASE / ".work/build/durability-restore-20261020/m4_compaction_writer_contention"
 DICTIONARY = BASE.parent.parent / ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
 RESULTS = BASE / "results/lock-contention-microbench"
 sys.path.insert(0, str(BASE / "tools"))
@@ -48,17 +48,14 @@ def host_context() -> dict[str, Any]:
 
 
 def read_workload(stdout_path: pathlib.Path) -> dict[str, Any]:
-    for line in stdout_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = line.strip()
-        if not line.startswith("{") or not line.endswith("}"):
-            continue
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict) and value.get("mode") == "shared_collection":
-            return value
-    raise RuntimeError(f"missing shared-collection microbenchmark receipt: {stdout_path}")
+    # The executable emits one valid, pretty-printed JSON document across lines.
+    try:
+        value = json.loads(stdout_path.read_text(encoding="utf-8", errors="replace"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"invalid M4 compaction-contention JSON: {stdout_path}: {exc}") from exc
+    if isinstance(value, dict) and value.get("mode") == "m4_compaction_contention":
+        return value
+    raise RuntimeError(f"missing M4 compaction-contention result: {stdout_path}")
 
 
 def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any]) -> None:
@@ -70,20 +67,44 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         raise RuntimeError("contained microbenchmark cleanup is unverified")
     workload = contract["workload"]
     docs, rounds = workload["documents"], workload["rounds"]
-    if (data.get("documents") != docs or data.get("rounds") != rounds or
-            data.get("completed_rounds") != rounds or data.get("coherence_errors") != 0 or
-            data.get("failures") != 0 or data.get("native_live_docs") != docs or
-            data.get("m4_live_docs") != docs):
-        raise RuntimeError("microbenchmark workload counts/coherence do not match the contract")
-    for key, count in (("reader_total_ms", rounds * workload["readers"]),
-                       ("reader_m4_query_lock_wait_ms", rounds * workload["readers"]),
-                       ("writer_commit_ms", rounds), ("writer_gc_ms", rounds),
-                       ("writer_cycle_ms", rounds)):
-        values = data.get(key)
-        if (not isinstance(values, list) or len(values) != count or
-                any(isinstance(v, bool) or not isinstance(v, (int, float)) or
-                    not math.isfinite(v) or v < 0 for v in values)):
-            raise RuntimeError(f"missing/invalid required timing series: {key}")
+    if (data.get("mode") != "m4_compaction_contention" or
+            data.get("documents") != docs or data.get("rounds") != rounds or
+            data.get("writers") != workload["writers"] or
+            data.get("ops_per_writer") != workload["ops_per_writer"] or
+            data.get("writer_operations") != rounds or
+            data.get("reader_queries") != workload["readers"] * workload["queries_per_reader"] or
+            data.get("coherence_errors") != 0 or data.get("failures") != 0):
+        raise RuntimeError("contention workload counts/coherence do not match the contract")
+    arms = data.get("arms")
+    if not isinstance(arms, list) or [arm.get("name") for arm in arms] != data.get("arm_order") or set(data.get("arm_order", [])) != {"default", "snapshot"}:
+        raise RuntimeError("paired compaction arms or order are missing")
+    def valid_series(values: Any, count: int) -> bool:
+        return (isinstance(values, list) and len(values) == count and
+                all(not isinstance(v, bool) and isinstance(v, (int, float)) and
+                    math.isfinite(v) and v >= 0 for v in values))
+    for arm in arms:
+        for key in ("writer_samples", "state_wait_samples", "state_wait_cpu_samples",
+                    "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
+                    "apply_samples", "auto_flush_samples"):
+            if not valid_series(arm.get(key), rounds):
+                raise RuntimeError(f"missing/invalid writer timing series: {key}")
+        # New binaries also emit normalization and WAL-encoding timings. Keep
+        # replay compatibility with older raw receipts that predate these fields.
+        for key in ("normalize_samples", "normalize_cpu_samples",
+                    "wal_encode_samples", "wal_encode_cpu_samples"):
+            if key in arm and not valid_series(arm[key], rounds):
+                raise RuntimeError(f"invalid optional writer timing series: {key}")
+        reader_count = workload["readers"] * workload["queries_per_reader"]
+        if (not valid_series(arm.get("reader_samples"), reader_count) or
+                not valid_series(arm.get("reader_mutex_wait_samples"), reader_count)):
+            raise RuntimeError("missing/invalid reader latency or mutex-wait series")
+        if (arm.get("writer_failures") != 0 or arm.get("reader_failures") != 0 or
+                arm.get("durability_failures") != 0 or arm.get("runs_after_flush", 0) < 1):
+            raise RuntimeError("writer, reader, durability, or reopen verification failed")
+        if (arm.get("name") == "default" and arm.get("compaction_status") != "ok") or (
+                arm.get("name") == "snapshot" and arm.get("compaction_status") not in
+                ("ok", "compaction snapshot superseded by concurrent state change")):
+            raise RuntimeError("unexpected compaction outcome")
 
 
 def main() -> int:
@@ -113,7 +134,7 @@ def main() -> int:
         "approval_reference": contract["approval_reference"],
         "execution_authorization_reference": contract["execution_authorization_reference"],
         "risk_acceptance_reference": contract["risk_acceptance_reference"],
-        "resource_basis": "64 documents x 10 writer cycles; existing API emits 40 reader samples and 10 writer/GC samples. 512 MiB cgroup cap is an operation-specific estimate below the existing 1 GiB ceiling; fixed 3 GiB host reserve and all containment/integrity/cleanup gates remain unchanged.",
+        "resource_basis": "Paired 8,192-document M4 fixture; each arm runs 4 concurrent WAL-durable writers (8 upserts each), 2 readers (32 searches each), one compaction, flush and reopen verification. 512 MiB cgroup cap remains below the existing 1 GiB ceiling; fixed 3 GiB host reserve and all containment/integrity/cleanup gates remain unchanged.",
         "policy_sha256": sha256(POLICY_PATH),
         "operation_id": operation_id, "operation_root": str(operation_root.resolve()),
         "resource_root": str(resource_root),

@@ -151,6 +151,26 @@ struct SearchResult {
   uint64_t examined{0};  // postings examined (including tombstoned candidates)
 };
 
+// Research-only write telemetry. Strictly opt-in; a null pointer adds no
+// diagnostic timers to the mutation path.
+struct WriteDiagnostics {
+  bool capture_timing{true};
+  double normalize_ms{0.0};
+  double normalize_cpu_ms{0.0};
+  double state_mutex_wait_ms{0.0};
+  double state_mutex_wait_cpu_ms{0.0};
+  double wal_encode_ms{0.0};
+  double wal_encode_cpu_ms{0.0};
+  double wal_append_ms{0.0};
+  double wal_append_cpu_ms{0.0};
+  double query_mutex_wait_ms{0.0};
+  double query_mutex_wait_cpu_ms{0.0};
+  double apply_ms{0.0};
+  double apply_cpu_ms{0.0};
+  double auto_flush_ms{0.0};
+  double auto_flush_cpu_ms{0.0};
+};
+
 // Research-only query telemetry. Strictly opt-in; null diagnostics must not
 // incur counter increments, diagnostic timers, or per-query diagnostic state.
 struct QueryDiagnostics {
@@ -329,6 +349,8 @@ class Index {
   // Upsert keyed by a stable primary key. An existing key is tombstoned and a
   // new global DocId is appended; no existing posting is rewritten.
   Status Upsert(const std::string& pk, const Document& document);
+  Status Upsert(const std::string& pk, const Document& document,
+                WriteDiagnostics* diagnostics);
 
   // Tombstone the live version of |pk|. Postings are untouched until a
   // bounded compaction rewrites the owning run.
