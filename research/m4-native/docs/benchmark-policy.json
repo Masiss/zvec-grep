@@ -245,6 +245,27 @@
       },
       "measurement_semantics": "One distinct contained profile using the research-only cppjieba DictTrie cache-eviction overlay at the exact repository-relative binary path. First run the same 1,024-seed/four-arm workload under unchanged hard/soft caps, then initialize two distinct dictionary versions in one process and record per-version PSS/RSS before and after release. Compare retained/live-entry evidence against the prior uncapped one-entry cache implementation and same-workload baseline descriptively; this is not an isolated benchmark, causal attribution, latency comparison, or capacity claim. The source-level regression separately checks same-key coalescing, concurrent analyzer lifecycle, generation release, and reopening an older version. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried."
     },
+    "memory_churn_two_versions_trie_stream": {
+      "profile_id": "memory_churn_two_versions_trie_stream",
+      "binary_relative_path": ".work/build/dict-cache-trie-stream/m4_compaction_writer_contention",
+      "binary_sha256": "3f48d0e15aecace753e07f175ec4d88cfc1aa860f73fa121685f3525865db495",
+      "cppjieba_patch_relative_path": "patches/cppjieba-dict-cache-lifecycle-trie-stream.patch",
+      "cppjieba_patch_sha256": "a4bbccdcecf4b3ff8eee6e917f5907064b6a2ef5293f8f844559ef60acee3043",
+      "cppjieba_overlay_sha256": "dfa60124109bfb579be82f8dd00858bb70d98df27369efb6c2e5d03bb1773b72",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct same-cap exploratory cache-churn trace after the copy-reduction candidate. It removes per-analyzer temporary vector<Unicode> and pointer arrays by inserting the immutable base/user DictUnit entries directly into a local exception-safe Trie, in the same order; the existing public two-vector Trie constructor remains unchanged. Compare descriptively to the exact memory_churn_two_versions_memory_opt workload; record cgroup memory.stat, memory.peak, init times, and PSS, but this remains a one-run, multi-change research comparison, not isolated causal proof, stable latency/memory result, capacity claim, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
     "memory_churn_two_versions_memory_opt": {
       "profile_id": "memory_churn_two_versions_memory_opt",
       "binary_relative_path": ".work/build/dict-cache-eviction-memory-opt-final/m4_compaction_writer_contention",
