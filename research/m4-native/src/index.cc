@@ -89,6 +89,10 @@ struct DictionarySnapshotLease {
     if (--found->second.leases == 0) {
       std::error_code error;
       std::filesystem::remove_all(found->second.directory, error);
+      // Keep the entry only when cleanup failed so a later acquire can verify
+      // and safely reuse the residual path. Successful release needs no
+      // per-version registry metadata; the native cppjieba cache is separate.
+      if (!error) registry.entries.erase(found);
     }
   }
 };
