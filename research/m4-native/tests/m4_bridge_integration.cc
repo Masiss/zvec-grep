@@ -6400,6 +6400,7 @@ int main(int argc, char** argv) {
       const fs::path barrier = barrier_root / "barrier";
       fs::remove_all(barrier_root);
       m4::Options barrier_options = options;
+      barrier_options.cache_filter_candidates = true;
       std::unique_ptr<m4::Index> barrier_index;
       const auto barrier_open = m4::Index::Open(
           (barrier_root / "index").string(), barrier_options, &barrier_index);
@@ -6472,15 +6473,26 @@ int main(int argc, char** argv) {
           std::this_thread::sleep_for(std::chrono::milliseconds(1));
         const bool ready = fs::exists(wal_barrier / "wal-ready");
         m4::SearchResult during;
+        m4::QueryDiagnostics during_diagnostics;
+        during_diagnostics.collect_counters = true;
         const auto during_status = barrier_index->SearchFtsFiltered(
-            query, 10, m4::FilterExpr::All(), &during);
+            query, 10, m4::FilterExpr::All(), &during, &during_diagnostics);
         std::set<std::string> during_pks;
         for (const auto& hit : during.hits) during_pks.insert(hit.pk);
+        const std::unordered_map<std::string, float> vector_scores = {{"replace", 0.5f}};
+        m4::SearchResult during_hybrid;
+        const auto hybrid_status = barrier_index->SearchHybrid(
+            query, 10, 0.5, vector_scores, &during_hybrid);
+        std::set<std::string> hybrid_pks;
+        for (const auto& hit : during_hybrid.hits) hybrid_pks.insert(hit.pk);
         { std::ofstream release(wal_barrier / "reader-finished", std::ios::binary); release << "done\n"; }
         writer.join();
         ::unsetenv("M4_TEST_WAL_APPLY_BARRIER");
-        Check(ready && during_status.ok && during_pks == expected,
-              name + " reader completes against the pre-apply snapshot after durable WAL append");
+        Check(ready && during_status.ok && during_pks == expected &&
+                  during_diagnostics.filter_cache_hit,
+              name + " cached reader completes against the pre-apply snapshot after durable WAL append");
+        Check(hybrid_status.ok && hybrid_pks == expected,
+              name + " hybrid reader completes against the pre-apply snapshot after durable WAL append");
         Check(writer_ok.load(std::memory_order_acquire),
               name + " mutation applies after the reader leaves the WAL/apply interval");
       };

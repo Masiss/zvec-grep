@@ -1841,54 +1841,29 @@ class Index::Impl {
                            const FilterExpr& filter, SearchResult* out,
                            QueryDiagnostics* diagnostics) const {
     if (!diagnostics) {
-      std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_, std::defer_lock);
-      std::unique_lock<std::shared_mutex> query_write_lock(query_mutex_, std::defer_lock);
-      std::unique_lock<std::recursive_mutex> state_lock(mutex_, std::defer_lock);
-      if (options_.cache_filter_candidates) {
-        state_lock.lock();
-        query_write_lock.lock();
-      } else {
-        query_read_lock.lock();
-      }
+      std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
       std::vector<DocId> candidates;
-      const std::vector<DocId>* allowed = &candidates;
+      bool cache_hit = options_.cache_filter_candidates &&
+                       ReadFilterCache(filter, &candidates);
       Status status;
-      if (options_.cache_filter_candidates && filter_cache_valid_ &&
-          filter_cache_epoch_ == filter_state_epoch_ &&
-          FilterExprEqual(filter_cache_expr_, filter)) {
-        allowed = &filter_cache_candidates_;
-      } else {
+      if (!cache_hit) {
         status = FilterCandidates(filter, &candidates);
-        if (status.ok && options_.cache_filter_candidates &&
-            IsFilterCacheable(filter) &&
-            candidates.capacity() * sizeof(DocId) <=
-                kFilterCandidateCacheLimitBytes) {
-          filter_cache_expr_ = filter;
-          filter_cache_candidates_ = candidates;
-          filter_cache_epoch_ = filter_state_epoch_;
-          filter_cache_valid_ = true;
+        if (status.ok && options_.cache_filter_candidates) {
+          WriteFilterCache(filter, candidates);
         }
       }
       if (!status.ok) return status;
-      return SearchFtsInternal(query, top_k, allowed, out, nullptr);
+      return SearchFtsInternal(query, top_k, &candidates, out, nullptr);
     }
     const bool collect_counters = diagnostics->collect_counters;
     const bool capture_timing = diagnostics->capture_timing;
     const double wait_wall_start = capture_timing ? NowMs() : 0.0;
     const double wait_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
-    // Cache-enabled filtered queries update shared cache state and therefore
-    // remain exclusive. The normal uncached search path is read-only and may
-    // run concurrently with other readers; writers take the exclusive query
-    // lock before mutating any index state.
+    // Filtered queries are read-only against the query-locked index snapshot.
+    // Candidate-cache state has its own short mutex, so cache hits/misses do
+    // not serialize readers or require the writer state mutex.
     std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_, std::defer_lock);
-    std::unique_lock<std::shared_mutex> query_write_lock(query_mutex_, std::defer_lock);
-    std::unique_lock<std::recursive_mutex> state_lock(mutex_, std::defer_lock);
-    if (options_.cache_filter_candidates) {
-      state_lock.lock();
-      query_write_lock.lock();
-    } else {
-      query_read_lock.lock();
-    }
+    query_read_lock.lock();
     const double wait_ms = capture_timing ? NowMs() - wait_wall_start : 0.0;
     const double wait_cpu_ms = capture_timing
                                    ? ThreadCpuMs() - wait_cpu_start
@@ -1901,21 +1876,14 @@ class Index::Impl {
     const double filter_wall_start = capture_timing ? NowMs() : 0.0;
     const double filter_cpu_start = capture_timing ? ThreadCpuMs() : 0.0;
     Status status;
-    if (options_.cache_filter_candidates && filter_cache_valid_ &&
-        filter_cache_epoch_ == filter_state_epoch_ &&
-        FilterExprEqual(filter_cache_expr_, filter)) {
-      allowed = &filter_cache_candidates_;
-      filter_cache_hit = true;
-    } else {
+    if (options_.cache_filter_candidates) {
+      filter_cache_hit = ReadFilterCache(filter, &candidates);
+    }
+    if (!filter_cache_hit) {
       status = FilterCandidates(filter, &candidates,
                                 filter_diag ? &*filter_diag : nullptr);
-      if (status.ok && options_.cache_filter_candidates &&
-          IsFilterCacheable(filter) &&
-          candidates.capacity() * sizeof(DocId) <= kFilterCandidateCacheLimitBytes) {
-        filter_cache_expr_ = filter;
-        filter_cache_candidates_ = candidates;
-        filter_cache_epoch_ = filter_state_epoch_;
-        filter_cache_valid_ = true;
+      if (status.ok && options_.cache_filter_candidates) {
+        WriteFilterCache(filter, candidates);
       }
     }
     const double filter_ms = capture_timing ? NowMs() - filter_wall_start : 0.0;
@@ -2435,9 +2403,10 @@ class Index::Impl {
       const std::string& query, uint32_t top_k, double alpha,
       const std::unordered_map<std::string, float>& vector_scores,
       SearchResult* out) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> query_read_lock(query_mutex_);
     SearchResult fts;
-    Status s = SearchFts(query, std::max<uint32_t>(top_k * 4, top_k), &fts);
+    Status s = SearchFtsInternal(query, std::max<uint32_t>(top_k * 4, top_k),
+                                 nullptr, &fts, nullptr);
     if (!s.ok) return s;
 
     float fmin = std::numeric_limits<float>::max();
@@ -3526,7 +3495,32 @@ class Index::Impl {
     return FilterExprCacheableImpl(expr, 0, &nodes, &bytes);
   }
 
+  bool ReadFilterCache(const FilterExpr& expr,
+                       std::vector<DocId>* candidates) const {
+    std::lock_guard<std::mutex> lock(filter_cache_mutex_);
+    if (!filter_cache_valid_ || filter_cache_epoch_ != filter_state_epoch_ ||
+        !FilterExprEqual(filter_cache_expr_, expr)) {
+      return false;
+    }
+    *candidates = filter_cache_candidates_;
+    return true;
+  }
+
+  void WriteFilterCache(const FilterExpr& expr,
+                        const std::vector<DocId>& candidates) const {
+    if (!IsFilterCacheable(expr) ||
+        candidates.capacity() * sizeof(DocId) > kFilterCandidateCacheLimitBytes) {
+      return;
+    }
+    std::lock_guard<std::mutex> lock(filter_cache_mutex_);
+    filter_cache_expr_ = expr;
+    filter_cache_candidates_ = candidates;
+    filter_cache_epoch_ = filter_state_epoch_;
+    filter_cache_valid_ = true;
+  }
+
   void InvalidateFilterCache() {
+    std::lock_guard<std::mutex> lock(filter_cache_mutex_);
     filter_cache_valid_ = false;
     if (++filter_state_epoch_ == 0) filter_state_epoch_ = 1;
   }
@@ -3797,6 +3791,7 @@ class Index::Impl {
   static constexpr size_t kFilterCandidateCacheLimitBytes = 64u << 10;
   mutable std::shared_mutex query_mutex_;
   mutable std::recursive_mutex mutex_;
+  mutable std::mutex filter_cache_mutex_;
   uint64_t filter_state_epoch_{1};
   mutable uint64_t filter_cache_epoch_{0};
   mutable bool filter_cache_valid_{false};
