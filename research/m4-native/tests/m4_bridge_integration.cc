@@ -2876,6 +2876,26 @@ int RunGenerationLifecycle(const fs::path& root, const char* dictionary,
 } // namespace
 
 int ChildCrash(const fs::path& root, const char* dictionary, const std::string& stage) {
+  if (stage == "upsert_after_wal_sync" || stage == "delete_after_wal_sync") {
+    m4::Options options;
+    options.fts_field = "text";
+    options.fts_tokenizer_name = "jieba";
+    options.jieba_dict_dir = dictionary;
+    options.wal_enabled = true;
+    options.fsync_wal = true;
+    std::unique_ptr<m4::Index> index;
+    const auto opened = m4::Index::Open(
+        (root / "m4-single-op-crash").string(), options, &index);
+    if (!opened.ok) throw std::runtime_error("open direct M4 crash fixture: " + opened.message);
+    ::setenv("M4_FAULT", stage.c_str(), 1);
+    m4::Document doc;
+    doc.text = "recovered durable value";
+    if (stage == "upsert_after_wal_sync")
+      (void)index->Upsert("single-op", doc);
+    else
+      (void)index->Delete("single-op");
+    return 90;  // The WAL-sync failpoint should have terminated this child.
+  }
   Need(zvec_initialize(nullptr), "child initialize native");
   Native native = OpenVector(root / "vector", false);
   m4::Options options; options.fts_field = "text"; options.fts_tokenizer_name = "jieba";
@@ -6515,6 +6535,43 @@ int main(int argc, char** argv) {
           "wal durable", 10, m4::FilterExpr::All(), &wal_after_delete);
       Check(wal_delete_status.ok && wal_after_delete.hits.empty(),
             "delete becomes query-visible after its WAL/apply barrier");
+
+      const fs::path single_crash_root = root / "m4-single-op-crash";
+      fs::remove_all(single_crash_root);
+      std::unique_ptr<m4::Index> crash_index;
+      const auto crash_open = m4::Index::Open(
+          single_crash_root.string(), options, &crash_index);
+      if (!crash_open.ok) throw std::runtime_error("open single-op crash fixture: " + crash_open.message);
+      m4::Document crash_old; crash_old.text = "old durable value";
+      Check(crash_index->Upsert("single-op", crash_old).ok,
+            "seed single-op crash fixture");
+      crash_index.reset();
+      Check(SpawnCrash(argv[0], root, argv[2], "upsert_after_wal_sync") == 88,
+            "single upsert child crashes after durable WAL sync before apply");
+      auto recovered_upsert = m4::Index::Open(
+          single_crash_root.string(), options, &crash_index);
+      Check(recovered_upsert.ok, "reopen after single upsert WAL-sync crash");
+      m4::SearchResult recovered_search;
+      Check(recovered_upsert.ok && crash_index &&
+                crash_index->SearchFts("recovered durable", 10, &recovered_search).ok &&
+                recovered_search.hits.size() == 1 &&
+                recovered_search.hits.front().pk == "single-op",
+            "recovery replays upsert durable before in-memory apply");
+      Check(recovered_upsert.ok && crash_index &&
+                crash_index->SearchFts("old", 10, &recovered_search).ok &&
+                recovered_search.hits.empty() && crash_index->GetStats().live_docs == 1,
+            "recovered upsert atomically replaces old single-op version");
+      crash_index.reset();
+      Check(SpawnCrash(argv[0], root, argv[2], "delete_after_wal_sync") == 89,
+            "single delete child crashes after durable WAL sync before apply");
+      auto recovered_delete = m4::Index::Open(
+          single_crash_root.string(), options, &crash_index);
+      Check(recovered_delete.ok, "reopen after single delete WAL-sync crash");
+      Check(recovered_delete.ok && crash_index &&
+                crash_index->SearchFts("recovered durable", 10, &recovered_search).ok &&
+                recovered_search.hits.empty() && crash_index->GetStats().live_docs == 0,
+            "recovery replays delete durable before in-memory apply");
+      crash_index.reset();
     }
     const auto base = Fixtures(); Check(coordinator->Commit(base, 0), "publish base generation");
     const uint32_t gen1 = coordinator->SearchSnapshot();

@@ -1662,6 +1662,8 @@ class Index::Impl {
     if (options_.wal_enabled) {
       s = wal_.Append(seq, w.data(), options_.fsync_wal);
       if (!s.ok) return s;
+      const char* fault = std::getenv("M4_FAULT");
+      if (fault && std::string(fault) == "upsert_after_wal_sync") ::_exit(88);
     }
     s = WaitForTestWalApplyBarrier();
     if (!s.ok) return s;
@@ -1691,6 +1693,8 @@ class Index::Impl {
     if (options_.wal_enabled) {
       s = wal_.Append(seq, w.data(), options_.fsync_wal);
       if (!s.ok) return s;
+      const char* fault = std::getenv("M4_FAULT");
+      if (fault && std::string(fault) == "delete_after_wal_sync") ::_exit(89);
     }
     s = WaitForTestWalApplyBarrier();
     if (!s.ok) return s;
