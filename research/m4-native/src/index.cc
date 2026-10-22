@@ -38,6 +38,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "../include/m4/index.h"
@@ -52,21 +53,140 @@
 #endif
 
 namespace m4 {
+namespace {
+
+struct DictionarySnapshotEntry {
+  std::filesystem::path directory;
+  size_t leases{0};
+};
+
+struct DictionarySnapshotRegistry {
+  std::mutex mutex;
+  std::filesystem::path root;
+  std::unordered_map<std::string, DictionarySnapshotEntry> entries;
+
+  ~DictionarySnapshotRegistry() {
+    if (!root.empty()) {
+      std::error_code error;
+      std::filesystem::remove_all(root, error);
+    }
+  }
+};
+
+DictionarySnapshotRegistry& GetDictionarySnapshotRegistry() {
+  static DictionarySnapshotRegistry registry;
+  return registry;
+}
+
+struct DictionarySnapshotLease {
+  std::string identity;
+
+  ~DictionarySnapshotLease() {
+    auto& registry = GetDictionarySnapshotRegistry();
+    std::lock_guard<std::mutex> lock(registry.mutex);
+    const auto found = registry.entries.find(identity);
+    if (found == registry.entries.end() || found->second.leases == 0) return;
+    if (--found->second.leases == 0) {
+      std::error_code error;
+      std::filesystem::remove_all(found->second.directory, error);
+    }
+  }
+};
+
+Status AcquireDictionarySnapshot(
+    const std::string& identity,
+    const std::vector<AnalyzerDictionaryFileSnapshot>& files,
+    std::string* directory, std::shared_ptr<void>* lease) {
+  if (!directory || !lease || identity.size() != 64 || files.empty() ||
+      !std::all_of(identity.begin(), identity.end(), [](unsigned char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+      })) {
+    return Status::Error("invalid content-addressed dictionary snapshot identity");
+  }
+
+  auto& registry = GetDictionarySnapshotRegistry();
+  std::lock_guard<std::mutex> lock(registry.mutex);
+  if (registry.root.empty()) {
+    std::string pattern =
+        (std::filesystem::temp_directory_path() /
+         "m4-analyzer-snapshot-cache-XXXXXX").string();
+    std::vector<char> buffer(pattern.begin(), pattern.end());
+    buffer.push_back('\0');
+    char* created = ::mkdtemp(buffer.data());
+    if (!created) {
+      return Status::Error("JiebaTokenizer could not create snapshot cache root");
+    }
+    registry.root = created;
+  }
+
+  auto [entry_it, inserted] = registry.entries.try_emplace(
+      identity, DictionarySnapshotEntry{registry.root / identity, 0});
+  auto& entry = entry_it->second;
+  std::error_code error;
+  bool created_directory = false;
+  if (!std::filesystem::is_directory(entry.directory, error) || error) {
+    error.clear();
+    created_directory = std::filesystem::create_directory(entry.directory, error);
+    if (error || !created_directory) {
+      if (inserted) registry.entries.erase(entry_it);
+      return Status::Error("JiebaTokenizer could not create immutable dictionary snapshot");
+    }
+  }
+
+  for (const auto& file : files) {
+    if (file.filename != "jieba.dict.utf8" && file.filename != "hmm_model.utf8") {
+      if (created_directory) std::filesystem::remove_all(entry.directory, error);
+      if (inserted) registry.entries.erase(entry_it);
+      return Status::Error("JiebaTokenizer snapshot contains an unexpected file name");
+    }
+    const auto path = entry.directory / file.filename;
+    if (created_directory) {
+      std::ofstream output(path, std::ios::binary | std::ios::trunc);
+      if (!output ||
+          !output.write(file.contents.data(),
+                        static_cast<std::streamsize>(file.contents.size()))) {
+        output.close();
+        std::filesystem::remove_all(entry.directory, error);
+        if (inserted) registry.entries.erase(entry_it);
+        return Status::Error("JiebaTokenizer could not write immutable dictionary snapshot");
+      }
+      output.close();
+      if (!output) {
+        std::filesystem::remove_all(entry.directory, error);
+        if (inserted) registry.entries.erase(entry_it);
+        return Status::Error("JiebaTokenizer could not close immutable dictionary snapshot");
+      }
+    } else if (entry.leases == 0) {
+      // A prior cleanup may have failed. Reuse the stable path only if its
+      // existing bytes still match the content fingerprint being requested.
+      std::ifstream input(path, std::ios::binary);
+      const std::string contents((std::istreambuf_iterator<char>(input)),
+                                 std::istreambuf_iterator<char>());
+      if (!input || contents != file.contents) {
+        return Status::Error("JiebaTokenizer cached snapshot content mismatch");
+      }
+    }
+  }
+
+  auto token = std::make_shared<DictionarySnapshotLease>();
+  token->identity = identity;
+  ++entry.leases;
+  *directory = entry.directory.string();
+  *lease = std::move(token);
+  return Status::OK();
+}
+
+}  // namespace
 
 struct Analyzer::Impl {
   bool initialized{false};
   bool use_jieba{false};
   std::string dictionary_snapshot_dir;
+  std::shared_ptr<void> dictionary_snapshot_lease;
 #ifdef M4_USE_ZVEC_NATIVE_TOKENIZER
   zvec::fts::JiebaTokenizer jieba;
   zvec::fts::LowercaseTokenFilter lowercase;
 #endif
-  ~Impl() {
-    if (!dictionary_snapshot_dir.empty()) {
-      std::error_code error;
-      std::filesystem::remove_all(dictionary_snapshot_dir, error);
-    }
-  }
 };
 
 struct Analyzer::CacheRegistry {
@@ -140,8 +260,8 @@ Status Analyzer::Init(
     const std::string& tokenizer_name, const std::string& jieba_dict_dir,
     const std::string& cache_identity, bool* cache_hit,
     AnalyzerInitDiagnostics* diagnostics,
-    const std::vector<AnalyzerDictionaryFileSnapshot>* dictionary_snapshot) {
-  (void)dictionary_snapshot;
+    const std::vector<AnalyzerDictionaryFileSnapshot>* dictionary_snapshot,
+    const std::string& dictionary_snapshot_identity) {
   if (cache_hit) *cache_hit = false;
   if (diagnostics) *diagnostics = AnalyzerInitDiagnostics{};
   auto& registry = Registry();
@@ -284,31 +404,15 @@ Status Analyzer::Init(
 #else
   std::string init_dict_dir = jieba_dict_dir;
   if (dictionary_snapshot && !dictionary_snapshot->empty()) {
-    const std::string temp_prefix =
-        (std::filesystem::temp_directory_path() / "m4-analyzer-snapshot-XXXXXX").string();
-    std::vector<char> temp_path(temp_prefix.begin(), temp_prefix.end());
-    temp_path.push_back('\0');
-    char* created = ::mkdtemp(temp_path.data());
-    if (!created)
-      return fail_initialization(Status::Error(
-          "JiebaTokenizer could not create immutable dictionary snapshot"));
-    impl_->dictionary_snapshot_dir = created;
-    init_dict_dir = created;
-    for (const auto& file : *dictionary_snapshot) {
-      if (file.filename != "jieba.dict.utf8" && file.filename != "hmm_model.utf8")
-        return fail_initialization(Status::Error(
-            "JiebaTokenizer snapshot contains an unexpected file name"));
-      const auto snapshot_file = std::filesystem::path(init_dict_dir) / file.filename;
-      std::ofstream output(snapshot_file, std::ios::binary | std::ios::trunc);
-      if (!output || !output.write(file.contents.data(),
-                                   static_cast<std::streamsize>(file.contents.size())))
-        return fail_initialization(Status::Error(
-            "JiebaTokenizer could not write immutable dictionary snapshot"));
-      output.close();
-      if (!output)
-        return fail_initialization(Status::Error(
-            "JiebaTokenizer could not close immutable dictionary snapshot"));
-    }
+    std::string snapshot_dir;
+    std::shared_ptr<void> snapshot_lease;
+    const Status snapshot_status = AcquireDictionarySnapshot(
+        dictionary_snapshot_identity, *dictionary_snapshot, &snapshot_dir,
+        &snapshot_lease);
+    if (!snapshot_status.ok) return fail_initialization(snapshot_status);
+    impl_->dictionary_snapshot_dir = snapshot_dir;
+    impl_->dictionary_snapshot_lease = std::move(snapshot_lease);
+    init_dict_dir = std::move(snapshot_dir);
     if (diagnostics) diagnostics->dictionary_snapshot_used = true;
     std::function<void(const std::string&)> hook;
     {
@@ -1507,7 +1611,7 @@ class Index::Impl {
           options_.fts_tokenizer_name, options_.jieba_dict_dir,
           options_.reuse_analyzer_cache ? analyzer_fingerprint : std::string(),
           &analyzer_cache_hit, &analyzer_init_diagnostics,
-          &dictionary_snapshot);
+          &dictionary_snapshot, analyzer_fingerprint);
       if (diagnostics) {
         diagnostics->analyzer_cache_hit = analyzer_cache_hit;
         diagnostics->analyzer_cache_miss = analyzer_init_diagnostics.cache_miss;

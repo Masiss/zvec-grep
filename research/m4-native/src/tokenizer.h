@@ -76,7 +76,8 @@ class Analyzer {
               const std::string& cache_identity = {},
               bool* cache_hit = nullptr,
               AnalyzerInitDiagnostics* diagnostics = nullptr,
-              const std::vector<AnalyzerDictionaryFileSnapshot>* dictionary_snapshot = nullptr);
+              const std::vector<AnalyzerDictionaryFileSnapshot>* dictionary_snapshot = nullptr,
+              const std::string& dictionary_snapshot_identity = {});
   std::vector<Token> Tokenize(const std::string& text) const;
 
   static AnalyzerCacheStats CacheStats();

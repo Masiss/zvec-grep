@@ -14,6 +14,8 @@ from contextlib import ExitStack
 from typing import Any
 from unittest import mock
 
+import run_lock_contention_microbench as microbench
+
 BASE = pathlib.Path(__file__).resolve().parents[1]
 HERE = (
     BASE
@@ -335,8 +337,10 @@ class ContentionPolicyTests(unittest.TestCase):
     def lock_contention_microbench_context(self, workload_profile: str = "contention") -> dict[str, Any]:
         contract = ct.BENCHMARK_POLICY["lock_contention_microbench"]
         workload = (contract["workload"] if workload_profile == "contention" else
-                    contract["memory_probe"]["workload"]) if workload_profile in (
-                        "contention", "memory_probe") else None
+                    contract[workload_profile]["workload"]) if workload_profile in (
+                        "contention", "memory_probe", "memory_trace",
+                        "memory_trace_after_snapshot_fix",
+                        "memory_trace_scale2_after_snapshot_fix") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -409,6 +413,103 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertTrue(decision["continuation_allowed"])
         self.assertEqual(ctx["host_memory_reserve_bytes"] + ctx["memory_max_bytes"],
                          3_758_096_384)
+
+    def test_memory_trace_binds_smaller_phase_attribution_workload_and_same_caps(self):
+        ctx = self.lock_contention_microbench_context("memory_trace")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ctx["workload"]["documents"], 1024)
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["default", "snapshot", "snapshot_rebase", "apply_batch"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        for change in (
+                {"workload": {**ctx["workload"], "documents": 4096}},
+                {"workload": {**ctx["workload"], "writers": 8}},
+                {"memory_max_bytes": ctx["memory_max_bytes"] + 1}):
+            with self.subTest(change=change), self.assertRaisesRegex(
+                    ValueError, "explicit operation contract"):
+                ct.validate_contention_context(dict(ctx, **change))
+
+    def test_post_fix_memory_trace_binds_same_caps_and_four_arm_workload(self):
+        ctx = self.lock_contention_microbench_context("memory_trace_after_snapshot_fix")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ctx["workload"]["documents"], 1024)
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["default", "snapshot", "snapshot_rebase", "apply_batch"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertEqual(ctx["pids_max"], 128)
+
+    def test_microbench_tmp_cleanup_requires_containment_receipt(self):
+        operation_id = "m4-lock-contention-microbench-cleanup-test"
+        with tempfile.TemporaryDirectory(prefix="m4-cleanup-base-") as base_name:
+            base = pathlib.Path(base_name)
+            receipt = base / "receipt"
+            receipt.mkdir()
+            tmp_root = pathlib.Path(tempfile.mkdtemp(
+                prefix=f"{operation_id}-tmp-", dir=base))
+            (tmp_root / "m4-analyzer-snapshot-cache-test").mkdir()
+            (receipt / "run-state.json").write_text(json.dumps({
+                "unit": "m4-contained-test.service", "state": "exited"}), encoding="utf-8")
+            (receipt / "unit-cleanup.json").write_text(
+                json.dumps({"verified": False}), encoding="utf-8")
+            result = microbench.cleanup_operation_tmp_root(
+                tmp_root, base, receipt, True, operation_id)
+            self.assertEqual(result["status"], "PRESERVED_CONTAINMENT_UNVERIFIED")
+            self.assertFalse(result["verified"])
+            self.assertTrue(tmp_root.exists())
+
+            (receipt / "unit-cleanup.json").write_text(
+                json.dumps({"verified": True}), encoding="utf-8")
+            result = microbench.cleanup_operation_tmp_root(
+                tmp_root, base, receipt, True, operation_id)
+            self.assertEqual(result["status"], "REMOVED_AFTER_VERIFIED_UNIT_CLEANUP")
+            self.assertTrue(result["verified"])
+            self.assertFalse(tmp_root.exists())
+
+    def test_microbench_tmp_cleanup_removes_preflight_only_root(self):
+        operation_id = "m4-lock-contention-microbench-preflight-cleanup-test"
+        with tempfile.TemporaryDirectory(prefix="m4-cleanup-base-") as base_name:
+            base = pathlib.Path(base_name)
+            receipt = base / "receipt"
+            receipt.mkdir()
+            tmp_root = pathlib.Path(tempfile.mkdtemp(
+                prefix=f"{operation_id}-tmp-", dir=base))
+            (receipt / "run-state.json").write_text(json.dumps({
+                "unit": None, "state": "preflight_blocked"}), encoding="utf-8")
+            result = microbench.cleanup_operation_tmp_root(
+                tmp_root, base, receipt, False, operation_id)
+            self.assertEqual(result["status"], "REMOVED_WITH_NO_UNIT_LAUNCHED")
+            self.assertTrue(result["verified"])
+            self.assertFalse(tmp_root.exists())
+
+    def test_microbench_tmp_cleanup_refuses_path_outside_owned_base(self):
+        operation_id = "m4-lock-contention-microbench-path-cleanup-test"
+        with tempfile.TemporaryDirectory(prefix="m4-cleanup-base-") as base_name, \
+                tempfile.TemporaryDirectory(prefix="m4-cleanup-other-") as other_name:
+            base = pathlib.Path(base_name)
+            receipt = base / "receipt"
+            receipt.mkdir()
+            tmp_root = pathlib.Path(tempfile.mkdtemp(
+                prefix=f"{operation_id}-tmp-", dir=other_name))
+            result = microbench.cleanup_operation_tmp_root(
+                tmp_root, base, receipt, False, operation_id)
+            self.assertEqual(result["status"], "PRESERVED_UNEXPECTED_PATH")
+            self.assertFalse(result["verified"])
+            self.assertTrue(tmp_root.exists())
+
+    def test_post_fix_scale2_memory_trace_is_distinct_and_keeps_all_caps(self):
+        ctx = self.lock_contention_microbench_context("memory_trace_scale2_after_snapshot_fix")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ctx["workload"]["documents"], 2048)
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["default", "snapshot", "snapshot_rebase", "apply_batch"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertEqual(ctx["pids_max"], 128)
 
     def test_lock_microbench_rejects_pair_sized_command_binding(self):
         ctx = self.lock_contention_microbench_context("memory_probe")

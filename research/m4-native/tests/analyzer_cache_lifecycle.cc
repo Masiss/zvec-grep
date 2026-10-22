@@ -238,6 +238,110 @@ int main(int argc, char** argv) {
           "manifest identity mismatch is rejected before cache lookup");
     Check(g3->GetStats().live_docs == 0,
           "already-open generation remains valid after source dictionary mutation");
+    g3.reset();
+
+    // The native cppjieba parsed-dictionary cache is keyed by dictionary path
+    // and process-lifetime. Sequential uncached opens must therefore reuse one
+    // content-addressed snapshot path, while releasing its files after each
+    // last live analyzer lease.
+    m4::Options uncached_options = JiebaOptions(dictionary);
+    uncached_options.reuse_analyzer_cache = false;
+    std::string uncached_snapshot_path;
+    bool same_snapshot_path = true;
+    m4::analyzer_test::SetBeforeNativeInitializationHook(
+        [&](const std::string& path) {
+          if (uncached_snapshot_path.empty()) uncached_snapshot_path = path;
+          else same_snapshot_path = same_snapshot_path && path == uncached_snapshot_path;
+        });
+    for (size_t generation = 0; generation < 4; ++generation) {
+      m4::OpenDiagnostics uncached_diag{};
+      auto uncached = OpenIndex(base / ("uncached-generation-" +
+          std::to_string(generation)), uncached_options, &uncached_diag);
+      Check(uncached_diag.analyzer_initialization_attempted &&
+                uncached_diag.analyzer_dictionary_snapshot_used &&
+                !uncached_diag.analyzer_cache_hit,
+            "uncached generation performs native initialization from its snapshot");
+      Check(fs::is_directory(uncached_snapshot_path),
+            "content-addressed snapshot exists while an uncached analyzer is live");
+      uncached.reset();
+      Check(!fs::exists(uncached_snapshot_path),
+            "last uncached analyzer lease removes snapshot files");
+    }
+    m4::analyzer_test::SetBeforeNativeInitializationHook({});
+    Check(same_snapshot_path && !uncached_snapshot_path.empty(),
+          "sequential uncached opens reuse one stable native dictionary cache key");
+
+    // Simultaneous uncached initializations must share the same immutable
+    // snapshot path without releasing it until the final analyzer lease ends.
+    constexpr size_t concurrent_open_count = 4;
+    std::mutex snapshot_paths_mutex;
+    std::condition_variable snapshot_paths_cv;
+    size_t snapshot_initializers_arrived = 0;
+    std::vector<std::string> concurrent_snapshot_paths;
+    m4::analyzer_test::SetBeforeNativeInitializationHook(
+        [&](const std::string& path) {
+          std::unique_lock<std::mutex> lock(snapshot_paths_mutex);
+          concurrent_snapshot_paths.push_back(path);
+          ++snapshot_initializers_arrived;
+          snapshot_paths_cv.notify_all();
+          snapshot_paths_cv.wait_for(lock, std::chrono::seconds(10), [&] {
+            return snapshot_initializers_arrived == concurrent_open_count;
+          });
+        });
+    std::vector<std::unique_ptr<m4::Index>> concurrent_uncached(concurrent_open_count);
+    std::vector<std::string> concurrent_open_errors(concurrent_open_count);
+    std::vector<std::thread> concurrent_openers;
+    for (size_t i = 0; i < concurrent_open_count; ++i) {
+      concurrent_openers.emplace_back([&, i] {
+        try {
+          concurrent_uncached[i] = OpenIndex(
+              base / ("concurrent-uncached-generation-" + std::to_string(i)),
+              uncached_options);
+        } catch (const std::exception& error) {
+          concurrent_open_errors[i] = error.what();
+        }
+      });
+    }
+    for (auto& opener : concurrent_openers) opener.join();
+    m4::analyzer_test::SetBeforeNativeInitializationHook({});
+    bool concurrent_opens_succeeded = snapshot_initializers_arrived == concurrent_open_count;
+    for (size_t i = 0; i < concurrent_open_count; ++i)
+      concurrent_opens_succeeded = concurrent_opens_succeeded &&
+          concurrent_open_errors[i].empty() && concurrent_uncached[i] != nullptr;
+    Check(concurrent_opens_succeeded,
+          "concurrent uncached opens reach native initialization and succeed");
+    bool concurrent_paths_match = concurrent_snapshot_paths.size() == concurrent_open_count;
+    for (const auto& path : concurrent_snapshot_paths)
+      concurrent_paths_match = concurrent_paths_match &&
+          path == concurrent_snapshot_paths.front();
+    const std::string concurrent_snapshot_path = concurrent_paths_match
+        ? concurrent_snapshot_paths.front() : std::string{};
+    Check(concurrent_paths_match && fs::is_directory(concurrent_snapshot_path),
+          "concurrent analyzer leases use one live content-addressed snapshot");
+
+    std::vector<int> concurrent_query_ok(concurrent_open_count, 0);
+    std::vector<std::thread> concurrent_readers;
+    for (size_t i = 0; i < concurrent_open_count; ++i) {
+      concurrent_readers.emplace_back([&, i] {
+        m4::SearchResult result;
+        const auto status = concurrent_uncached[i]->SearchFts("量子猫星球", 10, &result);
+        concurrent_query_ok[i] = status.ok ? 1 : 0;
+      });
+    }
+    for (auto& reader : concurrent_readers) reader.join();
+    bool concurrent_queries_succeeded = true;
+    for (const int ok : concurrent_query_ok)
+      concurrent_queries_succeeded = concurrent_queries_succeeded && ok != 0;
+    Check(concurrent_queries_succeeded,
+          "concurrent readers tokenize through live snapshot-backed analyzers");
+
+    for (size_t i = 0; i + 1 < concurrent_open_count; ++i)
+      concurrent_uncached[i].reset();
+    Check(fs::is_directory(concurrent_snapshot_path),
+          "closing all but one concurrent analyzer preserves its snapshot lease");
+    concurrent_uncached.back().reset();
+    Check(!fs::exists(concurrent_snapshot_path),
+          "last concurrent analyzer release removes the shared snapshot files");
 
     auto changed_dict_index = OpenIndex(base / "changed-dictionary-generation",
                                       JiebaOptions(dictionary, true));

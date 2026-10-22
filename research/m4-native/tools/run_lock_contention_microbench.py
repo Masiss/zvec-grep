@@ -10,8 +10,11 @@ import math
 import os
 import pathlib
 import secrets
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 BASE = pathlib.Path(__file__).resolve().parents[1]
@@ -30,6 +33,58 @@ def sha256(path: pathlib.Path) -> str:
 def write_json(path: pathlib.Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def cleanup_operation_tmp_root(
+    tmp_root: pathlib.Path | None,
+    temp_base: pathlib.Path,
+    receipt_dir: pathlib.Path,
+    benchmark_started: bool,
+    operation_id: str,
+) -> dict[str, Any]:
+    if tmp_root is None:
+        return {"status": "NOT_CREATED", "verified": True}
+    root = pathlib.Path(tmp_root)
+    base = pathlib.Path(temp_base).resolve(strict=True)
+    if root.parent.resolve(strict=True) != base or not root.name.startswith(f"{operation_id}-tmp-"):
+        return {"status": "PRESERVED_UNEXPECTED_PATH", "verified": False, "path": str(root)}
+    try:
+        info = root.lstat()
+    except FileNotFoundError:
+        return {"status": "ALREADY_ABSENT", "verified": True, "path": str(root)}
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or
+            stat.S_IMODE(info.st_mode) != 0o700):
+        return {"status": "PRESERVED_UNSAFE_ROOT", "verified": False, "path": str(root)}
+
+    unit_observed = benchmark_started or (receipt_dir / "command-start.json").exists()
+    run_state_path = receipt_dir / "run-state.json"
+    if run_state_path.exists():
+        try:
+            run_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"status": "PRESERVED_RUN_STATE_UNREADABLE", "verified": False,
+                    "path": str(root)}
+        unit_observed = unit_observed or (
+            run_state.get("unit") is not None and run_state.get("state") != "preflight_blocked")
+    unit_observed = unit_observed or (receipt_dir / "unit-cleanup.json").exists()
+    if unit_observed:
+        cleanup_path = receipt_dir / "unit-cleanup.json"
+        try:
+            cleanup_verified = json.loads(cleanup_path.read_text(encoding="utf-8")).get("verified") is True
+        except (OSError, json.JSONDecodeError):
+            cleanup_verified = False
+        if not cleanup_verified:
+            return {"status": "PRESERVED_CONTAINMENT_UNVERIFIED", "verified": False,
+                    "path": str(root)}
+
+    try:
+        shutil.rmtree(root)
+    except OSError as exc:
+        return {"status": "CLEANUP_FAILED", "verified": False,
+                "path": str(root), "error": f"{type(exc).__name__}: {exc}"}
+    removal_status = ("REMOVED_AFTER_VERIFIED_UNIT_CLEANUP" if unit_observed else
+                      "REMOVED_WITH_NO_UNIT_LAUNCHED")
+    return {"status": removal_status, "verified": not root.exists(), "path": str(root)}
 
 
 def host_context() -> dict[str, Any]:
@@ -281,15 +336,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--validate-only", action="store_true",
                         help="validate binary, dictionary, policy binding and command without host preflight or launch")
-    parser.add_argument("--workload-profile", choices=("contention", "memory_probe"),
-                        default="contention", help="select the separately registered memory diagnostic profile")
+    parser.add_argument("--workload-profile", choices=(
+                            "contention", "memory_probe", "memory_trace",
+                            "memory_trace_after_snapshot_fix",
+                            "memory_trace_scale2_after_snapshot_fix"),
+                        default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:
         policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
         contract = policy["lock_contention_microbench"]
         workload_profile = args.workload_profile
-        workload = (contract["workload"] if workload_profile == "contention" else
-                    contract["memory_probe"]["workload"])
+        profile_contract = (contract if workload_profile == "contention" else
+                            contract[workload_profile])
+        workload = profile_contract["workload"]
+        measurement_semantics = profile_contract.get(
+            "measurement_semantics", contract["measurement_semantics"])
         resource_root = pathlib.Path(contract["resource_root"]).resolve(strict=True)
     except (OSError, json.JSONDecodeError, KeyError) as exc:
         raise SystemExit(f"cannot load M4 benchmark contract/resource root: {exc}") from exc
@@ -298,7 +359,8 @@ def main() -> int:
     dictionary_sha = runner.directory_sha256(DICTIONARY)
     binary_sha = sha256(BINARY)
     now = dt.datetime.now(dt.UTC)
-    profile_suffix = "memory-probe-" if workload_profile == "memory_probe" else ""
+    profile_suffix = ("" if workload_profile == "contention" else
+                      workload_profile.replace("_", "-") + "-")
     operation_id = ("m4-lock-contention-microbench-" + profile_suffix +
                     now.strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3))
     operation_root = RESULTS / now.strftime("%Y%m%d") / operation_id
@@ -311,9 +373,7 @@ def main() -> int:
         "approval_reference": contract["approval_reference"],
         "execution_authorization_reference": contract["execution_authorization_reference"],
         "risk_acceptance_reference": contract["risk_acceptance_reference"],
-        "resource_basis": (contract["memory_probe"]["measurement_semantics"]
-                           if workload_profile == "memory_probe" else
-                           "Four-arm 8,192-document M4 fixture; each arm runs 4 concurrent writers, 2 readers (32 searches each), one compaction, flush and reopen verification. Three arms use 32 individual WAL-durable Upsert calls; the explicit batching arm uses four atomic WAL-durable ApplyBatch calls for the same 32 logical mutations. The 512 MiB cgroup cap, fixed 3 GiB host reserve, and all containment/integrity/cleanup gates remain unchanged."),
+        "resource_basis": measurement_semantics,
         "policy_sha256": sha256(POLICY_PATH),
         "operation_id": operation_id, "operation_root": str(operation_root.resolve()),
         "resource_root": str(resource_root),
@@ -347,9 +407,7 @@ def main() -> int:
     plan: dict[str, Any] = {
         "schema_version": 1, "operation_id": operation_id, "status": "PREFLIGHT",
         "benchmark_started": False, "workload_profile": workload_profile,
-        "measurement_semantics": (contract["memory_probe"]["measurement_semantics"]
-                                   if workload_profile == "memory_probe" else
-                                   contract["measurement_semantics"]),
+        "measurement_semantics": measurement_semantics,
         "contract": contract, "policy_sha256": ctx["policy_sha256"],
         "binary_path": str(BINARY.resolve()), "binary_sha256": binary_sha,
         "dictionary_path": str(DICTIONARY.resolve()), "dictionary_tree_sha256": dictionary_sha,
@@ -357,6 +415,8 @@ def main() -> int:
         "resource_workspace": str(resource_workspace), "evidence_class": contract["evidence_class"],
     }
     write_json(operation_root / "operation-plan.json", plan)
+    operation_tmp_root: pathlib.Path | None = None
+    native_temp_base = pathlib.Path(tempfile.gettempdir()).resolve(strict=True)
     try:
         plan["operator_host_context_before"] = host_context()
         plan["start_host_snapshot"] = runner.host_snapshot(resource_root)
@@ -365,8 +425,13 @@ def main() -> int:
                       "reason": "preexisting owned M4 units; refusing overlapping operation",
                       "blocking_failures": [{"gate_id": "M4-MICROBENCH-NO-OVERLAP"}]}
         else:
+            operation_tmp_root = pathlib.Path(tempfile.mkdtemp(
+                prefix=f"{operation_id}-tmp-", dir=native_temp_base))
+            plan["native_temp_base"] = str(native_temp_base)
+            plan["native_temp_root"] = str(operation_tmp_root)
             env = os.environ.copy()
             env.pop("M4_BRIDGE_TRACE", None)
+            env["TMPDIR"] = str(operation_tmp_root)
             result = runner.run_arm(
                 command, receipt_dir, resource_root, workspace_root, workspace_root,
                 contract["resource_controls"]["runtime_limit_seconds"], sample_interval_ms=100,
@@ -384,7 +449,6 @@ def main() -> int:
         plan["operator_host_context_after"] = host_context()
         plan["status"] = result.get("status", "OPERATION_INCOMPLETE")
         plan["measurement_validated"] = result.get("workload_returncode") == 0 and "workload" in plan
-        return 0 if plan["measurement_validated"] else 2 if not plan["benchmark_started"] else 1
     except BaseException as exc:
         plan["status"] = "OPERATION_BLOCKED" if not plan["benchmark_started"] else "OPERATION_INCOMPLETE"
         plan["failure"] = f"{type(exc).__name__}: {exc}"
@@ -393,8 +457,25 @@ def main() -> int:
             plan["operator_host_context_after"] = host_context()
         except BaseException as telemetry_exc:
             plan["end_snapshot_error"] = f"{type(telemetry_exc).__name__}: {telemetry_exc}"
-        return 1
     finally:
+        try:
+            temp_cleanup = cleanup_operation_tmp_root(
+                operation_tmp_root, native_temp_base, receipt_dir,
+                bool(plan.get("benchmark_started")), operation_id)
+            plan["native_temp_cleanup"] = temp_cleanup
+            if not temp_cleanup.get("verified"):
+                plan["status"] = "OPERATION_INCOMPLETE"
+                plan["measurement_validated"] = False
+                plan["native_temp_cleanup_exit_failure"] = True
+        except BaseException as cleanup_exc:
+            plan["native_temp_cleanup"] = {
+                "status": "CLEANUP_ERROR", "verified": False,
+                "path": str(operation_tmp_root),
+                "error": f"{type(cleanup_exc).__name__}: {cleanup_exc}",
+            }
+            plan["status"] = "OPERATION_INCOMPLETE"
+            plan["measurement_validated"] = False
+            plan["native_temp_cleanup_exit_failure"] = True
         write_json(operation_root / "operation-plan.json", plan)
         checksums = []
         for item in sorted(operation_root.rglob("*")):
@@ -404,6 +485,9 @@ def main() -> int:
         write_json(RESULTS / "latest-operation.json", {"operation_id": operation_id,
                                                        "operation_root": str(operation_root),
                                                        "status": plan["status"]})
+    if plan.get("failure") or plan.get("native_temp_cleanup_exit_failure"):
+        return 1
+    return 0 if plan.get("measurement_validated") else 2 if not plan.get("benchmark_started") else 1
 
 
 if __name__ == "__main__":

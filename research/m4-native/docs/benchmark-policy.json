@@ -166,6 +166,51 @@
       },
       "measurement_semantics": "Independent memory-scaling diagnostic: seed 4,096 documents instead of 8,192, retaining the same four arms, four writers, 32 logical writes, 64 reader queries, and all unchanged resource caps. This smaller fixture is explicitly non-comparable to the 8,192-document contract and all prior measurements; analyze memory growth and tracked compaction scratch only, not latency, causal effects, or architecture performance. One fresh operation only; all preflight, containment, telemetry, correctness, durability, and cleanup gates remain mandatory. No retry after any gate failure."
     },
+    "memory_trace": {
+      "profile_id": "memory_trace",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false
+      },
+      "measurement_semantics": "One bounded phase-attribution operation: 1,024 seeds per arm (one seed/flush block), all four existing arms and their reopen verification, with the same 32 logical writes, 64 reader queries, dictionary, binary, cgroup/host reserves, and hard gates. This is a distinct, lower-volume diagnostic, not a retry of the 4,096-document memory_probe. Correlate CLOCK_BOOTTIME M4_PHASE markers with process PSS and cgroup samples to distinguish analyzer Open/reopen, seed/flush, concurrent compaction/writer/reader and post-flush phases. Do not claim performance comparison, lifetime-peak proof, or cause beyond correlated phases. One operation only; any gate abort is consumed and not retried."
+    },
+    "memory_trace_after_snapshot_fix": {
+      "profile_id": "memory_trace_after_snapshot_fix",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false
+      },
+      "measurement_semantics": "One fresh, one-shot verification of the content-addressed native dictionary snapshot correction after source-level root-cause analysis and focused regression tests. The four-arm workload remains 1,024 seeds/arm with all original hard limits unchanged; the rebuilt binary has a new identity. This is not an automatic retry of the consumed pre-fix OOM operation. Correlate phase markers, process PSS and cgroup samples; retain the original OOM evidence. Any gate abort consumes this verification and is not retried. No latency/architecture comparison or performance claim."
+    },
+    "memory_trace_scale2_after_snapshot_fix": {
+      "profile_id": "memory_trace_scale2_after_snapshot_fix",
+      "workload": {
+        "documents": 2048,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false
+      },
+      "measurement_semantics": "One distinct 2,048-seed-per-arm post-fix memory-scaling operation under the unchanged existing hard/soft limits. It is not a retry of either consumed 4,096-document OOM or prior 1,024-document post-fix trace. Compare phase-correlated memory/cgroup data only; do not claim latency improvement or extrapolate capacity. Single operation; any preflight gate abort or runtime limit abort consumes this profile and is not retried."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {
