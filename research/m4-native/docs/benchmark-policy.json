@@ -211,6 +211,22 @@
       },
       "measurement_semantics": "One distinct 2,048-seed-per-arm post-fix memory-scaling operation under the unchanged existing hard/soft limits. It is not a retry of either consumed 4,096-document OOM or prior 1,024-document post-fix trace. Compare phase-correlated memory/cgroup data only; do not claim latency improvement or extrapolate capacity. Single operation; any preflight gate abort or runtime limit abort consumes this profile and is not retried."
     },
+    "memory_churn_two_versions": {
+      "profile_id": "memory_churn_two_versions",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct contained operation: run the existing 1,024-seed/four-arm workload under unchanged hard/soft caps, then initialize two sequential uncached Jieba analyzers from distinct content-addressed dictionary snapshots in the same process. Capture process smaps_rollup before, while live, and after each analyzer release; outer cgroup/PSS cadence captures transient peaks. This observes process residency across version-keyed analyzer initialization and release, alongside outer cgroup/PSS transient sampling; source tracing is needed to attribute retained bytes, and this is not allocator-stack attribution. This is a single exploratory probe, not a latency comparison or capacity claim. Any preflight/runtime abort consumes the profile and is not retried; do not increase caps."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {

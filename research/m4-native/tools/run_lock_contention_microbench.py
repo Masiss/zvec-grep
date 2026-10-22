@@ -113,6 +113,50 @@ def read_workload(stdout_path: pathlib.Path) -> dict[str, Any]:
     raise RuntimeError(f"missing M4 compaction-contention result: {stdout_path}")
 
 
+def verify_analyzer_churn_trace(data: dict[str, Any], workload: dict[str, Any]) -> None:
+    expected_versions = workload.get("dictionary_churn_versions", 0)
+    trace = data.get("analyzer_churn_trace")
+    if expected_versions == 0:
+        if trace is not None:
+            raise RuntimeError("unexpected analyzer churn trace for this workload")
+        return
+    if (isinstance(expected_versions, bool) or not isinstance(expected_versions, int) or
+            expected_versions != 2 or not isinstance(trace, dict) or
+            trace.get("failures") != 0):
+        raise RuntimeError("missing or invalid bounded analyzer churn trace")
+
+    def valid_memory(sample: Any) -> bool:
+        fields = ("rss_kb", "pss_kb", "private_kb", "anonymous_kb")
+        return (isinstance(sample, dict) and sample.get("valid") is True and
+                all(isinstance(sample.get(key), int) and
+                    not isinstance(sample.get(key), bool) and sample[key] >= 0
+                    for key in fields))
+
+    versions = trace.get("versions")
+    if (not valid_memory(trace.get("baseline")) or
+            not isinstance(versions, list) or len(versions) != expected_versions):
+        raise RuntimeError("analyzer churn memory samples do not match the registered contract")
+    identities: set[str] = set()
+    for index, version in enumerate(versions):
+        if not isinstance(version, dict):
+            raise RuntimeError("invalid or incomplete analyzer churn generation")
+        identity = version.get("identity_sha256")
+        elapsed = version.get("initialization_ms")
+        if (version.get("index") != index or
+                not isinstance(identity, str) or len(identity) != 64 or
+                any(char not in "0123456789abcdef" for char in identity) or
+                identity in identities or
+                version.get("initialization_succeeded") is not True or
+                version.get("snapshot_used") is not True or
+                version.get("tokenization_succeeded") is not True or
+                isinstance(elapsed, bool) or not isinstance(elapsed, (int, float)) or
+                not math.isfinite(elapsed) or elapsed <= 0 or
+                not valid_memory(version.get("live_memory")) or
+                not valid_memory(version.get("released_memory"))):
+            raise RuntimeError("invalid or incomplete analyzer churn generation")
+        identities.add(identity)
+
+
 def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any]) -> None:
     allowed = {"PASS", "COMPLETED_WITH_WORKSPACE_UNCERTAINTY", "COMPLETED_WITH_WORKSPACE_WARNINGS"}
     if result.get("status") not in allowed or result.get("workload_returncode") != 0:
@@ -330,6 +374,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 arm.get("name") == "apply_batch" and
                 arm.get("compaction_status") != "ok"):
             raise RuntimeError("unexpected compaction outcome")
+    verify_analyzer_churn_trace(data, workload)
 
 
 def main() -> int:
@@ -339,7 +384,8 @@ def main() -> int:
     parser.add_argument("--workload-profile", choices=(
                             "contention", "memory_probe", "memory_trace",
                             "memory_trace_after_snapshot_fix",
-                            "memory_trace_scale2_after_snapshot_fix"),
+                            "memory_trace_scale2_after_snapshot_fix",
+                            "memory_churn_two_versions"),
                         default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:

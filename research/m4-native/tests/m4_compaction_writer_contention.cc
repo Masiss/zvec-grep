@@ -1,4 +1,6 @@
 #include "m4/index.h"
+#include "../src/tokenizer.h"
+#include "../src/util.h"
 
 #include <algorithm>
 #include <atomic>
@@ -8,9 +10,11 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <time.h>
@@ -41,6 +45,90 @@ double Percentile(std::vector<double> values, double q) {
   std::sort(values.begin(), values.end());
   const size_t rank = static_cast<size_t>(std::ceil(q * values.size()));
   return values[std::max<size_t>(1, rank) - 1];
+}
+
+struct ProcessMemory {
+  bool valid{false};
+  uint64_t rss_kb{0};
+  uint64_t pss_kb{0};
+  uint64_t private_kb{0};
+  uint64_t anonymous_kb{0};
+};
+
+ProcessMemory ReadProcessMemory() {
+  std::ifstream input("/proc/self/smaps_rollup");
+  ProcessMemory memory;
+  bool have_rss = false;
+  bool have_pss = false;
+  bool have_private_clean = false;
+  bool have_private_dirty = false;
+  bool have_anonymous = false;
+  uint64_t private_clean = 0;
+  uint64_t private_dirty = 0;
+  std::string line;
+  while (std::getline(input, line)) {
+    std::istringstream fields(line);
+    std::string key;
+    uint64_t value = 0;
+    std::string unit;
+    if (!(fields >> key >> value >> unit) || unit != "kB") continue;
+    if (key == "Rss:") { memory.rss_kb = value; have_rss = true; }
+    else if (key == "Pss:") { memory.pss_kb = value; have_pss = true; }
+    else if (key == "Private_Clean:") { private_clean = value; have_private_clean = true; }
+    else if (key == "Private_Dirty:") { private_dirty = value; have_private_dirty = true; }
+    else if (key == "Anonymous:") { memory.anonymous_kb = value; have_anonymous = true; }
+  }
+  memory.private_kb = private_clean + private_dirty;
+  memory.valid = have_rss && have_pss && have_private_clean &&
+                 have_private_dirty && have_anonymous;
+  return memory;
+}
+
+struct CacheChurnVersion {
+  std::string identity;
+  bool initialization_succeeded{false};
+  bool snapshot_used{false};
+  bool tokenization_succeeded{false};
+  double initialization_ms{0.0};
+  ProcessMemory live_memory;
+  ProcessMemory released_memory;
+};
+
+struct CacheChurnTrace {
+  ProcessMemory baseline;
+  std::vector<CacheChurnVersion> versions;
+  size_t failures{0};
+};
+
+void PrintProcessMemory(std::ostream& output, const ProcessMemory& memory) {
+  output << "{\"valid\":" << (memory.valid ? "true" : "false")
+         << ",\"rss_kb\":" << memory.rss_kb
+         << ",\"pss_kb\":" << memory.pss_kb
+         << ",\"private_kb\":" << memory.private_kb
+         << ",\"anonymous_kb\":" << memory.anonymous_kb << '}';
+}
+
+void PrintCacheChurnTrace(std::ostream& output, const CacheChurnTrace& trace) {
+  output << "{\"baseline\":";
+  PrintProcessMemory(output, trace.baseline);
+  output << ",\"versions\":[";
+  for (size_t i = 0; i < trace.versions.size(); ++i) {
+    if (i != 0) output << ',';
+    const auto& version = trace.versions[i];
+    output << "{\"index\":" << i << ",\"identity_sha256\":\""
+           << version.identity << "\",\"initialization_succeeded\":"
+           << (version.initialization_succeeded ? "true" : "false")
+           << ",\"snapshot_used\":" << (version.snapshot_used ? "true" : "false")
+           << ",\"tokenization_succeeded\":"
+           << (version.tokenization_succeeded ? "true" : "false")
+           << ",\"initialization_ms\":" << version.initialization_ms
+           << ",\"live_memory\":";
+    PrintProcessMemory(output, version.live_memory);
+    output << ",\"released_memory\":";
+    PrintProcessMemory(output, version.released_memory);
+    output << '}';
+  }
+  output << "],\"failures\":" << trace.failures << '}';
 }
 
 struct ArmResult {
@@ -106,6 +194,86 @@ m4::Status SeedIndex(m4::Index* index, size_t documents,
     EmitPhase(arm, "seed_run_complete", run / kDocsPerRun);
   }
   return m4::Status::OK();
+}
+
+CacheChurnTrace RunAnalyzerCacheChurn(const std::string& dictionary_dir) {
+  CacheChurnTrace trace;
+  const fs::path dir(dictionary_dir);
+  auto read_file = [](const fs::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("cannot read " + path.string());
+    return std::string(std::istreambuf_iterator<char>(input),
+                       std::istreambuf_iterator<char>());
+  };
+  std::string base_dictionary;
+  std::string hmm_model;
+  try {
+    base_dictionary = read_file(dir / "jieba.dict.utf8");
+    hmm_model = read_file(dir / "hmm_model.utf8");
+  } catch (const std::exception& error) {
+    std::cerr << "cache-churn input error: " << error.what() << '\n';
+    trace.failures = 1;
+    return trace;
+  }
+
+  trace.baseline = ReadProcessMemory();
+  if (!trace.baseline.valid) {
+    std::cerr << "cache-churn could not read /proc/self/smaps_rollup baseline\n";
+    trace.failures = 1;
+    return trace;
+  }
+
+  // Two distinct content identities isolate process-lifetime retention without
+  // growing the normal indexed corpus or changing any resource caps.
+  constexpr size_t kVersions = 2;
+  for (size_t generation = 0; generation < kVersions; ++generation) {
+    CacheChurnVersion version;
+    const std::string unique_word = "m4churnunique" + std::to_string(generation);
+    try {
+      {
+        std::string dictionary_contents = base_dictionary + unique_word + " 1000000 n\n";
+        const std::string identity_material =
+            "m4-churn-v1|jieba.dict.utf8:" + m4::Sha256(dictionary_contents) +
+            "|hmm_model.utf8:" + m4::Sha256(hmm_model);
+        version.identity = m4::Sha256(identity_material);
+        std::vector<m4::AnalyzerDictionaryFileSnapshot> snapshots;
+        snapshots.reserve(2);
+        snapshots.push_back({"jieba.dict.utf8", std::move(dictionary_contents)});
+        snapshots.push_back({"hmm_model.utf8", hmm_model});
+
+        m4::Analyzer analyzer;
+        m4::AnalyzerInitDiagnostics diagnostics;
+        bool cache_hit = false;
+        const auto started = Clock::now();
+        const m4::Status status = analyzer.Init(
+            "jieba", dictionary_dir, "", &cache_hit, &diagnostics, &snapshots,
+            version.identity);
+        version.initialization_ms = ElapsedMs(started, Clock::now());
+        version.initialization_succeeded = status.ok &&
+            diagnostics.initialization_succeeded && !cache_hit;
+        version.snapshot_used = diagnostics.dictionary_snapshot_used;
+        if (status.ok) {
+          const auto tokens = analyzer.Tokenize(unique_word);
+          version.tokenization_succeeded = tokens.size() == 1 &&
+              tokens.front().term == unique_word;
+        }
+        version.live_memory = ReadProcessMemory();
+      }
+      version.released_memory = ReadProcessMemory();
+    } catch (const std::exception& error) {
+      std::cerr << "cache-churn generation " << generation
+                << " failed: " << error.what() << '\n';
+      ++trace.failures;
+    }
+    if (!version.initialization_succeeded || !version.snapshot_used ||
+        !version.tokenization_succeeded || !version.live_memory.valid ||
+        !version.released_memory.valid || version.identity.empty()) {
+      ++trace.failures;
+    }
+    trace.versions.push_back(std::move(version));
+    if (trace.failures != 0) break;
+  }
+  return trace;
 }
 
 ArmResult RunArm(const fs::path& root, const std::string& name,
@@ -605,8 +773,11 @@ int main(int argc, char** argv) {
   }
   const fs::path root(argv[1]);
   const std::string dict_dir(argv[2]);
+  const std::string workload_mode(argv[3]);
+  const bool cache_churn_mode =
+      workload_mode == "--m4-compaction-contention-cache-churn-v2";
   if (!fs::is_directory(dict_dir) ||
-      std::string(argv[3]) != "--m4-compaction-contention") {
+      (workload_mode != "--m4-compaction-contention" && !cache_churn_mode)) {
     std::cerr << "missing Jieba dictionary or invalid workload mode\n";
     return 2;
   }
@@ -630,7 +801,9 @@ int main(int argc, char** argv) {
     results.push_back(RunArm(root / name, name, dict_dir, documents, writers,
                              ops_per_writer));
   }
-  size_t failures = 0;
+  CacheChurnTrace churn_trace;
+  if (cache_churn_mode) churn_trace = RunAnalyzerCacheChurn(dict_dir);
+  size_t failures = churn_trace.failures;
   for (const auto& result : results) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
@@ -651,6 +824,11 @@ int main(int argc, char** argv) {
   for (size_t i = 0; i < results.size(); ++i) {
     PrintArm(results[i], i + 1 == results.size());
   }
-  std::cout << "]}\n";
+  std::cout << ']';
+  if (cache_churn_mode) {
+    std::cout << ",\"analyzer_churn_trace\":";
+    PrintCacheChurnTrace(std::cout, churn_trace);
+  }
+  std::cout << "}\n";
   return failures == 0 ? 0 : 1;
 }

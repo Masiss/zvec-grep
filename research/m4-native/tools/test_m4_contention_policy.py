@@ -340,7 +340,8 @@ class ContentionPolicyTests(unittest.TestCase):
                     contract[workload_profile]["workload"]) if workload_profile in (
                         "contention", "memory_probe", "memory_trace",
                         "memory_trace_after_snapshot_fix",
-                        "memory_trace_scale2_after_snapshot_fix") else None
+                        "memory_trace_scale2_after_snapshot_fix",
+                        "memory_churn_two_versions") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -510,6 +511,35 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(ctx["memory_swap_max_bytes"], 0)
         self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
         self.assertEqual(ctx["pids_max"], 128)
+
+    def test_memory_churn_profile_binds_same_caps_and_validates_two_versions(self):
+        ctx = self.lock_contention_microbench_context("memory_churn_two_versions")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        workload = ctx["workload"]
+        self.assertEqual(workload["documents"], 1024)
+        self.assertEqual(workload["dictionary_churn_versions"], 2)
+        self.assertEqual(workload["mode"], "--m4-compaction-contention-cache-churn-v2")
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertEqual(ctx["pids_max"], 128)
+
+        def sample(kb: int) -> dict[str, object]:
+            return {"valid": True, "rss_kb": kb, "pss_kb": kb,
+                    "private_kb": kb, "anonymous_kb": kb}
+
+        versions = [{
+            "index": index, "identity_sha256": f"{index + 1:064x}",
+            "initialization_succeeded": True, "snapshot_used": True,
+            "tokenization_succeeded": True, "initialization_ms": 1.0,
+            "live_memory": sample(100), "released_memory": sample(90),
+        } for index in range(2)]
+        receipt = {"analyzer_churn_trace": {
+            "baseline": sample(80), "versions": versions, "failures": 0}}
+        microbench.verify_analyzer_churn_trace(receipt, workload)
+        versions[1]["identity_sha256"] = versions[0]["identity_sha256"]
+        with self.assertRaisesRegex(RuntimeError, "invalid or incomplete"):
+            microbench.verify_analyzer_churn_trace(receipt, workload)
 
     def test_lock_microbench_rejects_pair_sized_command_binding(self):
         ctx = self.lock_contention_microbench_context("memory_probe")
