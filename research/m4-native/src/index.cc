@@ -2036,11 +2036,20 @@ class Index::Impl {
     std::vector<std::unique_ptr<TermUnionCursor>> cursors;
     cursors.reserve(q.terms.size());
     std::vector<const std::vector<uint32_t>*> phrase_positions;
+    std::vector<std::vector<size_t>> phrase_term_indices;
     std::vector<size_t> phrase_scan_indices;
     if (!q.phrases.empty()) {
       size_t max_phrase_terms = 0;
+      phrase_term_indices.reserve(q.phrases.size());
       for (const auto& phrase : q.phrases) {
         max_phrase_terms = std::max(max_phrase_terms, phrase.size());
+        std::vector<size_t> indices;
+        indices.reserve(phrase.size());
+        for (const auto& term : phrase) {
+          const auto it = std::find(q.terms.begin(), q.terms.end(), term);
+          indices.push_back(static_cast<size_t>(it - q.terms.begin()));
+        }
+        phrase_term_indices.push_back(std::move(indices));
       }
       phrase_positions.reserve(max_phrase_terms);
       phrase_scan_indices.resize(max_phrase_terms);
@@ -2160,15 +2169,9 @@ class Index::Impl {
         float score = 0.0f;
         for (auto& c : cursors) score += c->score();
         bool phrase_ok = true;
-        for (const auto& phrase : q.phrases) {
+        for (const auto& indices : phrase_term_indices) {
           phrase_positions.clear();
-          for (const auto& term : phrase) {
-            const auto it = std::find(q.terms.begin(), q.terms.end(), term);
-            if (it == q.terms.end()) {
-              phrase_ok = false;
-              break;
-            }
-            const size_t idx = static_cast<size_t>(it - q.terms.begin());
+          for (size_t idx : indices) {
             if (idx >= cursors.size()) {
               phrase_ok = false;
               break;

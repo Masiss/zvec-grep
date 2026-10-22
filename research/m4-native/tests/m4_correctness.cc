@@ -1107,6 +1107,10 @@ void TestPhrase(const std::string& dir) {
            MakeRefQuery({}, false, {{"alpha", "beta"}}), 10, "phrase ab");
   CheckFts(*index, ref, "\"beta gamma\"",
            MakeRefQuery({}, false, {{"beta", "gamma"}}), 10, "phrase bg");
+  CheckFts(*index, ref, "\"alpha beta\" \"beta gamma\"",
+           MakeRefQuery({}, false,
+                        {{"alpha", "beta"}, {"beta", "gamma"}}),
+           10, "multiple phrases v2");
 }
 
 void TestCrashWal(const std::string& dir) {
