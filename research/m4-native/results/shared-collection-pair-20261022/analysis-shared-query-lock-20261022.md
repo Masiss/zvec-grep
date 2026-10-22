@@ -18,7 +18,7 @@ The committed follow-on code preserves state-mutex serialization but postpones `
 
 ## Next work
 
-1. Keep the current code as an unpromoted research prototype. Cache-enabled and disabled regressions support lock ordering/correctness, but no test forces readers to overlap the local segment-write window; add a deterministic focused test if a maintainable hook can avoid environmental timing assumptions.
+1. Keep the current code as an unpromoted research prototype. A focused local `m4_correctness` edit runs `SearchFtsFiltered` on the active reader during pending-delta flush/compaction and delete, with a reader-start handshake; build/CTest pass. The source file was already untracked, so the whole file was not included in the research commit. This verifies safe concurrent behavior but does not assert that a search completed specifically inside the unlocked segment-write interval.
 2. Further query-lock shortening across stats/tombstone/manifest/WAL persistence is a separate, higher-risk change. Do not weaken fsync, atomic manifest publication, WAL reset order, or query snapshot correctness; require a focused publication/crash test before attempting it.
 3. Avoid another real pair while capacity margin is marginal. Continue source/correctness work; only create a fresh unique pair after meaningful capacity evidence and its own full preflight pass.
 
