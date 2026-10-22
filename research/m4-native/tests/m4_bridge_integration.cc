@@ -6491,6 +6491,22 @@ int main(int argc, char** argv) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       const bool compaction_ready =
           fs::exists(compaction_barrier / "run-ready");
+      m4::Document queued_document;
+      queued_document.text = "queued writer";
+      std::atomic<bool> queued_writer_started{false};
+      std::atomic<bool> queued_writer_done{false};
+      std::atomic<bool> queued_writer_ok{false};
+      std::thread queued_writer([&] {
+        queued_writer_started.store(true, std::memory_order_release);
+        const auto status = barrier_index->Upsert("queued-writer", queued_document);
+        queued_writer_ok.store(status.ok, std::memory_order_release);
+        queued_writer_done.store(true, std::memory_order_release);
+      });
+      const auto queued_writer_deadline = std::chrono::steady_clock::now() +
+                                          std::chrono::seconds(5);
+      while (!queued_writer_started.load(std::memory_order_acquire) &&
+             std::chrono::steady_clock::now() < queued_writer_deadline)
+        std::this_thread::yield();
       m4::SearchResult during_compaction, filter_during_compaction;
       const auto compaction_fts_status = barrier_index->SearchFts(
           "marker", 10, &during_compaction);
@@ -6501,12 +6517,16 @@ int main(int argc, char** argv) {
         compaction_fts_pks.insert(hit.pk);
       for (const auto& hit : filter_during_compaction.hits)
         compaction_filter_pks.insert(hit.pk);
+      const bool queued_writer_blocked =
+          queued_writer_started.load(std::memory_order_acquire) &&
+          !queued_writer_done.load(std::memory_order_acquire);
       {
         std::ofstream release(compaction_barrier / "reader-finished",
                               std::ios::binary);
         release << "done\n";
       }
       compaction_writer.join();
+      queued_writer.join();
       ::unsetenv("M4_TEST_COMPACTION_BUILD_BARRIER");
       const std::set<std::string> compaction_live = {
           "stable", "replace", "added"};
@@ -6516,6 +6536,24 @@ int main(int argc, char** argv) {
                 compaction_filter_status.ok &&
                 compaction_filter_pks == compaction_live,
             "readers see the complete pre-publication snapshot during compaction");
+      Check(queued_writer_blocked &&
+                queued_writer_done.load(std::memory_order_acquire) &&
+                queued_writer_ok.load(std::memory_order_acquire),
+            "compaction serializes competing writer until publication");
+      m4::SearchResult queued_result;
+      const auto queued_status = barrier_index->SearchFts("queued", 10,
+                                                           &queued_result);
+      Check(queued_status.ok && queued_result.hits.size() == 1 &&
+                queued_result.hits.front().pk == "queued-writer",
+            "queued writer is visible after compaction completes");
+      m4::SearchResult warm_cache_result;
+      m4::QueryDiagnostics warm_cache_diagnostics;
+      warm_cache_diagnostics.collect_counters = true;
+      const auto warm_cache_status = barrier_index->SearchFtsFiltered(
+          "marker", 10, m4::FilterExpr::All(), &warm_cache_result,
+          &warm_cache_diagnostics);
+      Check(warm_cache_status.ok,
+            "warm cached filter after queued writer publication");
 
       auto run_wal_apply_barrier = [&](const std::string& name,
                                        auto mutation,
@@ -6570,7 +6608,8 @@ int main(int argc, char** argv) {
               name + " unfiltered FTS reader completes against the pre-apply "
                      "snapshot after durable WAL append");
         Check(filter_status.ok &&
-                  filter_pks == std::set<std::string>({"stable", "replace", "added"}),
+                  filter_pks == std::set<std::string>(
+                      {"stable", "replace", "added", "queued-writer"}),
               name + " scalar-filter reader completes against the pre-apply "
                      "snapshot after durable WAL append");
         Check(writer_ok.load(std::memory_order_acquire),
