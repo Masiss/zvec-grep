@@ -1,5 +1,9 @@
 # M4 incremental index — evidence (historical series begins 2026-10-17)
 
+## Latest watchdog timing-gap follow-up — 2026-10-22
+
+One explicitly owner-authorized fixed synthetic containment rehearsal completed `PASS` (32 KiB, 1 s; 11 samples; no abort; cleanup verified). Maximum live sample gaps were 0.111149375 s monotonic and 0.111148095 s boottime; the prior 15.323005 s anomaly was not reproduced, so its cause remains unknown. The 2 s gate is unchanged. Full native build/CTest passed 8/8, TSan passed 2/2, and Python suites passed 48/48 + 11/11 + 4/4. This is verification/containment evidence, not a native performance result. [Analysis](lock-contention-microbench/ANALYSIS-20261022.md) · [raw rehearsal receipts](containment-probes/20261022/m4-contention-rehearsal-20261022T113503Z-clock-gap-probe-01/) · [verification report](lock-contention-microbench/verification-20261022/REPORT.md).
+
 ## Active M4 mission status — renewed exploratory authorization
 
 **IN PROGRESS / ARCHITECTURE OPEN.** The owner explicitly resumed the full M4 research mission and authorized bounded implementation, correctness work, and repeated exploratory measurements without per-milestone approvals. This supersedes the historical pause recorded in [M4-STATUS-20261021.md](M4-STATUS-20261021.md); it does not waive resource, containment, correctness, durability, or cleanup gates.

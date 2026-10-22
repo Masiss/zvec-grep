@@ -10,6 +10,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from typing import Any
 from unittest import mock
 
@@ -693,7 +694,7 @@ class ContentionPolicyTests(unittest.TestCase):
         }
 
     def run_watchdog(self, host_state, group=None, workspace=None,
-                     monotonic_ns_values=None):
+                     monotonic_ns_values=None, boottime_ns_values=None):
         config = self.watchdog_config()
         path = self.root / "config.json"
         path.write_text(json.dumps(config))
@@ -721,13 +722,24 @@ class ContentionPolicyTests(unittest.TestCase):
             ) as killed,
             mock.patch.object(ct.time, "sleep"),
         ):
-            if monotonic_ns_values is None:
+            with ExitStack() as stack:
+                if monotonic_ns_values is not None:
+                    stack.enter_context(
+                        mock.patch.object(
+                            ct.time,
+                            "monotonic_ns",
+                            side_effect=monotonic_ns_values,
+                        )
+                    )
+                if boottime_ns_values is not None:
+                    stack.enter_context(
+                        mock.patch.object(
+                            ct,
+                            "boottime_ns",
+                            side_effect=boottime_ns_values,
+                        )
+                    )
                 rc = ct.watchdog_main(path)
-            else:
-                with mock.patch.object(
-                    ct.time, "monotonic_ns", side_effect=monotonic_ns_values
-                ):
-                    rc = ct.watchdog_main(path)
             self.assertEqual(rc, 0)
         out = pathlib.Path(config["watchdog_output"])
         return (
@@ -979,6 +991,50 @@ class ContentionPolicyTests(unittest.TestCase):
             (rows[1]["monotonic_ns"] - rows[0]["monotonic_ns"]) / 1e9,
             2.0,
         )
+        self.assertTrue(killed)
+
+    def test_watchdog_fails_closed_when_boottime_clock_is_missing(self):
+        with mock.patch.object(
+            ct, "boottime_ns", side_effect=RuntimeError("CLOCK_BOOTTIME unavailable")
+        ):
+            summary, _, killed = self.run_watchdog(state())
+        self.assertEqual(summary["abort"]["reason"], "required_telemetry_missing")
+        self.assertIn("CLOCK_BOOTTIME unavailable", summary["abort"]["detail"])
+        self.assertTrue(killed)
+
+    def test_watchdog_aborts_when_suspend_inclusive_cadence_exceeds_gap(self):
+        monotonic_values = [
+            0,
+            10_000_000,
+            20_000_000,
+            30_000_000,
+            40_000_000,
+            50_000_000,
+            60_000_000,
+            70_000_000,
+        ]
+        boottime_values = [
+            5_000_000_000,
+            5_010_000_000,
+            7_510_000_000,
+            7_520_000_000,
+        ]
+        summary, rows, killed = self.run_watchdog(
+            state(),
+            monotonic_ns_values=monotonic_values,
+            boottime_ns_values=boottime_values,
+        )
+        self.assertEqual(summary["abort"]["reason"], "required_telemetry_missing")
+        self.assertEqual(len(rows), 2)
+        self.assertLess(
+            rows[1]["monotonic_ns"] - rows[0]["monotonic_ns"],
+            2_000_000_000,
+        )
+        self.assertGreater(
+            rows[1]["boottime_ns"] - rows[0]["boottime_ns"],
+            2_000_000_000,
+        )
+        self.assertGreater(rows[1]["sample_duration_boottime_ns"], 0)
         self.assertTrue(killed)
 
     def test_real_oom_evidence_stops_independent_watchdog(self):

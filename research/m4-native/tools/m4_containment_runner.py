@@ -75,6 +75,14 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec='microseconds')
 
 
+def boottime_ns() -> int:
+    """Return suspend-inclusive monotonic time for watchdog gap checks."""
+    clock_id = getattr(time, 'CLOCK_BOOTTIME', None)
+    if clock_id is None:
+        raise RuntimeError('CLOCK_BOOTTIME is required for contention monitoring')
+    return time.clock_gettime_ns(clock_id)
+
+
 def read_text(path: pathlib.Path) -> str:
     return path.read_text(encoding='utf-8').strip()
 
@@ -1220,6 +1228,12 @@ def watchdog_main(config_path: pathlib.Path) -> int:
             started_ns = time.monotonic_ns()
         try:
             sample_started_ns = time.monotonic_ns()
+            sample_started_boottime_ns = (
+                boottime_ns()
+                if config.get('policy_context') is not None
+                else None
+            )
+            sample_ended_boottime_ns: int | None = None
             if not cg.exists():
                 abort = {'reason': 'cgroup_telemetry_disappeared', 'timestamp_utc': utc_now()}
                 break
@@ -1233,15 +1247,26 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 'cgroup': cgroup_row, 'host': host_row, 'workspace': work_row,
                 'workspace_capacity_decision': workspace_decision,
             }
+            if config.get('policy_context') is not None:
+                sample_ended_boottime_ns = boottime_ns()
+                row['boottime_ns'] = sample_ended_boottime_ns
             host_observation: dict[str, Any] | None = None
             if is_m4_scalar_open_exploratory(config.get('policy_context')):
                 host_observation = m4_scalar_rehearsal_host_observation(host_row, config['baseline_host_vmstat'])
                 row['host_vmstat_observation'] = host_observation
                 row['load1_disposition'] = 'observation-only; not an admission or abort gate'
             if config.get('policy_context') is not None:
+                assert sample_started_boottime_ns is not None
+                assert sample_ended_boottime_ns is not None
                 row['sample_start_monotonic_ns'] = sample_started_ns
                 row['sample_duration_ns'] = row['monotonic_ns'] - sample_started_ns
-                if row['sample_duration_ns'] > config['policy_context']['max_monitor_gap_seconds']*1e9:
+                row['sample_start_boottime_ns'] = sample_started_boottime_ns
+                row['sample_duration_boottime_ns'] = (
+                    sample_ended_boottime_ns - sample_started_boottime_ns
+                )
+                max_gap_ns = config['policy_context']['max_monitor_gap_seconds'] * 1e9
+                if (row['sample_duration_ns'] > max_gap_ns or
+                        row['sample_duration_boottime_ns'] > max_gap_ns):
                     raise ValueError('contention sample read exceeds approved monitoring gap')
             samples.append(row)
             context = config.get('policy_context')
@@ -1260,7 +1285,16 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                     distress.extend(host_observation['blocking_failures'])
                 if previous is not None:
                     elapsed = (row['monotonic_ns'] - previous['monotonic_ns']) / 1e9
-                    if elapsed <= 0 or elapsed > context['max_monitor_gap_seconds']:
+                    assert sample_ended_boottime_ns is not None
+                    previous_boottime_ns = previous.get('boottime_ns')
+                    if not isinstance(previous_boottime_ns, int):
+                        raise ValueError('missing/noninteger contention CLOCK_BOOTTIME')
+                    boottime_elapsed = (
+                        sample_ended_boottime_ns - previous_boottime_ns
+                    ) / 1e9
+                    if (elapsed <= 0 or elapsed > context['max_monitor_gap_seconds'] or
+                            boottime_elapsed <= 0 or
+                            boottime_elapsed > context['max_monitor_gap_seconds']):
                         raise ValueError('contention monitor cadence incomplete/nonmonotonic')
                     for key in ('pswpin_pages', 'pswpout_pages', 'oom_kill', 'pgscan_direct'):
                         if host_row['vmstat'][key] < previous['host']['vmstat'][key]:

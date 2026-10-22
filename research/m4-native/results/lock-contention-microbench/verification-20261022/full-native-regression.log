@@ -1,0 +1,93 @@
+-- The CXX compiler identification is GNU 16.2.1
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/sbin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found OpenSSL: /usr/lib/libcrypto.so (found version "3.6.5") found components: Crypto
+-- Configuring done (0.5s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/masis/src/zvec-grep/research/m4-native/.work/build/m4-clockgap-regression-20261022
+[  2%] Building CXX object CMakeFiles/m4_research.dir/src/index.cc.o
+[  4%] Building CXX object CMakeFiles/m4_writer_preferred_mutex_test.dir/tests/writer_preferred_shared_mutex_test.cc.o
+[  7%] Linking CXX executable m4_writer_preferred_mutex_test
+[  7%] Built target m4_writer_preferred_mutex_test
+[  9%] Building CXX object CMakeFiles/m4_research.dir/src/format.cc.o
+[ 11%] Building CXX object CMakeFiles/m4_research.dir/src/stream_merge.cc.o
+[ 14%] Building CXX object CMakeFiles/m4_research.dir/src/native_tokenizer_adapter.cc.o
+[ 16%] Building CXX object CMakeFiles/m4_research.dir/src/native_global_config_link_shim.cc.o
+[ 19%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/jieba_tokenizer.cc.o
+[ 21%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer.cc.o
+[ 23%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/unicode_utils.cc.o
+[ 26%] Building CXX object CMakeFiles/m4_research.dir/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/token_filter.cc.o
+[ 28%] Linking CXX static library libm4_research.a
+[ 28%] Built target m4_research
+[ 30%] Building CXX object CMakeFiles/m4_correctness.dir/tests/m4_correctness.cc.o
+[ 33%] Building CXX object CMakeFiles/m4_benchmark.dir/tests/m4_benchmark.cc.o
+[ 35%] Linking CXX executable m4_benchmark
+[ 35%] Built target m4_benchmark
+[ 38%] Building CXX object CMakeFiles/m4_compaction_writer_contention.dir/tests/m4_compaction_writer_contention.cc.o
+[ 40%] Linking CXX executable m4_compaction_writer_contention
+[ 40%] Built target m4_compaction_writer_contention
+[ 42%] Building CXX object CMakeFiles/m4_native_fts_differential.dir/tests/native_fts_differential.cc.o
+[ 45%] Linking CXX executable m4_native_fts_differential
+[ 45%] Built target m4_native_fts_differential
+[ 47%] Building CXX object CMakeFiles/m4_native_bm25_isolation.dir/tests/native_bm25_isolation.cc.o
+[ 50%] Linking CXX executable m4_correctness
+[ 50%] Built target m4_correctness
+[ 52%] Building CXX object CMakeFiles/m4_native_uint32_differential.dir/tests/native_uint32_differential.cc.o
+[ 54%] Linking CXX executable m4_native_bm25_isolation
+[ 54%] Built target m4_native_bm25_isolation
+[ 57%] Building CXX object CMakeFiles/m4_native_array_uint32_differential.dir/tests/native_array_uint32_differential.cc.o
+[ 59%] Linking CXX executable m4_native_uint32_differential
+[ 59%] Built target m4_native_uint32_differential
+[ 61%] Building CXX object CMakeFiles/m4_native_boolean_filter_differential.dir/tests/native_boolean_filter_differential.cc.o
+[ 64%] Linking CXX executable m4_native_array_uint32_differential
+[ 64%] Built target m4_native_array_uint32_differential
+[ 66%] Building CXX object CMakeFiles/m4_native_zg_workload_differential.dir/tests/native_zg_workload_differential.cc.o
+[ 69%] Linking CXX executable m4_native_boolean_filter_differential
+[ 69%] Built target m4_native_boolean_filter_differential
+[ 71%] Building CXX object CMakeFiles/m4_native_jieba_compatibility.dir/tests/native_jieba_compatibility.cc.o
+[ 73%] Linking CXX executable m4_native_zg_workload_differential
+[ 73%] Built target m4_native_zg_workload_differential
+[ 76%] Building CXX object CMakeFiles/m4_analyzer_cache_lifecycle.dir/tests/analyzer_cache_lifecycle.cc.o
+[ 78%] Linking CXX executable m4_native_jieba_compatibility
+[ 80%] Linking CXX executable m4_analyzer_cache_lifecycle
+[ 80%] Built target m4_analyzer_cache_lifecycle
+[ 80%] Built target m4_native_jieba_compatibility
+[ 83%] Building CXX object CMakeFiles/native_m4_paired_benchmark.dir/tests/native_m4_paired_benchmark.cc.o
+[ 85%] Building CXX object CMakeFiles/m4_native_scalar_open_resource_rehearsal.dir/tests/native_scalar_open_resource_rehearsal.cc.o
+[ 88%] Linking CXX executable m4_native_scalar_open_resource_rehearsal
+[ 88%] Built target m4_native_scalar_open_resource_rehearsal
+[ 90%] Building CXX object CMakeFiles/m4_native_scalar_open_latency_diagnostic.dir/tests/native_scalar_open_resource_rehearsal.cc.o
+[ 92%] Linking CXX executable m4_native_scalar_open_latency_diagnostic
+[ 92%] Built target m4_native_scalar_open_latency_diagnostic
+[ 95%] Building CXX object CMakeFiles/m4_bridge_integration.dir/tests/m4_bridge_integration.cc.o
+[ 97%] Linking CXX executable native_m4_paired_benchmark
+[ 97%] Built target native_m4_paired_benchmark
+[100%] Linking CXX executable m4_bridge_integration
+[100%] Built target m4_bridge_integration
+Test project /home/masis/src/zvec-grep/research/m4-native/.work/build/m4-clockgap-regression-20261022
+    Start 1: m4_writer_preferred_mutex_test
+1/8 Test #1: m4_writer_preferred_mutex_test ..........   Passed    0.00 sec
+    Start 2: m4_native_uint32_differential
+2/8 Test #2: m4_native_uint32_differential ...........   Passed    0.36 sec
+    Start 3: m4_native_array_uint32_differential
+3/8 Test #3: m4_native_array_uint32_differential .....   Passed    0.11 sec
+    Start 4: m4_native_boolean_filter_differential
+4/8 Test #4: m4_native_boolean_filter_differential ...   Passed    0.53 sec
+    Start 5: m4_native_zg_workload_differential
+5/8 Test #5: m4_native_zg_workload_differential ......   Passed    0.45 sec
+    Start 6: m4_native_jieba_compatibility
+6/8 Test #6: m4_native_jieba_compatibility ...........   Passed    3.42 sec
+    Start 7: m4_analyzer_cache_lifecycle
+7/8 Test #7: m4_analyzer_cache_lifecycle .............   Passed    2.94 sec
+    Start 8: m4_correctness
+8/8 Test #8: m4_correctness ..........................   Passed    8.24 sec
+
+100% tests passed out of 8
+
+Total Test time (real) =  16.06 sec

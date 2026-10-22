@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "classification": "controller wrapper defect after successful contained operation; not workload or watchdog failure",
+  "background_job_id": "job-2072690-395",
+  "evidence": "controller-job-log.txt records the complete PASS summary, then a NameError caused by an accidental trailing standalone PY marker in the temporary outer controller script",
+  "contained_operation": {
+    "status": "PASS",
+    "workload_returncode": 0,
+    "watchdog_abort": null,
+    "hard_safety_telemetry_complete": true,
+    "unit_cleanup_verified": true,
+    "samples": 11,
+    "max_monotonic_gap_seconds": 0.111149375,
+    "max_boottime_gap_seconds": 0.111148095
+  },
+  "repair": "Removed the trailing marker from research/m4-native/.work/scratch/run_m4_clock_gap_probe.py and verified it with python3 -m py_compile. The contained operation was not rerun.",
+  "scope": "No operation receipts were modified by the repair; this note and the captured controller log are post-run provenance."
+}

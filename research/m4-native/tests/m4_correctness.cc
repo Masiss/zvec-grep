@@ -1575,8 +1575,11 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
         "snapshot prototype set stream-merge barrier");
   std::atomic<bool> compaction_done{false};
   m4::Status compaction_status;
+  m4::CompactionDiagnostics concurrent_compaction_diagnostics;
+  concurrent_compaction_diagnostics.capture_timing = true;
   std::thread compactor([&] {
-    compaction_status = index->CompactNowSnapshotPrototype();
+    compaction_status = index->CompactNowSnapshotPrototype(
+        &concurrent_compaction_diagnostics);
     compaction_done.store(true);
   });
   auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
@@ -1599,6 +1602,7 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
               overlapping.message.find("another compaction build is active") !=
                   std::string::npos,
           "snapshot prototype bounds compaction builds to one per index");
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
   }
 
   std::atomic<bool> writer_done{false};
@@ -1635,6 +1639,14 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
   Check(!compaction_status.ok &&
             compaction_status.message.find("superseded") != std::string::npos,
         "concurrent mutation aborts stale snapshot publication");
+  if (run_ready) {
+    Check(concurrent_compaction_diagnostics.merge_build_ms >= 30.0,
+          "timed snapshot build includes the deliberate unlocked barrier hold");
+    Check(concurrent_compaction_diagnostics.total_ms -
+                  concurrent_compaction_diagnostics.state_mutex_hold_ms >=
+              30.0,
+          "state-mutex hold timing excludes the unlocked merge-build barrier");
+  }
   Check(index->GetStats().runs == 2,
         "aborted snapshot compaction preserves the current runs");
   Check(!fs::exists(fs::path(dir) / "run-3.seg"),

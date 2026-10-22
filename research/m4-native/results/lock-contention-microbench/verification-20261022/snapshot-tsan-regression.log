@@ -1,0 +1,14 @@
+[ 66%] Built target m4_research
+[100%] Built target m4_correctness
+[ 50%] Building CXX object CMakeFiles/m4_writer_preferred_mutex_test.dir/tests/writer_preferred_shared_mutex_test.cc.o
+[100%] Linking CXX executable m4_writer_preferred_mutex_test
+[100%] Built target m4_writer_preferred_mutex_test
+Test project /home/masis/src/zvec-grep/research/m4-native/.work/build/m4-snapshot-tsan-20261022
+    Start 1: m4_writer_preferred_mutex_test
+1/2 Test #1: m4_writer_preferred_mutex_test ...   Passed    0.01 sec
+    Start 2: m4_correctness
+2/2 Test #2: m4_correctness ...................   Passed   17.86 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =  17.87 sec
