@@ -209,23 +209,27 @@ snapshots the immutable input runs and only the tombstones belonging to those
 runs, reserves an output run ID, then releases both the writer-state and query
 locks while the streaming merge runs. At publication it reacquires locks in
 writer-state-then-query order and validates the mutation generation, WAL
-sequence, run IDs/files, and segment identities. Any concurrent mutation or flush causes the new output to be discarded and
-an error returned; no compaction manifest is published, and the current state
-(including committed writer changes) remains authoritative. A competing
-compaction is rejected before its build begins.
-The method does not retry automatically, so sustained writes can repeatedly
-supersede compaction.
+sequence, run IDs/files, and segment identities. Any concurrent mutation or
+flush causes the new output to be discarded and an error returned; no
+compaction manifest is published, and the current state (including committed
+writer changes) remains authoritative. A competing compaction is rejected
+before its build begins. The method does not retry automatically, so sustained
+writes can repeatedly supersede compaction.
 
 The per-index build slot prevents simultaneous compaction builds. Automatic
-maintenance is deferred while the prototype owns that slot. The input-run
-metadata and group tombstone snapshot are charged conservatively against
-`compaction_memory_limit_bytes`; the charge is an estimate, not allocator-level
-accounting. Regression tests pause after an FTS term has been merged, apply a
-concurrent delete, verify the writer/read path progresses, and require stale
-publication to abort; they also cover stable publication/reopen, pre/post-
-manifest fault recovery, and early memory-budget refusal. This is correctness evidence only: no performance claim
-or production-readiness claim is supported, and the prototype is not used by
-default APIs.
+maintenance is deferred while the prototype owns that slot. Active output and
+temp filenames are protected from concurrent flush garbage collection;
+unreferenced temp files remain eligible for cleanup after process restart. The
+input-run metadata and group tombstone snapshot are charged conservatively
+against `compaction_memory_limit_bytes`; the charge is an estimate, not
+allocator-level accounting. Regression tests pause after an FTS term has been
+merged, apply a concurrent delete, verify writer/read progress, and require
+stale publication to abort. A concurrent flush also verifies run-ID
+reservation, GC protection for in-flight output, stale-output cleanup, and
+forced-rebuild deferral. Coverage includes stable publication/reopen,
+pre/post-manifest fault recovery, and early memory-budget refusal. This is
+correctness evidence only: no performance or production-readiness claim is
+supported, and default APIs remain unchanged.
 
 ### Query-time BM25 bound (no stale IDF)
 

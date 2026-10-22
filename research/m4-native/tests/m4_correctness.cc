@@ -1653,6 +1653,113 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
         "snapshot prototype deletion survives reopen");
 }
 
+void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.tombstone_compact_ratio = 2.0;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, opt, &index).ok, "snapshot flush prototype open");
+  Document alpha;
+  alpha.text = "alpha";
+  Check(index->Upsert("a", alpha).ok, "snapshot flush upsert alpha");
+  Check(index->Flush().ok, "snapshot flush flush alpha");
+  Document beta;
+  beta.text = "beta";
+  Check(index->Upsert("b", beta).ok, "snapshot flush upsert beta");
+  Check(index->Flush().ok, "snapshot flush flush beta");
+
+  // Exercise the optional forced-rebuild-on-flush path while a snapshot build
+  // is active; it must defer that merge rather than fail the durable flush.
+  index.reset();
+  opt.rebuild_on_flush = true;
+  const m4::Status reopen_status = Index::Open(dir, opt, &index);
+  Check(reopen_status.ok, "snapshot flush reopen with forced rebuild enabled");
+  if (!reopen_status.ok) return;
+
+  const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
+  fs::remove_all(barrier);
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+        "snapshot flush set stream-merge barrier");
+  std::atomic<bool> compaction_done{false};
+  m4::Status compaction_status;
+  std::thread compactor([&] {
+    compaction_status = index->CompactNowSnapshotPrototype();
+    compaction_done.store(true);
+  });
+  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+                     std::chrono::seconds timeout) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::error_code ec;
+    while (!fs::exists(path, ec) && !done.load() &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return fs::exists(path, ec);
+  };
+  const bool run_ready = wait_for(barrier / "merge-read-ready", compaction_done,
+                                  std::chrono::seconds(5));
+  Check(run_ready, "snapshot flush reaches the unlocked stream-merge barrier");
+
+  std::atomic<bool> writer_done{false};
+  m4::Status writer_status;
+  std::thread writer;
+  if (run_ready) {
+    writer = std::thread([&] {
+      Document gamma;
+      gamma.text = "gamma";
+      writer_status = index->Upsert("c", gamma);
+      if (writer_status.ok) writer_status = index->Flush();
+      writer_done.store(true);
+    });
+    const auto writer_deadline = std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(2);
+    while (!writer_done.load() &&
+           std::chrono::steady_clock::now() < writer_deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    Check(writer_done.load(),
+          "concurrent upsert and flush complete before snapshot publication");
+    if (writer_done.load()) {
+      Check(writer_status.ok, "snapshot concurrent flush succeeds");
+      m4::SearchResult result;
+      for (const auto* term : {"alpha", "beta", "gamma"}) {
+        Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+              std::string("concurrent flush query-visible term ") + term);
+      }
+    }
+    std::ofstream release(barrier / "writer-finished", std::ios::binary);
+    release << "done\n";
+  }
+  if (writer.joinable()) writer.join();
+  compactor.join();
+  ::unsetenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
+  Check(!compaction_status.ok &&
+            compaction_status.message.find("superseded") != std::string::npos,
+        "concurrent flush prevents stale snapshot publication: " +
+            (compaction_status.ok ? "ok" : compaction_status.message));
+  Check(index->GetStats().runs == 3,
+        "stale compaction preserves both old runs and the concurrent flush run");
+  Check(!fs::exists(fs::path(dir) / "run-3.seg") &&
+            fs::exists(fs::path(dir) / "run-4.seg"),
+        "stale output cleanup preserves the writer's reserved run ID");
+  m4::SearchResult result;
+  for (const auto* term : {"alpha", "beta", "gamma"}) {
+    Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+          std::string("post-abort query-visible term ") + term);
+  }
+
+  index.reset();
+  std::unique_ptr<Index> reopened;
+  Check(Index::Open(dir, opt, &reopened).ok,
+        "snapshot concurrent flush reopen");
+  Check(reopened->GetStats().runs == 3,
+        "snapshot concurrent flush manifest survives reopen");
+  for (const auto* term : {"alpha", "beta", "gamma"}) {
+    Check(reopened->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+          std::string("snapshot concurrent flush reopen term ") + term);
+  }
+}
+
 void TestSnapshotCompactionBudget(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -2100,6 +2207,7 @@ int main() {
   TestHybrid(root + "/hybrid");
   TestCompactionBudget(root + "/budget");
   TestSnapshotCompactionPrototype(root + "/snapshot-prototype");
+  TestSnapshotCompactionConcurrentFlush(root + "/snapshot-concurrent-flush");
   TestSnapshotCompactionBudget(root + "/snapshot-budget");
   TestSnapshotCompactionFaults(root + "/snapshot-faults");
   TestCompactionPositionBudget(root + "/position-budget");

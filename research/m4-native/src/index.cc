@@ -3370,6 +3370,21 @@ class Index::Impl {
     if (state_guard) run_id_seq_ = new_run_id;  // reserve while the state lock is held
     const uint64_t snapshot_run_id_seq = run_id_seq_;
     const std::string file = RunFileName(new_run_id);
+    const std::string temp_file =
+        file + ".tmp." + std::to_string(::getpid());
+    struct ActiveCompactionFilesGuard {
+      std::string& output;
+      std::string& temporary;
+      std::unique_lock<std::recursive_mutex>* state_guard;
+      ~ActiveCompactionFilesGuard() {
+        if (state_guard && !state_guard->owns_lock()) state_guard->lock();
+        output.clear();
+        temporary.clear();
+      }
+    } active_files_guard{active_compaction_file_, active_compaction_temp_file_,
+                         state_guard};
+    active_compaction_file_ = file;
+    active_compaction_temp_file_ = temp_file;
     StreamMergeOptions merge_options;
     merge_options.run_id = new_run_id;
     merge_options.level = new_level;
@@ -3391,7 +3406,10 @@ class Index::Impl {
     Status s = MergeSegmentsStreaming((fs::path(dir_) / file).string(),
                                       input_segments, *merge_tombstones,
                                       merge_options, &merge_stats, &err);
-    if (!s.ok) build_error = "compaction stream: " + err;
+    if (!s.ok) {
+      build_error = "compaction stream: " +
+                    (err.empty() ? s.message : err);
+    }
     if (s.ok) {
       new_doc_count = merge_stats.output_docs;
       if (new_doc_count > 0) {
@@ -3575,6 +3593,14 @@ class Index::Impl {
       keep.insert(StatsLogName(m.stats_epoch));
     };
     add_manifest(manifest_);
+    // Snapshot compaction releases mutex_ while a flush may run GC. Preserve
+    // its in-flight temp and final output until MergeRuns commits or cleans it.
+    if (!active_compaction_file_.empty()) {
+      keep.insert(active_compaction_file_);
+    }
+    if (!active_compaction_temp_file_.empty()) {
+      keep.insert(active_compaction_temp_file_);
+    }
     // Keep one previous generation so manifest.bak remains a usable fallback.
     Manifest bak;
     if (ReadManifestFile(ManifestPath(dir_) + ".bak", &bak)) {
@@ -4025,6 +4051,8 @@ class Index::Impl {
   mutable std::mutex filter_cache_mutex_;
   uint64_t state_generation_{1};  // protected by mutex_; mutation/snapshot conflict detector
   std::mutex compaction_build_mutex_;
+  std::string active_compaction_file_;      // protected by mutex_
+  std::string active_compaction_temp_file_; // protected by mutex_
   uint64_t filter_state_epoch_{1};
   mutable uint64_t filter_cache_epoch_{0};
   mutable bool filter_cache_valid_{false};
