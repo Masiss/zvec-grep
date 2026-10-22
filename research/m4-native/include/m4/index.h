@@ -186,6 +186,26 @@ struct CompactionDiagnostics {
   double query_mutex_wait_cpu_ms{0.0};
   double pending_flush_ms{0.0};
   double pending_flush_cpu_ms{0.0};
+  double flush_segment_build_ms{0.0};
+  double flush_segment_build_cpu_ms{0.0};
+  double flush_segment_write_ms{0.0};
+  double flush_segment_write_cpu_ms{0.0};
+  double flush_segment_open_ms{0.0};
+  double flush_segment_open_cpu_ms{0.0};
+  double flush_query_mutex_wait_ms{0.0};
+  double flush_query_mutex_wait_cpu_ms{0.0};
+  double flush_stats_append_ms{0.0};
+  double flush_stats_append_cpu_ms{0.0};
+  double flush_tombstone_write_ms{0.0};
+  double flush_tombstone_write_cpu_ms{0.0};
+  double flush_manifest_write_ms{0.0};
+  double flush_manifest_write_cpu_ms{0.0};
+  double flush_wal_reset_ms{0.0};
+  double flush_wal_reset_cpu_ms{0.0};
+  double flush_gc_ms{0.0};
+  double flush_gc_cpu_ms{0.0};
+  double flush_delta_reset_ms{0.0};
+  double flush_delta_reset_cpu_ms{0.0};
   double merge_prepare_ms{0.0};
   double merge_prepare_cpu_ms{0.0};
   double merge_build_ms{0.0};
@@ -387,6 +407,9 @@ class Index {
   // fully durable on return when fsync_wal is enabled. The encoded batch is
   // capped at 8 MiB; existing single-document methods retain their behavior.
   Status ApplyBatch(const std::vector<Mutation>& mutations);
+  // Research-only per-call stage timing; null diagnostics add no timers.
+  Status ApplyBatch(const std::vector<Mutation>& mutations,
+                    WriteDiagnostics* diagnostics);
 
   // Seal the active delta into an immutable run, commit a manifest, then apply
   // the compaction policy. Cost is O(change), not O(collection).

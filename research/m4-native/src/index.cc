@@ -450,7 +450,7 @@ double ThreadCpuMs() {
 class ScopedStageTimer {
  public:
   ScopedStageTimer(double* wall_ms, double* cpu_ms)
-      : wall_ms_(wall_ms), cpu_ms_(cpu_ms), active_(wall_ms || cpu_ms) {
+      : wall_ms_(wall_ms), cpu_ms_(cpu_ms) {
     Start();
   }
   ~ScopedStageTimer() { Stop(); }
@@ -458,9 +458,10 @@ class ScopedStageTimer {
   ScopedStageTimer& operator=(const ScopedStageTimer&) = delete;
 
   void Start() {
-    if (!active_) return;
+    if (active_ || (!wall_ms_ && !cpu_ms_)) return;
     wall_start_ = NowMs();
     cpu_start_ = ThreadCpuMs();
+    active_ = true;
   }
   void Stop() {
     if (!active_) return;
@@ -936,6 +937,58 @@ bool DecodeTombstones(const std::string& bytes,
     out->insert(prev);
   }
   return r.ok();
+}
+
+Status CollectDeletedIdsFromWalPayload(
+    const std::string& payload, std::unordered_set<DocId>* deleted) {
+  BufReader r(payload.data(), payload.size());
+  const uint8_t type = r.U8();
+  if (type == 3) {
+    const uint64_t count = r.Varint();
+    if (!r.ok() || count == 0 || count > 256) {
+      return Status::Error("bad batch wal record count while reading pending deletes");
+    }
+    std::vector<std::string> children;
+    children.reserve(static_cast<size_t>(count));
+    for (uint64_t i = 0; i < count; ++i) children.push_back(r.String());
+    if (!r.ok() || r.remaining() != 0) {
+      return Status::Error("bad batch wal framing while reading pending deletes");
+    }
+    for (const auto& child : children) {
+      Status s = CollectDeletedIdsFromWalPayload(child, deleted);
+      if (!s.ok) return s;
+    }
+    return Status::OK();
+  }
+  if (type == 1) {
+    const DocId old_id = r.U64();
+    const DocId new_id = r.U64();
+    (void)r.String();
+    (void)r.String();
+    const uint64_t value_count = r.Varint();
+    if (!r.ok() || new_id == 0 || value_count > 1000000ull) {
+      return Status::Error("bad upsert wal record while reading pending deletes");
+    }
+    for (uint64_t i = 0; i < value_count; ++i) {
+      (void)r.String();
+      (void)r.String();
+    }
+    if (!r.ok() || r.remaining() != 0) {
+      return Status::Error("bad upsert wal framing while reading pending deletes");
+    }
+    if (old_id != 0) deleted->insert(old_id);
+    return Status::OK();
+  }
+  if (type == 2) {
+    const DocId id = r.U64();
+    (void)r.String();
+    if (!r.ok() || id == 0 || r.remaining() != 0) {
+      return Status::Error("bad delete wal record while reading pending deletes");
+    }
+    deleted->insert(id);
+    return Status::OK();
+  }
+  return Status::Error("unknown wal record while reading pending deletes");
 }
 
 // --------------------------- Posting cursors -----------------------------
@@ -1564,6 +1617,10 @@ class Index::Impl {
       if (!manifest_status.ok) return manifest_status;
     }
 
+    // Remember the durable checkpoint separately from manifest_.wal_seq, which
+    // WAL replay advances in memory without committing a new manifest.
+    durable_wal_seq_ = manifest_.wal_seq;
+
     // Analyzer identity is validated and the matching tokenizer initialized
     // before loading runs or replaying WAL.
     record_stage(diagnostics ? &diagnostics->manifest_and_analyzer_ms : nullptr,
@@ -1852,7 +1909,17 @@ class Index::Impl {
   }
 
   Status ApplyBatch(const std::vector<Mutation>& mutations) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    return ApplyBatch(mutations, nullptr);
+  }
+
+  Status ApplyBatch(const std::vector<Mutation>& mutations,
+                    WriteDiagnostics* diagnostics) {
+    const bool capture = diagnostics && diagnostics->capture_timing;
+    if (diagnostics) {
+      const bool requested = diagnostics->capture_timing;
+      *diagnostics = WriteDiagnostics{};
+      diagnostics->capture_timing = requested;
+    }
     constexpr size_t kMaxBatchMutations = 256;
     constexpr size_t kMaxBatchBytes = 8u << 20;
     if (mutations.empty()) return Status::OK();
@@ -1860,7 +1927,38 @@ class Index::Impl {
       return Status::Error("batch exceeds 256 mutations");
     }
 
+    // Normalize pure inputs before taking the writer-state mutex so concurrent
+    // batches do not queue behind per-document array canonicalization.
+    const double normalize_wall = capture ? NowMs() : 0.0;
+    const double normalize_cpu = capture ? ThreadCpuMs() : 0.0;
+    std::vector<Document> normalized_documents;
+    normalized_documents.reserve(mutations.size());
+    for (const Mutation& mutation : mutations) {
+      if (mutation.kind == MutationKind::UPSERT) {
+        normalized_documents.push_back(NormalizeDocument(mutation.document));
+      } else {
+        normalized_documents.emplace_back();
+      }
+    }
+    if (capture) {
+      diagnostics->normalize_ms = NowMs() - normalize_wall;
+      diagnostics->normalize_cpu_ms = ThreadCpuMs() - normalize_cpu;
+    }
+
+    const double state_wait_wall = capture ? NowMs() : 0.0;
+    const double state_wait_cpu = capture ? ThreadCpuMs() : 0.0;
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    if (capture) {
+      diagnostics->state_mutex_wait_ms = NowMs() - state_wait_wall;
+      diagnostics->state_mutex_wait_cpu_ms =
+          ThreadCpuMs() - state_wait_cpu;
+    }
+    ScopedStageTimer state_hold_timer(
+        capture ? &diagnostics->state_mutex_hold_ms : nullptr,
+        capture ? &diagnostics->state_mutex_hold_cpu_ms : nullptr);
     // Prepare the complete transaction without changing visible index state.
+    const double encode_wall = capture ? NowMs() : 0.0;
+    const double encode_cpu = capture ? ThreadCpuMs() : 0.0;
     std::unordered_map<std::string, DocId> staged_ids;
     std::vector<std::string> records;
     records.reserve(mutations.size());
@@ -1870,7 +1968,9 @@ class Index::Impl {
       const auto it = staged_ids.find(pk);
       return it == staged_ids.end() ? LookupPk(pk) : it->second;
     };
-    for (const Mutation& mutation : mutations) {
+    for (size_t mutation_index = 0; mutation_index < mutations.size();
+         ++mutation_index) {
+      const Mutation& mutation = mutations[mutation_index];
       const uint64_t old_id = current_id(mutation.pk);
       BufWriter record;
       if (mutation.kind == MutationKind::DELETE) {
@@ -1883,7 +1983,7 @@ class Index::Impl {
         if (staged_next_id == std::numeric_limits<uint64_t>::max()) {
           return Status::Error("DocId space exhausted");
         }
-        const Document normalized = NormalizeDocument(mutation.document);
+        const Document& normalized = normalized_documents[mutation_index];
         const uint64_t new_id = staged_next_id++;
         record.U8(1);
         record.U64(old_id);
@@ -1914,6 +2014,10 @@ class Index::Impl {
     if (batch.data().size() > kMaxBatchBytes) {
       return Status::Error("batch exceeds 8 MiB encoded limit");
     }
+    if (capture) {
+      diagnostics->wal_encode_ms = NowMs() - encode_wall;
+      diagnostics->wal_encode_cpu_ms = ThreadCpuMs() - encode_cpu;
+    }
 
     const char* fault = std::getenv("M4_FAULT");
     if (fault && std::string(fault) == "batch_before_wal") {
@@ -1921,7 +2025,13 @@ class Index::Impl {
     }
     const uint64_t seq = next_wal_seq_;
     if (options_.wal_enabled) {
+      const double wal_wall = capture ? NowMs() : 0.0;
+      const double wal_cpu = capture ? ThreadCpuMs() : 0.0;
       Status status = wal_.Append(seq, batch.data(), options_.fsync_wal);
+      if (capture) {
+        diagnostics->wal_append_ms = NowMs() - wal_wall;
+        diagnostics->wal_append_cpu_ms = ThreadCpuMs() - wal_cpu;
+      }
       if (!status.ok) return status;
     }
     if (fault && std::string(fault) == "batch_after_wal_sync") ::_exit(86);
@@ -1932,17 +2042,42 @@ class Index::Impl {
     // on the old snapshot until the durable frame is ready, then exclude them
     // while applying the state transition. FlushInternal may later release this
     // lock while building a segment, but only after the batch state is complete.
+    const double query_wait_wall = capture ? NowMs() : 0.0;
+    const double query_wait_cpu = capture ? ThreadCpuMs() : 0.0;
     std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
+    if (capture) {
+      diagnostics->query_mutex_wait_ms = NowMs() - query_wait_wall;
+      diagnostics->query_mutex_wait_cpu_ms = ThreadCpuMs() - query_wait_cpu;
+    }
+    const double apply_wall = capture ? NowMs() : 0.0;
+    const double apply_cpu = capture ? ThreadCpuMs() : 0.0;
     size_t applied = 0;
     for (const auto& record : records) {
       Status status = ReplayWalPayload(record);
-      if (!status.ok) return Status::Error("durable batch apply failed: " + status.message);
+      if (!status.ok) {
+        if (capture) {
+          diagnostics->apply_ms = NowMs() - apply_wall;
+          diagnostics->apply_cpu_ms = ThreadCpuMs() - apply_cpu;
+        }
+        return Status::Error("durable batch apply failed: " + status.message);
+      }
       if (++applied == 1 && fault &&
           std::string(fault) == "batch_after_first_apply") {
         ::_exit(87);
       }
     }
-    return MaybeAutoFlush(&query_guard);
+    if (capture) {
+      diagnostics->apply_ms = NowMs() - apply_wall;
+      diagnostics->apply_cpu_ms = ThreadCpuMs() - apply_cpu;
+    }
+    const double flush_wall = capture ? NowMs() : 0.0;
+    const double flush_cpu = capture ? ThreadCpuMs() : 0.0;
+    Status flush_status = MaybeAutoFlush(&query_guard);
+    if (capture) {
+      diagnostics->auto_flush_ms = NowMs() - flush_wall;
+      diagnostics->auto_flush_cpu_ms = ThreadCpuMs() - flush_cpu;
+    }
+    return flush_status;
   }
 
   Status Flush() {
@@ -2113,6 +2248,21 @@ class Index::Impl {
   }
 
  private:
+  Status CollectUncommittedDeletedIds(
+      std::unordered_set<DocId>* deleted) {
+    deleted->clear();
+    if (!options_.wal_enabled) return Status::OK();
+    std::vector<WalRecord> records;
+    Status status = wal_.Replay(&records);
+    if (!status.ok) return status;
+    for (const WalRecord& record : records) {
+      if (record.seq <= durable_wal_seq_) continue;
+      status = CollectDeletedIdsFromWalPayload(record.payload, deleted);
+      if (!status.ok) return status;
+    }
+    return Status::OK();
+  }
+
   Status CompactNowWithDiagnostics(CompactionDiagnostics* diagnostics,
                                    bool snapshot_prototype,
                                    bool allow_concurrent_rebase) {
@@ -2141,9 +2291,13 @@ class Index::Impl {
       diagnostics->query_mutex_wait_ms = NowMs() - query_wait_wall;
       diagnostics->query_mutex_wait_cpu_ms = ThreadCpuMs() - query_wait_cpu;
     }
+    const bool defer_rebase_flush =
+        allow_concurrent_rebase && options_.wal_enabled;
     const double flush_wall = capture ? NowMs() : 0.0;
     const double flush_cpu = capture ? ThreadCpuMs() : 0.0;
-    Status status = pending_flush_ ? FlushInternal(query_guard) : Status::OK();
+    Status status = pending_flush_ && !defer_rebase_flush
+                        ? FlushInternal(query_guard, diagnostics)
+                        : Status::OK();
     if (capture) {
       diagnostics->pending_flush_ms = NowMs() - flush_wall;
       diagnostics->pending_flush_cpu_ms = ThreadCpuMs() - flush_cpu;
@@ -2896,7 +3050,10 @@ class Index::Impl {
 
   // ------------------------------ flush ----------------------------------
 
-  Status FlushInternal(std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard) {
+  Status FlushInternal(
+      std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard,
+      CompactionDiagnostics* diagnostics = nullptr) {
+    const bool capture = diagnostics && diagnostics->capture_timing;
     // Segment construction and its durable write read the current delta but do
     // not alter query-visible state. Let uncached readers continue against that
     // state; re-acquire exclusively before publishing any in-memory or durable
@@ -2906,6 +3063,9 @@ class Index::Impl {
     // Docs that were created and deleted inside this delta were never
     // persisted. Their tombstones are dropped only after the segment build has
     // filtered them out; dropping them before the build would resurrect them.
+    ScopedStageTimer segment_build_timer(
+        capture ? &diagnostics->flush_segment_build_ms : nullptr,
+        capture ? &diagnostics->flush_segment_build_cpu_ms : nullptr);
     std::vector<DocId> never_persisted;
     size_t live_doc_count = 0;
     for (const auto& d : delta_docs_) {
@@ -3000,23 +3160,36 @@ class Index::Impl {
       if (!build.docs.empty()) {
         const std::string file = RunFileName(build.run_id);
         std::string err;
-        Status s = WriteSegment((fs::path(dir_) / file).string(),
-                                std::move(build), &err);
+        segment_build_timer.Stop();
+        Status s;
+        {
+          ScopedStageTimer segment_write_timer(
+              capture ? &diagnostics->flush_segment_write_ms : nullptr,
+              capture ? &diagnostics->flush_segment_write_cpu_ms : nullptr);
+          s = WriteSegment((fs::path(dir_) / file).string(),
+                           std::move(build), &err);
+        }
         if (!s.ok) return Status::Error("write segment: " + err);
         new_run.info.id = run_id_seq_ + 1;
         new_run.info.level = 0;
         new_run.info.doc_count = live_doc_count;
         new_run.info.dead_count = 0;
         new_run.info.file = file;
-        std::error_code ec;
-        new_run.info.file_size =
-            fs::file_size(fs::path(dir_) / file, ec);
-        s = Segment::Open((fs::path(dir_) / file).string(), &new_run.segment,
-                          &err);
+        {
+          ScopedStageTimer segment_open_timer(
+              capture ? &diagnostics->flush_segment_open_ms : nullptr,
+              capture ? &diagnostics->flush_segment_open_cpu_ms : nullptr);
+          std::error_code ec;
+          new_run.info.file_size =
+              fs::file_size(fs::path(dir_) / file, ec);
+          s = Segment::Open((fs::path(dir_) / file).string(), &new_run.segment,
+                            &err);
+        }
         if (!s.ok) return Status::Error("reopen new run: " + err);
         wrote_run = true;
       }
     }
+    segment_build_timer.Stop();
 
     if (wrote_run) {
       // Deterministic research-test barrier: exercise readers after the new
@@ -3044,7 +3217,16 @@ class Index::Impl {
           return Status::Error("test flush publication barrier timed out");
       }
     }
-    if (!query_guard.owns_lock()) query_guard.lock();
+    if (!query_guard.owns_lock()) {
+      const double wait_wall = capture ? NowMs() : 0.0;
+      const double wait_cpu = capture ? ThreadCpuMs() : 0.0;
+      query_guard.lock();
+      if (capture) {
+        diagnostics->flush_query_mutex_wait_ms += NowMs() - wait_wall;
+        diagnostics->flush_query_mutex_wait_cpu_ms +=
+            ThreadCpuMs() - wait_cpu;
+      }
+    }
     if (wrote_run) {
       ++run_id_seq_;
       segment_bytes_written_ += new_run.info.file_size;
@@ -3056,17 +3238,28 @@ class Index::Impl {
     for (DocId id : never_persisted) tombstones_.erase(id);
 
     // Persist stats deltas.
-    Status s = AppendStatsEvents();
+    Status s;
+    {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_stats_append_ms : nullptr,
+          capture ? &diagnostics->flush_stats_append_cpu_ms : nullptr);
+      s = AppendStatsEvents();
+    }
     if (!s.ok) return s;
 
     // Tombstone snapshot.
     const std::string tb_file =
         "tombstones-" + std::to_string(last_wal_seq_) + "-" +
         std::to_string(run_id_seq_) + ".bin";
-    s = AtomicWrite((fs::path(dir_) / tb_file).string(),
-                    EncodeTombstones(tombstones_));
-    if (!s.ok) return s;
-    bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
+    {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_tombstone_write_ms : nullptr,
+          capture ? &diagnostics->flush_tombstone_write_cpu_ms : nullptr);
+      s = AtomicWrite((fs::path(dir_) / tb_file).string(),
+                      EncodeTombstones(tombstones_));
+      if (!s.ok) return s;
+      bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
+    }
 
     if (wrote_run) {
       runs_.push_back(std::move(new_run));
@@ -3084,24 +3277,42 @@ class Index::Impl {
     manifest_.tombstone_file = tb_file;
     manifest_.runs.clear();
     for (const auto& r : runs_) manifest_.runs.push_back(r.info);
-    s = WriteManifest(dir_, manifest_);
-    if (!s.ok) return s;
-    bytes_written_ += EncodeManifest(manifest_).size();
+    {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_manifest_write_ms : nullptr,
+          capture ? &diagnostics->flush_manifest_write_cpu_ms : nullptr);
+      s = WriteManifest(dir_, manifest_);
+      if (!s.ok) return s;
+      durable_wal_seq_ = manifest_.wal_seq;
+      bytes_written_ += EncodeManifest(manifest_).size();
+    }
 
     if (options_.wal_enabled) {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_wal_reset_ms : nullptr,
+          capture ? &diagnostics->flush_wal_reset_cpu_ms : nullptr);
       s = wal_.Reset();
       if (!s.ok) return s;
     }
     // Remove superseded stats/tombstone files even when no compaction runs.
-    GarbageCollect();
+    {
+      ScopedStageTimer timer(capture ? &diagnostics->flush_gc_ms : nullptr,
+                             capture ? &diagnostics->flush_gc_cpu_ms : nullptr);
+      GarbageCollect();
+    }
 
     // Reset active delta.
-    delta_docs_.clear();
-    delta_postings_.clear();
-    delta_invert_.clear();
-    delta_bytes_ = 0;
-    pending_events_.clear();
-    pending_flush_ = false;
+    {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_delta_reset_ms : nullptr,
+          capture ? &diagnostics->flush_delta_reset_cpu_ms : nullptr);
+      delta_docs_.clear();
+      delta_postings_.clear();
+      delta_invert_.clear();
+      delta_bytes_ = 0;
+      pending_events_.clear();
+      pending_flush_ = false;
+    }
 
     if (options_.rebuild_on_flush) {
       std::vector<size_t> all;
@@ -3435,6 +3646,7 @@ class Index::Impl {
       bool allow_concurrent_rebase = false,
       ScopedStageTimer* state_hold_timer = nullptr) {
     const bool capture = diagnostics && diagnostics->capture_timing;
+    const bool durable_rebase = allow_concurrent_rebase && options_.wal_enabled;
     const double merge_start_ms = NowMs();
     ScopedStageTimer prepare_timer(
         capture ? &diagnostics->merge_prepare_ms : nullptr,
@@ -3529,14 +3741,29 @@ class Index::Impl {
             });
         return it != input_ranges.begin() && id <= std::prev(it)->second;
       };
+      std::unordered_set<DocId> pending_deleted_at_snapshot;
+      if (durable_rebase) {
+        Status pending_status =
+            CollectUncommittedDeletedIds(&pending_deleted_at_snapshot);
+        if (!pending_status.ok) return pending_status;
+      }
       uint64_t tombstone_count = 0;
       for (DocId id : tombstones_) {
-        if (belongs_to_input(id)) ++tombstone_count;
+        if (pending_deleted_at_snapshot.count(id) == 0 &&
+            belongs_to_input(id)) {
+          ++tombstone_count;
+        }
       }
       const uint64_t set_charge = sizeof(snapshot_tombstones);
-      if (limit - fixed_charge - run_snapshot_charge < set_charge ||
-          tombstone_count >
-              (limit - fixed_charge - run_snapshot_charge - set_charge) / 128) {
+      if (limit - fixed_charge - run_snapshot_charge < set_charge) {
+        return Status::Error(
+            "compaction memory budget exceeded by snapshot state");
+      }
+      const uint64_t remaining_charge =
+          limit - fixed_charge - run_snapshot_charge - set_charge;
+      if (tombstone_count > remaining_charge / 128 ||
+          pending_deleted_at_snapshot.size() >
+              (remaining_charge - tombstone_count * 128) / 128) {
         return Status::Error(
             "compaction memory budget exceeded by snapshot state");
       }
@@ -3545,8 +3772,12 @@ class Index::Impl {
       snapshot_runs = runs_;
       snapshot_tombstones.reserve(static_cast<size_t>(tombstone_count));
       for (DocId id : tombstones_) {
-        if (belongs_to_input(id)) snapshot_tombstones.insert(id);
+        if (pending_deleted_at_snapshot.count(id) == 0 &&
+            belongs_to_input(id)) {
+          snapshot_tombstones.insert(id);
+        }
       }
+      std::unordered_set<DocId>().swap(pending_deleted_at_snapshot);
       merge_tombstones = &snapshot_tombstones;
     }
 
@@ -3685,11 +3916,19 @@ class Index::Impl {
     ScopedStageTimer publication_timer(
         capture ? &diagnostics->publication_ms : nullptr,
         capture ? &diagnostics->publication_cpu_ms : nullptr);
-    if (s.ok && allow_concurrent_rebase && pending_flush_) {
+    std::unordered_set<DocId> pending_deleted_at_publication;
+    if (s.ok && durable_rebase) {
+      Status pending_status =
+          CollectUncommittedDeletedIds(&pending_deleted_at_publication);
+      if (!pending_status.ok) {
+        build_error = "snapshot rebase WAL scan: " + pending_status.message;
+        s = pending_status;
+      }
+    } else if (s.ok && allow_concurrent_rebase && pending_flush_) {
       ScopedStageTimer rebase_flush_timer(
           capture ? &diagnostics->pending_flush_ms : nullptr,
           capture ? &diagnostics->pending_flush_cpu_ms : nullptr);
-      Status flush_status = FlushInternal(query_guard);
+      Status flush_status = FlushInternal(query_guard, diagnostics);
       if (!flush_status.ok) {
         build_error = "snapshot rebase flush: " + flush_status.message;
         s = flush_status;
@@ -3755,14 +3994,11 @@ class Index::Impl {
     }
 
     if (allow_concurrent_rebase && new_doc_count > 0) {
-      uint64_t post_snapshot_dead_count = 0;
-      for (DocId id : tombstones_) {
-        if (id >= group_first && id <= group_last &&
-            snapshot_tombstones.count(id) == 0) {
-          ++post_snapshot_dead_count;
-        }
+      uint64_t current_dead_count = 0;
+      for (const DocMeta& doc : new_run.segment->docs()) {
+        if (tombstones_.count(doc.id) != 0) ++current_dead_count;
       }
-      new_run.info.dead_count = post_snapshot_dead_count;
+      new_run.info.dead_count = current_dead_count;
     }
 
     const char* fault = std::getenv("M4_FAULT");
@@ -3772,6 +4008,44 @@ class Index::Impl {
 
     const std::unordered_set<uint64_t> selected_run_ids(input_run_ids.begin(),
                                                         input_run_ids.end());
+    std::unordered_map<uint64_t, uint64_t> pending_deleted_by_run;
+    if (durable_rebase) {
+      for (DocId id : pending_deleted_at_publication) {
+        if (new_doc_count > 0 && new_run.segment->FindDoc(id)) {
+          ++pending_deleted_by_run[new_run_id];
+          continue;
+        }
+        for (const Run& run : runs_) {
+          if (selected_run_ids.count(run.info.id) != 0) continue;
+          if (run.segment->FindDoc(id)) {
+            ++pending_deleted_by_run[run.info.id];
+            break;
+          }
+        }
+      }
+      for (const auto& pending_entry : pending_deleted_by_run) {
+        const uint64_t run_id = pending_entry.first;
+        const uint64_t pending_count = pending_entry.second;
+        uint64_t dead_count = 0;
+        if (run_id == new_run_id) {
+          dead_count = new_run.info.dead_count;
+        } else {
+          const auto run = std::find_if(runs_.begin(), runs_.end(),
+                                        [run_id](const Run& candidate) {
+            return candidate.info.id == run_id;
+          });
+          if (run != runs_.end()) dead_count = run->info.dead_count;
+        }
+        if (dead_count < pending_count) {
+          new_run.segment.reset();
+          std::error_code cleanup_ec;
+          fs::remove(fs::path(dir_) / file, cleanup_ec);
+          if (run_id_seq_ == new_run_id) run_id_seq_ = previous_run_id_seq;
+          return Status::Error(
+              "snapshot rebase pending-delete count exceeds run dead count");
+        }
+      }
+    }
     std::vector<std::string> removed_files;
     for (const auto& run : runs_) {
       if (selected_run_ids.count(run.info.id) != 0) {
@@ -3796,20 +4070,35 @@ class Index::Impl {
 
     // Keep post-snapshot tombstones for docs in the compacted range: they
     // describe writes that occurred after the merge input was captured.
-    std::string tb_file =
-        "tombstones-" + std::to_string(last_wal_seq_) + "-" +
-        std::to_string(run_id_seq_);
+    const uint64_t tombstone_seq =
+        durable_rebase ? durable_wal_seq_ : last_wal_seq_;
+    std::string tb_file = "tombstones-" + std::to_string(tombstone_seq) + "-" +
+                          std::to_string(run_id_seq_);
     if (allow_concurrent_rebase) {
-      // A concurrent FlushInternal may have just committed the current seq/run
-      // key. Do not overwrite the tombstone file referenced by that manifest
-      // before this replacement manifest is atomically published.
+      // Keep the prior manifest's tombstone file intact until this replacement
+      // manifest is atomically published.
       tb_file += "-rebase-" + std::to_string(new_run_id);
     }
     tb_file += ".bin";
-    const std::string encoded_tombstones =
-        allow_concurrent_rebase
-            ? EncodeTombstonesExcluding(tombstones_, snapshot_tombstones)
-            : EncodeTombstonesOutsideRange(tombstones_, group_first, group_last);
+    std::string encoded_tombstones;
+    if (durable_rebase) {
+      std::vector<DocId> committed_tombstones;
+      committed_tombstones.reserve(tombstones_.size());
+      for (DocId id : tombstones_) {
+        if (snapshot_tombstones.count(id) == 0 &&
+            pending_deleted_at_publication.count(id) == 0) {
+          committed_tombstones.push_back(id);
+        }
+      }
+      encoded_tombstones =
+          EncodeSortedTombstones(std::move(committed_tombstones));
+    } else if (allow_concurrent_rebase) {
+      encoded_tombstones =
+          EncodeTombstonesExcluding(tombstones_, snapshot_tombstones);
+    } else {
+      encoded_tombstones =
+          EncodeTombstonesOutsideRange(tombstones_, group_first, group_last);
+    }
     s = AtomicWrite((fs::path(dir_) / tb_file).string(), encoded_tombstones);
     if (!s.ok) return s;
     bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
@@ -3818,16 +4107,30 @@ class Index::Impl {
       return Status::Error("injected fault after compaction tombstone snapshot");
     }
 
-    manifest_.next_doc_id = next_doc_id_;
-    manifest_.wal_seq = last_wal_seq_;
+    if (!durable_rebase) {
+      manifest_.next_doc_id = next_doc_id_;
+      manifest_.wal_seq = last_wal_seq_;
+      manifest_.stats_epoch = stats_epoch_;
+      manifest_.stats_log_end = stats_log_end_;
+    } else {
+      manifest_.wal_seq = durable_wal_seq_;
+    }
     manifest_.run_id_seq = run_id_seq_;
-    manifest_.stats_epoch = stats_epoch_;
-    manifest_.stats_log_end = stats_log_end_;
     manifest_.tombstone_file = tb_file;
     manifest_.runs.clear();
-    for (const auto& r : runs_) manifest_.runs.push_back(r.info);
+    for (const auto& r : runs_) {
+      RunInfo info = r.info;
+      if (durable_rebase) {
+        const auto pending = pending_deleted_by_run.find(info.id);
+        if (pending != pending_deleted_by_run.end()) {
+          info.dead_count -= pending->second;
+        }
+      }
+      manifest_.runs.push_back(std::move(info));
+    }
     s = WriteManifest(dir_, manifest_);
     if (!s.ok) return s;
+    durable_wal_seq_ = manifest_.wal_seq;
     fault = std::getenv("M4_FAULT");
     if (fault && std::string(fault) == "after_manifest") {
       return Status::Error("injected fault after manifest");
@@ -4336,6 +4639,7 @@ class Index::Impl {
   Options options_;
   Analyzer analyzer_;
   Manifest manifest_;
+  uint64_t durable_wal_seq_{0};
   std::vector<Run> runs_;
   std::unordered_map<std::string, DocId> pk_to_doc_;
   std::unordered_set<DocId> tombstones_;
@@ -4398,6 +4702,10 @@ Status Index::Upsert(const std::string& pk, const Document& document,
 Status Index::Delete(const std::string& pk) { return impl_->Delete(pk); }
 Status Index::ApplyBatch(const std::vector<Mutation>& mutations) {
   return impl_->ApplyBatch(mutations);
+}
+Status Index::ApplyBatch(const std::vector<Mutation>& mutations,
+                         WriteDiagnostics* diagnostics) {
+  return impl_->ApplyBatch(mutations, diagnostics);
 }
 Status Index::Flush() { return impl_->Flush(); }
 Status Index::CompactNow() { return impl_->CompactNow(); }

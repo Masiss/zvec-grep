@@ -52,10 +52,16 @@ class BenchmarkPolicyTests(unittest.TestCase):
             "publish_query_mutex_wait_cpu_ms", "publication_ms",
             "publication_cpu_ms")
         arms = []
-        compaction_modes = workload.get(
-            "compaction_modes", ("default", "snapshot"))
+        compaction_modes = list(workload.get(
+            "compaction_modes", ("default", "snapshot")))
+        if not include_compaction_timing:
+            compaction_modes = [name for name in compaction_modes
+                                if name != "apply_batch"]
         for name in compaction_modes:
-            arm = {key: [0.25] * rounds for key in writer_series}
+            batch_api = name == "apply_batch"
+            api_calls = (workload["writers"] if include_compaction_timing and batch_api
+                         else rounds)
+            arm = {key: [0.25] * api_calls for key in writer_series}
             arm.update({
                 "name": name,
                 "compaction_status": "ok",
@@ -67,7 +73,28 @@ class BenchmarkPolicyTests(unittest.TestCase):
                 "reader_mutex_wait_samples": [0.0] * (workload["readers"] * workload["queries_per_reader"]),
             })
             if include_compaction_timing:
-                arm["compaction_diagnostics"] = dict.fromkeys(timing_fields, 0.25)
+                arm.update({
+                    "writer_api": "ApplyBatch" if batch_api else "Upsert",
+                    "writer_api_calls": api_calls,
+                    "logical_upserts": rounds,
+                })
+                flush_stage_fields = (
+                    "segment_build_ms", "segment_build_cpu_ms",
+                    "segment_write_ms", "segment_write_cpu_ms",
+                    "segment_open_ms", "segment_open_cpu_ms",
+                    "query_mutex_wait_ms", "query_mutex_wait_cpu_ms",
+                    "stats_append_ms", "stats_append_cpu_ms",
+                    "tombstone_write_ms", "tombstone_write_cpu_ms",
+                    "manifest_write_ms", "manifest_write_cpu_ms",
+                    "wal_reset_ms", "wal_reset_cpu_ms", "gc_ms",
+                    "gc_cpu_ms", "delta_reset_ms", "delta_reset_cpu_ms")
+                arm["compaction_diagnostics"] = {
+                    **dict.fromkeys(timing_fields, 0.25),
+                    "flush_stage_timing": {
+                        "schema_version": 1,
+                        **dict.fromkeys(flush_stage_fields, 0.01),
+                    },
+                }
             arms.append(arm)
         data = {
             "mode": "m4_compaction_contention",
@@ -83,7 +110,7 @@ class BenchmarkPolicyTests(unittest.TestCase):
             "arms": arms,
         }
         if include_compaction_timing:
-            data["timing_schema_version"] = 3
+            data["timing_schema_version"] = 4
         result = {"status": "PASS", "workload_returncode": 0,
                   "controller_cleanup": {"verified": True}}
         return result, data, contract
@@ -95,11 +122,53 @@ class BenchmarkPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "compaction phase timing"):
             lock_runner.verify(result, data, contract)
 
-    def test_contention_verifier_requires_state_hold_series_for_schema3(self):
+    def test_contention_verifier_checks_optional_flush_stage_timing(self):
+        result, data, contract = self._valid_contention_receipt()
+        lock_runner.verify(result, data, contract)
+        stages = data["arms"][0]["compaction_diagnostics"]["flush_stage_timing"]
+        stages["segment_write_ms"] = float("nan")
+        with self.assertRaisesRegex(RuntimeError, "flush-stage timing"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_rejects_flush_stages_exceeding_pending_flush(self):
+        result, data, contract = self._valid_contention_receipt()
+        stages = data["arms"][0]["compaction_diagnostics"]["flush_stage_timing"]
+        stages["segment_build_ms"] = 0.25
+        with self.assertRaisesRegex(RuntimeError, "exceeds pending-flush"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_state_hold_series_for_schema4(self):
         result, data, contract = self._valid_contention_receipt()
         data["arms"][0].pop("state_hold_samples")
         with self.assertRaisesRegex(RuntimeError, "writer timing series"):
             lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_binds_apply_batch_api_and_call_counts(self):
+        result, data, contract = self._valid_contention_receipt()
+        lock_runner.verify(result, data, contract)
+        batch = next(arm for arm in data["arms"] if arm["name"] == "apply_batch")
+        batch["writer_api_calls"] += 1
+        with self.assertRaisesRegex(RuntimeError, "writer API/count metadata"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_batch_timing_per_api_call(self):
+        result, data, contract = self._valid_contention_receipt()
+        batch = next(arm for arm in data["arms"] if arm["name"] == "apply_batch")
+        batch["writer_samples"] = [0.25] * contract["workload"]["rounds"]
+        with self.assertRaisesRegex(RuntimeError, "writer timing series"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_accepts_schema3_three_arm_receipt(self):
+        result, data, contract = self._valid_contention_receipt()
+        data["timing_schema_version"] = 3
+        data["arms"] = [arm for arm in data["arms"]
+                        if arm["name"] != "apply_batch"]
+        data["arm_order"] = [name for name in data["arm_order"]
+                             if name != "apply_batch"]
+        for arm in data["arms"]:
+            for key in ("writer_api", "writer_api_calls", "logical_upserts"):
+                arm.pop(key)
+        lock_runner.verify(result, data, contract)
 
     def test_contention_verifier_keeps_historical_receipt_compatibility(self):
         result, data, contract = self._valid_contention_receipt(False)
@@ -140,6 +209,16 @@ class BenchmarkPolicyTests(unittest.TestCase):
         self.assertEqual(micro["host_memory_reserve_bytes"] + micro["memory_max_bytes"],
                          3_758_096_384)
         self.assertTrue(self.policy["lock_contention_microbench"]["no_automatic_retry"])
+
+    def test_lock_contention_policy_matches_wal_preserving_rebase(self):
+        contract = self.policy["lock_contention_microbench"]
+        semantics = contract["measurement_semantics"]
+        self.assertIn("does not flush pending writer deltas at publication", semantics)
+        self.assertIn("prior durable WAL sequence", semantics)
+        self.assertIn("WAL disabled", semantics)
+        self.assertNotIn("flushes pending writer deltas at publication", semantics)
+        markdown = (HERE.parent / "docs" / "benchmark-policy.md").read_text(encoding="utf-8")
+        self.assertIn("without synchronously flushing pending deltas at publication", markdown)
 
     def test_io_psi_is_an_operation_guard_not_universal_safety_claim(self):
         state = {

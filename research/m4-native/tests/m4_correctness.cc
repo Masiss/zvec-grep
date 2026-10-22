@@ -1171,6 +1171,38 @@ void TestAtomicMutationBatch(const std::string& root) {
       {m4::MutationKind::UPSERT, "new", doc("delta added")},
   };
 
+  // Batch-stage diagnostics are per atomic API call and remain opt-in.
+  {
+    const std::string dir = root + "/diagnostics";
+    fs::remove_all(dir);
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, options, &index).ok, "batch diagnostics open");
+    m4::WriteDiagnostics diagnostics;
+    const auto status = index->ApplyBatch(batch, &diagnostics);
+    Check(status.ok, "batch diagnostics apply: " + status.message);
+    const double timings[] = {
+        diagnostics.normalize_ms, diagnostics.normalize_cpu_ms,
+        diagnostics.state_mutex_wait_ms, diagnostics.state_mutex_wait_cpu_ms,
+        diagnostics.state_mutex_hold_ms, diagnostics.state_mutex_hold_cpu_ms,
+        diagnostics.wal_encode_ms, diagnostics.wal_encode_cpu_ms,
+        diagnostics.wal_append_ms, diagnostics.wal_append_cpu_ms,
+        diagnostics.query_mutex_wait_ms, diagnostics.query_mutex_wait_cpu_ms,
+        diagnostics.apply_ms, diagnostics.apply_cpu_ms,
+        diagnostics.auto_flush_ms, diagnostics.auto_flush_cpu_ms};
+    for (double timing : timings) {
+      Check(std::isfinite(timing) && timing >= 0.0,
+            "batch diagnostics are finite and nonnegative");
+    }
+    m4::WriteDiagnostics disabled;
+    disabled.capture_timing = false;
+    Check(index->ApplyBatch({{m4::MutationKind::UPSERT, "untimed",
+                              doc("untimed batch")}}, &disabled).ok,
+          "untimed batch apply");
+    Check(disabled.state_mutex_hold_ms == 0.0 &&
+              disabled.wal_append_ms == 0.0 && disabled.apply_ms == 0.0,
+          "disabled batch diagnostics stay zero");
+  }
+
   auto seed = [&](const std::string& dir) {
     fs::remove_all(dir);
     std::unique_ptr<Index> index;
@@ -1815,16 +1847,18 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
 void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
-  opt.max_delta_docs = 1;
+  opt.max_delta_docs = 3;
   opt.tombstone_compact_ratio = 2.0;
   std::unique_ptr<Index> index;
   Check(Index::Open(dir, opt, &index).ok, "snapshot rebase prototype open");
   Document alpha;
   alpha.text = "alpha";
   Check(index->Upsert("a", alpha).ok, "snapshot rebase upsert alpha");
+  Check(index->Flush().ok, "snapshot rebase flush alpha into first run");
   Document beta;
   beta.text = "beta";
   Check(index->Upsert("b", beta).ok, "snapshot rebase upsert beta");
+  Check(index->Flush().ok, "snapshot rebase flush beta into second run");
   Check(index->GetStats().runs == 2,
         "snapshot rebase starts with two independently flushed runs");
   Check(index->Delete("a").ok, "snapshot rebase pre-snapshot delete");
@@ -1838,13 +1872,16 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
         "snapshot rebase set stream-merge barrier");
   std::atomic<bool> compaction_done{false};
   m4::Status compaction_status;
+  m4::CompactionDiagnostics rebase_diagnostics;
+  rebase_diagnostics.capture_timing = true;
   std::thread compactor([&] {
-    compaction_status = index->CompactNowSnapshotRebasePrototype();
+    compaction_status = index->CompactNowSnapshotRebasePrototype(
+        &rebase_diagnostics);
     compaction_done.store(true);
   });
-  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done) {
-    const auto deadline = std::chrono::steady_clock::now() +
-                          std::chrono::seconds(5);
+  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+                     std::chrono::seconds timeout) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
     std::error_code ec;
     while (!fs::exists(path, ec) && !done.load() &&
            std::chrono::steady_clock::now() < deadline) {
@@ -1852,19 +1889,22 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
     }
     return fs::exists(path, ec);
   };
-  const bool run_ready = wait_for(barrier / "merge-read-ready", compaction_done);
+  const bool run_ready = wait_for(barrier / "merge-read-ready", compaction_done,
+                                  std::chrono::seconds(5));
   Check(run_ready, "snapshot rebase reaches unlocked stream-merge barrier");
 
   std::atomic<bool> writer_done{false};
-  m4::Status upsert_status;
-  m4::Status delete_status;
+  m4::Status mutation_status;
   std::thread writer;
   if (run_ready) {
     writer = std::thread([&] {
       Document gamma;
       gamma.text = "gamma";
-      upsert_status = index->Upsert("c", gamma);
-      if (upsert_status.ok) delete_status = index->Delete("b");
+      const std::vector<m4::Mutation> batch = {
+          {m4::MutationKind::UPSERT, "c", gamma},
+          {m4::MutationKind::DELETE, "b", {}},
+      };
+      mutation_status = index->ApplyBatch(batch);
       writer_done.store(true);
     });
     const auto deadline = std::chrono::steady_clock::now() +
@@ -1874,15 +1914,15 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
     }
     const bool completed_before_publication = writer_done.load();
     Check(completed_before_publication,
-          "concurrent auto-flush and delete complete before rebase publication");
+          "concurrent upsert and delete complete before rebase publication");
     if (!completed_before_publication) {
       std::ofstream release(barrier / "writer-finished", std::ios::binary);
       release << "timeout\n";
     }
     writer.join();
     if (completed_before_publication) {
-      Check(upsert_status.ok, "snapshot rebase concurrent auto-flush succeeds");
-      Check(delete_status.ok, "snapshot rebase concurrent delete succeeds");
+      Check(mutation_status.ok,
+            "snapshot rebase concurrent batch mutation succeeds");
     }
     std::ofstream release(barrier / "writer-finished", std::ios::binary);
     release << "done\n";
@@ -1892,33 +1932,118 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
   Check(compaction_status.ok,
         "snapshot rebase publishes after concurrent writer changes: " +
             (compaction_status.ok ? "ok" : compaction_status.message));
-  Check(index->GetStats().runs == 2 && index->GetStats().live_docs == 1 &&
+  if (compaction_status.ok) {
+    const double flush_stage_sum =
+        rebase_diagnostics.flush_segment_build_ms +
+        rebase_diagnostics.flush_segment_write_ms +
+        rebase_diagnostics.flush_segment_open_ms +
+        rebase_diagnostics.flush_query_mutex_wait_ms +
+        rebase_diagnostics.flush_stats_append_ms +
+        rebase_diagnostics.flush_tombstone_write_ms +
+        rebase_diagnostics.flush_manifest_write_ms +
+        rebase_diagnostics.flush_wal_reset_ms +
+        rebase_diagnostics.flush_gc_ms +
+        rebase_diagnostics.flush_delta_reset_ms;
+    Check(rebase_diagnostics.flush_segment_build_ms == 0.0 &&
+              rebase_diagnostics.flush_segment_write_ms == 0.0 &&
+              rebase_diagnostics.flush_segment_open_ms == 0.0 &&
+              flush_stage_sum == 0.0 &&
+              rebase_diagnostics.pending_flush_ms < 1.0,
+          "WAL-preserving rebase avoids a synchronous pending-delta flush");
+    Check(rebase_diagnostics.capture_timing &&
+              rebase_diagnostics.publication_ms > 0.0 &&
+              rebase_diagnostics.state_mutex_hold_ms + 1e-6 >=
+                  rebase_diagnostics.publication_ms &&
+              rebase_diagnostics.state_mutex_hold_ms <=
+                  rebase_diagnostics.total_ms + 1e-6,
+          "rebase state-lock timer resumes across the unlocked merge build");
+  }
+  Document delta;
+  delta.text = "delta";
+  Check(index->Upsert("d", delta).ok,
+        "snapshot rebase adds a second unflushed writer-tail document");
+  Check(index->GetStats().runs == 1 && index->GetStats().live_docs == 2 &&
             index->GetStats().dead_docs == 1,
-        "snapshot rebase drops captured tombstone but retains the new one");
+        "snapshot rebase keeps concurrent mutations in the WAL-backed delta");
+  std::error_code wal_size_error;
+  Check(fs::file_size(fs::path(dir) / "wal.log", wal_size_error) > 0 &&
+            !wal_size_error,
+        "snapshot rebase preserves pending WAL records until a later flush");
   Check(fs::exists(fs::path(dir) / "run-3.seg") &&
-            fs::exists(fs::path(dir) / "run-4.seg"),
-        "snapshot rebase keeps distinct reserved compaction and writer run IDs");
+            !fs::exists(fs::path(dir) / "run-4.seg"),
+        "snapshot rebase publishes only its reserved run before WAL replay");
   m4::SearchResult result;
   Check(index->SearchFts("alpha", 5, &result).ok && result.hits.empty(),
         "snapshot rebase removes the pre-snapshot deleted document");
   Check(index->SearchFts("beta", 5, &result).ok && result.hits.empty(),
         "snapshot rebase tombstone hides the old deleted document");
   Check(index->SearchFts("gamma", 5, &result).ok && result.hits.size() == 1,
-        "snapshot rebase retains the concurrent flushed document");
+        "snapshot rebase retains the concurrent WAL-backed document");
+  Check(index->SearchFts("delta", 5, &result).ok && result.hits.size() == 1,
+        "snapshot rebase retains the second WAL-backed document");
 
   index.reset();
   std::unique_ptr<Index> reopened;
   Check(Index::Open(dir, opt, &reopened).ok,
         "snapshot rebase reopen after concurrent publication");
-  Check(reopened->GetStats().runs == 2 && reopened->GetStats().live_docs == 1 &&
+  Check(reopened->GetStats().runs == 1 && reopened->GetStats().live_docs == 2 &&
             reopened->GetStats().dead_docs == 1,
-        "snapshot rebase manifest and tombstones survive reopen");
+        "snapshot rebase manifest and uncommitted WAL tail survive reopen");
   Check(reopened->SearchFts("alpha", 5, &result).ok && result.hits.empty(),
         "snapshot rebase pre-snapshot deletion survives reopen");
   Check(reopened->SearchFts("beta", 5, &result).ok && result.hits.empty(),
         "snapshot rebase deletion survives reopen");
   Check(reopened->SearchFts("gamma", 5, &result).ok && result.hits.size() == 1,
-        "snapshot rebase concurrent flush survives reopen");
+        "snapshot rebase concurrent WAL mutation survives reopen");
+  Check(reopened->SearchFts("delta", 5, &result).ok && result.hits.size() == 1,
+        "snapshot rebase WAL tail replays after publication");
+}
+
+void TestSnapshotCompactionRebaseAfterWalReplay(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.max_delta_docs = 16;
+  opt.tombstone_compact_ratio = 2.0;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, opt, &index).ok,
+        "snapshot rebase replay fixture open");
+  Document alpha;
+  alpha.text = "alpha";
+  Document beta;
+  beta.text = "oldbeta";
+  Check(index->Upsert("a", alpha).ok && index->Upsert("b", beta).ok,
+        "snapshot rebase replay fixture seed docs");
+  Check(index->Flush().ok, "snapshot rebase replay fixture persist seed");
+  Document replacement;
+  replacement.text = "newversion";
+  Check(index->Upsert("b", replacement).ok,
+        "snapshot rebase replay fixture leave uncommitted update");
+
+  index.reset();
+  Check(Index::Open(dir, opt, &index).ok,
+        "snapshot rebase replay fixture recover pending WAL");
+  Check(index->GetStats().live_docs == 2 && index->GetStats().dead_docs == 1,
+        "snapshot rebase replay fixture applies pending update");
+  Check(index->CompactNowSnapshotRebasePrototype().ok,
+        "snapshot rebase compacts after WAL replay without checkpointing it");
+  m4::SearchResult result;
+  Check(index->SearchFts("oldbeta", 5, &result).ok && result.hits.empty(),
+        "snapshot rebase keeps replayed update query-visible");
+  Check(index->SearchFts("newversion", 5, &result).ok &&
+            result.hits.size() == 1,
+        "snapshot rebase keeps replayed replacement query-visible");
+
+  index.reset();
+  Check(Index::Open(dir, opt, &index).ok,
+        "snapshot rebase reopens with original durable WAL checkpoint");
+  Check(index->GetStats().runs == 1 && index->GetStats().live_docs == 2 &&
+            index->GetStats().dead_docs == 1,
+        "reopened rebase replays WAL instead of trusting the in-memory replay seq");
+  Check(index->SearchFts("oldbeta", 5, &result).ok && result.hits.empty(),
+        "reopened rebase does not resurrect the replaced document");
+  Check(index->SearchFts("newversion", 5, &result).ok &&
+            result.hits.size() == 1,
+        "reopened rebase preserves the replacement document");
 }
 
 void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
@@ -2002,9 +2127,10 @@ void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
         "snapshot rebase reports injected pre-manifest tombstone fault: " +
             (compaction_status.ok ? "ok" : compaction_status.message));
 
-  // The prior manifest was written by the publication-time FlushInternal.
-  // Recovery must retain its tombstones if a later tombstone snapshot exists
-  // but its replacement manifest was not committed.
+  // The concurrent upsert auto-flush committed the previous manifest while
+  // the merge build was unlocked. Rebase publication does not flush the pending
+  // delete; if its replacement tombstone file is written but its manifest is
+  // not, recovery must load that prior manifest and replay the unchanged WAL.
   index.reset();
   std::unique_ptr<Index> reopened;
   Check(Index::Open(dir, opt, &reopened).ok,
@@ -2473,6 +2599,8 @@ int main() {
   TestSnapshotCompactionConcurrentFlush(root + "/snapshot-concurrent-flush");
   TestSnapshotCompactionRebasesConcurrentFlush(
       root + "/snapshot-rebase-concurrent-flush");
+  TestSnapshotCompactionRebaseAfterWalReplay(
+      root + "/snapshot-rebase-after-wal-replay");
   TestSnapshotCompactionRebasePreManifestRecovery(
       root + "/snapshot-rebase-pre-manifest-recovery");
   TestSnapshotCompactionBudget(root + "/snapshot-budget");

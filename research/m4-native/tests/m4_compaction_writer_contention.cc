@@ -32,6 +32,9 @@ double Percentile(std::vector<double> values, double q) {
 
 struct ArmResult {
   std::string name;
+  std::string writer_api;
+  size_t writer_api_calls{0};
+  size_t logical_upserts{0};
   double compaction_ms{0.0};
   m4::CompactionDiagnostics compaction_diagnostics;
   std::string compaction_status;
@@ -100,6 +103,10 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
 
   ArmResult result;
   result.name = name;
+  const bool batch_api = name == "apply_batch";
+  result.writer_api = batch_api ? "ApplyBatch" : "Upsert";
+  result.writer_api_calls = batch_api ? writers : writers * ops_per_writer;
+  result.logical_upserts = writers * ops_per_writer;
   std::unique_ptr<m4::Index> index;
   m4::Status status = m4::Index::Open(root.string(), options, &index);
   if (!status.ok) {
@@ -112,6 +119,22 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
     result.compaction_status = "seed-error:" + status.message;
     ++result.writer_failures;
     return result;
+  }
+  // Prepare identical API inputs before the start barrier so client-side string
+  // and vector construction is not part of either arm's concurrent interval.
+  std::vector<std::vector<m4::Mutation>> prepared_writes(writers);
+  for (size_t writer = 0; writer < writers; ++writer) {
+    auto& mutations = prepared_writes[writer];
+    mutations.reserve(ops_per_writer);
+    for (size_t op = 0; op < ops_per_writer; ++op) {
+      m4::Document document;
+      document.text = "writerterm alpha " + std::to_string(writer) + " " +
+                      std::to_string(op) + " needle";
+      const std::string pk = "writer-" + std::to_string(writer) + "-" +
+                             std::to_string(op);
+      mutations.emplace_back(m4::MutationKind::UPSERT, pk,
+                             std::move(document));
+    }
   }
 
   std::mutex start_mutex;
@@ -156,15 +179,39 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
       wait_start();
       auto& samples = writer_samples[writer];
       samples.reserve(ops_per_writer);
-      for (size_t op = 0; op < ops_per_writer; ++op) {
-        m4::Document document;
-        document.text = "writerterm alpha " + std::to_string(writer) + " " +
-                        std::to_string(op) + " needle";
-        const std::string pk = "writer-" + std::to_string(writer) + "-" +
-                               std::to_string(op);
+      if (name == "apply_batch") {
         m4::WriteDiagnostics diagnostics;
         const auto begin = Clock::now();
-        const m4::Status write_status = index->Upsert(pk, document, &diagnostics);
+        const m4::Status write_status =
+            index->ApplyBatch(prepared_writes[writer], &diagnostics);
+        samples.push_back(ElapsedMs(begin, Clock::now()));
+        normalize_samples[writer].push_back(diagnostics.normalize_ms);
+        normalize_cpu_samples[writer].push_back(diagnostics.normalize_cpu_ms);
+        state_wait_samples[writer].push_back(diagnostics.state_mutex_wait_ms);
+        state_wait_cpu_samples[writer].push_back(
+            diagnostics.state_mutex_wait_cpu_ms);
+        state_hold_samples[writer].push_back(diagnostics.state_mutex_hold_ms);
+        state_hold_cpu_samples[writer].push_back(
+            diagnostics.state_mutex_hold_cpu_ms);
+        wal_encode_samples[writer].push_back(diagnostics.wal_encode_ms);
+        wal_encode_cpu_samples[writer].push_back(diagnostics.wal_encode_cpu_ms);
+        wal_append_samples[writer].push_back(diagnostics.wal_append_ms);
+        wal_append_cpu_samples[writer].push_back(
+            diagnostics.wal_append_cpu_ms);
+        query_wait_samples[writer].push_back(diagnostics.query_mutex_wait_ms);
+        apply_samples[writer].push_back(diagnostics.apply_ms);
+        auto_flush_samples[writer].push_back(diagnostics.auto_flush_ms);
+        if (!write_status.ok) {
+          writer_failures.fetch_add(1, std::memory_order_relaxed);
+        }
+        return;
+      }
+      for (size_t op = 0; op < ops_per_writer; ++op) {
+        const m4::Mutation& mutation = prepared_writes[writer][op];
+        m4::WriteDiagnostics diagnostics;
+        const auto begin = Clock::now();
+        const m4::Status write_status =
+            index->Upsert(mutation.pk, mutation.document, &diagnostics);
         samples.push_back(ElapsedMs(begin, Clock::now()));
         normalize_samples[writer].push_back(diagnostics.normalize_ms);
         normalize_cpu_samples[writer].push_back(diagnostics.normalize_cpu_ms);
@@ -292,7 +339,10 @@ void PrintValues(const std::vector<double>& values) {
 
 void PrintArm(const ArmResult& arm, bool last) {
   const auto& compaction = arm.compaction_diagnostics;
-  std::cout << "{\"name\":\"" << arm.name << "\",\"compaction_ms\":"
+  std::cout << "{\"name\":\"" << arm.name << "\",\"writer_api\":\""
+            << arm.writer_api << "\",\"writer_api_calls\":"
+            << arm.writer_api_calls << ",\"logical_upserts\":"
+            << arm.logical_upserts << ",\"compaction_ms\":"
             << arm.compaction_ms << ",\"compaction_status\":\""
             << arm.compaction_status << "\",\"compaction_diagnostics\":{";
   std::cout << "\"total_ms\":" << compaction.total_ms
@@ -325,7 +375,47 @@ void PrintArm(const ArmResult& arm, bool last) {
             << compaction.publish_query_mutex_wait_cpu_ms
             << ",\"publication_ms\":" << compaction.publication_ms
             << ",\"publication_cpu_ms\":"
-            << compaction.publication_cpu_ms << "},\"writer_samples\":";
+            << compaction.publication_cpu_ms
+            << ",\"flush_stage_timing\":{\"schema_version\":1"
+            << ",\"segment_build_ms\":"
+            << compaction.flush_segment_build_ms
+            << ",\"segment_build_cpu_ms\":"
+            << compaction.flush_segment_build_cpu_ms
+            << ",\"segment_write_ms\":"
+            << compaction.flush_segment_write_ms
+            << ",\"segment_write_cpu_ms\":"
+            << compaction.flush_segment_write_cpu_ms
+            << ",\"segment_open_ms\":"
+            << compaction.flush_segment_open_ms
+            << ",\"segment_open_cpu_ms\":"
+            << compaction.flush_segment_open_cpu_ms
+            << ",\"query_mutex_wait_ms\":"
+            << compaction.flush_query_mutex_wait_ms
+            << ",\"query_mutex_wait_cpu_ms\":"
+            << compaction.flush_query_mutex_wait_cpu_ms
+            << ",\"stats_append_ms\":"
+            << compaction.flush_stats_append_ms
+            << ",\"stats_append_cpu_ms\":"
+            << compaction.flush_stats_append_cpu_ms
+            << ",\"tombstone_write_ms\":"
+            << compaction.flush_tombstone_write_ms
+            << ",\"tombstone_write_cpu_ms\":"
+            << compaction.flush_tombstone_write_cpu_ms
+            << ",\"manifest_write_ms\":"
+            << compaction.flush_manifest_write_ms
+            << ",\"manifest_write_cpu_ms\":"
+            << compaction.flush_manifest_write_cpu_ms
+            << ",\"wal_reset_ms\":"
+            << compaction.flush_wal_reset_ms
+            << ",\"wal_reset_cpu_ms\":"
+            << compaction.flush_wal_reset_cpu_ms
+            << ",\"gc_ms\":" << compaction.flush_gc_ms
+            << ",\"gc_cpu_ms\":" << compaction.flush_gc_cpu_ms
+            << ",\"delta_reset_ms\":"
+            << compaction.flush_delta_reset_ms
+            << ",\"delta_reset_cpu_ms\":"
+            << compaction.flush_delta_reset_cpu_ms
+            << "}},\"writer_samples\":";
   PrintValues(arm.writer_ms);
   std::cout << ",\"writer_p50_ms\":" << Percentile(arm.writer_ms, 0.50)
             << ",\"writer_p95_ms\":" << Percentile(arm.writer_ms, 0.95)
@@ -406,7 +496,8 @@ int main(int argc, char** argv) {
   }
   const size_t ops_per_writer = writer_operation_count / writers;
 
-  std::vector<std::string> order{"default", "snapshot", "snapshot_rebase"};
+  std::vector<std::string> order{"default", "snapshot", "snapshot_rebase",
+                                 "apply_batch"};
   if (std::hash<std::string>{}(root.string()) % 2 != 0) {
     std::reverse(order.begin(), order.end());
   }
@@ -420,7 +511,7 @@ int main(int argc, char** argv) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
   }
-  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":3,\"documents\":"
+  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":4,\"documents\":"
             << documents << ",\"writers\":" << writers
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count
