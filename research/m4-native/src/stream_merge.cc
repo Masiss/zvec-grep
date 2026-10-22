@@ -27,6 +27,7 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -207,7 +208,7 @@ uint64_t EstimateActiveTermBytes(size_t inputs, size_t term_len) {
 uint64_t EstimateActiveValueBytes(size_t inputs) {
   return static_cast<uint64_t>(inputs) * 1024ull + 2048ull;
 }
-uint64_t EstimateDictEntryBytes(const std::string& key) {
+uint64_t EstimateDictEntryBytes(std::string_view key) {
   return key.size() + 64;
 }
 
@@ -336,7 +337,8 @@ class ValueCursor {
 };
 
 struct FtsDictEntry {
-  std::string term;
+  // Borrows from an input Segment, which remains pinned for this merge.
+  std::string_view term;
   uint64_t df{0};
   uint32_t blocks{0};
   uint64_t payload_offset{0};  // relative to fts section
@@ -344,7 +346,8 @@ struct FtsDictEntry {
 };
 
 struct InvertValueDict {
-  std::string value;
+  // Borrows from an input Segment, which remains pinned for this merge.
+  std::string_view value;
   uint64_t df{0};
   uint32_t blocks{0};
   uint64_t payload_rel{0};  // relative to field start
@@ -352,7 +355,8 @@ struct InvertValueDict {
 };
 
 struct InvertFieldDir {
-  std::string name;
+  // Borrows from the stable field_names set in MergeSegmentsStreaming.
+  std::string_view name;
   uint64_t field_offset{0};  // relative to invert section
   uint64_t field_size{0};
   uint64_t dict_offset{0};   // relative to invert section
@@ -425,7 +429,8 @@ Status MergeSegmentsStreaming(const std::string& path,
     if (!s.ok) return s;
   }
 
-  std::unordered_map<std::string, uint32_t> term_to_id;
+  // Keys borrow from immutable input Segment term strings; inputs outlive this map.
+  std::unordered_map<std::string_view, uint32_t> term_to_id;
   std::vector<FtsDictEntry> fts_dict;
   std::vector<size_t> term_pos(inputs.size(), 0);
   uint64_t fts_block_cursor = 0;
@@ -524,13 +529,14 @@ Status MergeSegmentsStreaming(const std::string& path,
         if (!st.ok) return st;
       }
       FtsDictEntry entry;
-      entry.term = *min_term;
+      entry.term = std::string_view(*min_term);
       entry.df = df;
       entry.blocks = static_cast<uint32_t>(metas.size());
       entry.payload_offset = payload_start;
       entry.meta_offset = meta_start;
       fts_dict.push_back(std::move(entry));
-      term_to_id[*min_term] = static_cast<uint32_t>(fts_dict.size() - 1);
+      term_to_id.emplace(std::string_view(*min_term),
+                         static_cast<uint32_t>(fts_dict.size() - 1));
       const uint64_t dict_bytes = EstimateDictEntryBytes(*min_term);
       if (!mem.Add(dict_bytes)) {
         if (error) *error = "compaction dictionary budget exceeded (fts)";
@@ -589,7 +595,7 @@ Status MergeSegmentsStreaming(const std::string& path,
       new_ids.reserve(doc.term_ids.size());
       for (uint32_t source_tid : doc.term_ids) {
         const std::string& term = segment->terms()[source_tid].term;
-        const auto it = term_to_id.find(term);
+        const auto it = term_to_id.find(std::string_view(term));
         if (it != term_to_id.end()) new_ids.push_back(it->second);
       }
       std::sort(new_ids.begin(), new_ids.end());
@@ -716,7 +722,7 @@ Status MergeSegmentsStreaming(const std::string& path,
           if (!st.ok) return st;
         }
         InvertValueDict entry;
-        entry.value = *min_value;
+        entry.value = std::string_view(*min_value);
         entry.df = df;
         entry.blocks = static_cast<uint32_t>(metas.size());
         entry.payload_rel = payload_rel;
