@@ -6449,6 +6449,60 @@ int main(int argc, char** argv) {
       for (const auto& hit : after.hits) after_pks.insert(hit.pk);
       Check(after_status.ok && after_pks == std::set<std::string>({"stable", "replace", "added"}),
             "published segment preserves the reader-visible snapshot");
+
+      auto run_wal_apply_barrier = [&](const std::string& name,
+                                       auto mutation,
+                                       const std::string& query,
+                                       const std::set<std::string>& expected) {
+        const fs::path wal_barrier = barrier_root / ("wal-" + name);
+        fs::remove_all(wal_barrier);
+        std::atomic<bool> writer_done{false};
+        std::atomic<bool> writer_ok{false};
+        if (::setenv("M4_TEST_WAL_APPLY_BARRIER", wal_barrier.c_str(), 1) != 0)
+          throw std::runtime_error("set WAL apply test barrier");
+        std::thread writer([&] {
+          writer_ok.store(mutation().ok, std::memory_order_release);
+          writer_done.store(true, std::memory_order_release);
+        });
+        const auto ready_deadline = std::chrono::steady_clock::now() +
+                                    std::chrono::seconds(5);
+        while (!fs::exists(wal_barrier / "wal-ready") &&
+               !writer_done.load(std::memory_order_acquire) &&
+               std::chrono::steady_clock::now() < ready_deadline)
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        const bool ready = fs::exists(wal_barrier / "wal-ready");
+        m4::SearchResult during;
+        const auto during_status = barrier_index->SearchFtsFiltered(
+            query, 10, m4::FilterExpr::All(), &during);
+        std::set<std::string> during_pks;
+        for (const auto& hit : during.hits) during_pks.insert(hit.pk);
+        { std::ofstream release(wal_barrier / "reader-finished", std::ios::binary); release << "done\n"; }
+        writer.join();
+        ::unsetenv("M4_TEST_WAL_APPLY_BARRIER");
+        Check(ready && during_status.ok && during_pks == expected,
+              name + " reader completes against the pre-apply snapshot after durable WAL append");
+        Check(writer_ok.load(std::memory_order_acquire),
+              name + " mutation applies after the reader leaves the WAL/apply interval");
+      };
+
+      m4::Document wal_replacement; wal_replacement.text = "wal durable replacement";
+      run_wal_apply_barrier("upsert",
+          [&] { return barrier_index->Upsert("replace", wal_replacement); },
+          "marker", {"stable", "replace", "added"});
+      m4::SearchResult wal_after_upsert;
+      const auto wal_upsert_status = barrier_index->SearchFtsFiltered(
+          "wal durable", 10, m4::FilterExpr::All(), &wal_after_upsert);
+      Check(wal_upsert_status.ok && wal_after_upsert.hits.size() == 1 &&
+                wal_after_upsert.hits.front().pk == "replace",
+            "upsert becomes query-visible after its WAL/apply barrier");
+      run_wal_apply_barrier("delete",
+          [&] { return barrier_index->Delete("replace"); },
+          "wal durable", {"replace"});
+      m4::SearchResult wal_after_delete;
+      const auto wal_delete_status = barrier_index->SearchFtsFiltered(
+          "wal durable", 10, m4::FilterExpr::All(), &wal_after_delete);
+      Check(wal_delete_status.ok && wal_after_delete.hits.empty(),
+            "delete becomes query-visible after its WAL/apply barrier");
     }
     const auto base = Fixtures(); Check(coordinator->Commit(base, 0), "publish base generation");
     const uint32_t gen1 = coordinator->SearchSnapshot();

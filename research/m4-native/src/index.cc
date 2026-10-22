@@ -1640,18 +1640,11 @@ class Index::Impl {
 
   Status Upsert(const std::string& pk, const Document& doc) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
     const Document normalized = NormalizeDocument(doc);
     const uint64_t old_id = LookupPk(pk);
-    if (old_id != 0) {
-      Status s = DeleteInternal(old_id, true);
-      if (!s.ok) return s;
-    }
     const DocId new_id = next_doc_id_++;
-    Status s = InsertInternal(new_id, pk, normalized);
-    if (!s.ok) return s;
 
-    // One WAL record carries the whole update (old tombstone + new doc).
+    // Persist the complete replacement before changing query-visible state.
     BufWriter w;
     w.U8(1);  // upsert
     w.U64(old_id);
@@ -1665,31 +1658,46 @@ class Index::Impl {
     }
     const uint64_t seq = next_wal_seq_++;
     last_wal_seq_ = seq;
+    Status s;
     if (options_.wal_enabled) {
       s = wal_.Append(seq, w.data(), options_.fsync_wal);
       if (!s.ok) return s;
     }
+    s = WaitForTestWalApplyBarrier();
+    if (!s.ok) return s;
+
+    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    if (old_id != 0) {
+      s = DeleteInternal(old_id, true);
+      if (!s.ok) return s;
+    }
+    s = InsertInternal(new_id, pk, normalized);
+    if (!s.ok) return s;
     pending_flush_ = true;
     return MaybeAutoFlush(&query_guard);
   }
 
   Status Delete(const std::string& pk) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
     const uint64_t id = LookupPk(pk);
     if (id == 0) return Status::OK();
-    Status s = DeleteInternal(id, true);
-    if (!s.ok) return s;
     BufWriter w;
     w.U8(2);  // delete
     w.U64(id);
     w.String(pk);
     const uint64_t seq = next_wal_seq_++;
     last_wal_seq_ = seq;
+    Status s;
     if (options_.wal_enabled) {
       s = wal_.Append(seq, w.data(), options_.fsync_wal);
       if (!s.ok) return s;
     }
+    s = WaitForTestWalApplyBarrier();
+    if (!s.ok) return s;
+
+    std::unique_lock<std::shared_mutex> query_guard(query_mutex_);
+    s = DeleteInternal(id, true);
+    if (!s.ok) return s;
     pending_flush_ = true;
     return MaybeAutoFlush(&query_guard);
   }
@@ -2540,6 +2548,31 @@ class Index::Impl {
     if (delta_docs_.size() >= options_.max_delta_docs ||
         delta_bytes_ >= options_.max_delta_bytes) {
       return FlushInternal(*query_guard);
+    }
+    return Status::OK();
+  }
+
+  // Test-only synchronization point; unset in normal operation.
+  Status WaitForTestWalApplyBarrier() const {
+    const char* barrier_dir = std::getenv("M4_TEST_WAL_APPLY_BARRIER");
+    if (!barrier_dir || !*barrier_dir) return Status::OK();
+    const fs::path barrier(barrier_dir);
+    std::error_code ec;
+    fs::create_directories(barrier, ec);
+    if (ec) return Status::Error("create test WAL apply barrier: " + ec.message());
+    {
+      std::ofstream ready(barrier / "wal-ready", std::ios::binary);
+      if (!ready) return Status::Error("write test WAL apply barrier marker");
+      ready << "ready\n";
+    }
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(5);
+    while (!fs::exists(barrier / "reader-finished", ec)) {
+      if (ec) return Status::Error("check test WAL apply barrier: " + ec.message());
+      if (std::chrono::steady_clock::now() >= deadline) {
+        return Status::Error("test WAL apply barrier timed out");
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return Status::OK();
   }
