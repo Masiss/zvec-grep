@@ -76,22 +76,70 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             data.get("coherence_errors") != 0 or data.get("failures") != 0):
         raise RuntimeError("contention workload counts/coherence do not match the contract")
     arms = data.get("arms")
-    if not isinstance(arms, list) or [arm.get("name") for arm in arms] != data.get("arm_order") or set(data.get("arm_order", [])) != {"default", "snapshot"}:
-        raise RuntimeError("paired compaction arms or order are missing")
+    expected_modes = set(workload.get("compaction_modes", ("default", "snapshot")))
+    arm_order = data.get("arm_order")
+    if (not isinstance(arms, list) or not isinstance(arm_order, list) or
+            [arm.get("name") for arm in arms] != arm_order or
+            len(arm_order) != len(expected_modes) or set(arm_order) != expected_modes):
+        raise RuntimeError("compaction arms or order do not match the registered workload")
+    timing_schema = data.get("timing_schema_version")
+    if timing_schema not in (None, 2, 3):
+        raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
     def valid_series(values: Any, count: int) -> bool:
         return (isinstance(values, list) and len(values) == count and
                 all(not isinstance(v, bool) and isinstance(v, (int, float)) and
                     math.isfinite(v) and v >= 0 for v in values))
+    compaction_timing_fields = (
+        "total_ms", "total_cpu_ms", "state_mutex_wait_ms",
+        "state_mutex_wait_cpu_ms", "query_mutex_wait_ms",
+        "query_mutex_wait_cpu_ms", "pending_flush_ms", "pending_flush_cpu_ms",
+        "merge_prepare_ms", "merge_prepare_cpu_ms", "merge_build_ms",
+        "merge_build_cpu_ms", "publish_state_mutex_wait_ms",
+        "publish_state_mutex_wait_cpu_ms", "publish_query_mutex_wait_ms",
+        "publish_query_mutex_wait_cpu_ms", "publication_ms",
+        "publication_cpu_ms")
     for arm in arms:
-        for key in ("writer_samples", "state_wait_samples", "state_wait_cpu_samples",
-                    "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
-                    "apply_samples", "auto_flush_samples"):
+        compaction = arm.get("compaction_diagnostics")
+        # Older operation receipts predate lock-stage compaction diagnostics;
+        # retain their exact recorded validity while checking new receipts.
+        if timing_schema in (2, 3) and not isinstance(compaction, dict):
+            raise RuntimeError("missing compaction phase timing object")
+        if compaction is not None and not isinstance(compaction, dict):
+            raise RuntimeError("invalid compaction phase timing object")
+        if compaction is not None:
+            required_compaction_fields = compaction_timing_fields
+            if timing_schema == 3:
+                required_compaction_fields += (
+                    "state_mutex_hold_ms", "state_mutex_hold_cpu_ms")
+            for key in required_compaction_fields:
+                value = compaction.get(key)
+                if (isinstance(value, bool) or
+                        not isinstance(value, (int, float)) or
+                        not math.isfinite(value) or value < 0):
+                    raise RuntimeError("missing/invalid compaction phase timing")
+            if timing_schema == 3:
+                hold = compaction["state_mutex_hold_ms"]
+                if (hold + 1e-6 < compaction["publication_ms"] or
+                        hold > compaction["total_ms"] + 1e-6):
+                    raise RuntimeError(
+                        "compaction state-lock hold lies outside total/publication timing")
+        required_writer_series = (
+            "writer_samples", "state_wait_samples", "state_wait_cpu_samples",
+            "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
+            "apply_samples", "auto_flush_samples")
+        for key in required_writer_series:
             if not valid_series(arm.get(key), rounds):
                 raise RuntimeError(f"missing/invalid writer timing series: {key}")
+        if timing_schema == 3:
+            for key in ("state_hold_samples", "state_hold_cpu_samples"):
+                if not valid_series(arm.get(key), rounds):
+                    raise RuntimeError(f"missing/invalid writer timing series: {key}")
         # New binaries also emit normalization and WAL-encoding timings. Keep
         # replay compatibility with older raw receipts that predate these fields.
         for key in ("normalize_samples", "normalize_cpu_samples",
                     "wal_encode_samples", "wal_encode_cpu_samples"):
+            if timing_schema in (2, 3) and not valid_series(arm.get(key), rounds):
+                raise RuntimeError(f"missing/invalid writer timing series: {key}")
             if key in arm and not valid_series(arm[key], rounds):
                 raise RuntimeError(f"invalid optional writer timing series: {key}")
         reader_count = workload["readers"] * workload["queries_per_reader"]
@@ -103,7 +151,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             raise RuntimeError("writer, reader, durability, or reopen verification failed")
         if (arm.get("name") == "default" and arm.get("compaction_status") != "ok") or (
                 arm.get("name") == "snapshot" and arm.get("compaction_status") not in
-                ("ok", "compaction snapshot superseded by concurrent state change")):
+                ("ok", "compaction snapshot superseded by concurrent state change")) or (
+                arm.get("name") == "snapshot_rebase" and
+                arm.get("compaction_status") != "ok"):
             raise RuntimeError("unexpected compaction outcome")
 
 
@@ -134,7 +184,7 @@ def main() -> int:
         "approval_reference": contract["approval_reference"],
         "execution_authorization_reference": contract["execution_authorization_reference"],
         "risk_acceptance_reference": contract["risk_acceptance_reference"],
-        "resource_basis": "Paired 8,192-document M4 fixture; each arm runs 4 concurrent WAL-durable writers (8 upserts each), 2 readers (32 searches each), one compaction, flush and reopen verification. 512 MiB cgroup cap remains below the existing 1 GiB ceiling; fixed 3 GiB host reserve and all containment/integrity/cleanup gates remain unchanged.",
+        "resource_basis": "Three-arm 8,192-document M4 fixture; each arm runs 4 concurrent WAL-durable writers (8 upserts each), 2 readers (32 searches each), one compaction, flush and reopen verification. 512 MiB cgroup cap remains below the existing 1 GiB ceiling; fixed 3 GiB host reserve and all containment/integrity/cleanup gates remain unchanged.",
         "policy_sha256": sha256(POLICY_PATH),
         "operation_id": operation_id, "operation_root": str(operation_root.resolve()),
         "resource_root": str(resource_root),

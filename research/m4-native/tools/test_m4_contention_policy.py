@@ -692,7 +692,8 @@ class ContentionPolicyTests(unittest.TestCase):
             "unit": "SYNTHETIC-NEVER-A-REAL-UNIT",
         }
 
-    def run_watchdog(self, host_state, group=None, workspace=None):
+    def run_watchdog(self, host_state, group=None, workspace=None,
+                     monotonic_ns_values=None):
         config = self.watchdog_config()
         path = self.root / "config.json"
         path.write_text(json.dumps(config))
@@ -720,7 +721,14 @@ class ContentionPolicyTests(unittest.TestCase):
             ) as killed,
             mock.patch.object(ct.time, "sleep"),
         ):
-            self.assertEqual(ct.watchdog_main(path), 0)
+            if monotonic_ns_values is None:
+                rc = ct.watchdog_main(path)
+            else:
+                with mock.patch.object(
+                    ct.time, "monotonic_ns", side_effect=monotonic_ns_values
+                ):
+                    rc = ct.watchdog_main(path)
+            self.assertEqual(rc, 0)
         out = pathlib.Path(config["watchdog_output"])
         return (
             json.loads((out / "watchdog-summary.json").read_text()),
@@ -944,6 +952,33 @@ class ContentionPolicyTests(unittest.TestCase):
         s["io_pressure"]["full"]["avg10"] = float("nan")
         summary, _, killed = self.run_watchdog(s)
         self.assertEqual(summary["abort"]["reason"], "required_telemetry_missing")
+        self.assertTrue(killed)
+
+    def test_watchdog_aborts_when_monitor_cadence_exceeds_approved_gap(self):
+        values = [
+            0,
+            10_000_000,
+            20_000_000,
+            30_000_000,
+            40_000_000,
+            2_500_000_000,
+            2_510_000_000,
+            2_520_000_000,
+        ]
+        summary, rows, killed = self.run_watchdog(
+            state(), monotonic_ns_values=values
+        )
+        self.assertIsNotNone(summary["abort"])
+        self.assertEqual(summary["abort"]["reason"], "required_telemetry_missing")
+        self.assertEqual(
+            summary["abort"]["detail"],
+            "ValueError: contention monitor cadence incomplete/nonmonotonic",
+        )
+        self.assertEqual(len(rows), 2)
+        self.assertGreater(
+            (rows[1]["monotonic_ns"] - rows[0]["monotonic_ns"]) / 1e9,
+            2.0,
+        )
         self.assertTrue(killed)
 
     def test_real_oom_evidence_stops_independent_watchdog(self):

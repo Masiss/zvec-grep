@@ -33,12 +33,15 @@ double Percentile(std::vector<double> values, double q) {
 struct ArmResult {
   std::string name;
   double compaction_ms{0.0};
+  m4::CompactionDiagnostics compaction_diagnostics;
   std::string compaction_status;
   std::vector<double> writer_ms;
   std::vector<double> normalize_ms;
   std::vector<double> normalize_cpu_ms;
   std::vector<double> state_wait_ms;
   std::vector<double> state_wait_cpu_ms;
+  std::vector<double> state_hold_ms;
+  std::vector<double> state_hold_cpu_ms;
   std::vector<double> wal_encode_ms;
   std::vector<double> wal_encode_cpu_ms;
   std::vector<double> wal_append_ms;
@@ -119,21 +122,29 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
     start_cv.wait(lock, [&] { return start; });
   };
   m4::Status compaction;
+  m4::CompactionDiagnostics compaction_diagnostics;
   Clock::time_point compaction_start;
   Clock::time_point compaction_end;
   std::thread compactor([&] {
     wait_start();
     compaction_start = Clock::now();
-    compaction = name == "snapshot"
-                     ? index->CompactNowSnapshotPrototype()
-                     : index->CompactNow();
+    if (name == "snapshot") {
+      compaction =
+          index->CompactNowSnapshotPrototype(&compaction_diagnostics);
+    } else if (name == "snapshot_rebase") {
+      compaction = index->CompactNowSnapshotRebasePrototype(
+          &compaction_diagnostics);
+    } else {
+      compaction = index->CompactNow(&compaction_diagnostics);
+    }
     compaction_end = Clock::now();
   });
 
   std::vector<std::vector<double>> writer_samples(writers);
   std::vector<std::vector<double>> normalize_samples(writers),
       normalize_cpu_samples(writers), state_wait_samples(writers),
-      state_wait_cpu_samples(writers), wal_encode_samples(writers),
+      state_wait_cpu_samples(writers), state_hold_samples(writers),
+      state_hold_cpu_samples(writers), wal_encode_samples(writers),
       wal_encode_cpu_samples(writers), wal_append_samples(writers),
       wal_append_cpu_samples(writers), query_wait_samples(writers),
       apply_samples(writers), auto_flush_samples(writers);
@@ -160,6 +171,9 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
         state_wait_samples[writer].push_back(diagnostics.state_mutex_wait_ms);
         state_wait_cpu_samples[writer].push_back(
             diagnostics.state_mutex_wait_cpu_ms);
+        state_hold_samples[writer].push_back(diagnostics.state_mutex_hold_ms);
+        state_hold_cpu_samples[writer].push_back(
+            diagnostics.state_mutex_hold_cpu_ms);
         wal_encode_samples[writer].push_back(diagnostics.wal_encode_ms);
         wal_encode_cpu_samples[writer].push_back(diagnostics.wal_encode_cpu_ms);
         wal_append_samples[writer].push_back(diagnostics.wal_append_ms);
@@ -214,6 +228,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   result.writer_failures = writer_failures.load(std::memory_order_relaxed);
   result.reader_failures = reader_failures.load(std::memory_order_relaxed);
   result.compaction_ms = ElapsedMs(compaction_start, compaction_end);
+  result.compaction_diagnostics = compaction_diagnostics;
   result.compaction_status = compaction.ok ? "ok" : compaction.message;
   auto append_samples = [](std::vector<double>* destination,
                            std::vector<std::vector<double>>& sources) {
@@ -226,6 +241,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   append_samples(&result.normalize_cpu_ms, normalize_cpu_samples);
   append_samples(&result.state_wait_ms, state_wait_samples);
   append_samples(&result.state_wait_cpu_ms, state_wait_cpu_samples);
+  append_samples(&result.state_hold_ms, state_hold_samples);
+  append_samples(&result.state_hold_cpu_ms, state_hold_cpu_samples);
   append_samples(&result.wal_encode_ms, wal_encode_samples);
   append_samples(&result.wal_encode_cpu_ms, wal_encode_cpu_samples);
   append_samples(&result.wal_append_ms, wal_append_samples);
@@ -274,9 +291,41 @@ void PrintValues(const std::vector<double>& values) {
 }
 
 void PrintArm(const ArmResult& arm, bool last) {
+  const auto& compaction = arm.compaction_diagnostics;
   std::cout << "{\"name\":\"" << arm.name << "\",\"compaction_ms\":"
             << arm.compaction_ms << ",\"compaction_status\":\""
-            << arm.compaction_status << "\",\"writer_samples\":";
+            << arm.compaction_status << "\",\"compaction_diagnostics\":{";
+  std::cout << "\"total_ms\":" << compaction.total_ms
+            << ",\"total_cpu_ms\":" << compaction.total_cpu_ms
+            << ",\"state_mutex_wait_ms\":" << compaction.state_mutex_wait_ms
+            << ",\"state_mutex_wait_cpu_ms\":"
+            << compaction.state_mutex_wait_cpu_ms
+            << ",\"state_mutex_hold_ms\":"
+            << compaction.state_mutex_hold_ms
+            << ",\"state_mutex_hold_cpu_ms\":"
+            << compaction.state_mutex_hold_cpu_ms
+            << ",\"query_mutex_wait_ms\":" << compaction.query_mutex_wait_ms
+            << ",\"query_mutex_wait_cpu_ms\":"
+            << compaction.query_mutex_wait_cpu_ms
+            << ",\"pending_flush_ms\":" << compaction.pending_flush_ms
+            << ",\"pending_flush_cpu_ms\":"
+            << compaction.pending_flush_cpu_ms
+            << ",\"merge_prepare_ms\":" << compaction.merge_prepare_ms
+            << ",\"merge_prepare_cpu_ms\":"
+            << compaction.merge_prepare_cpu_ms
+            << ",\"merge_build_ms\":" << compaction.merge_build_ms
+            << ",\"merge_build_cpu_ms\":" << compaction.merge_build_cpu_ms
+            << ",\"publish_state_mutex_wait_ms\":"
+            << compaction.publish_state_mutex_wait_ms
+            << ",\"publish_state_mutex_wait_cpu_ms\":"
+            << compaction.publish_state_mutex_wait_cpu_ms
+            << ",\"publish_query_mutex_wait_ms\":"
+            << compaction.publish_query_mutex_wait_ms
+            << ",\"publish_query_mutex_wait_cpu_ms\":"
+            << compaction.publish_query_mutex_wait_cpu_ms
+            << ",\"publication_ms\":" << compaction.publication_ms
+            << ",\"publication_cpu_ms\":"
+            << compaction.publication_cpu_ms << "},\"writer_samples\":";
   PrintValues(arm.writer_ms);
   std::cout << ",\"writer_p50_ms\":" << Percentile(arm.writer_ms, 0.50)
             << ",\"writer_p95_ms\":" << Percentile(arm.writer_ms, 0.95)
@@ -292,6 +341,12 @@ void PrintArm(const ArmResult& arm, bool last) {
   std::cout << ",\"state_wait_p95_ms\":" << Percentile(arm.state_wait_ms, 0.95)
             << ",\"state_wait_cpu_samples\":";
   PrintValues(arm.state_wait_cpu_ms);
+  std::cout << ",\"state_hold_samples\":";
+  PrintValues(arm.state_hold_ms);
+  std::cout << ",\"state_hold_p95_ms\":"
+            << Percentile(arm.state_hold_ms, 0.95)
+            << ",\"state_hold_cpu_samples\":";
+  PrintValues(arm.state_hold_cpu_ms);
   std::cout << ",\"wal_encode_samples\":";
   PrintValues(arm.wal_encode_ms);
   std::cout << ",\"wal_encode_p95_ms\":" << Percentile(arm.wal_encode_ms, 0.95)
@@ -351,7 +406,7 @@ int main(int argc, char** argv) {
   }
   const size_t ops_per_writer = writer_operation_count / writers;
 
-  std::vector<std::string> order{"default", "snapshot"};
+  std::vector<std::string> order{"default", "snapshot", "snapshot_rebase"};
   if (std::hash<std::string>{}(root.string()) % 2 != 0) {
     std::reverse(order.begin(), order.end());
   }
@@ -365,17 +420,22 @@ int main(int argc, char** argv) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
   }
-  std::cout << "{\"mode\":\"m4_compaction_contention\",\"documents\":"
+  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":3,\"documents\":"
             << documents << ",\"writers\":" << writers
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count
             << ",\"writer_operations\":" << writer_operation_count
             << ",\"reader_queries\":" << 2 * 32
             << ",\"coherence_errors\":0,\"failures\":" << failures
-            << ",\"arm_order\":[\"" << order[0] << "\",\"" << order[1]
-            << "\"],\"arms\":[\n";
-  PrintArm(results[0], false);
-  PrintArm(results[1], true);
+            << ",\"arm_order\":[";
+  for (size_t i = 0; i < order.size(); ++i) {
+    if (i != 0) std::cout << ',';
+    std::cout << '\"' << order[i] << '\"';
+  }
+  std::cout << "],\"arms\":[\n";
+  for (size_t i = 0; i < results.size(); ++i) {
+    PrintArm(results[i], i + 1 == results.size());
+  }
   std::cout << "]}\n";
   return failures == 0 ? 0 : 1;
 }

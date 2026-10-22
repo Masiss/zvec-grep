@@ -31,6 +31,84 @@ class BenchmarkPolicyTests(unittest.TestCase):
     def setUp(self):
         self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
 
+    def _valid_contention_receipt(self, include_compaction_timing=True):
+        contract = self.policy["lock_contention_microbench"]
+        workload = contract["workload"]
+        rounds = workload["rounds"]
+        writer_series = (
+            "writer_samples", "state_wait_samples", "state_wait_cpu_samples",
+            "state_hold_samples", "state_hold_cpu_samples",
+            "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
+            "apply_samples", "auto_flush_samples", "normalize_samples",
+            "normalize_cpu_samples", "wal_encode_samples", "wal_encode_cpu_samples")
+        timing_fields = (
+            "total_ms", "total_cpu_ms", "state_mutex_wait_ms",
+            "state_mutex_wait_cpu_ms", "state_mutex_hold_ms",
+            "state_mutex_hold_cpu_ms", "query_mutex_wait_ms",
+            "query_mutex_wait_cpu_ms", "pending_flush_ms", "pending_flush_cpu_ms",
+            "merge_prepare_ms", "merge_prepare_cpu_ms", "merge_build_ms",
+            "merge_build_cpu_ms", "publish_state_mutex_wait_ms",
+            "publish_state_mutex_wait_cpu_ms", "publish_query_mutex_wait_ms",
+            "publish_query_mutex_wait_cpu_ms", "publication_ms",
+            "publication_cpu_ms")
+        arms = []
+        compaction_modes = workload.get(
+            "compaction_modes", ("default", "snapshot"))
+        for name in compaction_modes:
+            arm = {key: [0.25] * rounds for key in writer_series}
+            arm.update({
+                "name": name,
+                "compaction_status": "ok",
+                "writer_failures": 0,
+                "reader_failures": 0,
+                "durability_failures": 0,
+                "runs_after_flush": 1,
+                "reader_samples": [0.25] * (workload["readers"] * workload["queries_per_reader"]),
+                "reader_mutex_wait_samples": [0.0] * (workload["readers"] * workload["queries_per_reader"]),
+            })
+            if include_compaction_timing:
+                arm["compaction_diagnostics"] = dict.fromkeys(timing_fields, 0.25)
+            arms.append(arm)
+        data = {
+            "mode": "m4_compaction_contention",
+            "documents": workload["documents"],
+            "rounds": rounds,
+            "writers": workload["writers"],
+            "ops_per_writer": workload["ops_per_writer"],
+            "writer_operations": rounds,
+            "reader_queries": workload["readers"] * workload["queries_per_reader"],
+            "coherence_errors": 0,
+            "failures": 0,
+            "arm_order": list(compaction_modes),
+            "arms": arms,
+        }
+        if include_compaction_timing:
+            data["timing_schema_version"] = 3
+        result = {"status": "PASS", "workload_returncode": 0,
+                  "controller_cleanup": {"verified": True}}
+        return result, data, contract
+
+    def test_contention_verifier_checks_new_compaction_timing_fields(self):
+        result, data, contract = self._valid_contention_receipt()
+        lock_runner.verify(result, data, contract)
+        data["arms"][0]["compaction_diagnostics"]["merge_build_ms"] = float("nan")
+        with self.assertRaisesRegex(RuntimeError, "compaction phase timing"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_state_hold_series_for_schema3(self):
+        result, data, contract = self._valid_contention_receipt()
+        data["arms"][0].pop("state_hold_samples")
+        with self.assertRaisesRegex(RuntimeError, "writer timing series"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_keeps_historical_receipt_compatibility(self):
+        result, data, contract = self._valid_contention_receipt(False)
+        for arm in data["arms"]:
+            for key in ("normalize_samples", "normalize_cpu_samples",
+                        "wal_encode_samples", "wal_encode_cpu_samples"):
+                arm.pop(key)
+        lock_runner.verify(result, data, contract)
+
     def test_existing_thresholds_are_unchanged_and_runner_uses_policy_source(self):
         expected = {
             "MemAvailable_kib_min": 5_477_762,

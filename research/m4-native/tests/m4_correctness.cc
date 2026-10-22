@@ -1552,7 +1552,16 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
 
   Document alpha;
   alpha.text = "alpha";
-  Check(index->Upsert("a", alpha).ok, "snapshot prototype upsert alpha");
+  m4::WriteDiagnostics write_diagnostics;
+  Check(index->Upsert("a", alpha, &write_diagnostics).ok,
+        "snapshot prototype upsert alpha");
+  Check(std::isfinite(write_diagnostics.state_mutex_hold_ms) &&
+            write_diagnostics.state_mutex_hold_ms > 0.0 &&
+            write_diagnostics.state_mutex_hold_ms >=
+                write_diagnostics.wal_append_ms &&
+            std::isfinite(write_diagnostics.state_mutex_hold_cpu_ms) &&
+            write_diagnostics.state_mutex_hold_cpu_ms >= 0.0,
+        "writer diagnostics measure state-lock hold wall and CPU time");
   Check(index->Flush().ok, "snapshot prototype flush alpha");
   Document beta;
   beta.text = "beta";
@@ -1631,8 +1640,24 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
   Check(!fs::exists(fs::path(dir) / "run-3.seg"),
         "aborted snapshot output is removed");
 
-  Check(index->CompactNowSnapshotPrototype().ok,
+  m4::CompactionDiagnostics compaction_diagnostics;
+  const m4::Status stable_compaction =
+      index->CompactNowSnapshotPrototype(&compaction_diagnostics);
+  Check(stable_compaction.ok,
         "snapshot prototype commits when the state remains stable");
+  Check(compaction_diagnostics.capture_timing &&
+            std::isfinite(compaction_diagnostics.total_ms) &&
+            compaction_diagnostics.total_ms >=
+                compaction_diagnostics.merge_build_ms &&
+            compaction_diagnostics.merge_prepare_ms >= 0.0 &&
+            compaction_diagnostics.merge_build_ms > 0.0 &&
+            compaction_diagnostics.publication_ms > 0.0 &&
+            compaction_diagnostics.state_mutex_hold_ms >=
+                compaction_diagnostics.publication_ms &&
+            compaction_diagnostics.state_mutex_hold_ms <=
+                compaction_diagnostics.total_ms &&
+            compaction_diagnostics.state_mutex_hold_cpu_ms >= 0.0,
+        "snapshot compaction diagnostics cover prepare, unlocked build, and publication");
   Check(index->GetStats().runs == 1,
         "stable snapshot prototype publishes one merged run");
   m4::SearchResult result;
@@ -1773,6 +1798,217 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
     Check(reopened->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
           std::string("snapshot concurrent flush reopen term ") + term);
   }
+}
+
+void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.max_delta_docs = 1;
+  opt.tombstone_compact_ratio = 2.0;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, opt, &index).ok, "snapshot rebase prototype open");
+  Document alpha;
+  alpha.text = "alpha";
+  Check(index->Upsert("a", alpha).ok, "snapshot rebase upsert alpha");
+  Document beta;
+  beta.text = "beta";
+  Check(index->Upsert("b", beta).ok, "snapshot rebase upsert beta");
+  Check(index->GetStats().runs == 2,
+        "snapshot rebase starts with two independently flushed runs");
+  Check(index->Delete("a").ok, "snapshot rebase pre-snapshot delete");
+  Check(index->Flush().ok, "snapshot rebase persist pre-snapshot tombstone");
+  Check(index->GetStats().dead_docs == 1,
+        "snapshot rebase captures an existing input tombstone");
+
+  const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
+  fs::remove_all(barrier);
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+        "snapshot rebase set stream-merge barrier");
+  std::atomic<bool> compaction_done{false};
+  m4::Status compaction_status;
+  std::thread compactor([&] {
+    compaction_status = index->CompactNowSnapshotRebasePrototype();
+    compaction_done.store(true);
+  });
+  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done) {
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(5);
+    std::error_code ec;
+    while (!fs::exists(path, ec) && !done.load() &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return fs::exists(path, ec);
+  };
+  const bool run_ready = wait_for(barrier / "merge-read-ready", compaction_done);
+  Check(run_ready, "snapshot rebase reaches unlocked stream-merge barrier");
+
+  std::atomic<bool> writer_done{false};
+  m4::Status upsert_status;
+  m4::Status delete_status;
+  std::thread writer;
+  if (run_ready) {
+    writer = std::thread([&] {
+      Document gamma;
+      gamma.text = "gamma";
+      upsert_status = index->Upsert("c", gamma);
+      if (upsert_status.ok) delete_status = index->Delete("b");
+      writer_done.store(true);
+    });
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(2);
+    while (!writer_done.load() && std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    const bool completed_before_publication = writer_done.load();
+    Check(completed_before_publication,
+          "concurrent auto-flush and delete complete before rebase publication");
+    if (!completed_before_publication) {
+      std::ofstream release(barrier / "writer-finished", std::ios::binary);
+      release << "timeout\n";
+    }
+    writer.join();
+    if (completed_before_publication) {
+      Check(upsert_status.ok, "snapshot rebase concurrent auto-flush succeeds");
+      Check(delete_status.ok, "snapshot rebase concurrent delete succeeds");
+    }
+    std::ofstream release(barrier / "writer-finished", std::ios::binary);
+    release << "done\n";
+  }
+  compactor.join();
+  ::unsetenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
+  Check(compaction_status.ok,
+        "snapshot rebase publishes after concurrent writer changes: " +
+            (compaction_status.ok ? "ok" : compaction_status.message));
+  Check(index->GetStats().runs == 2 && index->GetStats().live_docs == 1 &&
+            index->GetStats().dead_docs == 1,
+        "snapshot rebase drops captured tombstone but retains the new one");
+  Check(fs::exists(fs::path(dir) / "run-3.seg") &&
+            fs::exists(fs::path(dir) / "run-4.seg"),
+        "snapshot rebase keeps distinct reserved compaction and writer run IDs");
+  m4::SearchResult result;
+  Check(index->SearchFts("alpha", 5, &result).ok && result.hits.empty(),
+        "snapshot rebase removes the pre-snapshot deleted document");
+  Check(index->SearchFts("beta", 5, &result).ok && result.hits.empty(),
+        "snapshot rebase tombstone hides the old deleted document");
+  Check(index->SearchFts("gamma", 5, &result).ok && result.hits.size() == 1,
+        "snapshot rebase retains the concurrent flushed document");
+
+  index.reset();
+  std::unique_ptr<Index> reopened;
+  Check(Index::Open(dir, opt, &reopened).ok,
+        "snapshot rebase reopen after concurrent publication");
+  Check(reopened->GetStats().runs == 2 && reopened->GetStats().live_docs == 1 &&
+            reopened->GetStats().dead_docs == 1,
+        "snapshot rebase manifest and tombstones survive reopen");
+  Check(reopened->SearchFts("alpha", 5, &result).ok && result.hits.empty(),
+        "snapshot rebase pre-snapshot deletion survives reopen");
+  Check(reopened->SearchFts("beta", 5, &result).ok && result.hits.empty(),
+        "snapshot rebase deletion survives reopen");
+  Check(reopened->SearchFts("gamma", 5, &result).ok && result.hits.size() == 1,
+        "snapshot rebase concurrent flush survives reopen");
+}
+
+void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.max_delta_docs = 1;
+  opt.tombstone_compact_ratio = 2.0;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, opt, &index).ok,
+        "snapshot rebase recovery open");
+  Document alpha;
+  alpha.text = "alpha";
+  Check(index->Upsert("a", alpha).ok, "snapshot rebase recovery upsert alpha");
+  Document beta;
+  beta.text = "beta";
+  Check(index->Upsert("b", beta).ok, "snapshot rebase recovery upsert beta");
+  Check(index->Delete("a").ok, "snapshot rebase recovery tombstone alpha");
+  Check(index->Flush().ok, "snapshot rebase recovery persist old tombstone");
+
+  const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
+  fs::remove_all(barrier);
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+        "snapshot rebase recovery set stream-merge barrier");
+  Check(::setenv("M4_FAULT", "after_compaction_tombstone", 1) == 0,
+        "snapshot rebase recovery inject pre-manifest fault");
+  std::atomic<bool> compaction_done{false};
+  m4::Status compaction_status;
+  std::thread compactor([&] {
+    compaction_status = index->CompactNowSnapshotRebasePrototype();
+    compaction_done.store(true);
+  });
+  const auto ready_deadline = std::chrono::steady_clock::now() +
+                              std::chrono::seconds(5);
+  std::error_code ec;
+  while (!fs::exists(barrier / "merge-read-ready", ec) &&
+         !compaction_done.load() &&
+         std::chrono::steady_clock::now() < ready_deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  const bool run_ready = fs::exists(barrier / "merge-read-ready", ec);
+  Check(run_ready, "snapshot rebase recovery reaches merge barrier");
+
+  std::atomic<bool> writer_done{false};
+  m4::Status upsert_status;
+  m4::Status delete_status;
+  std::thread writer;
+  if (run_ready) {
+    writer = std::thread([&] {
+      Document gamma;
+      gamma.text = "gamma";
+      upsert_status = index->Upsert("c", gamma);
+      if (upsert_status.ok) delete_status = index->Delete("b");
+      writer_done.store(true);
+    });
+    const auto writer_deadline = std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(2);
+    while (!writer_done.load() &&
+           std::chrono::steady_clock::now() < writer_deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    const bool writer_finished = writer_done.load();
+    Check(writer_finished,
+          "recovery fixture flush and delete complete during merge build");
+    if (!writer_finished) {
+      std::ofstream release(barrier / "writer-finished", std::ios::binary);
+      release << "timeout\n";
+    } else {
+      Check(upsert_status.ok && delete_status.ok,
+            "recovery fixture concurrent mutations succeed");
+    }
+    writer.join();
+    std::ofstream release(barrier / "writer-finished", std::ios::binary);
+    release << "done\n";
+  }
+  compactor.join();
+  ::unsetenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
+  ::unsetenv("M4_FAULT");
+  Check(!compaction_status.ok &&
+            compaction_status.message.find(
+                "after compaction tombstone snapshot") != std::string::npos,
+        "snapshot rebase reports injected pre-manifest tombstone fault: " +
+            (compaction_status.ok ? "ok" : compaction_status.message));
+
+  // The prior manifest was written by the publication-time FlushInternal.
+  // Recovery must retain its tombstones if a later tombstone snapshot exists
+  // but its replacement manifest was not committed.
+  index.reset();
+  std::unique_ptr<Index> reopened;
+  Check(Index::Open(dir, opt, &reopened).ok,
+        "snapshot rebase pre-manifest recovery reopen");
+  Check(reopened->GetStats().runs == 3 && reopened->GetStats().live_docs == 1 &&
+            reopened->GetStats().dead_docs == 2,
+        "pre-manifest recovery loads the previously committed state");
+  m4::SearchResult result;
+  Check(reopened->SearchFts("alpha", 5, &result).ok && result.hits.empty(),
+        "pre-manifest recovery does not resurrect captured tombstone");
+  Check(reopened->SearchFts("beta", 5, &result).ok && result.hits.empty(),
+        "pre-manifest recovery retains concurrent tombstone");
+  Check(reopened->SearchFts("gamma", 5, &result).ok && result.hits.size() == 1,
+        "pre-manifest recovery retains flushed concurrent upsert");
+  Check(!fs::exists(fs::path(dir) / "run-3.seg"),
+        "recovery garbage-collects the unmanifested compaction output");
 }
 
 void TestSnapshotCompactionBudget(const std::string& dir) {
@@ -2223,6 +2459,10 @@ int main() {
   TestCompactionBudget(root + "/budget");
   TestSnapshotCompactionPrototype(root + "/snapshot-prototype");
   TestSnapshotCompactionConcurrentFlush(root + "/snapshot-concurrent-flush");
+  TestSnapshotCompactionRebasesConcurrentFlush(
+      root + "/snapshot-rebase-concurrent-flush");
+  TestSnapshotCompactionRebasePreManifestRecovery(
+      root + "/snapshot-rebase-pre-manifest-recovery");
   TestSnapshotCompactionBudget(root + "/snapshot-budget");
   TestSnapshotCompactionFaults(root + "/snapshot-faults");
   TestCompactionPositionBudget(root + "/position-budget");

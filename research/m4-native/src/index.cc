@@ -447,6 +447,36 @@ double ThreadCpuMs() {
   return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
 }
 
+class ScopedStageTimer {
+ public:
+  ScopedStageTimer(double* wall_ms, double* cpu_ms)
+      : wall_ms_(wall_ms), cpu_ms_(cpu_ms), active_(wall_ms || cpu_ms) {
+    Start();
+  }
+  ~ScopedStageTimer() { Stop(); }
+  ScopedStageTimer(const ScopedStageTimer&) = delete;
+  ScopedStageTimer& operator=(const ScopedStageTimer&) = delete;
+
+  void Start() {
+    if (!active_) return;
+    wall_start_ = NowMs();
+    cpu_start_ = ThreadCpuMs();
+  }
+  void Stop() {
+    if (!active_) return;
+    if (wall_ms_) *wall_ms_ += NowMs() - wall_start_;
+    if (cpu_ms_) *cpu_ms_ += ThreadCpuMs() - cpu_start_;
+    active_ = false;
+  }
+
+ private:
+  double* wall_ms_;
+  double* cpu_ms_;
+  double wall_start_{0.0};
+  double cpu_start_{0.0};
+  bool active_{false};
+};
+
 constexpr uint64_t kNoDoc = std::numeric_limits<uint64_t>::max();
 
 // ------------------------------- Manifest --------------------------------
@@ -868,6 +898,21 @@ std::string EncodeTombstonesOutsideRange(
   ids.reserve(retained_count);
   for (DocId id : set) {
     if (id < first || id > last) ids.push_back(id);
+  }
+  return EncodeSortedTombstones(std::move(ids));
+}
+
+std::string EncodeTombstonesExcluding(
+    const std::unordered_set<DocId>& set,
+    const std::unordered_set<DocId>& excluded) {
+  size_t retained_count = 0;
+  for (DocId id : set) {
+    if (excluded.count(id) == 0) ++retained_count;
+  }
+  std::vector<DocId> ids;
+  ids.reserve(retained_count);
+  for (DocId id : set) {
+    if (excluded.count(id) == 0) ids.push_back(id);
   }
   return EncodeSortedTombstones(std::move(ids));
 }
@@ -1691,6 +1736,9 @@ class Index::Impl {
       diagnostics->state_mutex_wait_ms = NowMs() - wall_start;
       diagnostics->state_mutex_wait_cpu_ms = ThreadCpuMs() - cpu_start;
     }
+    ScopedStageTimer state_hold_timer(
+        capture ? &diagnostics->state_mutex_hold_ms : nullptr,
+        capture ? &diagnostics->state_mutex_hold_cpu_ms : nullptr);
     const uint64_t old_id = LookupPk(pk);
     // Keep the high-water mark stable for shared readers until InsertInternal
     // advances it under exclusive query admission; writers are state-serialized.
@@ -1905,26 +1953,25 @@ class Index::Impl {
   }
 
   Status CompactNow() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
-    Status s = pending_flush_ ? FlushInternal(query_guard) : Status::OK();
-    if (!s.ok) return s;
-    std::vector<size_t> all;
-    for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
-    if (all.empty()) return Status::OK();
-    return MergeRuns(all, /*target_level=*/0, /*force=*/true, query_guard);
+    return CompactNowWithDiagnostics(nullptr, false, false);
+  }
+  Status CompactNow(CompactionDiagnostics* diagnostics) {
+    return CompactNowWithDiagnostics(diagnostics, false, false);
   }
 
   Status CompactNowSnapshotPrototype() {
-    std::unique_lock<std::recursive_mutex> state_guard(mutex_);
-    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
-    Status s = pending_flush_ ? FlushInternal(query_guard) : Status::OK();
-    if (!s.ok) return s;
-    std::vector<size_t> all;
-    for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
-    if (all.empty()) return Status::OK();
-    return MergeRuns(all, /*target_level=*/0, /*force=*/true, query_guard,
-                     &state_guard);
+    return CompactNowWithDiagnostics(nullptr, true, false);
+  }
+  Status CompactNowSnapshotPrototype(CompactionDiagnostics* diagnostics) {
+    return CompactNowWithDiagnostics(diagnostics, true, false);
+  }
+
+  Status CompactNowSnapshotRebasePrototype() {
+    return CompactNowWithDiagnostics(nullptr, true, true);
+  }
+  Status CompactNowSnapshotRebasePrototype(
+      CompactionDiagnostics* diagnostics) {
+    return CompactNowWithDiagnostics(diagnostics, true, true);
   }
 
   Status SearchFts(const std::string& query, uint32_t top_k, SearchResult* out,
@@ -2066,6 +2113,51 @@ class Index::Impl {
   }
 
  private:
+  Status CompactNowWithDiagnostics(CompactionDiagnostics* diagnostics,
+                                   bool snapshot_prototype,
+                                   bool allow_concurrent_rebase) {
+    const bool capture = diagnostics && diagnostics->capture_timing;
+    if (diagnostics) {
+      const bool requested = diagnostics->capture_timing;
+      *diagnostics = CompactionDiagnostics{};
+      diagnostics->capture_timing = requested;
+    }
+    ScopedStageTimer total_timer(capture ? &diagnostics->total_ms : nullptr,
+                                capture ? &diagnostics->total_cpu_ms : nullptr);
+    const double state_wait_wall = capture ? NowMs() : 0.0;
+    const double state_wait_cpu = capture ? ThreadCpuMs() : 0.0;
+    std::unique_lock<std::recursive_mutex> state_guard(mutex_);
+    if (capture) {
+      diagnostics->state_mutex_wait_ms = NowMs() - state_wait_wall;
+      diagnostics->state_mutex_wait_cpu_ms = ThreadCpuMs() - state_wait_cpu;
+    }
+    ScopedStageTimer state_hold_timer(
+        capture ? &diagnostics->state_mutex_hold_ms : nullptr,
+        capture ? &diagnostics->state_mutex_hold_cpu_ms : nullptr);
+    const double query_wait_wall = capture ? NowMs() : 0.0;
+    const double query_wait_cpu = capture ? ThreadCpuMs() : 0.0;
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
+    if (capture) {
+      diagnostics->query_mutex_wait_ms = NowMs() - query_wait_wall;
+      diagnostics->query_mutex_wait_cpu_ms = ThreadCpuMs() - query_wait_cpu;
+    }
+    const double flush_wall = capture ? NowMs() : 0.0;
+    const double flush_cpu = capture ? ThreadCpuMs() : 0.0;
+    Status status = pending_flush_ ? FlushInternal(query_guard) : Status::OK();
+    if (capture) {
+      diagnostics->pending_flush_ms = NowMs() - flush_wall;
+      diagnostics->pending_flush_cpu_ms = ThreadCpuMs() - flush_cpu;
+    }
+    if (!status.ok) return status;
+    std::vector<size_t> all;
+    for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
+    if (all.empty()) return Status::OK();
+    return MergeRuns(all, /*target_level=*/0, /*force=*/true, query_guard,
+                     snapshot_prototype ? &state_guard : nullptr, diagnostics,
+                     allow_concurrent_rebase,
+                     capture ? &state_hold_timer : nullptr);
+  }
+
   Status SearchFtsInternal(const std::string& query, uint32_t top_k,
                            const std::vector<DocId>* allowed, SearchResult* out,
                            QueryDiagnostics* diagnostics) const {
@@ -3338,8 +3430,15 @@ class Index::Impl {
   Status MergeRuns(
       const std::vector<size_t>& indices, uint64_t target_level, bool force,
       std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard,
-      std::unique_lock<std::recursive_mutex>* state_guard = nullptr) {
+      std::unique_lock<std::recursive_mutex>* state_guard = nullptr,
+      CompactionDiagnostics* diagnostics = nullptr,
+      bool allow_concurrent_rebase = false,
+      ScopedStageTimer* state_hold_timer = nullptr) {
+    const bool capture = diagnostics && diagnostics->capture_timing;
     const double merge_start_ms = NowMs();
+    ScopedStageTimer prepare_timer(
+        capture ? &diagnostics->merge_prepare_ms : nullptr,
+        capture ? &diagnostics->merge_prepare_cpu_ms : nullptr);
     if (indices.empty()) return Status::OK();
     std::unique_lock<std::mutex> compaction_build_guard(
         compaction_build_mutex_, std::try_to_lock);
@@ -3357,6 +3456,9 @@ class Index::Impl {
     if (state_guard && !query_guard.owns_lock()) {
       return Status::Error("snapshot compaction requires exclusive query admission");
     }
+    if (allow_concurrent_rebase && !state_guard) {
+      return Status::Error("snapshot rebase requires the writer state lock");
+    }
     const uint64_t snapshot_state_generation = state_generation_;
     const uint64_t snapshot_wal_seq = last_wal_seq_;
     std::vector<Run> snapshot_runs;
@@ -3373,10 +3475,16 @@ class Index::Impl {
     const uint64_t new_level = force ? target_level : max_level + 1;
     uint64_t input_docs = 0;
     std::vector<SegmentPtr> input_segments;
+    std::vector<uint64_t> input_run_ids;
+    std::vector<std::string> input_run_files;
     input_segments.reserve(group.size());
+    input_run_ids.reserve(group.size());
+    input_run_files.reserve(group.size());
     for (Run* run : group) {
       input_docs += run->info.doc_count;
       input_segments.push_back(run->segment);
+      input_run_ids.push_back(run->info.id);
+      input_run_files.push_back(run->info.file);
     }
 
     std::unordered_set<DocId> snapshot_tombstones;
@@ -3453,13 +3561,17 @@ class Index::Impl {
       std::string& output;
       std::string& temporary;
       std::unique_lock<std::recursive_mutex>* state_guard;
+      ScopedStageTimer* state_hold_timer;
       ~ActiveCompactionFilesGuard() {
-        if (state_guard && !state_guard->owns_lock()) state_guard->lock();
+        if (state_guard && !state_guard->owns_lock()) {
+          state_guard->lock();
+          if (state_hold_timer) state_hold_timer->Start();
+        }
         output.clear();
         temporary.clear();
       }
     } active_files_guard{active_compaction_file_, active_compaction_temp_file_,
-                         state_guard};
+                         state_guard, state_hold_timer};
     active_compaction_file_ = file;
     active_compaction_temp_file_ = temp_file;
     StreamMergeOptions merge_options;
@@ -3478,8 +3590,15 @@ class Index::Impl {
     if (!query_guard.owns_lock()) {
       return Status::Error("compaction requires exclusive query admission");
     }
+    prepare_timer.Stop();
     query_guard.unlock();
-    if (state_guard) state_guard->unlock();
+    if (state_guard) {
+      if (state_hold_timer) state_hold_timer->Stop();
+      state_guard->unlock();
+    }
+    ScopedStageTimer build_timer(
+        capture ? &diagnostics->merge_build_ms : nullptr,
+        capture ? &diagnostics->merge_build_cpu_ms : nullptr);
     Status s = MergeSegmentsStreaming((fs::path(dir_) / file).string(),
                                       input_segments, *merge_tombstones,
                                       merge_options, &merge_stats, &err);
@@ -3543,8 +3662,39 @@ class Index::Impl {
         }
       }
     }
-    if (state_guard) state_guard->lock();
+    build_timer.Stop();
+    if (state_guard) {
+      const double wait_wall = capture ? NowMs() : 0.0;
+      const double wait_cpu = capture ? ThreadCpuMs() : 0.0;
+      state_guard->lock();
+      if (capture) {
+        diagnostics->publish_state_mutex_wait_ms = NowMs() - wait_wall;
+        diagnostics->publish_state_mutex_wait_cpu_ms =
+            ThreadCpuMs() - wait_cpu;
+      }
+      if (state_hold_timer) state_hold_timer->Start();
+    }
+    const double query_wait_wall = capture ? NowMs() : 0.0;
+    const double query_wait_cpu = capture ? ThreadCpuMs() : 0.0;
     query_guard.lock();
+    if (capture) {
+      diagnostics->publish_query_mutex_wait_ms = NowMs() - query_wait_wall;
+      diagnostics->publish_query_mutex_wait_cpu_ms =
+          ThreadCpuMs() - query_wait_cpu;
+    }
+    ScopedStageTimer publication_timer(
+        capture ? &diagnostics->publication_ms : nullptr,
+        capture ? &diagnostics->publication_cpu_ms : nullptr);
+    if (s.ok && allow_concurrent_rebase && pending_flush_) {
+      ScopedStageTimer rebase_flush_timer(
+          capture ? &diagnostics->pending_flush_ms : nullptr,
+          capture ? &diagnostics->pending_flush_cpu_ms : nullptr);
+      Status flush_status = FlushInternal(query_guard);
+      if (!flush_status.ok) {
+        build_error = "snapshot rebase flush: " + flush_status.message;
+        s = flush_status;
+      }
+    }
     if (!s.ok) {
       // No manifest was published; the old runs and tombstones stay active.
       new_run.segment.reset();
@@ -3557,16 +3707,29 @@ class Index::Impl {
     compaction_peak_bytes_ =
         std::max(compaction_peak_bytes_, merge_stats.tracked_peak_bytes);
     if (state_guard) {
-      bool snapshot_matches =
-          state_generation_ == snapshot_state_generation &&
-          last_wal_seq_ == snapshot_wal_seq &&
-          run_id_seq_ == snapshot_run_id_seq &&
-          runs_.size() == snapshot_runs.size();
-      for (size_t i = 0; snapshot_matches && i < runs_.size(); ++i) {
-        snapshot_matches = runs_[i].info.id == snapshot_runs[i].info.id &&
-                           runs_[i].info.file == snapshot_runs[i].info.file &&
-                           runs_[i].segment.get() ==
-                               snapshot_runs[i].segment.get();
+      bool snapshot_matches = true;
+      if (allow_concurrent_rebase) {
+        for (size_t i = 0; snapshot_matches && i < input_run_ids.size(); ++i) {
+          const auto current = std::find_if(
+              runs_.begin(), runs_.end(), [&](const Run& run) {
+                return run.info.id == input_run_ids[i] &&
+                       run.info.file == input_run_files[i] &&
+                       run.segment.get() == input_segments[i].get();
+              });
+          snapshot_matches = current != runs_.end();
+        }
+      } else {
+        snapshot_matches =
+            state_generation_ == snapshot_state_generation &&
+            last_wal_seq_ == snapshot_wal_seq &&
+            run_id_seq_ == snapshot_run_id_seq &&
+            runs_.size() == snapshot_runs.size();
+        for (size_t i = 0; snapshot_matches && i < runs_.size(); ++i) {
+          snapshot_matches = runs_[i].info.id == snapshot_runs[i].info.id &&
+                             runs_[i].info.file == snapshot_runs[i].info.file &&
+                             runs_[i].segment.get() ==
+                                 snapshot_runs[i].segment.get();
+        }
       }
       if (!snapshot_matches) {
         if (new_doc_count > 0) {
@@ -3587,8 +3750,19 @@ class Index::Impl {
       segment_bytes_written_ += new_run.info.file_size;
       bytes_written_ += new_run.info.file_size +
                         merge_stats.temporary_bytes_written;
-    } else if (state_guard) {
+    } else if (state_guard && !allow_concurrent_rebase) {
       run_id_seq_ = previous_run_id_seq;
+    }
+
+    if (allow_concurrent_rebase && new_doc_count > 0) {
+      uint64_t post_snapshot_dead_count = 0;
+      for (DocId id : tombstones_) {
+        if (id >= group_first && id <= group_last &&
+            snapshot_tombstones.count(id) == 0) {
+          ++post_snapshot_dead_count;
+        }
+      }
+      new_run.info.dead_count = post_snapshot_dead_count;
     }
 
     const char* fault = std::getenv("M4_FAULT");
@@ -3596,15 +3770,22 @@ class Index::Impl {
       return Status::Error("injected fault before manifest");
     }
 
+    const std::unordered_set<uint64_t> selected_run_ids(input_run_ids.begin(),
+                                                        input_run_ids.end());
     std::vector<std::string> removed_files;
-    for (size_t i : idx) removed_files.push_back(runs_[i].info.file);
+    for (const auto& run : runs_) {
+      if (selected_run_ids.count(run.info.id) != 0) {
+        removed_files.push_back(run.info.file);
+      }
+    }
 
-    // Replace the contiguous group with the new run.
+    // Replace exactly the captured inputs. Rebase mode may have concurrent
+    // writer-created runs after those inputs while the merge was unlocked.
     std::vector<Run> next;
-    next.reserve(runs_.size() - idx.size() + 1);
-    for (size_t i = 0; i < runs_.size(); ++i) {
-      if (std::binary_search(idx.begin(), idx.end(), i)) continue;
-      next.push_back(std::move(runs_[i]));
+    next.reserve(runs_.size() + 1);
+    for (auto& run : runs_) {
+      if (selected_run_ids.count(run.info.id) != 0) continue;
+      next.push_back(std::move(run));
     }
     if (!new_run.info.file.empty()) next.push_back(std::move(new_run));
     std::sort(next.begin(), next.end(), [](const Run& a, const Run& b) {
@@ -3613,17 +3794,29 @@ class Index::Impl {
     runs_ = std::move(next);
     ++state_generation_;
 
-    // Encode the post-compaction snapshot without cloning the full tombstone
-    // hash set. Keep the live set intact until the replacement manifest is
-    // durable, then erase the compacted range in place.
-    const std::string tb_file =
+    // Keep post-snapshot tombstones for docs in the compacted range: they
+    // describe writes that occurred after the merge input was captured.
+    std::string tb_file =
         "tombstones-" + std::to_string(last_wal_seq_) + "-" +
-        std::to_string(run_id_seq_) + ".bin";
-    s = AtomicWrite((fs::path(dir_) / tb_file).string(),
-                    EncodeTombstonesOutsideRange(tombstones_, group_first,
-                                                 group_last));
+        std::to_string(run_id_seq_);
+    if (allow_concurrent_rebase) {
+      // A concurrent FlushInternal may have just committed the current seq/run
+      // key. Do not overwrite the tombstone file referenced by that manifest
+      // before this replacement manifest is atomically published.
+      tb_file += "-rebase-" + std::to_string(new_run_id);
+    }
+    tb_file += ".bin";
+    const std::string encoded_tombstones =
+        allow_concurrent_rebase
+            ? EncodeTombstonesExcluding(tombstones_, snapshot_tombstones)
+            : EncodeTombstonesOutsideRange(tombstones_, group_first, group_last);
+    s = AtomicWrite((fs::path(dir_) / tb_file).string(), encoded_tombstones);
     if (!s.ok) return s;
     bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
+    if (allow_concurrent_rebase && fault &&
+        std::string(fault) == "after_compaction_tombstone") {
+      return Status::Error("injected fault after compaction tombstone snapshot");
+    }
 
     manifest_.next_doc_id = next_doc_id_;
     manifest_.wal_seq = last_wal_seq_;
@@ -3640,11 +3833,15 @@ class Index::Impl {
       return Status::Error("injected fault after manifest");
     }
 
-    for (auto it = tombstones_.begin(); it != tombstones_.end();) {
-      if (*it >= group_first && *it <= group_last) {
-        it = tombstones_.erase(it);
-      } else {
-        ++it;
+    if (allow_concurrent_rebase) {
+      for (DocId id : snapshot_tombstones) tombstones_.erase(id);
+    } else {
+      for (auto it = tombstones_.begin(); it != tombstones_.end();) {
+        if (*it >= group_first && *it <= group_last) {
+          it = tombstones_.erase(it);
+        } else {
+          ++it;
+        }
       }
     }
     ++compactions_;
@@ -4204,8 +4401,22 @@ Status Index::ApplyBatch(const std::vector<Mutation>& mutations) {
 }
 Status Index::Flush() { return impl_->Flush(); }
 Status Index::CompactNow() { return impl_->CompactNow(); }
+Status Index::CompactNow(CompactionDiagnostics* diagnostics) {
+  return impl_->CompactNow(diagnostics);
+}
 Status Index::CompactNowSnapshotPrototype() {
   return impl_->CompactNowSnapshotPrototype();
+}
+Status Index::CompactNowSnapshotPrototype(
+    CompactionDiagnostics* diagnostics) {
+  return impl_->CompactNowSnapshotPrototype(diagnostics);
+}
+Status Index::CompactNowSnapshotRebasePrototype() {
+  return impl_->CompactNowSnapshotRebasePrototype();
+}
+Status Index::CompactNowSnapshotRebasePrototype(
+    CompactionDiagnostics* diagnostics) {
+  return impl_->CompactNowSnapshotRebasePrototype(diagnostics);
 }
 Status Index::SearchFts(const std::string& query, uint32_t top_k,
                         SearchResult* out,

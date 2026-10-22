@@ -159,6 +159,8 @@ struct WriteDiagnostics {
   double normalize_cpu_ms{0.0};
   double state_mutex_wait_ms{0.0};
   double state_mutex_wait_cpu_ms{0.0};
+  double state_mutex_hold_ms{0.0};
+  double state_mutex_hold_cpu_ms{0.0};
   double wal_encode_ms{0.0};
   double wal_encode_cpu_ms{0.0};
   double wal_append_ms{0.0};
@@ -169,6 +171,31 @@ struct WriteDiagnostics {
   double apply_cpu_ms{0.0};
   double auto_flush_ms{0.0};
   double auto_flush_cpu_ms{0.0};
+};
+
+// Research-only compaction stage telemetry. Strictly opt-in.
+struct CompactionDiagnostics {
+  bool capture_timing{true};
+  double total_ms{0.0};
+  double total_cpu_ms{0.0};
+  double state_mutex_wait_ms{0.0};
+  double state_mutex_wait_cpu_ms{0.0};
+  double state_mutex_hold_ms{0.0};
+  double state_mutex_hold_cpu_ms{0.0};
+  double query_mutex_wait_ms{0.0};
+  double query_mutex_wait_cpu_ms{0.0};
+  double pending_flush_ms{0.0};
+  double pending_flush_cpu_ms{0.0};
+  double merge_prepare_ms{0.0};
+  double merge_prepare_cpu_ms{0.0};
+  double merge_build_ms{0.0};
+  double merge_build_cpu_ms{0.0};
+  double publish_state_mutex_wait_ms{0.0};
+  double publish_state_mutex_wait_cpu_ms{0.0};
+  double publish_query_mutex_wait_ms{0.0};
+  double publish_query_mutex_wait_cpu_ms{0.0};
+  double publication_ms{0.0};
+  double publication_cpu_ms{0.0};
 };
 
 // Research-only query telemetry. Strictly opt-in; null diagnostics must not
@@ -368,10 +395,17 @@ class Index {
   // Research/maintenance hook: merge all runs and drop tombstones. Cost is
   // O(live collection); used by tests and compaction benchmarks.
   Status CompactNow();
+  Status CompactNow(CompactionDiagnostics* diagnostics);
 
   // Explicit, non-production prototype: snapshot inputs, release the writer
   // state lock during the merge, then abort publication if the snapshot changed.
   Status CompactNowSnapshotPrototype();
+  Status CompactNowSnapshotPrototype(CompactionDiagnostics* diagnostics);
+
+  // Explicit research prototype: merge the captured runs while writers proceed,
+  // flush concurrent deltas before publication, and retain post-snapshot deletes.
+  Status CompactNowSnapshotRebasePrototype();
+  Status CompactNowSnapshotRebasePrototype(CompactionDiagnostics* diagnostics);
 
   // BM25 top-k. Query supports whitespace terms, uppercase AND/OR, and quoted
   // phrases. Default is OR with WAND.

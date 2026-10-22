@@ -1,0 +1,23 @@
+{
+  "cleanup_complete": true,
+  "detail": "ValueError: contention monitor cadence incomplete/nonmonotonic",
+  "failure_class": "UNKNOWN",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "reason": "required_telemetry_missing",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      3503936
+    ],
+    "term_pids": [
+      3503940
+    ]
+  },
+  "timestamp_utc": "2026-10-22T11:00:14.960354+00:00"
+}
