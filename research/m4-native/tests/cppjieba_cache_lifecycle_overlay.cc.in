@@ -85,6 +85,39 @@ int main() {
     Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
           "same-version reopen changed the retained cache generation count");
 
+    const size_t before_distinct_key_opens = cppjieba::DictTrie::CacheBuildCountForTesting();
+    std::vector<std::unique_ptr<cppjieba::DictTrie> > distinct_analyzers;
+    openers.clear();
+    failures.clear();
+    start.store(false, std::memory_order_relaxed);
+    for (const fs::path& path : {first_path, second_path}) {
+      openers.emplace_back([&, path] {
+        while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+        try {
+          std::unique_ptr<cppjieba::DictTrie> analyzer(new cppjieba::DictTrie(path.string()));
+          const bool first = path == first_path;
+          Check(analyzer->Find(first ? "alpha" : "beta") &&
+                    !analyzer->Find(first ? "beta" : "alpha"),
+                "concurrent distinct-key open returned aliased terms");
+          std::lock_guard<std::mutex> lock(analyzers_mutex);
+          distinct_analyzers.push_back(std::move(analyzer));
+        } catch (const std::exception& error) {
+          std::lock_guard<std::mutex> lock(failure_mutex);
+          failures.push_back(error.what());
+        }
+      });
+    }
+    start.store(true, std::memory_order_release);
+    for (auto& opener : openers) opener.join();
+    Check(failures.empty(), "concurrent distinct-key initialization failed");
+    Check(cppjieba::DictTrie::CacheBuildCountForTesting() == before_distinct_key_opens + 2,
+          "concurrent distinct-key opens did not build their own entries");
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 2,
+          "active distinct-key analyzers did not retain exactly their generations");
+    distinct_analyzers.clear();
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+          "distinct-key releases retained more than the most-recent generation");
+
     {
       std::unique_ptr<cppjieba::DictTrie> first(
           new cppjieba::DictTrie(first_path.string()));
