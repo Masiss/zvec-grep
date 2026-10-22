@@ -202,8 +202,12 @@ void PutU64(std::string* s, size_t off, uint64_t v) {
   std::memcpy(s->data() + off, &v, 8);
 }
 
+constexpr uint64_t kActiveIteratorBaselineBytes = 4096;
+constexpr uint64_t kActiveTermFixedBytes = 4096;
+
 uint64_t EstimateActiveTermBytes(size_t inputs, size_t term_len) {
-  return static_cast<uint64_t>(inputs) * 4096ull + 4096ull + term_len;
+  return static_cast<uint64_t>(inputs) * kActiveIteratorBaselineBytes +
+         kActiveTermFixedBytes + term_len;
 }
 uint64_t EstimateActiveValueBytes(size_t inputs) {
   return static_cast<uint64_t>(inputs) * 1024ull + 2048ull;
@@ -476,17 +480,89 @@ Status MergeSegmentsStreaming(const std::string& path,
     }
 
     std::vector<std::unique_ptr<SegmentTermIterator>> its;
+    std::vector<uint64_t> iterator_charges;
     its.reserve(group.size());
+    iterator_charges.reserve(group.size());
+    uint64_t iterator_extra_charge = 0;
+    auto account_iterator = [&](size_t i) -> Status {
+      const uint64_t usage = its[i]->memory_usage_bytes();
+      const uint64_t charge =
+          usage > kActiveIteratorBaselineBytes
+              ? usage - kActiveIteratorBaselineBytes
+              : 0;
+      if (charge > iterator_charges[i]) {
+        const uint64_t increase = charge - iterator_charges[i];
+        if (!mem.Add(increase)) {
+          if (error) *error = "compaction memory budget exceeded (fts input postings)";
+          return Status::Error("compaction memory budget exceeded");
+        }
+        iterator_charges[i] = charge;
+        iterator_extra_charge += increase;
+      }
+      return Status::OK();
+    };
     for (size_t input_idx : group) {
       const auto& terms = inputs[input_idx]->terms();
       its.emplace_back(std::make_unique<SegmentTermIterator>(
           inputs[input_idx], &terms[term_pos[input_idx]], true));
+      iterator_charges.push_back(0);
+      Status st = account_iterator(its.size() - 1);
+      if (!st.ok) return st;
     }
 
     const uint64_t payload_start = out.size() - fts_off;
+    const uint64_t posting_block_charge =
+        static_cast<uint64_t>(bs) * sizeof(StreamPosting);
+    if (!mem.Add(posting_block_charge)) {
+      if (error) *error = "compaction memory budget exceeded (fts postings)";
+      return Status::Error("compaction memory budget exceeded");
+    }
     std::vector<StreamPosting> block;
     block.reserve(bs);
+    uint64_t actual_posting_block_charge =
+        static_cast<uint64_t>(block.capacity()) * sizeof(StreamPosting);
+    if (actual_posting_block_charge > posting_block_charge &&
+        !mem.Add(actual_posting_block_charge - posting_block_charge)) {
+      if (error) *error = "compaction memory budget exceeded (fts postings)";
+      return Status::Error("compaction memory budget exceeded");
+    }
     std::vector<uint32_t> block_positions;
+    uint64_t block_positions_charge = 0;
+    auto ensure_positions_capacity = [&](size_t additional) -> Status {
+      if (additional > block_positions.max_size() - block_positions.size()) {
+        if (error) *error = "fts positions buffer size overflow";
+        return Status::Error("fts positions buffer size overflow");
+      }
+      const size_t required = block_positions.size() + additional;
+      if (required <= block_positions.capacity()) return Status::OK();
+      size_t target = required;
+      if (block_positions.capacity() <=
+          std::numeric_limits<size_t>::max() / 2) {
+        target = std::max(target, block_positions.capacity() * 2);
+      }
+      if (target > std::numeric_limits<uint64_t>::max() /
+                       sizeof(uint32_t)) {
+        if (error) *error = "fts positions buffer size overflow";
+        return Status::Error("fts positions buffer size overflow");
+      }
+      const uint64_t requested_charge =
+          static_cast<uint64_t>(target) * sizeof(uint32_t);
+      if (requested_charge < block_positions_charge ||
+          !mem.Add(requested_charge - block_positions_charge)) {
+        if (error) *error = "compaction memory budget exceeded (fts positions)";
+        return Status::Error("compaction memory budget exceeded");
+      }
+      block_positions.reserve(target);
+      const uint64_t actual_charge =
+          static_cast<uint64_t>(block_positions.capacity()) * sizeof(uint32_t);
+      if (actual_charge > requested_charge &&
+          !mem.Add(actual_charge - requested_charge)) {
+        if (error) *error = "compaction memory budget exceeded (fts positions)";
+        return Status::Error("compaction memory budget exceeded");
+      }
+      block_positions_charge = actual_charge;
+      return Status::OK();
+    };
     std::vector<FtsBlockMeta> metas;
     uint64_t df = 0;
     uint64_t local_payload = 0;
@@ -519,7 +595,8 @@ Status MergeSegmentsStreaming(const std::string& path,
       }
       if (min_doc == kNoDoc) break;
       bool emitted = false;
-      for (auto& it : its) {
+      for (size_t i = 0; i < its.size(); ++i) {
+        auto& it = its[i];
         if (!it->valid() || it->doc() != min_doc) continue;
         if (tombstones.count(min_doc) == 0 && !emitted) {
           StreamPosting p;
@@ -529,6 +606,9 @@ Status MergeSegmentsStreaming(const std::string& path,
           p.positions_offset = block_positions.size();
           const auto& source_positions = it->positions();
           p.positions_count = source_positions.size();
+          Status capacity_status =
+              ensure_positions_capacity(source_positions.size());
+          if (!capacity_status.ok) return capacity_status;
           block_positions.insert(block_positions.end(), source_positions.begin(),
                                  source_positions.end());
           block.push_back(p);
@@ -540,6 +620,8 @@ Status MergeSegmentsStreaming(const std::string& path,
           }
         }
         it->Next();
+        Status account_status = account_iterator(i);
+        if (!account_status.ok) return account_status;
       }
     }
     Status st = flush_block();
@@ -566,6 +648,9 @@ Status MergeSegmentsStreaming(const std::string& path,
       }
     }
     mem.Sub(static_cast<uint64_t>(metas.size()) * sizeof(FtsBlockMeta));
+    mem.Sub(block_positions_charge);
+    mem.Sub(actual_posting_block_charge);
+    mem.Sub(iterator_extra_charge);
     mem.Sub(active);
     for (size_t input_idx : group) ++term_pos[input_idx];
   }

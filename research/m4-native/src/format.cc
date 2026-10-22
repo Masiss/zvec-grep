@@ -760,6 +760,26 @@ SegmentTermIterator::SegmentTermIterator(const SegmentPtr& segment,
   valid_ = true;
 }
 
+uint64_t SegmentTermIterator::memory_usage_bytes() const {
+  uint64_t total = 0;
+  auto add_capacity = [&](size_t capacity, size_t element_size) {
+    if (capacity > (std::numeric_limits<uint64_t>::max() - total) /
+                       element_size) {
+      total = std::numeric_limits<uint64_t>::max();
+      return;
+    }
+    total += static_cast<uint64_t>(capacity) * element_size;
+  };
+  add_capacity(offsets_.capacity(), sizeof(uint32_t));
+  add_capacity(doc_ids_.capacity(), sizeof(DocId));
+  add_capacity(tfs_.capacity(), sizeof(uint32_t));
+  add_capacity(dls_.capacity(), sizeof(uint32_t));
+  add_capacity(pos_begin_.capacity(), sizeof(uint32_t));
+  add_capacity(positions_.capacity(), sizeof(uint32_t));
+  add_capacity(current_positions_.capacity(), sizeof(uint32_t));
+  return total;
+}
+
 bool SegmentTermIterator::LoadBlock(uint32_t block) {
   if (!segment_ || !term_ || block >= term_->block_count) return false;
   const FtsBlockMeta meta =

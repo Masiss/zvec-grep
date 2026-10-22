@@ -226,6 +226,7 @@ class SegmentTermIterator {
   const std::vector<uint32_t>& positions() const {
     return current_positions_;
   }
+  uint64_t memory_usage_bytes() const;  // Decoded vector capacities; excludes object size.
 
   bool Next();
   bool Advance(DocId target);

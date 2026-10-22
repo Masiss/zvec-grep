@@ -1524,6 +1524,39 @@ void TestCompactionBudget(const std::string& dir) {
 }
 
 
+void TestCompactionPositionBudget(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.compaction_memory_limit_bytes = (4ull << 20) + (16ull << 10);
+  std::unique_ptr<Index> index;
+  m4::Status s = Index::Open(dir, opt, &index);
+  Check(s.ok, "position budget open");
+  std::string text;
+  text.reserve(20'000 * 7);
+  for (size_t i = 0; i < 20'000; ++i) {
+    if (!text.empty()) text.push_back(' ');
+    text += "needle";
+  }
+  Document large;
+  large.text = std::move(text);
+  Check(index->Upsert("large", large).ok, "position budget large upsert");
+  Check(index->Flush().ok, "position budget flush large");
+  Document small;
+  small.text = "marker";
+  Check(index->Upsert("small", small).ok, "position budget small upsert");
+  Check(index->Flush().ok, "position budget flush small");
+
+  const uint64_t runs_before = index->GetStats().runs;
+  s = index->CompactNow();
+  Check(!s.ok && s.message.find("memory") != std::string::npos,
+        "position buffer is charged to the compaction memory budget");
+  Check(index->GetStats().runs == runs_before,
+        "position-budget abort leaves the old runs published");
+  m4::SearchResult result;
+  Check(index->SearchFts("needle", 2, &result).ok && result.hits.size() == 1,
+        "position-budget abort leaves old postings searchable");
+}
+
 void TestCompactionFaults(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -1847,6 +1880,7 @@ int main() {
   TestStatIndependentBounds(root + "/bounds");
   TestHybrid(root + "/hybrid");
   TestCompactionBudget(root + "/budget");
+  TestCompactionPositionBudget(root + "/position-budget");
   TestManifestFallback(root + "/manifest-fallback");
   TestCompactionFaults(root + "/faults");
   TestChurnOracle(root + "/churn");
