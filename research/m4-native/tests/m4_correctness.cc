@@ -1700,37 +1700,52 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
                                   std::chrono::seconds(5));
   Check(run_ready, "snapshot flush reaches the unlocked stream-merge barrier");
 
-  std::atomic<bool> writer_done{false};
-  m4::Status writer_status;
-  std::thread writer;
+  std::atomic<size_t> writers_done{0};
+  std::vector<m4::Status> writer_statuses(2);
+  std::vector<std::thread> writers;
   if (run_ready) {
-    writer = std::thread([&] {
-      Document gamma;
-      gamma.text = "gamma";
-      writer_status = index->Upsert("c", gamma);
-      if (writer_status.ok) writer_status = index->Flush();
-      writer_done.store(true);
-    });
+    for (size_t i = 0; i < writer_statuses.size(); ++i) {
+      writers.emplace_back([&, i] {
+        Document document;
+        document.text = i == 0 ? "gamma" : "delta";
+        writer_statuses[i] = index->Upsert(i == 0 ? "c" : "d", document);
+        writers_done.fetch_add(1);
+      });
+    }
     const auto writer_deadline = std::chrono::steady_clock::now() +
                                  std::chrono::seconds(2);
-    while (!writer_done.load() &&
+    while (writers_done.load() != writer_statuses.size() &&
            std::chrono::steady_clock::now() < writer_deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    Check(writer_done.load(),
-          "concurrent upsert and flush complete before snapshot publication");
-    if (writer_done.load()) {
-      Check(writer_status.ok, "snapshot concurrent flush succeeds");
+    const bool writers_finished_before_release =
+        writers_done.load() == writer_statuses.size();
+    Check(writers_finished_before_release,
+          "competing upserts complete before snapshot publication");
+    if (!writers_finished_before_release) {
+      // Always release the compactor before joining, so a regression that
+      // blocks writers cannot hang the test process.
+      std::ofstream release(barrier / "writer-finished", std::ios::binary);
+      release << "timeout\n";
+    }
+    for (auto& writer : writers) writer.join();
+    if (writers_done.load() == writer_statuses.size()) {
+      for (const auto& writer_status : writer_statuses) {
+        Check(writer_status.ok, "snapshot concurrent upsert succeeds");
+      }
+      const m4::Status flush_status = index->Flush();
+      Check(flush_status.ok, "concurrent upserts flush during snapshot build");
       m4::SearchResult result;
-      for (const auto* term : {"alpha", "beta", "gamma"}) {
+      for (const auto* term : {"alpha", "beta", "gamma", "delta"}) {
         Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
               std::string("concurrent flush query-visible term ") + term);
       }
     }
-    std::ofstream release(barrier / "writer-finished", std::ios::binary);
-    release << "done\n";
+    if (writers_finished_before_release) {
+      std::ofstream release(barrier / "writer-finished", std::ios::binary);
+      release << "done\n";
+    }
   }
-  if (writer.joinable()) writer.join();
   compactor.join();
   ::unsetenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
   Check(!compaction_status.ok &&
@@ -1743,7 +1758,7 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
             fs::exists(fs::path(dir) / "run-4.seg"),
         "stale output cleanup preserves the writer's reserved run ID");
   m4::SearchResult result;
-  for (const auto* term : {"alpha", "beta", "gamma"}) {
+  for (const auto* term : {"alpha", "beta", "gamma", "delta"}) {
     Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
           std::string("post-abort query-visible term ") + term);
   }
@@ -1754,7 +1769,7 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
         "snapshot concurrent flush reopen");
   Check(reopened->GetStats().runs == 3,
         "snapshot concurrent flush manifest survives reopen");
-  for (const auto* term : {"alpha", "beta", "gamma"}) {
+  for (const auto* term : {"alpha", "beta", "gamma", "delta"}) {
     Check(reopened->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
           std::string("snapshot concurrent flush reopen term ") + term);
   }

@@ -1,5 +1,5 @@
 {
-  "operation_id": "m4-lock-contention-microbench-20261022-045520-bdef2b",
-  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-20261022-045520-bdef2b",
-  "status": "PREFLIGHT_BLOCKED"
+  "operation_id": "m4-lock-contention-microbench-20261022-083121-12ec91",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-20261022-083121-12ec91",
+  "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY"
 }
