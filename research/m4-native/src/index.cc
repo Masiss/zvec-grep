@@ -36,6 +36,7 @@
 #include <set>
 #include <shared_mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_set>
 
@@ -2697,8 +2698,11 @@ class Index::Impl {
     // persisted. Their tombstones are dropped only after the segment build has
     // filtered them out; dropping them before the build would resurrect them.
     std::vector<DocId> never_persisted;
+    size_t live_doc_count = 0;
     for (const auto& d : delta_docs_) {
-      if (tombstones_.count(d.id) != 0 && FindRunForDoc(d.id) == nullptr) {
+      if (tombstones_.count(d.id) == 0) {
+        ++live_doc_count;
+      } else if (FindRunForDoc(d.id) == nullptr) {
         never_persisted.push_back(d.id);
       }
     }
@@ -2710,18 +2714,6 @@ class Index::Impl {
       build.run_id = run_id_seq_ + 1;
       build.level = 0;
       build.block_size = options_.block_size;
-
-      std::vector<DocId> live_ids;
-      live_ids.reserve(delta_docs_.size());
-      for (const auto& d : delta_docs_) {
-        if (tombstones_.count(d.id) == 0) live_ids.push_back(d.id);
-      }
-      std::sort(live_ids.begin(), live_ids.end());
-      std::unordered_map<DocId, uint32_t> doc_index;
-      doc_index.reserve(live_ids.size() * 2);
-      for (size_t i = 0; i < live_ids.size(); ++i) {
-        doc_index[live_ids[i]] = static_cast<uint32_t>(i);
-      }
 
       // Terms that still have at least one live posting.
       std::vector<std::string> terms;
@@ -2737,43 +2729,46 @@ class Index::Impl {
         if (any) terms.push_back(term);
       }
       std::sort(terms.begin(), terms.end());
-      std::unordered_map<std::string, uint32_t> term_id;
-      term_id.reserve(terms.size() * 2);
-      for (size_t i = 0; i < terms.size(); ++i) {
-        term_id[terms[i]] = static_cast<uint32_t>(i);
-      }
-
-      build.terms = terms;
-      build.postings.resize(terms.size());
-      for (const auto& term : terms) {
-        auto& dst = build.postings[term_id[term]];
-        for (const auto& p : delta_postings_.at(term)) {
-          if (tombstones_.count(p.doc) == 0) dst.push_back(p);
+      build.terms = std::move(terms);
+      build.postings.resize(build.terms.size());
+      {
+        // Borrow keys from the stable, sorted build.terms vector instead of
+        // allocating a second copy of every vocabulary string in the map.
+        std::unordered_map<std::string_view, uint32_t> term_id;
+        term_id.reserve(build.terms.size() * 2);
+        for (size_t i = 0; i < build.terms.size(); ++i) {
+          term_id.emplace(build.terms[i], static_cast<uint32_t>(i));
         }
-        std::sort(dst.begin(), dst.end(),
-                  [](const BuildPosting& a, const BuildPosting& b) {
-                    return a.doc < b.doc;
-                  });
-      }
 
-      std::unordered_map<DocId, const DeltaDoc*> doc_by_id;
-      for (const auto& d : delta_docs_) doc_by_id[d.id] = &d;
-      build.docs.reserve(live_ids.size());
-      for (DocId id : live_ids) {
-        const DeltaDoc* d = doc_by_id[id];
-        BuildDoc bd;
-        bd.id = id;
-        bd.dl = d->dl;
-        bd.pk = d->pk;
-        for (const auto& t : d->unique_terms) {
-          const auto it = term_id.find(t);
-          if (it != term_id.end()) bd.term_ids.push_back(it->second);
+        for (const auto& term : build.terms) {
+          const auto term_it = term_id.find(std::string_view(term));
+          auto& dst = build.postings[term_it->second];
+          for (const auto& p : delta_postings_.at(term)) {
+            if (tombstones_.count(p.doc) == 0) dst.push_back(p);
+          }
+          std::sort(dst.begin(), dst.end(),
+                    [](const BuildPosting& a, const BuildPosting& b) {
+                      return a.doc < b.doc;
+                    });
         }
-        std::sort(bd.term_ids.begin(), bd.term_ids.end());
-        bd.term_ids.erase(std::unique(bd.term_ids.begin(), bd.term_ids.end()),
-                          bd.term_ids.end());
-        build.total_tokens += bd.dl;
-        build.docs.push_back(std::move(bd));
+
+        build.docs.reserve(live_doc_count);
+        for (const auto& d : delta_docs_) {
+          if (tombstones_.count(d.id) != 0) continue;
+          BuildDoc bd;
+          bd.id = d.id;
+          bd.dl = d.dl;
+          bd.pk = d.pk;
+          for (const auto& t : d.unique_terms) {
+            const auto it = term_id.find(std::string_view(t));
+            if (it != term_id.end()) bd.term_ids.push_back(it->second);
+          }
+          std::sort(bd.term_ids.begin(), bd.term_ids.end());
+          bd.term_ids.erase(std::unique(bd.term_ids.begin(), bd.term_ids.end()),
+                            bd.term_ids.end());
+          build.total_tokens += bd.dl;
+          build.docs.push_back(std::move(bd));
+        }
       }
 
       for (const auto& [field, values] : delta_invert_) {
@@ -2786,7 +2781,7 @@ class Index::Impl {
             if (tombstones_.count(id) == 0) bv.docs.push_back(id);
           }
           if (!bv.docs.empty()) {
-            std::sort(bv.docs.begin(), bv.docs.end());
+            // WriteSegment sorts value doc IDs before encoding.
             bf.values.push_back(std::move(bv));
           }
         }
@@ -2801,7 +2796,7 @@ class Index::Impl {
         if (!s.ok) return Status::Error("write segment: " + err);
         new_run.info.id = run_id_seq_ + 1;
         new_run.info.level = 0;
-        new_run.info.doc_count = live_ids.size();
+        new_run.info.doc_count = live_doc_count;
         new_run.info.dead_count = 0;
         new_run.info.file = file;
         std::error_code ec;

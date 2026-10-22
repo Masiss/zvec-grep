@@ -1,0 +1,14 @@
+{
+  "controller_pid": 1795574,
+  "gate_failures": [
+    {
+      "attribution": "host capacity; cause not established",
+      "gate_id": "M4-CA-MEM-CAPACITY",
+      "observed_bytes": 2933616640,
+      "required_bytes": 3758096384
+    }
+  ],
+  "state": "preflight_blocked",
+  "timestamp_utc": "2026-10-22T04:55:20.788960+00:00",
+  "unit": null
+}
