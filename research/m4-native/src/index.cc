@@ -1856,6 +1856,18 @@ class Index::Impl {
     return MergeRuns(all, /*target_level=*/0, /*force=*/true, query_guard);
   }
 
+  Status CompactNowSnapshotPrototype() {
+    std::unique_lock<std::recursive_mutex> state_guard(mutex_);
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
+    Status s = pending_flush_ ? FlushInternal(query_guard) : Status::OK();
+    if (!s.ok) return s;
+    std::vector<size_t> all;
+    for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
+    if (all.empty()) return Status::OK();
+    return MergeRuns(all, /*target_level=*/0, /*force=*/true, query_guard,
+                     &state_guard);
+  }
+
   Status SearchFts(const std::string& query, uint32_t top_k, SearchResult* out,
                    QueryDiagnostics* diagnostics = nullptr) const {
     if (!diagnostics) {
@@ -2666,6 +2678,7 @@ class Index::Impl {
   Status DeleteInternal(DocId id, bool from_wal) {
     (void)from_wal;
     if (id == 0 || tombstones_.count(id) != 0) return Status::OK();
+    ++state_generation_;
     InvalidateFilterCache();
     const uint32_t dl = DocLen(id);
     const std::vector<std::string> terms = DocTerms(id);
@@ -2687,6 +2700,7 @@ class Index::Impl {
   }
 
   Status InsertInternal(DocId id, const std::string& pk, const Document& doc) {
+    ++state_generation_;
     InvalidateFilterCache();
     const auto tokens = analyzer_.Tokenize(doc.text);
     DeltaDoc d;
@@ -2908,6 +2922,7 @@ class Index::Impl {
       std::sort(runs_.begin(), runs_.end(), [](const Run& a, const Run& b) {
         return a.segment->first_doc_id() < b.segment->first_doc_id();
       });
+      ++state_generation_;
     }
 
     manifest_.next_doc_id = next_doc_id_;
@@ -2940,7 +2955,16 @@ class Index::Impl {
     if (options_.rebuild_on_flush) {
       std::vector<size_t> all;
       for (size_t i = 0; i < runs_.size(); ++i) all.push_back(i);
-      if (all.size() > 1) return MergeRuns(all, 0, true, query_guard);
+      if (all.size() > 1) {
+        std::unique_lock<std::mutex> compaction_probe(
+            compaction_build_mutex_, std::try_to_lock);
+        if (compaction_probe.owns_lock()) {
+          compaction_probe.unlock();
+          return MergeRuns(all, 0, true, query_guard);
+        }
+        // Defer this optional full rebuild while the snapshot prototype owns
+        // the build slot; do not turn an already-committed flush into an error.
+      }
     }
     return MaybeCompact(query_guard);
   }
@@ -3137,6 +3161,10 @@ class Index::Impl {
   }
 
   Status MaybeCompact(std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard) {
+    std::unique_lock<std::mutex> compaction_probe(compaction_build_mutex_,
+                                                  std::try_to_lock);
+    if (!compaction_probe.owns_lock()) return Status::OK();
+    compaction_probe.unlock();
     bool debt_merged = false;
     Status debt_status = MaybeDebtCompact(&debt_merged, query_guard);
     if (!debt_status.ok) return debt_status;
@@ -3248,15 +3276,31 @@ class Index::Impl {
     return Status::OK();
   }
 
-  Status MergeRuns(const std::vector<size_t>& indices, uint64_t target_level,
-                   bool force,
-                   std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard) {
+  Status MergeRuns(
+      const std::vector<size_t>& indices, uint64_t target_level, bool force,
+      std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard,
+      std::unique_lock<std::recursive_mutex>* state_guard = nullptr) {
     const double merge_start_ms = NowMs();
     if (indices.empty()) return Status::OK();
+    std::unique_lock<std::mutex> compaction_build_guard(
+        compaction_build_mutex_, std::try_to_lock);
+    if (!compaction_build_guard.owns_lock()) {
+      return Status::Error("another compaction build is active");
+    }
     std::vector<size_t> idx = indices;
     std::sort(idx.begin(), idx.end());
     idx.erase(std::unique(idx.begin(), idx.end()), idx.end());
     if (idx.empty()) return Status::OK();
+
+    if (state_guard && !state_guard->owns_lock()) {
+      return Status::Error("snapshot compaction requires the writer state lock");
+    }
+    if (state_guard && !query_guard.owns_lock()) {
+      return Status::Error("snapshot compaction requires exclusive query admission");
+    }
+    const uint64_t snapshot_state_generation = state_generation_;
+    const uint64_t snapshot_wal_seq = last_wal_seq_;
+    std::vector<Run> snapshot_runs;
 
     std::vector<Run*> group;
     uint64_t max_level = 0;
@@ -3276,7 +3320,55 @@ class Index::Impl {
       input_segments.push_back(run->segment);
     }
 
+    std::unordered_set<DocId> snapshot_tombstones;
+    const std::unordered_set<DocId>* merge_tombstones = &tombstones_;
+    uint64_t external_memory_charge_bytes = 0;
+    if (state_guard) {
+      const uint64_t limit = options_.compaction_memory_limit_bytes;
+      const uint64_t fixed_charge = kStreamMergeFixedIoBufferChargeBytes;
+      if (limit < fixed_charge ||
+          runs_.size() > (limit - fixed_charge) / sizeof(Run)) {
+        return Status::Error(
+            "compaction memory budget exceeded by snapshot state");
+      }
+      uint64_t run_snapshot_charge = sizeof(Run) * runs_.size();
+      for (const Run& run : runs_) {
+        const uint64_t file_charge = run.info.file.capacity() + 32;
+        if (file_charge > limit - fixed_charge - run_snapshot_charge) {
+          return Status::Error(
+              "compaction memory budget exceeded by snapshot state");
+        }
+        run_snapshot_charge += file_charge;
+      }
+      uint64_t tombstone_count = 0;
+      for (const SegmentPtr& segment : input_segments) {
+        for (const auto& doc : segment->docs()) {
+          if (tombstones_.count(doc.id) != 0) ++tombstone_count;
+        }
+      }
+      const uint64_t set_charge = sizeof(snapshot_tombstones);
+      if (limit - fixed_charge - run_snapshot_charge < set_charge ||
+          tombstone_count >
+              (limit - fixed_charge - run_snapshot_charge - set_charge) / 128) {
+        return Status::Error(
+            "compaction memory budget exceeded by snapshot state");
+      }
+      external_memory_charge_bytes =
+          run_snapshot_charge + set_charge + tombstone_count * 128;
+      snapshot_runs = runs_;
+      snapshot_tombstones.reserve(static_cast<size_t>(tombstone_count));
+      for (const SegmentPtr& segment : input_segments) {
+        for (const auto& doc : segment->docs()) {
+          if (tombstones_.count(doc.id) != 0) snapshot_tombstones.insert(doc.id);
+        }
+      }
+      merge_tombstones = &snapshot_tombstones;
+    }
+
+    const uint64_t previous_run_id_seq = run_id_seq_;
     const uint64_t new_run_id = run_id_seq_ + 1;
+    if (state_guard) run_id_seq_ = new_run_id;  // reserve while the state lock is held
+    const uint64_t snapshot_run_id_seq = run_id_seq_;
     const std::string file = RunFileName(new_run_id);
     StreamMergeOptions merge_options;
     merge_options.run_id = new_run_id;
@@ -3284,20 +3376,20 @@ class Index::Impl {
     merge_options.block_size = options_.block_size;
     merge_options.fts_field = options_.fts_field;
     merge_options.memory_limit_bytes = options_.compaction_memory_limit_bytes;
+    merge_options.external_memory_charge_bytes = external_memory_charge_bytes;
     StreamMergeStats merge_stats;
     std::string err;
     std::string build_error;
     Run new_run;
     uint64_t new_doc_count = 0;
 
-    // The state mutex keeps writers from changing runs/tombstones while the
-    // merge reads them; shared queries can continue against the old snapshot.
     if (!query_guard.owns_lock()) {
       return Status::Error("compaction requires exclusive query admission");
     }
     query_guard.unlock();
+    if (state_guard) state_guard->unlock();
     Status s = MergeSegmentsStreaming((fs::path(dir_) / file).string(),
-                                      input_segments, tombstones_,
+                                      input_segments, *merge_tombstones,
                                       merge_options, &merge_stats, &err);
     if (!s.ok) build_error = "compaction stream: " + err;
     if (s.ok) {
@@ -3356,18 +3448,52 @@ class Index::Impl {
         }
       }
     }
+    if (state_guard) state_guard->lock();
     query_guard.lock();
     if (!s.ok) {
       // No manifest was published; the old runs and tombstones stay active.
-      return Status::Error(build_error);
+      new_run.segment.reset();
+      std::error_code cleanup_ec;
+      fs::remove(fs::path(dir_) / file, cleanup_ec);
+      if (state_guard && run_id_seq_ == new_run_id)
+        run_id_seq_ = previous_run_id_seq;
+      return Status::Error(build_error.empty() ? s.message : build_error);
     }
     compaction_peak_bytes_ =
         std::max(compaction_peak_bytes_, merge_stats.tracked_peak_bytes);
+    if (state_guard) {
+      bool snapshot_matches =
+          state_generation_ == snapshot_state_generation &&
+          last_wal_seq_ == snapshot_wal_seq &&
+          run_id_seq_ == snapshot_run_id_seq &&
+          runs_.size() == snapshot_runs.size();
+      for (size_t i = 0; snapshot_matches && i < runs_.size(); ++i) {
+        snapshot_matches = runs_[i].info.id == snapshot_runs[i].info.id &&
+                           runs_[i].info.file == snapshot_runs[i].info.file &&
+                           runs_[i].segment.get() ==
+                               snapshot_runs[i].segment.get();
+      }
+      if (!snapshot_matches) {
+        if (new_doc_count > 0) {
+          segment_bytes_written_ += new_run.info.file_size;
+          bytes_written_ += new_run.info.file_size +
+                            merge_stats.temporary_bytes_written;
+        }
+        new_run.segment.reset();
+        std::error_code cleanup_ec;
+        fs::remove(fs::path(dir_) / file, cleanup_ec);
+        if (run_id_seq_ == new_run_id) run_id_seq_ = previous_run_id_seq;
+        return Status::Error(
+            "compaction snapshot superseded by concurrent state change");
+      }
+    }
     if (new_doc_count > 0) {
-      ++run_id_seq_;
+      if (!state_guard) ++run_id_seq_;
       segment_bytes_written_ += new_run.info.file_size;
       bytes_written_ += new_run.info.file_size +
                         merge_stats.temporary_bytes_written;
+    } else if (state_guard) {
+      run_id_seq_ = previous_run_id_seq;
     }
 
     const char* fault = std::getenv("M4_FAULT");
@@ -3390,6 +3516,7 @@ class Index::Impl {
       return a.segment->first_doc_id() < b.segment->first_doc_id();
     });
     runs_ = std::move(next);
+    ++state_generation_;
 
     // Encode the post-compaction snapshot without cloning the full tombstone
     // hash set. Keep the live set intact until the replacement manifest is
@@ -3896,6 +4023,8 @@ class Index::Impl {
   mutable detail::WriterPreferredSharedMutex query_mutex_;
   mutable std::recursive_mutex mutex_;
   mutable std::mutex filter_cache_mutex_;
+  uint64_t state_generation_{1};  // protected by mutex_; mutation/snapshot conflict detector
+  std::mutex compaction_build_mutex_;
   uint64_t filter_state_epoch_{1};
   mutable uint64_t filter_cache_epoch_{0};
   mutable bool filter_cache_valid_{false};
@@ -3965,6 +4094,9 @@ Status Index::ApplyBatch(const std::vector<Mutation>& mutations) {
 }
 Status Index::Flush() { return impl_->Flush(); }
 Status Index::CompactNow() { return impl_->CompactNow(); }
+Status Index::CompactNowSnapshotPrototype() {
+  return impl_->CompactNowSnapshotPrototype();
+}
 Status Index::SearchFts(const std::string& query, uint32_t top_k,
                         SearchResult* out,
                         QueryDiagnostics* diagnostics) const {

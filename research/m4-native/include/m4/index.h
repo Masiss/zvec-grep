@@ -347,6 +347,10 @@ class Index {
   // O(live collection); used by tests and compaction benchmarks.
   Status CompactNow();
 
+  // Explicit, non-production prototype: snapshot inputs, release the writer
+  // state lock during the merge, then abort publication if the snapshot changed.
+  Status CompactNowSnapshotPrototype();
+
   // BM25 top-k. Query supports whitespace terms, uppercase AND/OR, and quoted
   // phrases. Default is OR with WAND.
   Status SearchFts(const std::string& query, uint32_t top_k,

@@ -23,7 +23,9 @@
 #include <cerrno>
 #include <cstring>
 #include <cstdlib>
+#include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <set>
 #include <string>
@@ -31,6 +33,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <thread>
 
 #include "format.h"
 #include "util.h"
@@ -55,6 +58,42 @@ class TempPathGuard {
   std::string path_;
   bool released_{false};
 };
+
+Status WaitForSnapshotMergeTestBarrier(std::string* error) {
+  const char* barrier_dir =
+      std::getenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
+  if (!barrier_dir || !*barrier_dir) return Status::OK();
+  const fs::path barrier(barrier_dir);
+  std::error_code ec;
+  fs::create_directories(barrier, ec);
+  if (ec) {
+    if (error) *error = "create snapshot merge test barrier: " + ec.message();
+    return Status::Error("snapshot merge test barrier failed");
+  }
+  {
+    std::ofstream ready(barrier / "merge-read-ready", std::ios::binary);
+    if (!ready) {
+      if (error) *error = "write snapshot merge test barrier marker";
+      return Status::Error("snapshot merge test barrier failed");
+    }
+    ready << "ready\n";
+  }
+  const auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::seconds(5);
+  while (!fs::exists(barrier / "writer-finished", ec) &&
+         std::chrono::steady_clock::now() < deadline) {
+    if (ec) {
+      if (error) *error = "inspect snapshot merge test barrier: " + ec.message();
+      return Status::Error("snapshot merge test barrier failed");
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  if (!fs::exists(barrier / "writer-finished", ec)) {
+    if (error) *error = "snapshot merge test barrier timed out";
+    return Status::Error("snapshot merge test barrier timed out");
+  }
+  return Status::OK();
+}
 
 constexpr uint32_t kMagic = 0x4D345347;  // "M4SG"
 constexpr uint32_t kVersionV2 = 2;
@@ -399,10 +438,14 @@ Status MergeSegmentsStreaming(const std::string& path,
   const uint32_t bs = options.block_size == 0 ? 128 : options.block_size;
   MemoryTracker mem(options.memory_limit_bytes);
   *stats = StreamMergeStats{};
+  if (options.external_memory_charge_bytes != 0 &&
+      !mem.Add(options.external_memory_charge_bytes)) {
+    if (error) *error = "compaction snapshot memory budget exceeded";
+    return Status::Error("compaction memory budget exceeded");
+  }
   // One output buffer plus per-term active buffers. The dictionary is charged
   // as it grows.
-  constexpr uint64_t kIoBufferCharge = 4ull << 20;
-  if (!mem.Add(kIoBufferCharge)) {
+  if (!mem.Add(kStreamMergeFixedIoBufferChargeBytes)) {
     if (error) *error = "compaction IO buffer budget exceeded";
     return Status::Error("compaction memory budget exceeded");
   }
@@ -417,6 +460,7 @@ Status MergeSegmentsStreaming(const std::string& path,
   }
   if (live_docs == 0) {
     stats->output_docs = 0;
+    stats->tracked_peak_bytes = mem.peak();
     return Status::OK();
   }
 
@@ -453,6 +497,7 @@ Status MergeSegmentsStreaming(const std::string& path,
   std::vector<FtsDictEntry> fts_dict;
   std::vector<size_t> term_pos(inputs.size(), 0);
   uint64_t fts_block_cursor = 0;
+  bool snapshot_barrier_checked = false;
 
   while (true) {
     const std::string* min_term = nullptr;
@@ -653,6 +698,11 @@ Status MergeSegmentsStreaming(const std::string& path,
     mem.Sub(iterator_extra_charge);
     mem.Sub(active);
     for (size_t input_idx : group) ++term_pos[input_idx];
+    if (!snapshot_barrier_checked) {
+      snapshot_barrier_checked = true;
+      Status barrier_status = WaitForSnapshotMergeTestBarrier(error);
+      if (!barrier_status.ok) return barrier_status;
+    }
   }
 
   const uint64_t fts_dict_offset = out.size() - fts_off;
@@ -903,7 +953,11 @@ Status MergeSegmentsStreaming(const std::string& path,
   stats->temporary_bytes_written = 0;
   stats->tracked_peak_bytes = mem.peak();
   stats->dictionary_bytes =
-      mem.current() > kIoBufferCharge ? mem.current() - kIoBufferCharge : 0;
+      mem.current() > kStreamMergeFixedIoBufferChargeBytes +
+                           options.external_memory_charge_bytes
+          ? mem.current() - kStreamMergeFixedIoBufferChargeBytes -
+                options.external_memory_charge_bytes
+          : 0;
 
   s = out.Flush();
   if (!s.ok) return s;

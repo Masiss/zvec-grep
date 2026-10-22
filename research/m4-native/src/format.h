@@ -122,12 +122,16 @@ using SegmentPtr = std::shared_ptr<Segment>;
 Status WriteSegment(const std::string& path, SegmentBuild build,
                     std::string* error);
 
+constexpr uint64_t kStreamMergeFixedIoBufferChargeBytes = 4ull << 20;
+
 struct StreamMergeOptions {
   uint64_t run_id{0};
   uint64_t level{0};
   uint32_t block_size{128};
   std::string fts_field{"body"};
   uint64_t memory_limit_bytes{128ull << 20};
+  // Caller-owned immutable snapshots already allocated before this merge.
+  uint64_t external_memory_charge_bytes{0};
 };
 
 struct StreamMergeStats {

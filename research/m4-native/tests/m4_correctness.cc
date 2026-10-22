@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -25,6 +26,7 @@
 #include <unistd.h>
 
 #include "m4/index.h"
+#include "../src/format.h"
 #include "../src/tokenizer.h"
 
 namespace fs = std::filesystem;
@@ -1540,6 +1542,207 @@ void TestCompactionBudget(const std::string& dir) {
 }
 
 
+void TestSnapshotCompactionPrototype(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.max_delta_docs = 1000;
+  opt.tombstone_compact_ratio = 2.0;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, opt, &index).ok, "snapshot prototype open");
+
+  Document alpha;
+  alpha.text = "alpha";
+  Check(index->Upsert("a", alpha).ok, "snapshot prototype upsert alpha");
+  Check(index->Flush().ok, "snapshot prototype flush alpha");
+  Document beta;
+  beta.text = "beta";
+  Check(index->Upsert("b", beta).ok, "snapshot prototype upsert beta");
+  Check(index->Flush().ok, "snapshot prototype flush beta");
+  Check(index->GetStats().runs == 2, "snapshot prototype starts with two runs");
+
+  const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
+  fs::remove_all(barrier);
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+        "snapshot prototype set stream-merge barrier");
+  std::atomic<bool> compaction_done{false};
+  m4::Status compaction_status;
+  std::thread compactor([&] {
+    compaction_status = index->CompactNowSnapshotPrototype();
+    compaction_done.store(true);
+  });
+  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+                     std::chrono::seconds timeout) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::error_code ec;
+    while (!fs::exists(path, ec) && !done.load() &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return fs::exists(path, ec);
+  };
+  const bool run_ready = wait_for(barrier / "merge-read-ready", compaction_done,
+                                  std::chrono::seconds(5));
+  Check(run_ready,
+        "snapshot prototype pauses after reading an FTS term with state lock released");
+  if (run_ready) {
+    const m4::Status overlapping = index->CompactNowSnapshotPrototype();
+    Check(!overlapping.ok &&
+              overlapping.message.find("another compaction build is active") !=
+                  std::string::npos,
+          "snapshot prototype bounds compaction builds to one per index");
+  }
+
+  std::atomic<bool> writer_done{false};
+  m4::Status writer_status;
+  std::thread writer;
+  if (run_ready) {
+    writer = std::thread([&] {
+      writer_status = index->Delete("b");
+      writer_done.store(true);
+    });
+    const auto writer_deadline = std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(2);
+    while (!writer_done.load() &&
+           std::chrono::steady_clock::now() < writer_deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    Check(writer_done.load(),
+          "writer completes while snapshot compaction is building");
+    if (writer_done.load()) {
+      Check(writer_status.ok, "snapshot prototype concurrent delete succeeds");
+      m4::SearchResult result;
+      Check(index->SearchFts("alpha", 5, &result).ok &&
+                result.hits.size() == 1 && result.hits[0].pk == "a",
+            "unmodified input remains query-visible during snapshot build");
+      Check(index->SearchFts("beta", 5, &result).ok && result.hits.empty(),
+            "concurrent delete is query-visible before compaction publication");
+    }
+    std::ofstream release(barrier / "writer-finished", std::ios::binary);
+    release << "done\n";
+  }
+  if (writer.joinable()) writer.join();
+  compactor.join();
+  ::unsetenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
+  Check(!compaction_status.ok &&
+            compaction_status.message.find("superseded") != std::string::npos,
+        "concurrent mutation aborts stale snapshot publication");
+  Check(index->GetStats().runs == 2,
+        "aborted snapshot compaction preserves the current runs");
+  Check(!fs::exists(fs::path(dir) / "run-3.seg"),
+        "aborted snapshot output is removed");
+
+  Check(index->CompactNowSnapshotPrototype().ok,
+        "snapshot prototype commits when the state remains stable");
+  Check(index->GetStats().runs == 1,
+        "stable snapshot prototype publishes one merged run");
+  m4::SearchResult result;
+  Check(index->SearchFts("alpha", 5, &result).ok &&
+            result.hits.size() == 1 && result.hits[0].pk == "a",
+        "stable compaction preserves the remaining live document");
+  Check(index->SearchFts("beta", 5, &result).ok && result.hits.empty(),
+        "stable compaction preserves the concurrent deletion");
+
+  index.reset();
+  std::unique_ptr<Index> reopened;
+  Check(Index::Open(dir, opt, &reopened).ok,
+        "snapshot prototype reopen after commit");
+  Check(reopened->SearchFts("alpha", 5, &result).ok &&
+            result.hits.size() == 1 && result.hits[0].pk == "a",
+        "snapshot prototype live posting survives reopen");
+  Check(reopened->SearchFts("beta", 5, &result).ok && result.hits.empty(),
+        "snapshot prototype deletion survives reopen");
+}
+
+void TestSnapshotCompactionBudget(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.max_delta_docs = 1000;
+  opt.tombstone_compact_ratio = 2.0;
+  opt.compaction_memory_limit_bytes =
+      m4::kStreamMergeFixedIoBufferChargeBytes + (8ull << 10);
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, opt, &index).ok, "snapshot budget open");
+  for (int i = 0; i < 100; ++i) {
+    Document document;
+    document.text = "common";
+    Check(index->Upsert("k" + std::to_string(i), document).ok,
+          "snapshot budget upsert");
+  }
+  Check(index->Flush().ok, "snapshot budget initial flush");
+  for (int i = 0; i < 80; ++i) {
+    Check(index->Delete("k" + std::to_string(i)).ok,
+          "snapshot budget delete");
+  }
+
+  const m4::Status status = index->CompactNowSnapshotPrototype();
+  Check(!status.ok && status.message.find("memory budget") != std::string::npos,
+        "snapshot budget is rejected before compaction publication");
+  Check(index->GetStats().runs == 1 && index->GetStats().live_docs == 20,
+        "snapshot budget refusal preserves the run and live-doc state");
+  m4::SearchResult result;
+  Check(index->SearchFts("common", 100, &result).ok &&
+            result.hits.size() == 20,
+        "snapshot budget refusal leaves the index searchable");
+  Check(!fs::exists(fs::path(dir) / "run-2.seg"),
+        "snapshot budget refusal creates no output segment");
+}
+
+void TestSnapshotCompactionFaults(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options opt;
+  opt.tombstone_compact_ratio = 2.0;
+  std::unique_ptr<Index> index;
+  m4::Status status = Index::Open(dir, opt, &index);
+  Check(status.ok, "snapshot fault open");
+  if (!status.ok) return;
+  Document alpha;
+  alpha.text = "alpha";
+  Document beta;
+  beta.text = "beta";
+  Check(index->Upsert("a", alpha).ok, "snapshot fault upsert alpha");
+  Check(index->Flush().ok, "snapshot fault flush alpha");
+  Check(index->Upsert("b", beta).ok, "snapshot fault upsert beta");
+  Check(index->Flush().ok, "snapshot fault flush beta");
+
+  ::setenv("M4_FAULT", "before_manifest", 1);
+  status = index->CompactNowSnapshotPrototype();
+  ::unsetenv("M4_FAULT");
+  Check(!status.ok && status.message.find("before manifest") != std::string::npos,
+        "snapshot compaction pre-manifest fault is reported");
+  Check(index->GetStats().runs == 2,
+        "snapshot pre-manifest failure keeps old runs active");
+  m4::SearchResult result;
+  Check(index->SearchFts("alpha", 5, &result).ok && result.hits.size() == 1,
+        "snapshot pre-manifest failure keeps old postings searchable");
+  Check(fs::exists(fs::path(dir) / "run-3.seg"),
+        "snapshot pre-manifest failure leaves only an unreferenced output");
+
+  index.reset();
+  status = Index::Open(dir, opt, &index);
+  Check(status.ok, "snapshot reopen after pre-manifest fault");
+  if (!status.ok) return;
+  Check(index->GetStats().runs == 2,
+        "snapshot reopen after pre-manifest fault restores old manifest");
+  Check(!fs::exists(fs::path(dir) / "run-3.seg"),
+        "snapshot reopen garbage-collects the unreferenced output");
+
+  ::setenv("M4_FAULT", "after_manifest", 1);
+  status = index->CompactNowSnapshotPrototype();
+  ::unsetenv("M4_FAULT");
+  Check(!status.ok && status.message.find("after manifest") != std::string::npos,
+        "snapshot post-manifest fault is reported");
+  index.reset();
+  status = Index::Open(dir, opt, &index);
+  Check(status.ok, "snapshot reopen after post-manifest fault");
+  if (!status.ok) return;
+  Check(index->GetStats().runs == 1,
+        "snapshot post-manifest reopen keeps the published replacement");
+  Check(index->SearchFts("alpha", 5, &result).ok && result.hits.size() == 1,
+        "snapshot post-manifest reopen preserves alpha");
+  Check(index->SearchFts("beta", 5, &result).ok && result.hits.size() == 1,
+        "snapshot post-manifest reopen preserves beta");
+}
+
 void TestCompactionPositionBudget(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -1896,6 +2099,9 @@ int main() {
   TestStatIndependentBounds(root + "/bounds");
   TestHybrid(root + "/hybrid");
   TestCompactionBudget(root + "/budget");
+  TestSnapshotCompactionPrototype(root + "/snapshot-prototype");
+  TestSnapshotCompactionBudget(root + "/snapshot-budget");
+  TestSnapshotCompactionFaults(root + "/snapshot-faults");
   TestCompactionPositionBudget(root + "/position-budget");
   TestManifestFallback(root + "/manifest-fallback");
   TestCompactionFaults(root + "/faults");

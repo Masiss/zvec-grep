@@ -201,6 +201,32 @@ reader accepts both and dispatches on the header version, so existing runs do
 not need conversion. Measurements and A/B evidence are in
 `results/RESULTS.md`.
 
+### Snapshot compaction prototype (explicit opt-in, research only)
+
+`Index::CompactNowSnapshotPrototype()` is a separate experimental path; the
+ordinary `CompactNow()` and automatic compaction policy remain unchanged. It
+snapshots the immutable input runs and only the tombstones belonging to those
+runs, reserves an output run ID, then releases both the writer-state and query
+locks while the streaming merge runs. At publication it reacquires locks in
+writer-state-then-query order and validates the mutation generation, WAL
+sequence, run IDs/files, and segment identities. Any concurrent mutation or flush causes the new output to be discarded and
+an error returned; no compaction manifest is published, and the current state
+(including committed writer changes) remains authoritative. A competing
+compaction is rejected before its build begins.
+The method does not retry automatically, so sustained writes can repeatedly
+supersede compaction.
+
+The per-index build slot prevents simultaneous compaction builds. Automatic
+maintenance is deferred while the prototype owns that slot. The input-run
+metadata and group tombstone snapshot are charged conservatively against
+`compaction_memory_limit_bytes`; the charge is an estimate, not allocator-level
+accounting. Regression tests pause after an FTS term has been merged, apply a
+concurrent delete, verify the writer/read path progresses, and require stale
+publication to abort; they also cover stable publication/reopen, pre/post-
+manifest fault recovery, and early memory-budget refusal. This is correctness evidence only: no performance claim
+or production-readiness claim is supported, and the prototype is not used by
+default APIs.
+
 ### Query-time BM25 bound (no stale IDF)
 
 Each block stores its own `max_tf` and `min_dl`. At query time:
