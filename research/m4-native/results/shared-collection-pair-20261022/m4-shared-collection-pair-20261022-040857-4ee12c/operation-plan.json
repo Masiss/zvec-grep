@@ -1,0 +1,336 @@
+{
+  "benchmark_started": false,
+  "binary_path": "/home/masis/src/zvec-grep/research/m4-native/.work/build/m4-stage-trace-bridge-test/m4_bridge_integration",
+  "binary_sha256": "e735bff3add11af01b0a92b327b008d4e1bdc5a329b96acb7640f91eb144a8b7",
+  "dictionary_path": "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+  "dictionary_tree_sha256": "9c05e30b201663f0045db0cd9d810b831b7adba59055b1658353a1bd7ae5fa5c",
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "io_pressure_mode": "observational-only",
+  "operation_id": "m4-shared-collection-pair-20261022-040857-4ee12c",
+  "operator_host_context": {
+    "operator_affinity": "pid 1578804's current affinity list: 0-19",
+    "preexisting_m4_units": [],
+    "top_processes": [
+      "    PID    PPID COMMAND         %CPU   RSS COMMAND",
+      "1578804  662758 python3         90.9 50100 python3 research/m4-native/tools/run_shared_collection_pair.py",
+      "1577682 1577675 node-MainThread 68.0 696792 /home/masis/.local/share/fnm/node-versions/v26.8.2/installation/bin/node /home/masis/.local/share/fnm/node-versions/v26.8.2/installation/lib/node_modules/@tobilu/qmd/dist/cli/qmd.js embed",
+      "1578586 1578497 chromium        65.0 222616 /usr/lib/chromium/chromium --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --disable-updater-scheduler --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --no-sandbox --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --remote-debugging-pipe --no-startup-window --noerrdialogs --ozone-platform=headless --ozone-override-screen-size=800,600 --use-angle=swiftshader-webgl",
+      "1578675 1578594 chromium        37.5 151208 /usr/lib/chromium/chromium --type=renderer --top-chrome-webui --crashpad-handler-pid=1578588 --enable-crash-reporter=,Arch Linux --noerrdialogs --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --change-stack-guard-on-fork=enable --no-sandbox --disable-dev-shm-usage --disable-back-forward-cache --disable-background-timer-throttling --disable-breakpad --force-color-profile=srgb --remote-debugging-pipe --allow-pre-commit-input --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --ozone-platform=headless --disable-gpu-compositing --lang=en-US --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --launch-time-ticks=69553537905 --shared-files=v8_context_snapshot_data:100 --field-trial-handle=3,i,1152011403715609817,15874299866707527910,262144 --enable-features=CDPScreenshotNewSurface,SingleAxisScrollContainers --disable-features=AutoDeElevate,AvoidUnnecessaryBeforeUnloadCheckSync,BlockOriginHeaderModificationOnRedirect,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,OptimizationHints,PaintHolding,ThirdPartyStoragePartitioning,Translate,msEdgeUpdateLaunchServicesPreferredVersion,msForceBrowserSignIn --variations-seed-version --pseudonymization-salt-handle=7,i,13590141533753735365,3993169367131524470,4 --trace-process-track-uuid=3190708990997080739",
+      "1578497 1578493 node-MainThread 36.5 132476 node shot6.cjs",
+      "1578685 1578594 chromium        33.9 157292 /usr/lib/chromium/chromium --type=renderer --crashpad-handler-pid=1578588 --enable-crash-reporter=,Arch Linux --noerrdialogs --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --change-stack-guard-on-fork=enable --no-sandbox --disable-dev-shm-usage --disable-back-forward-cache --disable-background-timer-throttling --disable-breakpad --force-color-profile=srgb --remote-debugging-pipe --allow-pre-commit-input --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --ozone-platform=headless --disable-gpu-compositing --lang=en-US --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=6 --launch-time-ticks=69553566310 --shared-files=v8_context_snapshot_data:100 --field-trial-handle=3,i,1152011403715609817,15874299866707527910,262144 --enable-features=CDPScreenshotNewSurface,SingleAxisScrollContainers --disable-features=AutoDeElevate,AvoidUnnecessaryBeforeUnloadCheckSync,BlockOriginHeaderModificationOnRedirect,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,OptimizationHints,PaintHolding,ThirdPartyStoragePartitioning,Translate,msEdgeUpdateLaunchServicesPreferredVersion,msForceBrowserSignIn --variations-seed-version --pseudonymization-salt-handle=7,i,13590141533753735365,3993169367131524470,4 --trace-process-track-uuid=3190708991934122588",
+      " 662758  660234 pi              17.2 436116 pi",
+      "1578615 1578593 chromium        12.0 89324 /usr/lib/chromium/chromium --type=gpu-process --gpu-recent-crash-count=0 --no-sandbox --disable-dev-shm-usage --disable-breakpad --headless --ozone-platform=headless --use-angle=swiftshader-webgl --enable-unsafe-swiftshader --crashpad-handler-pid=1578588 --enable-crash-reporter=,Arch Linux --noerrdialogs --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --change-stack-guard-on-fork=enable --gpu-preferences=YAAAAAAAAAAgAAAEAAAAAAAAAAAAAGAASAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAMAAAAAQAAAAAAAAAAAAAACAAAAAAAAAAIAAAAAAAAAA== --shared-files --field-trial-handle=3,i,1152011403715609817,15874299866707527910,262144 --enable-features=CDPScreenshotNewSurface,SingleAxisScrollContainers --disable-features=AutoDeElevate,AvoidUnnecessaryBeforeUnloadCheckSync,BlockOriginHeaderModificationOnRedirect,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,OptimizationHints,PaintHolding,ThirdPartyStoragePartitioning,Translate,msEdgeUpdateLaunchServicesPreferredVersion,msForceBrowserSignIn --variations-seed-version --pseudonymization-salt-handle=7,i,13590141533753735365,3993169367131524470,4 --trace-process-track-uuid=3190708988185955192",
+      "1578635 1578586 chromium        10.6 80208 /usr/lib/chromium/chromium --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=none --no-sandbox --disable-dev-shm-usage --use-angle=swiftshader-webgl --mute-audio --crashpad-handler-pid=1578588 --enable-crash-reporter=,Arch Linux --noerrdialogs --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --change-stack-guard-on-fork=enable --shared-files=v8_context_snapshot_data:100 --field-trial-handle=3,i,1152011403715609817,15874299866707527910,262144 --enable-features=CDPScreenshotNewSurface,SingleAxisScrollContainers --disable-features=AutoDeElevate,AvoidUnnecessaryBeforeUnloadCheckSync,BlockOriginHeaderModificationOnRedirect,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,OptimizationHints,PaintHolding,ThirdPartyStoragePartitioning,Translate,msEdgeUpdateLaunchServicesPreferredVersion,msForceBrowserSignIn --variations-seed-version --pseudonymization-salt-handle=7,i,13590141533753735365,3993169367131524470,4 --trace-process-track-uuid=3190708989122997041",
+      "1185490  736640 pi              10.3 440260 pi",
+      " 718111  717134 opencode         9.5 227228 opencode",
+      " 608473    1855 zed-editor       7.0 216372 /usr/lib/zed/zed-editor zed-cli:///tmp/.tmpUcNeK1/socket",
+      " 609695  608962 claude           6.0 420480 claude --resume",
+      "1377844 1377841 opengrep-core    4.8 269204 opengrep-cli lsp --experimental",
+      "   2011    2006 Hyprland         3.6 29196 Hyprland --watchdog-fd 4",
+      "1578594 1578586 chromium         2.8 46832 /usr/lib/chromium/chromium --type=zygote --no-sandbox --headless --crashpad-handler-pid=1578588 --enable-crash-reporter=,Arch Linux --noerrdialogs --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --change-stack-guard-on-fork=enable --no-first-run --ozone-platform=headless --ozone-override-screen-size=800,600 --use-angle=swiftshader-webgl",
+      "1578593 1578586 chromium         2.1 47428 /usr/lib/chromium/chromium --type=zygote --no-zygote-sandbox --no-sandbox --headless --crashpad-handler-pid=1578588 --enable-crash-reporter=,Arch Linux --noerrdialogs --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --change-stack-guard-on-fork=enable --no-first-run --ozone-platform=headless --ozone-override-screen-size=800,600 --use-angle=swiftshader-webgl",
+      " 660203    2011 kitty            2.0 35408 kitty",
+      "1576049 1575813 btop             1.8  8948 btop",
+      "1578684 1578594 chromium         1.8 71752 /usr/lib/chromium/chromium --type=renderer --crashpad-handler-pid=1578588 --enable-crash-reporter=,Arch Linux --noerrdialogs --user-data-dir=/tmp/playwright_chromiumdev_profile-zAy2I9 --change-stack-guard-on-fork=enable --no-sandbox --disable-dev-shm-usage --disable-back-forward-cache --disable-background-timer-throttling --disable-breakpad --force-color-profile=srgb --remote-debugging-pipe --allow-pre-commit-input --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --ozone-platform=headless --disable-gpu-compositing --lang=en-US --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=7 --launch-time-ticks=69553564461 --shared-files=v8_context_snapshot_data:100 --field-trial-handle=3,i,1152011403715609817,15874299866707527910,262144 --enable-features=CDPScreenshotNewSurface,SingleAxisScrollContainers --disable-features=AutoDeElevate,AvoidUnnecessaryBeforeUnloadCheckSync,BlockOriginHeaderModificationOnRedirect,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,OptimizationHints,PaintHolding,ThirdPartyStoragePartitioning,Translate,msEdgeUpdateLaunchServicesPreferredVersion,msForceBrowserSignIn --variations-seed-version --pseudonymization-salt-handle=7,i,13590141533753735365,3993169367131524470,4 --trace-process-track-uuid=3190708992871164437",
+      "   2200    1855 eww              1.4 32388 /home/masis/.local/bin/eww --force-wayland -c /home/masis/.config/eww daemon",
+      " 531173    1855 opencode         0.9 306268 /home/masis/.opencode/bin/opencode serve --service",
+      "    175       2 kswapd0          0.7     0 [kswapd0]"
+    ],
+    "unit_list_raw": ""
+  },
+  "policy_sha256": "7d2a5940f13e062e9c6ce330039bc47e32dc53395a23dcbe607f2132b6ccf240",
+  "preflight_decision": {
+    "approval_reference": "Current explicit owner M4 mission: agent may design and run bounded exploratory benchmark iterations without per-milestone approval, inside existing hard limits.",
+    "blocking_failures": [
+      {
+        "attribution": "host capacity; cause not established",
+        "gate_id": "M4-CA-MEM-CAPACITY",
+        "observed_bytes": 3794853888,
+        "required_bytes": 4294967296
+      }
+    ],
+    "continuation_allowed": false,
+    "continuation_reason": "approved workload capacity and containment plan, not an idle-envelope waiver or safety certification",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "historical_gate_decisions": [
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-MEM",
+        "metric": "MemAvailable",
+        "observed": 3705912,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 5477762,
+        "threshold_key": "MemAvailable_kib_min",
+        "unit": "KiB"
+      },
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-DISK",
+        "metric": "resource-root available bytes",
+        "observed": 81825763328,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 18219000000,
+        "threshold_key": "var_tmp_bytes_min",
+        "unit": "bytes"
+      },
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-IOPSI",
+        "metric": "host I/O PSI full avg10",
+        "observed": 2.66,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "selected_mode_disposition": "record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 4.46,
+        "threshold_key": "io_full_avg10_max",
+        "unit": "percent"
+      },
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-LOAD",
+        "metric": "host load-1",
+        "observed": 2.0,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 3.14,
+        "threshold_key": "load1_max",
+        "unit": "load average"
+      }
+    ],
+    "historical_guard_failures": [
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-MEM",
+        "metric": "MemAvailable",
+        "observed": 3705912,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 5477762,
+        "threshold_key": "MemAvailable_kib_min",
+        "unit": "KiB"
+      }
+    ],
+    "host_io_pressure_observation": {
+      "disposition": "observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate",
+      "full_avg10_percent": 2.66,
+      "full_avg300_percent": 1.12,
+      "full_avg60_percent": 1.37,
+      "some_avg10_percent": 2.71
+    },
+    "mode": "contention-aware",
+    "monotonic_ns": 69554691909083,
+    "operation_id": "m4-shared-collection-pair-20261022-040857-4ee12c",
+    "phase": "pair-first",
+    "timestamp_utc": "2026-10-22T04:08:57.940960+00:00"
+  },
+  "randomized_arm_order": [
+    "immutable-shard",
+    "shared-collection"
+  ],
+  "resource_controls": {
+    "cpu_max": "200000 100000",
+    "disk_reserve_bytes": 18219000000,
+    "host_memory_reserve_bytes": 3221225472,
+    "max_monitor_gap_seconds": 2,
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 128,
+    "runtime_limit_seconds": 180,
+    "workspace_max_allocated_bytes": 268435456,
+    "workspace_max_apparent_bytes": 536870912
+  },
+  "schema_version": 1,
+  "start_host_snapshot": {
+    "cpu_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 507074394.0
+      }
+    },
+    "diskstats": {
+      "dm-0": {
+        "io_in_progress": 0,
+        "io_ms": 3204884,
+        "major": 253,
+        "minor": 0,
+        "read_ms": 10016810,
+        "reads_completed": 18205671,
+        "sectors_read": 1899902880,
+        "sectors_written": 520236336,
+        "weighted_io_ms": 447970401,
+        "write_ms": 437953591,
+        "writes_completed": 9580433
+      },
+      "nvme0n1": {
+        "io_in_progress": 0,
+        "io_ms": 4479034,
+        "major": 259,
+        "minor": 0,
+        "read_ms": 8876466,
+        "reads_completed": 35536483,
+        "sectors_read": 2140632041,
+        "sectors_written": 850189090,
+        "weighted_io_ms": 283566581,
+        "write_ms": 274368201,
+        "writes_completed": 16791376
+      },
+      "nvme0n1p1": {
+        "io_in_progress": 0,
+        "io_ms": 52,
+        "major": 259,
+        "minor": 1,
+        "read_ms": 298,
+        "reads_completed": 773,
+        "sectors_read": 14192,
+        "sectors_written": 10,
+        "weighted_io_ms": 299,
+        "write_ms": 1,
+        "writes_completed": 12
+      },
+      "nvme0n1p2": {
+        "io_in_progress": 0,
+        "io_ms": 2130607,
+        "major": 259,
+        "minor": 2,
+        "read_ms": 4001346,
+        "reads_completed": 21562690,
+        "sectors_read": 240710880,
+        "sectors_written": 329952744,
+        "weighted_io_ms": 230201008,
+        "write_ms": 226199661,
+        "writes_completed": 8719354
+      },
+      "nvme0n1p3": {
+        "io_in_progress": 0,
+        "io_ms": 2648424,
+        "major": 259,
+        "minor": 3,
+        "read_ms": 4874812,
+        "reads_completed": 13972918,
+        "sectors_read": 1899903889,
+        "sectors_written": 520236336,
+        "weighted_io_ms": 53043351,
+        "write_ms": 48168539,
+        "writes_completed": 8072007
+      },
+      "zram0": {
+        "io_in_progress": 0,
+        "io_ms": 555359,
+        "major": 252,
+        "minor": 0,
+        "read_ms": 127383,
+        "reads_completed": 11384851,
+        "sectors_read": 91081056,
+        "sectors_written": 157164432,
+        "weighted_io_ms": 759535,
+        "write_ms": 632152,
+        "writes_completed": 19082093
+      }
+    },
+    "io_pressure": {
+      "full": {
+        "avg10": 2.66,
+        "avg300": 1.12,
+        "avg60": 1.37,
+        "total": 1581782594.0
+      },
+      "some": {
+        "avg10": 2.71,
+        "avg300": 1.31,
+        "avg60": 1.53,
+        "total": 1770140133.0
+      }
+    },
+    "loadavg": [
+      2.0,
+      1.8,
+      2.21
+    ],
+    "meminfo_kib": {
+      "MemAvailable_kib": 3705912,
+      "MemTotal_kib": 16051136,
+      "SwapFree_kib": 15913108,
+      "SwapTotal_kib": 24802296
+    },
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 254728924.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 268446510.0
+      }
+    },
+    "monotonic_ns": 69554691909083,
+    "resource_root_free_bytes": 81825763328,
+    "timestamp_utc": "2026-10-22T04:08:57.940960+00:00",
+    "vmstat": {
+      "allocstall_device": 3,
+      "allocstall_dma": 0,
+      "allocstall_dma32": 0,
+      "allocstall_movable": 448893,
+      "allocstall_normal": 108999,
+      "oom_kill": 7,
+      "pgscan_direct": 69226632,
+      "pgsteal_direct": 34337638,
+      "pswpin_pages": 41473068,
+      "pswpout_pages": 60889646
+    }
+  },
+  "status": "PREFLIGHT_BLOCKED",
+  "workload": {
+    "baseline_mode": "--incremental-fts-sustained-no-analyzer-cache",
+    "candidate_mode": "--shared-collection-performance",
+    "documents": 500,
+    "durability": "M4 fsync_wal plus native collection flush",
+    "m4_analyzer_cache": "disabled; fingerprint verification remains strict",
+    "queries_per_reader_per_round": 1,
+    "readers": 4,
+    "rounds": 5
+  }
+}

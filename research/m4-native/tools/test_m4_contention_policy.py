@@ -331,6 +331,75 @@ class ContentionPolicyTests(unittest.TestCase):
         ctx.update(contract["resource_controls"])
         return ctx
 
+    def lock_contention_microbench_context(self) -> dict[str, Any]:
+        contract = ct.BENCHMARK_POLICY["lock_contention_microbench"]
+        binary_path = self.root / contract["binary_name"]
+        binary_path.write_bytes(b"synthetic pinned binary; never launched")
+        dictionary_path = self.root / "microbench-jieba-dict"
+        dictionary_path.mkdir()
+        (dictionary_path / "dict.txt").write_text("synthetic dictionary fixture\\n")
+        binary_sha = hashlib.sha256(binary_path.read_bytes()).hexdigest()
+        dictionary_sha = ct.directory_sha256(dictionary_path)
+        operation_id = "m4-lock-contention-microbench-test"
+        ctx: dict[str, Any] = {
+            "schema_version": 1, "mode": ct.CONTENTION_MODE,
+            "approval_status": "approved",
+            "approval_reference": contract["approval_reference"],
+            "execution_authorization_reference": contract["execution_authorization_reference"],
+            "risk_acceptance_reference": contract["risk_acceptance_reference"],
+            "resource_basis": "synthetic policy test only",
+            "policy_sha256": hashlib.sha256(ct.POLICY_PATH.read_bytes()).hexdigest(),
+            "operation_id": operation_id,
+            "operation_root": str((self.root / operation_id).resolve()),
+            "resource_root": contract["resource_root"],
+            "purpose": contract["purpose"],
+            "binary_path": str(binary_path.resolve()),
+            "binary_sha256": binary_sha, "approved_binary_sha256": binary_sha,
+            "dictionary_path": str(dictionary_path.resolve()),
+            "dictionary_tree_sha256": dictionary_sha,
+            "approved_dictionary_tree_sha256": dictionary_sha,
+            "workload": contract["workload"], "arm_role": "microbench",
+            "io_pressure_mode": contract["io_pressure_mode"],
+        }
+        ctx.update(contract["resource_controls"])
+        return ctx
+
+    def test_lock_microbench_uses_lower_workload_reservation_not_a_gate_bypass(self):
+        ctx = self.lock_contention_microbench_context()
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        current = state()
+        current["meminfo_kib"]["MemAvailable_kib"] = int(3.5 * 1024**2)
+        current["resource_root_free_bytes"] = 32 * 1024**3
+        current["io_pressure"]["full"]["avg10"] = 4.48
+        current["loadavg"] = [12.0]
+        decision = ct.contention_decision(current, ctx, "microbench")
+        self.assertTrue(decision["continuation_allowed"])
+        self.assertEqual(decision["host_io_pressure_observation"]["disposition"],
+                         "observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate")
+        historical_mem = next(g for g in decision["historical_guard_failures"] if g["gate_id"] == "M4-RG-MEM")
+        self.assertEqual(historical_mem["status"], "FAIL")
+        capacity_gate = ct.contention_decision(current, ctx, "microbench")
+        self.assertEqual(capacity_gate["blocking_failures"], [])
+        self.assertEqual(ctx["host_memory_reserve_bytes"] + ctx["memory_max_bytes"],
+                         3_758_096_384)
+        current["meminfo_kib"]["MemAvailable_kib"] = (3 * 1024**3 + 512 * 1024**2 - 1024) // 1024
+        denied = ct.contention_decision(current, ctx, "microbench")
+        self.assertFalse(denied["continuation_allowed"])
+        self.assertEqual(denied["blocking_failures"][0]["gate_id"], "M4-CA-MEM-CAPACITY")
+
+    def test_lock_microbench_rejects_pair_sized_command_binding(self):
+        ctx = self.lock_contention_microbench_context()
+        workspace = self.root / "microbench-workspace"
+        workspace.mkdir()
+        wrong_command = [ctx["binary_path"], str(workspace / "root"), ctx["dictionary_path"],
+                         "--shared-collection-performance", "500", "5"]
+        with self.assertRaisesRegex(ValueError, "binding mismatch"):
+            ct.run_arm(wrong_command,
+                       pathlib.Path(ctx["operation_root"]) / "microbench/containment",
+                       pathlib.Path(ctx["resource_root"]), workspace, workspace,
+                       ctx["runtime_limit_seconds"], budget=ct.contention_budget(ctx),
+                       policy_context=ctx)
+
     def test_shared_collection_pair_binds_approved_workload_and_input_identities(self):
         ctx = self.shared_collection_pair_context()
         self.assertEqual(ct.validate_contention_context(ctx), ctx)
@@ -525,6 +594,8 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(ct.watchdog_phase("pair-first", True), "runtime-first")
         self.assertEqual(ct.watchdog_phase("pair-second", False), "pair-second")
         self.assertEqual(ct.watchdog_phase("pair-second", True), "runtime-second")
+        self.assertEqual(ct.watchdog_phase("microbench", False), "microbench")
+        self.assertEqual(ct.watchdog_phase("microbench", True), "runtime-first")
         with self.assertRaises(ValueError):
             ct.watchdog_phase("unknown", True)
 
@@ -542,6 +613,25 @@ class ContentionPolicyTests(unittest.TestCase):
             path.write_text(json.dumps(config))
             self.assertEqual(ct.read_watchdog_config(path)["arm_name"], arm_name)
         config["arm_name"] = "aa-first"
+        path.write_text(json.dumps(config))
+        with self.assertRaisesRegex(ValueError, "binding mismatch"):
+            ct.read_watchdog_config(path)
+
+    def test_microbench_watchdog_accepts_only_its_single_arm_binding(self):
+        ctx = self.lock_contention_microbench_context()
+        base = self.watchdog_config()
+        output = pathlib.Path(ctx["operation_root"]) / "microbench/containment"
+        output.mkdir(parents=True, exist_ok=True)
+        config = dict(base, policy_context=ctx,
+                      policy_context_digest=ct.contention_context_digest(ctx),
+                      arm_name="microbench", watchdog_output=str(output),
+                      resource_root=ctx["resource_root"],
+                      runtime_limit_seconds=ctx["runtime_limit_seconds"],
+                      budget=ct.contention_budget(ctx))
+        path = self.root / "microbench-watchdog.json"
+        path.write_text(json.dumps(config))
+        self.assertEqual(ct.read_watchdog_config(path)["arm_name"], "microbench")
+        config["arm_name"] = "pair-first"
         path.write_text(json.dumps(config))
         with self.assertRaisesRegex(ValueError, "binding mismatch"):
             ct.read_watchdog_config(path)

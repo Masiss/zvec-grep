@@ -1,0 +1,150 @@
+{
+  "cpu_pressure": {
+    "full": {
+      "avg10": 0.0,
+      "avg300": 0.0,
+      "avg60": 0.0,
+      "total": 0.0
+    },
+    "some": {
+      "avg10": 0.0,
+      "avg300": 0.0,
+      "avg60": 0.0,
+      "total": 510233828.0
+    }
+  },
+  "diskstats": {
+    "dm-0": {
+      "io_in_progress": 0,
+      "io_ms": 3230605,
+      "major": 253,
+      "minor": 0,
+      "read_ms": 10078145,
+      "reads_completed": 18330491,
+      "sectors_read": 1911004336,
+      "sectors_written": 523522472,
+      "weighted_io_ms": 448220367,
+      "write_ms": 438142222,
+      "writes_completed": 9649701
+    },
+    "nvme0n1": {
+      "io_in_progress": 0,
+      "io_ms": 4512514,
+      "major": 259,
+      "minor": 0,
+      "read_ms": 8925348,
+      "reads_completed": 35696916,
+      "sectors_read": 2152476771,
+      "sectors_written": 853862810,
+      "weighted_io_ms": 285598694,
+      "write_ms": 276348270,
+      "writes_completed": 16878811
+    },
+    "nvme0n1p1": {
+      "io_in_progress": 0,
+      "io_ms": 54,
+      "major": 259,
+      "minor": 1,
+      "read_ms": 308,
+      "reads_completed": 829,
+      "sectors_read": 15466,
+      "sectors_written": 10,
+      "weighted_io_ms": 309,
+      "write_ms": 1,
+      "writes_completed": 12
+    },
+    "nvme0n1p2": {
+      "io_in_progress": 0,
+      "io_ms": 2142258,
+      "major": 259,
+      "minor": 2,
+      "read_ms": 4013296,
+      "reads_completed": 21622094,
+      "sectors_read": 241452840,
+      "sectors_written": 330340328,
+      "weighted_io_ms": 232121965,
+      "write_ms": 228108668,
+      "writes_completed": 8748130
+    },
+    "nvme0n1p3": {
+      "io_in_progress": 0,
+      "io_ms": 2670556,
+      "major": 259,
+      "minor": 3,
+      "read_ms": 4911733,
+      "reads_completed": 14073889,
+      "sectors_read": 1911005345,
+      "sectors_written": 523522472,
+      "weighted_io_ms": 53151334,
+      "write_ms": 48239600,
+      "writes_completed": 8130666
+    },
+    "zram0": {
+      "io_in_progress": 0,
+      "io_ms": 561515,
+      "major": 252,
+      "minor": 0,
+      "read_ms": 128513,
+      "reads_completed": 11511964,
+      "sectors_read": 92097960,
+      "sectors_written": 158378336,
+      "weighted_io_ms": 766668,
+      "write_ms": 638155,
+      "writes_completed": 19233301
+    }
+  },
+  "io_pressure": {
+    "full": {
+      "avg10": 2.58,
+      "avg300": 1.28,
+      "avg60": 1.9,
+      "total": 1594308023.0
+    },
+    "some": {
+      "avg10": 2.85,
+      "avg300": 1.5,
+      "avg60": 2.13,
+      "total": 1784326261.0
+    }
+  },
+  "loadavg": [
+    2.12,
+    2.17,
+    2.24
+  ],
+  "meminfo_kib": {
+    "MemAvailable_kib": 5003332,
+    "MemTotal_kib": 16051136,
+    "SwapFree_kib": 15962044,
+    "SwapTotal_kib": 24802296
+  },
+  "memory_pressure": {
+    "full": {
+      "avg10": 0.0,
+      "avg300": 0.0,
+      "avg60": 0.0,
+      "total": 255952616.0
+    },
+    "some": {
+      "avg10": 0.0,
+      "avg300": 0.0,
+      "avg60": 0.0,
+      "total": 269691517.0
+    }
+  },
+  "monotonic_ns": 70263893178725,
+  "resource_root_free_bytes": 81810968576,
+  "timestamp_utc": "2026-10-22T04:20:47.142257+00:00",
+  "vmstat": {
+    "allocstall_device": 3,
+    "allocstall_dma": 0,
+    "allocstall_dma32": 0,
+    "allocstall_movable": 450712,
+    "allocstall_normal": 110199,
+    "oom_kill": 7,
+    "pgscan_direct": 69525060,
+    "pgsteal_direct": 34525823,
+    "pswpin_pages": 41692926,
+    "pswpout_pages": 61089832
+  }
+}

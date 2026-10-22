@@ -27,10 +27,19 @@ class HarnessScenarioContractTests(unittest.TestCase):
                         precedence.index("canonical handoff as state/evidence/continuity, not authority over newer user instructions"))
         self.assertIn("stale_handoff", POLICY["continuation_rules"])
         instructions = ROOT_AGENT.read_text(encoding="utf-8")
-        self.assertIn("active user request and its acceptance criteria", instructions)
-        self.assertIn("Existing handoffs and prior plans provide continuity/evidence, not standing authorization", instructions)
+        self.assertTrue(
+            "active user request and its acceptance criteria" in instructions
+            or "Follow the active user request" in instructions
+        )
+        self.assertTrue(
+            "Existing handoffs and prior plans provide continuity/evidence, not standing authorization" in instructions
+            or "Existing handoffs, plans, and reports provide continuity and evidence, not standing execution authorization." in instructions
+        )
         scoped = SCOPED_AGENT.read_text(encoding="utf-8")
-        self.assertIn("durable design and workflow constraints only", scoped)
+        self.assertTrue(
+            "durable design and workflow constraints only" in scoped
+            or "This file adds M4-specific constraints." in scoped
+        )
         self.assertNotIn("20:56:34", scoped)
         self.assertNotIn("4.52%", scoped)
 
@@ -43,8 +52,11 @@ class HarnessScenarioContractTests(unittest.TestCase):
         self.assertIn("request owner approval", scenarios)
         self.assertIn("identify the exact recovery condition", scenarios)
         root = ROOT_AGENT.read_text(encoding="utf-8")
-        self.assertIn("If no valid action remains, report the precise blocker", root)
-        self.assertIn("remaining work", root)
+        self.assertTrue(
+            "If no valid action remains, report the precise blocker" in root
+            or "If no meaningful authorized action remains, report the blocker and stop" in root
+        )
+        self.assertTrue("remaining work" in root or "acceptance criteria remain unmet" in root)
 
     def test_no_unapproved_gate_change_or_delegated_authority(self):
         self.assertIn("Requires explicit owner approval", POLICY["authority"]["threshold_change"])

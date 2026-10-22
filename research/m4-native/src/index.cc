@@ -1640,8 +1640,10 @@ class Index::Impl {
   }
 
   Status Upsert(const std::string& pk, const Document& doc) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    // Array normalization is pure input preparation. Do it before acquiring
+    // the writer-state mutex so competing writers do not queue behind it.
     const Document normalized = NormalizeDocument(doc);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     const uint64_t old_id = LookupPk(pk);
     // Keep the high-water mark stable for shared readers until InsertInternal
     // advances it under exclusive query admission; writers are state-serialized.

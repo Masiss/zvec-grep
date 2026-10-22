@@ -130,6 +130,40 @@
     "measurement_semantics": "Compare five writer-cycle samples and twenty concurrent-reader samples per arm descriptively; nearest-rank p95 at n=5 is the maximum and is not a stable-tail estimate. Record initial/per-cycle native and M4 opens, M4 apply/flush, native upsert/flush, GC/compaction/checkpoint, process CPU/I/O, cgroup peaks/events, retained bytes, post-arm snapshot coherence, and host I/O PSI throughout. I/O PSI is host-wide observational context only for this benchmark, not an admission or abort gate; disclose elevated or mismatched host pressure as a measurement limitation. Do not claim causality, qualification, or a universal architecture win.",
     "no_automatic_retry": true
   },
+  "lock_contention_microbench": {
+    "purpose": "m4-lock-contention-microbench",
+    "approval_status": "approved",
+    "approval_reference": "Current explicit owner instruction 2026-10-22: design and execute a bounded, contained M4 microbenchmark if safe; preserve all hard safety checks.",
+    "execution_authorization_reference": "Current explicit owner instruction 2026-10-22 authorizes this single-arm lock/reader/GC/writer diagnostic; no pair retry and no hard-gate bypass.",
+    "risk_acceptance_reference": "Exploratory single-arm results are descriptive only; shared-host pressure and absent A/B control prohibit causal or architecture-win claims.",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "binary_name": "m4_bridge_integration",
+    "resource_root": "/var/tmp",
+    "io_pressure_mode": "observational-only",
+    "workload": {
+      "documents": 64,
+      "rounds": 10,
+      "readers": 4,
+      "queries_per_reader_per_round": 1,
+      "mode": "--shared-collection-performance",
+      "tracing": false
+    },
+    "single_arm": true,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 120,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 134217728,
+      "workspace_max_apparent_bytes": 268435456
+    },
+    "measurement_semantics": "One contained 64-document, 10-writer-cycle workload: 40 concurrent reader samples and 10 writer/GC samples. Record per-sample lock wait, reader latency, GC, writer commit and cycle latency. Nearest-rank p95 is descriptive at these sample counts. No baseline arm, no qualification, no causal attribution, no architecture winner.",
+    "no_automatic_retry": true
+  },
   "workspace_observer": {
     "schema_version": 2,
     "max_entries_per_scan": 16384,

@@ -36,6 +36,18 @@ class BenchmarkPolicyTests(unittest.TestCase):
         self.assertTrue(all(item["owner_approval_required_to_change"]
                             for item in self.policy["resource_guard_metadata"].values()))
 
+    def test_lock_microbench_contract_reduces_only_the_workload_reservation(self):
+        pair = self.policy["shared_collection_pair"]["resource_controls"]
+        micro = self.policy["lock_contention_microbench"]["resource_controls"]
+        self.assertEqual(micro["host_memory_reserve_bytes"], pair["host_memory_reserve_bytes"])
+        self.assertLess(micro["memory_max_bytes"], pair["memory_max_bytes"])
+        self.assertEqual(micro["memory_swap_max_bytes"], 0)
+        self.assertEqual(micro["disk_reserve_bytes"], pair["disk_reserve_bytes"])
+        self.assertEqual(micro["max_monitor_gap_seconds"], pair["max_monitor_gap_seconds"])
+        self.assertEqual(micro["host_memory_reserve_bytes"] + micro["memory_max_bytes"],
+                         3_758_096_384)
+        self.assertTrue(self.policy["lock_contention_microbench"]["no_automatic_retry"])
+
     def test_io_psi_is_an_operation_guard_not_universal_safety_claim(self):
         state = {
             "meminfo_kib": {"MemAvailable_kib": 5_477_762},

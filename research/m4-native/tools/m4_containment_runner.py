@@ -284,6 +284,7 @@ CONTENTION_EVIDENCE = 'EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING'
 M4_SCALAR_RESOURCE_PURPOSE = 'm4-scalar-open-resource-rehearsal'
 M4_SCALAR_LATENCY_PURPOSE = 'm4-scalar-open-latency-diagnostic'
 M4_SHARED_COLLECTION_PAIR_PURPOSE = 'm4-shared-collection-pair'
+M4_LOCK_CONTENTION_MICROBENCH_PURPOSE = 'm4-lock-contention-microbench'
 M4_SCALAR_OPEN_PURPOSES = frozenset({M4_SCALAR_RESOURCE_PURPOSE, M4_SCALAR_LATENCY_PURPOSE})
 M4_SCALAR_LATENCY_EVIDENCE = 'EXPLORATORY / NON-QUALIFYING'
 
@@ -294,6 +295,11 @@ def is_m4_scalar_open_exploratory(context: dict[str, Any] | None) -> bool:
 
 def contention_evidence_class(context: dict[str, Any] | None) -> str:
     return M4_SCALAR_LATENCY_EVIDENCE if context and context.get('purpose') == M4_SCALAR_LATENCY_PURPOSE else CONTENTION_EVIDENCE
+
+
+def is_m4_single_arm_capacity_plan(context: dict[str, Any] | None) -> bool:
+    return is_m4_scalar_open_exploratory(context) or bool(
+        context and context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE)
 
 
 # Fixed, tiny workload only; never an alternate admission path for native commands.
@@ -322,7 +328,7 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
     if context.get('policy_sha256') != hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest():
         raise ValueError('contention plan policy identity mismatch')
     operation = context.get('operation_id', '')
-    if not re.fullmatch(r'(?:m4-contention-[a-zA-Z0-9_-]+|m4-scalar-open-(?:rehearsal|latency-diagnostic)-[a-zA-Z0-9_-]+|m4-shared-collection-pair-[a-zA-Z0-9_-]+)', operation):
+    if not re.fullmatch(r'(?:m4-contention-[a-zA-Z0-9_-]+|m4-scalar-open-(?:rehearsal|latency-diagnostic)-[a-zA-Z0-9_-]+|m4-shared-collection-pair-[a-zA-Z0-9_-]+|m4-lock-contention-microbench-[a-zA-Z0-9_-]+)', operation):
         raise ValueError('invalid contention operation_id')
     for key in ('operation_root', 'resource_root'):
         if str(pathlib.Path(context[key]).resolve()) != context[key]:
@@ -368,6 +374,26 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
                 context.get('io_pressure_mode') != contract['io_pressure_mode'] or
                 any(context.get(key) != value for key, value in controls.items())):
             raise ValueError('shared-collection pair context differs from the owner-approved operation contract')
+    elif context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE:
+        contract = BENCHMARK_POLICY['lock_contention_microbench']
+        binary_path = pathlib.Path(context.get('binary_path', '')).resolve()
+        dictionary_path = pathlib.Path(context.get('dictionary_path', '')).resolve()
+        if (not operation.startswith('m4-lock-contention-microbench-') or
+                context.get('approval_reference') != contract['approval_reference'] or
+                context.get('execution_authorization_reference') != contract['execution_authorization_reference'] or
+                context.get('risk_acceptance_reference') != contract['risk_acceptance_reference'] or
+                context.get('workload') != contract['workload'] or
+                context.get('arm_role') != 'microbench' or
+                context.get('resource_root') != contract['resource_root'] or
+                binary_path.name != contract['binary_name'] or not binary_path.is_file() or
+                context.get('binary_sha256') != hashlib.sha256(binary_path.read_bytes()).hexdigest() or
+                context.get('approved_binary_sha256') != context.get('binary_sha256') or
+                not dictionary_path.is_dir() or
+                context.get('dictionary_tree_sha256') != context.get('approved_dictionary_tree_sha256') or
+                context.get('dictionary_tree_sha256') != directory_sha256(dictionary_path) or
+                context.get('io_pressure_mode') != contract['io_pressure_mode'] or
+                any(context.get(key) != value for key, value in contract['resource_controls'].items())):
+            raise ValueError('lock-contention microbenchmark context differs from its explicit operation contract')
     else:
         if context.get('purpose') is not None:
             raise ValueError('unknown contention purpose')
@@ -411,7 +437,7 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
                         workspace_bytes: int = 0, owned_swap_bytes: int = 0) -> dict[str, Any]:
     """Retain raw envelope FAILs; enforce capacity based on the approved workload plan."""
     validate_contention_context(context)
-    if phase not in ('baseline', 'recovery', 'aa-first', 'aa-second', 'pair-first', 'pair-second', 'runtime-first', 'runtime-second'):
+    if phase not in ('baseline', 'recovery', 'aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench', 'runtime-first', 'runtime-second'):
         raise ValueError('invalid contention phase')
     def number(value, name, maximum=None):
         if (isinstance(value, bool) or not isinstance(value, (int, float)) or
@@ -447,13 +473,14 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
     number(workspace_bytes, 'workspace_bytes')
     number(owned_swap_bytes, 'owned_swap_bytes')
     runtime = phase.startswith('runtime-')
+    single_arm_capacity = is_m4_single_arm_capacity_plan(context)
     single_rehearsal = is_m4_scalar_open_exploratory(context)
     memory_required = (context['host_memory_reserve_bytes'] if single_rehearsal else
                        context['host_memory_reserve_bytes'] + (0 if runtime else context['memory_max_bytes']))
     # Paired studies reserve retained roots; one-arm scalar-open exploration
     # applies its explicitly approved host free-space floor directly. Workspace
     # soft budgets never substitute for an independent capacity proof.
-    arms = 1 if single_rehearsal else (2 if phase in ('baseline', 'aa-first', 'pair-first', 'runtime-first') else 1)
+    arms = 1 if single_arm_capacity else (2 if phase in ('baseline', 'aa-first', 'pair-first', 'runtime-first') else 1)
     disk_required = (context['disk_reserve_bytes'] if single_rehearsal else
                      context['disk_reserve_bytes'] + arms * context['workspace_max_allocated_bytes'])
     failures = []
@@ -480,9 +507,10 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
         gate['enforced_in_selected_mode'] = (
             gate_id not in ('M4-RG-MEM', 'M4-RG-DISK', 'M4-RG-LOAD')
             if single_rehearsal else False)
-        if (context.get('purpose') == M4_SHARED_COLLECTION_PAIR_PURPOSE and
+        if (context.get('purpose') in (M4_SHARED_COLLECTION_PAIR_PURPOSE,
+                                      M4_LOCK_CONTENTION_MICROBENCH_PURPOSE) and
                 gate_id == 'M4-RG-IOPSI'):
-            gate['selected_mode_disposition'] = 'record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair'
+            gate['selected_mode_disposition'] = 'record host-wide PSI; not an admission or abort gate for this operation-bound exploratory contention measurement'
         if single_rehearsal and gate_id == 'M4-RG-LOAD':
             gate['selected_mode_disposition'] = 'record and analyze only; not an admission or abort gate'
         elif single_rehearsal and gate_id in ('M4-RG-MEM', 'M4-RG-DISK'):
@@ -499,7 +527,8 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
                 'full_avg300_percent': state['io_pressure']['full'].get('avg300'),
                 'some_avg10_percent': state['io_pressure']['some']['avg10'],
                 'disposition': 'observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate',
-            } if context.get('purpose') == M4_SHARED_COLLECTION_PAIR_PURPOSE else None)}
+            } if context.get('purpose') in (M4_SHARED_COLLECTION_PAIR_PURPOSE,
+                                                M4_LOCK_CONTENTION_MICROBENCH_PURPOSE) else None)}
 
 
 def m4_scalar_rehearsal_host_observation(state: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
@@ -1135,6 +1164,7 @@ def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
         expected = pathlib.Path(context['operation_root']) / str(arm) / 'containment'
         allowed_arms = (('pair-first', 'pair-second')
                         if context.get('purpose') == M4_SHARED_COLLECTION_PAIR_PURPOSE
+                        else ('microbench',) if context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
                         else ('aa-first', 'aa-second'))
         if (arm not in allowed_arms or
                 pathlib.Path(config['watchdog_output']).resolve() != expected or
@@ -1148,11 +1178,11 @@ def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
 
 
 def watchdog_phase(arm_name: str, started: bool) -> str:
-    if arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second'):
+    if arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench'):
         raise ValueError(f'invalid contention arm name: {arm_name}')
     if not started:
         return arm_name
-    return 'runtime-first' if arm_name in ('aa-first', 'pair-first') else 'runtime-second'
+    return 'runtime-second' if arm_name in ('aa-second', 'pair-second') else 'runtime-first'
 
 
 def watchdog_main(config_path: pathlib.Path) -> int:
@@ -1502,6 +1532,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         m4_latency = policy_context.get('purpose') == M4_SCALAR_LATENCY_PURPOSE
         m4_scalar_open = m4_rehearsal or m4_latency
         m4_shared_pair = policy_context.get('purpose') == M4_SHARED_COLLECTION_PAIR_PURPOSE
+        m4_lock_microbench = policy_context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
         expected_flag = ('--m4-scalar-open-latency-diagnostic' if m4_latency
                          else '--m4-scalar-open-resource-rehearsal')
         binary_path = pathlib.Path(policy_context.get('binary_path', '')).resolve()
@@ -1523,19 +1554,29 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 command[3:] == [expected_mode, '500', '5'] and
                 not pathlib.Path(command[1]).exists() and
                 hashlib.sha256(binary_path.read_bytes()).hexdigest() == policy_context['binary_sha256'])
+        elif m4_lock_microbench:
+            contract_workload = BENCHMARK_POLICY['lock_contention_microbench']['workload']
+            command_bound = (
+                len(command) == 6 and command[1] == str(workspace_root.resolve() / 'root') and
+                binary_path == pathlib.Path(command[0]).resolve() and
+                pathlib.Path(command[2]).resolve() == pathlib.Path(policy_context['dictionary_path']).resolve() and
+                command[3:] == [contract_workload['mode'], str(contract_workload['documents']),
+                                str(contract_workload['rounds'])] and
+                not pathlib.Path(command[1]).exists() and
+                hashlib.sha256(binary_path.read_bytes()).hexdigest() == policy_context['binary_sha256'])
         else:
             command_bound = (
                 len(command) == 6 and command[-3:] == ['--incremental-fts-sustained', '500', '20'] and
                 pathlib.Path(command[1]).resolve() == workspace_root.resolve() / 'root' and
                 not pathlib.Path(command[1]).exists() and
                 hashlib.sha256(pathlib.Path(command[0]).read_bytes()).hexdigest() == policy_context['binary_sha256'])
-        if (arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second') or
+        if (arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench') or
                 receipt_dir.resolve() != pathlib.Path(policy_context['operation_root']) / arm_name / 'containment' or
                 str(resource_root.resolve()) != policy_context['resource_root'] or
                 not enforce_host_gates or budget != contention_budget(policy_context) or
                 runtime_seconds != policy_context['runtime_limit_seconds'] or
                 not command_bound or
-                ((rehearsal or m4_scalar_open or m4_shared_pair) and cwd.resolve() != workspace_root.resolve()) or
+                ((rehearsal or m4_scalar_open or m4_shared_pair or m4_lock_microbench) and cwd.resolve() != workspace_root.resolve()) or
                 (env or {}).get('LD_PRELOAD') or any(k.startswith('M4_FAULT') for k in (env or {}))):
             raise ValueError('contained arm contention operation/command/budget binding mismatch')
     if not command:

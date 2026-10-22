@@ -1,0 +1,150 @@
+{
+  "abort": {
+    "failure_class": "UNKNOWN",
+    "failures": [
+      "memory_events.max increased; M4 allocation/swap/task limit distress"
+    ],
+    "pressure_failures": [],
+    "reason": "existing_host_guard",
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        1634307
+      ],
+      "term_pids": [
+        1634357
+      ]
+    },
+    "timestamp_utc": "2026-10-22T04:20:48.625726+00:00"
+  },
+  "cgroup_io_stat_available": false,
+  "final_cgroup": {
+    "cgroup_io_controller": false,
+    "controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "cpu_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 1977.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 2039.0
+      }
+    },
+    "cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 15,
+      "nr_throttled": 0,
+      "system_usec": 351982,
+      "throttled_usec": 0,
+      "usage_usec": 990975,
+      "user_usec": 638993
+    },
+    "io_max": null,
+    "io_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 53879.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 54395.0
+      }
+    },
+    "io_stat": null,
+    "memory_current_bytes": 101564416,
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 35,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "memory_peak_bytes": 268435456,
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 408.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 408.0
+      }
+    },
+    "memory_swap_current_bytes": 0,
+    "memory_swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "memory_swap_peak_bytes": 0,
+    "pids": [
+      1634307
+    ],
+    "pids_current": 1,
+    "pids_events": {
+      "max": 0
+    },
+    "populated": 1,
+    "process_io_sample_complete": true,
+    "process_memory_sample_complete": true,
+    "process_tree_pss_kib": 18380,
+    "process_tree_read_bytes": 40927232,
+    "process_tree_rss_kib": 28188,
+    "process_tree_swap_kib": 0,
+    "process_tree_write_bytes": 49827840
+  },
+  "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+  "hard_safety_telemetry_complete": true,
+  "max_observed_complete_traversal_allocated_bytes": 5943296,
+  "max_observed_complete_traversal_apparent_bytes": 21554124,
+  "measurement_quality": "INCOMPLETE",
+  "peak_cgroup_memory_current_bytes_sampled": 268435456,
+  "peak_cgroup_memory_peak_bytes_observed": 268435456,
+  "peak_cgroup_swap_current_bytes_sampled": 0,
+  "peak_cgroup_swap_peak_bytes_observed": 0,
+  "peak_sampled_generation_apparent_bytes": null,
+  "peak_sampled_staging_named_apparent_bytes": null,
+  "peak_sampled_workspace_allocated_st_blocks_bytes_gross": null,
+  "peak_sampled_workspace_apparent_bytes": null,
+  "policy_context_digest": "323358214ef1d3028b36aac8dcdbc9e4d492a91e4b9321d8005d344d88d532b7",
+  "policy_mode": "contention-aware",
+  "process_tree_samples_complete": true,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "sample_interval_ms_requested": 100,
+  "samples": 9,
+  "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+  "schema_version": 1,
+  "workspace_accounting_status": "UNKNOWN",
+  "workspace_samples_complete": false,
+  "workspace_shared_extent_inspection": {
+    "available": false,
+    "reason": "No extra recursive FIEMAP walk in bounded observer; extent sharing unknown, never capacity proof"
+  },
+  "workspace_snapshot_semantics": "sampled traversals, NOT atomic snapshots or verified lifetime peaks",
+  "workspace_soft_budget_warning_samples": 0,
+  "workspace_verified_peak": null
+}
