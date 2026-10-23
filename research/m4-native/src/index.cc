@@ -3362,10 +3362,11 @@ class Index::Impl {
       std::unique_lock<detail::WriterPreferredSharedMutex>& query_guard,
       CompactionDiagnostics* diagnostics = nullptr) {
     const bool capture = diagnostics && diagnostics->capture_timing;
-    // Segment construction and its durable write read the current delta but do
-    // not alter query-visible state. Let uncached readers continue against that
-    // state; re-acquire exclusively before publishing any in-memory or durable
-    // transition. The state mutex remains held to serialize writers.
+    // Segment construction and durable metadata staging read the current delta
+    // but do not alter query-visible state. Let readers continue against that
+    // complete state; re-acquire exclusively only for the atomic in-memory
+    // publication. The state mutex remains held to serialize writers and keep
+    // the delta/WAL prefix stable throughout the durable commit.
     if (query_guard.owns_lock()) query_guard.unlock();
 
     // Docs that were created and deleted inside this delta were never
@@ -3499,10 +3500,58 @@ class Index::Impl {
     }
     segment_build_timer.Stop();
 
+    // Stats, tombstones and the manifest form one durable commit ordered after
+    // the new segment. Stage them while readers keep using the old in-memory
+    // view; query-visible state is switched together only after the manifest
+    // is durable. The writer-state mutex remains held, so WAL order and the
+    // flushed delta snapshot cannot change during this phase.
+    Status s;
+    {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_stats_append_ms : nullptr,
+          capture ? &diagnostics->flush_stats_append_cpu_ms : nullptr);
+      s = AppendStatsEvents();
+    }
+    if (!s.ok) return s;
+    const char* fault = std::getenv("M4_FAULT");
+    if (fault && std::strcmp(fault, "flush_after_stats_append") == 0) ::_exit(93);
+    if (fault && std::strcmp(fault, "flush_fail_after_stats_append") == 0)
+      return Status::Error("injected flush failure after stats append");
+
+    std::unordered_set<DocId> next_tombstones = tombstones_;
+    for (DocId id : never_persisted) next_tombstones.erase(id);
+    const uint64_t next_run_id = run_id_seq_ + (wrote_run ? 1 : 0);
+    const std::string tb_file =
+        "tombstones-" + std::to_string(last_wal_seq_) + "-" +
+        std::to_string(next_run_id) + ".bin";
+    {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_tombstone_write_ms : nullptr,
+          capture ? &diagnostics->flush_tombstone_write_cpu_ms : nullptr);
+      s = AtomicWrite((fs::path(dir_) / tb_file).string(),
+                      EncodeTombstones(next_tombstones));
+      if (!s.ok) return s;
+      bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
+    }
+
+    const uint64_t added_segment_bytes = wrote_run ? new_run.info.file_size : 0;
+    std::vector<Run> next_runs = runs_;
+    if (wrote_run) next_runs.push_back(std::move(new_run));
+    std::sort(next_runs.begin(), next_runs.end(), [](const Run& a, const Run& b) {
+      return a.segment->first_doc_id() < b.segment->first_doc_id();
+    });
+    Manifest next_manifest = manifest_;
+    next_manifest.next_doc_id = next_doc_id_;
+    next_manifest.wal_seq = last_wal_seq_;
+    next_manifest.run_id_seq = next_run_id;
+    next_manifest.stats_epoch = stats_epoch_;
+    next_manifest.stats_log_end = stats_log_end_;
+    next_manifest.tombstone_file = tb_file;
+    next_manifest.runs.clear();
+    for (const auto& r : next_runs) next_manifest.runs.push_back(r.info);
     if (wrote_run) {
-      // Deterministic research-test barrier: exercise readers after the new
-      // segment exists on disk but before it is published in memory/manifest.
-      // Never configured in normal execution.
+      // Readers remain on the old in-memory state while metadata is staged.
+      // This deterministic barrier exercises that unlocked interval.
       const char* barrier_dir = std::getenv("M4_TEST_FLUSH_PUBLICATION_BARRIER");
       if (barrier_dir && *barrier_dir) {
         const fs::path barrier(barrier_dir);
@@ -3525,6 +3574,17 @@ class Index::Impl {
           return Status::Error("test flush publication barrier timed out");
       }
     }
+    if (fault && std::strcmp(fault, "flush_before_manifest") == 0) ::_exit(92);
+    {
+      ScopedStageTimer timer(
+          capture ? &diagnostics->flush_manifest_write_ms : nullptr,
+          capture ? &diagnostics->flush_manifest_write_cpu_ms : nullptr);
+      s = WriteManifest(dir_, next_manifest);
+      if (!s.ok) return s;
+      bytes_written_ += EncodeManifest(next_manifest).size();
+    }
+    if (fault && std::strcmp(fault, "flush_after_manifest") == 0) ::_exit(94);
+
     if (!query_guard.owns_lock()) {
       const double wait_wall = capture ? NowMs() : 0.0;
       const double wait_cpu = capture ? ThreadCpuMs() : 0.0;
@@ -3538,92 +3598,71 @@ class Index::Impl {
     ScopedStageTimer flush_query_hold_timer(
         capture ? &diagnostics->flush_query_mutex_hold_ms : nullptr,
         capture ? &diagnostics->flush_query_mutex_hold_cpu_ms : nullptr);
-    if (wrote_run) {
-      ++run_id_seq_;
-      segment_bytes_written_ += new_run.info.file_size;
-      bytes_written_ += new_run.info.file_size;
-    }
-
-    // The build above already excluded these rows; now they are guaranteed
-    // absent from every persisted run, so the tombstone is unnecessary.
-    for (DocId id : never_persisted) tombstones_.erase(id);
-
-    // Persist stats deltas.
-    Status s;
     {
-      ScopedStageTimer timer(
-          capture ? &diagnostics->flush_stats_append_ms : nullptr,
-          capture ? &diagnostics->flush_stats_append_cpu_ms : nullptr);
-      s = AppendStatsEvents();
-    }
-    if (!s.ok) return s;
-
-    // Tombstone snapshot.
-    const std::string tb_file =
-        "tombstones-" + std::to_string(last_wal_seq_) + "-" +
-        std::to_string(run_id_seq_) + ".bin";
-    {
-      ScopedStageTimer timer(
-          capture ? &diagnostics->flush_tombstone_write_ms : nullptr,
-          capture ? &diagnostics->flush_tombstone_write_cpu_ms : nullptr);
-      s = AtomicWrite((fs::path(dir_) / tb_file).string(),
-                      EncodeTombstones(tombstones_));
-      if (!s.ok) return s;
-      bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
-    }
-
-    if (wrote_run) {
-      runs_.push_back(std::move(new_run));
-      std::sort(runs_.begin(), runs_.end(), [](const Run& a, const Run& b) {
-        return a.segment->first_doc_id() < b.segment->first_doc_id();
-      });
+      if (wrote_run) {
+        runs_.swap(next_runs);
+        run_id_seq_ = next_run_id;
+        segment_bytes_written_ += added_segment_bytes;
+        bytes_written_ += added_segment_bytes;
+      }
+      tombstones_.swap(next_tombstones);
+      using std::swap;
+      swap(manifest_, next_manifest);
+      durable_wal_seq_ = manifest_.wal_seq;
       ++state_generation_;
     }
 
-    manifest_.next_doc_id = next_doc_id_;
-    manifest_.wal_seq = last_wal_seq_;
-    manifest_.run_id_seq = run_id_seq_;
-    manifest_.stats_epoch = stats_epoch_;
-    manifest_.stats_log_end = stats_log_end_;
-    manifest_.tombstone_file = tb_file;
-    manifest_.runs.clear();
-    for (const auto& r : runs_) manifest_.runs.push_back(r.info);
+    // Retire large delta allocations outside the reader lock. State remains
+    // writer-serialized until after WAL reset, so no post-snapshot write can
+    // be lost from the committed prefix.
     {
-      ScopedStageTimer timer(
-          capture ? &diagnostics->flush_manifest_write_ms : nullptr,
-          capture ? &diagnostics->flush_manifest_write_cpu_ms : nullptr);
-      s = WriteManifest(dir_, manifest_);
-      if (!s.ok) return s;
-      durable_wal_seq_ = manifest_.wal_seq;
-      bytes_written_ += EncodeManifest(manifest_).size();
+      std::vector<Run> retired_runs;
+      std::unordered_set<DocId> retired_tombstones;
+      Manifest retired_manifest;
+      std::vector<DeltaDoc> retired_docs;
+      std::unordered_map<std::string, std::vector<BuildPosting>> retired_postings;
+      std::unordered_map<std::string,
+                         std::unordered_map<std::string, std::vector<DocId>>>
+          retired_invert;
+      std::vector<StatsEvent> retired_events;
+      {
+        ScopedStageTimer timer(
+            capture ? &diagnostics->flush_delta_reset_ms : nullptr,
+            capture ? &diagnostics->flush_delta_reset_cpu_ms : nullptr);
+        retired_docs.swap(delta_docs_);
+        retired_postings.swap(delta_postings_);
+        retired_invert.swap(delta_invert_);
+        retired_events.swap(pending_events_);
+        delta_bytes_ = 0;
+        pending_events_appended_count_ = 0;
+        pending_flush_ = false;
+      }
+      flush_query_hold_timer.Stop();
+      query_guard.unlock();
+      retired_runs.swap(next_runs);
+      retired_tombstones.swap(next_tombstones);
+      using std::swap;
+      swap(retired_manifest, next_manifest);
+      if (options_.wal_enabled) {
+        ScopedStageTimer timer(
+            capture ? &diagnostics->flush_wal_reset_ms : nullptr,
+            capture ? &diagnostics->flush_wal_reset_cpu_ms : nullptr);
+        s = wal_.Reset();
+        if (!s.ok) {
+          query_guard.lock();
+          return s;
+        }
+      }
+      if (fault && std::strcmp(fault, "flush_after_wal_reset") == 0) ::_exit(95);
+      // No active query can retain a run omitted by the just-published state;
+      // new readers see the new run set before obsolete files are collected.
+      {
+        ScopedStageTimer timer(capture ? &diagnostics->flush_gc_ms : nullptr,
+                               capture ? &diagnostics->flush_gc_cpu_ms : nullptr);
+        GarbageCollect();
+      }
     }
-
-    if (options_.wal_enabled) {
-      ScopedStageTimer timer(
-          capture ? &diagnostics->flush_wal_reset_ms : nullptr,
-          capture ? &diagnostics->flush_wal_reset_cpu_ms : nullptr);
-      s = wal_.Reset();
-      if (!s.ok) return s;
-    }
-    // Remove superseded stats/tombstone files even when no compaction runs.
-    {
-      ScopedStageTimer timer(capture ? &diagnostics->flush_gc_ms : nullptr,
-                             capture ? &diagnostics->flush_gc_cpu_ms : nullptr);
-      GarbageCollect();
-    }
-
-    // Reset active delta.
-    {
-      ScopedStageTimer timer(
-          capture ? &diagnostics->flush_delta_reset_ms : nullptr,
-          capture ? &diagnostics->flush_delta_reset_cpu_ms : nullptr);
-      delta_docs_.clear();
-      delta_postings_.clear();
-      delta_invert_.clear();
-      delta_bytes_ = 0;
-      pending_events_.clear();
-      pending_flush_ = false;
-    }
+    query_guard.lock();
 
     if (options_.rebuild_on_flush) {
       std::vector<size_t> all;
@@ -3643,13 +3682,42 @@ class Index::Impl {
   }
 
   Status AppendStatsEvents() {
-    if (pending_events_.empty()) return Status::OK();
+    if (pending_events_appended_count_ > pending_events_.size()) {
+      return Status::Error("stats event append cursor exceeds pending events");
+    }
+    if (pending_events_appended_count_ == pending_events_.size()) {
+      if (pending_events_appended_count_ != 0 &&
+          stats_log_end_ >= options_.stats_log_threshold) {
+        return CheckpointStats();
+      }
+      return Status::OK();
+    }
     const std::string log_path =
         (fs::path(dir_) / StatsLogName(stats_epoch_)).string();
-    const int fd = ::open(log_path.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    const int fd = ::open(log_path.c_str(), O_RDWR | O_CREAT | O_APPEND, 0644);
     if (fd < 0) return Status::Error("open stats log");
+    struct stat before {};
+    if (::fstat(fd, &before) != 0) {
+      ::close(fd);
+      return Status::Error("stat stats log before append");
+    }
+    if (before.st_size < 0 ||
+        static_cast<uint64_t>(before.st_size) < stats_log_end_) {
+      ::close(fd);
+      return Status::Error("stats log shorter than committed offset");
+    }
+    if (static_cast<uint64_t>(before.st_size) != stats_log_end_) {
+      if (::ftruncate(fd, static_cast<off_t>(stats_log_end_)) != 0 ||
+          ::fsync(fd) != 0) {
+        ::close(fd);
+        return Status::Error("repair uncommitted stats log suffix");
+      }
+      before.st_size = static_cast<off_t>(stats_log_end_);
+    }
     BufWriter w;
-    for (const auto& e : pending_events_) {
+    for (size_t i = pending_events_appended_count_;
+         i < pending_events_.size(); ++i) {
+      const auto& e = pending_events_[i];
       BufWriter payload;
       EncodeStatsEvent(&payload, e);
       w.U32(0x4D345354);
@@ -3664,16 +3732,37 @@ class Index::Impl {
           ::write(fd, w.data().data() + done, w.size() - done);
       if (n < 0) {
         if (errno == EINTR) continue;
+        const int saved_errno = errno;
+        const bool rollback_ok =
+            ::ftruncate(fd, before.st_size) == 0 && ::fsync(fd) == 0;
         ::close(fd);
-        return Status::Error("stats log write");
+        return Status::Error("stats log write failed: " +
+                             std::string(std::strerror(saved_errno)) +
+                             (rollback_ok ? "" : "; rollback failed"));
+      }
+      if (n == 0) {
+        const bool rollback_ok =
+            ::ftruncate(fd, before.st_size) == 0 && ::fsync(fd) == 0;
+        ::close(fd);
+        return Status::Error(std::string("stats log write made no progress") +
+                             (rollback_ok ? "" : "; rollback failed"));
       }
       done += static_cast<size_t>(n);
     }
-    ::fsync(fd);
+    if (::fsync(fd) != 0) {
+      const int saved_errno = errno;
+      const bool rollback_ok =
+          ::ftruncate(fd, before.st_size) == 0 && ::fsync(fd) == 0;
+      ::close(fd);
+      return Status::Error("stats log fsync failed: " +
+                           std::string(std::strerror(saved_errno)) +
+                           (rollback_ok ? "" : "; rollback failed"));
+    }
     ::close(fd);
     ++fsyncs_;
     bytes_written_ += w.size();
     stats_log_end_ += w.size();
+    pending_events_appended_count_ = pending_events_.size();
 
     if (stats_log_end_ >= options_.stats_log_threshold) {
       return CheckpointStats();
@@ -4969,6 +5058,7 @@ class Index::Impl {
       delta_invert_;
   uint64_t delta_bytes_{0};
   std::vector<StatsEvent> pending_events_;
+  size_t pending_events_appended_count_{0};
   bool pending_flush_{false};
 
   uint64_t next_doc_id_{1};

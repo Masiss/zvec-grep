@@ -1885,6 +1885,243 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
         "snapshot prototype deletion survives reopen");
 }
 
+void TestFlushPublicationAndRecovery(const std::string& dir) {
+  auto seed_unflushed = [](const std::string& path) {
+    fs::remove_all(path);
+    std::unique_ptr<Index> index;
+    Check(Index::Open(path, {}, &index).ok, "flush crash seed open");
+    Document old_same;
+    old_same.text = "oldword common";
+    old_same.values.push_back({"kind", "obsolete"});
+    Check(index->Upsert("same", old_same).ok, "flush seed old same pk");
+    Document doomed;
+    doomed.text = "deadword common";
+    Check(index->Upsert("doomed", doomed).ok, "flush seed doomed pk");
+    Document replacement;
+    replacement.text = "newword common";
+    replacement.values.push_back({"kind", "live"});
+    Check(index->Upsert("same", replacement).ok,
+          "flush seed replace same pk");
+    Check(index->Delete("doomed").ok, "flush seed delete pk");
+    Document keep;
+    keep.text = "keepword common";
+    keep.values.push_back({"kind", "live"});
+    Check(index->Upsert("keep", keep).ok, "flush seed keep pk");
+    index.reset();
+  };
+  auto verify_reopened = [](const std::string& path, const std::string& label) {
+    std::unique_ptr<Index> reopened;
+    Check(Index::Open(path, {}, &reopened).ok, label + ": reopen");
+    if (!reopened) return;
+    RefState ref;
+    ref.docs.emplace("same", RefDoc{"same", "newword common", {{"kind", "live"}}});
+    ref.docs.emplace("keep", RefDoc{"keep", "keepword common", {{"kind", "live"}}});
+    ref.total_tokens = Tok("newword common").size() + Tok("keepword common").size();
+    const auto stats = reopened->GetStats();
+    Check(stats.live_docs == 2, label + ": live docs");
+    Check(stats.live_tokens == ref.total_tokens, label + ": live token count");
+    CheckFts(*reopened, ref, "newword", MakeRefQuery({"newword"}, false), 10,
+             label + ": replacement BM25");
+    CheckFts(*reopened, ref, "keepword", MakeRefQuery({"keepword"}, false), 10,
+             label + ": preserved doc BM25");
+    m4::SearchResult result;
+    Check(reopened->SearchFts("oldword", 10, &result).ok && result.hits.empty(),
+          label + ": replaced version absent");
+    Check(reopened->SearchFts("deadword", 10, &result).ok && result.hits.empty(),
+          label + ": deleted doc absent");
+  };
+
+  // A failed in-process flush may be followed by new WAL writes. Persist only
+  // the not-yet-appended stats suffix on retry; never duplicate earlier events.
+  const std::string retry_dir = dir + "/same-process-retry";
+  fs::remove_all(retry_dir);
+  std::unique_ptr<Index> retry_index;
+  Check(Index::Open(retry_dir, {}, &retry_index).ok, "flush retry open");
+  Document first;
+  first.text = "alpha common";
+  Check(retry_index->Upsert("first", first).ok, "flush retry first write");
+  Check(::setenv("M4_FAULT", "flush_fail_after_stats_append", 1) == 0,
+        "flush retry set failure point");
+  const m4::Status failed_flush = retry_index->Flush();
+  Check(!failed_flush.ok, "flush retry injected failure returned");
+  ::unsetenv("M4_FAULT");
+  Document second;
+  second.text = "beta common";
+  Check(retry_index->Upsert("second", second).ok,
+        "flush retry write after failed flush");
+  Check(retry_index->Flush().ok, "flush retry second attempt succeeds");
+  RefState retry_ref;
+  retry_ref.docs.emplace("first", RefDoc{"first", "alpha common", {}});
+  retry_ref.docs.emplace("second", RefDoc{"second", "beta common", {}});
+  retry_ref.total_tokens = Tok("alpha common").size() + Tok("beta common").size();
+  Check(retry_index->GetStats().live_docs == 2,
+        "flush retry stats not duplicated");
+  CheckFts(*retry_index, retry_ref, "common", MakeRefQuery({"common"}, false),
+           10, "flush retry BM25");
+  retry_index.reset();
+  std::unique_ptr<Index> retry_reopened;
+  Check(Index::Open(retry_dir, {}, &retry_reopened).ok,
+        "flush retry reopen");
+  Check(retry_reopened && retry_reopened->GetStats().live_docs == 2,
+        "flush retry durable stats");
+
+  // Crash on both sides of the durable manifest and WAL truncation boundary.
+  for (const char* fault : {"flush_after_stats_append", "flush_before_manifest",
+                            "flush_after_manifest", "flush_after_wal_reset"}) {
+    const std::string path = dir + "/crash-" + fault;
+    seed_unflushed(path);
+    const pid_t child = ::fork();
+    Check(child >= 0, std::string("fork ") + fault);
+    if (child == 0) {
+      ::setenv("M4_FAULT", fault, 1);
+      std::unique_ptr<Index> child_index;
+      if (!Index::Open(path, {}, &child_index).ok) ::_exit(120);
+      const m4::Status status = child_index->Flush();
+      ::_exit(status.ok ? 121 : 122);
+    }
+    if (child < 0) continue;
+    int status = 0;
+    Check(::waitpid(child, &status, 0) == child,
+          std::string("wait flush crash child ") + fault);
+    Check(WIFEXITED(status) && WEXITSTATUS(status) >= 92 &&
+              WEXITSTATUS(status) <= 95,
+          std::string("flush crash reached expected boundary ") + fault);
+    verify_reopened(path, std::string("flush recovery ") + fault);
+  }
+
+  // A reader can finish while flush metadata is staged and query-visible state
+  // remains old; a same-PK update and delete wait behind the writer-state lock.
+  const std::string concurrent_dir = dir + "/reader-writer-publication";
+  fs::remove_all(concurrent_dir);
+  std::unique_ptr<Index> concurrent;
+  Check(Index::Open(concurrent_dir, {}, &concurrent).ok,
+        "flush publication open");
+  Document base;
+  base.text = "baseword common";
+  Check(concurrent->Upsert("base", base).ok, "flush publication base upsert");
+  Check(concurrent->Flush().ok, "flush publication base flush");
+  Document version;
+  version.text = "versionword common";
+  Check(concurrent->Upsert("same", version).ok,
+        "flush publication delta upsert");
+  const fs::path barrier = fs::path(concurrent_dir) / "flush-barrier";
+  fs::remove_all(barrier);
+  Check(::setenv("M4_TEST_FLUSH_PUBLICATION_BARRIER", barrier.c_str(), 1) == 0,
+        "flush publication set barrier");
+  std::atomic<bool> flush_done{false};
+  m4::Status flush_status;
+  std::thread flusher([&] {
+    flush_status = concurrent->Flush();
+    flush_done.store(true);
+  });
+  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+                     std::chrono::seconds timeout) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::error_code ec;
+    while (!fs::exists(path, ec) && !done.load() &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return fs::exists(path, ec);
+  };
+  const bool staged = wait_for(barrier / "segment-ready", flush_done,
+                               std::chrono::seconds(5));
+  Check(staged, "flush reaches unlocked metadata staging barrier");
+  std::atomic<bool> reader_done{false};
+  bool reader_ok = false;
+  std::thread reader;
+  if (staged) {
+    reader = std::thread([&] {
+      m4::SearchResult result;
+      reader_ok = concurrent->SearchFts("versionword", 5, &result).ok &&
+                  result.hits.size() == 1 && result.hits[0].pk == "same";
+      reader_done.store(true);
+    });
+    const auto reader_deadline = std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(2);
+    while (!reader_done.load() && std::chrono::steady_clock::now() < reader_deadline)
+      std::this_thread::yield();
+    Check(reader_done.load() && reader_ok,
+          "reader completes on old in-memory state during metadata staging");
+  }
+  std::atomic<bool> writer_attempted{false};
+  std::atomic<bool> writer_done{false};
+  m4::Status update_status;
+  m4::Status delete_status;
+  std::thread writer;
+  std::atomic<bool> overlapping_flush_attempted{false};
+  std::atomic<bool> overlapping_flush_done{false};
+  m4::Status overlapping_flush_status;
+  std::thread overlapping_flusher;
+  if (staged) {
+    overlapping_flusher = std::thread([&] {
+      overlapping_flush_attempted.store(true);
+      overlapping_flush_status = concurrent->Flush();
+      overlapping_flush_done.store(true);
+    });
+    writer = std::thread([&] {
+      writer_attempted.store(true);
+      Document replacement;
+      replacement.text = "finalword common";
+      update_status = concurrent->Upsert("same", replacement);
+      delete_status = concurrent->Delete("base");
+      writer_done.store(true);
+    });
+    const auto writer_deadline = std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(2);
+    while ((!writer_attempted.load() || !overlapping_flush_attempted.load()) &&
+           std::chrono::steady_clock::now() < writer_deadline)
+      std::this_thread::yield();
+    Check(writer_attempted.load() && overlapping_flush_attempted.load(),
+          "writer and overlapping flush reach the serialized boundary");
+    const auto blocked_deadline = std::chrono::steady_clock::now() +
+                                  std::chrono::milliseconds(50);
+    while ((!writer_done.load() || !overlapping_flush_done.load()) &&
+           std::chrono::steady_clock::now() < blocked_deadline)
+      std::this_thread::yield();
+    Check(writer_attempted.load() && !writer_done.load(),
+          "writer stays serialized until flush publication and WAL reset");
+    Check(overlapping_flush_attempted.load() && !overlapping_flush_done.load(),
+          "overlapping flush waits for the current generation commit");
+    std::ofstream release(barrier / "reader-finished", std::ios::binary);
+    release << "done\n";
+  }
+  flusher.join();
+  if (reader.joinable()) reader.join();
+  if (writer.joinable()) writer.join();
+  if (overlapping_flusher.joinable()) overlapping_flusher.join();
+  ::unsetenv("M4_TEST_FLUSH_PUBLICATION_BARRIER");
+  Check(flush_status.ok, "flush publication succeeds");
+  if (staged) {
+    Check(overlapping_flush_status.ok,
+          "overlapping flush completes after the first commit");
+    Check(update_status.ok && delete_status.ok,
+          "same-PK update and delete after flush succeed");
+    Check(concurrent->Flush().ok, "post-publication writer flush succeeds");
+    m4::SearchResult result;
+    Check(concurrent->SearchFts("versionword", 5, &result).ok && result.hits.empty(),
+          "old same-PK version is absent");
+    Check(concurrent->SearchFts("finalword", 5, &result).ok &&
+              result.hits.size() == 1 && result.hits[0].pk == "same",
+          "same-PK replacement is visible");
+    Check(concurrent->SearchFts("baseword", 5, &result).ok && result.hits.empty(),
+          "concurrent delete is visible");
+  }
+  concurrent.reset();
+  std::unique_ptr<Index> concurrent_reopened;
+  Check(Index::Open(concurrent_dir, {}, &concurrent_reopened).ok,
+        "flush publication reopen");
+  if (concurrent_reopened && staged) {
+    m4::SearchResult result;
+    Check(concurrent_reopened->SearchFts("finalword", 5, &result).ok &&
+              result.hits.size() == 1 && result.hits[0].pk == "same",
+          "same-PK replacement survives reopen");
+    Check(concurrent_reopened->SearchFts("baseword", 5, &result).ok &&
+              result.hits.empty(),
+          "concurrent delete survives reopen");
+  }
+}
+
 void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -2753,6 +2990,7 @@ int main() {
   TestBooleanFilters(root + "/boolean-filters");
   TestPhrase(root + "/phrase");
   TestCrashWal(root + "/wal");
+  TestFlushPublicationAndRecovery(root + "/flush-publication-recovery");
   TestAtomicMutationBatch(root + "/batch");
   TestBoundedRuns(root + "/bounded");
   TestStatIndependentBounds(root + "/bounds");
