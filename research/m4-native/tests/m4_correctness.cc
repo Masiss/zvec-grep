@@ -1432,6 +1432,89 @@ void TestAtomicMutationBatch(const std::string& root) {
     Check(bad_snapshot.load() == 0, "readers see only batch boundaries");
   }
 
+  // Overlapping Upserts may share one bounded WAL transaction. Readers must
+  // observe only the pre- or post-group snapshot; one durable batch must replay
+  // completely after restart.
+  {
+    const std::string dir = root + "/writer-group-commit";
+    fs::remove_all(dir);
+    m4::Options grouped = options;
+    grouped.writer_group_commit_max_batch_size = 4;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, grouped, &index).ok, "group-commit open");
+
+    std::atomic<bool> reader_done{false};
+    std::atomic<int> reader_errors{0};
+    std::thread reader([&] {
+      while (!reader_done.load(std::memory_order_acquire)) {
+        m4::SearchResult all;
+        if (!index->SearchFilter(m4::FilterExpr::All(), &all).ok ||
+            (all.hits.size() != 0 && all.hits.size() != 4)) {
+          reader_errors.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+    });
+    std::atomic<int> ready{0};
+    std::atomic<bool> start{false};
+    std::atomic<int> writer_errors{0};
+    std::vector<std::thread> writers;
+    for (int i = 0; i < 4; ++i) {
+      writers.emplace_back([&, i] {
+        ready.fetch_add(1, std::memory_order_release);
+        while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+        if (!index->Upsert("group-" + std::to_string(i), doc("group token")).ok)
+          writer_errors.fetch_add(1, std::memory_order_relaxed);
+      });
+    }
+    while (ready.load(std::memory_order_acquire) != 4) std::this_thread::yield();
+    start.store(true, std::memory_order_release);
+    for (auto& writer : writers) writer.join();
+    reader_done.store(true, std::memory_order_release);
+    reader.join();
+    Check(writer_errors.load() == 0, "group-commit writers succeed");
+    Check(reader_errors.load() == 0, "readers see atomic group boundaries");
+    Check(index->GetStats().live_docs == 4 && index->GetStats().wal_fsyncs == 1,
+          "four concurrent Upserts share one durable WAL sync");
+    index.reset();
+    Check(Index::Open(dir, grouped, &index).ok, "group-commit reopen");
+    m4::SearchResult all;
+    Check(index->SearchFilter(m4::FilterExpr::All(), &all).ok &&
+              all.hits.size() == 4,
+          "group-commit WAL replay restores every Upsert");
+  }
+
+  // A crash after the group transaction is durable but before publication must
+  // recover the complete group, not a prefix or an absent transaction.
+  {
+    const std::string dir = root + "/writer-group-commit-crash";
+    seed(dir);
+    pid_t child = ::fork();
+    if (child == 0) {
+      ::setenv("M4_FAULT", "batch_after_wal_sync", 1);
+      m4::Options grouped = options;
+      grouped.writer_group_commit_max_batch_size = 2;
+      grouped.writer_group_commit_max_delay_us = 50000;
+      std::unique_ptr<Index> index;
+      if (!Index::Open(dir, grouped, &index).ok) ::_exit(10);
+      if (!index->Upsert("group-crash", doc("durable group" )).ok) ::_exit(11);
+      ::_exit(12);
+    }
+    int child_status = 0;
+    const bool waited = child > 0 && ::waitpid(child, &child_status, 0) == child;
+    Check(waited && WIFEXITED(child_status) && WEXITSTATUS(child_status) == 86,
+          "group-commit crash occurs after WAL sync");
+    std::unique_ptr<Index> recovered;
+    Check(Index::Open(dir, options, &recovered).ok, "group-commit crash reopen");
+    if (recovered) {
+      m4::SearchResult result;
+      Check(recovered->GetStats().live_docs == 3 &&
+                recovered->SearchFts("durable", 10, &result).ok &&
+                result.hits.size() == 1 && result.hits[0].pk == "group-crash",
+            "group-commit crash recovers the complete durable write");
+    }
+  }
+
   // Concurrent writers to one logical PK must serialize into a single live
   // version; active readers must remain safe while compaction reclaims runs.
   {

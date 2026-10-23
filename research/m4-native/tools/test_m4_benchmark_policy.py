@@ -6,6 +6,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from typing import Any
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -32,8 +33,11 @@ class BenchmarkPolicyTests(unittest.TestCase):
         self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
 
     def _valid_contention_receipt(self, include_compaction_timing=True,
-                                  timing_schema=4):
-        contract = self.policy["lock_contention_microbench"]
+                                  timing_schema=4,
+                                  workload_profile="contention"):
+        root_contract = self.policy["lock_contention_microbench"]
+        contract = (root_contract if workload_profile == "contention" else
+                    {**root_contract, **root_contract[workload_profile]})
         workload = contract["workload"]
         rounds = workload["rounds"]
         writer_series = (
@@ -62,14 +66,39 @@ class BenchmarkPolicyTests(unittest.TestCase):
                                 if name != "apply_batch"]
         for name in compaction_modes:
             batch_api = name == "apply_batch"
+            group_api = timing_schema == 8 and name == "group_commit"
             api_calls = (workload["writers"] if include_compaction_timing and batch_api
                          else rounds)
-            arm = {key: [0.25] * api_calls for key in writer_series}
-            if timing_schema >= 6:
+            arm: dict[str, Any]
+            if group_api:
+                arm = {key: [] for key in (
+                    "normalize_samples", "normalize_cpu_samples",
+                    "state_wait_samples", "state_wait_cpu_samples",
+                    "state_hold_samples", "state_hold_cpu_samples",
+                    "wal_append_samples", "wal_append_cpu_samples",
+                    "wal_write_samples", "wal_fsync_samples",
+                    "wal_encode_samples", "wal_encode_cpu_samples",
+                    "query_wait_samples", "apply_samples", "auto_flush_samples")}
+                arm["writer_samples"] = [0.25] * api_calls
+                arm["writer_queue_wait_samples"] = [0.1] * api_calls
+                arm["writer_group_commit_size_samples"] = [4] * api_calls
+                arm["writer_group_commit_max_batch_size"] = 4
+                arm["writer_group_commit_max_delay_us"] = 500
+                arm["concurrent_wal_fsyncs"] = 8
+            else:
+                arm = {key: [0.25] * api_calls for key in writer_series}
+                if timing_schema >= 8:
+                    arm["writer_queue_wait_samples"] = []
+                    arm["writer_group_commit_size_samples"] = []
+                    arm["writer_group_commit_max_batch_size"] = 0
+                    arm["writer_group_commit_max_delay_us"] = 0
+            if timing_schema >= 6 and not group_api:
                 arm["wal_write_samples"] = [0.01] * api_calls
                 arm["wal_fsync_samples"] = [0.01] * api_calls
             if timing_schema >= 7:
                 arm["compaction_tracked_peak_bytes"] = 1024
+            if group_api:
+                arm["concurrent_wal_fsyncs"] = 8
             arm.update({
                 "name": name,
                 "compaction_status": "ok",
@@ -82,7 +111,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
             })
             if include_compaction_timing:
                 arm.update({
-                    "writer_api": "ApplyBatch" if batch_api else "Upsert",
+                    "writer_api": ("ApplyBatch" if batch_api else
+                                   "UpsertGroupCommit" if group_api else "Upsert"),
                     "writer_api_calls": api_calls,
                     "logical_upserts": rounds,
                 })
@@ -138,9 +168,24 @@ class BenchmarkPolicyTests(unittest.TestCase):
         }
         if include_compaction_timing:
             data["timing_schema_version"] = timing_schema
+            if timing_schema == 8:
+                data["workload_mode"] = (
+                    "writer_group_commit"
+                    if workload["mode"] == "--m4-writer-group-commit"
+                    else "contention")
         result = {"status": "PASS", "workload_returncode": 0,
                   "controller_cleanup": {"verified": True}}
         return result, data, contract
+
+    def test_group_commit_verifier_checks_queue_and_sync_evidence(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=8, workload_profile="writer_group_commit")
+        lock_runner.verify(result, data, contract)
+        group = next(arm for arm in data["arms"] if arm["name"] == "group_commit")
+        group["writer_group_commit_size_samples"] = [1] * len(
+            group["writer_group_commit_size_samples"])
+        with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
+            lock_runner.verify(result, data, contract)
 
     def test_contention_verifier_requires_post_writer_flush_diagnostics(self):
         result, data, contract = self._valid_contention_receipt(timing_schema=5)

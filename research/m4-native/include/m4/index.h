@@ -118,6 +118,12 @@ struct Options {
   bool wal_enabled{true};
   bool decode_positions{true};
 
+  // Research-only opt-in writer group-commit prototype. Concurrent Upserts
+  // wait for a bounded group and are committed as one ApplyBatch transaction.
+  // 0 disables the queue; enabled values are 2..256.
+  uint32_t writer_group_commit_max_batch_size{0};
+  uint32_t writer_group_commit_max_delay_us{500};
+
   // Research-only, bounded one-entry cache for immutable query-filter
   // candidates. Disabled by default; any document/liveness mutation invalidates it.
   bool cache_filter_candidates{false};
@@ -173,6 +179,9 @@ struct WriteDiagnostics {
   double apply_cpu_ms{0.0};
   double auto_flush_ms{0.0};
   double auto_flush_cpu_ms{0.0};
+  double writer_queue_wait_ms{0.0};
+  double writer_queue_wait_cpu_ms{0.0};
+  size_t writer_group_commit_size{0};
 };
 
 // Research-only compaction stage telemetry. Strictly opt-in.

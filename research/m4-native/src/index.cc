@@ -20,9 +20,11 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -1570,8 +1572,154 @@ class Index::Impl {
       : dir_(std::move(dir)), options_(std::move(options)) {}
 
   ~Impl() {
+    StopWriterQueue();
     // Deliberately do not flush: crash/restart semantics are tested by simply
     // destroying the object with uncommitted WAL records.
+  }
+
+  void StartWriterQueue() {
+    if (options_.writer_group_commit_max_batch_size < 2) return;
+    writer_queue_thread_ = std::thread(&Impl::WriterQueueLoop, this);
+  }
+
+  struct QueuedUpsert {
+    // QueueUpsert waits synchronously for completion, so these caller-owned
+    // inputs remain alive without an unbounded extra copy before admission.
+    const std::string* pk{nullptr};
+    const Document* document{nullptr};
+    size_t estimated_bytes{0};
+    std::chrono::steady_clock::time_point enqueued_at;
+    std::chrono::steady_clock::time_point dequeued_at;
+    size_t group_size{0};
+    std::promise<Status> completion;
+  };
+
+  static constexpr size_t kWriterGroupCommitMaxBytes = 6u << 20;
+  static constexpr size_t kWriterGroupCommitMaxQueuedDocBytes = 256u << 10;
+
+  static size_t EstimateQueuedMutationBytes(const std::string& pk,
+                                             const Document& doc) {
+    size_t total = 128;
+    auto add = [&total](size_t bytes) {
+      if (bytes > kWriterGroupCommitMaxQueuedDocBytes ||
+          total > kWriterGroupCommitMaxQueuedDocBytes - bytes) {
+        total = kWriterGroupCommitMaxQueuedDocBytes + 1;
+      } else {
+        total += bytes;
+      }
+    };
+    add(pk.size());
+    add(doc.text.size());
+    for (const auto& value : doc.values) {
+      add(value.field.size());
+      add(value.value.size());
+      add(128);  // conservative framing/varint allowance per value
+      if (total > kWriterGroupCommitMaxQueuedDocBytes) break;
+    }
+    return total;
+  }
+
+  Status QueueUpsert(const std::string& pk, const Document& doc,
+                     WriteDiagnostics* diagnostics) {
+    const bool capture = diagnostics && diagnostics->capture_timing;
+    if (diagnostics) {
+      *diagnostics = WriteDiagnostics{};
+      diagnostics->capture_timing = capture;
+    }
+    const size_t estimate = EstimateQueuedMutationBytes(pk, doc);
+    if (estimate > kWriterGroupCommitMaxQueuedDocBytes) {
+      // Large records do not enter the bounded queue or the smaller atomic
+      // ApplyBatch encoding limit; preserve the ordinary Upsert path for them.
+      return UpsertDirect(pk, doc, diagnostics);
+    }
+
+    auto request = std::make_shared<QueuedUpsert>();
+    request->pk = &pk;
+    request->document = &doc;
+    request->estimated_bytes = estimate;
+    auto result = request->completion.get_future();
+    const double wait_cpu_start = capture ? ThreadCpuMs() : 0.0;
+    {
+      std::unique_lock<std::mutex> lock(writer_queue_mutex_);
+      const size_t capacity = std::min<size_t>(
+          32, std::max<size_t>(4,
+              options_.writer_group_commit_max_batch_size * 4ull));
+      writer_queue_space_.wait(lock, [&] {
+        return writer_queue_stopping_ || writer_queue_.size() < capacity;
+      });
+      if (writer_queue_stopping_) {
+        return Status::Error("writer group-commit queue is stopping");
+      }
+      request->enqueued_at = std::chrono::steady_clock::now();
+      writer_queue_.push_back(request);
+    }
+    writer_queue_cv_.notify_one();
+    const Status status = result.get();
+    if (capture) {
+      diagnostics->writer_queue_wait_ms =
+          std::chrono::duration<double, std::milli>(
+              request->dequeued_at - request->enqueued_at).count();
+      diagnostics->writer_queue_wait_cpu_ms =
+          ThreadCpuMs() - wait_cpu_start;
+      diagnostics->writer_group_commit_size = request->group_size;
+    }
+    return status;
+  }
+
+  void WriterQueueLoop() {
+    for (;;) {
+      std::vector<std::shared_ptr<QueuedUpsert>> group;
+      {
+        std::unique_lock<std::mutex> lock(writer_queue_mutex_);
+        writer_queue_cv_.wait(lock, [&] {
+          return writer_queue_stopping_ || !writer_queue_.empty();
+        });
+        if (writer_queue_.empty() && writer_queue_stopping_) return;
+
+        const size_t max_batch = options_.writer_group_commit_max_batch_size;
+        const auto deadline = writer_queue_.front()->enqueued_at +
+            std::chrono::microseconds(
+                options_.writer_group_commit_max_delay_us);
+        if (!writer_queue_stopping_ && writer_queue_.size() < max_batch) {
+          writer_queue_cv_.wait_until(lock, deadline, [&] {
+            return writer_queue_stopping_ || writer_queue_.size() >= max_batch;
+          });
+        }
+
+        size_t bytes = 0;
+        while (!writer_queue_.empty() && group.size() < max_batch) {
+          const size_t next = writer_queue_.front()->estimated_bytes;
+          if (!group.empty() && next > kWriterGroupCommitMaxBytes - bytes) break;
+          auto request = std::move(writer_queue_.front());
+          writer_queue_.pop_front();
+          request->dequeued_at = std::chrono::steady_clock::now();
+          bytes += next;
+          group.push_back(std::move(request));
+        }
+        for (const auto& request : group) request->group_size = group.size();
+      }
+      writer_queue_space_.notify_all();
+
+      std::vector<Mutation> mutations;
+      mutations.reserve(group.size());
+      for (const auto& request : group) {
+        mutations.push_back(Mutation{MutationKind::UPSERT, *request->pk,
+                                     *request->document});
+      }
+      const Status status = ApplyBatch(mutations);
+      for (const auto& request : group) request->completion.set_value(status);
+    }
+  }
+
+  void StopWriterQueue() {
+    if (!writer_queue_thread_.joinable()) return;
+    {
+      std::lock_guard<std::mutex> lock(writer_queue_mutex_);
+      writer_queue_stopping_ = true;
+    }
+    writer_queue_cv_.notify_all();
+    writer_queue_space_.notify_all();
+    writer_queue_thread_.join();
   }
 
   Status Open(OpenDiagnostics* diagnostics) {
@@ -1890,6 +2038,14 @@ class Index::Impl {
 
   Status Upsert(const std::string& pk, const Document& doc,
                 WriteDiagnostics* diagnostics) {
+    if (options_.writer_group_commit_max_batch_size >= 2) {
+      return QueueUpsert(pk, doc, diagnostics);
+    }
+    return UpsertDirect(pk, doc, diagnostics);
+  }
+
+  Status UpsertDirect(const std::string& pk, const Document& doc,
+                     WriteDiagnostics* diagnostics) {
     const bool capture = diagnostics && diagnostics->capture_timing;
     double wall_start = capture ? NowMs() : 0.0;
     double cpu_start = capture ? ThreadCpuMs() : 0.0;
@@ -4778,6 +4934,12 @@ class Index::Impl {
 
  private:
   static constexpr size_t kFilterCandidateCacheLimitBytes = 64u << 10;
+  std::mutex writer_queue_mutex_;
+  std::condition_variable writer_queue_cv_;
+  std::condition_variable writer_queue_space_;
+  std::deque<std::shared_ptr<QueuedUpsert>> writer_queue_;
+  std::thread writer_queue_thread_;
+  bool writer_queue_stopping_{false};
   mutable detail::WriterPreferredSharedMutex query_mutex_;
   mutable std::recursive_mutex mutex_;
   mutable std::mutex filter_cache_mutex_;
@@ -4839,9 +5001,15 @@ Status Index::Open(const std::string& directory, const Options& options,
                    std::unique_ptr<Index>* out,
                    OpenDiagnostics* diagnostics) {
   if (diagnostics) *diagnostics = OpenDiagnostics{};
+  if (options.writer_group_commit_max_batch_size == 1 ||
+      options.writer_group_commit_max_batch_size > 256 ||
+      options.writer_group_commit_max_delay_us > 50000) {
+    return Status::Error("invalid writer group-commit bounds");
+  }
   auto impl = std::make_unique<Impl>(directory, options);
   Status s = impl->Open(diagnostics);
   if (!s.ok) return s;
+  impl->StartWriterQueue();
   *out = std::unique_ptr<Index>(new Index(impl.release()));
   return Status::OK();
 }

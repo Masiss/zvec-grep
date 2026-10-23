@@ -103,7 +103,9 @@
       "documents": 500,
       "rounds": 5,
       "readers": 4,
-      "queries_per_reader_per_round": 1,
+      "reader_mode": "continuous-16-min-through-writer-cycle",
+      "queries_per_reader_per_round": 16,
+      "minimum_reader_queries_per_arm": 320,
       "baseline_mode": "--incremental-fts-sustained-no-analyzer-cache",
       "candidate_mode": "--shared-collection-performance",
       "m4_analyzer_cache": "disabled; fingerprint verification remains strict",
@@ -127,7 +129,7 @@
     },
     "recovery": "Require three consecutive valid ten-second capacity/integrity windows between arms; I/O PSI is recorded but does not invalidate a capacity/integrity window. Any other preflight, runtime, telemetry, correctness, containment, recovery, or cleanup hard-gate failure consumes the one operation and forbids automatic retry.",
     "workspace_semantics": "Allocated/apparent thresholds are monitored soft budgets only; sampled traversal is not an independent hard-cap proof and known atomic-publication races remain UNKNOWN/INCOMPLETE.",
-    "measurement_semantics": "Compare five writer-cycle samples and twenty concurrent-reader samples per arm descriptively; nearest-rank p95 at n=5 is the maximum and is not a stable-tail estimate. Record initial/per-cycle native and M4 opens, M4 apply/flush, native upsert/flush, GC/compaction/checkpoint, process CPU/I/O, cgroup peaks/events, retained bytes, post-arm snapshot coherence, and host I/O PSI throughout. I/O PSI is host-wide observational context only for this benchmark, not an admission or abort gate; disclose elevated or mismatched host pressure as a measurement limitation. Do not claim causality, qualification, or a universal architecture win.",
+    "measurement_semantics": "Compare five writer-cycle samples and at least 320 concurrent hybrid-reader queries per arm descriptively. Four reader threads run continuously from writer-cycle start through commit plus GC completion, with at least 16 queries per reader per writer cycle; counts may exceed the 320-query minimum and must be reported per reader-cycle. Writer nearest-rank p95 at n=5 is the maximum, not a stable-tail estimate. Record initial/per-cycle native and M4 opens, M4 apply/flush, native upsert/flush, GC/compaction/checkpoint, per-query vector/FTS/merge and lock waits, process CPU/I/O, cgroup peaks/events, retained bytes, post-arm snapshot coherence, and host I/O PSI throughout. I/O PSI is host-wide observational context only for this benchmark, not an admission or abort gate; disclose elevated or mismatched host pressure as a measurement limitation. Do not claim causality, qualification, or a universal architecture win.",
     "no_automatic_retry": true
   },
   "lock_contention_microbench": {
@@ -135,7 +137,7 @@
     "approval_status": "approved",
     "approval_reference": "Current explicit owner instruction 2026-10-22: independently investigate M4 writer-tail and reader contention with bounded contained workloads; preserve all hard safety checks.",
     "execution_authorization_reference": "Current explicit owner instruction 2026-10-22 authorizes bounded exploratory M4 measurements and remeasurement after material instrumentation changes, using fresh operation IDs and full containment; no retry after a gate failure and no hard-gate bypass.",
-    "risk_acceptance_reference": "Each four-arm exploratory operation is descriptive only; shared-host pressure, one round per arm and test-scale workloads prohibit causal, qualification or architecture-win claims. ApplyBatch and Upsert call latencies have different units and must not be compared as equivalent tail samples.",
+    "risk_acceptance_reference": "The standard contention profile is four-arm; writer_group_commit is a separate two-arm per-call Upsert experiment. All are descriptive only: shared-host pressure, one round per arm and test-scale workloads prohibit causal, qualification or architecture-win claims. ApplyBatch and Upsert call latencies have different units and must not be compared as equivalent tail samples.",
     "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
     "binary_name": "m4_compaction_writer_contention",
     "resource_root": "/var/tmp",
@@ -290,7 +292,7 @@
     "memory_churn_two_versions_concurrent_open": {
       "profile_id": "memory_churn_two_versions_concurrent_open",
       "binary_relative_path": ".work/build/dict-cache-concurrent-open/m4_compaction_writer_contention",
-      "binary_sha256": "02e278015a2a0d846ae209c6c09d6ecd93d06fddbefc5b6f984666cadc06de26",
+      "binary_sha256": "017ef88ca30873ec474fa3473a676138187dc1a2bd9e9e21c142551c16fcd568",
       "cppjieba_patch_relative_path": "patches/cppjieba-inline-first-child.patch",
       "cppjieba_patch_sha256": "ef940d69df3b9def4e438e7964ca208e64a2bcc4e5e43500880dc40acf16307d",
       "cppjieba_overlay_sha256": "83a256ef15729f706dc731cad2dd78d0ef6f2252896d22e934623af37a2c8e9b",
@@ -306,7 +308,7 @@
         "tracing": false,
         "dictionary_churn_versions": 2
       },
-      "measurement_semantics": "Distinct same-cap diagnostic after the inline-child candidate. Two analyzers with different dictionary content fingerprints open concurrently, synchronize while both remain live for PSS sampling, then release one at a time. This measures co-resident old/new analyzer memory and concurrent initialization effects; native cppjieba cache entries remain process-retained after Analyzer destruction. Compare only descriptively with the sequential two-version profile. Capture cgroup memory.stat/peak, phase markers, process PSS, and release observations. Exploratory memory/lifecycle evidence only, not a latency claim, stable capacity result, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
+      "measurement_semantics": "Distinct same-cap diagnostic after the inline-child candidate. Two analyzers with different dictionary content fingerprints open concurrently, synchronize while both remain live for PSS sampling, then release one at a time. The inline-child overlay uses a bounded native cache (one retained path entry plus weak slots while older generations remain live); this measures co-resident analyzers and concurrent initialization, not an unbounded native-cache map. Compare only descriptively with the sequential two-version profile. Capture cgroup memory.stat/peak, phase markers, process PSS, and release observations. Exploratory memory/lifecycle evidence only, not a latency claim, stable capacity result, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
     },
     "memory_churn_two_versions_concurrent_allocator": {
       "profile_id": "memory_churn_two_versions_concurrent_allocator",
@@ -349,6 +351,22 @@
         "dictionary_churn_versions": 2
       },
       "measurement_semantics": "One exploratory same-workload/same-cap comparison with memory_churn_two_versions_eviction. The source-only research patch replaces a full DictUnit sort-copy with scalar weight min/max/median selection and moves parsed DictUnit storage into the immutable cache entry. Lifecycle and exact min/median/max user-weight tests pass. Capture cgroup memory.stat and per-version PSS/init timing; this single run is directional, not an isolated causal measurement, stable performance result, or capacity claim. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
+    "writer_group_commit": {
+      "profile_id": "writer_group_commit",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-writer-group-commit",
+        "compaction_modes": ["default", "group_commit"],
+        "tracing": false
+      },
+      "measurement_semantics": "A single bounded, two-arm exploratory test of the opt-in M4 Upsert group-commit prototype versus ordinary per-call Upsert. Both arms use identical 1,024-document seeds, four concurrent writers × eight independent Upsert calls, two concurrent search readers, one default compaction, explicit flush, reopen verification, WAL fsync enabled, and unchanged containment/resource caps. Group commit coalesces only overlapping calls for at most 500 us or four records, persists them using existing atomic ApplyBatch WAL/replay semantics, then publishes the group atomically; this remains linearizable for overlapping calls but may add bounded queue delay. Record end-to-end per-call latency, pre-dispatch group-formation wait, per-call batch-size evidence (require at least one multi-record group), reader latency, WAL fsync counts, and durability/reopen checks; do not compare against the older ApplyBatch API arm as identical call semantics. One operation only; any preflight/runtime/containment failure consumes it and is not retried. Exploratory evidence, not qualification or production authorization."
     },
     "single_arm": false,
     "multi_arm_within_operation": true,

@@ -375,7 +375,8 @@ class ContentionPolicyTests(unittest.TestCase):
                         "memory_churn_two_versions_trie_stream",
                         "memory_churn_two_versions_inline_child",
                         "memory_churn_two_versions_concurrent_open",
-                        "memory_churn_two_versions_concurrent_allocator") else None
+                        "memory_churn_two_versions_concurrent_allocator",
+                        "writer_group_commit") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -431,6 +432,20 @@ class ContentionPolicyTests(unittest.TestCase):
         denied = ct.contention_decision(current, ctx, "microbench")
         self.assertFalse(denied["continuation_allowed"])
         self.assertEqual(denied["blocking_failures"][0]["gate_id"], "M4-CA-MEM-CAPACITY")
+
+    def test_writer_group_commit_profile_is_bounded_and_distinct(self):
+        ctx = self.lock_contention_microbench_context("writer_group_commit")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ctx["workload"]["documents"], 1024)
+        self.assertEqual(ctx["workload"]["rounds"], 32)
+        self.assertEqual(ctx["workload"]["mode"], "--m4-writer-group-commit")
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["default", "group_commit"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertTrue(ct.BENCHMARK_POLICY["lock_contention_microbench"]
+                        ["writer_group_commit"]["measurement_semantics"])
 
     def test_memory_probe_binds_its_registered_workload_and_same_caps(self):
         ctx = self.lock_contention_microbench_context("memory_probe")
@@ -715,6 +730,8 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(profile["workload"]["mode"],
                          "--m4-compaction-contention-cache-churn-concurrent-v2")
         self.assertEqual(profile["workload"]["dictionary_churn_versions"], 2)
+        self.assertIn("bounded native cache", profile["measurement_semantics"])
+        self.assertNotIn("remain process-retained", profile["measurement_semantics"])
         self.assertEqual(ctx["memory_max_bytes"], 536870912)
         self.assertEqual(ctx["memory_swap_max_bytes"], 0)
         self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)

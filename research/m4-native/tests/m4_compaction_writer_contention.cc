@@ -48,6 +48,16 @@ double Percentile(std::vector<double> values, double q) {
   return values[std::max<size_t>(1, rank) - 1];
 }
 
+void PrintOptionalPercentile(std::ostream& output,
+                             const std::vector<double>& values, double q) {
+  if (values.empty()) output << "null";
+  else output << Percentile(values, q);
+}
+
+std::string PercentileJson(const std::vector<double>& values, double q) {
+  return values.empty() ? "null" : std::to_string(Percentile(values, q));
+}
+
 struct ProcessMemory {
   bool valid{false};
   uint64_t rss_kb{0};
@@ -150,11 +160,16 @@ struct ArmResult {
   std::string writer_api;
   size_t writer_api_calls{0};
   size_t logical_upserts{0};
+  size_t writer_group_commit_max_batch_size{0};
+  uint32_t writer_group_commit_max_delay_us{0};
+  uint64_t concurrent_wal_fsyncs{0};
   double compaction_ms{0.0};
   m4::CompactionDiagnostics compaction_diagnostics;
   m4::CompactionDiagnostics post_writer_flush_diagnostics;
   std::string compaction_status;
   std::vector<double> writer_ms;
+  std::vector<double> writer_queue_wait_ms;
+  std::vector<double> writer_group_commit_size_samples;
   std::vector<double> normalize_ms;
   std::vector<double> normalize_cpu_ms;
   std::vector<double> state_wait_ms;
@@ -424,13 +439,23 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   options.max_delta_bytes = 256ull << 20;
   options.tombstone_compact_ratio = 2.0;
   options.compaction_memory_limit_bytes = 256ull << 20;
+  const bool group_commit = name == "group_commit";
+  if (group_commit) {
+    options.writer_group_commit_max_batch_size = 4;
+    options.writer_group_commit_max_delay_us = 500;
+  }
 
   ArmResult result;
   result.name = name;
   const bool batch_api = name == "apply_batch";
-  result.writer_api = batch_api ? "ApplyBatch" : "Upsert";
+  result.writer_api = batch_api ? "ApplyBatch"
+                      : group_commit ? "UpsertGroupCommit" : "Upsert";
   result.writer_api_calls = batch_api ? writers : writers * ops_per_writer;
   result.logical_upserts = writers * ops_per_writer;
+  result.writer_group_commit_max_batch_size =
+      options.writer_group_commit_max_batch_size;
+  result.writer_group_commit_max_delay_us =
+      group_commit ? options.writer_group_commit_max_delay_us : 0;
   std::unique_ptr<m4::Index> index;
   EmitPhase(name, "open_start");
   m4::Status status = m4::Index::Open(root.string(), options, &index);
@@ -495,7 +520,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
     EmitPhase(name, compaction.ok ? "compactor_complete" : "compactor_failed");
   });
 
-  std::vector<std::vector<double>> writer_samples(writers);
+  std::vector<std::vector<double>> writer_samples(writers),
+      writer_queue_wait_samples(writers), writer_group_size_samples(writers);
   std::vector<std::vector<double>> normalize_samples(writers),
       normalize_cpu_samples(writers), state_wait_samples(writers),
       state_wait_cpu_samples(writers), state_hold_samples(writers),
@@ -550,24 +576,31 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
         const m4::Status write_status =
             index->Upsert(mutation.pk, mutation.document, &diagnostics);
         samples.push_back(ElapsedMs(begin, Clock::now()));
-        normalize_samples[writer].push_back(diagnostics.normalize_ms);
-        normalize_cpu_samples[writer].push_back(diagnostics.normalize_cpu_ms);
-        state_wait_samples[writer].push_back(diagnostics.state_mutex_wait_ms);
-        state_wait_cpu_samples[writer].push_back(
-            diagnostics.state_mutex_wait_cpu_ms);
-        state_hold_samples[writer].push_back(diagnostics.state_mutex_hold_ms);
-        state_hold_cpu_samples[writer].push_back(
-            diagnostics.state_mutex_hold_cpu_ms);
-        wal_encode_samples[writer].push_back(diagnostics.wal_encode_ms);
-        wal_encode_cpu_samples[writer].push_back(diagnostics.wal_encode_cpu_ms);
-        wal_append_samples[writer].push_back(diagnostics.wal_append_ms);
-        wal_append_cpu_samples[writer].push_back(
-            diagnostics.wal_append_cpu_ms);
-        wal_write_samples[writer].push_back(diagnostics.wal_write_ms);
-        wal_fsync_samples[writer].push_back(diagnostics.wal_fsync_ms);
-        query_wait_samples[writer].push_back(diagnostics.query_mutex_wait_ms);
-        apply_samples[writer].push_back(diagnostics.apply_ms);
-        auto_flush_samples[writer].push_back(diagnostics.auto_flush_ms);
+        if (group_commit) {
+          writer_queue_wait_samples[writer].push_back(
+              diagnostics.writer_queue_wait_ms);
+          writer_group_size_samples[writer].push_back(
+              static_cast<double>(diagnostics.writer_group_commit_size));
+        } else {
+          normalize_samples[writer].push_back(diagnostics.normalize_ms);
+          normalize_cpu_samples[writer].push_back(diagnostics.normalize_cpu_ms);
+          state_wait_samples[writer].push_back(diagnostics.state_mutex_wait_ms);
+          state_wait_cpu_samples[writer].push_back(
+              diagnostics.state_mutex_wait_cpu_ms);
+          state_hold_samples[writer].push_back(diagnostics.state_mutex_hold_ms);
+          state_hold_cpu_samples[writer].push_back(
+              diagnostics.state_mutex_hold_cpu_ms);
+          wal_encode_samples[writer].push_back(diagnostics.wal_encode_ms);
+          wal_encode_cpu_samples[writer].push_back(diagnostics.wal_encode_cpu_ms);
+          wal_append_samples[writer].push_back(diagnostics.wal_append_ms);
+          wal_append_cpu_samples[writer].push_back(
+              diagnostics.wal_append_cpu_ms);
+          wal_write_samples[writer].push_back(diagnostics.wal_write_ms);
+          wal_fsync_samples[writer].push_back(diagnostics.wal_fsync_ms);
+          query_wait_samples[writer].push_back(diagnostics.query_mutex_wait_ms);
+          apply_samples[writer].push_back(diagnostics.apply_ms);
+          auto_flush_samples[writer].push_back(diagnostics.auto_flush_ms);
+        }
         if (!write_status.ok) {
           writer_failures.fetch_add(1, std::memory_order_relaxed);
         }
@@ -606,6 +639,7 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
       EmitPhase(name, "reader_complete", reader);
     });
   }
+  const uint64_t wal_fsyncs_before = index->GetStats().wal_fsyncs;
   EmitPhase(name, "concurrent_start");
   {
     std::lock_guard<std::mutex> lock(start_mutex);
@@ -616,6 +650,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   for (auto& thread : readers) thread.join();
   compactor.join();
   EmitPhase(name, "concurrent_complete");
+  const uint64_t wal_fsyncs_after = index->GetStats().wal_fsyncs;
+  result.concurrent_wal_fsyncs = wal_fsyncs_after - wal_fsyncs_before;
   result.writer_failures = writer_failures.load(std::memory_order_relaxed);
   result.reader_failures = reader_failures.load(std::memory_order_relaxed);
   result.compaction_ms = ElapsedMs(compaction_start, compaction_end);
@@ -628,6 +664,11 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
     }
   };
   append_samples(&result.writer_ms, writer_samples);
+  append_samples(&result.writer_queue_wait_ms, writer_queue_wait_samples);
+  if (group_commit) {
+    append_samples(&result.writer_group_commit_size_samples,
+                   writer_group_size_samples);
+  }
   append_samples(&result.normalize_ms, normalize_samples);
   append_samples(&result.normalize_cpu_ms, normalize_cpu_samples);
   append_samples(&result.state_wait_ms, state_wait_samples);
@@ -757,7 +798,13 @@ void PrintArm(const ArmResult& arm, bool last) {
   std::cout << "{\"name\":\"" << arm.name << "\",\"writer_api\":\""
             << arm.writer_api << "\",\"writer_api_calls\":"
             << arm.writer_api_calls << ",\"logical_upserts\":"
-            << arm.logical_upserts << ",\"compaction_ms\":"
+            << arm.logical_upserts
+            << ",\"writer_group_commit_max_batch_size\":"
+            << arm.writer_group_commit_max_batch_size
+            << ",\"writer_group_commit_max_delay_us\":"
+            << arm.writer_group_commit_max_delay_us
+            << ",\"concurrent_wal_fsyncs\":"
+            << arm.concurrent_wal_fsyncs << ",\"compaction_ms\":"
             << arm.compaction_ms << ",\"compaction_status\":\""
             << arm.compaction_status << "\",\"compaction_diagnostics\":{";
   std::cout << "\"total_ms\":" << compaction.total_ms
@@ -838,34 +885,43 @@ void PrintArm(const ArmResult& arm, bool last) {
   PrintFlushDiagnostics(arm.post_writer_flush_diagnostics);
   std::cout << ",\"writer_samples\":";
   PrintValues(arm.writer_ms);
-  std::cout << ",\"writer_p50_ms\":" << Percentile(arm.writer_ms, 0.50)
-            << ",\"writer_p95_ms\":" << Percentile(arm.writer_ms, 0.95)
-            << ",\"writer_max_ms\":" << Percentile(arm.writer_ms, 1.0)
+  std::cout << ",\"writer_queue_wait_samples\":";
+  PrintValues(arm.writer_queue_wait_ms);
+  std::cout << ",\"writer_queue_wait_p95_ms\":";
+  PrintOptionalPercentile(std::cout, arm.writer_queue_wait_ms, 0.95);
+  std::cout << ",\"writer_group_commit_size_samples\":";
+  PrintValues(arm.writer_group_commit_size_samples);
+  std::cout << ",\"writer_p50_ms\":" << PercentileJson(arm.writer_ms, 0.50)
+            << ",\"writer_p95_ms\":" << PercentileJson(arm.writer_ms, 0.95)
+            << ",\"writer_max_ms\":" << PercentileJson(arm.writer_ms, 1.0)
             << ",\"normalize_samples\":";
   PrintValues(arm.normalize_ms);
   std::cout << ",\"normalize_p95_ms\":"
-            << Percentile(arm.normalize_ms, 0.95)
+            << PercentileJson(arm.normalize_ms, 0.95)
             << ",\"normalize_cpu_samples\":";
   PrintValues(arm.normalize_cpu_ms);
   std::cout << ",\"state_wait_samples\":";
   PrintValues(arm.state_wait_ms);
-  std::cout << ",\"state_wait_p95_ms\":" << Percentile(arm.state_wait_ms, 0.95)
+  std::cout << ",\"state_wait_p95_ms\":"
+            << PercentileJson(arm.state_wait_ms, 0.95)
             << ",\"state_wait_cpu_samples\":";
   PrintValues(arm.state_wait_cpu_ms);
   std::cout << ",\"state_hold_samples\":";
   PrintValues(arm.state_hold_ms);
   std::cout << ",\"state_hold_p95_ms\":"
-            << Percentile(arm.state_hold_ms, 0.95)
+            << PercentileJson(arm.state_hold_ms, 0.95)
             << ",\"state_hold_cpu_samples\":";
   PrintValues(arm.state_hold_cpu_ms);
   std::cout << ",\"wal_encode_samples\":";
   PrintValues(arm.wal_encode_ms);
-  std::cout << ",\"wal_encode_p95_ms\":" << Percentile(arm.wal_encode_ms, 0.95)
+  std::cout << ",\"wal_encode_p95_ms\":"
+            << PercentileJson(arm.wal_encode_ms, 0.95)
             << ",\"wal_encode_cpu_samples\":";
   PrintValues(arm.wal_encode_cpu_ms);
   std::cout << ",\"wal_append_samples\":";
   PrintValues(arm.wal_append_ms);
-  std::cout << ",\"wal_append_p95_ms\":" << Percentile(arm.wal_append_ms, 0.95)
+  std::cout << ",\"wal_append_p95_ms\":"
+            << PercentileJson(arm.wal_append_ms, 0.95)
             << ",\"wal_append_cpu_samples\":";
   PrintValues(arm.wal_append_cpu_ms);
   std::cout << ",\"wal_write_samples\":";
@@ -874,21 +930,24 @@ void PrintArm(const ArmResult& arm, bool last) {
   PrintValues(arm.wal_fsync_ms);
   std::cout << ",\"query_wait_samples\":";
   PrintValues(arm.query_wait_ms);
-  std::cout << ",\"query_wait_p95_ms\":" << Percentile(arm.query_wait_ms, 0.95)
+  std::cout << ",\"query_wait_p95_ms\":"
+            << PercentileJson(arm.query_wait_ms, 0.95)
             << ",\"apply_samples\":";
   PrintValues(arm.apply_ms);
-  std::cout << ",\"apply_p95_ms\":" << Percentile(arm.apply_ms, 0.95)
+  std::cout << ",\"apply_p95_ms\":"
+            << PercentileJson(arm.apply_ms, 0.95)
             << ",\"auto_flush_samples\":";
   PrintValues(arm.auto_flush_ms);
-  std::cout << ",\"auto_flush_p95_ms\":" << Percentile(arm.auto_flush_ms, 0.95)
+  std::cout << ",\"auto_flush_p95_ms\":"
+            << PercentileJson(arm.auto_flush_ms, 0.95)
             << ",\"reader_samples\":";
   PrintValues(arm.reader_ms);
   std::cout << ",\"reader_mutex_wait_samples\":";
   PrintValues(arm.reader_mutex_wait_ms);
   std::cout << ",\"reader_mutex_wait_p95_ms\":"
-            << Percentile(arm.reader_mutex_wait_ms, 0.95)
-            << ",\"reader_p50_ms\":" << Percentile(arm.reader_ms, 0.50)
-            << ",\"reader_p95_ms\":" << Percentile(arm.reader_ms, 0.95)
+            << PercentileJson(arm.reader_mutex_wait_ms, 0.95)
+            << ",\"reader_p50_ms\":" << PercentileJson(arm.reader_ms, 0.50)
+            << ",\"reader_p95_ms\":" << PercentileJson(arm.reader_ms, 0.95)
             << ",\"writer_failures\":" << arm.writer_failures
             << ",\"reader_failures\":" << arm.reader_failures
             << ",\"durability_failures\":" << arm.durability_failures
@@ -903,7 +962,7 @@ void PrintArm(const ArmResult& arm, bool last) {
 int main(int argc, char** argv) {
   if (argc != 6) {
     std::cerr << "usage: m4_compaction_writer_contention <root> <jieba-dict> "
-                 "--m4-compaction-contention <documents> <writer-operations>\n";
+                 "<workload-mode> <documents> <writer-operations>\n";
     return 2;
   }
   const fs::path root(argv[1]);
@@ -913,9 +972,11 @@ int main(int argc, char** argv) {
       workload_mode == "--m4-compaction-contention-cache-churn-v2";
   const bool concurrent_cache_churn_mode =
       workload_mode == "--m4-compaction-contention-cache-churn-concurrent-v2";
+  const bool writer_group_commit_mode =
+      workload_mode == "--m4-writer-group-commit";
   if (!fs::is_directory(dict_dir) ||
       (workload_mode != "--m4-compaction-contention" && !cache_churn_mode &&
-       !concurrent_cache_churn_mode)) {
+       !concurrent_cache_churn_mode && !writer_group_commit_mode)) {
     std::cerr << "missing Jieba dictionary or invalid workload mode\n";
     return 2;
   }
@@ -929,7 +990,9 @@ int main(int argc, char** argv) {
   }
   const size_t ops_per_writer = writer_operation_count / writers;
 
-  std::vector<std::string> order{"default", "snapshot", "snapshot_rebase",
+  std::vector<std::string> order = writer_group_commit_mode
+      ? std::vector<std::string>{"default", "group_commit"}
+      : std::vector<std::string>{"default", "snapshot", "snapshot_rebase",
                                  "apply_batch"};
   if (std::hash<std::string>{}(root.string()) % 2 != 0) {
     std::reverse(order.begin(), order.end());
@@ -949,11 +1012,13 @@ int main(int argc, char** argv) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
   }
-  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":7,\"documents\":"
+  std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":8,\"documents\":"
             << documents << ",\"writers\":" << writers
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count
-            << ",\"writer_operations\":" << writer_operation_count
+            << ",\"workload_mode\":\""
+            << (writer_group_commit_mode ? "writer_group_commit" : "contention")
+            << "\",\"writer_operations\":" << writer_operation_count
             << ",\"reader_queries\":" << 2 * 32
             << ",\"coherence_errors\":0,\"failures\":" << failures
             << ",\"arm_order\":[";

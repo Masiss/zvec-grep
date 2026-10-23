@@ -227,8 +227,15 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         raise RuntimeError("contention workload counts/coherence do not match the contract")
     arms = data.get("arms")
     timing_schema = data.get("timing_schema_version")
-    if timing_schema not in (None, 2, 3, 4, 5, 6, 7):
+    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8):
         raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
+    if timing_schema == 8:
+        expected_workload_mode = (
+            "writer_group_commit"
+            if workload.get("mode") == "--m4-writer-group-commit"
+            else "contention")
+        if data.get("workload_mode") != expected_workload_mode:
+            raise RuntimeError("workload mode does not match the registered profile")
     expected_modes = set(workload.get("compaction_modes", ("default", "snapshot")))
     if timing_schema in (None, 2, 3):
         # Historical receipts predate the explicit ApplyBatch arm.
@@ -255,13 +262,13 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         compaction = arm.get("compaction_diagnostics")
         # Older operation receipts predate lock-stage compaction diagnostics;
         # retain their exact recorded validity while checking new receipts.
-        if timing_schema in (2, 3, 4, 5, 6, 7) and not isinstance(compaction, dict):
+        if timing_schema in (2, 3, 4, 5, 6, 7, 8) and not isinstance(compaction, dict):
             raise RuntimeError("missing compaction phase timing object")
         if compaction is not None and not isinstance(compaction, dict):
             raise RuntimeError("invalid compaction phase timing object")
         if compaction is not None:
             required_compaction_fields = compaction_timing_fields
-            if timing_schema in (3, 4, 5, 6, 7):
+            if timing_schema in (3, 4, 5, 6, 7, 8):
                 required_compaction_fields += (
                     "state_mutex_hold_ms", "state_mutex_hold_cpu_ms")
             for key in required_compaction_fields:
@@ -270,7 +277,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         not isinstance(value, (int, float)) or
                         not math.isfinite(value) or value < 0):
                     raise RuntimeError("missing/invalid compaction phase timing")
-            if timing_schema in (3, 4, 5, 6, 7):
+            if timing_schema in (3, 4, 5, 6, 7, 8):
                 hold = compaction["state_mutex_hold_ms"]
                 if (hold + 1e-6 < compaction["publication_ms"] or
                         hold > compaction["total_ms"] + 1e-6):
@@ -293,7 +300,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     if isinstance(flush_stages, dict) else None
                 )
                 if (stage_version not in (1, 2) or
-                        (timing_schema in (5, 6, 7) and stage_version != 2)):
+                        (timing_schema in (5, 6, 7, 8) and stage_version != 2)):
                     raise RuntimeError("invalid optional flush-stage timing object")
                 if stage_version == 2:
                     stage_fields += (
@@ -315,7 +322,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         flush_stages["query_mutex_hold_ms"] >
                         compaction["pending_flush_ms"] + 1e-3):
                     raise RuntimeError("flush query-lock hold exceeds pending-flush duration")
-        if timing_schema in (5, 6, 7):
+        if timing_schema in (5, 6, 7, 8):
             explicit_flush = arm.get("post_writer_flush_diagnostics")
             if not isinstance(explicit_flush, dict):
                 raise RuntimeError("missing post-writer flush diagnostics")
@@ -369,47 +376,81 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 raise RuntimeError(
                     "post-writer flush query-lock hold exceeds flush duration")
         api_calls = rounds
-        if timing_schema in (4, 5, 6, 7):
+        group_commit_arm = timing_schema == 8 and arm.get("name") == "group_commit"
+        if timing_schema in (4, 5, 6, 7, 8):
             batch_api = arm.get("name") == "apply_batch"
-            expected_api = "ApplyBatch" if batch_api else "Upsert"
+            expected_api = ("ApplyBatch" if batch_api else
+                            "UpsertGroupCommit" if group_commit_arm else "Upsert")
             expected_calls = workload["writers"] if batch_api else rounds
             if (arm.get("writer_api") != expected_api or
                     arm.get("writer_api_calls") != expected_calls or
                     arm.get("logical_upserts") != rounds):
                 raise RuntimeError("writer API/count metadata does not match the contract")
             api_calls = expected_calls
-        required_writer_series = (
-            "writer_samples", "state_wait_samples", "state_wait_cpu_samples",
-            "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
-            "apply_samples", "auto_flush_samples")
-        for key in required_writer_series:
-            if not valid_series(arm.get(key), api_calls):
-                raise RuntimeError(f"missing/invalid writer timing series: {key}")
-        if timing_schema in (3, 4, 5, 6, 7):
-            for key in ("state_hold_samples", "state_hold_cpu_samples"):
-                if not valid_series(arm.get(key), api_calls):
-                    raise RuntimeError(f"missing/invalid writer timing series: {key}")
-        if timing_schema in (6, 7):
-            for key in ("wal_write_samples", "wal_fsync_samples"):
-                if not valid_series(arm.get(key), api_calls):
-                    raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if any(write + fsync > append + 1e-3 for write, fsync, append in zip(
-                    arm["wal_write_samples"], arm["wal_fsync_samples"],
-                    arm["wal_append_samples"], strict=True)):
-                raise RuntimeError("WAL write/fsync substage exceeds append duration")
-        if timing_schema == 7:
+        if group_commit_arm:
+            if (not valid_series(arm.get("writer_samples"), api_calls) or
+                    not valid_series(arm.get("writer_queue_wait_samples"), api_calls) or
+                    not valid_series(
+                        arm.get("writer_group_commit_size_samples"), api_calls)):
+                raise RuntimeError("missing/invalid group-commit latency/batch-size series")
+            group_sizes = arm["writer_group_commit_size_samples"]
+            if (max(group_sizes, default=0) < 2 or
+                    any(size < 1 or size > 4 or int(size) != size
+                        for size in group_sizes)):
+                raise RuntimeError("group-commit arm did not form valid multi-writer batches")
             tracked_peak = arm.get("compaction_tracked_peak_bytes")
             if (isinstance(tracked_peak, bool) or
                     not isinstance(tracked_peak, int) or tracked_peak < 0):
                 raise RuntimeError("missing/invalid compaction tracked memory peak")
-        # New binaries also emit normalization and WAL-encoding timings. Keep
-        # replay compatibility with older raw receipts that predate these fields.
-        for key in ("normalize_samples", "normalize_cpu_samples",
-                    "wal_encode_samples", "wal_encode_cpu_samples"):
-            if timing_schema in (2, 3, 4, 5, 6, 7) and not valid_series(arm.get(key), api_calls):
-                raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if key in arm and not valid_series(arm[key], api_calls):
-                raise RuntimeError(f"invalid optional writer timing series: {key}")
+            if (arm.get("writer_group_commit_max_batch_size") != 4 or
+                    arm.get("writer_group_commit_max_delay_us") != 500 or
+                    isinstance(arm.get("concurrent_wal_fsyncs"), bool) or
+                    not isinstance(arm.get("concurrent_wal_fsyncs"), int) or
+                    arm["concurrent_wal_fsyncs"] < 1):
+                raise RuntimeError("group-commit bounds or WAL sync count are invalid")
+            uncollected = (
+                "normalize_samples", "normalize_cpu_samples", "state_wait_samples",
+                "state_wait_cpu_samples", "state_hold_samples", "state_hold_cpu_samples",
+                "wal_encode_samples", "wal_encode_cpu_samples", "wal_append_samples",
+                "wal_append_cpu_samples", "wal_write_samples", "wal_fsync_samples",
+                "query_wait_samples", "apply_samples", "auto_flush_samples")
+            if any(arm.get(key) != [] for key in uncollected):
+                raise RuntimeError("group-commit arm mislabels non-per-call stages")
+        else:
+            required_writer_series = (
+                "writer_samples", "state_wait_samples", "state_wait_cpu_samples",
+                "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
+                "apply_samples", "auto_flush_samples")
+            for key in required_writer_series:
+                if not valid_series(arm.get(key), api_calls):
+                    raise RuntimeError(f"missing/invalid writer timing series: {key}")
+            if timing_schema in (3, 4, 5, 6, 7, 8):
+                for key in ("state_hold_samples", "state_hold_cpu_samples"):
+                    if not valid_series(arm.get(key), api_calls):
+                        raise RuntimeError(f"missing/invalid writer timing series: {key}")
+            if timing_schema in (6, 7, 8):
+                for key in ("wal_write_samples", "wal_fsync_samples"):
+                    if not valid_series(arm.get(key), api_calls):
+                        raise RuntimeError(f"missing/invalid writer timing series: {key}")
+                if any(write + fsync > append + 1e-3 for write, fsync, append in zip(
+                        arm["wal_write_samples"], arm["wal_fsync_samples"],
+                        arm["wal_append_samples"], strict=True)):
+                    raise RuntimeError("WAL write/fsync substage exceeds append duration")
+            if timing_schema in (7, 8):
+                tracked_peak = arm.get("compaction_tracked_peak_bytes")
+                if (isinstance(tracked_peak, bool) or
+                        not isinstance(tracked_peak, int) or tracked_peak < 0):
+                    raise RuntimeError("missing/invalid compaction tracked memory peak")
+            if timing_schema == 8 and (
+                    arm.get("writer_queue_wait_samples") != [] or
+                    arm.get("writer_group_commit_size_samples") != []):
+                raise RuntimeError("non-group arm unexpectedly reports queue samples")
+            for key in ("normalize_samples", "normalize_cpu_samples",
+                        "wal_encode_samples", "wal_encode_cpu_samples"):
+                if timing_schema in (2, 3, 4, 5, 6, 7, 8) and not valid_series(arm.get(key), api_calls):
+                    raise RuntimeError(f"missing/invalid writer timing series: {key}")
+                if key in arm and not valid_series(arm[key], api_calls):
+                    raise RuntimeError(f"invalid optional writer timing series: {key}")
         reader_count = workload["readers"] * workload["queries_per_reader"]
         if (not valid_series(arm.get("reader_samples"), reader_count) or
                 not valid_series(arm.get("reader_mutex_wait_samples"), reader_count)):
@@ -423,6 +464,8 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 arm.get("name") == "snapshot_rebase" and
                 arm.get("compaction_status") != "ok") or (
                 arm.get("name") == "apply_batch" and
+                arm.get("compaction_status") != "ok") or (
+                arm.get("name") == "group_commit" and
                 arm.get("compaction_status") != "ok"):
             raise RuntimeError("unexpected compaction outcome")
     verify_analyzer_churn_trace(data, workload)
@@ -442,7 +485,8 @@ def main() -> int:
                             "memory_churn_two_versions_trie_stream",
                             "memory_churn_two_versions_inline_child",
                             "memory_churn_two_versions_concurrent_open",
-                            "memory_churn_two_versions_concurrent_allocator"),
+                            "memory_churn_two_versions_concurrent_allocator",
+                            "writer_group_commit"),
                         default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:
