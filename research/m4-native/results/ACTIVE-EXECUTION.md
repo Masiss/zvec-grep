@@ -4,7 +4,11 @@
 
 Immutable-shard remains the baseline; no architecture comparison is being restarted. Promoted reuse of a verified immutable analyzer across live same-process generations to the M4 default (`reuse_analyzer_cache=true`). The registry remains weak-reference-only, and both dictionary fingerprint passes still run, preserving analyzer identity and mutation-during-open checks. The existing two reverse-order 500×20 B3 pairs (20/20 cache hits per candidate arm) measured ratio-of-sums reductions of 40.0% process CPU, 47.6% writer CPU, 32.8% commit p95, and 51.2% M4 Open CPU p50; peak RSS was ~292 MiB uncached vs ~217 MiB cached. Reader p95 varied, so no reader benefit is claimed.
 
-The default-on lifecycle regression and full M4 build/CTest passed (9/9); tests retain explicit cache-off control and verify generation lifetime, dictionary identity, TOCTOU, race, and cold-process behavior. Next source target: reduce dictionary fingerprint temporary-copy peak without weakening content hashing or identity validation; benchmark only after known-vector/boundary and reopen correctness checks.
+The default-on lifecycle regression and full M4 build/CTest passed (9/9); tests retain explicit cache-off control and verify generation lifetime, dictionary identity, TOCTOU, race, and cold-process behavior.
+
+Second implementation: `Sha256(std::string_view)` now hashes full blocks directly from the input and uses a fixed 128-byte padding tail, eliminating the former input-sized copy plus full padded buffer during dictionary fingerprinting. NIST/independent known vectors at 0, 3, 55, 56, 63, 64, 65, 127, 128, 129, and 1 MiB pass; focused correctness and analyzer lifecycle CTests pass 2/2 and the full suite passed 9/9. LSP is clean for the changed C++ files. This is a deterministic temporary-allocation reduction; no M4 end-to-end latency/RSS claim yet.
+
+**Next selected reader bottleneck:** in the existing 10k-document/64-query hybrid trace, `SearchFtsFiltered` materialized all 10,000 live IDs for an `ALL` filter on every query; median filter time was 1.661 ms of 1.724 ms total FTS time, while only 10 candidates were checked. Add the semantics-preserving no-explicit-filter fast path and correctness parity tests before any measurement. This removes an O(live-docs) candidate materialization with no cache and no extra retained memory.
 
 ## Architecture decision review — 2026-10-23
 

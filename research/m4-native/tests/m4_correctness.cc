@@ -28,6 +28,7 @@
 #include "m4/index.h"
 #include "../src/format.h"
 #include "../src/tokenizer.h"
+#include "../src/util.h"
 
 namespace fs = std::filesystem;
 using m4::CompareOp;
@@ -47,6 +48,28 @@ void Check(bool ok, const std::string& what) {
     ++g_failures;
     std::fprintf(stderr, "FAIL: %s\n", what.c_str());
   }
+}
+
+void TestSha256BlockBoundaries() {
+  const auto check_repeated_a = [](size_t bytes, const char* expected) {
+    Check(m4::Sha256(std::string(bytes, 'a')) == expected,
+          "SHA-256 repeated-a input length " + std::to_string(bytes));
+  };
+  Check(m4::Sha256("") ==
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "SHA-256 empty input");
+  Check(m4::Sha256("abc") ==
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "SHA-256 short known vector");
+  check_repeated_a(55, "9f4390f8d30c2dd92ec9f095b65e2b9ae9b0a925a5258e241c9f1e910f734318");
+  check_repeated_a(56, "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a");
+  check_repeated_a(63, "7d3e74a05d7db15bce4ad9ec0658ea98e3f06eeecf16b4c6fff2da457ddc2f34");
+  check_repeated_a(64, "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb");
+  check_repeated_a(65, "635361c48bb9eab14198e76ea8ab7f1a41685d6ad62aa9146d301d4f17eb0ae0");
+  check_repeated_a(127, "c57e9278af78fa3cab38667bef4ce29d783787a2f731d4e12200270f0c32320a");
+  check_repeated_a(128, "6836cf13bac400e9105071cd6af47084dfacad4e5e302c94bfed24e013afb73e");
+  check_repeated_a(129, "c12cb024a2e5551cca0e08fce8f1c5e314555cc3fef6329ee994a3db752166ae");
+  check_repeated_a(1u << 20, "9bc1b2a288b26af7257a36277ae3816a7d4f16e89c1e7e77d0a5c48bad62b360");
 }
 
 struct RefDoc {
@@ -2989,6 +3012,7 @@ void TestManifestFallback(const std::string& dir) {
 }  // namespace
 
 int main() {
+  TestSha256BlockBoundaries();
   const std::string root = (fs::temp_directory_path() / "m4-research-tests").string();
   fs::remove_all(root);
   RunRandomized(root + "/random");

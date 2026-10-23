@@ -2,12 +2,10 @@
 
 #pragma once
 
-#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace m4 {
 
@@ -33,6 +31,8 @@ inline uint64_t Fnv1a(const void* data, size_t size) {
 
 // Small self-contained SHA-256 for deterministic research metadata. Keeping it
 // local avoids a runtime crypto-library dependency for the standalone oracle.
+// Full blocks are consumed directly from input; only the at-most-128-byte
+// padding tail is materialized, avoiding input-sized scratch copies.
 inline std::string Sha256(std::string_view input) {
   static constexpr uint32_t k[64] = {
       0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
@@ -46,17 +46,10 @@ inline std::string Sha256(std::string_view input) {
   auto rotr = [](uint32_t x, unsigned n) { return (x >> n) | (x << (32 - n)); };
   uint32_t h[8] = {0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
                    0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};
-  const uint64_t bit_len = static_cast<uint64_t>(input.size()) * 8;
-  const size_t padded = ((input.size() + 9 + 63) / 64) * 64;
-  std::string data(input);
-  data.push_back(static_cast<char>(0x80));
-  data.resize(padded, '\0');
-  for (unsigned i = 0; i < 8; ++i)
-    data[padded - 1 - i] = static_cast<char>(bit_len >> (i * 8));
-  for (size_t off = 0; off < padded; off += 64) {
+  auto compress = [&](const uint8_t* block) {
     uint32_t w[64];
     for (unsigned i = 0; i < 16; ++i) {
-      const auto* p = reinterpret_cast<const uint8_t*>(data.data() + off + i * 4);
+      const auto* p = block + i * 4;
       w[i] = (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) |
              (uint32_t(p[2]) << 8) | uint32_t(p[3]);
     }
@@ -75,7 +68,25 @@ inline std::string Sha256(std::string_view input) {
     }
     h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d;
     h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=z;
+  };
+  const auto* bytes = reinterpret_cast<const uint8_t*>(input.data());
+  const size_t full_blocks = input.size() / 64;
+  for (size_t block = 0; block < full_blocks; ++block)
+    compress(bytes + block * 64);
+
+  uint8_t tail[128]{};
+  const size_t remainder = input.size() % 64;
+  if (remainder != 0) {
+    std::memcpy(tail, bytes + full_blocks * 64, remainder);
   }
+  tail[remainder] = 0x80;
+  const size_t tail_blocks = remainder < 56 ? 1 : 2;
+  const size_t length_offset = tail_blocks * 64 - 8;
+  const uint64_t bit_len = static_cast<uint64_t>(input.size()) * 8;
+  for (unsigned i = 0; i < 8; ++i)
+    tail[length_offset + 7 - i] = static_cast<uint8_t>(bit_len >> (i * 8));
+  for (size_t block = 0; block < tail_blocks; ++block)
+    compress(tail + block * 64);
   static constexpr char hex[] = "0123456789abcdef";
   std::string out; out.reserve(64);
   for (uint32_t v : h) for (int shift = 28; shift >= 0; shift -= 4)
