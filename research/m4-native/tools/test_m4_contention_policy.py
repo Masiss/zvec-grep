@@ -378,7 +378,9 @@ class ContentionPolicyTests(unittest.TestCase):
                         "memory_churn_two_versions_concurrent_allocator",
                         "writer_group_commit",
                         "writer_group_commit_snapshot_rebase",
-                        "flush_reader_staging_pair") else None
+                        "flush_reader_staging_pair",
+                        "writer_group_commit_flush_reader_pair",
+                        "writer_group_commit_pending_flush_reader_pair") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -467,6 +469,41 @@ class ContentionPolicyTests(unittest.TestCase):
             "flush_reader_staging_pair"]
         self.assertIn("timestamps proving", profile["measurement_semantics"])
         self.assertIn("no retry", profile["measurement_semantics"])
+
+    def test_group_commit_flush_reader_pair_is_a_distinct_bounded_cross_factor(self):
+        ctx = self.lock_contention_microbench_context(
+            "writer_group_commit_flush_reader_pair")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ctx["workload"]["documents"], 8192)
+        self.assertEqual(ctx["workload"]["rounds"], 32)
+        self.assertEqual(ctx["workload"]["writers"], 4)
+        self.assertEqual(ctx["workload"]["readers"], 2)
+        self.assertEqual(ctx["workload"]["mode"],
+                         "--m4-group-commit-flush-reader-pair")
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["default", "group_commit"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        semantics = ct.BENCHMARK_POLICY["lock_contention_microbench"][
+            "writer_group_commit_flush_reader_pair"]["measurement_semantics"]
+        self.assertIn("Distinct, one-shot paired experiment", semantics)
+        self.assertIn("timestamped readers", semantics)
+        self.assertIn("not a retry", semantics)
+
+    def test_pending_flush_reader_group_pair_has_distinct_real_work_contract(self):
+        ctx = self.lock_contention_microbench_context(
+            "writer_group_commit_pending_flush_reader_pair")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        workload = ctx["workload"]
+        self.assertEqual(workload["pending_flush_documents"], 256)
+        self.assertEqual(workload["mode"],
+                         "--m4-group-commit-pending-flush-reader-pair")
+        profile = ct.BENCHMARK_POLICY["lock_contention_microbench"][
+            "writer_group_commit_pending_flush_reader_pair"]
+        self.assertIn("not retry", profile["measurement_semantics"])
+        self.assertIn("exactly 256", profile["measurement_semantics"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
 
     def test_writer_group_commit_snapshot_rebase_profile_is_distinct_and_bounded(self):
         ctx = self.lock_contention_microbench_context(

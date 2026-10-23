@@ -66,7 +66,7 @@ class BenchmarkPolicyTests(unittest.TestCase):
                                 if name != "apply_batch"]
         for name in compaction_modes:
             batch_api = name == "apply_batch"
-            group_api = timing_schema == 8 and name in (
+            group_api = timing_schema in (8, 10, 11) and name in (
                 "group_commit", "group_commit_snapshot_rebase")
             api_calls = (workload["writers"] if include_compaction_timing and batch_api
                          else rounds)
@@ -110,8 +110,14 @@ class BenchmarkPolicyTests(unittest.TestCase):
                 "reader_samples": [0.25] * (workload["readers"] * workload["queries_per_reader"]),
                 "reader_mutex_wait_samples": [0.0] * (workload["readers"] * workload["queries_per_reader"]),
             })
-            if workload["mode"] == "--m4-flush-reader-staging-pair":
-                is_candidate = name == "flush_candidate"
+            if workload["mode"] in (
+                    "--m4-flush-reader-staging-pair",
+                    "--m4-group-commit-flush-reader-pair",
+                    "--m4-group-commit-pending-flush-reader-pair"):
+                group_pair = workload["mode"] in (
+                    "--m4-group-commit-flush-reader-pair",
+                    "--m4-group-commit-pending-flush-reader-pair")
+                is_candidate = (True if group_pair else name == "flush_candidate")
                 flush_start, flush_end = 1_000_000_000, 1_020_000_000
                 arm.update({
                     "flush_metadata_outside_query_lock": is_candidate,
@@ -119,6 +125,7 @@ class BenchmarkPolicyTests(unittest.TestCase):
                     "segment_bytes_written": 2048,
                     "total_wal_fsyncs": 40,
                     "reader_through_flush": {
+                        "pending_delta_docs": workload.get("pending_flush_documents", 0),
                         "flush_start_boot_ns": flush_start,
                         "flush_end_boot_ns": flush_end,
                         "flush_succeeded": True,
@@ -201,9 +208,13 @@ class BenchmarkPolicyTests(unittest.TestCase):
         }
         if include_compaction_timing:
             data["timing_schema_version"] = timing_schema
-            if timing_schema in (8, 9):
+            if timing_schema in (8, 9, 10, 11):
                 data["workload_mode"] = (
-                    "flush_reader_staging_pair"
+                    "group_commit_pending_flush_reader_pair"
+                    if workload["mode"] == "--m4-group-commit-pending-flush-reader-pair"
+                    else "group_commit_flush_reader_pair"
+                    if workload["mode"] == "--m4-group-commit-flush-reader-pair"
+                    else "flush_reader_staging_pair"
                     if workload["mode"] == "--m4-flush-reader-staging-pair"
                     else "writer_group_commit_snapshot_rebase"
                     if workload["mode"] == "--m4-writer-group-commit-snapshot-rebase"
@@ -238,6 +249,57 @@ class BenchmarkPolicyTests(unittest.TestCase):
                 sample["end_boot_ns"] = 981_000_000
         with self.assertRaisesRegex(RuntimeError, "timestamp-proven"):
             lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+
+    def test_group_commit_flush_reader_pair_binds_queue_and_overlap_evidence(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=10,
+            workload_profile="writer_group_commit_flush_reader_pair")
+        phase_lines = []
+        for arm in data["arm_order"]:
+            trace = next(item["reader_through_flush"] for item in data["arms"]
+                         if item["name"] == arm)
+            start, end = trace["flush_start_boot_ns"], trace["flush_end_boot_ns"]
+            phase_lines.extend([
+                f"M4_PHASE {start - 100} {arm} flush_readers_pre_ready 0",
+                f"M4_PHASE {start + 100} {arm} reader_through_flush_start 0",
+                f"M4_PHASE {end + 100} {arm} reader_through_flush_complete 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 1",
+            ])
+        lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+        group = next(arm for arm in data["arms"] if arm["name"] == "group_commit")
+        self.assertEqual(group["writer_api"], "UpsertGroupCommit")
+        group["writer_group_commit_size_samples"] = [1] * len(
+            group["writer_group_commit_size_samples"])
+        with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
+            lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+
+    def test_pending_delta_group_pair_requires_real_flush_work(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=11,
+            workload_profile="writer_group_commit_pending_flush_reader_pair")
+        phase_lines = []
+        for arm in data["arm_order"]:
+            trace = next(item["reader_through_flush"] for item in data["arms"]
+                         if item["name"] == arm)
+            start, end = trace["flush_start_boot_ns"], trace["flush_end_boot_ns"]
+            phase_lines.extend([
+                f"M4_PHASE {start - 100} {arm} flush_readers_pre_ready 0",
+                f"M4_PHASE {start + 100} {arm} reader_through_flush_start 0",
+                f"M4_PHASE {end + 100} {arm} reader_through_flush_complete 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 1",
+            ])
+        lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+        arm = data["arms"][0]
+        arm["reader_through_flush"]["pending_delta_docs"] = 0
+        with self.assertRaisesRegex(RuntimeError, "fixture count"):
+            lock_runner.verify(result, data, contract, "\\n".join(phase_lines))
+        arm["reader_through_flush"]["pending_delta_docs"] = 256
+        arm["post_writer_flush_diagnostics"]["flush_stage_timing"][
+            "segment_write_ms"] = 0
+        with self.assertRaisesRegex(RuntimeError, "segment work"):
+            lock_runner.verify(result, data, contract, "\\n".join(phase_lines))
 
     def test_group_commit_verifier_checks_queue_and_sync_evidence(self):
         result, data, contract = self._valid_contention_receipt(

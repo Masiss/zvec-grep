@@ -402,6 +402,41 @@
       },
       "measurement_semantics": "One bounded paired same-binary comparison of the pre-staging flush query-lock boundary (baseline) versus metadata publication staging (candidate). Each arm seeds the same 8,192 Jieba documents, runs four WAL-durable writers × eight Upserts with two readers during one default compaction, then starts two continuous readers before explicit Flush and keeps them active until at least two post-flush queries each. The verifier requires per-reader timestamps proving at least two completed queries before, one query started during and overlapping the flush interval, and two queries after; a larger query count without interval overlap is invalid. Both modes preserve WAL fsync, manifest-before-publication and reopen/replay semantics. Capture per-query total wall, native query-mutex wait and execution CPU; flush total/stage wall+CPU and query-lock wait/hold; writer p95/state wait; fsync and bytes-written counters; cgroup/host memory, CPU and I/O evidence. Single operation only, no retry if any gate, containment or overlap check fails. Exploratory evidence, not qualification, a stable p95 claim, or production authorization. Concurrent flush remains out of scope."
     },
+    "writer_group_commit_flush_reader_pair": {
+      "profile_id": "writer_group_commit_flush_reader_pair",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "2246a353e477a715ebd3a1e26034e7e75f390d729a7c543e45faa1fd84902682",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-group-commit-flush-reader-pair",
+        "compaction_modes": ["default", "group_commit"],
+        "tracing": false
+      },
+      "measurement_semantics": "Distinct, one-shot paired experiment following the direct flush-staging pair: compare ordinary Upsert against bounded four-record/500-us Upsert group commit while both arms use metadata staging, the same 8,192-document corpus, default compaction, two readers, 32 logical writes, WAL fsync, explicit flush and reopen/replay checks. During each arm, retain the established concurrent-reader/compaction phase and then run continuous timestamped readers across explicit Flush; require at least two completed queries per reader before and after plus a query starting and overlapping the native flush interval, corroborated by M4_PHASE events. Capture writer wall/state wait and group size/queue delay/fsyncs, reader total wall/native mutex wait/execution CPU for concurrent compaction and explicit flush, flush stage/query-lock/state-lock timings, bytes, cgroup/host resource and I/O evidence. Both arms keep atomic visibility and durability unchanged; group commit remains default-off. This is a new cross-factor comparison, not a retry of the consumed direct-vs-staging profile. Any gate, containment or overlap failure consumes this profile without retry. Exploratory only; not qualification, stable-tail claim, architecture win, or production authorization."
+    },
+    "writer_group_commit_pending_flush_reader_pair": {
+      "profile_id": "writer_group_commit_pending_flush_reader_pair",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "d1324094d7cded3fadbe6cb4f316161f7841b6dcb4087cb5d4cd83ade5fbbf09",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "pending_flush_documents": 256,
+        "mode": "--m4-group-commit-pending-flush-reader-pair",
+        "compaction_modes": ["default", "group_commit"],
+        "tracing": false
+      },
+      "measurement_semantics": "A distinct one-shot follow-up to the consumed writer_group_commit_flush_reader_pair. That operation showed the default arm's post-writer explicit Flush had no pending delta and did not exercise metadata staging; do not infer reader-through-flush impact from its default-arm trace. This profile compares ordinary Upsert with bounded four-record/500-us Upsert group commit while both use metadata staging, with 8,192 seed documents and 32 concurrent logical writes. Immediately before the continuous-reader phase, each arm applies a separate 256-document WAL-durable batch with unique flushmarker terms; this intentionally leaves a bounded pending delta below max_delta_docs so the explicit Flush must persist real data. Verify exactly 256 flushmarker hits after close/reopen. Timestamp two continuously active readers across that flush; require at least two completed queries before/after, a started+overlapping query during it, phase-log corroboration, pending_flush_ms and nonzero segment build/write work. Preserve atomic publication and WAL durability. Capture writer/group queue and fsync metrics, reader wall/mutex/CPU, flush stages/locks, bytes, cgroup/host resource and I/O evidence. New profile, not retry or reuse of the prior one; any gate/containment/overlap/flush-work check failure consumes it without retry. Exploratory only; no stable-tail, architecture, qualification or production claim."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {

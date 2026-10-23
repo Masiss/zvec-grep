@@ -1,6 +1,32 @@
 # Active M4 execution checkpoint
 
-## Current checkpoint — 2026-10-23 13:18 +07 (supersedes previous)
+## Current checkpoint — 2026-10-23 13:38 +07 (supersedes below)
+
+### Reader-through-flush + group commit — bounded pair complete; no architecture winner
+
+The first cross-factor operation, `m4-lock-contention-microbench-writer-group-commit-flush-reader-pair-20261023-062758-fe414b`, passed its runner contract, but the default arm's final `Flush()` was a no-op: no pending delta, 0.0163 ms state-lock hold and zero segment build/write. Retain the data; it does not answer reader latency through actual flush work in that arm. Do not retry that profile.
+
+I registered a distinct corrected profile with a 256-document WAL-durable pending batch, actual segment build/write required by the verifier, and exact 256-hit close/reopen validation. Its one-shot operation `m4-lock-contention-microbench-writer-group-commit-pending-flush-reader-pair-20261023-063533-5cd60e` **PASS**: both arms had 256 docs pending; both readers had two pre-flush, 10–11 timestamp-overlapping, and three post-flush queries, corroborated by per-arm `M4_PHASE` events. Reopen found all 256 marker docs. Checksums (17/17) verify; return code 0; no writer/reader/durability/coherence failures.
+
+| Metric | Group commit (first) | Direct Upsert (second) |
+|---|---:|---:|
+| Writer p50 / p95 / max | 0.658 / 22.839 / 22.849 ms | 0.594 / 60.765 / 64.528 ms |
+| Queue-wait p95 / state-lock-wait p95 | 0.083 ms / n.a. | n.a. / 60.197 ms |
+| Continuous-reader wall p50 / p95 / p99 | 0.583 / 1.105 / 1.139 ms | 0.593 / 1.226 / 1.338 ms |
+| Reader query-lock-wait p95 / CPU p95 | 0.0665 / 1.046 ms | 0.129 / 1.128 ms |
+| Flush wall / state-lock hold / query-lock hold | 5.379 / 6.431 / 0.00834 ms | 5.260 / 5.914 / 0.00129 ms |
+| WAL fsyncs (concurrent / total) | 8 / 73 | 32 / 97 |
+| Total / segment bytes written | 8,868,393 / 4,305,941 B | 9,086,837 / 4,523,856 B |
+
+This single pair is exploratory (`performance_eligible=false`) and fixed group-first order. The earlier group-first pair measured writer p95 in the opposite direction (27.809 ms group vs 17.358 ms direct), so there is no stable writer-tail claim. Fourfold fewer concurrent WAL fsyncs is a repeatable mechanism signal across these profiles; latency and byte deltas are not. Query-lock holds are only microseconds, but their per-arm values and reader waits do not establish a robust staging effect. The writer-state lock still spans about 5.9–6.4 ms; **no concurrent flush or default change** is justified.
+
+Resource evidence: cgroup peak 157,470,720 B; swap peak/OOM counters 0; process-tree writes 39,165,952 B (whole pair, not per-arm); host `MemAvailable` 5,760,748→5,661,544 KiB; I/O PSI-full avg10 0.66%→1.08%. Cgroup I/O attribution unavailable. Full analysis and the invalid-arm caveat are in `lock-contention-microbench/ANALYSIS-20261023.md`; source remains research-only.
+
+**Next:** stop expanding telemetry. Reassess whether a narrowly bounded writer-lock/queue change is justified by existing wait data; preserve all WAL ordering, publication atomicity, reader snapshot, durability and recovery invariants. Continue the M4 mission beyond this milestone. No production edits, push, or whole-mission completion claim.
+
+---
+
+## Previous checkpoint — 2026-10-23 13:18 +07 (superseded above)
 
 ### Flush publication staging — correctness complete; reader-through-flush effect measured once
 

@@ -311,7 +311,9 @@ def lock_contention_workload(context: dict[str, Any]) -> dict[str, Any]:
                    'memory_churn_two_versions_concurrent_allocator',
                    'writer_group_commit',
                    'writer_group_commit_snapshot_rebase',
-                   'flush_reader_staging_pair'):
+                   'flush_reader_staging_pair',
+                   'writer_group_commit_flush_reader_pair',
+                   'writer_group_commit_pending_flush_reader_pair'):
         return contract[profile]['workload']
     raise ValueError('unknown lock-contention workload profile')
 M4_SCALAR_LATENCY_EVIDENCE = 'EXPLORATORY / NON-QUALIFYING'

@@ -172,6 +172,7 @@ struct FlushReaderSample {
 struct FlushReaderTrace {
   uint64_t flush_start_boot_ns{0};
   uint64_t flush_end_boot_ns{0};
+  size_t pending_delta_docs{0};
   bool flush_succeeded{false};
   size_t failures{0};
   std::vector<std::vector<FlushReaderSample>> readers;
@@ -223,11 +224,13 @@ struct ArmResult {
 
 FlushReaderTrace RunReadersThroughFlush(m4::Index* index,
                                         const std::string& arm,
-                                        m4::CompactionDiagnostics* diagnostics) {
+                                        m4::CompactionDiagnostics* diagnostics,
+                                        size_t pending_delta_docs = 0) {
   constexpr size_t kReaderCount = 2;
   constexpr size_t kMinimumBeforeAfter = 2;
   constexpr size_t kMaximumQueriesPerReader = 512;
   FlushReaderTrace trace;
+  trace.pending_delta_docs = pending_delta_docs;
   trace.readers.resize(kReaderCount);
   std::vector<size_t> before_completed(kReaderCount, 0);
   std::vector<size_t> after_completed(kReaderCount, 0);
@@ -570,7 +573,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
                  const std::string& dict_dir, size_t documents,
                  size_t writers, size_t ops_per_writer,
                  bool stage_flush_metadata = true,
-                 bool reader_through_flush = false) {
+                 bool reader_through_flush = false,
+                 bool pending_flush_payload = false) {
   EmitPhase(name, "arm_start");
   fs::remove_all(root);
   fs::create_directories(root);
@@ -838,8 +842,27 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
 
   EmitPhase(name, "post_writer_flush_start");
   if (reader_through_flush) {
+    constexpr size_t kPendingFlushDocs = 256;
+    size_t pending_delta_docs = 0;
+    if (pending_flush_payload) {
+      std::vector<m4::Mutation> mutations;
+      mutations.reserve(kPendingFlushDocs);
+      for (size_t i = 0; i < kPendingFlushDocs; ++i) {
+        m4::Document document;
+        document.text = "flushmarker needle alpha " + std::to_string(i);
+        mutations.emplace_back(m4::MutationKind::UPSERT,
+                               "flush-pending-" + std::to_string(i),
+                               std::move(document));
+      }
+      status = index->ApplyBatch(mutations);
+      if (status.ok) pending_delta_docs = kPendingFlushDocs;
+      else ++result.writer_failures;
+      EmitPhase(name, status.ok ? "pending_flush_delta_ready"
+                                : "pending_flush_delta_failed");
+    }
     result.reader_through_flush = RunReadersThroughFlush(
-        index.get(), name, &result.post_writer_flush_diagnostics);
+        index.get(), name, &result.post_writer_flush_diagnostics,
+        pending_delta_docs);
     result.reader_failures += result.reader_through_flush.failures;
     status = result.reader_through_flush.flush_succeeded
                  ? m4::Status::OK()
@@ -875,6 +898,12 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
                                  &output);
     if (!status.ok || output.hits.size() != writers * ops_per_writer) {
       ++result.durability_failures;
+    }
+    if (pending_flush_payload) {
+      status = reopened->SearchFts("flushmarker", 512, &output);
+      if (!status.ok || output.hits.size() != 256) {
+        ++result.durability_failures;
+      }
     }
   }
   EmitPhase(name, "arm_end");
@@ -1122,6 +1151,8 @@ void PrintArm(const ArmResult& arm, bool last) {
             << arm.reader_through_flush.flush_start_boot_ns
             << ",\"flush_end_boot_ns\":"
             << arm.reader_through_flush.flush_end_boot_ns
+            << ",\"pending_delta_docs\":"
+            << arm.reader_through_flush.pending_delta_docs
             << ",\"flush_succeeded\":"
             << (arm.reader_through_flush.flush_succeeded ? "true" : "false")
             << ",\"readers\":[";
@@ -1162,6 +1193,10 @@ int main(int argc, char** argv) {
       workload_mode == "--m4-compaction-contention-cache-churn-concurrent-v2";
   const bool flush_reader_staging_mode =
       workload_mode == "--m4-flush-reader-staging-pair";
+  const bool group_commit_flush_reader_mode =
+      workload_mode == "--m4-group-commit-flush-reader-pair";
+  const bool group_commit_pending_flush_reader_mode =
+      workload_mode == "--m4-group-commit-pending-flush-reader-pair";
   const bool writer_group_commit_rebase_mode =
       workload_mode == "--m4-writer-group-commit-snapshot-rebase";
   const bool writer_group_commit_mode =
@@ -1170,7 +1205,8 @@ int main(int argc, char** argv) {
   if (!fs::is_directory(dict_dir) ||
       (workload_mode != "--m4-compaction-contention" && !cache_churn_mode &&
        !concurrent_cache_churn_mode && !writer_group_commit_mode &&
-       !flush_reader_staging_mode)) {
+       !flush_reader_staging_mode && !group_commit_flush_reader_mode &&
+       !group_commit_pending_flush_reader_mode)) {
     std::cerr << "missing Jieba dictionary or invalid workload mode\n";
     return 2;
   }
@@ -1186,7 +1222,10 @@ int main(int argc, char** argv) {
 
   std::vector<std::string> order = flush_reader_staging_mode
       ? std::vector<std::string>{"flush_baseline", "flush_candidate"}
-      : writer_group_commit_rebase_mode
+      : (group_commit_flush_reader_mode ||
+         group_commit_pending_flush_reader_mode)
+          ? std::vector<std::string>{"default", "group_commit"}
+          : writer_group_commit_rebase_mode
           ? std::vector<std::string>{"snapshot_rebase",
                                      "group_commit_snapshot_rebase"}
           : writer_group_commit_mode
@@ -1201,7 +1240,10 @@ int main(int argc, char** argv) {
     const bool stage_flush = name != "flush_baseline";
     results.push_back(RunArm(root / name, name, dict_dir, documents, writers,
                              ops_per_writer, stage_flush,
-                             flush_reader_staging_mode));
+                             flush_reader_staging_mode ||
+                                 group_commit_flush_reader_mode ||
+                                 group_commit_pending_flush_reader_mode,
+                             group_commit_pending_flush_reader_mode));
   }
   CacheChurnTrace churn_trace;
   if (cache_churn_mode) churn_trace = RunAnalyzerCacheChurn(dict_dir);
@@ -1213,16 +1255,22 @@ int main(int argc, char** argv) {
     failures += result.writer_failures + result.reader_failures +
                 result.durability_failures;
   }
-  const unsigned timing_schema = flush_reader_staging_mode ? 9 : 8;
+  const unsigned timing_schema = group_commit_pending_flush_reader_mode ? 11
+                                 : group_commit_flush_reader_mode ? 10
+                                 : flush_reader_staging_mode ? 9 : 8;
   std::cout << "{\"mode\":\"m4_compaction_contention\",\"timing_schema_version\":"
             << timing_schema << ",\"documents\":"
             << documents << ",\"writers\":" << writers
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count
             << ",\"workload_mode\":\""
-            << (flush_reader_staging_mode
-                    ? "flush_reader_staging_pair"
-                    : writer_group_commit_rebase_mode
+            << (group_commit_pending_flush_reader_mode
+                    ? "group_commit_pending_flush_reader_pair"
+                    : group_commit_flush_reader_mode
+                        ? "group_commit_flush_reader_pair"
+                        : flush_reader_staging_mode
+                        ? "flush_reader_staging_pair"
+                        : writer_group_commit_rebase_mode
                         ? "writer_group_commit_snapshot_rebase"
                         : writer_group_commit_mode ? "writer_group_commit"
                                                    : "contention")

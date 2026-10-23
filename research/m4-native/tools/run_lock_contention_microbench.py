@@ -313,11 +313,15 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         raise RuntimeError("contention workload counts/coherence do not match the contract")
     arms = data.get("arms")
     timing_schema = data.get("timing_schema_version")
-    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8, 9):
+    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
         raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
-    if timing_schema in (8, 9):
+    if timing_schema in (8, 9, 10, 11):
         expected_workload_mode = (
-            "flush_reader_staging_pair"
+            "group_commit_pending_flush_reader_pair"
+            if workload.get("mode") == "--m4-group-commit-pending-flush-reader-pair"
+            else "group_commit_flush_reader_pair"
+            if workload.get("mode") == "--m4-group-commit-flush-reader-pair"
+            else "flush_reader_staging_pair"
             if workload.get("mode") == "--m4-flush-reader-staging-pair"
             else "writer_group_commit_snapshot_rebase"
             if workload.get("mode") == "--m4-writer-group-commit-snapshot-rebase"
@@ -352,13 +356,13 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         compaction = arm.get("compaction_diagnostics")
         # Older operation receipts predate lock-stage compaction diagnostics;
         # retain their exact recorded validity while checking new receipts.
-        if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9) and not isinstance(compaction, dict):
+        if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11) and not isinstance(compaction, dict):
             raise RuntimeError("missing compaction phase timing object")
         if compaction is not None and not isinstance(compaction, dict):
             raise RuntimeError("invalid compaction phase timing object")
         if compaction is not None:
             required_compaction_fields = compaction_timing_fields
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11):
                 required_compaction_fields += (
                     "state_mutex_hold_ms", "state_mutex_hold_cpu_ms")
             for key in required_compaction_fields:
@@ -367,7 +371,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         not isinstance(value, (int, float)) or
                         not math.isfinite(value) or value < 0):
                     raise RuntimeError("missing/invalid compaction phase timing")
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11):
                 hold = compaction["state_mutex_hold_ms"]
                 if (hold + 1e-6 < compaction["publication_ms"] or
                         hold > compaction["total_ms"] + 1e-6):
@@ -390,7 +394,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     if isinstance(flush_stages, dict) else None
                 )
                 if (stage_version not in (1, 2) or
-                        (timing_schema in (5, 6, 7, 8, 9) and stage_version != 2)):
+                        (timing_schema in (5, 6, 7, 8, 9, 10, 11) and stage_version != 2)):
                     raise RuntimeError("invalid optional flush-stage timing object")
                 if stage_version == 2:
                     stage_fields += (
@@ -412,7 +416,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         flush_stages["query_mutex_hold_ms"] >
                         compaction["pending_flush_ms"] + 1e-3):
                     raise RuntimeError("flush query-lock hold exceeds pending-flush duration")
-        if timing_schema in (5, 6, 7, 8, 9):
+        if timing_schema in (5, 6, 7, 8, 9, 10, 11):
             explicit_flush = arm.get("post_writer_flush_diagnostics")
             if not isinstance(explicit_flush, dict):
                 raise RuntimeError("missing post-writer flush diagnostics")
@@ -466,9 +470,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 raise RuntimeError(
                     "post-writer flush query-lock hold exceeds flush duration")
         api_calls = rounds
-        group_commit_arm = timing_schema == 8 and arm.get("name") in (
+        group_commit_arm = timing_schema in (8, 10, 11) and arm.get("name") in (
             "group_commit", "group_commit_snapshot_rebase")
-        if timing_schema in (4, 5, 6, 7, 8, 9):
+        if timing_schema in (4, 5, 6, 7, 8, 9, 10, 11):
             batch_api = arm.get("name") == "apply_batch"
             expected_api = ("ApplyBatch" if batch_api else
                             "UpsertGroupCommit" if group_commit_arm else "Upsert")
@@ -515,11 +519,11 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             for key in required_writer_series:
                 if not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11):
                 for key in ("state_hold_samples", "state_hold_cpu_samples"):
                     if not valid_series(arm.get(key), api_calls):
                         raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if timing_schema in (6, 7, 8, 9):
+            if timing_schema in (6, 7, 8, 9, 10, 11):
                 for key in ("wal_write_samples", "wal_fsync_samples"):
                     if not valid_series(arm.get(key), api_calls):
                         raise RuntimeError(f"missing/invalid writer timing series: {key}")
@@ -527,18 +531,18 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         arm["wal_write_samples"], arm["wal_fsync_samples"],
                         arm["wal_append_samples"], strict=True)):
                     raise RuntimeError("WAL write/fsync substage exceeds append duration")
-            if timing_schema in (7, 8, 9):
+            if timing_schema in (7, 8, 9, 10, 11):
                 tracked_peak = arm.get("compaction_tracked_peak_bytes")
                 if (isinstance(tracked_peak, bool) or
                         not isinstance(tracked_peak, int) or tracked_peak < 0):
                     raise RuntimeError("missing/invalid compaction tracked memory peak")
-            if timing_schema in (8, 9) and (
+            if timing_schema in (8, 9, 10, 11) and (
                     arm.get("writer_queue_wait_samples") != [] or
                     arm.get("writer_group_commit_size_samples") != []):
                 raise RuntimeError("non-group arm unexpectedly reports queue samples")
             for key in ("normalize_samples", "normalize_cpu_samples",
                         "wal_encode_samples", "wal_encode_cpu_samples"):
-                if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9) and not valid_series(arm.get(key), api_calls):
+                if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11) and not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
                 if key in arm and not valid_series(arm[key], api_calls):
                     raise RuntimeError(f"invalid optional writer timing series: {key}")
@@ -549,9 +553,17 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         if (arm.get("writer_failures") != 0 or arm.get("reader_failures") != 0 or
                 arm.get("durability_failures") != 0 or arm.get("runs_after_flush", 0) < 1):
             raise RuntimeError("writer, reader, durability, or reopen verification failed")
-        if workload.get("mode") == "--m4-flush-reader-staging-pair":
-            expected_staging = arm.get("name") == "flush_candidate"
-            if (arm.get("name") not in ("flush_baseline", "flush_candidate") or
+        if workload.get("mode") in (
+                "--m4-flush-reader-staging-pair",
+                "--m4-group-commit-flush-reader-pair",
+                "--m4-group-commit-pending-flush-reader-pair"):
+            group_pair = workload.get("mode") in (
+                "--m4-group-commit-flush-reader-pair",
+                "--m4-group-commit-pending-flush-reader-pair")
+            expected_arms = ("default", "group_commit") if group_pair else (
+                "flush_baseline", "flush_candidate")
+            expected_staging = True if group_pair else arm.get("name") == "flush_candidate"
+            if (arm.get("name") not in expected_arms or
                     arm.get("flush_metadata_outside_query_lock") is not expected_staging or
                     arm.get("compaction_status") != "ok"):
                 raise RuntimeError("flush-staging arm identity or compaction result mismatch")
@@ -560,6 +572,17 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                     raise RuntimeError(f"missing or invalid write-amplification counter: {key}")
             verify_reader_through_flush(arm)
+            if workload.get("mode") == "--m4-group-commit-pending-flush-reader-pair":
+                pending_count = workload.get("pending_flush_documents")
+                trace = arm.get("reader_through_flush", {})
+                if trace.get("pending_delta_docs") != pending_count:
+                    raise RuntimeError("pending flush fixture count does not match the profile")
+                flush = arm.get("post_writer_flush_diagnostics", {})
+                stages = flush.get("flush_stage_timing", {})
+                if (flush.get("pending_flush_ms", 0) <= 0.1 or
+                        stages.get("segment_build_ms", 0) <= 0 or
+                        stages.get("segment_write_ms", 0) <= 0):
+                    raise RuntimeError("reader-through-flush interval did not perform segment work")
         if (arm.get("name") == "default" and arm.get("compaction_status") != "ok") or (
                 arm.get("name") == "snapshot" and arm.get("compaction_status") not in
                 ("ok", "compaction snapshot superseded by concurrent state change")) or (
@@ -570,7 +593,10 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 arm.get("name") == "group_commit" and
                 arm.get("compaction_status") != "ok"):
             raise RuntimeError("unexpected compaction outcome")
-    if workload.get("mode") == "--m4-flush-reader-staging-pair":
+    if workload.get("mode") in (
+            "--m4-flush-reader-staging-pair",
+            "--m4-group-commit-flush-reader-pair",
+            "--m4-group-commit-pending-flush-reader-pair"):
         if phase_log is None:
             raise RuntimeError("reader-through-flush phase log is required")
         verify_reader_phase_log(data, phase_log)
@@ -594,7 +620,9 @@ def main() -> int:
                             "memory_churn_two_versions_concurrent_allocator",
                             "writer_group_commit",
                             "writer_group_commit_snapshot_rebase",
-                            "flush_reader_staging_pair"),
+                            "flush_reader_staging_pair",
+                            "writer_group_commit_flush_reader_pair",
+                            "writer_group_commit_pending_flush_reader_pair"),
                         default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:
