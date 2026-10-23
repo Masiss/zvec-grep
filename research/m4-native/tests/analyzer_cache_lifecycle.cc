@@ -175,9 +175,14 @@ int main(int argc, char** argv) {
     // must not evict the analyzer while another generation still references it.
     const auto lifecycle_before = m4::Analyzer::CacheStats();
     auto g1 = OpenIndex(base / "generation-1", JiebaOptions(dictionary));
+    m4::Options default_cache_options;
+    default_cache_options.fts_tokenizer_name = "jieba";
+    default_cache_options.jieba_dict_dir = relocated_dictionary.string();
+    Check(default_cache_options.reuse_analyzer_cache,
+          "analyzer reuse is enabled by default");
     auto g2_diag = m4::OpenDiagnostics{};
     auto g2 = OpenIndex(base / "generation-2",
-                        JiebaOptions(relocated_dictionary), &g2_diag);
+                        default_cache_options, &g2_diag);
     Check(g2_diag.analyzer_cache_hit && !g2_diag.analyzer_initialization_attempted,
           "second live generation reuses the initialized analyzer");
     Check(g2_diag.analyzer_fingerprint_calls == 2,

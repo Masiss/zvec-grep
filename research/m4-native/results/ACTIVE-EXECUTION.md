@@ -1,5 +1,11 @@
 # Active M4 execution checkpoint
 
+## Current M4 optimization — 2026-10-23
+
+Immutable-shard remains the baseline; no architecture comparison is being restarted. Promoted reuse of a verified immutable analyzer across live same-process generations to the M4 default (`reuse_analyzer_cache=true`). The registry remains weak-reference-only, and both dictionary fingerprint passes still run, preserving analyzer identity and mutation-during-open checks. The existing two reverse-order 500×20 B3 pairs (20/20 cache hits per candidate arm) measured ratio-of-sums reductions of 40.0% process CPU, 47.6% writer CPU, 32.8% commit p95, and 51.2% M4 Open CPU p50; peak RSS was ~292 MiB uncached vs ~217 MiB cached. Reader p95 varied, so no reader benefit is claimed.
+
+The default-on lifecycle regression and full M4 build/CTest passed (9/9); tests retain explicit cache-off control and verify generation lifetime, dictionary identity, TOCTOU, race, and cold-process behavior. Next source target: reduce dictionary fingerprint temporary-copy peak without weakening content hashing or identity validation; benchmark only after known-vector/boundary and reopen correctness checks.
+
 ## Architecture decision review — 2026-10-23
 
 **Decision: no architecture winner established.** Keep immutable-shard as the comparison baseline/correctness reference; keep shared-collection as the leading research alternative, not a selected or production architecture. The only direct pair is measurement-ineligible (`performance_eligible=false`), with non-equivalent writer boundaries and no guaranteed reader/native-flush overlap. Its lower one-run shared memory peak is directional only. The continuous-reader follow-up was preflight-blocked before launch and produced no latency evidence. Do not start another prototype solely for exploratory numbers; revisit only with a fresh, preregistered, matched comparison under all unchanged gates. Detailed source/evidence assessment and criteria: [M4 architecture decision review](ARCHITECTURE-DECISION-20261023.md).

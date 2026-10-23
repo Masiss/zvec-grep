@@ -137,9 +137,11 @@ struct Options {
   // production mode.
   bool rebuild_on_flush{false};
 
-  // Research-only: reuse an immutable analyzer instance when its verified
-  // content fingerprint matches a live index in this process.
-  bool reuse_analyzer_cache{false};
+  // Reuse an immutable analyzer instance when its verified content fingerprint
+  // matches another live index in this process. The registry is weak, so it
+  // adds no lifetime beyond indexes that already own the analyzer. Disable only
+  // for controlled comparisons or diagnosis.
+  bool reuse_analyzer_cache{true};
   // Research-only B3.1 candidate: on an initial weak-registry hit, the cached
   // analyzer was already initialized and verified for this content identity,
   // so skip the post-init dictionary reread. Cold/racing misses still verify.

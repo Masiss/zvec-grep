@@ -544,17 +544,21 @@ live-statistics; score parity is not claimed. See the P3.2/P3.3 reports and logs
 `results/m4-p3-zg-workload-validation-20261017.md` and
 `results/m4-p3.1-effective-analyzer-20261017.md`.
 
-The opt-in research option `Options::reuse_analyzer_cache` reuses an immutable
-in-memory analyzer implementation across live indexes in the same process,
-keyed by the already-verified analyzer fingerprint. The registry stores weak
-references only; each `Index` retains shared ownership for its lifetime, so
-pinned generations keep their analyzer alive without extending run/file
-ownership. Fingerprint checks remain enabled on cache hits; a cache entry never
-replaces manifest identity validation or is persisted to disk. The cache is
-OFF by default. It does not cache segment handles: the P4 open-stage profile
-measured segment loading below 0.5 ms while Jieba analyzer initialization
-accounted for about 46 ms. This is a standalone M4 research optimization, not
-an HNSW or production change; see `results/m4-m4-open-attribution-cache-20261018.md`.
+`Options::reuse_analyzer_cache` defaults ON and reuses an immutable in-memory
+analyzer implementation across live indexes in the same process, keyed by the
+verified analyzer fingerprint. The registry stores weak references only; each
+`Index` retains shared ownership for its lifetime, so pinned generations keep
+their analyzer alive without extending run/file ownership. Fingerprint checks
+remain enabled on cache hits; a cache entry never replaces manifest identity
+validation or is persisted to disk. Set the option OFF only for controlled
+comparisons or diagnosis. It does not cache segment handles: the P4 open-stage
+profile measured segment loading below 0.5 ms while Jieba analyzer
+initialization accounted for about 46 ms. Two reverse-order, 500×20 B3 pairs
+reported 40.0% lower whole-process CPU, 47.6% lower writer-thread CPU, 32.8%
+lower commit p95 and 51.2% lower M4 Open CPU p50 with reuse; reader p95 varied
+in direction, so no reader-tail effect is claimed. This is a standalone M4
+research optimization, not an HNSW or production change; see
+`results/m4-m4-open-attribution-cache-20261018.md`.
 
 ## M4-P4 paired native vs M4 workload
 

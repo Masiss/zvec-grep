@@ -1,5 +1,9 @@
 # M4 incremental index — evidence (historical series begins 2026-10-17)
 
+## Immutable-shard baseline: reuse verified analyzers across live generations — 2026-10-23
+
+Promoted `Options::reuse_analyzer_cache` to ON by default in standalone M4. This is a weak-reference cache: live immutable generations share the `Analyzer::Impl`, but the registry itself cannot extend its lifetime. Both dictionary fingerprint passes remain enabled, so each open still verifies manifest identity and detects dictionary mutation during open. Historical paired evidence from two reverse-order 500×20 B3 comparisons (20/20 cache hits per candidate arm) showed ratio-of-sums reductions of 40.0% process CPU, 47.6% writer CPU, 32.8% commit p95, and 51.2% M4 Open CPU p50; candidate peak RSS was ~217 MiB vs ~292 MiB in control. Reader p95 changed direction between pairs; no reader effect is claimed. Regressions: full native build/CTest 9/9 and analyzer lifecycle, dictionary identity, cold-process, race/TOCTOU tests pass under the new default. Exact historical evidence and limitations: [Open attribution/cache report](m4-m4-open-attribution-cache-20261018.md). This does not integrate M4 into production.
+
 ## Architecture decision review — 2026-10-23
 
 No architecture winner is established. Immutable-shard remains the baseline/correctness reference; shared-collection remains an unselected research alternative. The only direct pair is measurement-ineligible due to incomplete workspace evidence, non-equivalent writer timing boundaries, and no guaranteed query overlap with native flush. Its lower one-run shared peak is descriptive only. See the [architecture decision review](ARCHITECTURE-DECISION-20261023.md) for source-grounded tradeoffs, bottleneck classification, decision rationale, and evidence required to revisit.
