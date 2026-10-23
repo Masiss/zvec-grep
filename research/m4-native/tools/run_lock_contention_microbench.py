@@ -441,7 +441,8 @@ def main() -> int:
                             "memory_churn_two_versions_memory_opt",
                             "memory_churn_two_versions_trie_stream",
                             "memory_churn_two_versions_inline_child",
-                            "memory_churn_two_versions_concurrent_open"),
+                            "memory_churn_two_versions_concurrent_open",
+                            "memory_churn_two_versions_concurrent_allocator"),
                         default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:

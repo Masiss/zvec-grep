@@ -1,5 +1,5 @@
 {
-  "operation_id": "m4-lock-contention-microbench-memory-churn-two-versions-concurrent-open-20261023-013752-09aa76",
-  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261023/m4-lock-contention-microbench-memory-churn-two-versions-concurrent-open-20261023-013752-09aa76",
-  "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY"
+  "operation_id": "m4-lock-contention-microbench-memory-churn-two-versions-concurrent-allocator-20261023-014604-71f400",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261023/m4-lock-contention-microbench-memory-churn-two-versions-concurrent-allocator-20261023-014604-71f400",
+  "status": "PASS"
 }

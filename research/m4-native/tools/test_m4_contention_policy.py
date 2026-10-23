@@ -374,7 +374,8 @@ class ContentionPolicyTests(unittest.TestCase):
                         "memory_churn_two_versions_memory_opt",
                         "memory_churn_two_versions_trie_stream",
                         "memory_churn_two_versions_inline_child",
-                        "memory_churn_two_versions_concurrent_open") else None
+                        "memory_churn_two_versions_concurrent_open",
+                        "memory_churn_two_versions_concurrent_allocator") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -674,6 +675,25 @@ class ContentionPolicyTests(unittest.TestCase):
             self.assertEqual(overlay_sha256, profile["cppjieba_overlay_sha256"])
         self.assertEqual(profile["workload"],
                          contract["memory_churn_two_versions_eviction"]["workload"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertEqual(ctx["pids_max"], 128)
+
+    def test_concurrent_allocator_profile_binds_exact_binary_mode_and_caps(self):
+        name = "memory_churn_two_versions_concurrent_allocator"
+        ctx = self.lock_contention_microbench_context(name)
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        contract = ct.BENCHMARK_POLICY["lock_contention_microbench"]
+        profile = contract[name]
+        self.assertEqual(microbench.profile_binary(profile),
+                         (microbench.BASE / profile["binary_relative_path"]).resolve())
+        self.assertEqual(profile["workload"],
+                         contract["memory_churn_two_versions_concurrent_open"]["workload"])
+        self.assertEqual(profile["cppjieba_patch_sha256"],
+                         contract["memory_churn_two_versions_inline_child"]["cppjieba_patch_sha256"])
+        self.assertEqual(profile["cppjieba_overlay_sha256"],
+                         contract["memory_churn_two_versions_inline_child"]["cppjieba_overlay_sha256"])
         self.assertEqual(ctx["memory_max_bytes"], 536870912)
         self.assertEqual(ctx["memory_swap_max_bytes"], 0)
         self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)

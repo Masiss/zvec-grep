@@ -13,6 +13,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <malloc.h>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -53,6 +54,9 @@ struct ProcessMemory {
   uint64_t pss_kb{0};
   uint64_t private_kb{0};
   uint64_t anonymous_kb{0};
+  uint64_t allocator_live_bytes{0};
+  uint64_t allocator_free_bytes{0};
+  uint64_t allocator_mmap_bytes{0};
 };
 
 ProcessMemory ReadProcessMemory() {
@@ -79,6 +83,10 @@ ProcessMemory ReadProcessMemory() {
     else if (key == "Anonymous:") { memory.anonymous_kb = value; have_anonymous = true; }
   }
   memory.private_kb = private_clean + private_dirty;
+  const struct mallinfo2 allocator = ::mallinfo2();
+  memory.allocator_live_bytes = allocator.uordblks + allocator.hblkhd;
+  memory.allocator_free_bytes = allocator.fordblks;
+  memory.allocator_mmap_bytes = allocator.hblkhd;
   memory.valid = have_rss && have_pss && have_private_clean &&
                  have_private_dirty && have_anonymous;
   return memory;
@@ -106,7 +114,10 @@ void PrintProcessMemory(std::ostream& output, const ProcessMemory& memory) {
          << ",\"rss_kb\":" << memory.rss_kb
          << ",\"pss_kb\":" << memory.pss_kb
          << ",\"private_kb\":" << memory.private_kb
-         << ",\"anonymous_kb\":" << memory.anonymous_kb << '}';
+         << ",\"anonymous_kb\":" << memory.anonymous_kb
+         << ",\"allocator_live_bytes\":" << memory.allocator_live_bytes
+         << ",\"allocator_free_bytes\":" << memory.allocator_free_bytes
+         << ",\"allocator_mmap_bytes\":" << memory.allocator_mmap_bytes << '}';
 }
 
 void PrintCacheChurnTrace(std::ostream& output, const CacheChurnTrace& trace) {

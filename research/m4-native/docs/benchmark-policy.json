@@ -308,6 +308,27 @@
       },
       "measurement_semantics": "Distinct same-cap diagnostic after the inline-child candidate. Two analyzers with different dictionary content fingerprints open concurrently, synchronize while both remain live for PSS sampling, then release one at a time. This measures co-resident old/new analyzer memory and concurrent initialization effects; native cppjieba cache entries remain process-retained after Analyzer destruction. Compare only descriptively with the sequential two-version profile. Capture cgroup memory.stat/peak, phase markers, process PSS, and release observations. Exploratory memory/lifecycle evidence only, not a latency claim, stable capacity result, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
     },
+    "memory_churn_two_versions_concurrent_allocator": {
+      "profile_id": "memory_churn_two_versions_concurrent_allocator",
+      "binary_relative_path": ".work/build/dict-cache-concurrent-heap/m4_compaction_writer_contention",
+      "binary_sha256": "3702795d130f8949051106c8ade1bff7f7c172d19436d409517012c707823f8d",
+      "cppjieba_patch_relative_path": "patches/cppjieba-inline-first-child.patch",
+      "cppjieba_patch_sha256": "ef940d69df3b9def4e438e7964ca208e64a2bcc4e5e43500880dc40acf16307d",
+      "cppjieba_overlay_sha256": "83a256ef15729f706dc731cad2dd78d0ef6f2252896d22e934623af37a2c8e9b",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-concurrent-v2",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "Distinct follow-up to memory_churn_two_versions_concurrent_open with mallinfo2 allocator snapshots added to the same process-memory records. Reports current allocated heap+mmapped bytes and free arena bytes at baseline, concurrent-live, and each release point to help distinguish allocator-owned live memory from RSS/PSS residency. No profile caps or workload change; exploratory ownership accounting only, not a latency or capacity result. One operation, no retry if any gate or containment issue occurs."
+    },
     "memory_churn_two_versions_memory_opt": {
       "profile_id": "memory_churn_two_versions_memory_opt",
       "binary_relative_path": ".work/build/dict-cache-eviction-memory-opt-final/m4_compaction_writer_contention",
