@@ -104,6 +104,8 @@ struct InvertFieldRef {
   std::string name;
   uint64_t meta_base{0};     // offset inside segment file
   uint64_t payload_base{0};  // offset inside segment file
+  // Persisted order is lexical by value (WriteSegment sorts before encode);
+  // prefix filters may seek this vector with lower_bound.
   std::vector<InvertValueRef> values;
   std::unordered_map<std::string, uint32_t> value_index;
 };

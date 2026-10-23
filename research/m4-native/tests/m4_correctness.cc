@@ -1115,6 +1115,76 @@ void TestBooleanFilters(const std::string& dir) {
   if (index) verify("reopen");
 }
 
+void TestStringPrefixRangeSearch(const std::string& dir) {
+  fs::remove_all(dir);
+  m4::Options options;
+  options.fsync_wal = false;
+  options.max_delta_docs = 1024;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, options, &index).ok,
+        "string-prefix range index open");
+  if (!index) return;
+
+  constexpr size_t kDocs = 1024;
+  constexpr size_t kSelected = 32;
+  for (size_t i = 0; i < kDocs; ++i) {
+    Document doc;
+    doc.text = "needle marker";
+    doc.values.push_back({"file_name",
+                          i < kSelected
+                              ? "src/selected/file-" + std::to_string(i)
+                              : "src/other/file-" + std::to_string(i)});
+    Check(index->Upsert(std::to_string(i), std::move(doc)).ok,
+          "string-prefix range upsert");
+    if (i == 511 || i + 1 == kDocs) {
+      Check(index->Flush().ok, "string-prefix range segment flush");
+    }
+  }
+  Check(index->GetStats().runs == 2,
+        "string-prefix range fixture uses two immutable segments");
+
+  const auto filter = m4::FilterExpr::StringPrefix("file_name", "src/selected/");
+  auto verify = [&](const std::string& phase,
+                    const std::set<std::string>& expected) {
+    m4::SearchResult result;
+    m4::QueryDiagnostics diagnostics;
+    diagnostics.collect_counters = true;
+    const bool ok = index->SearchFtsFiltered("needle", kSelected + 4,
+                                             filter, &result, &diagnostics).ok;
+    std::set<std::string> actual;
+    for (const auto& hit : result.hits) actual.insert(hit.pk);
+    Check(ok && actual == expected,
+          phase + " string-prefix results equal expected PKs");
+    Check(diagnostics.filter_like_strings_scanned < 128,
+          phase + " string-prefix seek examines sublinear immutable values");
+  };
+
+  std::set<std::string> expected;
+  for (size_t i = 0; i < kSelected; ++i) expected.insert(std::to_string(i));
+  verify("initial", expected);
+
+  Document moved_out;
+  moved_out.text = "needle marker";
+  moved_out.values.push_back({"file_name", "src/other/updated"});
+  Check(index->Upsert("0", std::move(moved_out)).ok,
+        "string-prefix update moves row out of prefix");
+  Document moved_in;
+  moved_in.text = "needle marker";
+  moved_in.values.push_back({"file_name", "src/selected/updated"});
+  Check(index->Upsert("900", std::move(moved_in)).ok,
+        "string-prefix update moves row into prefix");
+  expected.erase("0");
+  expected.insert("900");
+  verify("delta update", expected);
+
+  Check(index->Flush().ok, "string-prefix delta flush");
+  Check(index->CompactNow().ok, "string-prefix compaction");
+  verify("compacted", expected);
+  index.reset();
+  Check(Index::Open(dir, options, &index).ok, "string-prefix reopen");
+  if (index) verify("reopened", expected);
+}
+
 void TestPhrase(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -3040,6 +3110,7 @@ int main() {
   TestTypedUint32Scalar(root + "/typed-u32");
   TestTypedArrayUint32(root + "/typed-array-u32");
   TestBooleanFilters(root + "/boolean-filters");
+  TestStringPrefixRangeSearch(root + "/string-prefix-range");
   TestPhrase(root + "/phrase");
   TestCrashWal(root + "/wal");
   TestFlushPublicationAndRecovery(root + "/flush-publication-recovery");

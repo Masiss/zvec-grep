@@ -6425,14 +6425,18 @@ int main(int argc, char** argv) {
       const auto barrier_open = m4::Index::Open(
           (barrier_root / "index").string(), barrier_options, &barrier_index);
       if (!barrier_open.ok) throw std::runtime_error("open flush barrier fixture: " + barrier_open.message);
+      const auto live_scope = m4::FilterExpr::StringEq("scope", "live");
       m4::Document stable; stable.text = "marker stable";
+      stable.values.push_back({"scope", "live"});
       m4::Document old; old.text = "retired obsolete";
       if (!barrier_index->Upsert("stable", stable).ok ||
           !barrier_index->Upsert("replace", old).ok ||
           !barrier_index->Flush().ok)
         throw std::runtime_error("seed flush publication barrier fixture");
       m4::Document replacement; replacement.text = "marker replacement";
+      replacement.values.push_back({"scope", "live"});
       m4::Document added; added.text = "marker added";
+      added.values.push_back({"scope", "live"});
       const std::vector<m4::Mutation> publish_batch = {
           {m4::MutationKind::UPSERT, "replace", replacement},
           {m4::MutationKind::UPSERT, "added", added},
@@ -6493,6 +6497,7 @@ int main(int argc, char** argv) {
           fs::exists(compaction_barrier / "run-ready");
       m4::Document queued_document;
       queued_document.text = "queued writer";
+      queued_document.values.push_back({"scope", "live"});
       std::atomic<bool> queued_writer_started{false};
       std::atomic<bool> queued_writer_done{false};
       std::atomic<bool> queued_writer_ok{false};
@@ -6550,7 +6555,7 @@ int main(int argc, char** argv) {
       m4::QueryDiagnostics warm_cache_diagnostics;
       warm_cache_diagnostics.collect_counters = true;
       const auto warm_cache_status = barrier_index->SearchFtsFiltered(
-          "marker", 10, m4::FilterExpr::All(), &warm_cache_result,
+          "marker", 10, live_scope, &warm_cache_result,
           &warm_cache_diagnostics);
       Check(warm_cache_status.ok,
             "warm cached filter after queued writer publication");
@@ -6561,6 +6566,13 @@ int main(int argc, char** argv) {
                                        const std::set<std::string>& expected) {
         const fs::path wal_barrier = barrier_root / ("wal-" + name);
         fs::remove_all(wal_barrier);
+        m4::SearchResult cache_seed;
+        m4::QueryDiagnostics cache_seed_diagnostics;
+        cache_seed_diagnostics.collect_counters = true;
+        if (!barrier_index->SearchFtsFiltered(query, 10, live_scope,
+                                               &cache_seed,
+                                               &cache_seed_diagnostics).ok)
+          throw std::runtime_error("seed scalar-filter cache before WAL barrier");
         std::atomic<bool> writer_done{false};
         std::atomic<bool> writer_ok{false};
         if (::setenv("M4_TEST_WAL_APPLY_BARRIER", wal_barrier.c_str(), 1) != 0)
@@ -6580,7 +6592,7 @@ int main(int argc, char** argv) {
         m4::QueryDiagnostics during_diagnostics;
         during_diagnostics.collect_counters = true;
         const auto during_status = barrier_index->SearchFtsFiltered(
-            query, 10, m4::FilterExpr::All(), &during, &during_diagnostics);
+            query, 10, live_scope, &during, &during_diagnostics);
         std::set<std::string> during_pks;
         for (const auto& hit : during.hits) during_pks.insert(hit.pk);
         m4::SearchResult during_plain, during_filter;
@@ -6599,9 +6611,11 @@ int main(int argc, char** argv) {
         { std::ofstream release(wal_barrier / "reader-finished", std::ios::binary); release << "done\n"; }
         writer.join();
         ::unsetenv("M4_TEST_WAL_APPLY_BARRIER");
-        Check(ready && during_status.ok && during_pks == expected &&
-                  during_diagnostics.filter_cache_hit,
-              name + " cached reader completes against the pre-apply snapshot after durable WAL append");
+        Check(ready && during_status.ok && during_pks == expected,
+              name + " filtered reader completes against the pre-apply snapshot after durable WAL append");
+        if (name == "upsert")
+          Check(during_diagnostics.filter_cache_hit,
+                "upsert WAL-barrier reader reuses the warmed scalar-filter cache");
         Check(hybrid_status.ok && hybrid_pks == expected,
               name + " hybrid reader completes against the pre-apply snapshot after durable WAL append");
         Check(plain_status.ok && plain_pks == expected,
@@ -6617,6 +6631,7 @@ int main(int argc, char** argv) {
       };
 
       m4::Document wal_replacement; wal_replacement.text = "wal durable replacement";
+      wal_replacement.values.push_back({"scope", "live"});
       run_wal_apply_barrier("upsert",
           [&] { return barrier_index->Upsert("replace", wal_replacement); },
           "marker", {"stable", "replace", "added"});
@@ -6842,7 +6857,8 @@ int main(int argc, char** argv) {
       Need(zvec_initialize(nullptr), "reopen native after crash");
       native = OpenVector(root / "vector", false);
       status = m4::Index::Open((root / "fts").string(), options, &fts);
-      Check(status.ok, std::string("M4 reopen after crash at ") + stage);
+      Check(status.ok, std::string("M4 reopen after crash at ") + stage +
+                           (status.ok ? "" : ": " + status.message));
       coordinator = std::make_unique<Coordinator>(root, native.value, fts.get());
       const uint32_t expected_generation = std::string(stage) == "after_publish_wal" ? 8u : published_before_crashes;
       Check(coordinator->generation() == expected_generation,

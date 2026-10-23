@@ -4679,10 +4679,26 @@ class Index::Impl {
     for (const auto& run : runs_) {
       const InvertFieldRef* ref = run.segment->FindField(field);
       if (!ref) continue;
-      for (const auto& value : ref->values) {
-        if (diagnostics) ++diagnostics->strings_scanned;
-        if (matches(value.value)) {
-          CollectValueDocsFromRun(run, *ref, value, out);
+      if (prefix) {
+        // Segment values are serialized in lexical order by WriteSegment.
+        // Seek to the prefix range rather than testing every distinct value.
+        auto value = std::lower_bound(
+            ref->values.begin(), ref->values.end(), literal,
+            [&](const InvertValueRef& candidate, const std::string& key) {
+              if (diagnostics) ++diagnostics->strings_scanned;
+              return candidate.value < key;
+            });
+        for (; value != ref->values.end(); ++value) {
+          if (diagnostics) ++diagnostics->strings_scanned;
+          if (!matches(value->value)) break;
+          CollectValueDocsFromRun(run, *ref, *value, out);
+        }
+      } else {
+        for (const auto& value : ref->values) {
+          if (diagnostics) ++diagnostics->strings_scanned;
+          if (matches(value.value)) {
+            CollectValueDocsFromRun(run, *ref, value, out);
+          }
         }
       }
     }
