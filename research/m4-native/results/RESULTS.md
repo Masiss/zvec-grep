@@ -49,7 +49,7 @@ Operation `m4-lock-contention-microbench-flush-reader-staging-pair-20261023-0614
 | Concurrent-compaction writer p95 / state-wait p95 | 28.925 / 28.130 ms | 36.486 / 35.929 ms | No observed writer-tail improvement; not measured during explicit flush |
 | Bytes written / segment bytes / WAL fsyncs | 8,811,226 / 4,281,688 / 96 | 8,811,226 / 4,281,688 / 96 | Identical; no logical-byte amplification ratio available |
 
-Peak cgroup memory 159,002,624 B; swap 0. Host I/O PSI-full avg10 1.47→1.75%, and cgroup I/O attribution was unavailable. The runner marked `performance_eligible=false`; report only as an exploratory mechanism signal. Full analysis, operation path, limitations, and evidence reference: [`ANALYSIS-20261023.md`](lock-contention-microbench/ANALYSIS-20261023.md).
+Paired writer-call traces show state-wait subtraction p95 0.773/0.693 ms and wait-thread CPU p95 0.145/0.102 ms against 28–36 ms state-lock wall waits; queue/acquisition dominated observed writer tail, while scheduler wakeup/fairness remains unseparated. Peak cgroup memory 159,002,624 B; swap 0. Host I/O PSI-full avg10 1.47→1.75%, and cgroup I/O attribution was unavailable. The runner marked `performance_eligible=false`; report only as an exploratory mechanism signal. Full analysis, operation path, limitations, and evidence reference: [`ANALYSIS-20261023.md`](lock-contention-microbench/ANALYSIS-20261023.md).
 
 ### Writer group-commit prototype — 2026-10-23
 
