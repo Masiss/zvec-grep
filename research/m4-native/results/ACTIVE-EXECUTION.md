@@ -8,7 +8,9 @@ The default-on lifecycle regression and full M4 build/CTest passed (9/9); tests 
 
 Second implementation: `Sha256(std::string_view)` now hashes full blocks directly from the input and uses a fixed 128-byte padding tail, eliminating the former input-sized copy plus full padded buffer during dictionary fingerprinting. NIST/independent known vectors at 0, 3, 55, 56, 63, 64, 65, 127, 128, 129, and 1 MiB pass; focused correctness and analyzer lifecycle CTests pass 2/2 and the full suite passed 9/9. LSP is clean for the changed C++ files. This is a deterministic temporary-allocation reduction; no M4 end-to-end latency/RSS claim yet.
 
-**Next selected reader bottleneck:** in the existing 10k-document/64-query hybrid trace, `SearchFtsFiltered` materialized all 10,000 live IDs for an `ALL` filter on every query; median filter time was 1.661 ms of 1.724 ms total FTS time, while only 10 candidates were checked. Add the semantics-preserving no-explicit-filter fast path and correctness parity tests before any measurement. This removes an O(live-docs) candidate materialization with no cache and no extra retained memory.
+**ALL-filter fast path implemented:** `SearchFtsFiltered(..., FilterExpr::All(), ...)` now uses the unfiltered `SearchFts` path rather than building a live-DocId vector and consulting the filter cache. Regression compares results/diagnostics against ordinary search across initial state, update/delete, flush, compaction failure/success, WAL replay, and reopen. Full M4 build/CTest passed 9/9; diagnostics report zero filter time/candidates for ALL. Historical 10k-doc/64-query data puts the removed stage at 1.661 ms median of 1.724 ms FTS time (10k candidates, 10 checks), but no post-change latency claim is made.
+
+No new profile was launched: current `MemAvailable=3,485,768 KiB` is below the hard `5,477,762 KiB` benchmark guard. Preserve that constraint; do not retry/relax it. Next source-level target: prefix-filter range lookup over immutable segment values, after confirming ordering and adding high-cardinality correctness/complexity coverage.
 
 ## Architecture decision review — 2026-10-23
 

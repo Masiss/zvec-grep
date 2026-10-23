@@ -927,6 +927,27 @@ void TestBooleanFilters(const std::string& dir) {
                 timing_diag.execution_ms >= 0.0,
             phase + " timing-only mode skips operation counters: " + query);
     }
+
+    const auto all_filter = m4::FilterExpr::All();
+    m4::SearchResult all_plain, all_filtered, all_measured;
+    m4::QueryDiagnostics all_diag;
+    all_diag.collect_counters = true;
+    all_diag.capture_timing = true;
+    const bool plain_all_ok = index->SearchFts("needle OR active", 5,
+                                               &all_plain).ok;
+    const bool all_ok = index->SearchFtsFiltered("needle OR active", 5,
+                                                 all_filter, &all_filtered).ok;
+    const bool measured_all_ok = index->SearchFtsFiltered(
+        "needle OR active", 5, all_filter, &all_measured, &all_diag).ok;
+    Check(plain_all_ok && all_ok && measured_all_ok &&
+              identical(all_plain, all_filtered) &&
+              identical(all_plain, all_measured),
+          phase + " ALL filter is retrieval-identical to unfiltered search");
+    Check(all_diag.filter_ms == 0.0 && all_diag.filter_cpu_ms == 0.0 &&
+              all_diag.filter_candidates == 0 &&
+              all_diag.filter_candidate_bytes == 0 &&
+              !all_diag.filter_cache_hit,
+          phase + " ALL filter bypasses candidate materialization and cache");
   };
   verify("initial");
 

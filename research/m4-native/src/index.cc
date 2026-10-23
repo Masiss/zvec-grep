@@ -2443,6 +2443,11 @@ class Index::Impl {
   Status SearchFtsFiltered(const std::string& query, uint32_t top_k,
                            const FilterExpr& filter, SearchResult* out,
                            QueryDiagnostics* diagnostics) const {
+    // ALL is exactly the unfiltered query: avoid materializing a live-DocId
+    // candidate vector, which costs O(live_docs) on every repeated query.
+    if (filter.op == FilterKind::ALL) {
+      return SearchFts(query, top_k, out, diagnostics);
+    }
     if (!diagnostics) {
       std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
       std::vector<DocId> candidates;
