@@ -1,5 +1,5 @@
 {
-  "operation_id": "m4-lock-contention-microbench-writer-group-commit-20261023-040914-808d58",
-  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261023/m4-lock-contention-microbench-writer-group-commit-20261023-040914-808d58",
+  "operation_id": "m4-lock-contention-microbench-writer-group-commit-snapshot-rebase-20261023-042945-98fd8c",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261023/m4-lock-contention-microbench-writer-group-commit-snapshot-rebase-20261023-042945-98fd8c",
   "status": "PASS"
 }

@@ -376,7 +376,8 @@ class ContentionPolicyTests(unittest.TestCase):
                         "memory_churn_two_versions_inline_child",
                         "memory_churn_two_versions_concurrent_open",
                         "memory_churn_two_versions_concurrent_allocator",
-                        "writer_group_commit") else None
+                        "writer_group_commit",
+                        "writer_group_commit_snapshot_rebase") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -446,6 +447,28 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
         self.assertTrue(ct.BENCHMARK_POLICY["lock_contention_microbench"]
                         ["writer_group_commit"]["measurement_semantics"])
+
+    def test_writer_group_commit_snapshot_rebase_profile_is_distinct_and_bounded(self):
+        ctx = self.lock_contention_microbench_context(
+            "writer_group_commit_snapshot_rebase")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        profile = ct.BENCHMARK_POLICY["lock_contention_microbench"][
+            "writer_group_commit_snapshot_rebase"]
+        self.assertNotEqual(profile["profile_id"], "writer_group_commit")
+        self.assertNotEqual(profile["binary_relative_path"],
+                            ct.BENCHMARK_POLICY["lock_contention_microbench"]
+                            ["writer_group_commit"]["binary_relative_path"])
+        self.assertEqual(ctx["workload"]["documents"], 1024)
+        self.assertEqual(ctx["workload"]["rounds"], 32)
+        self.assertEqual(ctx["workload"]["mode"],
+                         "--m4-writer-group-commit-snapshot-rebase")
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["snapshot_rebase", "group_commit_snapshot_rebase"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        self.assertIn("WAL-preserving snapshot-rebase",
+                      profile["measurement_semantics"])
 
     def test_memory_probe_binds_its_registered_workload_and_same_caps(self):
         ctx = self.lock_contention_microbench_context("memory_probe")

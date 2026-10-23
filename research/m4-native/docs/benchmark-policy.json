@@ -368,6 +368,23 @@
       },
       "measurement_semantics": "A single bounded, two-arm exploratory test of the opt-in M4 Upsert group-commit prototype versus ordinary per-call Upsert. Both arms use identical 1,024-document seeds, four concurrent writers × eight independent Upsert calls, two concurrent search readers, one default compaction, explicit flush, reopen verification, WAL fsync enabled, and unchanged containment/resource caps. Group commit coalesces only overlapping calls for at most 500 us or four records, persists them using existing atomic ApplyBatch WAL/replay semantics, then publishes the group atomically; this remains linearizable for overlapping calls but may add bounded queue delay. Record end-to-end per-call latency, pre-dispatch group-formation wait, per-call batch-size evidence (require at least one multi-record group), reader latency, WAL fsync counts, and durability/reopen checks; do not compare against the older ApplyBatch API arm as identical call semantics. One operation only; any preflight/runtime/containment failure consumes it and is not retried. Exploratory evidence, not qualification or production authorization."
     },
+    "writer_group_commit_snapshot_rebase": {
+      "profile_id": "writer_group_commit_snapshot_rebase",
+      "binary_relative_path": ".work/build/writer-group-commit-rebase-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "12b7c0f3691b1f87c33ff3031d4918bd6fd6297adeb476da02fbbcd1dc00ef00",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-writer-group-commit-snapshot-rebase",
+        "compaction_modes": ["snapshot_rebase", "group_commit_snapshot_rebase"],
+        "tracing": false
+      },
+      "measurement_semantics": "One distinct, bounded paired experiment testing whether the opt-in ordered Upsert group-commit queue adds value when both arms use the existing WAL-preserving snapshot-rebase compaction. The direct and group-commit arms use identical 1,024-document seeds, four writers × eight individual Upsert calls, two search readers, one concurrent snapshot-rebase compaction, explicit flush, reopen verification and WAL fsync; resource and containment caps are unchanged. The paired direct arm distinguishes the queue effect within this operation; compare it descriptively with the separately consumed default-compaction profile only, not as a controlled four-way comparison. Capture per-call writer latency, group wait/size, state-lock and compaction stages, reader samples, fsync counts, and durability/reopen checks. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried. No qualification, stable-tail claim, architecture win, or production authorization."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {

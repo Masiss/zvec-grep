@@ -231,7 +231,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
     if timing_schema == 8:
         expected_workload_mode = (
-            "writer_group_commit"
+            "writer_group_commit_snapshot_rebase"
+            if workload.get("mode") == "--m4-writer-group-commit-snapshot-rebase"
+            else "writer_group_commit"
             if workload.get("mode") == "--m4-writer-group-commit"
             else "contention")
         if data.get("workload_mode") != expected_workload_mode:
@@ -376,7 +378,8 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 raise RuntimeError(
                     "post-writer flush query-lock hold exceeds flush duration")
         api_calls = rounds
-        group_commit_arm = timing_schema == 8 and arm.get("name") == "group_commit"
+        group_commit_arm = timing_schema == 8 and arm.get("name") in (
+            "group_commit", "group_commit_snapshot_rebase")
         if timing_schema in (4, 5, 6, 7, 8):
             batch_api = arm.get("name") == "apply_batch"
             expected_api = ("ApplyBatch" if batch_api else
@@ -486,7 +489,8 @@ def main() -> int:
                             "memory_churn_two_versions_inline_child",
                             "memory_churn_two_versions_concurrent_open",
                             "memory_churn_two_versions_concurrent_allocator",
-                            "writer_group_commit"),
+                            "writer_group_commit",
+                            "writer_group_commit_snapshot_rebase"),
                         default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:

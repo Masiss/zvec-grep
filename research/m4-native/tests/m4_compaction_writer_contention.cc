@@ -439,7 +439,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
   options.max_delta_bytes = 256ull << 20;
   options.tombstone_compact_ratio = 2.0;
   options.compaction_memory_limit_bytes = 256ull << 20;
-  const bool group_commit = name == "group_commit";
+  const bool group_commit = name == "group_commit" ||
+                            name == "group_commit_snapshot_rebase";
   if (group_commit) {
     options.writer_group_commit_max_batch_size = 4;
     options.writer_group_commit_max_delay_us = 500;
@@ -510,7 +511,8 @@ ArmResult RunArm(const fs::path& root, const std::string& name,
     if (name == "snapshot") {
       compaction =
           index->CompactNowSnapshotPrototype(&compaction_diagnostics);
-    } else if (name == "snapshot_rebase") {
+    } else if (name == "snapshot_rebase" ||
+               name == "group_commit_snapshot_rebase") {
       compaction = index->CompactNowSnapshotRebasePrototype(
           &compaction_diagnostics);
     } else {
@@ -972,8 +974,11 @@ int main(int argc, char** argv) {
       workload_mode == "--m4-compaction-contention-cache-churn-v2";
   const bool concurrent_cache_churn_mode =
       workload_mode == "--m4-compaction-contention-cache-churn-concurrent-v2";
+  const bool writer_group_commit_rebase_mode =
+      workload_mode == "--m4-writer-group-commit-snapshot-rebase";
   const bool writer_group_commit_mode =
-      workload_mode == "--m4-writer-group-commit";
+      workload_mode == "--m4-writer-group-commit" ||
+      writer_group_commit_rebase_mode;
   if (!fs::is_directory(dict_dir) ||
       (workload_mode != "--m4-compaction-contention" && !cache_churn_mode &&
        !concurrent_cache_churn_mode && !writer_group_commit_mode)) {
@@ -990,10 +995,13 @@ int main(int argc, char** argv) {
   }
   const size_t ops_per_writer = writer_operation_count / writers;
 
-  std::vector<std::string> order = writer_group_commit_mode
-      ? std::vector<std::string>{"default", "group_commit"}
-      : std::vector<std::string>{"default", "snapshot", "snapshot_rebase",
-                                 "apply_batch"};
+  std::vector<std::string> order = writer_group_commit_rebase_mode
+      ? std::vector<std::string>{"snapshot_rebase",
+                                 "group_commit_snapshot_rebase"}
+      : writer_group_commit_mode
+          ? std::vector<std::string>{"default", "group_commit"}
+          : std::vector<std::string>{"default", "snapshot", "snapshot_rebase",
+                                     "apply_batch"};
   if (std::hash<std::string>{}(root.string()) % 2 != 0) {
     std::reverse(order.begin(), order.end());
   }
@@ -1017,7 +1025,10 @@ int main(int argc, char** argv) {
             << ",\"ops_per_writer\":" << ops_per_writer
             << ",\"rounds\":" << writer_operation_count
             << ",\"workload_mode\":\""
-            << (writer_group_commit_mode ? "writer_group_commit" : "contention")
+            << (writer_group_commit_rebase_mode
+                    ? "writer_group_commit_snapshot_rebase"
+                    : writer_group_commit_mode ? "writer_group_commit"
+                                               : "contention")
             << "\",\"writer_operations\":" << writer_operation_count
             << ",\"reader_queries\":" << 2 * 32
             << ",\"coherence_errors\":0,\"failures\":" << failures

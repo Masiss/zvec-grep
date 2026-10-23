@@ -66,7 +66,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
                                 if name != "apply_batch"]
         for name in compaction_modes:
             batch_api = name == "apply_batch"
-            group_api = timing_schema == 8 and name == "group_commit"
+            group_api = timing_schema == 8 and name in (
+                "group_commit", "group_commit_snapshot_rebase")
             api_calls = (workload["writers"] if include_compaction_timing and batch_api
                          else rounds)
             arm: dict[str, Any]
@@ -170,7 +171,9 @@ class BenchmarkPolicyTests(unittest.TestCase):
             data["timing_schema_version"] = timing_schema
             if timing_schema == 8:
                 data["workload_mode"] = (
-                    "writer_group_commit"
+                    "writer_group_commit_snapshot_rebase"
+                    if workload["mode"] == "--m4-writer-group-commit-snapshot-rebase"
+                    else "writer_group_commit"
                     if workload["mode"] == "--m4-writer-group-commit"
                     else "contention")
         result = {"status": "PASS", "workload_returncode": 0,
@@ -182,6 +185,23 @@ class BenchmarkPolicyTests(unittest.TestCase):
             timing_schema=8, workload_profile="writer_group_commit")
         lock_runner.verify(result, data, contract)
         group = next(arm for arm in data["arms"] if arm["name"] == "group_commit")
+        group["writer_group_commit_size_samples"] = [1] * len(
+            group["writer_group_commit_size_samples"])
+        with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
+            lock_runner.verify(result, data, contract)
+
+    def test_snapshot_rebase_group_commit_verifier_checks_both_arm_contracts(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=8,
+            workload_profile="writer_group_commit_snapshot_rebase")
+        lock_runner.verify(result, data, contract)
+        self.assertEqual(data["workload_mode"],
+                         "writer_group_commit_snapshot_rebase")
+        self.assertEqual(data["arm_order"],
+                         contract["workload"]["compaction_modes"])
+        group = next(arm for arm in data["arms"]
+                     if arm["name"] == "group_commit_snapshot_rebase")
+        self.assertEqual(group["writer_api"], "UpsertGroupCommit")
         group["writer_group_commit_size_samples"] = [1] * len(
             group["writer_group_commit_size_samples"])
         with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
