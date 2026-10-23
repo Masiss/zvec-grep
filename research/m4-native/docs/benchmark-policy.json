@@ -266,6 +266,27 @@
       },
       "measurement_semantics": "One distinct same-cap exploratory cache-churn trace after the copy-reduction candidate. It removes per-analyzer temporary vector<Unicode> and pointer arrays by inserting the immutable base/user DictUnit entries directly into a local exception-safe Trie, in the same order; the existing public two-vector Trie constructor remains unchanged. Compare descriptively to the exact memory_churn_two_versions_memory_opt workload; record cgroup memory.stat, memory.peak, init times, and PSS, but this remains a one-run, multi-change research comparison, not isolated causal proof, stable latency/memory result, capacity claim, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
     },
+    "memory_churn_two_versions_inline_child": {
+      "profile_id": "memory_churn_two_versions_inline_child",
+      "binary_relative_path": ".work/build/dict-cache-inline-child/m4_compaction_writer_contention",
+      "binary_sha256": "833bb2487dae1967712b5cd43be92732eddbf8c9069c35b22e82d8f4f33f09be",
+      "cppjieba_patch_relative_path": "patches/cppjieba-inline-first-child.patch",
+      "cppjieba_patch_sha256": "ef940d69df3b9def4e438e7964ca208e64a2bcc4e5e43500880dc40acf16307d",
+      "cppjieba_overlay_sha256": "83a256ef15729f706dc731cad2dd78d0ef6f2252896d22e934623af37a2c8e9b",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct same-cap cache-churn profile after direct trie streaming. It stores the first child edge inline in every TrieNode and allocates the unordered map only for additional children, reducing per-node map/bucket/hash-node overhead for the pinned base dictionary's frequent unary nodes. It also makes DeleteUserWord remove/prune the requested term rather than the pre-existing first-rune subtree. The legacy vector-taking Trie constructor remains and both entry paths are tested. Capture cgroup memory.stat, memory.peak, analyzer init times and PSS; compare descriptively with memory_churn_two_versions_trie_stream. Single-run multi-change exploratory evidence only, not causal proof, stable latency/memory, capacity or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
     "memory_churn_two_versions_memory_opt": {
       "profile_id": "memory_churn_two_versions_memory_opt",
       "binary_relative_path": ".work/build/dict-cache-eviction-memory-opt-final/m4_compaction_writer_contention",
