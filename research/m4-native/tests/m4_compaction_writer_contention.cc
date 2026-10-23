@@ -98,6 +98,7 @@ struct CacheChurnTrace {
   ProcessMemory baseline;
   std::vector<CacheChurnVersion> versions;
   size_t failures{0};
+  bool concurrent_open{false};
 };
 
 void PrintProcessMemory(std::ostream& output, const ProcessMemory& memory) {
@@ -109,7 +110,9 @@ void PrintProcessMemory(std::ostream& output, const ProcessMemory& memory) {
 }
 
 void PrintCacheChurnTrace(std::ostream& output, const CacheChurnTrace& trace) {
-  output << "{\"baseline\":";
+  output << "{\"concurrent_open\":"
+         << (trace.concurrent_open ? "true" : "false")
+         << ",\"baseline\":";
   PrintProcessMemory(output, trace.baseline);
   output << ",\"versions\":[";
   for (size_t i = 0; i < trace.versions.size(); ++i) {
@@ -273,6 +276,127 @@ CacheChurnTrace RunAnalyzerCacheChurn(const std::string& dictionary_dir) {
     trace.versions.push_back(std::move(version));
     if (trace.failures != 0) break;
   }
+  return trace;
+}
+
+CacheChurnTrace RunConcurrentAnalyzerCacheChurn(
+    const std::string& dictionary_dir) {
+  CacheChurnTrace trace;
+  trace.concurrent_open = true;
+  constexpr size_t kVersions = 2;
+  trace.versions.resize(kVersions);
+  const fs::path dir(dictionary_dir);
+  auto read_file = [](const fs::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("cannot read " + path.string());
+    return std::string(std::istreambuf_iterator<char>(input),
+                       std::istreambuf_iterator<char>());
+  };
+  std::string base_dictionary;
+  std::string hmm_model;
+  try {
+    base_dictionary = read_file(dir / "jieba.dict.utf8");
+    hmm_model = read_file(dir / "hmm_model.utf8");
+  } catch (const std::exception& error) {
+    std::cerr << "concurrent cache-churn input error: " << error.what() << '\n';
+    trace.failures = 1;
+    return trace;
+  }
+
+  std::vector<std::string> unique_words(kVersions);
+  std::vector<std::vector<m4::AnalyzerDictionaryFileSnapshot>> snapshots(kVersions);
+  for (size_t generation = 0; generation < kVersions; ++generation) {
+    auto& version = trace.versions[generation];
+    unique_words[generation] = "m4concurrentchurn" + std::to_string(generation);
+    std::string dictionary_contents =
+        base_dictionary + unique_words[generation] + " 1000000 n\n";
+    const std::string identity_material =
+        "m4-churn-v1|jieba.dict.utf8:" + m4::Sha256(dictionary_contents) +
+        "|hmm_model.utf8:" + m4::Sha256(hmm_model);
+    version.identity = m4::Sha256(identity_material);
+    snapshots[generation].reserve(2);
+    snapshots[generation].push_back(
+        {"jieba.dict.utf8", std::move(dictionary_contents)});
+    snapshots[generation].push_back({"hmm_model.utf8", hmm_model});
+  }
+
+  trace.baseline = ReadProcessMemory();
+  if (!trace.baseline.valid) {
+    std::cerr << "concurrent cache-churn could not read smaps_rollup baseline\n";
+    trace.failures = 1;
+    return trace;
+  }
+
+  std::vector<std::unique_ptr<m4::Analyzer>> analyzers(kVersions);
+  std::vector<std::thread> workers;
+  workers.reserve(kVersions);
+  std::mutex gate_mutex;
+  std::condition_variable gate_changed;
+  size_t ready = 0;
+  bool release_workers = false;
+  std::atomic<size_t> worker_failures{0};
+  EmitPhase("analyzer_churn", "concurrent_open_start");
+  for (size_t generation = 0; generation < kVersions; ++generation) {
+    workers.emplace_back([&, generation] {
+      auto& version = trace.versions[generation];
+      EmitPhase("analyzer_churn", "version_open_start", generation);
+      const auto started = Clock::now();
+      try {
+        auto analyzer = std::make_unique<m4::Analyzer>();
+        m4::AnalyzerInitDiagnostics diagnostics;
+        bool cache_hit = false;
+        const m4::Status status = analyzer->Init(
+            "jieba", dictionary_dir, "", &cache_hit, &diagnostics,
+            &snapshots[generation], version.identity);
+        version.initialization_ms = ElapsedMs(started, Clock::now());
+        version.initialization_succeeded = status.ok &&
+            diagnostics.initialization_succeeded && !cache_hit;
+        version.snapshot_used = diagnostics.dictionary_snapshot_used;
+        if (status.ok) {
+          const auto tokens = analyzer->Tokenize(unique_words[generation]);
+          version.tokenization_succeeded = tokens.size() == 1 &&
+              tokens.front().term == unique_words[generation];
+        }
+        analyzers[generation] = std::move(analyzer);
+        EmitPhase("analyzer_churn", "version_open_complete", generation);
+        if (!version.initialization_succeeded || !version.snapshot_used ||
+            !version.tokenization_succeeded) {
+          worker_failures.fetch_add(1);
+        }
+      } catch (const std::exception& error) {
+        std::cerr << "concurrent cache-churn generation " << generation
+                  << " failed: " << error.what() << '\n';
+        worker_failures.fetch_add(1);
+      }
+      std::unique_lock<std::mutex> lock(gate_mutex);
+      ++ready;
+      gate_changed.notify_all();
+      gate_changed.wait(lock, [&] { return release_workers; });
+    });
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(gate_mutex);
+    gate_changed.wait(lock, [&] { return ready == kVersions; });
+    const ProcessMemory live = ReadProcessMemory();
+    for (auto& version : trace.versions) version.live_memory = live;
+    release_workers = true;
+  }
+  gate_changed.notify_all();
+  for (auto& worker : workers) worker.join();
+  trace.failures += worker_failures.load();
+  EmitPhase("analyzer_churn", "concurrent_open_ready");
+
+  for (size_t generation = 0; generation < kVersions; ++generation) {
+    analyzers[generation].reset();
+    trace.versions[generation].released_memory = ReadProcessMemory();
+    if (!trace.versions[generation].live_memory.valid ||
+        !trace.versions[generation].released_memory.valid ||
+        trace.versions[generation].identity.empty()) {
+      ++trace.failures;
+    }
+  }
+  EmitPhase("analyzer_churn", "concurrent_open_released");
   return trace;
 }
 
@@ -776,8 +900,11 @@ int main(int argc, char** argv) {
   const std::string workload_mode(argv[3]);
   const bool cache_churn_mode =
       workload_mode == "--m4-compaction-contention-cache-churn-v2";
+  const bool concurrent_cache_churn_mode =
+      workload_mode == "--m4-compaction-contention-cache-churn-concurrent-v2";
   if (!fs::is_directory(dict_dir) ||
-      (workload_mode != "--m4-compaction-contention" && !cache_churn_mode)) {
+      (workload_mode != "--m4-compaction-contention" && !cache_churn_mode &&
+       !concurrent_cache_churn_mode)) {
     std::cerr << "missing Jieba dictionary or invalid workload mode\n";
     return 2;
   }
@@ -803,6 +930,9 @@ int main(int argc, char** argv) {
   }
   CacheChurnTrace churn_trace;
   if (cache_churn_mode) churn_trace = RunAnalyzerCacheChurn(dict_dir);
+  else if (concurrent_cache_churn_mode) {
+    churn_trace = RunConcurrentAnalyzerCacheChurn(dict_dir);
+  }
   size_t failures = churn_trace.failures;
   for (const auto& result : results) {
     failures += result.writer_failures + result.reader_failures +
@@ -825,7 +955,7 @@ int main(int argc, char** argv) {
     PrintArm(results[i], i + 1 == results.size());
   }
   std::cout << ']';
-  if (cache_churn_mode) {
+  if (cache_churn_mode || concurrent_cache_churn_mode) {
     std::cout << ",\"analyzer_churn_trace\":";
     PrintCacheChurnTrace(std::cout, churn_trace);
   }

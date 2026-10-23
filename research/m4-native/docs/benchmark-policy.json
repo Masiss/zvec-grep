@@ -287,6 +287,27 @@
       },
       "measurement_semantics": "One distinct same-cap cache-churn profile after direct trie streaming. It stores the first child edge inline in every TrieNode and allocates the unordered map only for additional children, reducing per-node map/bucket/hash-node overhead for the pinned base dictionary's frequent unary nodes. It also makes DeleteUserWord remove/prune the requested term rather than the pre-existing first-rune subtree. The legacy vector-taking Trie constructor remains and both entry paths are tested. Capture cgroup memory.stat, memory.peak, analyzer init times and PSS; compare descriptively with memory_churn_two_versions_trie_stream. Single-run multi-change exploratory evidence only, not causal proof, stable latency/memory, capacity or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
     },
+    "memory_churn_two_versions_concurrent_open": {
+      "profile_id": "memory_churn_two_versions_concurrent_open",
+      "binary_relative_path": ".work/build/dict-cache-concurrent-open/m4_compaction_writer_contention",
+      "binary_sha256": "02e278015a2a0d846ae209c6c09d6ecd93d06fddbefc5b6f984666cadc06de26",
+      "cppjieba_patch_relative_path": "patches/cppjieba-inline-first-child.patch",
+      "cppjieba_patch_sha256": "ef940d69df3b9def4e438e7964ca208e64a2bcc4e5e43500880dc40acf16307d",
+      "cppjieba_overlay_sha256": "83a256ef15729f706dc731cad2dd78d0ef6f2252896d22e934623af37a2c8e9b",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-concurrent-v2",
+        "compaction_modes": ["default", "snapshot", "snapshot_rebase", "apply_batch"],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "Distinct same-cap diagnostic after the inline-child candidate. Two analyzers with different dictionary content fingerprints open concurrently, synchronize while both remain live for PSS sampling, then release one at a time. This measures co-resident old/new analyzer memory and concurrent initialization effects; native cppjieba cache entries remain process-retained after Analyzer destruction. Compare only descriptively with the sequential two-version profile. Capture cgroup memory.stat/peak, phase markers, process PSS, and release observations. Exploratory memory/lifecycle evidence only, not a latency claim, stable capacity result, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
     "memory_churn_two_versions_memory_opt": {
       "profile_id": "memory_churn_two_versions_memory_opt",
       "binary_relative_path": ".work/build/dict-cache-eviction-memory-opt-final/m4_compaction_writer_contention",
