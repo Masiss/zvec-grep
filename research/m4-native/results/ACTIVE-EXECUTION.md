@@ -1,5 +1,9 @@
 # Active M4 execution checkpoint
 
+## Architecture decision review — 2026-10-23
+
+**Decision: no architecture winner established.** Keep immutable-shard as the comparison baseline/correctness reference; keep shared-collection as the leading research alternative, not a selected or production architecture. The only direct pair is measurement-ineligible (`performance_eligible=false`), with non-equivalent writer boundaries and no guaranteed reader/native-flush overlap. Its lower one-run shared memory peak is directional only. The continuous-reader follow-up was preflight-blocked before launch and produced no latency evidence. Do not start another prototype solely for exploratory numbers; revisit only with a fresh, preregistered, matched comparison under all unchanged gates. Detailed source/evidence assessment and criteria: [M4 architecture decision review](ARCHITECTURE-DECISION-20261023.md).
+
 ## Current checkpoint — 2026-10-23 13:38 +07 (supersedes below)
 
 ### Reader-through-flush + group commit — bounded pair complete; no architecture winner

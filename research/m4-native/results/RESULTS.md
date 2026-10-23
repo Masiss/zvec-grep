@@ -1,5 +1,9 @@
 # M4 incremental index — evidence (historical series begins 2026-10-17)
 
+## Architecture decision review — 2026-10-23
+
+No architecture winner is established. Immutable-shard remains the baseline/correctness reference; shared-collection remains an unselected research alternative. The only direct pair is measurement-ineligible due to incomplete workspace evidence, non-equivalent writer timing boundaries, and no guaranteed query overlap with native flush. Its lower one-run shared peak is descriptive only. See the [architecture decision review](ARCHITECTURE-DECISION-20261023.md) for source-grounded tradeoffs, bottleneck classification, decision rationale, and evidence required to revisit.
+
 ## Shared collection vs immutable-shard pair — 2026-10-23
 
 Operation `m4-shared-collection-pair-20261023-021949-4a92c5` completed both 500-document × 5-round arms with zero coherence failures, but both receipts are `COMPLETED_WITH_WORKSPACE_UNCERTAINTY` / `measurement_quality=INCOMPLETE` / `performance_eligible=false`. Hard cgroup telemetry and cleanup completed; no swap/OOM/limit events; per-arm cgroup I/O accounting unavailable. Do not treat it as a qualifying performance comparison or retry it. The shared arm's one-run cgroup peak was 223,338,496 B vs immutable-shard's 326,701,056 B (31.64% lower), while 20-query reader p95 was 2.293 ms vs 1.386 ms; this is descriptive only and the reader tail sample is too small. Shared commit p95 was 90.634 ms, GC p95 32.755 ms, and native collection flush p95 48.787 ms. Source inspection confirms native flush holds an exclusive schema lock shared by native queries, but the one-query-per-reader-per-round schedule does not guarantee overlap with flush. Full evidence, stage analysis, limitations, and next profile are in [the pair analysis](shared-collection-pair-20261023/ANALYSIS-20261023.md); raw checksummed receipts are in that operation bundle.
