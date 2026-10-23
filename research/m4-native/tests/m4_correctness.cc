@@ -1886,10 +1886,10 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
 }
 
 void TestFlushPublicationAndRecovery(const std::string& dir) {
-  auto seed_unflushed = [](const std::string& path) {
+  auto seed_unflushed = [](const std::string& path, const m4::Options& options) {
     fs::remove_all(path);
     std::unique_ptr<Index> index;
-    Check(Index::Open(path, {}, &index).ok, "flush crash seed open");
+    Check(Index::Open(path, options, &index).ok, "flush crash seed open");
     Document old_same;
     old_same.text = "oldword common";
     old_same.values.push_back({"kind", "obsolete"});
@@ -1909,9 +1909,10 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Check(index->Upsert("keep", keep).ok, "flush seed keep pk");
     index.reset();
   };
-  auto verify_reopened = [](const std::string& path, const std::string& label) {
+  auto verify_reopened = [](const std::string& path, const std::string& label,
+                            const m4::Options& options) {
     std::unique_ptr<Index> reopened;
-    Check(Index::Open(path, {}, &reopened).ok, label + ": reopen");
+    Check(Index::Open(path, options, &reopened).ok, label + ": reopen");
     if (!reopened) return;
     RefState ref;
     ref.docs.emplace("same", RefDoc{"same", "newword common", {{"kind", "live"}}});
@@ -1965,17 +1966,22 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   Check(retry_reopened && retry_reopened->GetStats().live_docs == 2,
         "flush retry durable stats");
 
-  // Crash on both sides of the durable manifest and WAL truncation boundary.
-  for (const char* fault : {"flush_after_stats_append", "flush_before_manifest",
-                            "flush_after_manifest", "flush_after_wal_reset"}) {
-    const std::string path = dir + "/crash-" + fault;
-    seed_unflushed(path);
-    const pid_t child = ::fork();
+  // Crash on both sides of the durable manifest and WAL truncation boundary
+  // under both the pre-staging lock boundary and staged candidate.
+  for (bool staged : {false, true}) {
+    m4::Options crash_options;
+    crash_options.flush_metadata_outside_query_lock = staged;
+    for (const char* fault : {"flush_after_stats_append", "flush_before_manifest",
+                              "flush_after_manifest", "flush_after_wal_reset"}) {
+      const std::string label = std::string(staged ? "staged-" : "baseline-") + fault;
+      const std::string path = dir + "/crash-" + label;
+      seed_unflushed(path, crash_options);
+      const pid_t child = ::fork();
     Check(child >= 0, std::string("fork ") + fault);
     if (child == 0) {
       ::setenv("M4_FAULT", fault, 1);
       std::unique_ptr<Index> child_index;
-      if (!Index::Open(path, {}, &child_index).ok) ::_exit(120);
+      if (!Index::Open(path, crash_options, &child_index).ok) ::_exit(120);
       const m4::Status status = child_index->Flush();
       ::_exit(status.ok ? 121 : 122);
     }
@@ -1986,7 +1992,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Check(WIFEXITED(status) && WEXITSTATUS(status) >= 92 &&
               WEXITSTATUS(status) <= 95,
           std::string("flush crash reached expected boundary ") + fault);
-    verify_reopened(path, std::string("flush recovery ") + fault);
+      verify_reopened(path, "flush recovery " + label, crash_options);
+    }
   }
 
   // A reader can finish while flush metadata is staged and query-visible state

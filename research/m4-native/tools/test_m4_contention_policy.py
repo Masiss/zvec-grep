@@ -377,7 +377,8 @@ class ContentionPolicyTests(unittest.TestCase):
                         "memory_churn_two_versions_concurrent_open",
                         "memory_churn_two_versions_concurrent_allocator",
                         "writer_group_commit",
-                        "writer_group_commit_snapshot_rebase") else None
+                        "writer_group_commit_snapshot_rebase",
+                        "flush_reader_staging_pair") else None
         if workload is None:
             raise ValueError(f"unknown fixture workload profile: {workload_profile}")
         binary_path = self.root / contract["binary_name"]
@@ -447,6 +448,25 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
         self.assertTrue(ct.BENCHMARK_POLICY["lock_contention_microbench"]
                         ["writer_group_commit"]["measurement_semantics"])
+
+    def test_flush_reader_staging_pair_is_timestamp_verified_and_bounded(self):
+        ctx = self.lock_contention_microbench_context("flush_reader_staging_pair")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        self.assertEqual(ctx["workload"]["documents"], 8192)
+        self.assertEqual(ctx["workload"]["rounds"], 32)
+        self.assertEqual(ctx["workload"]["writers"], 4)
+        self.assertEqual(ctx["workload"]["readers"], 2)
+        self.assertEqual(ctx["workload"]["mode"],
+                         "--m4-flush-reader-staging-pair")
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["flush_baseline", "flush_candidate"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
+        profile = ct.BENCHMARK_POLICY["lock_contention_microbench"][
+            "flush_reader_staging_pair"]
+        self.assertIn("timestamps proving", profile["measurement_semantics"])
+        self.assertIn("no retry", profile["measurement_semantics"])
 
     def test_writer_group_commit_snapshot_rebase_profile_is_distinct_and_bounded(self):
         ctx = self.lock_contention_microbench_context(

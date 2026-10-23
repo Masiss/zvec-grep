@@ -385,6 +385,23 @@
       },
       "measurement_semantics": "One distinct, bounded paired experiment testing whether the opt-in ordered Upsert group-commit queue adds value when both arms use the existing WAL-preserving snapshot-rebase compaction. The direct and group-commit arms use identical 1,024-document seeds, four writers × eight individual Upsert calls, two search readers, one concurrent snapshot-rebase compaction, explicit flush, reopen verification and WAL fsync; resource and containment caps are unchanged. The paired direct arm distinguishes the queue effect within this operation; compare it descriptively with the separately consumed default-compaction profile only, not as a controlled four-way comparison. Capture per-call writer latency, group wait/size, state-lock and compaction stages, reader samples, fsync counts, and durability/reopen checks. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried. No qualification, stable-tail claim, architecture win, or production authorization."
     },
+    "flush_reader_staging_pair": {
+      "profile_id": "flush_reader_staging_pair",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "ef6e77791d6f307c2464874f0afbf8dfa8564669e8d4e68fad94b92c8ff2640c",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-flush-reader-staging-pair",
+        "compaction_modes": ["flush_baseline", "flush_candidate"],
+        "tracing": false
+      },
+      "measurement_semantics": "One bounded paired same-binary comparison of the pre-staging flush query-lock boundary (baseline) versus metadata publication staging (candidate). Each arm seeds the same 8,192 Jieba documents, runs four WAL-durable writers × eight Upserts with two readers during one default compaction, then starts two continuous readers before explicit Flush and keeps them active until at least two post-flush queries each. The verifier requires per-reader timestamps proving at least two completed queries before, one query started during and overlapping the flush interval, and two queries after; a larger query count without interval overlap is invalid. Both modes preserve WAL fsync, manifest-before-publication and reopen/replay semantics. Capture per-query total wall, native query-mutex wait and execution CPU; flush total/stage wall+CPU and query-lock wait/hold; writer p95/state wait; fsync and bytes-written counters; cgroup/host memory, CPU and I/O evidence. Single operation only, no retry if any gate, containment or overlap check fails. Exploratory evidence, not qualification, a stable p95 claim, or production authorization. Concurrent flush remains out of scope."
+    },
     "single_arm": false,
     "multi_arm_within_operation": true,
     "resource_controls": {

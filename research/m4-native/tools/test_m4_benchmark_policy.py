@@ -110,6 +110,38 @@ class BenchmarkPolicyTests(unittest.TestCase):
                 "reader_samples": [0.25] * (workload["readers"] * workload["queries_per_reader"]),
                 "reader_mutex_wait_samples": [0.0] * (workload["readers"] * workload["queries_per_reader"]),
             })
+            if workload["mode"] == "--m4-flush-reader-staging-pair":
+                is_candidate = name == "flush_candidate"
+                flush_start, flush_end = 1_000_000_000, 1_020_000_000
+                arm.update({
+                    "flush_metadata_outside_query_lock": is_candidate,
+                    "total_bytes_written": 4096,
+                    "segment_bytes_written": 2048,
+                    "total_wal_fsyncs": 40,
+                    "reader_through_flush": {
+                        "flush_start_boot_ns": flush_start,
+                        "flush_end_boot_ns": flush_end,
+                        "flush_succeeded": True,
+                        "failures": 0,
+                        "readers": [
+                            {"reader_id": reader, "samples": [
+                                {"start_boot_ns": 990_000_000, "end_boot_ns": 991_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                                {"start_boot_ns": 995_000_000, "end_boot_ns": 996_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                                {"start_boot_ns": 1_005_000_000, "end_boot_ns": 1_025_000_000,
+                                 "wall_ms": 20.0, "mutex_wait_ms": 5.0,
+                                 "execution_cpu_ms": 1.0, "ok": True},
+                                {"start_boot_ns": 1_021_000_000, "end_boot_ns": 1_022_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                                {"start_boot_ns": 1_023_000_000, "end_boot_ns": 1_024_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                            ]} for reader in range(2)]},
+                })
             if include_compaction_timing:
                 arm.update({
                     "writer_api": ("ApplyBatch" if batch_api else
@@ -169,9 +201,11 @@ class BenchmarkPolicyTests(unittest.TestCase):
         }
         if include_compaction_timing:
             data["timing_schema_version"] = timing_schema
-            if timing_schema == 8:
+            if timing_schema in (8, 9):
                 data["workload_mode"] = (
-                    "writer_group_commit_snapshot_rebase"
+                    "flush_reader_staging_pair"
+                    if workload["mode"] == "--m4-flush-reader-staging-pair"
+                    else "writer_group_commit_snapshot_rebase"
                     if workload["mode"] == "--m4-writer-group-commit-snapshot-rebase"
                     else "writer_group_commit"
                     if workload["mode"] == "--m4-writer-group-commit"
@@ -179,6 +213,31 @@ class BenchmarkPolicyTests(unittest.TestCase):
         result = {"status": "PASS", "workload_returncode": 0,
                   "controller_cleanup": {"verified": True}}
         return result, data, contract
+
+    def test_flush_reader_staging_verifier_requires_timestamped_overlap(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=9, workload_profile="flush_reader_staging_pair")
+        phase_lines = []
+        for arm in data["arm_order"]:
+            trace = next(item["reader_through_flush"] for item in data["arms"]
+                         if item["name"] == arm)
+            start, end = trace["flush_start_boot_ns"], trace["flush_end_boot_ns"]
+            phase_lines.extend([
+                f"M4_PHASE {start - 100} {arm} flush_readers_pre_ready 0",
+                f"M4_PHASE {start + 100} {arm} reader_through_flush_start 0",
+                f"M4_PHASE {end + 100} {arm} reader_through_flush_complete 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 1",
+            ])
+        lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+        candidate = next(arm for arm in data["arms"]
+                         if arm["name"] == "flush_candidate")
+        for reader in candidate["reader_through_flush"]["readers"]:
+            for sample in reader["samples"]:
+                sample["start_boot_ns"] = 980_000_000
+                sample["end_boot_ns"] = 981_000_000
+        with self.assertRaisesRegex(RuntimeError, "timestamp-proven"):
+            lock_runner.verify(result, data, contract, "\n".join(phase_lines))
 
     def test_group_commit_verifier_checks_queue_and_sync_evidence(self):
         result, data, contract = self._valid_contention_receipt(

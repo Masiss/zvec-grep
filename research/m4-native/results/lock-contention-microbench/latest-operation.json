@@ -1,5 +1,5 @@
 {
-  "operation_id": "m4-lock-contention-microbench-writer-group-commit-20261023-053935-50c983",
-  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261023/m4-lock-contention-microbench-writer-group-commit-20261023-053935-50c983",
+  "operation_id": "m4-lock-contention-microbench-flush-reader-staging-pair-20261023-061457-0d491c",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261023/m4-lock-contention-microbench-flush-reader-staging-pair-20261023-061457-0d491c",
   "status": "PASS"
 }

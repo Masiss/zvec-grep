@@ -124,6 +124,10 @@ struct Options {
   uint32_t writer_group_commit_max_batch_size{0};
   uint32_t writer_group_commit_max_delay_us{500};
 
+  // M4 experiment control: false restores the pre-staging query-lock boundary
+  // for a same-binary A/B. Durability and publication order are unchanged.
+  bool flush_metadata_outside_query_lock{true};
+
   // Research-only, bounded one-entry cache for immutable query-filter
   // candidates. Disabled by default; any document/liveness mutation invalidates it.
   bool cache_filter_candidates{false};

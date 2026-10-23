@@ -559,9 +559,9 @@ double ThreadCpuMs() {
 
 class ScopedStageTimer {
  public:
-  ScopedStageTimer(double* wall_ms, double* cpu_ms)
+  ScopedStageTimer(double* wall_ms, double* cpu_ms, bool start_immediately = true)
       : wall_ms_(wall_ms), cpu_ms_(cpu_ms) {
-    Start();
+    if (start_immediately) Start();
   }
   ~ScopedStageTimer() { Stop(); }
   ScopedStageTimer(const ScopedStageTimer&) = delete;
@@ -3368,6 +3368,10 @@ class Index::Impl {
     // publication. The state mutex remains held to serialize writers and keep
     // the delta/WAL prefix stable throughout the durable commit.
     if (query_guard.owns_lock()) query_guard.unlock();
+    ScopedStageTimer flush_query_hold_timer(
+        capture ? &diagnostics->flush_query_mutex_hold_ms : nullptr,
+        capture ? &diagnostics->flush_query_mutex_hold_cpu_ms : nullptr,
+        false);
 
     // Docs that were created and deleted inside this delta were never
     // persisted. Their tombstones are dropped only after the segment build has
@@ -3500,11 +3504,20 @@ class Index::Impl {
     }
     segment_build_timer.Stop();
 
-    // Stats, tombstones and the manifest form one durable commit ordered after
-    // the new segment. Stage them while readers keep using the old in-memory
-    // view; query-visible state is switched together only after the manifest
-    // is durable. The writer-state mutex remains held, so WAL order and the
-    // flushed delta snapshot cannot change during this phase.
+    // The baseline control reacquires the reader lock before metadata writes,
+    // matching the pre-staging boundary. Candidate mode leaves readers on the
+    // old view until the durable manifest is ready. Both paths retain the
+    // writer-state lock and the same WAL/publication ordering.
+    if (!options_.flush_metadata_outside_query_lock && !query_guard.owns_lock()) {
+      const double wait_wall = capture ? NowMs() : 0.0;
+      const double wait_cpu = capture ? ThreadCpuMs() : 0.0;
+      query_guard.lock();
+      if (capture) {
+        diagnostics->flush_query_mutex_wait_ms += NowMs() - wait_wall;
+        diagnostics->flush_query_mutex_wait_cpu_ms += ThreadCpuMs() - wait_cpu;
+      }
+      flush_query_hold_timer.Start();
+    }
     Status s;
     {
       ScopedStageTimer timer(
@@ -3595,9 +3608,7 @@ class Index::Impl {
             ThreadCpuMs() - wait_cpu;
       }
     }
-    ScopedStageTimer flush_query_hold_timer(
-        capture ? &diagnostics->flush_query_mutex_hold_ms : nullptr,
-        capture ? &diagnostics->flush_query_mutex_hold_cpu_ms : nullptr);
+    flush_query_hold_timer.Start();
     {
       if (wrote_run) {
         runs_.swap(next_runs);

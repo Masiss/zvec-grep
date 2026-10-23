@@ -36,6 +36,21 @@ One explicitly owner-authorized fixed synthetic containment rehearsal completed 
 
 ## Active M4 mission status — renewed exploratory authorization
 
+### Timestamp-verified reader-through-flush pair — 2026-10-23
+
+Operation `m4-lock-contention-microbench-flush-reader-staging-pair-20261023-061457-0d491c` PASSed with return code 0; both arm timelines passed timestamp and `M4_PHASE` overlap validation and all 17 artifact checksums verify. This was one fixed-order exploratory pair, not a stable-tail qualification; the registered one-shot operation is consumed.
+
+| Metric | Baseline | Metadata staging | Observation |
+|---|---:|---:|---|
+| Continuous reader queries through flush | 21 (10/11 per reader) | 28 (14/14) | Every reader had ≥2 pre, ≥1 overlapping, ≥2 post; actual overlap 5/6 and 9/9 |
+| Reader wall p50 / p95 / p99 | 1.118 / 3.288 / 3.522 ms | 0.589 / 1.119 / 1.177 ms | Candidate p95 ~66% lower in this run |
+| Query-mutex wait p95 | 1.993 ms | 0.137 ms | ~93% lower |
+| Flush query-lock hold / state-lock hold | 1.912 / 7.521 ms | 0.0079 / 5.828 ms | Query hold reduced; writer-state lock remains |
+| Concurrent-compaction writer p95 / state-wait p95 | 28.925 / 28.130 ms | 36.486 / 35.929 ms | No observed writer-tail improvement; not measured during explicit flush |
+| Bytes written / segment bytes / WAL fsyncs | 8,811,226 / 4,281,688 / 96 | 8,811,226 / 4,281,688 / 96 | Identical; no logical-byte amplification ratio available |
+
+Peak cgroup memory 159,002,624 B; swap 0. Host I/O PSI-full avg10 1.47→1.75%, and cgroup I/O attribution was unavailable. The runner marked `performance_eligible=false`; report only as an exploratory mechanism signal. Full analysis, operation path, limitations, and evidence reference: [`ANALYSIS-20261023.md`](lock-contention-microbench/ANALYSIS-20261023.md).
+
 ### Writer group-commit prototype — 2026-10-23
 
 One bounded, contained, two-arm direct-Upsert vs opt-in group-commit operation `m4-lock-contention-microbench-writer-group-commit-20261023-040914-808d58` PASSed with zero writer/reader/coherence/durability failures and verified checksums. The group arm formed eight four-record batches and observed 8 WAL fsyncs vs 32 direct; writer p95 was 16.353 ms vs 54.849 ms in this single fixed-order run. Host load-1 exceeded the historical envelope (observation-only for this profile), and the run is exploratory/non-qualifying; no stable tail, CPU/I/O, or architecture claim. Reader p95 used only 64 short queries and did not overlap the full ~15 ms compaction. The source remains opt-in and default-off. After measurement, queued `Document` copies were removed by retaining caller references until synchronous completion; final normal and TSan correctness tests passed. That consumed default-compaction profile was not rerun against the source-only refinement. A separate current-source snapshot-rebase/group-commit operation is recorded below. Full limitations, resource evidence, checksums, and the local pinned-artifact replacement note: [analysis](lock-contention-microbench/ANALYSIS-20261023.md).
