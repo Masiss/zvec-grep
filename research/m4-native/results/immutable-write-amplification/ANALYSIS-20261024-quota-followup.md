@@ -1,0 +1,83 @@
+# Quota-backed M4 write-amplification follow-up — 2026-10-24
+
+## Scope and decision
+
+Integrated the already root-attested Btrfs simple-quota proof into the immutable write-amplification runner by reusing the single `lock_contention_microbench.workspace_quota` contract and existing verifier. The runner requires its result root to be a fresh direct child of `/var/tmp/m4-native-workspace-quota`, verifies the live filesystem/subvolume/mode plus fresh root-owned attestation before validation/launch, binds the proof into each arm's containment budget, and uses the verified 128 MiB maximum-referenced bound for capacity receipts. No sudo, quota changes, or host-gate changes were made. A new `--validate-only` path returns `VALIDATED_NO_LAUNCH` without creating an operation root.
+
+The existing 1,200-file pair workload fit the hard cap: each archived operation tree was about 67.4 MB, with the whole registered subvolume capped at 134,217,728 bytes. The two order roots were run sequentially; after each, a path/type/mode/content-hash manifest was compared against the archived copy before the temporary quota-root copy was removed. Both archived evidence trees contain 91 entries/79 regular files.
+
+The follow-up is a fresh, counterbalanced measurement, not a retroactive qualification or retry of an old operation. It re-examines the already exploratory LZ4 WAL candidate under an independent hard workspace bound:
+
+| Fresh operation | Order | Control→candidate process writes | Candidate vs control CPU | Candidate vs control wall |
+|---|---|---:|---:|---:|
+| `m4-write-amplification-pair-20261024-quota-wal-lz4-order1-01` | control first | 74.13→59.45 MB (-19.8%) | +14.9% | +7.0% |
+| `m4-write-amplification-pair-20261024-quota-wal-lz4-order2-01` | candidate first | 78.30→50.43 MB (-35.6%) | +37.6% | +35.9% |
+
+LZ4 WAL size was 16.0734→5.4854 MB (-65.9%) in both orders. Peak RSS fell only 0.7–1.4%; cgroup peak memory fell 2.3–3.6%. The WAL-only durable replay probe confirmed zero resident target-index pages after advice in every arm. However, durable-ACK p95 rose 29.0% and 71.8%, and target-file-cold replay-open wall time rose 23.0% and 33.6%. Query p95 was order-sensitive and mostly slower with LZ4: initial +24.4%/+42.0%; burst1 -13.1%/+3.6%; burst2 +27.8%/+12.6%; burst3 +13.6%/+35.2%; reopen +49.6%/+64.8% (order1/order2).
+
+Both receipts are `PASS` with `measurement_quality=HARD_QUOTA_BOUND`; paired reports show complete workspace accounting, zero snapshot/oracle/retrieval/top-10 mismatches, and `performance_eligible=false`. These single-run-per-order exploratory results do not qualify a default change. **LZ4 decision: REWORK; retain research-only/opt-in and OFF by default.** The WAL/process-write reduction is material, but the repeatable ACK/replay CPU-latency costs and reader-tail regressions make the current implementation an unattractive default. No further same-workload repeat is justified absent a concrete compression-path hypothesis.
+
+## Verification and identities
+
+- No-launch admission against the fresh benchmark binary: `VALIDATED_NO_LAUNCH`; root-attested quota proof `VERIFIED`, Btrfs UUID `6c15377e-2602-4870-96ba-50e58605309c`, subvolume/qgroup `0/258`, mode `squota`, max referenced 134,217,728 B.
+- Benchmark binary SHA-256: `1bd13002928947e5482e2199386c65ea6e8526ef25534b9d6b4f9db4fc15d31c`.
+- Profiler SHA-256: `c8fcbe0103420226b3e490548b1c050862263bb86ef35b4d68bb699009a0be2c`.
+- Containment runner SHA-256: `3d9ed248f436ecf4a996f20f3bca1f7578904e8d0a7610b1f61eff04b319b2e6`.
+- Policy SHA-256: `aeec72ab9adbf3c504754b00d25f736400d16cb31659d80d43f3ee59096ffc82`.
+- Dictionary tree SHA-256: `9c05e30b201663f0045db0cd9d810b831b7adba59055b1658353a1bd7ae5fa5c`.
+- Existing M4 correctness CTest passed with the new bounded-queue saturation, durable-ACK drain, orderly shutdown, and reopen/recovery regression. Python write-amplification tests passed 9/9; containment-policy tests passed 71/71; `ty check` passed for the modified Python files.
+
+Raw configs, arm logs/profiles, host-before/after samples, receipts, comparisons and reports are preserved in the two operation directories named above. No production/default or global-harness changes were made.
+
+## Group-fsync correctness coverage
+
+Existing `m4_correctness` fault cases already exercise WAL append failure after a partial group, sync failure/before-sync/after-sync recovery boundaries, and apply failure after the first visible Upsert. Added a 24-producer deterministic held-group regression against the eight-request bounded queue: confirms no completion while the worker is held, releases it, requires every durable Upsert ACK, destroys the index after all callers drain, then reopens and checks all 24 searchable records. This covers backpressure and orderly shutdown/recovery without invoking destruction concurrently with active public API calls.
+
+The per-Upsert durable group-fsync profile remains research-only. These correctness tests resolve the missing queue/fault/recovery coverage but do not alter the already-consumed performance attempt or establish a performance winner.
+
+## LZ4 acceleration sensitivity attempt — quota-stopped, no paired result
+
+A separate `lz4-acceleration-1-vs-4` profile was added with both arms LZ4-enabled and only the acceleration parameter changed. The profiler, role-bound environment, workload-profile policy contract, containment context, frame telemetry, and correctness replay check passed validation. Both arm orders returned `VALIDATED_NO_LAUNCH` before starting. Binary SHA-256 was `252debff281ef3535df5776ce31669c7997879808f8dec5f76308dccb3960323`; policy SHA-256 was `e45fb6483b5cb999d9c08d837e7c6d32c57c18c87450c27d9c3fd45c2b5ced73`.
+
+The control-first operation `m4-write-amplification-pair-20261024-lz4-acceleration-1-vs-4-order1-01` started. Its control arm (acceleration 1) completed; the candidate arm (acceleration 4) exited 2 during WAL replay-probe durable `ApplyBatch` with `wal write failed: Disk quota exceeded`. The candidate had begun writing its probe WAL (visible partial WAL ≈1.7 MiB) and processed some durable batches, but did not complete the probe. The harness marked the operation `NONZERO_EXIT` and stopped the suite. The separately prevalidated candidate-first order-2 operation was never launched. Both containment-unit cleanup receipts report `verified=true`; no OOM/swap event or watchdog abort was recorded, and the retained host-filesystem reserve passed. The qgroup remained capped at 134,217,728 bytes; no quota/gate change was made.
+
+This is a resource-capacity failure, not a codec result. The single completed control arm observed 19 initial LZ4 frames (16,073,054 input bytes, 5,484,985 output bytes, 24.26 ms compression CPU) and completed a 4,800-document WAL replay probe; these are not a paired comparison. No acceleration-4 compression CPU/byte/latency conclusion, performance eligibility, or default change follows. Raw artifacts are preserved at `m4-write-amplification-pair-20261024-lz4-acceleration-1-vs-4-order1-01/` with all 71 source-file hashes verified after archival and reverified immediately before cleanup. Following explicit owner approval, only the original quota-root tree at `/var/tmp/m4-native-workspace-quota/m4-write-amplification-pair-20261024-lz4-acceleration-1-vs-4-order1-01` was removed; the evidence archive remains.
+
+Do not replay either order under the consumed identities. The owner later provisioned a new persistent workspace under PWD with a separate 128 MiB cap, leaving old qgroup `0/258` untouched. The fresh run using qgroup `0/259` is recorded below; the original quota-stopped operation remains an incomplete historical attempt and is not treated as retried in place.
+
+## Fresh PWD-capped LZ4 acceleration pair — complete, exploratory
+
+To avoid the old `0/258` qgroup's retained charge without deleting snapshots or increasing its limit, the owner provisioned `/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota` as subvolume/qgroup `0/259`, with max referenced 134,217,728 B, initial usage 0, `squota`, and `Inconsistent: no`. The root-owned attestation is `/var/tmp/m4-native-workspace-quota-pwd.attestation.json`; the benchmark policy pins its exact path, filesystem UUID, subvolume ID, qgroup, and cap. The new persistent path is inside the PWD but remains kernel-capped. Both order-specific `--validate-only` checks returned `VALIDATED_NO_LAUNCH` before execution.
+
+Fresh operation IDs, both completed:
+
+- [Control-first](m4-write-amplification-pair-20261024-lz4-acceleration-1-vs-4-pwd-order1-01/REPORT.md)
+- [Candidate-first](m4-write-amplification-pair-20261024-lz4-acceleration-1-vs-4-pwd-order2-01/REPORT.md)
+
+Binary SHA-256 `252debff281ef3535df5776ce31669c7997879808f8dec5f76308dccb3960323`; dictionary tree SHA-256 `9c05e30b201663f0045db0cd9d810b831b7adba59055b1658353a1bd7ae5fa5c`; policy SHA-256 `731206778b287aea4d6eb8cc2476009a3620583d4b3f54df540a066a7577a08a`. Each order archive has a 79-file SHA-256 manifest; all source/archive hashes verified before exact-root cleanup. All four arm receipts are `PASS` / `HARD_QUOTA_BOUND`; cleanup verified, no watchdog abort, zero observed swap peak. Both comparisons report exact document/token/file parity, zero oracle/retrieval/top-10 mismatch, complete workspace accounting and `measurement_quality=COMPLETE`; `performance_eligible=false` remains required for this one-run-per-order exploratory evidence.
+
+Counterbalanced summary (candidate acceleration 4 vs control acceleration 1): whole-workload CPU averaged 7,831.45 vs 7,835.26 ms (−0.05%); process-tree writes 54.54 vs 53.42 MB (+2.09%); wall time +0.20%. Final cumulative codec CPU averaged 27.74 vs 28.12 ms (−1.36%), but the direction reversed by order (+8.4% when candidate ran second; −9.9% when candidate ran first). Acceleration 4 emitted 6.786 vs 6.751 MB final WAL payload (+0.51%). Durable replay ACK p95 averaged 83.75 vs 88.26 ms (−5.1%), while cold replay-open wall averaged 1,434 vs 1,401 ms (+2.4%); both were order-sensitive.
+
+Query p95 was mostly worse with acceleration 4: averaged across the two orders, initial +16.0%, burst1 +41.4%, burst2 −7.9%, burst3 +42.3%, reopen +5.9%. These are single observations per arm/order, not qualification evidence. **Decision: no-go for acceleration 4 as a performance optimization**—no stable whole-process CPU or write benefit, slightly larger WAL, and query tails regress in most stages. Keep acceleration 1; do not change defaults. The failed old-root attempt remains preserved separately.
+
+After archiving and cleanup, the visible workspace tree was empty (`du` 0), but `du` is not quota evidence. A later unprivileged read of the kernel Btrfs sysfs counters established live qgroup usage and headroom; the exact current finding is recorded below. `btrfs qgroup show` and subvolume listing remain unavailable without privilege, so the source of retained accounting cannot be attributed to a specific snapshot or deleted subvolume from this session.
+
+## Bounded compression-cost inference
+
+The first failed attempt's single acceleration-1 control arm measured 24.2556 ms writer-thread LZ4-path CPU for 19 frames / 16,073,054 input bytes, 1.51% of its 1,608.29 ms initial-index process CPU. The new completed pair supersedes that one-arm inference for the acceleration question: the final cumulative codec CPU showed only a 1.36% counterbalanced mean reduction with reversed order effects, while whole-process CPU was effectively unchanged.
+
+## Next authorized step
+
+Preserve hard containment, the current host-pressure telemetry-only policy, and `performance_eligible=false` for exploratory pairs. Do not repeat the LZ4 acceleration pair, LZ4 OFF-vs-ON comparison, or consumed per-Upsert profile. The acceleration-specific question is closed as no-go for acceleration 4; keep default acceleration 1 and LZ4 OFF by default. Continue the broader M4 mission on remaining independent candidate/source/correctness work. Before another benchmark, the runner must observe at least 64 MiB live headroom under the existing 128 MiB cap; never weaken the cap or automatically retry a refused operation.
+
+## Live qgroup headroom diagnosis and preflight correction — 2026-10-24
+
+The root-owned attestation `/var/tmp/m4-native-workspace-quota-pwd.attestation.json` binds filesystem UUID `6c15377e-2602-4870-96ba-50e58605309c`, workspace path `research/m4-native/.work/m4-native-workspace-quota`, subvolume/qgroup `259` / `0/259`, and the 134,217,728-byte cap. Current read-only identity checks agree: `findmnt` reports that Btrfs UUID, `btrfs inspect-internal rootid` returns 259, the directory is owned by UID/GID 1000 with mode 0700, and the root-owned attestation is mode 0644 and fresh. The workspace has no visible children; no M4 benchmark process or `m4-contained-*` user unit is active.
+
+Although `btrfs qgroup show` and `btrfs subvolume show/list` fail with `Operation not permitted`, the kernel sysfs counters are readable at `/sys/fs/btrfs/<UUID>/qgroups/0_259/`. They report `enabled=1`, `mode=squota`, `inconsistent=0`, `referenced=129,359,872`, `max_referenced=134,217,728`; therefore the live limit-accounting headroom is **4,857,856 bytes**. This is not `du` or `df` inference: it is the live qgroup counter used by the configured hard limit. It is below the first dictionary file size, `jieba.dict.utf8` (**5,071,207 bytes**) by at least 213,351 bytes (and does not include directory/metadata overhead); the two immutable dictionary inputs total 5,590,946 bytes. The failed control arm's `Disk quota exceeded` during that exact snapshot write is therefore explained by insufficient live qgroup headroom, not filesystem-wide free space (26.7 GB was available).
+
+The directory is empty and no old operation root remains in the workspace, so there is no visible owned scratch artifact safe to clean. The sysfs qgroup counter is authoritative for the enforced budget, but `squota` charges extents to the subvolume that first allocated them and does not provide reliable shared/exclusive ownership or physical-reclaimability attribution. Official semantics: [btrfs-quota(8), “Simple quotas (squota)”](https://btrfs.readthedocs.io/en/stable/btrfs-quota.html). Because subvolume listing is denied, this session cannot determine whether snapshot/deleted-subvolume references retain those extents or identify an exact cleanup target; do not infer that the reported `exclusive` value proves no snapshots. No snapshot, cap, or filesystem state was changed.
+
+The previous quota verifier checked only attestation, subvolume identity, and configured cap, so a fresh valid attestation could pass while usable headroom was below the dictionary minimum. It now reads the live sysfs qgroup counters and fails closed unless the configured **64 MiB minimum-free reserve** is available. That reserve exceeds the largest prior sampled 1,200-file workspace peak (34,689,024 bytes) with margin; sampled peaks remain telemetry, not a guaranteed lifetime bound, and the hard 128 MiB quota remains the actual containment limit. Unit tests cover normal counters and insufficient headroom. Current preflight result is `CAPACITY_BLOCKED` with 4,857,856 available vs 67,108,864 required.
+
+**Decision:** capacity remains blocked; no further benchmark in `0/259` until sufficient headroom exists. This is not a request to change the cap or remove unidentified snapshots. Continue independent source/correctness work without scratch in that quota subvolume.

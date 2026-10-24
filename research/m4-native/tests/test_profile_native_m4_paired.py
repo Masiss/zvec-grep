@@ -245,6 +245,12 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
             'filesystem_uuid': quota['filesystem_uuid'], 'subvolume_id': quota['subvolume_id'],
             'qgroup_id': quota['qgroup_id'], 'max_referenced_bytes': quota['max_referenced_bytes'],
             'accounting_mode': quota['accounting_mode'], 'attestation_sha256': 'a' * 64,
+            'live_headroom': {
+                'referenced_bytes': 0,
+                'max_referenced_bytes': quota['max_referenced_bytes'],
+                'available_bytes': quota['max_referenced_bytes'],
+                'required_free_bytes': quota['minimum_free_bytes'],
+            },
         }
         quota_patch = patch.object(profiler.CONTAINMENT, 'verify_workspace_quota',
                                    return_value=quota_proof)

@@ -57,6 +57,7 @@ def writable_capability(path: pathlib.Path) -> bool:
 
 
 CGROOT = pathlib.Path('/sys/fs/cgroup')
+BTRFS_SYSFS_ROOT = pathlib.Path('/sys/fs/btrfs')
 POLICY_PATH = pathlib.Path(__file__).resolve().parents[1] / 'docs' / 'benchmark-policy.json'
 BENCHMARK_POLICY = strict_json_file(POLICY_PATH)
 if BENCHMARK_POLICY.get('schema_version') != 1 or BENCHMARK_POLICY.get('policy_id') != 'm4-benchmark-operation-policy-v1':
@@ -440,6 +441,8 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
                 proof.get('qgroup_id') != quota.get('qgroup_id') or
                 proof.get('max_referenced_bytes') != quota.get('max_referenced_bytes') or
                 proof.get('accounting_mode') != quota.get('accounting_mode') or
+                not isinstance(proof.get('live_headroom'), dict) or
+                proof['live_headroom'].get('required_free_bytes') != quota.get('minimum_free_bytes') or
                 not re.fullmatch(r'[0-9a-f]{64}', str(proof.get('attestation_sha256', '')))):
             raise ValueError('lock-contention microbenchmark lacks its verified workspace quota proof')
     elif context.get('purpose') == M4_WRITE_AMPLIFICATION_PURPOSE:
@@ -481,7 +484,15 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
         verified_quota = verify_workspace_quota(
             pathlib.Path(context['resource_root']),
             BENCHMARK_POLICY['lock_contention_microbench']['workspace_quota'])
-        if verified_quota != context.get('workspace_quota_proof'):
+        proof = context.get('workspace_quota_proof')
+        identity_fields = ('status', 'attestation_path', 'workspace_root', 'filesystem_uuid',
+                           'subvolume_id', 'qgroup_id', 'max_referenced_bytes',
+                           'accounting_mode', 'attestation_sha256')
+        if (not isinstance(proof, dict) or
+                any(verified_quota.get(key) != proof.get(key) for key in identity_fields) or
+                not isinstance(proof.get('live_headroom'), dict) or
+                proof['live_headroom'].get('required_free_bytes') !=
+                BENCHMARK_POLICY['lock_contention_microbench']['workspace_quota'].get('minimum_free_bytes')):
             raise ValueError('write-amplification context lacks the current root-attested workspace quota proof')
     else:
         if context.get('purpose') is not None:
@@ -580,10 +591,43 @@ def verify_workspace_quota(resource_root: pathlib.Path, expected: dict[str, Any]
             not re.search(r'^\s*Mode:\s+squota(?:\s|$)', status.stdout, re.MULTILINE | re.IGNORECASE) or
             not re.search(r'^\s*Inconsistent:\s+no\s*$', status.stdout, re.MULTILINE | re.IGNORECASE)):
         raise ValueError('Btrfs simple-quota status is disabled, inconsistent, or wrong mode')
-    # Ordinary users cannot necessarily read qgroup tables. The root-owned, fresh
-    # attestation records that the privileged provisioning helper verified the
-    # live qgroup limit immediately before writing the manifest.
+    # A provisioning attestation proves the cap, not current headroom. Read the
+    # kernel's live qgroup counters so validation cannot pass on a nearly full
+    # workspace just because the original limit remains configured.
+    proof['live_headroom'] = verify_workspace_quota_headroom(expected)
     return proof
+
+
+def verify_workspace_quota_headroom(expected: dict[str, Any]) -> dict[str, int]:
+    """Read kernel-maintained squota usage and enforce the operation reserve."""
+    qgroup_name = str(expected.get('qgroup_id', '')).replace('/', '_')
+    if not re.fullmatch(r'0_\d+', qgroup_name):
+        raise ValueError('invalid simple-quota qgroup ID')
+    qgroup = BTRFS_SYSFS_ROOT / str(expected['filesystem_uuid']) / 'qgroups' / qgroup_name
+    try:
+        enabled = (qgroup.parent / 'enabled').read_text().strip()
+        mode = (qgroup.parent / 'mode').read_text().strip()
+        inconsistent = (qgroup.parent / 'inconsistent').read_text().strip()
+        referenced = int((qgroup / 'referenced').read_text().strip())
+        max_referenced = int((qgroup / 'max_referenced').read_text().strip())
+    except (OSError, ValueError) as exc:
+        raise ValueError(f'cannot read live Btrfs qgroup headroom from {qgroup}: {exc}') from exc
+    if enabled != '1' or mode != 'squota' or inconsistent != '0':
+        raise ValueError('live Btrfs quota state is disabled, inconsistent, or not simple-quota mode')
+    if (max_referenced != expected.get('max_referenced_bytes') or
+            referenced < 0 or referenced > max_referenced):
+        raise ValueError('live Btrfs qgroup usage/limit differs from the attested quota contract')
+    available = max_referenced - referenced
+    required = expected.get('minimum_free_bytes', 0)
+    if isinstance(required, bool) or not isinstance(required, int) or required < 0:
+        raise ValueError('quota contract minimum_free_bytes must be a nonnegative integer')
+    if available < required:
+        raise ValueError(
+            f'insufficient live Btrfs qgroup headroom: referenced={referenced}, '
+            f'limit={max_referenced}, available={available}, required={required}'
+        )
+    return {'referenced_bytes': referenced, 'max_referenced_bytes': max_referenced,
+            'available_bytes': available, 'required_free_bytes': required}
 
 
 def contention_context_digest(context: dict[str, Any]) -> str:
@@ -1871,8 +1915,13 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             policy_context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE):
         quota_contract = BENCHMARK_POLICY['lock_contention_microbench']['workspace_quota']
         verified_quota = verify_workspace_quota(resource_root, quota_contract)
-        if verified_quota != policy_context.get('workspace_quota_proof'):
-            raise ValueError('lock-contention quota proof changed after operation-context validation')
+        proof = policy_context.get('workspace_quota_proof')
+        identity_fields = ('status', 'attestation_path', 'workspace_root', 'filesystem_uuid',
+                           'subvolume_id', 'qgroup_id', 'max_referenced_bytes',
+                           'accounting_mode', 'attestation_sha256')
+        if (not isinstance(proof, dict) or
+                any(verified_quota.get(key) != proof.get(key) for key in identity_fields)):
+            raise ValueError('lock-contention quota identity changed after operation-context validation')
     if not workspace_root.is_dir() or not cwd.is_dir() or not resource_root.is_dir():
         raise ValueError('resource-root, workspace-root, and cwd must be directories')
     if not workspace_root.is_relative_to(resource_root):

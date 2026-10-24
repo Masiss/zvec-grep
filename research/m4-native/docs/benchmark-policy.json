@@ -275,6 +275,7 @@
       "subvolume_id": 259,
       "qgroup_id": "0/259",
       "max_referenced_bytes": 134217728,
+      "minimum_free_bytes": 67108864,
       "accounting_mode": "squota",
       "attestation_owner_uid": 0,
       "max_attestation_age_seconds": 86400

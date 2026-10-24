@@ -11,8 +11,8 @@ import stat
 import sys
 import tempfile
 import unittest
-from datetime import timedelta
 from contextlib import ExitStack
+from datetime import timedelta
 from typing import Any
 from unittest import mock
 
@@ -423,6 +423,12 @@ class ContentionPolicyTests(unittest.TestCase):
             "qgroup_id": quota["qgroup_id"],
             "max_referenced_bytes": quota["max_referenced_bytes"],
             "accounting_mode": quota["accounting_mode"], "attestation_sha256": "a" * 64,
+            "live_headroom": {
+                "referenced_bytes": 0,
+                "max_referenced_bytes": quota["max_referenced_bytes"],
+                "available_bytes": quota["max_referenced_bytes"],
+                "required_free_bytes": quota["minimum_free_bytes"],
+            },
         }
         return ctx
 
@@ -464,6 +470,12 @@ class ContentionPolicyTests(unittest.TestCase):
                 return mock.Mock(st_mode=stat.S_IFREG | 0o644, st_uid=0)
             return original_lstat(path, *args, **kwargs)
 
+        qgroup = self.root / "sysfs" / expected["filesystem_uuid"] / "qgroups" / "0_259"
+        qgroup.mkdir(parents=True)
+        for name, value in (("enabled", "1"), ("mode", "squota"), ("inconsistent", "0")):
+            (qgroup.parent / name).write_text(value)
+        (qgroup / "referenced").write_text("0")
+        (qgroup / "max_referenced").write_text(str(expected["max_referenced_bytes"]))
         responses = [
             ct.subprocess.CompletedProcess([], 0, "btrfs " + expected["filesystem_uuid"] + "\n", ""),
             ct.subprocess.CompletedProcess([], 0, str(expected["subvolume_id"]) + "\n", ""),
@@ -471,10 +483,16 @@ class ContentionPolicyTests(unittest.TestCase):
                 "Quotas on /:\n  Enabled: yes\n  Mode: squota (simplified accounting)\n  Inconsistent: no\n", ""),
         ]
         with mock.patch.object(ct.os, "lstat", side_effect=lstat_with_root_owned_attestation), \
-             mock.patch.object(ct.subprocess, "run", side_effect=responses):
+             mock.patch.object(ct.subprocess, "run", side_effect=responses), \
+             mock.patch.object(ct, "BTRFS_SYSFS_ROOT", qgroup.parents[2]):
             verified = ct.verify_workspace_quota(self.root, expected)
         self.assertEqual(verified["status"], "VERIFIED")
         self.assertEqual(verified["attestation_sha256"], hashlib.sha256(attestation_path.read_bytes()).hexdigest())
+        self.assertEqual(verified["live_headroom"]["available_bytes"],
+                         expected["max_referenced_bytes"])
+        (qgroup / "referenced").write_text(str(134217728 - 67108864 + 1))
+        with self.assertRaisesRegex(ValueError, "insufficient live Btrfs qgroup headroom"):
+            ct.verify_workspace_quota_headroom(expected)
 
     def test_lock_microbench_reports_host_pressure_without_memavailable_gate(self):
         ctx = self.lock_contention_microbench_context()

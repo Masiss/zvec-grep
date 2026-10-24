@@ -2439,6 +2439,61 @@ void TestStatsEventCoalescing(const std::string& root) {
         "coalesced stats log is less than half legacy size: " +
             std::to_string(coalesced_log_bytes) + " vs " +
             std::to_string(legacy_log_bytes));
+
+  uint64_t legacy_zero_net_log_bytes = 0;
+  uint64_t coalesced_zero_net_log_bytes = 0;
+  for (bool coalesce : {false, true}) {
+    const std::string dir = root + (coalesce ? "/zero-net-coalesced"
+                                             : "/zero-net-legacy");
+    fs::remove_all(dir);
+    m4::Options options;
+    options.coalesce_stats_events = coalesce;
+    options.stats_log_threshold = 1ull << 30;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, options, &index).ok,
+          "zero-net stats coalescing open");
+    RefState zero_net_ref;
+    Document old_doc;
+    old_doc.text = "oldcoalesced sharedcoalesced";
+    Check(index->Upsert("zero-net", old_doc).ok,
+          "zero-net stats initial upsert");
+    AddDoc(&zero_net_ref, "zero-net", old_doc);
+    Document replacement;
+    replacement.text = "newcoalesced sharedcoalesced";
+    Check(index->Upsert("zero-net", replacement).ok,
+          "zero-net stats replacement upsert");
+    AddDoc(&zero_net_ref, "zero-net", replacement);
+    Check(index->Delete("zero-net").ok, "zero-net stats first delete");
+    DeleteDoc(&zero_net_ref, "zero-net");
+    Check(index->Upsert("zero-net", old_doc).ok,
+          "zero-net stats reinsert");
+    AddDoc(&zero_net_ref, "zero-net", old_doc);
+    Check(index->Delete("zero-net").ok, "zero-net stats final delete");
+    DeleteDoc(&zero_net_ref, "zero-net");
+    Check(index->Flush().ok, "zero-net stats flush");
+    Check(index->GetStats().live_docs == 0,
+          "zero-net stats final live-doc count");
+    const uint64_t log_bytes = index->GetStats().stats_log_bytes;
+    if (coalesce) coalesced_zero_net_log_bytes = log_bytes;
+    else legacy_zero_net_log_bytes = log_bytes;
+    index.reset();
+
+    options.coalesce_stats_events = false;
+    Check(Index::Open(dir, options, &index).ok,
+          "zero-net stats reopen in legacy mode");
+    Check(index->GetStats().live_docs == 0,
+          "zero-net stats replayed live-doc count");
+    CheckFts(*index, zero_net_ref, "oldcoalesced",
+             MakeRefQuery({"oldcoalesced"}, false), 10,
+             "zero-net stats replayed removed old term");
+    CheckFts(*index, zero_net_ref, "newcoalesced",
+             MakeRefQuery({"newcoalesced"}, false), 10,
+             "zero-net stats replayed removed replacement term");
+  }
+  Check(legacy_zero_net_log_bytes > 0,
+        "legacy zero-net sequence persists stats events");
+  Check(coalesced_zero_net_log_bytes == 0,
+        "coalesced zero-net sequence omits all stats events");
 }
 
 void TestBoundedRuns(const std::string& dir) {
