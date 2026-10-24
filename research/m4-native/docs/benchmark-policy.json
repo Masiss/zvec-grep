@@ -192,6 +192,22 @@
         "candidate_mutation_batch_docs": 256,
         "candidate_wal_compression_lz4": false,
         "trace_mutation_latency": true
+      },
+      "lz4-compression-at-batch-128": {
+        "files": 600,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 128,
+        "control_wal_compression_lz4": false,
+        "candidate_wal_compression_lz4": true,
+        "trace_mutation_latency": true
+      },
+      "lz4-compression-at-batch-256": {
+        "files": 600,
+        "control_mutation_batch_docs": 256,
+        "candidate_mutation_batch_docs": 256,
+        "control_wal_compression_lz4": false,
+        "candidate_wal_compression_lz4": true,
+        "trace_mutation_latency": true
       }
     },
     "resource_controls": {

@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-10-24T14:59:43.339317+00:00",
+  "label": "pair-second_before",
+  "filesystem": "/dev/mapper/cryptroot btrfs rw,relatime,ssd,space_cache=v2,subvolid=5,subvol=/",
+  "cpu_count": 20,
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "loadavg": "4.36 4.77 4.04 2/2370 1773633",
+  "mem_available_bytes": 4793667584,
+  "mem_free_bytes": 1250000896,
+  "swap_free_bytes": 10726248448,
+  "cpu_pressure": "some avg10=0.00 avg60=0.23 avg300=0.25 total=1636391731\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+  "memory_pressure": "some avg10=0.00 avg60=0.25 avg300=0.54 total=1024981205\nfull avg10=0.00 avg60=0.22 avg300=0.48 total=955365125",
+  "io_pressure": "some avg10=0.71 avg60=1.73 avg300=2.84 total=5672878972\nfull avg10=0.27 avg60=1.35 avg300=2.32 total=5002993712",
+  "disk": {
+    "total_bytes": 493838401536,
+    "used_bytes": 464106168320,
+    "free_bytes": 27456462848,
+    "device": 78
+  },
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "top_processes": [
+    "    PID COMMAND         %CPU %MEM   RSS COMMAND",
+    "1773348 node-MainThread  192  4.8 783136 node /home/masis/.pi-lens/tools/node_modules/.bin/pyright --outputjson /home/masis/app/laya-mini/docs/chatgpt/verdict-next/d13-real-docs/extraction-05-sparse-boundary/autonomous-campaign-20261019/research-tracks/schema-confusion-challenger-20261024/revision-001/runtime/within_row_listwise_null_runner.py",
+    "1380453 zen-bin         25.3  3.7 601212 /opt/zen-browser-bin/zen-bin",
+    "1703480 pi              17.1  2.3 372032 pi",
+    "1381107 Web Content     13.5  3.9 634480 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:37453 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {573cec63-5844-4230-9a1c-25615fba2f90} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 7 tab",
+    "1773041 python3         10.4  0.4 66484 python3 research/m4-native/tests/profile_native_m4_paired.py --workload-profile lz4-compression-at-batch-128 --binary /home/masis/src/zvec-grep/research/m4-native/.work/build/writer-group-commit-prototype/native_m4_paired_benchmark --dictionary /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict --root /home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-lz4-batch128-interaction-candidate-first-01 --arm-order candidate-first",
+    " 500502 pi              10.3  6.2 1000180 pi",
+    " 572566 opencode         9.7  1.4 237488 opencode",
+    "1381162 WebExtensions    9.1  4.4 715908 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:46174 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {ccdcbe44-2735-4811-86a0-270aa9e3f90b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 8 tab",
+    "1382052 Web Content      7.7  1.4 225444 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:54767 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {bd92fdb6-db25-4ca8-86c4-3eb5137f1f7b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 10 tab",
+    "1633949 claude           6.6  2.2 355044 claude --resume",
+    "1726350 claude           6.4  2.0 336972 claude",
+    "1536638 opengrep-core    5.5  0.9 145860 opengrep-cli lsp --experimental"
+  ],
+  "resource_guard_observations": {
+    "MemAvailable_kib_min": {
+      "observed": 4681316.0,
+      "threshold": 5477762,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "var_tmp_bytes_min": {
+      "observed": 27456462848,
+      "threshold": 18219000000,
+      "status": "PASS",
+      "disposition": "enforced_retained_disk_reserve"
+    },
+    "io_full_avg10_max": {
+      "observed": 0.27,
+      "threshold": 4.46,
+      "status": "PASS",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "load1_max": {
+      "observed": 4.36,
+      "threshold": 3.14,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    }
+  }
+}

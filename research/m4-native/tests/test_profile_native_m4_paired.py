@@ -119,6 +119,35 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must be 1..256'):
             profiler.validate_mutation_batch_docs('candidate', 512)
 
+    def test_lz4_compression_profiles_isolate_batch_size_interaction(self):
+        standard = profiler.write_amp_workload_profile('standard')
+        for name, batch_docs, expected_changes in (
+            ('lz4-compression-at-batch-128', 128,
+             {'files', 'control_mutation_batch_docs', 'candidate_mutation_batch_docs',
+              'trace_mutation_latency'}),
+            ('lz4-compression-at-batch-256', 256, {'files', 'trace_mutation_latency'}),
+        ):
+            with self.subTest(profile=name):
+                workload = profiler.write_amp_workload_profile(name)
+                self.assertEqual(workload['files'], 600)
+                self.assertEqual(workload['control_mutation_batch_docs'], batch_docs)
+                self.assertEqual(workload['candidate_mutation_batch_docs'], batch_docs)
+                self.assertFalse(workload['control_wal_compression_lz4'])
+                self.assertTrue(workload['candidate_wal_compression_lz4'])
+                self.assertFalse(workload['control_coalesce_stats'])
+                self.assertFalse(workload['candidate_coalesce_stats'])
+                self.assertTrue(workload['trace_mutation_latency'])
+                changed = {key for key in standard if standard[key] != workload[key]}
+                self.assertEqual(changed, expected_changes)
+                self.assertEqual(
+                    profiler.m4_compaction_environment('control', workload)['M4_MUTATION_BATCH_DOCS'],
+                    str(batch_docs))
+                self.assertEqual(
+                    profiler.m4_compaction_environment('candidate', workload)['M4_MUTATION_BATCH_DOCS'],
+                    str(batch_docs))
+                self.assertEqual(
+                    profiler.m4_compaction_environment('candidate', workload)['M4_P42_LATENCY'], '1')
+
     def test_argument_workload_builder_matches_every_policy_field(self):
         policy = profiler.WRITE_AMP_WORKLOAD
         args = SimpleNamespace(
