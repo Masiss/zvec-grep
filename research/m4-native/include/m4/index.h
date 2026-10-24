@@ -110,19 +110,34 @@ struct Options {
   // Full live-stat checkpoint is written only when the delta log exceeds this
   // size, making checkpoint cost amortized over at least that many changes.
   uint64_t stats_log_threshold{4ull << 20};
+  // Research-only experiment: aggregate unappended StatsEvents by kind/term
+  // before serializing. The net deltas are identical and remain fsynced with
+  // the same flush/manifest ordering; OFF preserves the historical log format.
+  bool coalesce_stats_events{false};
 
   double bm25_k1{1.2};
   double bm25_b{0.75};
 
   bool fsync_wal{true};
   bool wal_enabled{true};
+  // Research-only opt-in: compress each WAL transaction frame with LZ4 when
+  // smaller; readers auto-detect compressed frames and retain legacy replay.
+  bool wal_compression_lz4{false};
+  // LZ4 fast-compression acceleration; 1 is the default ratio.
+  uint32_t wal_lz4_acceleration{1};
   bool decode_positions{true};
-
   // Research-only opt-in writer group-commit prototype. Concurrent Upserts
-  // wait for a bounded group and are committed as one ApplyBatch transaction.
-  // 0 disables the queue; enabled values are 2..256.
+  // wait for a bounded group. By default the group is one atomic ApplyBatch
+  // transaction; the separate-record mode writes one WAL frame per Upsert,
+  // shares one WAL fsync, then applies each Upsert with its own reader boundary.
+  // That mode preserves per-call ACK waits but permits readers to observe
+  // successive prefixes of the already durable group. If WAL or fsync is
+  // disabled it falls back to serialized direct Upserts. Oversized requests
+  // bypass the bounded queue and use direct Upsert. 0 disables the queue;
+  // enabled values are 2..256.
   uint32_t writer_group_commit_max_batch_size{0};
   uint32_t writer_group_commit_max_delay_us{500};
+  bool writer_group_commit_per_upsert_records{false};
 
   // M4 experiment control: false restores the pre-staging query-lock boundary
   // for a same-binary A/B. Durability and publication order are unchanged.
@@ -385,12 +400,19 @@ struct IndexStats {
   uint64_t segments_bytes{0};
   uint64_t tombstone_bytes{0};
   uint64_t stats_log_bytes{0};
-  uint64_t wal_bytes{0};
+  uint64_t wal_bytes{0};  // current on-disk WAL size
+  uint64_t wal_bytes_appended{0};  // complete WAL frames submitted since Open
   uint64_t wal_fsyncs{0};  // successful WAL sync calls since this Index opened
+  uint64_t wal_lz4_attempts{0};  // eligible frames passed to the codec
+  uint64_t wal_lz4_attempted_input_bytes{0};
+  uint64_t wal_lz4_compressed_frames{0};  // accepted smaller compressed frames
+  uint64_t wal_lz4_input_bytes{0};  // original bytes in accepted frames
+  uint64_t wal_lz4_output_bytes{0};  // compressed payload bytes in accepted frames
+  double wal_lz4_compress_cpu_ms{0.0};  // current process-thread CPU time
   uint64_t fsyncs{0};
   uint64_t compactions{0};
   uint64_t compacted_docs{0};
-  uint64_t bytes_written{0};       // all prototype writes (segment+meta+wal)
+  uint64_t bytes_written{0};       // accounted segment/metadata writes; excludes WAL
   uint64_t segment_bytes_written{0};
   uint64_t run_ids_created{0};
   // Compaction telemetry. Cumulative over the index lifetime.

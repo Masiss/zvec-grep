@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-10-24T14:45:34.129923+00:00",
+  "label": "pair-second_after",
+  "filesystem": "/dev/mapper/cryptroot btrfs rw,relatime,ssd,space_cache=v2,subvolid=5,subvol=/",
+  "cpu_count": 20,
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "loadavg": "2.71 3.65 3.47 4/2157 1688100",
+  "mem_available_bytes": 5163585536,
+  "mem_free_bytes": 1611579392,
+  "swap_free_bytes": 12017369088,
+  "cpu_pressure": "some avg10=0.00 avg60=0.00 avg300=0.09 total=1630418430\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+  "memory_pressure": "some avg10=0.00 avg60=0.01 avg300=0.46 total=1018710193\nfull avg10=0.00 avg60=0.01 avg300=0.43 total=949508320",
+  "io_pressure": "some avg10=2.38 avg60=2.46 avg300=2.97 total=5645209025\nfull avg10=1.90 avg60=1.97 avg300=2.49 total=4979405940",
+  "disk": {
+    "total_bytes": 493838401536,
+    "used_bytes": 462814220288,
+    "free_bytes": 28741201920,
+    "device": 78
+  },
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "top_processes": [
+    "    PID COMMAND         %CPU %MEM   RSS COMMAND",
+    "1380453 zen-bin         24.9  4.1 673316 /opt/zen-browser-bin/zen-bin",
+    "1381107 Web Content     12.7  5.0 810828 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:37453 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {573cec63-5844-4230-9a1c-25615fba2f90} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 7 tab",
+    " 500502 pi               9.9  7.2 1161972 pi",
+    " 572566 opencode         9.7  1.5 250476 opencode",
+    "1687007 python3          9.5  0.4 66380 python3 research/m4-native/tests/profile_native_m4_paired.py --workload-profile mutation-batch-128-vs-256 --binary /home/masis/src/zvec-grep/research/m4-native/.work/build/writer-group-commit-prototype/native_m4_paired_benchmark --dictionary /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict --root /home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs256-order2-02 --arm-order candidate-first",
+    "1381162 WebExtensions    9.2  4.8 771008 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:46174 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {ccdcbe44-2735-4811-86a0-270aa9e3f90b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 8 tab",
+    "1382052 Web Content      9.0  4.2 682276 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:54767 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {bd92fdb6-db25-4ca8-86c4-3eb5137f1f7b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 10 tab",
+    "1633949 claude           7.9  1.9 313296 claude --resume",
+    "1536638 opengrep-core    7.1  1.1 190756 opengrep-cli lsp --experimental",
+    "1632690 zed-editor       6.0  0.7 125332 /usr/lib/zed/zed-editor zed-cli:///tmp/.tmpFdVZCC/socket",
+    "   2011 Hyprland         4.4  0.3 61624 Hyprland --watchdog-fd 4",
+    "1386517 Web Content      4.4  1.7 284888 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:54767 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {4d88a3d8-0835-49a7-98c1-1230ad21993d} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 12 tab"
+  ],
+  "resource_guard_observations": {
+    "MemAvailable_kib_min": {
+      "observed": 5042564.0,
+      "threshold": 5477762,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "var_tmp_bytes_min": {
+      "observed": 28741201920,
+      "threshold": 18219000000,
+      "status": "PASS",
+      "disposition": "enforced_retained_disk_reserve"
+    },
+    "io_full_avg10_max": {
+      "observed": 1.9,
+      "threshold": 4.46,
+      "status": "PASS",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "load1_max": {
+      "observed": 2.71,
+      "threshold": 3.14,
+      "status": "PASS",
+      "disposition": "telemetry_only_never_blocks"
+    }
+  }
+}

@@ -65,32 +65,64 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(runner.failure_class(reason='runtime_timeout'), 'TIMEOUT_ABORT')
         self.assertEqual(runner.failure_class(reason='supervisor_lost'), 'CONTROLLER_CRASH_ABORT')
 
-    def test_hard_gate_block_never_launches_command(self) -> None:
-        receipt_dir = self.output_root / 'hard-gate-refusal'
-        marker = self.fixture_root / 'must-not-exist'
-        state = runner.host_snapshot(self.fixture_root)
-        state['meminfo_kib']['MemAvailable_kib'] = runner.GUARDS['memavailable_min_kib'] - 1
-        with mock.patch.object(runner, 'host_snapshot', return_value=state):
-            receipt = runner.run_arm(
-                ['/usr/bin/touch', str(marker)], receipt_dir, self.fixture_root,
-                self.fixture_root / 'workspace', self.fixture_root.parent, 5.0,
-                pressure_limits={
-                    'swapfree_min_kib': 0, 'memory_some_avg10_max': 1000.0,
-                    'memory_full_avg10_max': 1000.0,
-                },
-            )
-        self.assertEqual(receipt['status'], 'PREFLIGHT_BLOCKED')
-        self.assertEqual(receipt['failure_class'], 'OPERATION_GUARD_REFUSAL')
-        self.assertFalse(receipt['benchmark_started'])
-        self.assertFalse(marker.exists())
-        self.assertEqual(receipt['safety_outcome'], 'NOT_STARTED')
-        self.assertEqual(receipt['measurement_quality'], 'NOT_APPLICABLE')
-        self.assertEqual(receipt['operation_outcome'], 'OPERATION_BLOCKED')
-        self.assertEqual(receipt['mission_status'], 'NOT_EVALUATED_BY_RUNNER')
-        self.assertEqual(receipt['resource_guard_failures'][0]['gate_id'], 'M4-RG-MEM')
-        self.assertFalse(receipt['benchmark_started'])
+    def test_missing_host_pressure_and_memavailable_are_optional_observations(self) -> None:
+        statvfs = type('StatVfs', (), {'f_bavail': 50_000_000, 'f_frsize': 4096})()
+        with (
+            mock.patch.object(runner, 'read_meminfo', return_value={'SwapFree_kib': 1024, 'SwapTotal_kib': 2048}),
+            mock.patch.object(runner, 'parse_pressure', return_value=None),
+            mock.patch.object(runner, 'read_vmstat', return_value={'pswpin_pages': 0, 'pswpout_pages': 0,
+                                                                    'oom_kill': 0, 'pgscan_direct': 0}),
+            mock.patch.object(runner, 'read_diskstats', return_value={'testdev': {'sectors_read': 0,
+                'sectors_written': 0, 'io_ms': 0}}),
+            mock.patch.object(runner.os, 'statvfs', return_value=statvfs),
+        ):
+            snapshot = runner.host_snapshot(self.fixture_root)
+        self.assertIsNone(snapshot['io_pressure'])
+        self.assertIsNone(snapshot['memory_pressure'])
+        self.assertNotIn('MemAvailable_kib', snapshot['meminfo_kib'])
+        decisions = runner.resource_guard_decisions(snapshot)
+        self.assertFalse(any(item['enforced'] and item['status'] == 'FAIL' for item in decisions))
 
-    def test_memory_swap_pressure_baseline_is_enforced(self) -> None:
+    def test_host_pressure_thresholds_are_observations_not_launch_gates(self) -> None:
+        receipt_dir = self.output_root / 'pressure-observation-only'
+        with tempfile.TemporaryDirectory(prefix='pressure-observation-fixture-', dir=self.output_root) as root:
+            fixture_root = pathlib.Path(root)
+            workspace_root = fixture_root / 'workspace'
+            workspace_root.mkdir()
+            marker = fixture_root / 'pressure-observation-launched'
+            state = runner.host_snapshot(fixture_root)
+            state['meminfo_kib']['MemAvailable_kib'] = 0
+            state['resource_root_free_bytes'] = runner.GUARDS['var_tmp_free_min_bytes'] + 1024**3
+            state['io_pressure']['full']['avg10'] = 99.0
+            state['memory_pressure']['full']['avg10'] = 99.0
+            state['loadavg'] = [999.0]
+            with mock.patch.object(runner, 'host_snapshot', return_value=state):
+                receipt = runner.run_arm(
+                    ['/usr/bin/python3', '-c',
+                     'import pathlib,sys,time; pathlib.Path(sys.argv[1]).touch(); time.sleep(2.0)', str(marker)],
+                    receipt_dir, fixture_root, workspace_root, fixture_root, 5.0,
+                    pressure_limits={
+                        'swapfree_min_kib': 0, 'memory_some_avg10_max': 0.0,
+                        'memory_full_avg10_max': 0.0,
+                    },
+                )
+            self.assertTrue(receipt['benchmark_started'])
+            self.assertTrue(marker.exists())
+            self.assertFalse(any(g['status'] == 'FAIL' and g.get('enforced')
+                                 for g in receipt['gate_decisions']))
+            self.assertTrue(any(g['status'] == 'FAIL' and not g['enforced']
+                                for g in receipt['gate_decisions']))
+            self.assertTrue(receipt['unit_cleanup']['verified'])
+
+    def test_pressure_baseline_requires_swap_floor_but_treats_psi_as_optional(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='pressure-baseline-optional-psi-') as root:
+            baseline = pathlib.Path(root) / 'baseline.json'
+            baseline.write_text('{"swapfree_min_kib": 0, "memory_some_avg10_max": null}')
+            loaded = runner.load_pressure_baseline(baseline)
+        self.assertEqual(loaded['swapfree_min_kib'], 0)
+        self.assertIsNone(loaded['memory_some_avg10_max'])
+        self.assertIsNone(loaded['memory_full_avg10_max'])
+    def test_baseline_pressure_enforces_swap_capacity_but_not_host_psi(self) -> None:
         limits = {
             'swapfree_min_kib': 1000, 'memory_some_avg10_max': 0.2,
             'memory_full_avg10_max': 0.0,
@@ -105,8 +137,9 @@ class ContainmentRunnerTests(unittest.TestCase):
         state['meminfo_kib']['SwapFree_kib'] = 999
         self.assertIn('SwapFree', runner.pressure_baseline_failures(state, limits)[0])
         state['meminfo_kib']['SwapFree_kib'] = 1000
-        state['memory_pressure']['some']['avg10'] = 0.21
-        self.assertIn('memory PSI some', runner.pressure_baseline_failures(state, limits)[0])
+        state['memory_pressure']['some']['avg10'] = 99.0
+        state['memory_pressure']['full']['avg10'] = 99.0
+        self.assertEqual(runner.pressure_baseline_failures(state, limits), [])
 
     def test_missing_telemetry_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix='m4-cgroup-empty-') as root, \

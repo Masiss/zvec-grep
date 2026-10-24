@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <random>
 #include <limits>
@@ -1229,6 +1230,62 @@ void TestPhrase(const std::string& dir) {
            10, "multiple phrases v2");
 }
 
+void TestAtomicPublicationSyncFailures(const std::string& root) {
+  const std::vector<std::string> initialization_faults = {
+      "metadata_file_fsync", "manifest_directory_fsync"};
+  m4::Options options;
+  options.max_delta_docs = 10000;
+  options.max_delta_bytes = 1ull << 30;
+  options.wal_enabled = true;
+  options.fsync_wal = true;
+  for (const auto& fault : initialization_faults) {
+    const std::string dir = root + "/initial-" + fault;
+    fs::remove_all(dir);
+    std::unique_ptr<Index> index;
+    Check(::setenv("M4_FAULT", fault.c_str(), 1) == 0,
+          "set initialization durability fault " + fault);
+    const m4::Status open = Index::Open(dir, options, &index);
+    ::unsetenv("M4_FAULT");
+    Check(!open.ok, "initialization sync failure must fail open " + fault);
+    index.reset();
+  }
+
+  const std::vector<std::string> faults = {
+      "segment_file_fsync", "segment_directory_fsync",
+      "metadata_file_fsync", "manifest_directory_fsync"};
+  for (const auto& fault : faults) {
+    const std::string dir = root + "/" + fault;
+    fs::remove_all(dir);
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, options, &index).ok,
+          "durability-fault open " + fault);
+    if (!index) continue;
+    Document document;
+    document.text = "atomic publication durable alpha";
+    RefState ref;
+    AddDoc(&ref, "durable", document);
+    Check(index->Upsert("durable", document).ok,
+          "durability-fault upsert " + fault);
+    Check(::setenv("M4_FAULT", fault.c_str(), 1) == 0,
+          "set durability fault " + fault);
+    const m4::Status flush = index->Flush();
+    ::unsetenv("M4_FAULT");
+    Check(!flush.ok, "sync failure must fail publication " + fault +
+                         ": " + flush.message);
+    index.reset();
+
+    std::unique_ptr<Index> reopened;
+    const m4::Status open = Index::Open(dir, options, &reopened);
+    Check(open.ok, "durability-fault reopen " + fault + ": " + open.message);
+    if (!open.ok) continue;
+    Check(reopened->GetStats().live_docs == 1,
+          "durability-fault WAL recovery count " + fault);
+    CheckFts(*reopened, ref, "alpha", MakeRefQuery({"alpha"}, false), 10,
+             "durability-fault WAL recovery query " + fault);
+  }
+  ::unsetenv("M4_FAULT");
+}
+
 void TestCrashWal(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -1264,13 +1321,185 @@ void TestCrashWal(const std::string& dir) {
     std::unique_ptr<Index> index;
     m4::Status s = Index::Open(dir, opt, &index);
     Check(s.ok, "wal reopen after flush: " + s.message);
-    if (!s.ok) return;
+    if (!s.ok)
+      return;
     CheckFts(*index, ref, "beta", MakeRefQuery({"beta"}, false), 50,
              "wal persisted beta");
   }
 }
 
-void TestAtomicMutationBatch(const std::string& root) {
+void TestLz4WalFrames(const std::string &root) {
+  auto write_fixture = [](const std::string &dir, bool compress,
+                          uint32_t acceleration = 1) {
+    fs::remove_all(dir);
+    m4::Options options;
+    options.max_delta_docs = 100000;
+    options.max_delta_bytes = 1ull << 30;
+    options.wal_compression_lz4 = compress;
+    options.wal_lz4_acceleration = acceleration;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, options, &index).ok, "LZ4 WAL open");
+    if (!index)
+      return;
+    std::vector<m4::Mutation> batch;
+    for (int i = 0; i < 40; ++i) {
+      Document document;
+      document.text = std::string(2048, 'x') + " alpha beta";
+      batch.emplace_back(m4::MutationKind::UPSERT, "lz4-" + std::to_string(i),
+                         document);
+    }
+    Check(index->ApplyBatch(batch).ok, "LZ4 WAL batch");
+    const auto stats = index->GetStats();
+    Check(stats.wal_bytes > 0, "LZ4 WAL retained bytes");
+    if (compress) {
+      Check(stats.wal_lz4_attempts == 1 &&
+                stats.wal_lz4_attempted_input_bytes > 0,
+            "LZ4 WAL records compression attempt telemetry");
+      Check(stats.wal_lz4_compressed_frames == 1 &&
+                stats.wal_lz4_input_bytes > stats.wal_lz4_output_bytes,
+            "LZ4 WAL records accepted-frame byte savings");
+      Check(stats.wal_lz4_compress_cpu_ms >= 0.0,
+            "LZ4 WAL records nonnegative compression thread CPU");
+    } else {
+      Check(stats.wal_lz4_attempts == 0 &&
+                stats.wal_lz4_compressed_frames == 0 &&
+                stats.wal_lz4_compress_cpu_ms == 0.0,
+            "legacy WAL has zero LZ4 telemetry");
+    }
+  };
+
+  const std::string compressed_dir = root + "/compressed";
+  const std::string fast_compressed_dir = root + "/compressed-fast";
+  const std::string raw_dir = root + "/raw";
+  write_fixture(compressed_dir, true);
+  write_fixture(fast_compressed_dir, true, 4);
+  write_fixture(raw_dir, false);
+  std::error_code ec;
+  const uint64_t compressed_size =
+      fs::file_size(fs::path(compressed_dir) / "wal.log", ec);
+  Check(!ec, "compressed WAL size");
+  const uint64_t fast_compressed_size =
+      fs::file_size(fs::path(fast_compressed_dir) / "wal.log", ec);
+  Check(!ec, "fast-compressed WAL size");
+  const uint64_t raw_size = fs::file_size(fs::path(raw_dir) / "wal.log", ec);
+  Check(!ec, "raw WAL size");
+  Check(compressed_size < raw_size && fast_compressed_size < raw_size,
+        "LZ4 WAL is smaller than legacy frame at default and accelerated settings");
+  m4::Options fast_reader_options;
+  std::unique_ptr<Index> fast_reader;
+  Check(Index::Open(fast_compressed_dir, fast_reader_options, &fast_reader).ok,
+        "accelerated LZ4 WAL replay");
+  Check(fast_reader && fast_reader->GetStats().live_docs == 40,
+        "accelerated LZ4 WAL recovers all documents");
+  fast_reader.reset();
+  const std::string corrupt_dir = root + "/corrupt-checksum";
+  fs::copy(compressed_dir, corrupt_dir, fs::copy_options::recursive, ec);
+  Check(!ec, "copy compressed WAL for checksum test");
+  {
+    std::fstream wal(fs::path(corrupt_dir) / "wal.log",
+                     std::ios::binary | std::ios::in | std::ios::out);
+    wal.seekg(20);
+    char checksum_byte = 0;
+    wal.read(&checksum_byte, 1);
+    wal.seekp(20);
+    checksum_byte ^= 1;
+    wal.write(&checksum_byte, 1);
+    Check(static_cast<bool>(wal), "corrupt compressed WAL checksum");
+  }
+  m4::Options checksum_reader;
+  std::unique_ptr<Index> checksum_index;
+  Check(Index::Open(corrupt_dir, checksum_reader, &checksum_index).ok,
+        "bad compressed WAL checksum truncates invalid suffix");
+  Check(checksum_index && checksum_index->GetStats().live_docs == 0 &&
+            fs::file_size(fs::path(corrupt_dir) / "wal.log", ec) == 0,
+        "invalid compressed frame is not replayed");
+  {
+    std::ifstream wal(fs::path(compressed_dir) / "wal.log", std::ios::binary);
+    char magic[4]{};
+    wal.read(magic, sizeof(magic));
+    Check(wal.gcount() == 4 && std::string(magic, 4) == "ZW4M",
+          "compressed WAL frame has versioned little-endian magic");
+  }
+
+  // Legacy mode must auto-detect and replay compressed frames, then append a
+  // legacy frame. A compressed-mode reopen must accept this mixed WAL.
+  m4::Options legacy_reader;
+  legacy_reader.max_delta_docs = 100000;
+  legacy_reader.max_delta_bytes = 1ull << 30;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(compressed_dir, legacy_reader, &index).ok,
+        "legacy-option reader opens compressed WAL");
+  if (!index)
+    return;
+  Check(index->GetStats().live_docs == 40, "compressed WAL replay count");
+  m4::Document extra;
+  extra.text = "mixed legacy frame gamma";
+  Check(index->Upsert("mixed-legacy", extra).ok,
+        "legacy-option reader appends legacy frame");
+  index.reset();
+
+  m4::Options compressed_reader = legacy_reader;
+  compressed_reader.wal_compression_lz4 = true;
+  Check(Index::Open(compressed_dir, compressed_reader, &index).ok,
+        "compressed-option reader opens mixed WAL");
+  if (!index)
+    return;
+  Check(index->GetStats().live_docs == 41, "mixed WAL replay count");
+  m4::SearchResult result;
+  Check(index->SearchFts("gamma", 10, &result).ok && result.hits.size() == 1 &&
+            result.hits[0].pk == "mixed-legacy",
+        "mixed WAL replay query");
+  index.reset();
+  {
+    std::ofstream wal(fs::path(compressed_dir) / "wal.log",
+                      std::ios::binary | std::ios::app);
+    wal.write("M4W", 3);
+  }
+  Check(Index::Open(compressed_dir, compressed_reader, &index).ok,
+        "compressed WAL torn suffix repair");
+  Check(index && index->GetStats().live_docs == 41,
+        "compressed WAL survives torn suffix repair");
+  index.reset();
+
+  // Hard-crash immediately after a compressed frame is fsynced, then recover
+  // it with compression disabled to validate the durability boundary.
+  const std::string crash_dir = root + "/crash-after-compressed-sync";
+  fs::remove_all(crash_dir);
+  std::unique_ptr<Index> seeded;
+  Check(Index::Open(crash_dir, compressed_reader, &seeded).ok,
+        "compressed crash seed open");
+  Document base;
+  base.text = "durable base document";
+  Check(seeded && seeded->Upsert("base", base).ok && seeded->Flush().ok,
+        "compressed crash seed commit");
+  seeded.reset();
+  const pid_t child = ::fork();
+  if (child == 0) {
+    ::setenv("M4_FAULT", "batch_after_wal_sync", 1);
+    std::unique_ptr<Index> child_index;
+    if (!Index::Open(crash_dir, compressed_reader, &child_index).ok)
+      ::_exit(10);
+    Document recovered_doc;
+    recovered_doc.text = std::string(4096, 'z') + " crash-survivor";
+    const auto status = child_index->ApplyBatch(
+        {{m4::MutationKind::UPSERT, "crash-survivor", recovered_doc}});
+    ::_exit(status.ok ? 11 : 12);
+  }
+  int child_status = 0;
+  Check(child > 0 && ::waitpid(child, &child_status, 0) == child &&
+            WIFEXITED(child_status) && WEXITSTATUS(child_status) == 86,
+        "compressed WAL reaches post-fsync crash point");
+  m4::Options recovery_options;
+  Check(Index::Open(crash_dir, recovery_options, &index).ok,
+        "legacy-mode recovery opens compressed crash WAL");
+  Check(index && index->GetStats().live_docs == 2,
+        "compressed WAL survives process crash");
+  Check(index && index->SearchFts("crash-survivor", 10, &result).ok &&
+            result.hits.size() == 1 && result.hits[0].pk == "crash-survivor",
+        "compressed WAL crash recovery query");
+}
+
+void TestAtomicMutationBatch(const std::string &root) {
   const m4::Options options{};
   auto doc = [](std::string text) {
     Document out;
@@ -1539,8 +1768,12 @@ void TestAtomicMutationBatch(const std::string& root) {
     });
     while (!started.load(std::memory_order_acquire)) std::this_thread::yield();
     Check(index->ApplyBatch(many).ok, "visibility atomic batch");
-    Check(index->GetStats().wal_fsyncs == 3,
+    const auto write_stats = index->GetStats();
+    Check(write_stats.wal_fsyncs == 3,
           "full durable batch uses one WAL sync");
+    Check(write_stats.wal_bytes_appended > 0 &&
+              write_stats.wal_bytes_appended == write_stats.wal_bytes,
+          "WAL append-byte counter matches bytes retained before checkpoint");
     done.store(true, std::memory_order_release);
     reader.join();
     Check(bad_snapshot.load() == 0, "readers see only batch boundaries");
@@ -1596,6 +1829,467 @@ void TestAtomicMutationBatch(const std::string& root) {
     Check(index->SearchFilter(m4::FilterExpr::All(), &all).ok &&
               all.hits.size() == 4,
           "group-commit WAL replay restores every Upsert");
+  }
+
+  // Separate-frame group commit shares the fsync while preserving one reader
+  // boundary per Upsert. Pause after the first apply to force an observable
+  // one-document prefix, then replay two individually compressed WAL frames.
+  {
+    const std::string dir = root + "/writer-group-per-upsert-records";
+    const std::string barrier = dir + "-barrier";
+    fs::remove_all(dir);
+    fs::remove_all(barrier);
+    ::setenv("M4_TEST_WRITER_GROUP_STEP_BARRIER", barrier.c_str(), 1);
+    m4::Options grouped = options;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    grouped.wal_compression_lz4 = true;
+    std::unique_ptr<Index> index;
+    const bool opened = Index::Open(dir, grouped, &index).ok;
+    Check(opened, "per-Upsert group open");
+    if (opened) {
+      std::atomic<int> ready{0};
+      std::atomic<bool> start{false};
+      std::atomic<int> writer_errors{0};
+      std::vector<std::thread> writers;
+      for (int i = 0; i < 2; ++i) {
+        writers.emplace_back([&, i] {
+          ready.fetch_add(1, std::memory_order_release);
+          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          const std::string text = std::string(2048, i == 0 ? 'x' : 'y') +
+                                   " group token";
+          if (!index->Upsert("separate-" + std::to_string(i), doc(text)).ok)
+            writer_errors.fetch_add(1, std::memory_order_relaxed);
+        });
+      }
+      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      start.store(true, std::memory_order_release);
+      const auto deadline = std::chrono::steady_clock::now() +
+                            std::chrono::seconds(5);
+      std::error_code ec;
+      const fs::path applied = fs::path(barrier) / "first-upsert-applied";
+      while (!fs::exists(applied, ec) && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      const bool paused_after_first = fs::exists(applied, ec);
+      m4::SearchResult prefix;
+      const bool prefix_read = index->SearchFilter(m4::FilterExpr::All(), &prefix).ok;
+      Check(paused_after_first && prefix_read && prefix.hits.size() == 1,
+            "separate-frame group exposes one complete Upsert before the next");
+      fs::create_directories(barrier, ec);
+      std::ofstream release(fs::path(barrier) / "continue", std::ios::binary);
+      release << "continue\n";
+      release.close();
+      for (auto& writer : writers) writer.join();
+      ::unsetenv("M4_TEST_WRITER_GROUP_STEP_BARRIER");
+      Check(writer_errors.load() == 0, "per-Upsert group callers succeed");
+      const auto stats = index->GetStats();
+      Check(stats.live_docs == 2 && stats.wal_fsyncs == 1,
+            "two separate Upserts share one durable WAL sync");
+      std::ifstream wal(fs::path(dir) / "wal.log", std::ios::binary);
+      const std::string contents((std::istreambuf_iterator<char>(wal)),
+                                 std::istreambuf_iterator<char>());
+      size_t compressed_frames = 0;
+      for (size_t pos = 0; (pos = contents.find("ZW4M", pos)) != std::string::npos;
+           pos += 4) {
+        ++compressed_frames;
+      }
+      Check(compressed_frames == 2,
+            "separate-record group writes two individually compressed WAL frames");
+      index.reset();
+      Check(Index::Open(dir, grouped, &index).ok,
+            "separate-record compressed group replay open");
+      if (index) {
+        m4::SearchResult replayed;
+        Check(index->SearchFilter(m4::FilterExpr::All(), &replayed).ok &&
+                  replayed.hits.size() == 2,
+              "separate compressed frames replay independently");
+      }
+    }
+    ::unsetenv("M4_TEST_WRITER_GROUP_STEP_BARRIER");
+  }
+
+  // Hold the writer in a two-request group while more than the bounded queue
+  // capacity enters. Producers must backpressure rather than lose durable ACKs;
+  // after orderly shutdown, every acknowledged Upsert must replay.
+  {
+    const std::string dir = root + "/writer-group-queue-saturation";
+    const std::string barrier = dir + "-barrier";
+    fs::remove_all(dir);
+    fs::remove_all(barrier);
+    ::setenv("M4_TEST_WRITER_GROUP_STEP_BARRIER", barrier.c_str(), 1);
+    m4::Options grouped = options;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    std::unique_ptr<Index> index;
+    const bool opened = Index::Open(dir, grouped, &index).ok;
+    Check(opened, "saturated writer-group open");
+    if (opened) {
+      constexpr int kWriters = 24;  // queue holds at most 8 plus the active group
+      std::atomic<int> ready{0};
+      std::atomic<int> completed{0};
+      std::atomic<int> errors{0};
+      std::vector<std::thread> writers;
+      for (int i = 0; i < kWriters; ++i) {
+        writers.emplace_back([&, i] {
+          ready.fetch_add(1, std::memory_order_release);
+          const std::string pk = "saturated-" + std::to_string(i);
+          if (!index->Upsert(pk, doc("saturation token")).ok)
+            errors.fetch_add(1, std::memory_order_relaxed);
+          completed.fetch_add(1, std::memory_order_release);
+        });
+      }
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+      std::error_code ec;
+      const fs::path applied = fs::path(barrier) / "first-upsert-applied";
+      while ((!fs::exists(applied, ec) || ready.load(std::memory_order_acquire) != kWriters) &&
+             std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      const bool saturated = fs::exists(applied, ec) &&
+          ready.load(std::memory_order_acquire) == kWriters &&
+          completed.load(std::memory_order_acquire) == 0;
+      Check(saturated, "bounded writer queue applies backpressure at saturation");
+      fs::create_directories(barrier, ec);
+      std::ofstream release(fs::path(barrier) / "continue", std::ios::binary);
+      release << "continue\\n";
+      release.close();
+      for (auto& writer : writers) writer.join();
+      ::unsetenv("M4_TEST_WRITER_GROUP_STEP_BARRIER");
+      Check(errors.load() == 0 && completed.load() == kWriters,
+            "saturated writer queue eventually returns every durable ACK");
+      index.reset();  // orderly shutdown after all callers have received ACKs
+      Check(Index::Open(dir, grouped, &index).ok,
+            "saturated writer-group recovery open");
+      if (index) {
+        m4::SearchResult replayed;
+        Check(index->SearchFilter(m4::FilterExpr::All(), &replayed).ok &&
+                  replayed.hits.size() == kWriters,
+              "orderly shutdown/recovery retains all saturated-queue Upserts");
+      }
+    }
+    ::unsetenv("M4_TEST_WRITER_GROUP_STEP_BARRIER");
+  }
+
+  // Duplicate PKs within one group must use the previous queued record's new
+  // DocId as the next record's old DocId and leave exactly one live version.
+  {
+    const std::string dir = root + "/writer-group-duplicate-pk";
+    fs::remove_all(dir);
+    m4::Options grouped = options;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, grouped, &index).ok, "duplicate-PK group open");
+    if (index) {
+      std::atomic<int> ready{0};
+      std::atomic<bool> start{false};
+      std::atomic<int> errors{0};
+      std::vector<std::thread> writers;
+      for (const std::string text : {"first-token", "second-token"}) {
+        writers.emplace_back([&, text] {
+          ready.fetch_add(1, std::memory_order_release);
+          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          if (!index->Upsert("same-pk", doc(text)).ok)
+            errors.fetch_add(1, std::memory_order_relaxed);
+        });
+      }
+      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      start.store(true, std::memory_order_release);
+      for (auto& writer : writers) writer.join();
+      Check(errors.load() == 0 && index->GetStats().live_docs == 1 &&
+                index->GetStats().wal_fsyncs == 1,
+            "duplicate-PK group preserves one live version with shared fsync");
+      index.reset();
+      Check(Index::Open(dir, grouped, &index).ok,
+            "duplicate-PK group replay open");
+      if (index) {
+        Check(index->GetStats().live_docs == 1,
+              "duplicate-PK group replay retains one live version");
+      }
+    }
+  }
+
+  // A threshold-triggered flush must run after the complete group has been
+  // applied, not between records where WAL reset could discard an un-applied
+  // suffix that already shares the group's fsync.
+  {
+    const std::string dir = root + "/writer-group-auto-flush";
+    fs::remove_all(dir);
+    m4::Options grouped = options;
+    grouped.max_delta_docs = 1;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, grouped, &index).ok, "group auto-flush open");
+    if (index) {
+      std::atomic<int> ready{0};
+      std::atomic<bool> start{false};
+      std::atomic<int> errors{0};
+      std::vector<std::thread> writers;
+      for (int i = 0; i < 2; ++i) {
+        writers.emplace_back([&, i] {
+          ready.fetch_add(1, std::memory_order_release);
+          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          if (!index->Upsert("auto-flush-" + std::to_string(i),
+                             doc("auto flush token")).ok)
+            errors.fetch_add(1, std::memory_order_relaxed);
+        });
+      }
+      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      start.store(true, std::memory_order_release);
+      for (auto& writer : writers) writer.join();
+      Check(errors.load() == 0 && index->GetStats().live_docs == 2 &&
+                index->GetStats().wal_fsyncs == 1,
+            "auto-flush after a grouped sync publishes every Upsert");
+      index.reset();
+      Check(Index::Open(dir, grouped, &index).ok,
+            "auto-flushed per-Upsert group reopen");
+      if (index) {
+        Check(index->GetStats().live_docs == 2,
+              "auto-flush checkpoint retains every grouped Upsert");
+      }
+    }
+  }
+
+  // Once all individual frames share a durable fsync, crashes before or during
+  // publication must recover only complete records, and after-sync recovery
+  // must restore the entire group even if only its first record was applied.
+  for (const auto& crash_case : std::vector<std::pair<std::string, int>>{
+           {"writer_group_before_wal_sync", 92},
+           {"writer_group_after_wal_sync", 90},
+           {"writer_group_after_first_apply", 91}}) {
+    const std::string dir = root + "/" + crash_case.first;
+    fs::remove_all(dir);
+    const pid_t child = ::fork();
+    if (child == 0) {
+      ::setenv("M4_FAULT", crash_case.first.c_str(), 1);
+      m4::Options grouped = options;
+      grouped.writer_group_commit_max_batch_size = 2;
+      grouped.writer_group_commit_max_delay_us = 50000;
+      grouped.writer_group_commit_per_upsert_records = true;
+      grouped.wal_compression_lz4 = true;
+      std::unique_ptr<Index> index;
+      if (!Index::Open(dir, grouped, &index).ok) ::_exit(10);
+      std::atomic<int> ready{0};
+      std::atomic<bool> start{false};
+      std::vector<std::thread> writers;
+      for (int i = 0; i < 2; ++i) {
+        writers.emplace_back([&, i] {
+          ready.fetch_add(1, std::memory_order_release);
+          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          (void)index->Upsert("crash-" + std::to_string(i),
+                              doc(std::string(2048, 'z') + " durable"));
+        });
+      }
+      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      start.store(true, std::memory_order_release);
+      for (auto& writer : writers) writer.join();
+      ::_exit(12);
+    }
+    int child_status = 0;
+    const bool waited = child > 0 && ::waitpid(child, &child_status, 0) == child;
+    Check(waited && WIFEXITED(child_status) &&
+              WEXITSTATUS(child_status) == crash_case.second,
+          crash_case.first + " reaches its group-commit crash boundary");
+    std::unique_ptr<Index> recovered;
+    const bool reopened = Index::Open(dir, options, &recovered).ok;
+    Check(reopened, crash_case.first + " WAL reopen succeeds");
+    if (recovered) {
+      const uint64_t live = recovered->GetStats().live_docs;
+      if (crash_case.first == "writer_group_before_wal_sync") {
+        Check(live <= 2, "pre-sync crash replays only complete group records");
+      } else {
+        Check(live == 2, "post-sync crash replays the entire individual-frame group");
+      }
+    }
+  }
+
+  // The per-Upsert mode must not silently provide a durability guarantee when
+  // WAL fsync or WAL itself is disabled; retain the existing direct-path rules.
+  for (const bool wal_enabled : {true, false}) {
+    const std::string dir = root +
+        (wal_enabled ? "/writer-group-no-fsync" : "/writer-group-no-wal");
+    fs::remove_all(dir);
+    m4::Options grouped = options;
+    grouped.wal_enabled = wal_enabled;
+    grouped.fsync_wal = false;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, grouped, &index).ok,
+          wal_enabled ? "no-fsync group open" : "no-WAL group open");
+    if (!index) continue;
+    std::atomic<int> ready{0};
+    std::atomic<bool> start{false};
+    std::atomic<int> errors{0};
+    std::vector<std::thread> writers;
+    for (int i = 0; i < 2; ++i) {
+      writers.emplace_back([&, i] {
+        ready.fetch_add(1, std::memory_order_release);
+        while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+        if (!index->Upsert("non-durable-" + std::to_string(i),
+                           doc("non durable token")).ok)
+          errors.fetch_add(1, std::memory_order_relaxed);
+      });
+    }
+    while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+    start.store(true, std::memory_order_release);
+    for (auto& writer : writers) writer.join();
+    const auto stats = index->GetStats();
+    Check(errors.load() == 0 && stats.live_docs == 2 && stats.wal_fsyncs == 0,
+          wal_enabled ? "fsync-disabled mode makes no durability claim or hidden sync"
+                      : "WAL-disabled mode makes no durability claim or hidden sync");
+    if (!wal_enabled) {
+      Check(stats.wal_bytes == 0, "WAL-disabled mode appends no WAL records");
+    } else {
+      Check(stats.wal_bytes > 0, "fsync-disabled direct path retains WAL append accounting");
+    }
+  }
+
+  // An append failure after one successful frame commits only that durable
+  // prefix; the request whose frame was not appended fails, and the guard
+  // requires reopen before accepting new work.
+  {
+    const std::string dir = root + "/writer-group-append-prefix-failure";
+    fs::remove_all(dir);
+    m4::Options grouped = options;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, grouped, &index).ok, "append-prefix group open");
+    if (index) {
+      ::setenv("M4_FAULT", "writer_group_append_error_after_first", 1);
+      std::atomic<int> ready{0};
+      std::atomic<bool> start{false};
+      std::atomic<int> successes{0}, prefix_failures{0};
+      std::vector<std::thread> writers;
+      for (int i = 0; i < 2; ++i) {
+        writers.emplace_back([&, i] {
+          ready.fetch_add(1, std::memory_order_release);
+          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          const auto status = index->Upsert(
+              "append-prefix-" + std::to_string(i), doc("append prefix"));
+          if (status.ok) successes.fetch_add(1, std::memory_order_relaxed);
+          else if (status.message.find("durable prefix") != std::string::npos)
+            prefix_failures.fetch_add(1, std::memory_order_relaxed);
+        });
+      }
+      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      start.store(true, std::memory_order_release);
+      for (auto& writer : writers) writer.join();
+      ::unsetenv("M4_FAULT");
+      m4::SearchResult visible;
+      Check(successes.load() == 1 && prefix_failures.load() == 1 &&
+                index->SearchFilter(m4::FilterExpr::All(), &visible).ok &&
+                visible.hits.size() == 1,
+            "append failure returns one successful durable prefix and one unappended suffix");
+      Check(!index->Upsert("append-after-error", doc("blocked")).ok,
+            "append-prefix error blocks further mutation until reopen");
+      index.reset();
+      Check(Index::Open(dir, options, &index).ok,
+            "append-prefix failure resolves through WAL reopen");
+      Check(index && index->GetStats().live_docs == 1,
+            "append-prefix reopen restores only the durable successful frame");
+    }
+  }
+
+  // If application stops after a durable first record, return its success and
+  // an explicit reopen-required error for the suffix; replay resolves the
+  // second caller's unacknowledged, already-durable frame.
+  {
+    const std::string dir = root + "/writer-group-apply-prefix-failure";
+    fs::remove_all(dir);
+    m4::Options grouped = options;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, grouped, &index).ok, "apply-prefix group open");
+    if (index) {
+      ::setenv("M4_FAULT", "writer_group_apply_error_after_first", 1);
+      std::atomic<int> ready{0};
+      std::atomic<bool> start{false};
+      std::atomic<int> successes{0}, reopen_failures{0};
+      std::vector<std::thread> writers;
+      for (int i = 0; i < 2; ++i) {
+        writers.emplace_back([&, i] {
+          ready.fetch_add(1, std::memory_order_release);
+          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          const auto status = index->Upsert(
+              "apply-prefix-" + std::to_string(i), doc("apply prefix"));
+          if (status.ok) successes.fetch_add(1, std::memory_order_relaxed);
+          else if (status.message.find("suffix is durable") != std::string::npos)
+            reopen_failures.fetch_add(1, std::memory_order_relaxed);
+        });
+      }
+      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      start.store(true, std::memory_order_release);
+      for (auto& writer : writers) writer.join();
+      ::unsetenv("M4_FAULT");
+      m4::SearchResult visible;
+      Check(successes.load() == 1 && reopen_failures.load() == 1 &&
+                index->SearchFilter(m4::FilterExpr::All(), &visible).ok &&
+                visible.hits.size() == 1,
+            "post-sync apply failure exposes only a complete visible prefix");
+      Check(!index->ApplyBatch({{m4::MutationKind::UPSERT, "apply-blocked",
+                                 doc("blocked")}}).ok && !index->Flush().ok,
+            "post-sync apply failure blocks new batches/checkpoints until reopen");
+      index.reset();
+      Check(Index::Open(dir, options, &index).ok,
+            "post-sync apply failure resolves through WAL reopen");
+      Check(index && index->GetStats().live_docs == 2,
+            "reopen replays the durable suffix after apply interruption");
+    }
+  }
+
+  // Inject a shared-fsync failure. The result is explicitly uncertain, no
+  // further mutation/checkpoint is allowed until reopen replays the WAL.
+  {
+    const std::string dir = root + "/writer-group-fsync-failure";
+    fs::remove_all(dir);
+    m4::Options grouped = options;
+    grouped.writer_group_commit_max_batch_size = 2;
+    grouped.writer_group_commit_max_delay_us = 50000;
+    grouped.writer_group_commit_per_upsert_records = true;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, grouped, &index).ok, "fsync-failure group open");
+    if (index) {
+      ::setenv("M4_FAULT", "writer_group_fsync_error", 1);
+      std::atomic<int> ready{0};
+      std::atomic<bool> start{false};
+      std::atomic<int> failures{0};
+      std::vector<std::thread> writers;
+      for (int i = 0; i < 2; ++i) {
+        writers.emplace_back([&, i] {
+          ready.fetch_add(1, std::memory_order_release);
+          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          const auto status = index->Upsert("uncertain-" + std::to_string(i),
+                                            doc("uncertain token"));
+          if (!status.ok && status.message.find("outcome uncertain") != std::string::npos)
+            failures.fetch_add(1, std::memory_order_relaxed);
+        });
+      }
+      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      start.store(true, std::memory_order_release);
+      for (auto& writer : writers) writer.join();
+      ::unsetenv("M4_FAULT");
+      Check(failures.load() == 2, "shared-fsync failure marks both ACKs uncertain");
+      Check(!index->Upsert("after-failure", doc("blocked")).ok &&
+                !index->Delete("uncertain-0").ok &&
+                !index->ApplyBatch({{m4::MutationKind::UPSERT, "blocked-batch",
+                                     doc("blocked")}}).ok &&
+                !index->Flush().ok && !index->CompactNow().ok,
+            "uncertain durable/apply state blocks all further mutations and checkpoints");
+      index.reset();
+      Check(Index::Open(dir, options, &index).ok,
+            "fsync-failure state can be resolved by reopening WAL");
+    }
   }
 
   // A crash after the group transaction is durable but before publication must
@@ -1696,6 +2390,55 @@ void TestAtomicMutationBatch(const std::string& root) {
     Check(index->SearchFilter(m4::FilterExpr::All(), &all).ok && all.hits.empty(),
           "same-PK final tombstone survives GC and recovery");
   }
+}
+
+void TestStatsEventCoalescing(const std::string& root) {
+  RefState ref;
+  std::vector<m4::Mutation> batch;
+  batch.reserve(128);
+  for (int i = 0; i < 128; ++i) {
+    Document d;
+    d.text = "sharedtoken commontoken unique" + std::to_string(i);
+    const std::string pk = "coalesce-" + std::to_string(i);
+    AddDoc(&ref, pk, d);
+    batch.push_back({m4::MutationKind::UPSERT, pk, std::move(d)});
+  }
+
+  uint64_t legacy_log_bytes = 0;
+  uint64_t coalesced_log_bytes = 0;
+  for (bool coalesce : {false, true}) {
+    const std::string dir = root + (coalesce ? "/coalesced" : "/legacy");
+    fs::remove_all(dir);
+    m4::Options options;
+    options.coalesce_stats_events = coalesce;
+    options.stats_log_threshold = 1ull << 30;
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, options, &index).ok,
+          "stats event coalescing open");
+    Check(index->ApplyBatch(batch).ok, "stats event coalescing batch");
+    Check(index->Flush().ok, "stats event coalescing flush");
+    const auto before_reopen = index->GetStats();
+    Check(before_reopen.live_docs == batch.size(),
+          "stats event coalescing live-doc count");
+    if (coalesce) coalesced_log_bytes = before_reopen.stats_log_bytes;
+    else legacy_log_bytes = before_reopen.stats_log_bytes;
+    index.reset();
+
+    // Reopen with coalescing disabled to prove the on-disk delta stream is
+    // independent of the writer-only experiment switch.
+    options.coalesce_stats_events = false;
+    Check(Index::Open(dir, options, &index).ok,
+          "stats event coalescing reopen in legacy mode");
+    Check(index->GetStats().live_docs == batch.size(),
+          "stats event coalescing replayed live docs");
+    CheckFts(*index, ref, "sharedtoken",
+             MakeRefQuery({"sharedtoken"}, false), 10,
+             "stats event coalescing replayed document frequency");
+  }
+  Check(coalesced_log_bytes < legacy_log_bytes / 2,
+        "coalesced stats log is less than half legacy size: " +
+            std::to_string(coalesced_log_bytes) + " vs " +
+            std::to_string(legacy_log_bytes));
 }
 
 void TestBoundedRuns(const std::string& dir) {
@@ -2050,8 +2793,11 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   // the not-yet-appended stats suffix on retry; never duplicate earlier events.
   const std::string retry_dir = dir + "/same-process-retry";
   fs::remove_all(retry_dir);
+  m4::Options retry_options;
+  retry_options.coalesce_stats_events = true;
   std::unique_ptr<Index> retry_index;
-  Check(Index::Open(retry_dir, {}, &retry_index).ok, "flush retry open");
+  Check(Index::Open(retry_dir, retry_options, &retry_index).ok,
+        "flush retry open");
   Document first;
   first.text = "alpha common";
   Check(retry_index->Upsert("first", first).ok, "flush retry first write");
@@ -2075,19 +2821,23 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
            10, "flush retry BM25");
   retry_index.reset();
   std::unique_ptr<Index> retry_reopened;
-  Check(Index::Open(retry_dir, {}, &retry_reopened).ok,
+  Check(Index::Open(retry_dir, retry_options, &retry_reopened).ok,
         "flush retry reopen");
   Check(retry_reopened && retry_reopened->GetStats().live_docs == 2,
         "flush retry durable stats");
 
   // Crash on both sides of the durable manifest and WAL truncation boundary
-  // under both the pre-staging lock boundary and staged candidate.
-  for (bool staged : {false, true}) {
-    m4::Options crash_options;
-    crash_options.flush_metadata_outside_query_lock = staged;
-    for (const char* fault : {"flush_after_stats_append", "flush_before_manifest",
-                              "flush_after_manifest", "flush_after_wal_reset"}) {
-      const std::string label = std::string(staged ? "staged-" : "baseline-") + fault;
+  // under both lock boundaries and both stats-event encodings.
+  for (bool coalesce_stats : {false, true}) {
+    for (bool staged : {false, true}) {
+      m4::Options crash_options;
+      crash_options.coalesce_stats_events = coalesce_stats;
+      crash_options.flush_metadata_outside_query_lock = staged;
+      for (const char* fault : {"flush_after_stats_append", "flush_before_manifest",
+                                "flush_after_manifest", "flush_after_wal_reset"}) {
+        const std::string label =
+            std::string(coalesce_stats ? "coalesced-" : "legacy-") +
+            (staged ? "staged-" : "baseline-") + fault;
       const std::string path = dir + "/crash-" + label;
       seed_unflushed(path, crash_options);
       const pid_t child = ::fork();
@@ -2106,7 +2856,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Check(WIFEXITED(status) && WEXITSTATUS(status) >= 92 &&
               WEXITSTATUS(status) <= 95,
           std::string("flush crash reached expected boundary ") + fault);
-      verify_reopened(path, "flush recovery " + label, crash_options);
+        verify_reopened(path, "flush recovery " + label, crash_options);
+      }
     }
   }
 
@@ -3113,8 +3864,11 @@ int main() {
   TestStringPrefixRangeSearch(root + "/string-prefix-range");
   TestPhrase(root + "/phrase");
   TestCrashWal(root + "/wal");
+  TestLz4WalFrames(root + "/wal-lz4");
+  TestAtomicPublicationSyncFailures(root + "/atomic-publication-sync-failures");
   TestFlushPublicationAndRecovery(root + "/flush-publication-recovery");
   TestAtomicMutationBatch(root + "/batch");
+  TestStatsEventCoalescing(root + "/stats-event-coalescing");
   TestBoundedRuns(root + "/bounded");
   TestStatIndependentBounds(root + "/bounds");
   TestHybrid(root + "/hybrid");

@@ -313,9 +313,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         raise RuntimeError("contention workload counts/coherence do not match the contract")
     arms = data.get("arms")
     timing_schema = data.get("timing_schema_version")
-    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
+    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
         raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
-    if timing_schema in (8, 9, 10, 11):
+    if timing_schema in (8, 9, 10, 11, 12):
         expected_workload_mode = (
             "group_commit_pending_flush_reader_pair"
             if workload.get("mode") == "--m4-group-commit-pending-flush-reader-pair"
@@ -325,6 +325,8 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             if workload.get("mode") == "--m4-flush-reader-staging-pair"
             else "writer_group_commit_snapshot_rebase"
             if workload.get("mode") == "--m4-writer-group-commit-snapshot-rebase"
+            else "writer_group_commit_per_upsert"
+            if workload.get("mode") == "--m4-writer-group-commit-per-upsert"
             else "writer_group_commit"
             if workload.get("mode") == "--m4-writer-group-commit"
             else "contention")
@@ -356,13 +358,13 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         compaction = arm.get("compaction_diagnostics")
         # Older operation receipts predate lock-stage compaction diagnostics;
         # retain their exact recorded validity while checking new receipts.
-        if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11) and not isinstance(compaction, dict):
+        if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) and not isinstance(compaction, dict):
             raise RuntimeError("missing compaction phase timing object")
         if compaction is not None and not isinstance(compaction, dict):
             raise RuntimeError("invalid compaction phase timing object")
         if compaction is not None:
             required_compaction_fields = compaction_timing_fields
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
                 required_compaction_fields += (
                     "state_mutex_hold_ms", "state_mutex_hold_cpu_ms")
             for key in required_compaction_fields:
@@ -371,7 +373,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         not isinstance(value, (int, float)) or
                         not math.isfinite(value) or value < 0):
                     raise RuntimeError("missing/invalid compaction phase timing")
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
                 hold = compaction["state_mutex_hold_ms"]
                 if (hold + 1e-6 < compaction["publication_ms"] or
                         hold > compaction["total_ms"] + 1e-6):
@@ -394,7 +396,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     if isinstance(flush_stages, dict) else None
                 )
                 if (stage_version not in (1, 2) or
-                        (timing_schema in (5, 6, 7, 8, 9, 10, 11) and stage_version != 2)):
+                        (timing_schema in (5, 6, 7, 8, 9, 10, 11, 12) and stage_version != 2)):
                     raise RuntimeError("invalid optional flush-stage timing object")
                 if stage_version == 2:
                     stage_fields += (
@@ -416,7 +418,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         flush_stages["query_mutex_hold_ms"] >
                         compaction["pending_flush_ms"] + 1e-3):
                     raise RuntimeError("flush query-lock hold exceeds pending-flush duration")
-        if timing_schema in (5, 6, 7, 8, 9, 10, 11):
+        if timing_schema in (5, 6, 7, 8, 9, 10, 11, 12):
             explicit_flush = arm.get("post_writer_flush_diagnostics")
             if not isinstance(explicit_flush, dict):
                 raise RuntimeError("missing post-writer flush diagnostics")
@@ -470,11 +472,14 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 raise RuntimeError(
                     "post-writer flush query-lock hold exceeds flush duration")
         api_calls = rounds
-        group_commit_arm = timing_schema in (8, 10, 11) and arm.get("name") in (
-            "group_commit", "group_commit_snapshot_rebase")
-        if timing_schema in (4, 5, 6, 7, 8, 9, 10, 11):
+        group_commit_arm = timing_schema in (8, 10, 11, 12) and arm.get("name") in (
+            "group_commit", "group_commit_snapshot_rebase",
+            "group_commit_per_upsert")
+        if timing_schema in (4, 5, 6, 7, 8, 9, 10, 11, 12):
             batch_api = arm.get("name") == "apply_batch"
             expected_api = ("ApplyBatch" if batch_api else
+                            "UpsertGroupCommitSeparateWalFrames"
+                            if arm.get("name") == "group_commit_per_upsert" else
                             "UpsertGroupCommit" if group_commit_arm else "Upsert")
             expected_calls = workload["writers"] if batch_api else rounds
             if (arm.get("writer_api") != expected_api or
@@ -483,6 +488,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 raise RuntimeError("writer API/count metadata does not match the contract")
             api_calls = expected_calls
         if group_commit_arm:
+            if (arm.get("writer_group_commit_per_upsert_records") is not
+                    (arm.get("name") == "group_commit_per_upsert")):
+                raise RuntimeError("per-Upsert WAL record mode metadata mismatch")
             if (not valid_series(arm.get("writer_samples"), api_calls) or
                     not valid_series(arm.get("writer_queue_wait_samples"), api_calls) or
                     not valid_series(
@@ -512,6 +520,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             if any(arm.get(key) != [] for key in uncollected):
                 raise RuntimeError("group-commit arm mislabels non-per-call stages")
         else:
+            if (timing_schema == 12 and
+                    arm.get("writer_group_commit_per_upsert_records") is not False):
+                raise RuntimeError("non-group arm carries per-Upsert record mode")
             required_writer_series = (
                 "writer_samples", "state_wait_samples", "state_wait_cpu_samples",
                 "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
@@ -519,11 +530,11 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             for key in required_writer_series:
                 if not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
                 for key in ("state_hold_samples", "state_hold_cpu_samples"):
                     if not valid_series(arm.get(key), api_calls):
                         raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if timing_schema in (6, 7, 8, 9, 10, 11):
+            if timing_schema in (6, 7, 8, 9, 10, 11, 12):
                 for key in ("wal_write_samples", "wal_fsync_samples"):
                     if not valid_series(arm.get(key), api_calls):
                         raise RuntimeError(f"missing/invalid writer timing series: {key}")
@@ -531,18 +542,18 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         arm["wal_write_samples"], arm["wal_fsync_samples"],
                         arm["wal_append_samples"], strict=True)):
                     raise RuntimeError("WAL write/fsync substage exceeds append duration")
-            if timing_schema in (7, 8, 9, 10, 11):
+            if timing_schema in (7, 8, 9, 10, 11, 12):
                 tracked_peak = arm.get("compaction_tracked_peak_bytes")
                 if (isinstance(tracked_peak, bool) or
                         not isinstance(tracked_peak, int) or tracked_peak < 0):
                     raise RuntimeError("missing/invalid compaction tracked memory peak")
-            if timing_schema in (8, 9, 10, 11) and (
+            if timing_schema in (8, 9, 10, 11, 12) and (
                     arm.get("writer_queue_wait_samples") != [] or
                     arm.get("writer_group_commit_size_samples") != []):
                 raise RuntimeError("non-group arm unexpectedly reports queue samples")
             for key in ("normalize_samples", "normalize_cpu_samples",
                         "wal_encode_samples", "wal_encode_cpu_samples"):
-                if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11) and not valid_series(arm.get(key), api_calls):
+                if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) and not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
                 if key in arm and not valid_series(arm[key], api_calls):
                     raise RuntimeError(f"invalid optional writer timing series: {key}")
@@ -590,9 +601,17 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 arm.get("compaction_status") != "ok") or (
                 arm.get("name") == "apply_batch" and
                 arm.get("compaction_status") != "ok") or (
-                arm.get("name") == "group_commit" and
+                arm.get("name") in ("group_commit", "group_commit_per_upsert") and
                 arm.get("compaction_status") != "ok"):
             raise RuntimeError("unexpected compaction outcome")
+    if workload.get("mode") == "--m4-writer-group-commit-per-upsert":
+        control = next((arm for arm in arms if arm.get("name") == "default"), None)
+        candidate = next((arm for arm in arms
+                          if arm.get("name") == "group_commit_per_upsert"), None)
+        if (control is None or candidate is None or
+                candidate.get("concurrent_wal_fsyncs", 0) >=
+                control.get("concurrent_wal_fsyncs", 0)):
+            raise RuntimeError("per-Upsert group did not reduce concurrent WAL fsyncs")
     if workload.get("mode") in (
             "--m4-flush-reader-staging-pair",
             "--m4-group-commit-flush-reader-pair",
@@ -619,6 +638,7 @@ def main() -> int:
                             "memory_churn_two_versions_concurrent_open",
                             "memory_churn_two_versions_concurrent_allocator",
                             "writer_group_commit",
+                            "writer_group_commit_per_upsert",
                             "writer_group_commit_snapshot_rebase",
                             "flush_reader_staging_pair",
                             "writer_group_commit_flush_reader_pair",
@@ -635,7 +655,9 @@ def main() -> int:
         measurement_semantics = profile_contract.get(
             "measurement_semantics", contract["measurement_semantics"])
         resource_root = pathlib.Path(contract["resource_root"]).resolve(strict=True)
-    except (OSError, json.JSONDecodeError, KeyError) as exc:
+        workspace_quota_proof = runner.verify_workspace_quota(
+            resource_root, contract["workspace_quota"])
+    except (OSError, json.JSONDecodeError, KeyError, ValueError, subprocess.SubprocessError) as exc:
         raise SystemExit(f"cannot load M4 benchmark contract/resource root: {exc}") from exc
     try:
         binary = profile_binary(profile_contract)
@@ -671,6 +693,7 @@ def main() -> int:
         "dictionary_tree_sha256": dictionary_sha,
         "approved_dictionary_tree_sha256": dictionary_sha,
         "workload": workload, "arm_role": "microbench",
+        "workspace_quota_proof": workspace_quota_proof,
         "io_pressure_mode": contract["io_pressure_mode"],
         **contract["resource_controls"],
     }

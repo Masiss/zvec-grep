@@ -7,9 +7,11 @@ import importlib.util
 import json
 import os
 import pathlib
+import stat
 import sys
 import tempfile
 import unittest
+from datetime import timedelta
 from contextlib import ExitStack
 from typing import Any
 from unittest import mock
@@ -253,9 +255,9 @@ class ContentionPolicyTests(unittest.TestCase):
         load_gate = next(g for g in observed["historical_gate_decisions"] if g["gate_id"] == "M4-RG-LOAD")
         self.assertEqual(load_gate["status"], "FAIL")
         self.assertFalse(load_gate["enforced_in_selected_mode"])
-        self.assertIn("not an admission or abort gate", load_gate["selected_mode_disposition"])
-        current["meminfo_kib"]["MemAvailable_kib"] -= 1
-        self.assertFalse(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
+        self.assertIn("never blocks launch or aborts an arm", load_gate["selected_mode_disposition"])
+        current["meminfo_kib"]["MemAvailable_kib"] = 0
+        self.assertTrue(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
         current["meminfo_kib"]["MemAvailable_kib"] = 3 * 1024**2
         current["resource_root_free_bytes"] -= 1
         self.assertFalse(ct.contention_decision(current, ctx, "aa-first")["continuation_allowed"])
@@ -377,6 +379,7 @@ class ContentionPolicyTests(unittest.TestCase):
                         "memory_churn_two_versions_concurrent_open",
                         "memory_churn_two_versions_concurrent_allocator",
                         "writer_group_commit",
+                        "writer_group_commit_per_upsert",
                         "writer_group_commit_snapshot_rebase",
                         "flush_reader_staging_pair",
                         "writer_group_commit_flush_reader_pair",
@@ -412,11 +415,90 @@ class ContentionPolicyTests(unittest.TestCase):
             "io_pressure_mode": contract["io_pressure_mode"],
         }
         ctx.update(contract["resource_controls"])
+        quota = contract["workspace_quota"]
+        ctx["workspace_quota_proof"] = {
+            "status": "VERIFIED", "attestation_path": quota["attestation_path"],
+            "workspace_root": quota["workspace_subvolume"],
+            "filesystem_uuid": quota["filesystem_uuid"], "subvolume_id": quota["subvolume_id"],
+            "qgroup_id": quota["qgroup_id"],
+            "max_referenced_bytes": quota["max_referenced_bytes"],
+            "accounting_mode": quota["accounting_mode"], "attestation_sha256": "a" * 64,
+        }
         return ctx
 
-    def test_lock_microbench_uses_lower_workload_reservation_not_a_gate_bypass(self):
+    def test_root_attestation_binds_exact_workspace_quota_and_rejects_writable_evidence(self):
+        contract = ct.BENCHMARK_POLICY["lock_contention_microbench"]["workspace_quota"]
+        attestation = {
+            "schema_version": 1, "mountpoint": "/",
+            "workspace_subvolume": contract["workspace_subvolume"],
+            **{key: contract[key] for key in (
+                "filesystem_uuid", "subvolume_id", "qgroup_id",
+                "max_referenced_bytes", "accounting_mode",
+            )},
+            "verified_at_utc": ct.utc_now(),
+        }
+        proof = ct.validate_workspace_quota_attestation(attestation, contract, 0, 0o644)
+        self.assertEqual(proof["status"], "VERIFIED")
+        self.assertEqual(proof["max_referenced_bytes"], 134217728)
+        with self.assertRaisesRegex(ValueError, "root ownership/mode"):
+            ct.validate_workspace_quota_attestation(attestation, contract, os.getuid(), 0o666)
+        with self.assertRaisesRegex(ValueError, "mismatch"):
+            ct.validate_workspace_quota_attestation(
+                dict(attestation, max_referenced_bytes=134217729), contract, 0, 0o644
+            )
+        stale = dict(attestation, verified_at_utc=(
+            ct.datetime.now(ct.UTC) - timedelta(days=2)
+        ).isoformat())
+        with self.assertRaisesRegex(ValueError, "stale or from the future"):
+            ct.validate_workspace_quota_attestation(stale, contract, 0, 0o644)
+
+        expected = dict(contract, workspace_subvolume=str(self.root),
+                        attestation_path=str(self.root / "quota-attestation.json"))
+        attestation["workspace_subvolume"] = str(self.root)
+        attestation_path = pathlib.Path(expected["attestation_path"])
+        attestation_path.write_text(json.dumps(attestation))
+        original_lstat = os.lstat
+
+        def lstat_with_root_owned_attestation(path, *args, **kwargs):
+            if pathlib.Path(path) == attestation_path:
+                return mock.Mock(st_mode=stat.S_IFREG | 0o644, st_uid=0)
+            return original_lstat(path, *args, **kwargs)
+
+        responses = [
+            ct.subprocess.CompletedProcess([], 0, "btrfs " + expected["filesystem_uuid"] + "\n", ""),
+            ct.subprocess.CompletedProcess([], 0, str(expected["subvolume_id"]) + "\n", ""),
+            ct.subprocess.CompletedProcess([], 0,
+                "Quotas on /:\n  Enabled: yes\n  Mode: squota (simplified accounting)\n  Inconsistent: no\n", ""),
+        ]
+        with mock.patch.object(ct.os, "lstat", side_effect=lstat_with_root_owned_attestation), \
+             mock.patch.object(ct.subprocess, "run", side_effect=responses):
+            verified = ct.verify_workspace_quota(self.root, expected)
+        self.assertEqual(verified["status"], "VERIFIED")
+        self.assertEqual(verified["attestation_sha256"], hashlib.sha256(attestation_path.read_bytes()).hexdigest())
+
+    def test_lock_microbench_reports_host_pressure_without_memavailable_gate(self):
         ctx = self.lock_contention_microbench_context()
         self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        for invalid_proof in (
+            dict(ctx["workspace_quota_proof"], max_referenced_bytes=1),
+            dict(ctx["workspace_quota_proof"], workspace_root="/tmp/untrusted"),
+            dict(ctx["workspace_quota_proof"], attestation_sha256="not-a-digest"),
+        ):
+            with self.subTest(proof=invalid_proof), self.assertRaises(ValueError):
+                ct.validate_contention_context(dict(ctx, workspace_quota_proof=invalid_proof))
+        budget = ct.contention_budget(ctx)
+        self.assertEqual(ct.workspace_quota_bound_bytes(budget),
+                         ct.BENCHMARK_POLICY["lock_contention_microbench"]["workspace_quota"]["max_referenced_bytes"])
+        self.assertIsNone(ct.workspace_quota_bound_bytes(ct.contention_budget(self.ctx)))
+        uncertain = self.workspace_row(
+            scan_complete=False, inventory_status="PARTIAL_KNOWN_RACE",
+            scan_errors=["ENOENT: atomic temporary renamed"],
+        )
+        decision = ct.workspace_capacity_decision(uncertain, budget, "contention-aware")
+        self.assertTrue(decision["continuation_allowed"])
+        self.assertEqual(decision["independent_capacity_upper_bound"],
+                         ct.BENCHMARK_POLICY["lock_contention_microbench"]["workspace_quota"]["max_referenced_bytes"])
+        self.assertEqual(decision["measurement_quality"], "HARD_QUOTA_BOUND")
         current = state()
         current["meminfo_kib"]["MemAvailable_kib"] = int(3.5 * 1024**2)
         current["resource_root_free_bytes"] = 32 * 1024**3
@@ -425,17 +507,17 @@ class ContentionPolicyTests(unittest.TestCase):
         decision = ct.contention_decision(current, ctx, "microbench")
         self.assertTrue(decision["continuation_allowed"])
         self.assertEqual(decision["host_io_pressure_observation"]["disposition"],
-                         "observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate")
+                         "observational-only; elevated, missing or arm-mismatched host pressure is not an admission/abort/recovery gate")
         historical_mem = next(g for g in decision["historical_guard_failures"] if g["gate_id"] == "M4-RG-MEM")
         self.assertEqual(historical_mem["status"], "FAIL")
         capacity_gate = ct.contention_decision(current, ctx, "microbench")
         self.assertEqual(capacity_gate["blocking_failures"], [])
         self.assertEqual(ctx["host_memory_reserve_bytes"] + ctx["memory_max_bytes"],
                          3_758_096_384)
-        current["meminfo_kib"]["MemAvailable_kib"] = (3 * 1024**3 + 512 * 1024**2 - 1024) // 1024
-        denied = ct.contention_decision(current, ctx, "microbench")
-        self.assertFalse(denied["continuation_allowed"])
-        self.assertEqual(denied["blocking_failures"][0]["gate_id"], "M4-CA-MEM-CAPACITY")
+        current["meminfo_kib"]["MemAvailable_kib"] = 0
+        allowed = ct.contention_decision(current, ctx, "microbench")
+        self.assertTrue(allowed["continuation_allowed"])
+        self.assertEqual(allowed["blocking_failures"], [])
 
     def test_writer_group_commit_profile_is_bounded_and_distinct(self):
         ctx = self.lock_contention_microbench_context("writer_group_commit")
@@ -504,6 +586,26 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertIn("exactly 256", profile["measurement_semantics"])
         self.assertEqual(ctx["memory_max_bytes"], 536870912)
         self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+
+    def test_per_upsert_group_commit_profile_is_distinct_and_bounded(self):
+        ctx = self.lock_contention_microbench_context(
+            "writer_group_commit_per_upsert")
+        self.assertEqual(ct.validate_contention_context(ctx), ctx)
+        profile = ct.BENCHMARK_POLICY["lock_contention_microbench"][
+            "writer_group_commit_per_upsert"]
+        self.assertEqual(ctx["workload"]["documents"], 1024)
+        self.assertEqual(ctx["workload"]["rounds"], 32)
+        self.assertEqual(ctx["workload"]["mode"],
+                         "--m4-writer-group-commit-per-upsert")
+        self.assertEqual(ctx["workload"]["compaction_modes"],
+                         ["default", "group_commit_per_upsert"])
+        self.assertIn("one independently replayable WAL frame per Upsert",
+                      profile["measurement_semantics"])
+        self.assertIn("does not provide ApplyBatch atomicity",
+                      profile["measurement_semantics"])
+        self.assertEqual(ctx["memory_max_bytes"], 536870912)
+        self.assertEqual(ctx["memory_swap_max_bytes"], 0)
+        self.assertEqual(ctx["host_memory_reserve_bytes"], 3221225472)
 
     def test_writer_group_commit_snapshot_rebase_profile_is_distinct_and_bounded(self):
         ctx = self.lock_contention_microbench_context(
@@ -903,10 +1005,12 @@ class ContentionPolicyTests(unittest.TestCase):
         io_gate = next(g for g in decision["historical_gate_decisions"] if g["gate_id"] == "M4-RG-IOPSI")
         self.assertEqual(io_gate["status"], "FAIL")
         self.assertFalse(io_gate["enforced_in_selected_mode"])
-        self.assertIn("not an admission or abort gate", io_gate["selected_mode_disposition"])
+        self.assertIn("never blocks launch or aborts an arm", io_gate["selected_mode_disposition"])
         self.assertEqual(decision["host_io_pressure_observation"]["full_avg10_percent"], 4.48)
         self.assertIn("observational-only", decision["host_io_pressure_observation"]["disposition"])
-        current["meminfo_kib"]["MemAvailable_kib"] -= 1
+        current["meminfo_kib"]["MemAvailable_kib"] = 0
+        self.assertTrue(ct.contention_decision(current, ctx, "pair-first")["continuation_allowed"])
+        current["resource_root_free_bytes"] = 0
         self.assertFalse(ct.contention_decision(current, ctx, "pair-first")["continuation_allowed"])
 
     def test_all_four_historical_failures_are_raw_not_passes(self):
@@ -919,17 +1023,20 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(
             d["evidence_class"], "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING"
         )
-        self.assertEqual(len(ct.hard_gate_failures(state())), 4)
+        self.assertEqual(len(ct.hard_gate_failures(state())), 1)
 
-    def test_qualification_and_default_diagnostic_still_block_mixed_history(self):
-        failures = ct.contention_decision(state(), self.ctx, "baseline")[
+    def test_host_pressure_history_does_not_block_qualification_or_diagnostic_launch(self):
+        baseline = state()
+        baseline["resource_root_free_bytes"] = 32 * 1024**3
+        failures = ct.contention_decision(baseline, self.ctx, "baseline")[
             "historical_guard_failures"
         ]
+        self.assertEqual(len(failures), 3)
         for mode in ("qualification", "diagnostic"):
             d = aa.baseline_gate_decision(
-                mode, {"status": "VALID"}, {}, failures, [], False
+                mode, {"status": "VALID"}, {}, failures, [], True
             )
-            self.assertEqual(d["operation_outcome"], "OPERATION_BLOCKED")
+            self.assertNotEqual(d["operation_outcome"], "OPERATION_BLOCKED")
         for v, expected in ((4.46, "PASS"), (4.68, "FAIL")):
             s = state()
             s["io_pressure"]["full"]["avg10"] = v
@@ -953,11 +1060,14 @@ class ContentionPolicyTests(unittest.TestCase):
                 s = state()
                 if resource == "memory":
                     s["meminfo_kib"]["MemAvailable_kib"] = 0
+                    d = ct.contention_decision(s, self.ctx, phase)
+                    self.assertTrue(d["continuation_allowed"])
+                    self.assertEqual(d["blocking_failures"], [])
                 else:
                     s["resource_root_free_bytes"] = 0
-                d = ct.contention_decision(s, self.ctx, phase)
-                self.assertFalse(d["continuation_allowed"])
-                self.assertTrue(d["blocking_failures"])
+                    d = ct.contention_decision(s, self.ctx, phase)
+                    self.assertFalse(d["continuation_allowed"])
+                    self.assertTrue(d["blocking_failures"])
                 self.assertEqual(len(d["historical_guard_failures"]), 4)
 
     def test_swap_capacity_reserves_only_remaining_approved_workload_budget(self):
@@ -970,20 +1080,33 @@ class ContentionPolicyTests(unittest.TestCase):
         )
         self.assertTrue(d["continuation_allowed"])
 
-    def test_missing_nonfinite_nonnumeric_out_of_range_telemetry_fails_closed(self):
+    def test_invalid_host_pressure_load_and_memavailable_remain_observational(self):
         for bad in (None, float("nan"), float("inf"), "4.68", True, -1, 101):
             for family in ("io_pressure", "memory_pressure", "cpu_pressure"):
                 s = state()
                 s[family]["some"]["avg10"] = bad
-                with (
-                    self.subTest(family=family, bad=bad),
-                    self.assertRaises(ValueError),
-                ):
-                    ct.contention_decision(s, self.ctx, "baseline")
-        for key in ("diskstats", "vmstat", "meminfo_kib", "loadavg"):
+                with self.subTest(family=family, bad=bad):
+                    decision = ct.contention_decision(s, self.ctx, "baseline")
+                    self.assertTrue(decision["continuation_allowed"])
+                    self.assertEqual(
+                        decision["host_context_telemetry"]["disposition"],
+                        "observational-only; never blocks launch, aborts, or delays recovery",
+                    )
+                    self.assertIn(f"{family}.some", decision["host_context_telemetry"]["invalid_or_missing"])
+        for key in ("loadavg",):
             s = state()
             s.pop(key)
-            with self.subTest(key=key), self.assertRaises(ValueError):
+            self.assertTrue(ct.contention_decision(s, self.ctx, "baseline")["continuation_allowed"])
+        s = state()
+        s["meminfo_kib"].pop("MemAvailable_kib")
+        self.assertTrue(ct.contention_decision(s, self.ctx, "baseline")["continuation_allowed"])
+        s = state()
+        s.pop("io_pressure")
+        self.assertTrue(ct.contention_decision(s, self.ctx, "baseline")["continuation_allowed"])
+        for key in ("diskstats", "vmstat", "meminfo_kib"):
+            s = state()
+            s.pop(key)
+            with self.subTest(required_safety_or_attribution=key), self.assertRaises(ValueError):
                 ct.contention_decision(s, self.ctx, "baseline")
 
     def test_no_ambient_or_cross_operation_override(self):
@@ -1428,6 +1551,14 @@ class ContentionPolicyTests(unittest.TestCase):
         s = state()
         s["io_pressure"]["full"]["avg10"] = float("nan")
         summary, _, killed = self.run_watchdog(s)
+        self.assertIsNone(summary["abort"])
+        self.assertFalse(killed)
+        self.root = self.root / "third"
+        self.root.mkdir()
+        self.ctx = context(self.root)
+        s = state()
+        s["vmstat"].pop("oom_kill")
+        summary, _, killed = self.run_watchdog(s)
         self.assertEqual(summary["abort"]["reason"], "required_telemetry_missing")
         self.assertTrue(killed)
 
@@ -1568,7 +1699,8 @@ class ContentionPolicyTests(unittest.TestCase):
             self.assertTrue(aa.runner.preflight("baseline", self.ctx))
         receipt = json.loads((pair / "baseline/preflight.json").read_text())
         self.assertEqual(receipt["status"], "OPERATION_READY_EXPLORATORY")
-        self.assertEqual(len(receipt["resource_guard_failures"]), 4)
+        self.assertEqual(len(receipt["resource_guard_failures"]), 1)
+        self.assertEqual(len(receipt["diagnostic_decision"]["historical_guard_failures"]), 4)
         self.assertTrue(receipt["diagnostic_decision"]["continuation_allowed"])
 
     def test_contained_preflight_capacity_failure_prevents_any_launch(self):
@@ -1580,7 +1712,7 @@ class ContentionPolicyTests(unittest.TestCase):
         cgroot.mkdir()
         (cgroot / "cgroup.controllers").write_text("cpu memory pids")
         s = state()
-        s["meminfo_kib"]["MemAvailable_kib"] = 0
+        s["resource_root_free_bytes"] = 0
         binary = pathlib.Path(os.environ["M4_AA_BINARY"])
         with (
             mock.patch.object(ct, "CGROOT", cgroot),

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 
@@ -80,9 +81,26 @@ Status SyncDir(const std::string& path) {
   const size_t slash = path.find_last_of('/');
   const std::string dir = slash == std::string::npos ? "." : path.substr(0, slash);
   const int dfd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY);
-  if (dfd < 0) return Status::OK();  // best effort
-  ::fsync(dfd);
+  if (dfd < 0) {
+    return Status::Error("open directory for fsync " + dir + ": " +
+                         std::strerror(errno));
+  }
+  const char* fault = std::getenv("M4_FAULT");
+  int result = 0;
+  if (fault && std::strcmp(fault, "segment_directory_fsync") == 0) {
+    errno = EIO;
+    result = -1;
+  } else {
+    do {
+      result = ::fsync(dfd);
+    } while (result != 0 && errno == EINTR);
+  }
+  const int saved_errno = errno;
   ::close(dfd);
+  if (result != 0) {
+    return Status::Error("fsync directory " + dir + ": " +
+                         std::strerror(saved_errno));
+  }
   return Status::OK();
 }
 
@@ -93,8 +111,24 @@ Status AtomicWriteFile(const std::string& path, const std::string& data) {
     return Status::Error("open " + tmp + ": " + std::strerror(errno));
   }
   Status s = WriteAll(fd, data.data(), data.size());
-  if (s.ok) ::fsync(fd);
-  ::close(fd);
+  if (s.ok) {
+    const char* fault = std::getenv("M4_FAULT");
+    int sync_result = 0;
+    if (fault && std::strcmp(fault, "segment_file_fsync") == 0) {
+      errno = EIO;
+      sync_result = -1;
+    } else {
+      do {
+        sync_result = ::fsync(fd);
+      } while (sync_result != 0 && errno == EINTR);
+    }
+    if (sync_result != 0) {
+      s = Status::Error("fsync " + tmp + ": " + std::strerror(errno));
+    }
+  }
+  if (::close(fd) != 0 && s.ok) {
+    s = Status::Error("close " + tmp + ": " + std::strerror(errno));
+  }
   if (!s.ok) {
     ::unlink(tmp.c_str());
     return s;

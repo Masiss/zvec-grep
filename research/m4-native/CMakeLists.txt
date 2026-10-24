@@ -7,6 +7,12 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+find_path(M4_LZ4_INCLUDE_DIR lz4.h)
+find_library(M4_LZ4_LIBRARY NAMES lz4)
+if(NOT M4_LZ4_INCLUDE_DIR OR NOT M4_LZ4_LIBRARY)
+  message(FATAL_ERROR "LZ4 headers and library are required for the M4 WAL codec")
+endif()
+
 add_library(m4_research STATIC
   src/index.cc
   src/format.cc
@@ -17,6 +23,8 @@ target_include_directories(m4_research
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_compile_options(m4_research PRIVATE -Wall -Wextra)
+target_include_directories(m4_research PRIVATE ${M4_LZ4_INCLUDE_DIR})
+target_link_libraries(m4_research PUBLIC ${M4_LZ4_LIBRARY})
 
 # Optional compatibility mode: compile pinned native Zvec tokenizer and
 # lowercase-filter sources while keeping M4 files and storage research-only.

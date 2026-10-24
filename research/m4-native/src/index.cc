@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <lz4.h>
 
 #include <algorithm>
 #include <atomic>
@@ -800,100 +801,214 @@ struct WalRecord {
   std::string payload;
 };
 
+constexpr uint32_t kMaxWalCompressedPayloadBytes = 8u << 20;
+
 class Wal {
- public:
+public:
   ~Wal() {
-    if (fd_ >= 0) ::close(fd_);
+    if (fd_ >= 0)
+      ::close(fd_);
   }
 
-  Status Open(const std::string& path) {
+  Status Open(const std::string &path, bool compression_lz4,
+              uint32_t lz4_acceleration) {
+    if (compression_lz4 &&
+        (lz4_acceleration == 0 ||
+         lz4_acceleration >
+             static_cast<uint32_t>(std::numeric_limits<int>::max()))) {
+      return Status::Error("invalid WAL LZ4 acceleration");
+    }
     path_ = path;
+    compression_lz4_ = compression_lz4;
+    lz4_acceleration_ = lz4_acceleration;
     fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_APPEND, 0644);
-    if (fd_ < 0) return Status::Error("open wal: " + path);
+    if (fd_ < 0)
+      return Status::Error("open wal: " + path);
     return Status::OK();
   }
 
-  Status Append(uint64_t seq, const std::string& payload, bool sync,
-                double* write_ms = nullptr, double* fsync_ms = nullptr) {
-    if (fd_ < 0) return Status::OK();
-    if (poisoned_) return Status::Error("wal requires reopen after prior I/O failure");
+  Status Append(uint64_t seq, const std::string &payload, bool sync,
+                double *write_ms = nullptr, double *fsync_ms = nullptr) {
+    if (fd_ < 0)
+      return Status::OK();
+    if (poisoned_)
+      return Status::Error("wal requires reopen after prior I/O failure");
     if (payload.size() > std::numeric_limits<uint32_t>::max()) {
       return Status::Error("wal record exceeds format limit");
     }
-    struct stat before {};
+    struct stat before{};
     if (::fstat(fd_, &before) != 0) {
       poisoned_ = true;
       return Status::Error("wal stat before append failed");
     }
+    const uint32_t checksum = static_cast<uint32_t>(
+        Fnv1a(payload.data(), payload.size()) & 0xffffffffu);
+    std::string compressed;
+    bool use_compressed = false;
+    if (compression_lz4_ && payload.size() <= kMaxWalCompressedPayloadBytes) {
+      lz4_attempts_.fetch_add(1, std::memory_order_relaxed);
+      lz4_attempted_input_bytes_.fetch_add(payload.size(),
+                                           std::memory_order_relaxed);
+      const double compress_cpu_start = ThreadCpuMs();
+      const int source_size = static_cast<int>(payload.size());
+      const int bound = LZ4_compressBound(source_size);
+      if (bound > 0) {
+        compressed.resize(static_cast<size_t>(bound));
+        const int compressed_size = LZ4_compress_fast(
+            payload.data(), compressed.data(), source_size, bound,
+            static_cast<int>(lz4_acceleration_));
+        if (compressed_size > 0 &&
+            static_cast<size_t>(compressed_size) < payload.size()) {
+          compressed.resize(static_cast<size_t>(compressed_size));
+          use_compressed = true;
+          lz4_compressed_frames_.fetch_add(1, std::memory_order_relaxed);
+          lz4_input_bytes_.fetch_add(payload.size(), std::memory_order_relaxed);
+          lz4_output_bytes_.fetch_add(compressed.size(),
+                                      std::memory_order_relaxed);
+        } else {
+          compressed.clear();
+        }
+      }
+      const double compress_cpu_ms =
+          std::max(0.0, ThreadCpuMs() - compress_cpu_start);
+      lz4_compress_cpu_ns_.fetch_add(
+          static_cast<uint64_t>(compress_cpu_ms * 1'000'000.0),
+          std::memory_order_relaxed);
+    }
     BufWriter w;
-    w.U32(0x4D34574C);  // M4WL
-    w.U32(static_cast<uint32_t>(payload.size()));
-    w.U64(seq);
-    w.U32(static_cast<uint32_t>(Fnv1a(payload.data(), payload.size()) & 0xffffffffu));
-    w.Bytes(payload.data(), payload.size());
-    const std::string& rec = w.data();
+    if (use_compressed) {
+      w.U32(0x4D34575A); // M4WZ: LZ4 payload, length and checksum below.
+      w.U32(static_cast<uint32_t>(compressed.size()));
+      w.U64(seq);
+      w.U32(static_cast<uint32_t>(payload.size()));
+      w.U32(checksum);
+      w.Bytes(compressed.data(), compressed.size());
+    } else {
+      w.U32(0x4D34574C); // M4WL: legacy uncompressed record.
+      w.U32(static_cast<uint32_t>(payload.size()));
+      w.U64(seq);
+      w.U32(checksum);
+      w.Bytes(payload.data(), payload.size());
+    }
+    const std::string &rec = w.data();
     const double write_started = write_ms ? NowMs() : 0.0;
     size_t done = 0;
     while (done < rec.size()) {
       const ssize_t n = ::write(fd_, rec.data() + done, rec.size() - done);
       if (n < 0) {
-        if (errno == EINTR) continue;
+        if (errno == EINTR)
+          continue;
         const int saved_errno = errno;
-        if (::ftruncate(fd_, before.st_size) != 0 || (sync && ::fsync(fd_) != 0)) {
+        if (::ftruncate(fd_, before.st_size) != 0 ||
+            (sync && ::fsync(fd_) != 0)) {
           poisoned_ = true;
         }
-        return Status::Error("wal write failed: " + std::string(std::strerror(saved_errno)));
+        return Status::Error("wal write failed: " +
+                             std::string(std::strerror(saved_errno)));
       }
       if (n == 0) {
-        if (::ftruncate(fd_, before.st_size) != 0 || (sync && ::fsync(fd_) != 0)) {
+        if (::ftruncate(fd_, before.st_size) != 0 ||
+            (sync && ::fsync(fd_) != 0)) {
           poisoned_ = true;
         }
         return Status::Error("wal write made no progress");
       }
       done += static_cast<size_t>(n);
     }
-    if (write_ms) *write_ms = NowMs() - write_started;
+    wal_bytes_appended_ += rec.size();
+    if (write_ms)
+      *write_ms = NowMs() - write_started;
     if (sync) {
       const double fsync_started = fsync_ms ? NowMs() : 0.0;
       const int fsync_result = ::fsync(fd_);
-      if (fsync_ms) *fsync_ms = NowMs() - fsync_started;
+      if (fsync_ms)
+        *fsync_ms = NowMs() - fsync_started;
       if (fsync_result != 0) {
         poisoned_ = true;
-        return Status::Error("wal fsync failed: " + std::string(std::strerror(errno)));
+        return Status::Error("wal fsync failed: " +
+                             std::string(std::strerror(errno)));
       }
       ++fsync_count_;
     }
     return Status::OK();
   }
 
-  Status Replay(std::vector<WalRecord>* out) {
+  Status Sync(double* fsync_ms = nullptr) {
     if (fd_ < 0) return Status::OK();
-    struct stat st {};
-    if (::fstat(fd_, &st) != 0) return Status::Error("wal stat");
+    if (poisoned_)
+      return Status::Error("wal requires reopen after prior I/O failure");
+    const double fsync_started = fsync_ms ? NowMs() : 0.0;
+    const int result = ::fsync(fd_);
+    if (fsync_ms) *fsync_ms = NowMs() - fsync_started;
+    if (result != 0) {
+      const int saved_errno = errno;
+      poisoned_ = true;
+      return Status::Error("wal fsync failed: " +
+                           std::string(std::strerror(saved_errno)));
+    }
+    ++fsync_count_;
+    return Status::OK();
+  }
+
+  Status Replay(std::vector<WalRecord> *out) {
+    if (fd_ < 0)
+      return Status::OK();
+    struct stat st{};
+    if (::fstat(fd_, &st) != 0)
+      return Status::Error("wal stat");
     std::string bytes(static_cast<size_t>(st.st_size), '\0');
     size_t done = 0;
     while (done < bytes.size()) {
       const ssize_t n = ::pread(fd_, bytes.data() + done, bytes.size() - done,
                                 static_cast<off_t>(done));
-      if (n <= 0) break;
+      if (n <= 0)
+        break;
       done += static_cast<size_t>(n);
     }
     bytes.resize(done);
     size_t off = 0;
     while (off + 20 <= bytes.size()) {
       BufReader r(bytes.data() + off, bytes.size() - off);
-      if (r.U32() != 0x4D34574C) break;
+      const uint32_t magic = r.U32();
       const uint32_t len = r.U32();
       const uint64_t seq = r.U64();
-      const uint32_t crc = r.U32();
-      if (len > bytes.size() - off - 20) break;
-      const char* payload = bytes.data() + off + 20;
-      if ((Fnv1a(payload, len) & 0xffffffffu) != crc) break;
+      uint32_t original_len = len;
+      uint32_t crc = 0;
+      size_t header_size = 20;
+      if (magic == 0x4D34574C) { // Legacy M4WL.
+        crc = r.U32();
+      } else if (magic == 0x4D34575A) { // M4WZ: LZ4 payload.
+        if (off + 24 > bytes.size())
+          break;
+        original_len = r.U32();
+        crc = r.U32();
+        header_size = 24;
+      } else {
+        break;
+      }
+      if (len > bytes.size() - off - header_size)
+        break;
+      const char *encoded = bytes.data() + off + header_size;
       WalRecord rec;
       rec.seq = seq;
-      rec.payload.assign(payload, len);
+      if (magic == 0x4D34575A) {
+        if (len > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+            original_len > kMaxWalCompressedPayloadBytes) {
+          break;
+        }
+        rec.payload.resize(original_len);
+        const int decoded = LZ4_decompress_safe(encoded, rec.payload.data(),
+                                                static_cast<int>(len),
+                                                static_cast<int>(original_len));
+        if (decoded < 0 || static_cast<uint32_t>(decoded) != original_len)
+          break;
+      } else {
+        rec.payload.assign(encoded, len);
+      }
+      if ((Fnv1a(rec.payload.data(), rec.payload.size()) & 0xffffffffu) != crc)
+        break;
       out->push_back(std::move(rec));
-      off += 20 + len;
+      off += header_size + len;
     }
     if (off != bytes.size()) {
       // Drop only the invalid/torn suffix, preserving every complete frame.
@@ -907,17 +1022,39 @@ class Wal {
   }
 
   Status Reset() {
-    if (fd_ < 0) return Status::OK();
-    if (::ftruncate(fd_, 0) != 0) return Status::Error("wal truncate");
+    if (fd_ < 0)
+      return Status::OK();
+    if (::ftruncate(fd_, 0) != 0)
+      return Status::Error("wal truncate");
     ::lseek(fd_, 0, SEEK_SET);
     return Status::OK();
   }
 
   uint64_t fsync_count() const { return fsync_count_; }
+  uint64_t bytes_appended() const { return wal_bytes_appended_; }
+  uint64_t lz4_attempts() const { return lz4_attempts_.load(std::memory_order_relaxed); }
+  uint64_t lz4_attempted_input_bytes() const {
+    return lz4_attempted_input_bytes_.load(std::memory_order_relaxed);
+  }
+  uint64_t lz4_compressed_frames() const {
+    return lz4_compressed_frames_.load(std::memory_order_relaxed);
+  }
+  uint64_t lz4_input_bytes() const {
+    return lz4_input_bytes_.load(std::memory_order_relaxed);
+  }
+  uint64_t lz4_output_bytes() const {
+    return lz4_output_bytes_.load(std::memory_order_relaxed);
+  }
+  double lz4_compress_cpu_ms() const {
+    return static_cast<double>(lz4_compress_cpu_ns_.load(
+               std::memory_order_relaxed)) /
+           1'000'000.0;
+  }
 
   uint64_t size() const {
-    if (fd_ < 0) return 0;
-    struct stat st {};
+    if (fd_ < 0)
+      return 0;
+    struct stat st{};
     if (::fstat(fd_, &st) != 0) return 0;
     return static_cast<uint64_t>(st.st_size);
   }
@@ -927,9 +1064,39 @@ class Wal {
   int fd_{-1};
   bool poisoned_{false};
   uint64_t fsync_count_{0};
+  uint64_t wal_bytes_appended_{0};
+  bool compression_lz4_{false};
+  uint32_t lz4_acceleration_{1};
+  std::atomic<uint64_t> lz4_attempts_{0};
+  std::atomic<uint64_t> lz4_attempted_input_bytes_{0};
+  std::atomic<uint64_t> lz4_compressed_frames_{0};
+  std::atomic<uint64_t> lz4_input_bytes_{0};
+  std::atomic<uint64_t> lz4_output_bytes_{0};
+  std::atomic<uint64_t> lz4_compress_cpu_ns_{0};
 };
 
 // ----------------------------- Manifest I/O ------------------------------
+
+Status SyncDirectory(const std::string& path) {
+  const size_t slash = path.find_last_of('/');
+  const std::string dir = slash == std::string::npos ? "." : path.substr(0, slash);
+  const int fd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY);
+  if (fd < 0) return Status::Error("open directory for fsync " + dir + ": " + std::strerror(errno));
+  const char* fault = std::getenv("M4_FAULT");
+  int result = 0;
+  if (fault && std::strcmp(fault, "manifest_directory_fsync") == 0) {
+    errno = EIO;
+    result = -1;
+  } else {
+    do {
+      result = ::fsync(fd);
+    } while (result != 0 && errno == EINTR);
+  }
+  const int saved_errno = errno;
+  ::close(fd);
+  if (result != 0) return Status::Error("fsync directory " + dir + ": " + std::strerror(saved_errno));
+  return Status::OK();
+}
 
 Status AtomicWrite(const std::string& path, const std::string& data) {
   const std::string tmp = path + ".tmp." + std::to_string(::getpid());
@@ -946,8 +1113,24 @@ Status AtomicWrite(const std::string& path, const std::string& data) {
     }
     done += static_cast<size_t>(n);
   }
-  if (s.ok) ::fsync(fd);
-  ::close(fd);
+  if (s.ok) {
+    const char* fault = std::getenv("M4_FAULT");
+    int sync_result = 0;
+    if (fault && std::strcmp(fault, "metadata_file_fsync") == 0) {
+      errno = EIO;
+      sync_result = -1;
+    } else {
+      do {
+        sync_result = ::fsync(fd);
+      } while (sync_result != 0 && errno == EINTR);
+    }
+    if (sync_result != 0) {
+      s = Status::Error("fsync " + tmp + ": " + std::strerror(errno));
+    }
+  }
+  if (::close(fd) != 0 && s.ok) {
+    s = Status::Error("close " + tmp + ": " + std::strerror(errno));
+  }
   if (!s.ok) {
     ::unlink(tmp.c_str());
     return s;
@@ -967,6 +1150,7 @@ Status WriteManifest(const std::string& dir, const Manifest& m) {
     fs::copy_file(path, path + ".bak", fs::copy_options::overwrite_existing, ec);
   }
   Status s = AtomicWrite(path, EncodeManifest(m));
+  if (s.ok) s = SyncDirectory(path);
   if (s.ok) {
     // Make .bak a duplicate of the committed manifest. A later compaction may
     // delete the old run files, so .bak must never point at a superseded set.
@@ -1619,6 +1803,12 @@ class Index::Impl {
     return total;
   }
 
+  Status WriterGroupHealth() const {
+    if (!writer_group_reopen_required_) return Status::OK();
+    return Status::Error(
+        "writer group has an uncertain durable/apply outcome; reopen required");
+  }
+
   Status QueueUpsert(const std::string& pk, const Document& doc,
                      WriteDiagnostics* diagnostics) {
     const bool capture = diagnostics && diagnostics->capture_timing;
@@ -1666,6 +1856,223 @@ class Index::Impl {
     return status;
   }
 
+  std::vector<Status> ApplyUpsertRecordsGroup(
+      const std::vector<Mutation>& mutations) {
+    auto fail_all = [&](const Status& status) {
+      return std::vector<Status>(mutations.size(), status);
+    };
+    if (mutations.empty()) return {};
+    if (!options_.wal_enabled || !options_.fsync_wal) {
+      std::unique_lock<std::recursive_mutex> state_lock(mutex_);
+      const Status healthy = WriterGroupHealth();
+      if (!healthy.ok) return fail_all(healthy);
+      std::vector<Status> results(mutations.size(), Status::OK());
+      for (size_t i = 0; i < mutations.size(); ++i) {
+        results[i] = UpsertDirect(mutations[i].pk, mutations[i].document, nullptr);
+          if (!results[i].ok) {
+          writer_group_reopen_required_ = true;
+          const Status stopped = Status::Error(
+              "writer group stopped after an Upsert failure; reopen required: " +
+              results[i].message);
+          results[i] = stopped;
+          for (size_t j = i + 1; j < mutations.size(); ++j) results[j] = stopped;
+          break;
+        }
+      }
+      return results;
+    }
+    if (mutations.size() > 256) {
+      return fail_all(Status::Error("writer group exceeds 256 Upserts"));
+    }
+
+    std::vector<Document> normalized;
+    normalized.reserve(mutations.size());
+    for (const Mutation& mutation : mutations) {
+      if (mutation.kind != MutationKind::UPSERT) {
+        return fail_all(Status::Error(
+            "per-Upsert writer group accepts only Upsert mutations"));
+      }
+      normalized.push_back(NormalizeDocument(mutation.document));
+    }
+
+    std::unique_lock<std::recursive_mutex> state_lock(mutex_);
+    const Status healthy = WriterGroupHealth();
+    if (!healthy.ok) return fail_all(healthy);
+    std::unordered_map<std::string, DocId> staged_ids;
+    std::vector<std::string> records;
+    records.reserve(mutations.size());
+    uint64_t staged_next_id = next_doc_id_;
+    size_t encoded_bytes = 0;
+    auto current_id = [&](const std::string& pk) {
+      const auto it = staged_ids.find(pk);
+      return it == staged_ids.end() ? LookupPk(pk) : it->second;
+    };
+    for (size_t i = 0; i < mutations.size(); ++i) {
+      if (staged_next_id == std::numeric_limits<uint64_t>::max()) {
+        return fail_all(Status::Error("DocId space exhausted"));
+      }
+      const uint64_t old_id = current_id(mutations[i].pk);
+      const uint64_t new_id = staged_next_id++;
+      const Document& document = normalized[i];
+      BufWriter record;
+      record.U8(1);  // one legacy, independently replayable Upsert frame
+      record.U64(old_id);
+      record.U64(new_id);
+      record.String(mutations[i].pk);
+      record.String(document.text);
+      record.Varint(document.values.size());
+      for (const auto& value : document.values) {
+        record.String(value.field);
+        record.String(value.value);
+      }
+      encoded_bytes += record.data().size();
+      if (encoded_bytes > kWriterGroupCommitMaxBytes) {
+        return fail_all(Status::Error("writer group exceeds 6 MiB encoded limit"));
+      }
+      records.push_back(record.data());
+      staged_ids[mutations[i].pk] = new_id;
+    }
+
+    const char* fault = std::getenv("M4_FAULT");
+    if (fault && std::string(fault) == "writer_group_before_wal") {
+      return fail_all(Status::Error("injected fault before writer-group WAL append"));
+    }
+
+    size_t appended = 0;
+    std::vector<uint64_t> sequences;
+    sequences.reserve(records.size());
+    Status append_failure = Status::OK();
+    for (const std::string& record : records) {
+      if (fault && std::string(fault) == "writer_group_append_error_after_first" &&
+          appended == 1) {
+        append_failure = Status::Error("injected writer-group append failure");
+        break;
+      }
+      if (next_wal_seq_ == std::numeric_limits<uint64_t>::max()) {
+        append_failure = Status::Error("WAL sequence space exhausted");
+        break;
+      }
+      const uint64_t seq = next_wal_seq_;
+      Status status = options_.wal_enabled
+                          ? wal_.Append(seq, record, false)
+                          : Status::OK();
+      if (!status.ok) {
+        append_failure = status;
+        break;
+      }
+      ++next_wal_seq_;
+      sequences.push_back(seq);
+      ++appended;
+    }
+
+    if (appended > 0 && options_.wal_enabled && options_.fsync_wal) {
+      if (fault && std::string(fault) == "writer_group_before_wal_sync") {
+        ::_exit(92);
+      }
+      if (fault && std::string(fault) == "writer_group_fsync_error") {
+        writer_group_reopen_required_ = true;
+        return fail_all(Status::Error(
+            "writer-group fsync failed; durable outcome uncertain, reopen required: injected"));
+      }
+      const Status sync_status = wal_.Sync();
+      if (!sync_status.ok) {
+        writer_group_reopen_required_ = true;
+        return fail_all(Status::Error(
+            "writer-group fsync failed; durable outcome uncertain, reopen required: " +
+            sync_status.message));
+      }
+      if (fault && std::string(fault) == "writer_group_after_wal_sync") {
+        ::_exit(90);
+      }
+    }
+    if (appended == 0) {
+      writer_group_reopen_required_ = !append_failure.ok;
+      if (!append_failure.ok) {
+        return fail_all(Status::Error(
+            "writer-group WAL append failed; reopen required: " +
+            append_failure.message));
+      }
+      return fail_all(append_failure);
+    }
+
+    Status barrier_status = WaitForTestWalApplyBarrier();
+    if (!barrier_status.ok) {
+      writer_group_reopen_required_ = true;
+      return fail_all(Status::Error(
+          "writer group is durable but not applied; reopen required: " +
+          barrier_status.message));
+    }
+
+    std::vector<Status> results(mutations.size(), Status::OK());
+    if (!append_failure.ok) writer_group_reopen_required_ = true;
+    for (size_t i = 0; i < appended; ++i) {
+      // A flush during sequential application may checkpoint this prefix.
+      // Never advertise later, durable-but-unapplied frames as included in
+      // the manifest's durable WAL sequence.
+      last_wal_seq_ = sequences[i];
+      Status status;
+      {
+        std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
+        status = ReplayWalPayload(records[i]);
+      }
+      if (!status.ok) {
+        writer_group_reopen_required_ = true;
+        const Status stopped = Status::Error(
+            "writer-group record is durable but apply/flush failed; reopen required: " +
+            status.message);
+        for (size_t j = i; j < mutations.size(); ++j) results[j] = stopped;
+        return results;
+      }
+      if (i == 0) {
+        if (fault && std::string(fault) ==
+                         "writer_group_apply_error_after_first") {
+          writer_group_reopen_required_ = true;
+          for (size_t j = 1; j < mutations.size(); ++j) {
+            results[j] = Status::Error(
+                "writer-group suffix is durable but not yet applied; reopen required: injected");
+          }
+          return results;
+        }
+        Status step_status = WaitForTestWriterGroupStepBarrier();
+        if (!step_status.ok) {
+          writer_group_reopen_required_ = true;
+          const Status stopped = Status::Error(
+              "writer group is durable but partially applied; reopen required: " +
+              step_status.message);
+          for (size_t j = 1; j < mutations.size(); ++j) results[j] = stopped;
+          return results;
+        }
+        if (fault && std::string(fault) == "writer_group_after_first_apply") {
+          ::_exit(91);
+        }
+      }
+    }
+    // Defer auto-flush until every appended record has been applied. A flush
+    // resets the entire WAL, so doing it mid-group could discard later frames
+    // that are already durable but not yet represented in the live snapshot.
+    Status flush_status;
+    {
+      std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(query_mutex_);
+      flush_status = MaybeAutoFlush(&query_guard);
+    }
+    if (!flush_status.ok) {
+      writer_group_reopen_required_ = true;
+      const Status stopped = Status::Error(
+          "writer group is durable but auto-flush failed; reopen required: " +
+          flush_status.message);
+      return std::vector<Status>(mutations.size(), stopped);
+    }
+    if (!append_failure.ok) {
+      const Status suffix_failure = Status::Error(
+          "writer-group WAL append stopped after a durable prefix; reopen required: " +
+          append_failure.message);
+      for (size_t i = appended; i < mutations.size(); ++i) {
+        results[i] = suffix_failure;
+      }
+    }
+    return results;
+  }
+
   void WriterQueueLoop() {
     for (;;) {
       std::vector<std::shared_ptr<QueuedUpsert>> group;
@@ -1706,8 +2113,17 @@ class Index::Impl {
         mutations.push_back(Mutation{MutationKind::UPSERT, *request->pk,
                                      *request->document});
       }
-      const Status status = ApplyBatch(mutations);
-      for (const auto& request : group) request->completion.set_value(status);
+      if (options_.writer_group_commit_per_upsert_records) {
+        const std::vector<Status> statuses = ApplyUpsertRecordsGroup(mutations);
+        for (size_t i = 0; i < group.size(); ++i) {
+          group[i]->completion.set_value(i < statuses.size()
+                                             ? statuses[i]
+                                             : Status::Error("missing writer-group status"));
+        }
+      } else {
+        const Status status = ApplyBatch(mutations);
+        for (const auto& request : group) request->completion.set_value(status);
+      }
     }
   }
 
@@ -1873,8 +2289,10 @@ class Index::Impl {
       StatsState empty;
       const auto ckpt = fs::path(dir_) / StatsCkptName(1);
       const auto log = fs::path(dir_) / StatsLogName(1);
-      AtomicWrite(ckpt.string(), EncodeStatsCkpt(empty));
-      AtomicWrite(log.string(), "");
+      Status initial_status = AtomicWrite(ckpt.string(), EncodeStatsCkpt(empty));
+      if (!initial_status.ok) return initial_status;
+      initial_status = AtomicWrite(log.string(), "");
+      if (!initial_status.ok) return initial_status;
       const Status manifest_status = WriteManifest(dir_, manifest_);
       if (!manifest_status.ok) return manifest_status;
     }
@@ -1982,7 +2400,9 @@ class Index::Impl {
     stage_started = Clock::now();
     stage_cpu_started = ThreadCpuMs();
     {
-      Status s = wal_.Open((fs::path(dir_) / "wal.log").string());
+      Status s = wal_.Open((fs::path(dir_) / "wal.log").string(),
+                           options_.wal_compression_lz4,
+                           options_.wal_lz4_acceleration);
       if (!s.ok) return s;
       std::vector<WalRecord> records;
       s = wal_.Replay(&records);
@@ -2059,6 +2479,8 @@ class Index::Impl {
       cpu_start = ThreadCpuMs();
     }
     std::unique_lock<std::recursive_mutex> lock(mutex_);
+    const Status healthy = WriterGroupHealth();
+    if (!healthy.ok) return healthy;
     if (capture) {
       diagnostics->state_mutex_wait_ms = NowMs() - wall_start;
       diagnostics->state_mutex_wait_cpu_ms = ThreadCpuMs() - cpu_start;
@@ -2155,6 +2577,8 @@ class Index::Impl {
 
   Status Delete(const std::string& pk) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const Status healthy = WriterGroupHealth();
+    if (!healthy.ok) return healthy;
     const uint64_t id = LookupPk(pk);
     if (id == 0) return Status::OK();
     BufWriter w;
@@ -2220,6 +2644,8 @@ class Index::Impl {
     const double state_wait_wall = capture ? NowMs() : 0.0;
     const double state_wait_cpu = capture ? ThreadCpuMs() : 0.0;
     std::unique_lock<std::recursive_mutex> lock(mutex_);
+    const Status healthy = WriterGroupHealth();
+    if (!healthy.ok) return healthy;
     if (capture) {
       diagnostics->state_mutex_wait_ms = NowMs() - state_wait_wall;
       diagnostics->state_mutex_wait_cpu_ms =
@@ -2384,6 +2810,8 @@ class Index::Impl {
       diagnostics->query_mutex_wait_ms = NowMs() - query_wait_wall;
       diagnostics->query_mutex_wait_cpu_ms = ThreadCpuMs() - query_wait_cpu;
     }
+    const Status healthy = WriterGroupHealth();
+    if (!healthy.ok) return healthy;
     if (!pending_flush_) return Status::OK();
     const double flush_wall = capture ? NowMs() : 0.0;
     const double flush_cpu = capture ? ThreadCpuMs() : 0.0;
@@ -2604,6 +3032,8 @@ class Index::Impl {
       diagnostics->query_mutex_wait_ms = NowMs() - query_wait_wall;
       diagnostics->query_mutex_wait_cpu_ms = ThreadCpuMs() - query_wait_cpu;
     }
+    const Status healthy = WriterGroupHealth();
+    if (!healthy.ok) return healthy;
     const bool defer_rebase_flush =
         allow_concurrent_rebase && options_.wal_enabled;
     const double flush_wall = capture ? NowMs() : 0.0;
@@ -3149,7 +3579,14 @@ class Index::Impl {
     s.live_tokens = stats_.live_tokens;
     s.dead_docs = tombstones_.size();
     s.runs = runs_.size();
+    s.wal_bytes_appended = wal_.bytes_appended();
     s.wal_fsyncs = wal_.fsync_count();
+    s.wal_lz4_attempts = wal_.lz4_attempts();
+    s.wal_lz4_attempted_input_bytes = wal_.lz4_attempted_input_bytes();
+    s.wal_lz4_compressed_frames = wal_.lz4_compressed_frames();
+    s.wal_lz4_input_bytes = wal_.lz4_input_bytes();
+    s.wal_lz4_output_bytes = wal_.lz4_output_bytes();
+    s.wal_lz4_compress_cpu_ms = wal_.lz4_compress_cpu_ms();
     s.fsyncs = fsyncs_;
     s.compactions = compactions_;
     s.compacted_docs = compacted_docs_;
@@ -3200,6 +3637,31 @@ class Index::Impl {
     if (delta_docs_.size() >= options_.max_delta_docs ||
         delta_bytes_ >= options_.max_delta_bytes) {
       return FlushInternal(*query_guard);
+    }
+    return Status::OK();
+  }
+
+  Status WaitForTestWriterGroupStepBarrier() const {
+    const char* barrier_dir =
+        std::getenv("M4_TEST_WRITER_GROUP_STEP_BARRIER");
+    if (!barrier_dir || !*barrier_dir) return Status::OK();
+    const fs::path barrier(barrier_dir);
+    std::error_code ec;
+    fs::create_directories(barrier, ec);
+    if (ec) return Status::Error("create writer-group test barrier: " + ec.message());
+    {
+      std::ofstream applied(barrier / "first-upsert-applied", std::ios::binary);
+      if (!applied) return Status::Error("write writer-group test barrier marker");
+      applied << "applied";
+    }
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(5);
+    while (!fs::exists(barrier / "continue", ec)) {
+      if (ec) return Status::Error("check writer-group test barrier: " + ec.message());
+      if (std::chrono::steady_clock::now() >= deadline) {
+        return Status::Error("writer-group test barrier timed out");
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return Status::OK();
   }
@@ -3730,10 +4192,49 @@ class Index::Impl {
       }
       before.st_size = static_cast<off_t>(stats_log_end_);
     }
+    std::vector<StatsEvent> coalesced_events;
+    bool use_coalesced_events = false;
+    size_t append_begin = pending_events_appended_count_;
+    if (options_.coalesce_stats_events) {
+      std::map<std::pair<StatsEvent::Kind, std::string>, int64_t> deltas;
+      bool overflow = false;
+      for (size_t i = append_begin; i < pending_events_.size(); ++i) {
+        const auto& event = pending_events_[i];
+        auto& delta = deltas[{event.kind, event.term}];
+        if ((event.delta > 0 &&
+             delta > std::numeric_limits<int64_t>::max() - event.delta) ||
+            (event.delta < 0 &&
+             delta < std::numeric_limits<int64_t>::min() - event.delta)) {
+          overflow = true;
+          break;
+        }
+        delta += event.delta;
+      }
+      if (!overflow) {
+        coalesced_events.reserve(deltas.size());
+        for (const auto& [key, delta] : deltas) {
+          if (delta == 0) continue;
+          coalesced_events.push_back({key.first, key.second, delta});
+        }
+        use_coalesced_events = true;
+      }
+    }
+
+    const std::vector<StatsEvent>* events = &pending_events_;
+    if (use_coalesced_events) {
+      if (coalesced_events.empty()) {
+        pending_events_appended_count_ = pending_events_.size();
+        if (stats_log_end_ >= options_.stats_log_threshold) {
+          return CheckpointStats();
+        }
+        return Status::OK();
+      }
+      events = &coalesced_events;
+      append_begin = 0;
+    }
     BufWriter w;
-    for (size_t i = pending_events_appended_count_;
-         i < pending_events_.size(); ++i) {
-      const auto& e = pending_events_[i];
+    for (size_t i = append_begin; i < events->size(); ++i) {
+      const auto& e = (*events)[i];
       BufWriter payload;
       EncodeStatsEvent(&payload, e);
       w.U32(0x4D345354);
@@ -5061,6 +5562,7 @@ class Index::Impl {
   std::deque<std::shared_ptr<QueuedUpsert>> writer_queue_;
   std::thread writer_queue_thread_;
   bool writer_queue_stopping_{false};
+  bool writer_group_reopen_required_{false};
   mutable detail::WriterPreferredSharedMutex query_mutex_;
   mutable std::recursive_mutex mutex_;
   mutable std::mutex filter_cache_mutex_;
@@ -5125,7 +5627,9 @@ Status Index::Open(const std::string& directory, const Options& options,
   if (diagnostics) *diagnostics = OpenDiagnostics{};
   if (options.writer_group_commit_max_batch_size == 1 ||
       options.writer_group_commit_max_batch_size > 256 ||
-      options.writer_group_commit_max_delay_us > 50000) {
+      options.writer_group_commit_max_delay_us > 50000 ||
+      (options.writer_group_commit_per_upsert_records &&
+       options.writer_group_commit_max_batch_size < 2)) {
     return Status::Error("invalid writer group-commit bounds");
   }
   auto impl = std::make_unique<Impl>(directory, options);

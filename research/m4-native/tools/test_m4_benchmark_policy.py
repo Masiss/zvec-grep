@@ -66,8 +66,9 @@ class BenchmarkPolicyTests(unittest.TestCase):
                                 if name != "apply_batch"]
         for name in compaction_modes:
             batch_api = name == "apply_batch"
-            group_api = timing_schema in (8, 10, 11) and name in (
-                "group_commit", "group_commit_snapshot_rebase")
+            group_api = timing_schema in (8, 10, 11, 12) and name in (
+                "group_commit", "group_commit_snapshot_rebase",
+                "group_commit_per_upsert")
             api_calls = (workload["writers"] if include_compaction_timing and batch_api
                          else rounds)
             arm: dict[str, Any]
@@ -85,6 +86,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
                 arm["writer_group_commit_size_samples"] = [4] * api_calls
                 arm["writer_group_commit_max_batch_size"] = 4
                 arm["writer_group_commit_max_delay_us"] = 500
+                arm["writer_group_commit_per_upsert_records"] = (
+                    name == "group_commit_per_upsert")
                 arm["concurrent_wal_fsyncs"] = 8
             else:
                 arm = {key: [0.25] * api_calls for key in writer_series}
@@ -93,6 +96,7 @@ class BenchmarkPolicyTests(unittest.TestCase):
                     arm["writer_group_commit_size_samples"] = []
                     arm["writer_group_commit_max_batch_size"] = 0
                     arm["writer_group_commit_max_delay_us"] = 0
+                    arm["writer_group_commit_per_upsert_records"] = False
             if timing_schema >= 6 and not group_api:
                 arm["wal_write_samples"] = [0.01] * api_calls
                 arm["wal_fsync_samples"] = [0.01] * api_calls
@@ -100,6 +104,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
                 arm["compaction_tracked_peak_bytes"] = 1024
             if group_api:
                 arm["concurrent_wal_fsyncs"] = 8
+            elif timing_schema == 12 and name == "default":
+                arm["concurrent_wal_fsyncs"] = rounds
             arm.update({
                 "name": name,
                 "compaction_status": "ok",
@@ -152,6 +158,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
             if include_compaction_timing:
                 arm.update({
                     "writer_api": ("ApplyBatch" if batch_api else
+                                   "UpsertGroupCommitSeparateWalFrames"
+                                   if name == "group_commit_per_upsert" else
                                    "UpsertGroupCommit" if group_api else "Upsert"),
                     "writer_api_calls": api_calls,
                     "logical_upserts": rounds,
@@ -208,7 +216,7 @@ class BenchmarkPolicyTests(unittest.TestCase):
         }
         if include_compaction_timing:
             data["timing_schema_version"] = timing_schema
-            if timing_schema in (8, 9, 10, 11):
+            if timing_schema in (8, 9, 10, 11, 12):
                 data["workload_mode"] = (
                     "group_commit_pending_flush_reader_pair"
                     if workload["mode"] == "--m4-group-commit-pending-flush-reader-pair"
@@ -218,6 +226,8 @@ class BenchmarkPolicyTests(unittest.TestCase):
                     if workload["mode"] == "--m4-flush-reader-staging-pair"
                     else "writer_group_commit_snapshot_rebase"
                     if workload["mode"] == "--m4-writer-group-commit-snapshot-rebase"
+                    else "writer_group_commit_per_upsert"
+                    if workload["mode"] == "--m4-writer-group-commit-per-upsert"
                     else "writer_group_commit"
                     if workload["mode"] == "--m4-writer-group-commit"
                     else "contention")
@@ -309,6 +319,24 @@ class BenchmarkPolicyTests(unittest.TestCase):
         group["writer_group_commit_size_samples"] = [1] * len(
             group["writer_group_commit_size_samples"])
         with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
+            lock_runner.verify(result, data, contract)
+
+    def test_per_upsert_group_commit_verifier_binds_record_semantics(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=12,
+            workload_profile="writer_group_commit_per_upsert")
+        lock_runner.verify(result, data, contract)
+        self.assertEqual(data["workload_mode"],
+                         "writer_group_commit_per_upsert")
+        group = next(arm for arm in data["arms"]
+                     if arm["name"] == "group_commit_per_upsert")
+        self.assertEqual(group["writer_api"],
+                         "UpsertGroupCommitSeparateWalFrames")
+        self.assertTrue(group["writer_group_commit_per_upsert_records"])
+        control = next(arm for arm in data["arms"] if arm["name"] == "default")
+        self.assertFalse(control["writer_group_commit_per_upsert_records"])
+        group["writer_group_commit_per_upsert_records"] = False
+        with self.assertRaisesRegex(RuntimeError, "record mode metadata"):
             lock_runner.verify(result, data, contract)
 
     def test_snapshot_rebase_group_commit_verifier_checks_both_arm_contracts(self):
@@ -487,7 +515,7 @@ class BenchmarkPolicyTests(unittest.TestCase):
         markdown = (HERE.parent / "docs" / "benchmark-policy.md").read_text(encoding="utf-8")
         self.assertIn("without synchronously flushing pending deltas at publication", markdown)
 
-    def test_io_psi_is_an_operation_guard_not_universal_safety_claim(self):
+    def test_host_pressure_thresholds_are_observations_not_operation_guards(self):
         state = {
             "meminfo_kib": {"MemAvailable_kib": 5_477_762},
             "resource_root_free_bytes": 18_219_000_000,
@@ -498,10 +526,66 @@ class BenchmarkPolicyTests(unittest.TestCase):
         self.assertEqual(decisions["M4-RG-IOPSI"]["status"], "FAIL")
         self.assertEqual(decisions["M4-RG-IOPSI"]["observed"], 4.52)
         self.assertEqual(decisions["M4-RG-IOPSI"]["threshold"], 4.46)
-        self.assertIn("not a universal", decisions["M4-RG-IOPSI"]["evidence_class"])
-        self.assertIn("current arm", decisions["M4-RG-IOPSI"]["failure_scope"])
-        self.assertEqual(decisions["M4-RG-IOPSI"]["status"], "FAIL")
-        self.assertTrue(any("M4-RG-IOPSI" in reason for reason in runner.hard_gate_failures(state)))
+        self.assertIn("not a safety limit", decisions["M4-RG-IOPSI"]["evidence_class"])
+        self.assertIn("measurement context", decisions["M4-RG-IOPSI"]["failure_scope"])
+        self.assertFalse(decisions["M4-RG-IOPSI"]["enforced"])
+        self.assertIn("observation-only", decisions["M4-RG-IOPSI"]["disposition"])
+        self.assertEqual(runner.hard_gate_failures(state), [])
+        self.assertEqual(runner.legacy_hard_gate_failures(state), [])
+        state["resource_root_free_bytes"] = 0
+        self.assertTrue(any("M4-RG-DISK" in reason for reason in runner.hard_gate_failures(state)))
+        incomplete = {
+            "meminfo_kib": {"SwapFree_kib": 1024, "SwapTotal_kib": 2048},
+            "resource_root_free_bytes": 18_219_000_000,
+            "io_pressure": None,
+            "loadavg": [],
+        }
+        unknown = {item["gate_id"]: item for item in runner.resource_guard_decisions(incomplete)}
+        for gate_id in ("M4-RG-MEM", "M4-RG-IOPSI", "M4-RG-LOAD"):
+            self.assertEqual(unknown[gate_id]["status"], "UNKNOWN")
+            self.assertFalse(unknown[gate_id]["enforced"])
+        self.assertEqual(runner.hard_gate_failures(incomplete), [])
+
+    def test_write_amplification_pair_preserves_workspace_uncertainty_and_hard_containment(self):
+        contract = self.policy["immutable_write_amplification_pair"]
+        self.assertEqual(contract["purpose"], "immutable-write-amplification-pair")
+        self.assertEqual(contract["workload"]["files"], 1200)
+        self.assertEqual(contract["workload"]["runs"], 1)
+        self.assertEqual(contract["workload"]["control_arm"], "m4-batch")
+        self.assertEqual(contract["workload"]["candidate_arm"], "m4-batch")
+        self.assertEqual(contract["workload"]["control_max_total_runs"], 12)
+        self.assertEqual(contract["workload"]["candidate_max_total_runs"], 12)
+        self.assertEqual(contract["workload"]["control_max_delta_docs"], 1536)
+        self.assertEqual(contract["workload"]["candidate_max_delta_docs"], 1536)
+        self.assertEqual(contract["workload"]["control_max_runs_per_level"], 4)
+        self.assertEqual(contract["workload"]["candidate_max_runs_per_level"], 4)
+        self.assertEqual(contract["workload"]["control_stats_log_threshold"], 4 * 1024 * 1024)
+        self.assertEqual(contract["workload"]["candidate_stats_log_threshold"], 4 * 1024 * 1024)
+        self.assertEqual(contract["workload"]["control_mutation_batch_docs"], 256)
+        self.assertEqual(contract["workload"]["candidate_mutation_batch_docs"], 256)
+        self.assertFalse(contract["workload"]["control_coalesce_stats"])
+        self.assertFalse(contract["workload"]["candidate_coalesce_stats"])
+        self.assertFalse(contract["workload"]["control_wal_compression_lz4"])
+        self.assertTrue(contract["workload"]["candidate_wal_compression_lz4"])
+        self.assertEqual(contract["workload"]["control_wal_lz4_acceleration"], 1)
+        self.assertEqual(contract["workload"]["candidate_wal_lz4_acceleration"], 1)
+        acceleration_profile = contract["workload_profiles"]["lz4-acceleration-1-vs-4"]
+        self.assertTrue(acceleration_profile["control_wal_compression_lz4"])
+        self.assertTrue(acceleration_profile["candidate_wal_compression_lz4"])
+        self.assertEqual(acceleration_profile["control_wal_lz4_acceleration"], 1)
+        self.assertEqual(acceleration_profile["candidate_wal_lz4_acceleration"], 4)
+        self.assertTrue(contract["workload"]["wal_replay_probe"])
+        replay_probe = contract["wal_replay_probe_policy"]
+        self.assertIn("POSIX_FADV_DONTNEED", replay_probe["durability"])
+        self.assertIn("mincore", replay_probe["durability"])
+        self.assertIn("fully cold-machine start", replay_probe["limitation"])
+        self.assertEqual(contract["arm_orders"], [["control", "candidate"], ["candidate", "control"]])
+        self.assertIn("UNKNOWN/INCOMPLETE", contract["risk_acceptance_reference"])
+        self.assertIn("soft budgets", contract["workspace_policy"])
+        self.assertEqual(contract["resource_controls"]["memory_max_bytes"], 1024**3)
+        self.assertEqual(contract["resource_controls"]["memory_swap_max_bytes"], 256 * 1024**2)
+        self.assertEqual(contract["resource_controls"]["disk_reserve_bytes"], 18_219_000_000)
+        self.assertFalse(contract["workload"]["trace_fsync"])
 
     def test_resource_only_contract_reclassifies_load_and_host_deltas_only_in_scope(self):
         contract = self.policy["resource_only_exploratory_contract"]
@@ -511,7 +595,13 @@ class BenchmarkPolicyTests(unittest.TestCase):
         self.assertIn("OOM", contract["hard_stop_signals"])
         self.assertIn("UNKNOWN/INCOMPLETE", contract["workspace"])
         self.assertIn("never report a soft-budget observation as PASS", contract["workspace"])
-        self.assertIn("no effect on qualification", contract["scope"])
+        self.assertIn("all M4 benchmark modes", contract["scope"])
+        self.assertIn("never stop signals", contract["hard_stop_signals"])
+        self.assertIn("host_pressure_disposition", self.policy)
+        self.assertEqual(self.policy["host_pressure_disposition"]["MemAvailable"],
+                         "telemetry-only; thresholds never block launch or abort an arm")
+        self.assertIn("never blocks launch", self.policy["host_pressure_disposition"]["missing_or_invalid_host_context"])
+        self.assertIn("optional host MemAvailable/PSI/load", self.policy["host_pressure_disposition"]["actual_safety_controls"])
 
     def test_policy_separates_integrity_quality_baseline_pressure_and_correctness(self):
         self.assertEqual(self.policy["measurement_quality"]["telemetry_integrity"]["gate_id"], "M4-MQ-INTEGRITY")
