@@ -2525,6 +2525,49 @@ void TestStatsEventCoalescing(const std::string& root) {
         "legacy zero-net sequence persists stats events");
   Check(coalesced_zero_net_log_bytes == 0,
         "coalesced zero-net sequence omits all stats events");
+
+  // A crash after WAL durability but before in-memory apply must recover the
+  // complete batch with stats coalescing enabled, then persist/reopen it.
+  const std::string crash_dir = root + "/coalesced-crash-after-wal-sync";
+  fs::remove_all(crash_dir);
+  m4::Options coalesced_options;
+  coalesced_options.coalesce_stats_events = true;
+  coalesced_options.stats_log_threshold = 1ull << 30;
+  const pid_t child = ::fork();
+  if (child == 0) {
+    ::setenv("M4_FAULT", "batch_after_wal_sync", 1);
+    std::unique_ptr<Index> child_index;
+    if (!Index::Open(crash_dir, coalesced_options, &child_index).ok)
+      ::_exit(10);
+    const auto status = child_index->ApplyBatch(batch);
+    ::_exit(status.ok ? 11 : 12);
+  }
+  int child_status = 0;
+  Check(child > 0 && ::waitpid(child, &child_status, 0) == child &&
+            WIFEXITED(child_status) && WEXITSTATUS(child_status) == 86,
+        "coalesced batch crashes after WAL sync");
+
+  std::unique_ptr<Index> recovered;
+  Check(Index::Open(crash_dir, coalesced_options, &recovered).ok,
+        "coalesced batch WAL recovery open");
+  m4::SearchResult recovered_docs;
+  Check(recovered && recovered->GetStats().live_docs == batch.size() &&
+            recovered->SearchFts("sharedtoken", 200, &recovered_docs).ok &&
+            recovered_docs.hits.size() == batch.size(),
+        "coalesced crash recovery restores every durable document and term");
+  Check(recovered && recovered->Flush().ok,
+        "coalesced crash recovery flushes stats");
+  Check(recovered && recovered->GetStats().stats_log_bytes > 0,
+        "coalesced crash recovery persists nonzero stats events");
+  recovered.reset();
+
+  coalesced_options.coalesce_stats_events = false;
+  Check(Index::Open(crash_dir, coalesced_options, &recovered).ok,
+        "coalesced crash output reopens with legacy writer setting");
+  Check(recovered && recovered->GetStats().live_docs == batch.size() &&
+            recovered->SearchFts("sharedtoken", 200, &recovered_docs).ok &&
+            recovered_docs.hits.size() == batch.size(),
+        "coalesced crash output preserves stats after legacy-setting reopen");
 }
 
 void TestBoundedRuns(const std::string& dir) {
