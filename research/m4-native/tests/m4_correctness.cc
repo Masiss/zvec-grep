@@ -1413,6 +1413,37 @@ void TestLz4WalFrames(const std::string &root) {
   Check(checksum_index && checksum_index->GetStats().live_docs == 0 &&
             fs::file_size(fs::path(corrupt_dir) / "wal.log", ec) == 0,
         "invalid compressed frame is not replayed");
+
+  const std::string corrupt_suffix_dir = root + "/corrupt-compressed-suffix";
+  fs::copy(compressed_dir, corrupt_suffix_dir, fs::copy_options::recursive, ec);
+  Check(!ec, "copy compressed WAL for valid-prefix suffix test");
+  std::string good_frame;
+  {
+    std::ifstream wal(fs::path(compressed_dir) / "wal.log", std::ios::binary);
+    good_frame.assign(std::istreambuf_iterator<char>(wal),
+                      std::istreambuf_iterator<char>());
+  }
+  Check(good_frame.size() > 24, "compressed WAL fixture contains a full frame");
+  if (good_frame.size() > 24) {
+    good_frame[20] ^= 1; // Corrupt only the checksum of the duplicate suffix.
+    std::ofstream wal(fs::path(corrupt_suffix_dir) / "wal.log",
+                      std::ios::binary | std::ios::app);
+    wal.write(good_frame.data(),
+              static_cast<std::streamsize>(good_frame.size()));
+    Check(static_cast<bool>(wal), "append checksum-corrupt compressed suffix");
+  }
+  m4::Options suffix_reader_options;
+  suffix_reader_options.max_delta_docs = 100000;
+  suffix_reader_options.max_delta_bytes = 1ull << 30;
+  std::unique_ptr<Index> suffix_reader;
+  Check(
+      Index::Open(corrupt_suffix_dir, suffix_reader_options, &suffix_reader).ok,
+      "valid compressed prefix survives checksum-corrupt suffix");
+  Check(suffix_reader && suffix_reader->GetStats().live_docs == 40 &&
+            fs::file_size(fs::path(corrupt_suffix_dir) / "wal.log", ec) ==
+                compressed_size,
+        "replay preserves complete prefix and truncates only bad frame");
+  suffix_reader.reset();
   {
     std::ifstream wal(fs::path(compressed_dir) / "wal.log", std::ios::binary);
     char magic[4]{};
