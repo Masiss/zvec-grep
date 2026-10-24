@@ -216,6 +216,14 @@
         "control_wal_compression_lz4": false,
         "candidate_wal_compression_lz4": true,
         "trace_mutation_latency": true
+      },
+      "stats-coalescing-at-batch-128-full-1200": {
+        "files": 1200,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 128,
+        "candidate_coalesce_stats": true,
+        "candidate_wal_compression_lz4": false,
+        "trace_mutation_latency": true
       }
     },
     "resource_controls": {

@@ -1042,7 +1042,14 @@ int Run(const std::string& arm, const fs::path& path, uint32_t base_files,
     if (native) NativeWrite(native, initial_rows, true);
     else M4Write(*m4index, initial_rows, batch_mode);
   });
-  Measure("initial_flush", [&] { if (native) NativeFlush(native); else Require(m4index->Flush().ok, "M4 initial flush"); });
+  Measure("initial_flush", [&] {
+    if (native) {
+      NativeFlush(native);
+    } else {
+      const auto status = m4index->Flush();
+      Require(status.ok, "M4 initial flush: " + status.message);
+    }
+  });
   if (m4index && enable_debt_policy_after_base) {
     m4index.reset();
     m4_options.debt_policy_enabled = true;
@@ -1169,8 +1176,12 @@ int Run(const std::string& arm, const fs::path& path, uint32_t base_files,
     EmitLatency(stage, "freshness_lag_ms", std::chrono::duration<double, std::milli>(fresh_end - fresh_start).count());
 
     Measure(stage + "_flush_maintenance", [&] {
-      if (native) NativeFlush(native);
-      else Require(m4index->Flush().ok, "M4 burst flush");
+      if (native) {
+        NativeFlush(native);
+      } else {
+        const auto status = m4index->Flush();
+        Require(status.ok, "M4 burst flush: " + status.message);
+      }
     });
     Measure(stage + "_snapshot_validation", [&] {
       Snapshot(stage, path, files, analyzer, native, m4index);

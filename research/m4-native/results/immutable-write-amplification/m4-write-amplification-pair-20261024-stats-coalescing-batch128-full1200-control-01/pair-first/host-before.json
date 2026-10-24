@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-10-24T15:25:53.996401+00:00",
+  "label": "pair-first_before",
+  "filesystem": "/dev/mapper/cryptroot btrfs rw,relatime,ssd,space_cache=v2,subvolid=5,subvol=/",
+  "cpu_count": 20,
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "loadavg": "2.19 2.39 2.83 2/2347 1908701",
+  "mem_available_bytes": 5240029184,
+  "mem_free_bytes": 876171264,
+  "swap_free_bytes": 10908282880,
+  "cpu_pressure": "some avg10=0.00 avg60=0.00 avg300=0.02 total=1644484528\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+  "memory_pressure": "some avg10=0.00 avg60=0.07 avg300=0.12 total=1030824580\nfull avg10=0.00 avg60=0.07 avg300=0.12 total=961066972",
+  "io_pressure": "some avg10=2.15 avg60=2.13 avg300=2.08 total=5712564770\nfull avg10=1.86 avg60=1.84 avg300=1.83 total=5038449919",
+  "disk": {
+    "total_bytes": 493838401536,
+    "used_bytes": 464725807104,
+    "free_bytes": 26838659072,
+    "device": 78
+  },
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "top_processes": [
+    "    PID COMMAND         %CPU %MEM   RSS COMMAND",
+    "1908675 python3         86.9  0.2 46408 python3 research/m4-native/tests/profile_native_m4_paired.py --workload-profile stats-coalescing-at-batch-128-full-1200 --binary /home/masis/src/zvec-grep/research/m4-native/.work/build/writer-group-commit-prototype/native_m4_paired_benchmark --dictionary /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict --root /home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-stats-coalescing-batch128-full1200-control-01 --arm-order control-first",
+    "1380453 zen-bin         21.7  3.9 635228 /opt/zen-browser-bin/zen-bin",
+    "1703480 pi              14.7  2.1 348300 pi",
+    " 500502 pi              11.0  5.3 865800 pi",
+    "1381107 Web Content     10.8  4.8 778748 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:37453 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {573cec63-5844-4230-9a1c-25615fba2f90} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 7 tab",
+    " 572566 opencode         9.6  1.5 247200 opencode",
+    "1381162 WebExtensions    8.9  3.3 545440 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:46174 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {ccdcbe44-2735-4811-86a0-270aa9e3f90b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 8 tab",
+    "1382052 Web Content      6.2  4.9 802280 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:54767 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {bd92fdb6-db25-4ca8-86c4-3eb5137f1f7b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 10 tab",
+    "1726350 claude           6.0  1.6 267848 claude",
+    "1633949 claude           5.1  1.4 231332 claude --resume",
+    "1536638 opengrep-core    4.5  1.1 185996 opengrep-cli lsp --experimental",
+    "   2011 Hyprland         4.4  0.3 62212 Hyprland --watchdog-fd 4"
+  ],
+  "resource_guard_observations": {
+    "MemAvailable_kib_min": {
+      "observed": 5117216.0,
+      "threshold": 5477762,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "var_tmp_bytes_min": {
+      "observed": 26838659072,
+      "threshold": 18219000000,
+      "status": "PASS",
+      "disposition": "enforced_retained_disk_reserve"
+    },
+    "io_full_avg10_max": {
+      "observed": 1.86,
+      "threshold": 4.46,
+      "status": "PASS",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "load1_max": {
+      "observed": 2.19,
+      "threshold": 3.14,
+      "status": "PASS",
+      "disposition": "telemetry_only_never_blocks"
+    }
+  }
+}
