@@ -121,15 +121,18 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
 
     def test_lz4_compression_profiles_isolate_batch_size_interaction(self):
         standard = profiler.write_amp_workload_profile('standard')
-        for name, batch_docs, expected_changes in (
-            ('lz4-compression-at-batch-128', 128,
+        for name, batch_docs, files, expected_changes in (
+            ('lz4-compression-at-batch-128', 128, 600,
              {'files', 'control_mutation_batch_docs', 'candidate_mutation_batch_docs',
               'trace_mutation_latency'}),
-            ('lz4-compression-at-batch-256', 256, {'files', 'trace_mutation_latency'}),
+            ('lz4-compression-at-batch-256', 256, 600, {'files', 'trace_mutation_latency'}),
+            ('lz4-compression-at-batch-128-full-1200', 128, 1200,
+             {'control_mutation_batch_docs', 'candidate_mutation_batch_docs',
+              'trace_mutation_latency'}),
         ):
             with self.subTest(profile=name):
                 workload = profiler.write_amp_workload_profile(name)
-                self.assertEqual(workload['files'], 600)
+                self.assertEqual(workload['files'], files)
                 self.assertEqual(workload['control_mutation_batch_docs'], batch_docs)
                 self.assertEqual(workload['candidate_mutation_batch_docs'], batch_docs)
                 self.assertFalse(workload['control_wal_compression_lz4'])
@@ -163,10 +166,10 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
             candidate_stats_log_threshold=policy['candidate_stats_log_threshold'],
             control_mutation_batch_docs=policy['control_mutation_batch_docs'],
             candidate_mutation_batch_docs=policy['candidate_mutation_batch_docs'],
-            control_coalesce_stats=int(policy['control_coalesce_stats']),
-            candidate_coalesce_stats=int(policy['candidate_coalesce_stats']),
-            control_wal_compression_lz4=int(policy['control_wal_compression_lz4']),
-            candidate_wal_compression_lz4=int(policy['candidate_wal_compression_lz4']),
+            control_coalesce_stats=1 if policy['control_coalesce_stats'] else 0,
+            candidate_coalesce_stats=1 if policy['candidate_coalesce_stats'] else 0,
+            control_wal_compression_lz4=1 if policy['control_wal_compression_lz4'] else 0,
+            candidate_wal_compression_lz4=1 if policy['candidate_wal_compression_lz4'] else 0,
             control_wal_lz4_acceleration=policy['control_wal_lz4_acceleration'],
             candidate_wal_lz4_acceleration=policy['candidate_wal_lz4_acceleration'],
             trace_fsync=policy['trace_fsync'], m4_debt_policy=policy['m4_debt_policy'],
