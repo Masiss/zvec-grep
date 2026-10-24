@@ -491,7 +491,8 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(verified["live_headroom"]["available_bytes"],
                          expected["max_referenced_bytes"])
         (qgroup / "referenced").write_text(str(134217728 - 67108864 + 1))
-        with self.assertRaisesRegex(ValueError, "insufficient live Btrfs qgroup headroom"):
+        with mock.patch.object(ct, "BTRFS_SYSFS_ROOT", qgroup.parents[2]), \
+             self.assertRaisesRegex(ValueError, "insufficient live Btrfs qgroup headroom"):
             ct.verify_workspace_quota_headroom(expected)
 
     def test_lock_microbench_reports_host_pressure_without_memavailable_gate(self):

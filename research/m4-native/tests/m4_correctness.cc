@@ -1384,7 +1384,8 @@ void TestLz4WalFrames(const std::string &root) {
   const uint64_t raw_size = fs::file_size(fs::path(raw_dir) / "wal.log", ec);
   Check(!ec, "raw WAL size");
   Check(compressed_size < raw_size && fast_compressed_size < raw_size,
-        "LZ4 WAL is smaller than legacy frame at default and accelerated settings");
+        "LZ4 WAL is smaller than legacy frame at default and accelerated "
+        "settings");
   m4::Options fast_reader_options;
   std::unique_ptr<Index> fast_reader;
   Check(Index::Open(fast_compressed_dir, fast_reader_options, &fast_reader).ok,
@@ -1392,6 +1393,35 @@ void TestLz4WalFrames(const std::string &root) {
   Check(fast_reader && fast_reader->GetStats().live_docs == 40,
         "accelerated LZ4 WAL recovers all documents");
   fast_reader.reset();
+
+  m4::Options replay_options;
+  std::unique_ptr<Index> interrupted_reader;
+  Check(::setenv("M4_FAULT", "wal_pread_eintr_once", 1) == 0,
+        "set WAL replay EINTR injection");
+  const m4::Status interrupted_status =
+      Index::Open(compressed_dir, replay_options, &interrupted_reader);
+  ::unsetenv("M4_FAULT");
+  Check(interrupted_status.ok && interrupted_reader &&
+            interrupted_reader->GetStats().live_docs == 40,
+        "WAL replay retries interrupted pread and recovers every frame");
+  interrupted_reader.reset();
+
+  std::unique_ptr<Index> failed_reader;
+  Check(::setenv("M4_FAULT", "wal_pread_error", 1) == 0,
+        "set WAL replay read-error injection");
+  const m4::Status read_error_status =
+      Index::Open(raw_dir, replay_options, &failed_reader);
+  ::unsetenv("M4_FAULT");
+  Check(!read_error_status.ok && !failed_reader,
+        "WAL replay fails closed on a non-EINTR read error");
+  std::unique_ptr<Index> recovered_reader;
+  const m4::Status recovered_status =
+      Index::Open(raw_dir, replay_options, &recovered_reader);
+  Check(recovered_status.ok && recovered_reader &&
+            recovered_reader->GetStats().live_docs == 40,
+        "WAL remains intact after replay read error and recovers on retry");
+  recovered_reader.reset();
+
   const std::string corrupt_dir = root + "/corrupt-checksum";
   fs::copy(compressed_dir, corrupt_dir, fs::copy_options::recursive, ec);
   Check(!ec, "copy compressed WAL for checksum test");

@@ -964,14 +964,34 @@ public:
       return Status::Error("wal stat");
     std::string bytes(static_cast<size_t>(st.st_size), '\0');
     size_t done = 0;
+    const char *fault = std::getenv("M4_FAULT");
+    bool inject_eintr = fault && std::string(fault) == "wal_pread_eintr_once";
+    bool inject_error = fault && std::string(fault) == "wal_pread_error";
     while (done < bytes.size()) {
-      const ssize_t n = ::pread(fd_, bytes.data() + done, bytes.size() - done,
-                                static_cast<off_t>(done));
-      if (n <= 0)
-        break;
+      ssize_t n;
+      if (inject_eintr) {
+        inject_eintr = false;
+        errno = EINTR;
+        n = -1;
+      } else if (inject_error) {
+        inject_error = false;
+        errno = EIO;
+        n = -1;
+      } else {
+        n = ::pread(fd_, bytes.data() + done, bytes.size() - done,
+                    static_cast<off_t>(done));
+      }
+      if (n < 0 && errno == EINTR)
+        continue;
+      if (n < 0) {
+        return Status::Error("wal read failed: " +
+                             std::string(std::strerror(errno)));
+      }
+      if (n == 0) {
+        return Status::Error("unexpected end of wal while reading");
+      }
       done += static_cast<size_t>(n);
     }
-    bytes.resize(done);
     size_t off = 0;
     while (off + 20 <= bytes.size()) {
       BufReader r(bytes.data() + off, bytes.size() - off);
