@@ -224,6 +224,13 @@
         "candidate_coalesce_stats": true,
         "candidate_wal_compression_lz4": false,
         "trace_mutation_latency": true
+      },
+      "mutation-batch-128-vs-256-full-1200": {
+        "files": 1200,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 256,
+        "candidate_wal_compression_lz4": false,
+        "trace_mutation_latency": true
       }
     },
     "resource_controls": {

@@ -119,6 +119,30 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must be 1..256'):
             profiler.validate_mutation_batch_docs('candidate', 512)
 
+    def test_full_size_mutation_batch_profile_isolates_chunk_size(self):
+        standard = profiler.write_amp_workload_profile('standard')
+        workload = profiler.write_amp_workload_profile(
+            'mutation-batch-128-vs-256-full-1200')
+        self.assertEqual(workload['files'], 1200)
+        self.assertEqual(workload['control_mutation_batch_docs'], 128)
+        self.assertEqual(workload['candidate_mutation_batch_docs'], 256)
+        self.assertFalse(workload['control_wal_compression_lz4'])
+        self.assertFalse(workload['candidate_wal_compression_lz4'])
+        self.assertFalse(workload['control_coalesce_stats'])
+        self.assertFalse(workload['candidate_coalesce_stats'])
+        self.assertTrue(workload['trace_mutation_latency'])
+        changed = {key for key in standard if standard[key] != workload[key]}
+        self.assertEqual(changed, {
+            'control_mutation_batch_docs', 'candidate_wal_compression_lz4',
+            'trace_mutation_latency',
+        })
+        for role, batch_docs in (('control', 128), ('candidate', 256)):
+            env = profiler.m4_compaction_environment(role, workload)
+            self.assertEqual(env['M4_MUTATION_BATCH_DOCS'], str(batch_docs))
+            self.assertEqual(env['M4_WAL_COMPRESSION_LZ4'], '0')
+            self.assertEqual(env['M4_COALESCE_STATS'], '0')
+            self.assertEqual(env['M4_P42_LATENCY'], '1')
+
     def test_lz4_compression_profiles_isolate_batch_size_interaction(self):
         standard = profiler.write_amp_workload_profile('standard')
         for name, batch_docs, files, expected_changes in (

@@ -152,10 +152,16 @@ Status AcquireDictionarySnapshot(
       if (!output ||
           !output.write(file.contents.data(),
                         static_cast<std::streamsize>(file.contents.size()))) {
+        const int write_error = errno;
         output.close();
         std::filesystem::remove_all(entry.directory, error);
         if (inserted) registry.entries.erase(entry_it);
-        return Status::Error("JiebaTokenizer could not write immutable dictionary snapshot");
+        std::string message = "JiebaTokenizer could not write immutable dictionary snapshot at " +
+                             path.string();
+        message += write_error == 0
+                       ? ": stream write failed without an OS error"
+                       : ": " + std::string(std::strerror(write_error));
+        return Status::Error(std::move(message));
       }
       output.close();
       if (!output) {
