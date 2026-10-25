@@ -2686,7 +2686,9 @@ class Index::Impl {
     s = DeleteInternal(id, true);
     if (!s.ok) return s;
     pending_flush_ = true;
-    return MaybeAutoFlush(&query_guard);
+    // Preserve Delete's durable per-call acknowledgment. A deletion that fills
+    // the active bound is flushed before the next actual mutation instead.
+    return Status::OK();
   }
 
   Status ApplyBatch(const std::vector<Mutation>& mutations) {

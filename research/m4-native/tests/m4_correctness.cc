@@ -3053,20 +3053,30 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   if (delete_count_index) {
     Check(delete_count_index->Delete("delete-0").ok,
           "first delete remains pending below count bound");
-    Check(delete_count_index->GetStats().wal_bytes > 0,
+    const auto after_first_count_delete = delete_count_index->GetStats();
+    Check(after_first_count_delete.wal_bytes > 0,
           "first delete retains WAL below count bound");
     Check(delete_count_index->Delete("delete-1").ok,
-          "second delete triggers count-bound flush");
-    Check(delete_count_index->GetStats().wal_bytes == 0 &&
-              delete_count_index->GetStats().live_docs == 1,
-          "delete-only count bound flushes and clears WAL");
+          "delete at count bound preserves durable acknowledgment");
+    const auto at_delete_count_bound = delete_count_index->GetStats();
+    Check(at_delete_count_bound.wal_bytes > after_first_count_delete.wal_bytes &&
+              at_delete_count_bound.live_docs == 1,
+          "delete count bound waits for the next mutation to flush");
+    Check(delete_count_index->Delete("delete-2").ok,
+          "next delete flushes the pending bound before appending");
+    const auto after_count_bound_retry = delete_count_index->GetStats();
+    Check(after_count_bound_retry.wal_bytes > 0 &&
+              after_count_bound_retry.wal_bytes <
+                  at_delete_count_bound.wal_bytes &&
+              after_count_bound_retry.live_docs == 0,
+          "count-bound retry flushes old WAL then durably appends next delete");
   }
   delete_count_index.reset();
   std::unique_ptr<Index> delete_count_reopened;
   Check(Index::Open(delete_count_dir, delete_count_options,
                     &delete_count_reopened).ok &&
             delete_count_reopened &&
-            delete_count_reopened->GetStats().live_docs == 1,
+            delete_count_reopened->GetStats().live_docs == 0,
         "delete-only count-bound state survives reopen");
 
   const std::string delete_bytes_dir = dir + "/delete-bytes-bound";
@@ -3080,12 +3090,18 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
         "delete-bytes bound reopen");
   if (delete_bytes_index) {
     Check(delete_bytes_index->Delete("delete-0").ok,
-          "delete-byte estimate triggers flush");
-    Check(delete_bytes_index->GetStats().wal_bytes == 0 &&
+          "delete-byte threshold preserves durable delete acknowledgment");
+    Check(delete_bytes_index->GetStats().wal_bytes > 0 &&
               delete_bytes_index->GetStats().live_docs == 0,
-          "delete-byte bound flushes WAL");
+          "delete-byte threshold leaves one bounded durable WAL tail");
   }
   delete_bytes_index.reset();
+  std::unique_ptr<Index> delete_bytes_reopened;
+  Check(Index::Open(delete_bytes_dir, delete_bytes_options,
+                    &delete_bytes_reopened).ok &&
+            delete_bytes_reopened &&
+            delete_bytes_reopened->GetStats().live_docs == 0,
+        "delete-byte-threshold WAL survives reopen");
 
   const std::string failed_autoflush_dir = dir + "/failed-autoflush-bound";
   seed_delete_index(failed_autoflush_dir, 2);
@@ -3099,8 +3115,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   if (failed_autoflush_index) {
     Check(::setenv("M4_FAULT", "flush_fail_after_stats_append", 1) == 0,
           "set failed auto-flush bound fault");
-    Check(!failed_autoflush_index->Delete("delete-0").ok,
-          "threshold delete reports injected flush failure");
+    Check(failed_autoflush_index->Delete("delete-0").ok,
+          "threshold delete preserves its durable per-call acknowledgment");
     const auto after_first_delete = failed_autoflush_index->GetStats();
     Check(after_first_delete.wal_bytes > 0 &&
               after_first_delete.live_docs == 1,
@@ -3157,9 +3173,13 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     ::unsetenv("M4_FAULT");
     Check(failed_autoflush_index->Delete("delete-1").ok,
           "later delete succeeds after pending delta flush recovers");
-    Check(failed_autoflush_index->GetStats().wal_bytes == 0 &&
+    Check(failed_autoflush_index->GetStats().wal_bytes > 0 &&
               failed_autoflush_index->GetStats().live_docs == 0,
-          "recovered auto-flush bounds and clears WAL");
+          "recovered bound flushes old WAL before appending second delete");
+    Check(failed_autoflush_index->Flush().ok,
+          "explicit flush drains recovered delete WAL tail");
+    Check(failed_autoflush_index->GetStats().wal_bytes == 0,
+          "explicit flush clears recovered delete WAL");
   } else {
     ::unsetenv("M4_FAULT");
   }
