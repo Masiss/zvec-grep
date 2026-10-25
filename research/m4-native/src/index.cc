@@ -3638,6 +3638,12 @@ class Index::Impl {
                               const std::vector<uint32_t>& values,
                               SearchResult* out) const {
     std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
+    return SearchInvertUint32InUnlocked(field, values, out);
+  }
+
+  Status SearchInvertUint32InUnlocked(
+      const std::string& field, const std::vector<uint32_t>& values,
+      SearchResult* out) const {
     out->hits.clear();
     out->examined = 0;
     std::set<std::string> wanted;
@@ -3665,6 +3671,12 @@ class Index::Impl {
                            const std::vector<uint32_t>& values,
                            bool negate, SearchResult* out) const {
     std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
+    return SearchArrayUint32Unlocked(field, values, negate, out);
+  }
+
+  Status SearchArrayUint32Unlocked(const std::string& field,
+                                   const std::vector<uint32_t>& values,
+                                   bool negate, SearchResult* out) const {
     out->hits.clear();
     out->examined = 0;
     if (values.size() > kMaxArrayUint32Operands) {
@@ -3727,6 +3739,12 @@ class Index::Impl {
   Status SearchInvert(const std::string& field, const std::string& value,
                       CompareOp op, SearchResult* out) const {
     std::shared_lock<detail::WriterPreferredSharedMutex> query_read_lock(query_mutex_);
+    return SearchInvertUnlocked(field, value, op, out);
+  }
+
+  Status SearchInvertUnlocked(const std::string& field,
+                              const std::string& value, CompareOp op,
+                              SearchResult* out) const {
     out->hits.clear();
     out->examined = 0;
     std::set<std::string> wanted;
@@ -5638,6 +5656,8 @@ class Index::Impl {
 
   Status FilterCandidates(const FilterExpr& expr, std::vector<DocId>* out,
                           FilterLikeDiagnostics* diagnostics = nullptr) const {
+    // Callers hold query_mutex_; EvalFilter uses unlocked leaf helpers so a
+    // queued writer cannot block a nested shared-lock acquisition.
     return EvalFilter(expr, false, out, diagnostics);
   }
 
@@ -5704,8 +5724,8 @@ class Index::Impl {
     Status status;
     switch (expr.op) {
       case FilterKind::STRING_EQ:
-        status = SearchInvert(expr.field, expr.string_value, CompareOp::EQ,
-                              &result);
+        status = SearchInvertUnlocked(expr.field, expr.string_value,
+                                      CompareOp::EQ, &result);
         break;
       case FilterKind::STRING_PREFIX:
       case FilterKind::STRING_SUFFIX:
@@ -5715,11 +5735,16 @@ class Index::Impl {
         return SearchStringPattern(expr.field, expr.string_value,
                                    expr.op == FilterKind::STRING_PREFIX, out,
                                    diagnostics);
-      case FilterKind::UINT32_EQ:
-        status = SearchInvertUint32(expr.field, expr.uint32_value, &result);
+      case FilterKind::UINT32_EQ: {
+        const std::string encoded_value =
+            ScalarValue::Unsigned32(expr.field, expr.uint32_value).value;
+        status = SearchInvertUnlocked(expr.field, encoded_value, CompareOp::EQ,
+                                      &result);
         break;
+      }
       case FilterKind::UINT32_IN:
-        status = SearchInvertUint32In(expr.field, expr.uint32_values, &result);
+        status = SearchInvertUint32InUnlocked(expr.field, expr.uint32_values,
+                                              &result);
         break;
       case FilterKind::ARRAY_UINT32_CONTAINS_ANY:
         // Native normalizes CONTAIN_ANY () to constant false before
@@ -5730,8 +5755,8 @@ class Index::Impl {
           *out = LiveUniverse();
           return Status::OK();
         }
-        status = SearchArrayUint32(expr.field, expr.uint32_values, negated,
-                                   &result);
+        status = SearchArrayUint32Unlocked(expr.field, expr.uint32_values,
+                                           negated, &result);
         break;
       case FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY:
         if (negated && expr.uint32_values.empty()) {
@@ -5741,8 +5766,8 @@ class Index::Impl {
                               present.end(), std::back_inserter(*out));
           return Status::OK();
         }
-        status = SearchArrayUint32(expr.field, expr.uint32_values, !negated,
-                                   &result);
+        status = SearchArrayUint32Unlocked(expr.field, expr.uint32_values,
+                                           !negated, &result);
         break;
       default:
         return Status::Error("invalid Boolean filter node");
