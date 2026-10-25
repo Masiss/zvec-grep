@@ -92,6 +92,16 @@ impl SearchIndex {
             return Vec::new();
         }
         let latest = self.latest_documents();
+        // Segment-local ranges let a one-row delta look perfect regardless of its absolute score.
+        let live_documents = latest
+            .values()
+            .copied()
+            .filter(|document| !document.deleted)
+            .collect::<Vec<_>>();
+        let vector_range =
+            ScoreRange::from_values(live_documents.iter().map(|document| document.vector_score));
+        let lexical_range =
+            ScoreRange::from_values(live_documents.iter().map(|document| document.bm25_score));
         let mut hits = Vec::new();
         for segment in self.segments_in_order() {
             hits.extend(segment_candidates(
@@ -99,6 +109,8 @@ impl SearchIndex {
                 &latest,
                 vector_weight,
                 lexical_weight,
+                vector_range,
+                lexical_range,
                 limit,
                 initial_probe,
             ));
@@ -140,10 +152,18 @@ fn segment_candidates(
     latest: &BTreeMap<&str, &Document>,
     vector_weight: f64,
     lexical_weight: f64,
+    vector_range: ScoreRange,
+    lexical_range: ScoreRange,
     limit: usize,
     initial_probe: usize,
 ) -> Vec<Hit> {
-    let ranked = ranked_documents(segment, vector_weight, lexical_weight);
+    let ranked = ranked_documents(
+        segment,
+        vector_weight,
+        lexical_weight,
+        vector_range,
+        lexical_range,
+    );
     if ranked.is_empty() {
         return Vec::new();
     }
@@ -178,23 +198,16 @@ fn ranked_documents(
     segment: &Segment,
     vector_weight: f64,
     lexical_weight: f64,
+    vector_range: ScoreRange,
+    lexical_range: ScoreRange,
 ) -> Vec<(&Document, f64)> {
-    let vector = normalized_scores(
-        segment
-            .documents
-            .iter()
-            .map(|document| document.vector_score),
-    );
-    let lexical = normalized_scores(segment.documents.iter().map(|document| document.bm25_score));
     let mut ranked = segment
         .documents
         .iter()
-        .enumerate()
-        .map(|(index, document)| {
-            (
-                document,
-                vector_weight * vector[index] + lexical_weight * lexical[index],
-            )
+        .map(|document| {
+            let vector = vector_range.normalize(document.vector_score);
+            let lexical = lexical_range.normalize(document.bm25_score);
+            (document, vector_weight * vector + lexical_weight * lexical)
         })
         .collect::<Vec<_>>();
     ranked.sort_by(|left, right| {
@@ -206,18 +219,30 @@ fn ranked_documents(
     ranked
 }
 
-fn normalized_scores(values: impl IntoIterator<Item = f64>) -> Vec<f64> {
-    let values = values.into_iter().collect::<Vec<_>>();
-    let min = values.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let range = max - min;
-    if !range.is_finite() || range.abs() < f64::EPSILON {
-        return values
-            .iter()
-            .map(|value| if value.abs() < f64::EPSILON { 0.0 } else { 1.0 })
-            .collect();
+#[derive(Clone, Copy)]
+struct ScoreRange {
+    min: f64,
+    max: f64,
+}
+
+impl ScoreRange {
+    fn from_values(values: impl IntoIterator<Item = f64>) -> Self {
+        let (min, max) = values
+            .into_iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), value| {
+                (min.min(value), max.max(value))
+            });
+        Self { min, max }
     }
-    values.iter().map(|value| (value - min) / range).collect()
+
+    fn normalize(self, value: f64) -> f64 {
+        let range = self.max - self.min;
+        if !range.is_finite() || range.abs() < f64::EPSILON {
+            if value.abs() < f64::EPSILON { 0.0 } else { 1.0 }
+        } else {
+            (value - self.min) / range
+        }
+    }
 }
 
 struct Repository {
@@ -474,6 +499,32 @@ fn hybrid_search_normalizes_modalities_before_weighted_merge()
 
     assert_eq!(index.search(1.0, 0.0, 1, 2)[0].logical_id, "vector-winner");
     assert_eq!(index.search(0.0, 1.0, 1, 2)[0].logical_id, "lexical-winner");
+    Ok(())
+}
+
+#[test]
+fn hybrid_normalization_is_global_across_base_and_delta() -> Result<(), Box<dyn std::error::Error>>
+{
+    let temporary = TempDir::new()?;
+    let repository = Repository::new(temporary.path())?;
+    repository.initialize(segment(
+        "base-1",
+        [
+            document("strong-base", "base-strong", 1, false, 0.9, 90.0),
+            document("weaker-base", "base-weaker", 1, false, 0.8, 80.0),
+        ],
+    ))?;
+    repository.install_delta(
+        segment(
+            "delta-2",
+            [document("weak-delta", "delta-weak", 2, false, 0.1, 10.0)],
+        ),
+        false,
+    )?;
+
+    let index = repository.recover()?;
+    let hits = index.search(0.5, 0.5, 1, 1);
+    assert_eq!(hits[0].logical_id, "strong-base");
     Ok(())
 }
 
