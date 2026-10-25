@@ -63,8 +63,8 @@ Prepare the native-vs-M4 lifecycle run from one immutable mutation trace and ide
 - LSP diagnostics confirmed the changed header and utility file clean; the large `index.cc` and correctness test exceeded the LSP server's 5,000-line limit and were not LSP-checked. C++ build/test compiled and exercised them.
 - No codec/framing experiment, production edit, global harness/policy change, index rewrite, or push was made.
 
-## Next decision
+## Owner decision and next action
 
-Choose an absolute WAL recovery-file budget (or explicitly accept the conditional/default-only envelope). Until then, per-record validation and durable legacy handling are improved, but arbitrary WAL-file recovery is still not bounded and should not be called qualified.
+Owner decision (2026-10-26): **do not add an absolute WAL-file cap**. Keep the new per-record/frame safeguards and accept only the conditional/default-threshold operational envelope. This avoids a hard compatibility boundary for existing files, but arbitrary oversized or externally supplied WAL recovery remains unbounded because replay reads the whole file. Do not describe recovery as absolutely bounded or qualified under non-default limits.
 
-After that decision, the next non-benchmark work is the integration adapter contract/test seam; a matched native-optimize vs M4 flush/compaction run remains blocked on fresh policy authorization.
+Next non-benchmark work is the integration adapter contract/test seam. A matched native-optimize vs M4 flush/compaction run remains unlaunched until a fresh approved containment/attestation profile exists.

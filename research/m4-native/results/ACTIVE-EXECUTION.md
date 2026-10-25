@@ -4,8 +4,8 @@
 
 - WAL record handling now rejects single mutations above 2 MiB before normalization/append/mutation, bounds outer WAL frames and atomic batches at 8 MiB, checks varint overflow, and fails closed while retaining oversized legacy WAL bytes. `WAL-RECOVERY-BOUNDS-20261026.md` records the path audit, source-size evidence, and integration/lifecycle test design.
 - `m4_correctness`: 21,094 checks, 0 failures; build and test scratch are under `research/m4-native/.work/`. No benchmark, production edit, policy change, push, or codec/framing experiment was made.
-- Recovery remains conditionally bounded by default delta thresholds; replay still allocates the whole WAL file, and no absolute file-size/recovery budget exists. Owner decision required before adding a hard total-WAL cap; report proposes 32 MiB, 64 MiB, or retaining only the conditional default envelope.
-- Real-code characterization and full-lifecycle comparison remain blocked by the expired attestation; preserve the gate. Continue non-benchmark integration-contract work while the total-WAL budget is unresolved.
+- Owner decision (2026-10-26): do not add an absolute WAL-file cap; accept only the conditional/default-threshold envelope. Recovery of externally supplied or non-default oversized WAL files remains unbounded; retain fail-closed per-record/frame validation.
+- Real-code characterization and full-lifecycle comparison remain blocked by the expired attestation; preserve the gate. Continue non-benchmark integration-contract work under the accepted conditional WAL envelope; do not impose a hard file cap.
 
 ## Owner direction — M4 next priorities (2026-10-26)
 
