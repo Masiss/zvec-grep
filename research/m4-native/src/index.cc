@@ -2660,12 +2660,12 @@ class Index::Impl {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     const Status healthy = WriterGroupHealth();
     if (!healthy.ok) return healthy;
+    const uint64_t id = LookupPk(pk);
+    if (id == 0) return Status::OK();
     const Status retry_flush = FlushPendingDeltaBeforeMutation();
     if (!retry_flush.ok) {
       return retry_flush;
     }
-    const uint64_t id = LookupPk(pk);
-    if (id == 0) return Status::OK();
     BufWriter w;
     w.U8(2);  // delete
     w.U64(id);
@@ -2736,16 +2736,6 @@ class Index::Impl {
       diagnostics->state_mutex_wait_cpu_ms =
           ThreadCpuMs() - state_wait_cpu;
     }
-    const double retry_flush_wall = capture ? NowMs() : 0.0;
-    const double retry_flush_cpu = capture ? ThreadCpuMs() : 0.0;
-    const Status retry_flush = FlushPendingDeltaBeforeMutation();
-    if (capture) {
-      diagnostics->auto_flush_ms += NowMs() - retry_flush_wall;
-      diagnostics->auto_flush_cpu_ms += ThreadCpuMs() - retry_flush_cpu;
-    }
-    if (!retry_flush.ok) {
-      return retry_flush;
-    }
     ScopedStageTimer state_hold_timer(
         capture ? &diagnostics->state_mutex_hold_ms : nullptr,
         capture ? &diagnostics->state_mutex_hold_cpu_ms : nullptr);
@@ -2799,6 +2789,17 @@ class Index::Impl {
       records.push_back(record.data());
     }
     if (records.empty()) return Status::OK();
+
+    const double retry_flush_wall = capture ? NowMs() : 0.0;
+    const double retry_flush_cpu = capture ? ThreadCpuMs() : 0.0;
+    const Status retry_flush = FlushPendingDeltaBeforeMutation();
+    if (capture) {
+      diagnostics->auto_flush_ms += NowMs() - retry_flush_wall;
+      diagnostics->auto_flush_cpu_ms += ThreadCpuMs() - retry_flush_cpu;
+    }
+    if (!retry_flush.ok) {
+      return retry_flush;
+    }
 
     BufWriter batch;
     batch.U8(3);  // atomic mutation batch

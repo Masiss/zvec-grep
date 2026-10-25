@@ -6,7 +6,7 @@
 
 Added a pre-mutation retry for a previously failed threshold flush. It prevents later `Upsert`, `Delete`, or `ApplyBatch` calls from growing the WAL/delta until the pending snapshot can be flushed. Delete count and inserted-delta count use independent limits, preserving the existing `max_delta_docs` meaning while bounding delete-only workloads; byte accounting includes tombstone keys and terms. A threshold-crossing mutation still follows existing WAL durability: its durable record may already be visible if the subsequent flush fails, and the next mutation retries before append.
 
-An initial correctness run exposed that combining inserted versions and deletes into one count changed the concurrent snapshot-rebase contract. The counters are now independent. Normal and TSan `m4_correctness` both pass (1/1 each). Build scratch used repository-local `.build-tmp` on the repository filesystem (24 GB available at build preflight), then operation-owned scratch was removed. No benchmark, production change, or durability-policy change.
+An initial correctness run exposed that combining inserted versions and deletes into one count changed the concurrent snapshot-rebase contract. The counters are now independent. No-op deletes and all-no-op delete batches bypass retry flushes; a regression verifies they do not append WAL or mutate pending state after an injected flush failure. Normal and TSan `m4_correctness` both pass (1/1 each). Build scratch used repository-local `.build-tmp` on the repository filesystem (24 GB available at build preflight), then operation-owned scratch was removed. No benchmark, production change, or durability-policy change.
 
 ### WAL replay memory follow-up — PARTIAL / OPERATION_BLOCKED
 

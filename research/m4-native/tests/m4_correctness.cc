@@ -3105,6 +3105,25 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Check(after_first_delete.wal_bytes > 0 &&
               after_first_delete.live_docs == 1,
           "failed threshold delete remains durable and query-visible");
+    Check(failed_autoflush_index->Delete("missing").ok,
+          "no-op delete does not retry a pending auto-flush");
+    const auto after_noop_delete = failed_autoflush_index->GetStats();
+    Check(after_noop_delete.wal_bytes == after_first_delete.wal_bytes &&
+              after_noop_delete.wal_bytes_appended ==
+                  after_first_delete.wal_bytes_appended &&
+              after_noop_delete.live_docs == after_first_delete.live_docs,
+          "no-op delete does not write WAL or change pending state");
+    const std::vector<m4::Mutation> no_op_delete_batch = {
+        {m4::MutationKind::DELETE, "missing", {}},
+    };
+    Check(failed_autoflush_index->ApplyBatch(no_op_delete_batch).ok,
+          "no-op delete batch does not retry a pending auto-flush");
+    const auto after_noop_batch = failed_autoflush_index->GetStats();
+    Check(after_noop_batch.wal_bytes == after_first_delete.wal_bytes &&
+              after_noop_batch.wal_bytes_appended ==
+                  after_first_delete.wal_bytes_appended &&
+              after_noop_batch.live_docs == after_first_delete.live_docs,
+          "no-op batch does not write WAL or change pending state");
     Check(!failed_autoflush_index->Delete("delete-1").ok,
           "over-limit pending delta retries flush before next delete");
     const auto after_blocked_delete = failed_autoflush_index->GetStats();
