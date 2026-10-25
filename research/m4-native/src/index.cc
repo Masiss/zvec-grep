@@ -5307,14 +5307,30 @@ class Index::Impl {
     // describe writes that occurred after the merge input was captured.
     const uint64_t tombstone_seq =
         durable_rebase ? durable_wal_seq_ : last_wal_seq_;
-    std::string tb_file = "tombstones-" + std::to_string(tombstone_seq) + "-" +
-                          std::to_string(run_id_seq_);
+    std::string tombstone_base = "tombstones-" + std::to_string(tombstone_seq) +
+                                 "-" + std::to_string(run_id_seq_);
     if (allow_concurrent_rebase) {
-      // Keep the prior manifest's tombstone file intact until this replacement
-      // manifest is atomically published.
-      tb_file += "-rebase-" + std::to_string(new_run_id);
+      tombstone_base += "-rebase-" + std::to_string(new_run_id);
     }
-    tb_file += ".bin";
+    // Never overwrite the tombstone file selected by the current manifest.
+    // Empty-output compactions can reuse both the WAL and run sequences; a
+    // crash before manifest publication must leave the old file untouched.
+    std::string tb_file = tombstone_base + ".bin";
+    for (uint64_t generation = 0;; ++generation) {
+      std::error_code exists_error;
+      if (!fs::exists(fs::path(dir_) / tb_file, exists_error)) {
+        if (exists_error) {
+          return Status::Error("inspect compaction tombstone file: " +
+                               exists_error.message());
+        }
+        break;
+      }
+      if (generation == std::numeric_limits<uint64_t>::max()) {
+        return Status::Error("compaction tombstone file generations exhausted");
+      }
+      tb_file = tombstone_base + "-generation-" +
+                std::to_string(generation + 1) + ".bin";
+    }
     std::string encoded_tombstones;
     if (durable_rebase) {
       std::vector<DocId> committed_tombstones;
@@ -5337,6 +5353,8 @@ class Index::Impl {
     s = AtomicWrite((fs::path(dir_) / tb_file).string(), encoded_tombstones);
     if (!s.ok) return s;
     bytes_written_ += fs::file_size((fs::path(dir_) / tb_file).string());
+    if (fault && std::strcmp(fault, "compact_after_tombstone_write") == 0)
+      ::_exit(94);
     if (allow_concurrent_rebase && fault &&
         std::string(fault) == "after_compaction_tombstone") {
       return Status::Error("injected fault after compaction tombstone snapshot");

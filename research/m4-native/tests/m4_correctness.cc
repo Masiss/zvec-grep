@@ -4288,6 +4288,49 @@ void TestSnapshotCompactionFaults(const std::string& dir) {
         "snapshot post-manifest reopen preserves beta");
 }
 
+void TestEmptyMergeTombstoneCrash(const std::string &dir) {
+  fs::remove_all(dir);
+  m4::Options options;
+  options.max_delta_docs = 1000;
+  options.tombstone_compact_ratio = 2.0;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, options, &index).ok,
+        "empty-merge tombstone crash open");
+  Document document;
+  document.text = "deleted-marker";
+  Check(index->Upsert("deleted", document).ok,
+        "empty-merge tombstone crash upsert");
+  Check(index->Flush().ok, "empty-merge tombstone crash initial flush");
+  Check(index->Delete("deleted").ok, "empty-merge tombstone crash delete");
+  Check(index->Flush().ok, "empty-merge tombstone crash persist delete");
+  index.reset();
+
+  const pid_t child = ::fork();
+  if (child == 0) {
+    ::setenv("M4_FAULT", "compact_after_tombstone_write", 1);
+    std::unique_ptr<Index> child_index;
+    if (!Index::Open(dir, options, &child_index).ok)
+      ::_exit(90);
+    const m4::Status status = child_index->CompactNow();
+    ::_exit(status.ok ? 91 : 92);
+  }
+  int child_status = 0;
+  Check(child > 0 && ::waitpid(child, &child_status, 0) == child &&
+            WIFEXITED(child_status) && WEXITSTATUS(child_status) == 94,
+        "empty-merge compaction crashes after writing tombstones");
+
+  std::unique_ptr<Index> recovered;
+  const m4::Status open_status = Index::Open(dir, options, &recovered);
+  Check(open_status.ok, "empty-merge tombstone crash recovery open");
+  if (!open_status.ok)
+    return;
+  m4::SearchResult result;
+  Check(recovered->GetStats().live_docs == 0 &&
+            recovered->SearchFts("deleted-marker", 10, &result).ok &&
+            result.hits.empty(),
+        "empty-merge crash recovery does not resurrect acknowledged delete");
+}
+
 void TestCompactionPositionBudget(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -4664,6 +4707,7 @@ int main(int argc, char *argv[]) {
       root + "/snapshot-rebase-pre-manifest-recovery");
   TestSnapshotCompactionBudget(root + "/snapshot-budget");
   TestSnapshotCompactionFaults(root + "/snapshot-faults");
+  TestEmptyMergeTombstoneCrash(root + "/empty-merge-tombstone-crash");
   TestCompactionPositionBudget(root + "/position-budget");
   TestManifestFallback(root + "/manifest-fallback");
   TestCompactionFaults(root + "/faults");
