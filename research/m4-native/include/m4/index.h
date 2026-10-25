@@ -446,7 +446,9 @@ class Index {
   Index& operator=(const Index&) = delete;
 
   // Upsert keyed by a stable primary key. An existing key is tombstoned and a
-  // new global DocId is appended; no existing posting is rewritten.
+  // new global DocId is appended; no existing posting is rewritten. The
+  // serialized mutation is capped at 2 MiB and oversized inputs are rejected
+  // before WAL append or query-visible mutation.
   Status Upsert(const std::string& pk, const Document& document);
   Status Upsert(const std::string& pk, const Document& document,
                 WriteDiagnostics* diagnostics);
@@ -456,8 +458,9 @@ class Index {
   Status Delete(const std::string& pk);
 
   // Atomically apply 1..256 mutations as one WAL transaction. The batch is
-  // fully durable on return when fsync_wal is enabled. The encoded batch is
-  // capped at 8 MiB; existing single-document methods retain their behavior.
+  // fully durable on return when fsync_wal is enabled. Each serialized child
+  // mutation is capped at 2 MiB and the encoded batch at 8 MiB; oversized
+  // inputs are rejected before WAL append or query-visible mutation.
   Status ApplyBatch(const std::vector<Mutation>& mutations);
   // Research-only per-call stage timing; null diagnostics add no timers.
   Status ApplyBatch(const std::vector<Mutation>& mutations,

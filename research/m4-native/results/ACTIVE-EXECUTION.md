@@ -1,5 +1,32 @@
 # Active M4 execution checkpoint
 
+## Current owner request — bounded WAL recovery and integration readiness (2026-10-26)
+
+- WAL record handling now rejects single mutations above 2 MiB before normalization/append/mutation, bounds outer WAL frames and atomic batches at 8 MiB, checks varint overflow, and fails closed while retaining oversized legacy WAL bytes. `WAL-RECOVERY-BOUNDS-20261026.md` records the path audit, source-size evidence, and integration/lifecycle test design.
+- `m4_correctness`: 21,094 checks, 0 failures; build and test scratch are under `research/m4-native/.work/`. No benchmark, production edit, policy change, push, or codec/framing experiment was made.
+- Recovery remains conditionally bounded by default delta thresholds; replay still allocates the whole WAL file, and no absolute file-size/recovery budget exists. Owner decision required before adding a hard total-WAL cap; report proposes 32 MiB, 64 MiB, or retaining only the conditional default envelope.
+- Real-code characterization and full-lifecycle comparison remain blocked by the expired attestation; preserve the gate. Continue non-benchmark integration-contract work while the total-WAL budget is unresolved.
+
+## Owner direction — M4 next priorities (2026-10-26)
+
+The owner closed WAL codec/framing exploration for now: **do not run gzip, Zstd, Snappy, or new framing experiments**. The key gap is fixture representativeness, not a missing codec. The preceding `WAL-CODEC-FRAMING-RESEARCH-20261026.md` Stage A attempt omitted required cgroup containment and is non-qualifying; do not retry it. The separate redundancy analysis is descriptive of the synthetic workload only.
+
+Priority order:
+1. One bounded, cgroup-contained real-code WAL characterization; do not turn it into a campaign.
+2. Establish WAL growth/recovery envelope across a realistic lifecycle.
+3. Compare full-lifecycle native optimize vs M4 flush/compaction on equivalent mutation traces.
+4. Assess integration readiness: watcher batching, snapshot visibility, durability, and rollback.
+
+Preserve current containment, disk, timeout, cleanup, correctness, and durability gates. Do not modify production/global harness or claim qualification from exploratory evidence. No new benchmark was started by this checkpoint update.
+
+### Latest execution — 2026-10-26
+
+- Rebuilt current `m4_correctness` under `research/m4-native/.work/build/wal-record-bounds-20261026`; direct deterministic run passed **21,094 checks, 0 failures**. This covers WAL replay/flush failure, delete-only threshold, and the new record-bound regressions, but is not real-code workload evidence.
+- The one real-code WAL run and matched native-optimize/M4 lifecycle run remain unlaunched. The current contained M4 profiler binds to `.work/m4-native-workspace-quota` and requires its root-owned quota attestation to be at most 24 hours old; it was verified at `2026-10-24T14:14Z`, so it is stale at this preflight. Live qgroup counters are readable, but that does not replace the required attestation. Do not bypass the profiler or regenerate the attestation by altering the non-empty workspace. No real-code-specific workload profile exists yet; no benchmark process or operation root was started.
+- Offline source review plus implementation: default active-delta thresholds are 512 documents / 8 MiB; `ApplyBatch` is capped at 256 mutations / 8 MiB encoded; single WAL mutations now have a 2 MiB application cap. Default-path WAL growth is conditionally bounded, but replay still reads the whole file and raised thresholds or oversized external legacy logs have no unconditional memory bound.
+- Existing paired write-amplification reports explicitly exclude native `optimize` and `M4::CompactNow`; the bridge generation-lifecycle comparison is a different workload and not a matched comparator. Existing snapshot/crash tests are research-only and do not exercise a filesystem watcher integration.
+
+
 ## Latest audit follow-up — 2026-10-25
 
 The architecture audit at `rust/docs/audit-20261025.md` has been rechecked against source and worked through independent gated slices. Local commits: `e955d97` fixes M-02 compaction tombstone overwrite; `14cc4a3` fixes M-03 WAND bound correctness; `943994f` removes nested query-lock acquisition from M-01 filter evaluation; `d0c7cb0` makes empty-index bootstrap recoverable after a crash between manifest publication and stats metadata. M-01's source-level lock-order hazard is fixed with unlocked leaf helpers under the caller's shared lock. Normal `m4_correctness` passed 1/1 (15.27 s); final TSan run passed `m4_correctness` and `m4_writer_preferred_mutex_test` 2/2 (41.34 s). M-04 bootstrap recovery passed normal `m4_correctness` 1/1 (14.84 s) and TSan `m4_correctness` 1/1 (53.10 s), including a child-process exit after the empty manifest and recovery from startup sync failures. M-04 remains fail-closed if a crash leaves a manifest temp before rename; handling that safely under concurrent Open is not covered. The deterministic index-level queued-writer regression for M-01 remains open; the mutex priority test and call-graph review support the fix but are not a substitute for that integration reproducer. M-05..M-07, maintenance D, retrieval E, model-memory F, and telemetry G remain gated/planned. No production changes, benchmarks, or pushes were made. Other dirty/untracked work remains untouched.

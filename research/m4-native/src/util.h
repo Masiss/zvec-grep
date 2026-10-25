@@ -173,6 +173,10 @@ class BufReader {
     while (true) {
       if (!Need(1)) return 0;
       const uint8_t b = static_cast<uint8_t>(*p_++);
+      if (shift == 63 && (b & 0x7e) != 0) {
+        ok_ = false;
+        return 0;
+      }
       v |= static_cast<uint64_t>(b & 0x7f) << shift;
       if ((b & 0x80) == 0) break;
       shift += 7;

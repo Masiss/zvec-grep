@@ -1599,6 +1599,165 @@ void TestCrashWal(const std::string &dir) {
   fs::remove_all(corrupt_dir);
 }
 
+void TestWalRecordBounds(const std::string &dir) {
+  constexpr size_t kRecordLimit = 2u << 20;
+  const std::string pk = "record-cap";
+  const size_t text_size = kRecordLimit - 32;
+  const auto encoded_upsert_size = [&](const std::string& text) {
+    m4::BufWriter payload;
+    payload.U8(1);
+    payload.U64(0);
+    payload.U64(1);
+    payload.String(pk);
+    payload.String(text);
+    payload.Varint(0);
+    return payload.size();
+  };
+  Document boundary;
+  boundary.text.assign(text_size, '!');
+  Check(encoded_upsert_size(boundary.text) == kRecordLimit,
+        "record-cap fixture encodes at exact 2 MiB boundary");
+
+  fs::remove_all(dir);
+  m4::Options options;
+  options.wal_enabled = true;
+  options.fsync_wal = true;
+  {
+    std::unique_ptr<Index> index;
+    Check(Index::Open(dir, options, &index).ok,
+          "record-cap boundary index open");
+    if (!index) return;
+    Check(index->Upsert(pk, boundary).ok,
+          "Upsert at exact application record boundary is accepted");
+    const fs::path wal_path = fs::path(dir) / "wal.log";
+    std::ifstream input(wal_path, std::ios::binary);
+    std::string before_rejection{std::istreambuf_iterator<char>(input),
+                                 std::istreambuf_iterator<char>()};
+    Check(before_rejection.size() >= 24 &&
+              m4::BufReader(before_rejection.data(), before_rejection.size()).U32() ==
+                  0x4D345731,
+          "boundary Upsert is represented by a complete sequenced WAL frame");
+    Document too_large = boundary;
+    too_large.text.push_back('!');
+    const m4::Status rejected = index->Upsert("over-limit", too_large);
+    Check(!rejected.ok && rejected.message.find("2 MiB") != std::string::npos,
+          "Upsert one encoded byte over the record limit is rejected");
+    Check(index->GetStats().live_docs == 1,
+          "oversized Upsert leaves query-visible state unchanged");
+    std::ifstream after_input(wal_path, std::ios::binary);
+    const std::string after_rejection{std::istreambuf_iterator<char>(after_input),
+                                      std::istreambuf_iterator<char>()};
+    Check(after_rejection == before_rejection,
+          "oversized Upsert writes no WAL bytes and consumes no sequence");
+
+    Document small;
+    small.text = "accepted after rejected oversized input";
+    Check(index->Upsert("after-reject", small).ok,
+          "valid Upsert after rejection succeeds");
+    const std::string after_valid = [&] {
+      std::ifstream wal(fs::path(dir) / "wal.log", std::ios::binary);
+      return std::string{std::istreambuf_iterator<char>(wal),
+                         std::istreambuf_iterator<char>()};
+    }();
+    std::vector<m4::Mutation> atomic_batch;
+    atomic_batch.emplace_back(m4::MutationKind::UPSERT, "batch-small", small);
+    atomic_batch.emplace_back(m4::MutationKind::UPSERT, "batch-large", too_large);
+    const m4::Status batch_status = index->ApplyBatch(atomic_batch);
+    Check(!batch_status.ok,
+          "atomic batch rejects oversized child before WAL append");
+    Check(index->GetStats().live_docs == 2,
+          "oversized atomic batch applies none of its prefix");
+    std::ifstream after_batch_input(wal_path, std::ios::binary);
+    const std::string after_batch{std::istreambuf_iterator<char>(after_batch_input),
+                                  std::istreambuf_iterator<char>()};
+    Check(after_batch == after_valid,
+          "rejected atomic batch leaves the durable WAL unchanged");
+  }
+  {
+    std::unique_ptr<Index> reopened;
+    const m4::Status status = Index::Open(dir, options, &reopened);
+    Check(status.ok, "exact-boundary and post-rejection WAL reopens: " +
+                         status.message);
+    if (reopened) {
+      Check(reopened->GetStats().live_docs == 2,
+            "reopen recovers boundary record and later valid record exactly");
+    }
+  }
+
+  const auto write_legacy_frame = [](const fs::path& path,
+                                     const std::string& payload) {
+    m4::BufWriter frame;
+    frame.U32(0x4D34574C);  // Legacy M4WL, with its historical FNV checksum.
+    frame.U32(static_cast<uint32_t>(payload.size()));
+    frame.U64(1);
+    frame.U32(static_cast<uint32_t>(m4::Fnv1a(payload.data(), payload.size()) &
+                                    0xffffffffu));
+    frame.Bytes(payload.data(), payload.size());
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    output.write(frame.data().data(),
+                 static_cast<std::streamsize>(frame.data().size()));
+    output.flush();
+    return output.good();
+  };
+  const auto prepare_empty_index = [&](const std::string& path) {
+    fs::remove_all(path);
+    std::unique_ptr<Index> index;
+    const m4::Status status = Index::Open(path, options, &index);
+    Check(status.ok, "legacy WAL fixture index open: " + status.message);
+  };
+  const auto wal_contents = [](const fs::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    return std::string{std::istreambuf_iterator<char>(input),
+                       std::istreambuf_iterator<char>()};
+  };
+  const auto check_legacy_rejected_and_retained = [&](const std::string& path,
+                                                       const std::string& payload,
+                                                       const std::string& reason) {
+    prepare_empty_index(path);
+    const fs::path wal_path = fs::path(path) / "wal.log";
+    Check(write_legacy_frame(wal_path, payload), reason + " fixture written");
+    const std::string durable_bytes = wal_contents(wal_path);
+    std::unique_ptr<Index> rejected;
+    const m4::Status status = Index::Open(path, options, &rejected);
+    Check(!status.ok && !rejected && status.message.find(reason) != std::string::npos,
+          reason + " fails closed with a clear recovery error");
+    Check(wal_contents(wal_path) == durable_bytes,
+          reason + " leaves the durable legacy WAL unchanged");
+  };
+
+  std::string malformed_payload;
+  {
+    m4::BufWriter payload;
+    payload.U8(1);
+    payload.U64(0);
+    payload.U64(1);
+    payload.String("malformed-varint");
+    const char overflow_length[10] = {
+        char(0x80), char(0x80), char(0x80), char(0x80), char(0x80),
+        char(0x80), char(0x80), char(0x80), char(0x80), char(0x02)};
+    payload.Bytes(overflow_length, sizeof(overflow_length));
+    malformed_payload = payload.data();
+  }
+  check_legacy_rejected_and_retained(dir + "-malformed-varint",
+                                    malformed_payload,
+                                    "bad upsert wal record");
+
+  std::string oversized_payload;
+  {
+    m4::BufWriter payload;
+    payload.U8(1);
+    payload.U64(0);
+    payload.U64(1);
+    payload.String("legacy-oversized");
+    payload.String(std::string(kRecordLimit, '!'));
+    payload.Varint(0);
+    oversized_payload = payload.data();
+  }
+  check_legacy_rejected_and_retained(dir + "-legacy-oversized",
+                                    oversized_payload,
+                                    "2 MiB record limit");
+}
+
 void TestWalSequenceChecksumBoundary(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options options;
@@ -4749,6 +4908,7 @@ int main(int argc, char *argv[]) {
   TestStringPrefixRangeSearch(root + "/string-prefix-range");
   TestPhrase(root + "/phrase");
   TestCrashWal(root + "/wal");
+  TestWalRecordBounds(root + "/wal-record-bounds");
   TestWalSequenceChecksumBoundary(root + "/wal-sequence-boundary");
   TestLz4WalFrames(root + "/wal-lz4");
   TestAtomicPublicationSyncFailures(root + "/atomic-publication-sync-failures");

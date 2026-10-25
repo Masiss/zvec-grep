@@ -897,6 +897,9 @@ public:
       return Status::OK();
     if (poisoned_)
       return Status::Error("wal requires reopen after prior I/O failure");
+    if (payload.size() > kMaxWalFramePayloadBytes) {
+      return Status::Error("wal frame exceeds 8 MiB application limit");
+    }
     if (payload.size() > std::numeric_limits<uint32_t>::max()) {
       return Status::Error("wal record exceeds format limit");
     }
@@ -1032,6 +1035,10 @@ public:
       return Status::Error("wal stat");
     if (st.st_size < 0)
       return Status::Error("negative wal size");
+    if (static_cast<uintmax_t>(st.st_size) >
+        std::numeric_limits<size_t>::max()) {
+      return Status::Error("wal size exceeds addressable memory");
+    }
     std::string bytes(static_cast<size_t>(st.st_size), '\0');
     size_t done = 0;
     uint64_t decoded_payload_bytes = 0;
@@ -1111,6 +1118,8 @@ public:
             header_crc != WalHeaderChecksum(magic, len, seq, original_len)) {
           continue;
         }
+        if ((compressed ? original_len : len) > kMaxWalFramePayloadBytes)
+          continue;
         if (len > bytes.size() - candidate - header_size)
           continue;
         const char *payload = bytes.data() + candidate + header_size;
@@ -1184,6 +1193,15 @@ public:
           header_crc != WalHeaderChecksum(magic, len, seq, original_len)) {
         return Status::Error("WAL frame header checksum mismatch at offset " +
                              std::to_string(off));
+      }
+      if (seq == std::numeric_limits<uint64_t>::max()) {
+        return Status::Error("WAL sequence space exhausted at offset " +
+                             std::to_string(off));
+      }
+      if ((compressed ? original_len : len) > kMaxWalFramePayloadBytes) {
+        return Status::Error("WAL frame exceeds 8 MiB application limit at offset " +
+                             std::to_string(off) +
+                             "; WAL retained for recovery");
       }
       if (len > bytes.size() - off - header_size) {
         if (has_valid_frame_after(off + 1)) {
@@ -1906,6 +1924,83 @@ std::string EncodeArrayUint32Element(uint32_t value) {
   return encoded;
 }
 
+size_t VarintBytes(uint64_t value) {
+  size_t bytes = 1;
+  while (value >= 0x80) {
+    value >>= 7;
+    ++bytes;
+  }
+  return bytes;
+}
+
+size_t EstimateUpsertRecordBytes(const std::string& pk,
+                                const Document& document) {
+  const size_t limit = kMaxWalUpsertRecordBytes;
+  if (document.values.size() > limit) return limit + 1;
+  size_t total = 1 + 2 * sizeof(uint64_t);  // tag and DocIds
+  auto add = [&](size_t bytes) {
+    if (bytes > limit - std::min(total, limit)) {
+      total = limit + 1;
+      return false;
+    }
+    total += bytes;
+    return true;
+  };
+  auto add_string = [&](size_t length) {
+    if (length > limit) {
+      total = limit + 1;
+      return false;
+    }
+    return add(VarintBytes(length) + length);
+  };
+  if (!add_string(pk.size()) || !add_string(document.text.size()))
+    return limit + 1;
+
+  size_t normalized_value_count = document.values.size();
+  for (const auto& array : document.array_uint32_values) {
+    if (normalized_value_count >= limit ||
+        array.values.size() > limit - normalized_value_count - 1) {
+      return limit + 1;
+    }
+    ++normalized_value_count;  // array-presence marker
+    normalized_value_count += array.values.size();
+  }
+  if (!add(VarintBytes(normalized_value_count))) return limit + 1;
+  for (const auto& value : document.values) {
+    if (!add_string(value.field.size()) || !add_string(value.value.size()))
+      return limit + 1;
+  }
+  for (const auto& array : document.array_uint32_values) {
+    if (!add_string(array.field.size()) || !add_string(sizeof(kArrayUint32Presence) - 1))
+      return limit + 1;
+    for (size_t i = 0; i < array.values.size(); ++i) {
+      if (!add_string(array.field.size()) || !add_string(8))
+        return limit + 1;
+    }
+  }
+  return total;
+}
+
+size_t EstimateDeleteRecordBytes(const std::string& pk) {
+  if (pk.size() > kMaxWalUpsertRecordBytes) return kMaxWalUpsertRecordBytes + 1;
+  return 1 + sizeof(uint64_t) + VarintBytes(pk.size()) + pk.size();
+}
+
+Status ValidateUpsertRecordSize(const std::string& pk,
+                                const Document& document) {
+  if (EstimateUpsertRecordBytes(pk, document) > kMaxWalUpsertRecordBytes) {
+    return Status::Error("upsert WAL record exceeds 2 MiB application limit");
+  }
+  return Status::OK();
+}
+
+Status ValidateDeleteRecordSize(const std::string& pk) {
+  if (EstimateDeleteRecordBytes(pk) > kMaxWalUpsertRecordBytes) {
+    return Status::Error("delete WAL record exceeds 2 MiB application limit");
+  }
+  return Status::OK();
+}
+
 Document NormalizeDocument(const Document& document) {
   Document normalized = document;
   std::map<std::string, std::set<uint32_t>> arrays;
@@ -2126,6 +2221,23 @@ class Index::Impl {
       return std::vector<Status>(mutations.size(), status);
     };
     if (mutations.empty()) return {};
+    size_t preflight_bytes = 0;
+    for (const Mutation& mutation : mutations) {
+      if (mutation.kind != MutationKind::UPSERT) {
+        return fail_all(Status::Error(
+            "per-Upsert writer group accepts only Upsert mutations"));
+      }
+      const Status input_status =
+          ValidateUpsertRecordSize(mutation.pk, mutation.document);
+      if (!input_status.ok) return fail_all(input_status);
+      const size_t record_bytes =
+          EstimateUpsertRecordBytes(mutation.pk, mutation.document);
+      if (record_bytes > kWriterGroupCommitMaxBytes - preflight_bytes) {
+        return fail_all(
+            Status::Error("writer group exceeds 6 MiB encoded limit"));
+      }
+      preflight_bytes += record_bytes;
+    }
     if (!options_.wal_enabled || !options_.fsync_wal) {
       std::unique_lock<std::recursive_mutex> state_lock(mutex_);
       const Status healthy = WriterGroupHealth();
@@ -2152,10 +2264,6 @@ class Index::Impl {
     std::vector<Document> normalized;
     normalized.reserve(mutations.size());
     for (const Mutation& mutation : mutations) {
-      if (mutation.kind != MutationKind::UPSERT) {
-        return fail_all(Status::Error(
-            "per-Upsert writer group accepts only Upsert mutations"));
-      }
       normalized.push_back(NormalizeDocument(mutation.document));
     }
 
@@ -2188,6 +2296,10 @@ class Index::Impl {
       for (const auto& value : document.values) {
         record.String(value.field);
         record.String(value.value);
+      }
+      if (record.data().size() > kMaxWalUpsertRecordBytes) {
+        return fail_all(Status::Error(
+            "upsert WAL record exceeds 2 MiB application limit"));
       }
       encoded_bytes += record.data().size();
       if (encoded_bytes > kWriterGroupCommitMaxBytes) {
@@ -2719,6 +2831,9 @@ class Index::Impl {
         next_wal_seq_ = std::max(next_wal_seq_, rec.seq + 1);
       }
     }
+    if (manifest_.wal_seq == std::numeric_limits<uint64_t>::max()) {
+      return Status::Error("WAL sequence space exhausted at manifest checkpoint");
+    }
     next_wal_seq_ = std::max(next_wal_seq_, manifest_.wal_seq + 1);
     last_wal_seq_ = manifest_.wal_seq;
     // WAL replay may have appended DocIds beyond the last manifest commit.
@@ -2762,6 +2877,8 @@ class Index::Impl {
 
   Status Upsert(const std::string& pk, const Document& doc,
                 WriteDiagnostics* diagnostics) {
+    const Status input_status = ValidateUpsertRecordSize(pk, doc);
+    if (!input_status.ok) return input_status;
     if (options_.writer_group_commit_max_batch_size >= 2) {
       return QueueUpsert(pk, doc, diagnostics);
     }
@@ -2770,6 +2887,8 @@ class Index::Impl {
 
   Status UpsertDirect(const std::string& pk, const Document& doc,
                      WriteDiagnostics* diagnostics) {
+    const Status input_status = ValidateUpsertRecordSize(pk, doc);
+    if (!input_status.ok) return input_status;
     const bool capture = diagnostics && diagnostics->capture_timing;
     double wall_start = capture ? NowMs() : 0.0;
     double cpu_start = capture ? ThreadCpuMs() : 0.0;
@@ -2803,6 +2922,13 @@ class Index::Impl {
         capture ? &diagnostics->state_mutex_hold_ms : nullptr,
         capture ? &diagnostics->state_mutex_hold_cpu_ms : nullptr);
     const uint64_t old_id = LookupPk(pk);
+    if (next_doc_id_ == 0 ||
+        next_doc_id_ == std::numeric_limits<DocId>::max()) {
+      return Status::Error("DocId space exhausted");
+    }
+    if (next_wal_seq_ == std::numeric_limits<uint64_t>::max()) {
+      return Status::Error("WAL sequence space exhausted");
+    }
     // Keep the high-water mark stable for shared readers until InsertInternal
     // advances it under exclusive query admission; writers are state-serialized.
     const DocId new_id = next_doc_id_;
@@ -2823,12 +2949,14 @@ class Index::Impl {
       w.String(v.field);
       w.String(v.value);
     }
+    if (w.size() > kMaxWalUpsertRecordBytes) {
+      return Status::Error("upsert WAL record exceeds 2 MiB application limit");
+    }
     if (capture) {
       diagnostics->wal_encode_ms = NowMs() - wall_start;
       diagnostics->wal_encode_cpu_ms = ThreadCpuMs() - cpu_start;
     }
-    const uint64_t seq = next_wal_seq_++;
-    last_wal_seq_ = seq;
+    const uint64_t seq = next_wal_seq_;
     Status s;
     if (options_.wal_enabled) {
       if (capture) {
@@ -2846,6 +2974,8 @@ class Index::Impl {
       const char* fault = std::getenv("M4_FAULT");
       if (fault && std::string(fault) == "upsert_after_wal_sync") ::_exit(88);
     }
+    ++next_wal_seq_;
+    last_wal_seq_ = seq;
     s = WaitForTestWalApplyBarrier();
     if (!s.ok) return s;
 
@@ -2895,6 +3025,11 @@ class Index::Impl {
     if (!healthy.ok) return healthy;
     const uint64_t id = LookupPk(pk);
     if (id == 0) return Status::OK();
+    const Status input_status = ValidateDeleteRecordSize(pk);
+    if (!input_status.ok) return input_status;
+    if (next_wal_seq_ == std::numeric_limits<uint64_t>::max()) {
+      return Status::Error("WAL sequence space exhausted");
+    }
     const Status retry_flush = FlushPendingDeltaBeforeMutation();
     if (!retry_flush.ok) {
       return retry_flush;
@@ -2903,8 +3038,10 @@ class Index::Impl {
     w.U8(2);  // delete
     w.U64(id);
     w.String(pk);
-    const uint64_t seq = next_wal_seq_++;
-    last_wal_seq_ = seq;
+    if (w.size() > kMaxWalUpsertRecordBytes) {
+      return Status::Error("delete WAL record exceeds 2 MiB application limit");
+    }
+    const uint64_t seq = next_wal_seq_;
     Status s;
     if (options_.wal_enabled) {
       s = wal_.Append(seq, w.data(), options_.fsync_wal);
@@ -2912,6 +3049,8 @@ class Index::Impl {
       const char* fault = std::getenv("M4_FAULT");
       if (fault && std::string(fault) == "delete_after_wal_sync") ::_exit(89);
     }
+    ++next_wal_seq_;
+    last_wal_seq_ = seq;
     s = WaitForTestWalApplyBarrier();
     if (!s.ok) return s;
 
@@ -2941,6 +3080,32 @@ class Index::Impl {
     if (mutations.empty()) return Status::OK();
     if (mutations.size() > kMaxBatchMutations) {
       return Status::Error("batch exceeds 256 mutations");
+    }
+
+    // Bound source and normalized serialization size before copying documents
+    // or expanding array values. Overestimation is intentional for duplicate
+    // array values: an oversized input is rejected before normalization.
+    size_t estimated_batch_bytes = 1 + VarintBytes(mutations.size());
+    for (const Mutation& mutation : mutations) {
+      size_t record_bytes = 0;
+      if (mutation.kind == MutationKind::UPSERT) {
+        const Status input_status = ValidateUpsertRecordSize(
+            mutation.pk, mutation.document);
+        if (!input_status.ok) return input_status;
+        record_bytes = EstimateUpsertRecordBytes(mutation.pk,
+                                                  mutation.document);
+      } else if (mutation.kind == MutationKind::DELETE) {
+        const Status input_status = ValidateDeleteRecordSize(mutation.pk);
+        if (!input_status.ok) return input_status;
+        record_bytes = EstimateDeleteRecordBytes(mutation.pk);
+      } else {
+        return Status::Error("unknown batch mutation kind");
+      }
+      const size_t framed_child = VarintBytes(record_bytes) + record_bytes;
+      if (estimated_batch_bytes > kMaxWalFramePayloadBytes - framed_child) {
+        return Status::Error("batch exceeds 8 MiB encoded limit");
+      }
+      estimated_batch_bytes += framed_child;
     }
 
     // Normalize pure inputs before taking the writer-state mutex so concurrent
@@ -3013,6 +3178,10 @@ class Index::Impl {
           record.String(value.field);
           record.String(value.value);
         }
+        if (record.data().size() > kMaxWalUpsertRecordBytes) {
+          return Status::Error(
+              "upsert WAL record exceeds 2 MiB application limit");
+        }
         staged_ids[mutation.pk] = new_id;
       } else {
         return Status::Error("unknown batch mutation kind");
@@ -3024,6 +3193,9 @@ class Index::Impl {
       records.push_back(record.data());
     }
     if (records.empty()) return Status::OK();
+    if (next_wal_seq_ == std::numeric_limits<uint64_t>::max()) {
+      return Status::Error("WAL sequence space exhausted");
+    }
 
     const double retry_flush_wall = capture ? NowMs() : 0.0;
     const double retry_flush_cpu = capture ? ThreadCpuMs() : 0.0;
@@ -5857,43 +6029,57 @@ class Index::Impl {
     }
   }
 
-  Status ReplayWalPayload(const std::string& payload) {
+  Status ReplayWalPayload(std::string_view payload) {
+    if (payload.size() > kMaxWalFramePayloadBytes) {
+      return Status::Error("WAL payload exceeds 8 MiB application limit");
+    }
     BufReader r(payload.data(), payload.size());
     const uint8_t type = r.U8();
+    if (type != 3 && payload.size() > kMaxWalUpsertRecordBytes) {
+      return Status::Error("legacy WAL mutation exceeds 2 MiB record limit; WAL retained");
+    }
     if (type == 3) {
       const uint64_t count = r.Varint();
       if (!r.ok() || count == 0 || count > 256) {
         return Status::Error("bad batch wal record count");
       }
-      std::vector<std::string> records;
+      std::vector<std::string_view> records;
       records.reserve(static_cast<size_t>(count));
-      for (uint64_t i = 0; i < count; ++i) records.push_back(r.String());
+      for (uint64_t i = 0; i < count; ++i) {
+        const std::string_view child = r.StringView();
+        if (!r.ok()) return Status::Error("bad batch wal record framing");
+        if (child.size() > kMaxWalUpsertRecordBytes) {
+          return Status::Error(
+              "legacy batch child exceeds 2 MiB record limit; WAL retained");
+        }
+        records.push_back(child);
+      }
       if (!r.ok() || r.remaining() != 0) {
         return Status::Error("bad batch wal record framing");
       }
 
       // Validate every child before applying any child: a malformed transaction
       // must never replay as a visible prefix.
-      for (const std::string& child : records) {
+      for (const std::string_view child : records) {
         BufReader c(child.data(), child.size());
         const uint8_t child_type = c.U8();
         if (child_type == 1) {
           const uint64_t old_id = c.U64();
           const uint64_t new_id = c.U64();
-          const std::string pk = c.String();
-          (void)c.String();  // text
+          (void)c.StringView();  // primary key
+          (void)c.StringView();  // text
           const uint64_t n = c.Varint();
           if (!c.ok() || new_id == 0 || n > 1000000ull) {
             return Status::Error("bad upsert in batch wal record");
           }
           for (uint64_t i = 0; i < n; ++i) {
-            (void)c.String();
-            (void)c.String();
+            (void)c.StringView();
+            (void)c.StringView();
           }
           (void)old_id;
         } else if (child_type == 2) {
           const uint64_t id = c.U64();
-          const std::string pk = c.String();
+          (void)c.StringView();  // primary key
           if (!c.ok() || id == 0) {
             return Status::Error("bad delete in batch wal record");
           }
