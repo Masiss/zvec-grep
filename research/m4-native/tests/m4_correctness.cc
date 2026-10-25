@@ -1346,7 +1346,39 @@ void TestAtomicPublicationSyncFailures(const std::string& root) {
     ::unsetenv("M4_FAULT");
     Check(!open.ok, "initialization sync failure must fail open " + fault);
     index.reset();
+
+    std::unique_ptr<Index> recovered;
+    const m4::Status recovery = Index::Open(dir, options, &recovered);
+    Check(recovery.ok, "initialization sync failure recovery " + fault + ": " +
+                           recovery.message);
+    if (recovered) {
+      Check(recovered->GetStats().live_docs == 0,
+            "initialization recovery remains empty " + fault);
+    }
   }
+
+  const std::string crash_dir = root + "/after-initial-manifest";
+  fs::remove_all(crash_dir);
+  const pid_t child = ::fork();
+  if (child == 0) {
+    ::setenv("M4_FAULT", "initial_after_manifest", 1);
+    std::unique_ptr<Index> child_index;
+    const m4::Status open = Index::Open(crash_dir, options, &child_index);
+    ::_exit(open.ok ? 10 : 11);
+  }
+  int child_status = 0;
+  const bool waited = child > 0 && ::waitpid(child, &child_status, 0) == child;
+  Check(waited && WIFEXITED(child_status) && WEXITSTATUS(child_status) == 96,
+        "initialization crash occurs after durable empty manifest");
+  std::unique_ptr<Index> recovered;
+  const m4::Status recovery = Index::Open(crash_dir, options, &recovered);
+  Check(recovery.ok,
+        "recover empty bootstrap after crash: " + recovery.message);
+  if (recovered) {
+    Check(recovered->GetStats().live_docs == 0,
+          "crash-recovered bootstrap contains no acknowledged documents");
+  }
+  ::unsetenv("M4_FAULT");
 
   const std::vector<std::string> faults = {
       "segment_file_fsync", "segment_directory_fsync",

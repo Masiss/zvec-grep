@@ -633,6 +633,13 @@ struct Manifest {
   std::vector<RunInfo> runs;
 };
 
+bool IsPristineBootstrapManifest(const Manifest& manifest) {
+  return manifest.next_doc_id == 1 && manifest.wal_seq == 0 &&
+         manifest.run_id_seq == 0 && manifest.stats_epoch == 1 &&
+         manifest.stats_log_end == 0 && manifest.tombstone_file.empty() &&
+         manifest.runs.empty();
+}
+
 std::string ManifestPath(const std::string& dir) {
   return (fs::path(dir) / "manifest").string();
 }
@@ -2542,7 +2549,15 @@ class Index::Impl {
       }
       manifest_ = Manifest{};
       manifest_.analyzer_fingerprint = analyzer_fingerprint;
-      // Ensure an initial checkpoint/log exists.
+      // Publish the pristine manifest first. If startup crashes while creating
+      // the empty stats metadata, Open can recognize and repair this no-data
+      // state without reinitializing a directory that may contain mutations.
+      const Status manifest_status = WriteManifest(dir_, manifest_);
+      if (!manifest_status.ok) return manifest_status;
+      const char* fault = std::getenv("M4_FAULT");
+      if (fault && std::strcmp(fault, "initial_after_manifest") == 0) {
+        ::_exit(96);
+      }
       StatsState empty;
       const auto ckpt = fs::path(dir_) / StatsCkptName(1);
       const auto log = fs::path(dir_) / StatsLogName(1);
@@ -2550,8 +2565,6 @@ class Index::Impl {
       if (!initial_status.ok) return initial_status;
       initial_status = AtomicWrite(log.string(), "");
       if (!initial_status.ok) return initial_status;
-      const Status manifest_status = WriteManifest(dir_, manifest_);
-      if (!manifest_status.ok) return manifest_status;
     }
 
     // Remember the durable checkpoint separately from manifest_.wal_seq, which
@@ -2630,8 +2643,23 @@ class Index::Impl {
         stats_ok = DecodeStatsCkpt(bytes, &stats);
       }
     }
+    const bool pristine_bootstrap = IsPristineBootstrapManifest(manifest_);
+    if (!stats_ok && pristine_bootstrap) {
+      stats = StatsState{};
+      const Status repair_status =
+          AtomicWrite(ckpt_path, EncodeStatsCkpt(stats));
+      if (!repair_status.ok) return repair_status;
+      stats_ok = true;
+    }
     if (!stats_ok) {
       return Status::Error("missing stats checkpoint");
+    }
+    std::error_code log_ec;
+    const bool log_exists = fs::exists(log_path, log_ec);
+    if (log_ec) return Status::Error("check stats log: " + log_ec.message());
+    if (!log_exists && pristine_bootstrap) {
+      const Status repair_status = AtomicWrite(log_path, "");
+      if (!repair_status.ok) return repair_status;
     }
     if (!ReplayStatsLog(log_path, manifest_.stats_log_end, &stats)) {
       return Status::Error("invalid stats log");
