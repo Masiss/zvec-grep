@@ -6,30 +6,32 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cmath>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <map>
-#include <random>
 #include <limits>
+#include <lz4.h>
+#include <map>
 #include <optional>
+#include <random>
 #include <set>
 #include <string>
+#include <sys/wait.h>
 #include <thread>
+#include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <sys/wait.h>
-#include <unistd.h>
 
-#include "m4/index.h"
 #include "../src/format.h"
 #include "../src/tokenizer.h"
 #include "../src/util.h"
+#include "m4/index.h"
 
 namespace fs = std::filesystem;
 using m4::CompareOp;
@@ -43,7 +45,7 @@ namespace {
 int g_failures = 0;
 int g_checks = 0;
 
-void Check(bool ok, const std::string& what) {
+void Check(bool ok, const std::string &what) {
   ++g_checks;
   if (!ok) {
     ++g_failures;
@@ -51,8 +53,104 @@ void Check(bool ok, const std::string& what) {
   }
 }
 
+uint32_t WalSequenceChecksumForTest(uint64_t seq, const char *payload,
+                                    size_t size) {
+  uint8_t seq_bytes[sizeof(seq)];
+  for (size_t i = 0; i < sizeof(seq); ++i) {
+    seq_bytes[i] = static_cast<uint8_t>(seq >> (i * 8));
+  }
+  uint64_t checksum = m4::Fnv1aInit();
+  m4::Fnv1aUpdate(&checksum, seq_bytes, sizeof(seq_bytes));
+  m4::Fnv1aUpdate(&checksum, payload, size);
+  return static_cast<uint32_t>(checksum & 0xffffffffu);
+}
+
+uint32_t WalHeaderChecksumForTest(uint32_t magic, uint32_t len, uint64_t seq,
+                                  uint32_t original_len) {
+  uint8_t metadata[20];
+  size_t offset = 0;
+  const auto append_le = [&metadata, &offset](uint64_t value, size_t width) {
+    for (size_t i = 0; i < width; ++i) {
+      metadata[offset++] = static_cast<uint8_t>(value >> (i * 8));
+    }
+  };
+  append_le(magic, sizeof(magic));
+  append_le(len, sizeof(len));
+  append_le(seq, sizeof(seq));
+  append_le(original_len, sizeof(original_len));
+  return static_cast<uint32_t>(m4::Fnv1a(metadata, sizeof(metadata)) &
+                               0xffffffffu);
+}
+
+void RewriteWalFrameAsLegacy(const fs::path &wal_path, bool compressed) {
+  std::string bytes;
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    bytes.assign(std::istreambuf_iterator<char>(input),
+                 std::istreambuf_iterator<char>());
+  }
+  const size_t header_size = compressed ? 28u : 24u;
+  if (bytes.size() < header_size) {
+    Check(false, "new WAL fixture has a complete frame to rewrite");
+    return;
+  }
+  m4::BufReader reader(bytes.data(), bytes.size());
+  (void)reader.U32();
+  const uint32_t len = reader.U32();
+  (void)reader.U64();
+  uint32_t original_len = len;
+  uint32_t old_magic = 0x4D34574C;
+  const char *payload = bytes.data() + header_size;
+  size_t payload_size = len;
+  std::string decoded;
+  if (compressed) {
+    old_magic = 0x4D34575A;
+    original_len = reader.U32();
+    (void)reader.U32(); // New header checksum.
+    (void)reader.U32(); // New payload checksum.
+    if (len > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+        original_len > (8u << 20) || bytes.size() - header_size < len) {
+      Check(false, "compressed WAL fixture lengths are bounded");
+      return;
+    }
+    decoded.resize(original_len);
+    const int result =
+        LZ4_decompress_safe(payload, decoded.data(), static_cast<int>(len),
+                            static_cast<int>(original_len));
+    if (result < 0 || static_cast<uint32_t>(result) != original_len) {
+      Check(false, "new compressed WAL fixture decodes before legacy rewrite");
+      return;
+    }
+    payload = decoded.data();
+    payload_size = decoded.size();
+  } else {
+    (void)reader.U32(); // New header checksum.
+    (void)reader.U32(); // New payload checksum.
+    if (bytes.size() - header_size < len) {
+      Check(false, "raw WAL fixture payload is complete");
+      return;
+    }
+  }
+  const uint32_t checksum =
+      static_cast<uint32_t>(m4::Fnv1a(payload, payload_size) & 0xffffffffu);
+  m4::BufWriter magic_bytes;
+  magic_bytes.U32(old_magic);
+  std::string legacy(bytes.data(), bytes.data() + (compressed ? 20 : 16));
+  legacy.replace(0, 4, magic_bytes.data());
+  m4::BufWriter checksum_bytes;
+  checksum_bytes.U32(checksum);
+  legacy.append(checksum_bytes.data());
+  legacy.append(bytes.data() + header_size, len);
+  legacy.append(bytes.data() + header_size + len,
+                bytes.size() - header_size - len);
+  std::ofstream output(wal_path, std::ios::binary | std::ios::trunc);
+  output.write(legacy.data(), static_cast<std::streamsize>(legacy.size()));
+  output.flush();
+  Check(output.good(), "write legacy WAL frame fixture");
+}
+
 void TestSha256BlockBoundaries() {
-  const auto check_repeated_a = [](size_t bytes, const char* expected) {
+  const auto check_repeated_a = [](size_t bytes, const char *expected) {
     Check(m4::Sha256(std::string(bytes, 'a')) == expected,
           "SHA-256 repeated-a input length " + std::to_string(bytes));
   };
@@ -1270,14 +1368,15 @@ void TestAtomicPublicationSyncFailures(const std::string& root) {
           "set durability fault " + fault);
     const m4::Status flush = index->Flush();
     ::unsetenv("M4_FAULT");
-    Check(!flush.ok, "sync failure must fail publication " + fault +
-                         ": " + flush.message);
+    Check(!flush.ok,
+          "sync failure must fail publication " + fault + ": " + flush.message);
     index.reset();
 
     std::unique_ptr<Index> reopened;
     const m4::Status open = Index::Open(dir, options, &reopened);
     Check(open.ok, "durability-fault reopen " + fault + ": " + open.message);
-    if (!open.ok) continue;
+    if (!open.ok)
+      continue;
     Check(reopened->GetStats().live_docs == 1,
           "durability-fault WAL recovery count " + fault);
     CheckFts(*reopened, ref, "alpha", MakeRefQuery({"alpha"}, false), 10,
@@ -1286,7 +1385,7 @@ void TestAtomicPublicationSyncFailures(const std::string& root) {
   ::unsetenv("M4_FAULT");
 }
 
-void TestCrashWal(const std::string& dir) {
+void TestCrashWal(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 100000;
@@ -1311,7 +1410,8 @@ void TestCrashWal(const std::string& dir) {
     std::unique_ptr<Index> index;
     m4::Status s = Index::Open(dir, opt, &index);
     Check(s.ok, "wal reopen: " + s.message);
-    if (!s.ok) return;
+    if (!s.ok)
+      return;
     CheckFts(*index, ref, "alpha", MakeRefQuery({"alpha"}, false), 50,
              "wal replay alpha");
     Check(index->GetStats().live_docs == ref.docs.size(), "wal replay count");
@@ -1325,6 +1425,231 @@ void TestCrashWal(const std::string& dir) {
       return;
     CheckFts(*index, ref, "beta", MakeRefQuery({"beta"}, false), 50,
              "wal persisted beta");
+  }
+
+  // A complete corrupt frame in the middle of an otherwise valid WAL must not
+  // be treated as a torn tail: later durable records must not be truncated.
+  const std::string corrupt_dir = dir + "-mid-log-corruption";
+  fs::remove_all(corrupt_dir);
+  {
+    std::unique_ptr<Index> index;
+    Check(Index::Open(corrupt_dir, opt, &index).ok,
+          "mid-log-corruption fixture open");
+    if (!index)
+      return;
+    for (int i = 0; i < 3; ++i) {
+      Document document;
+      document.text = "durable record " + std::to_string(i);
+      Check(index->Upsert("corrupt-" + std::to_string(i), document).ok,
+            "mid-log-corruption fixture upsert");
+    }
+  }
+  const fs::path wal_path = fs::path(corrupt_dir) / "wal.log";
+  std::string wal_bytes;
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    wal_bytes.assign(std::istreambuf_iterator<char>(input),
+                     std::istreambuf_iterator<char>());
+  }
+  const std::string clean_wal_bytes = wal_bytes;
+  const auto read_u32_le = [&wal_bytes](size_t offset) -> uint32_t {
+    return static_cast<uint32_t>(
+               static_cast<unsigned char>(wal_bytes[offset])) |
+           (static_cast<uint32_t>(
+                static_cast<unsigned char>(wal_bytes[offset + 1]))
+            << 8) |
+           (static_cast<uint32_t>(
+                static_cast<unsigned char>(wal_bytes[offset + 2]))
+            << 16) |
+           (static_cast<uint32_t>(
+                static_cast<unsigned char>(wal_bytes[offset + 3]))
+            << 24);
+  };
+  if (wal_bytes.size() < 3 * 24) {
+    Check(false, "mid-log-corruption fixture has 3 frames");
+    fs::remove_all(corrupt_dir);
+    return;
+  }
+  const size_t second_frame = 24 + read_u32_le(4);
+  if (second_frame + 24 >= wal_bytes.size()) {
+    Check(false, "mid-log-corruption second frame has payload");
+    fs::remove_all(corrupt_dir);
+    return;
+  }
+  const size_t third_frame = second_frame + 24 + read_u32_le(second_frame + 4);
+  if (third_frame + 24 > wal_bytes.size()) {
+    Check(false, "mid-log-corruption fixture retains a later frame");
+    fs::remove_all(corrupt_dir);
+    return;
+  }
+  wal_bytes[second_frame + 24] ^= 0x01;
+  {
+    std::ofstream output(wal_path, std::ios::binary | std::ios::trunc);
+    output.write(wal_bytes.data(),
+                 static_cast<std::streamsize>(wal_bytes.size()));
+    output.flush();
+    Check(output.good(), "write mid-log-corruption fixture");
+  }
+  std::unique_ptr<Index> corrupted;
+  const m4::Status corrupt_open = Index::Open(corrupt_dir, opt, &corrupted);
+  Check(!corrupt_open.ok, "complete mid-log corruption must fail closed: " +
+                              corrupt_open.message);
+  Check(!corrupted, "corrupt WAL must not publish an index");
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    const std::string after_recovery{std::istreambuf_iterator<char>(input),
+                                     std::istreambuf_iterator<char>()};
+    Check(after_recovery == wal_bytes,
+          "mid-log corruption must not truncate later durable WAL records");
+  }
+
+  std::string corrupt_length_bytes = clean_wal_bytes;
+  for (size_t i = 0; i < sizeof(uint32_t); ++i) {
+    corrupt_length_bytes[second_frame + 4 + i] = static_cast<char>(0xff);
+  }
+  {
+    std::ofstream output(wal_path, std::ios::binary | std::ios::trunc);
+    output.write(corrupt_length_bytes.data(),
+                 static_cast<std::streamsize>(corrupt_length_bytes.size()));
+    output.flush();
+    Check(output.good(), "write corrupt-length WAL fixture");
+  }
+  std::unique_ptr<Index> corrupt_length_index;
+  const m4::Status corrupt_length_status =
+      Index::Open(corrupt_dir, opt, &corrupt_length_index);
+  Check(!corrupt_length_status.ok && !corrupt_length_index,
+        "corrupt frame length before later records fails closed");
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    const std::string after_recovery{std::istreambuf_iterator<char>(input),
+                                     std::istreambuf_iterator<char>()};
+    Check(after_recovery == corrupt_length_bytes,
+          "corrupt length must not truncate later durable WAL records");
+  }
+  std::string corrupt_sequence_bytes = clean_wal_bytes;
+  corrupt_sequence_bytes[second_frame + 8] = 1;
+  for (size_t i = 1; i < sizeof(uint64_t); ++i) {
+    corrupt_sequence_bytes[second_frame + 8 + i] = 0;
+  }
+  const uint32_t frame_len = read_u32_le(second_frame + 4);
+  const uint32_t duplicate_sequence_header_checksum =
+      WalHeaderChecksumForTest(0x4D345731, frame_len, 1, frame_len);
+  for (size_t i = 0; i < sizeof(uint32_t); ++i) {
+    corrupt_sequence_bytes[second_frame + 16 + i] =
+        static_cast<char>(duplicate_sequence_header_checksum >> (i * 8));
+  }
+  const uint32_t duplicate_sequence_payload_checksum =
+      WalSequenceChecksumForTest(
+          1, corrupt_sequence_bytes.data() + second_frame + 24, frame_len);
+  for (size_t i = 0; i < sizeof(uint32_t); ++i) {
+    corrupt_sequence_bytes[second_frame + 20 + i] =
+        static_cast<char>(duplicate_sequence_payload_checksum >> (i * 8));
+  }
+  {
+    std::ofstream output(wal_path, std::ios::binary | std::ios::trunc);
+    output.write(corrupt_sequence_bytes.data(),
+                 static_cast<std::streamsize>(corrupt_sequence_bytes.size()));
+    output.flush();
+    Check(output.good(), "write duplicate-sequence WAL fixture");
+  }
+  std::unique_ptr<Index> corrupt_sequence_index;
+  const m4::Status corrupt_sequence_status =
+      Index::Open(corrupt_dir, opt, &corrupt_sequence_index);
+  Check(!corrupt_sequence_status.ok && !corrupt_sequence_index,
+        "duplicate WAL sequence fails closed rather than skipping an ACK");
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    const std::string after_recovery{std::istreambuf_iterator<char>(input),
+                                     std::istreambuf_iterator<char>()};
+    Check(after_recovery == corrupt_sequence_bytes,
+          "duplicate sequence corruption leaves WAL bytes untouched");
+  }
+  fs::remove_all(corrupt_dir);
+}
+
+void TestWalSequenceChecksumBoundary(const std::string &dir) {
+  fs::remove_all(dir);
+  m4::Options options;
+  options.max_delta_docs = 100000;
+  options.max_delta_bytes = 1ull << 30;
+  options.wal_enabled = true;
+  options.fsync_wal = true;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, options, &index).ok,
+        "sequence-checksum boundary index open");
+  if (!index)
+    return;
+  Document committed;
+  committed.text = "committed before checkpoint";
+  Check(index->Upsert("sequence-committed", committed).ok,
+        "sequence-checksum boundary first durable Upsert");
+  Check(index->Flush().ok, "sequence-checksum boundary checkpoint");
+  Document uncommitted;
+  uncommitted.text = "durable after checkpoint";
+  Check(index->Upsert("sequence-uncommitted", uncommitted).ok,
+        "sequence-checksum boundary post-checkpoint durable Upsert");
+  index.reset();
+
+  const fs::path wal_path = fs::path(dir) / "wal.log";
+  std::string bytes;
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    bytes.assign(std::istreambuf_iterator<char>(input),
+                 std::istreambuf_iterator<char>());
+  }
+  Check(bytes.size() > 24, "post-checkpoint WAL contains a complete frame");
+  if (bytes.size() <= 24)
+    return;
+  const std::string clean_bytes = bytes;
+  std::string corrupt_length_bytes = clean_bytes;
+  for (size_t i = 0; i < sizeof(uint32_t); ++i) {
+    corrupt_length_bytes[4 + i] = static_cast<char>(0xff);
+  }
+  {
+    std::ofstream output(wal_path, std::ios::binary | std::ios::trunc);
+    output.write(corrupt_length_bytes.data(),
+                 static_cast<std::streamsize>(corrupt_length_bytes.size()));
+    output.flush();
+    Check(output.good(), "write final-frame corrupted-length fixture");
+  }
+  std::unique_ptr<Index> corrupt_length;
+  const m4::Status corrupt_length_status =
+      Index::Open(dir, options, &corrupt_length);
+  Check(!corrupt_length_status.ok && !corrupt_length,
+        "corrupt final WAL length fails closed, not as a torn tail");
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    const std::string after_recovery{std::istreambuf_iterator<char>(input),
+                                     std::istreambuf_iterator<char>()};
+    Check(after_recovery == corrupt_length_bytes,
+          "final corrupted length leaves WAL bytes untouched");
+  }
+
+  m4::BufReader frame(bytes.data(), bytes.size());
+  const uint32_t magic = frame.U32();
+  (void)frame.U32();
+  const uint64_t sequence = frame.U64();
+  Check(magic == 0x4D345731 && sequence == 2,
+        "new raw WAL frame carries expected sequence-bound format");
+  bytes[8] = 1; // Change sequence 2 to already-checkpointed sequence 1.
+  for (size_t i = 1; i < sizeof(uint64_t); ++i)
+    bytes[8 + i] = 0;
+  {
+    std::ofstream output(wal_path, std::ios::binary | std::ios::trunc);
+    output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    output.flush();
+    Check(output.good(), "write manifest-boundary sequence corruption");
+  }
+  std::unique_ptr<Index> recovered;
+  const m4::Status status = Index::Open(dir, options, &recovered);
+  Check(!status.ok && !recovered,
+        "sequence corruption to manifest value fails closed");
+  {
+    std::ifstream input(wal_path, std::ios::binary);
+    const std::string after_recovery{std::istreambuf_iterator<char>(input),
+                                     std::istreambuf_iterator<char>()};
+    Check(after_recovery != clean_bytes && after_recovery == bytes,
+          "manifest-boundary corruption is detected without truncating WAL");
   }
 }
 
@@ -1386,6 +1711,22 @@ void TestLz4WalFrames(const std::string &root) {
   Check(compressed_size < raw_size && fast_compressed_size < raw_size,
         "LZ4 WAL is smaller than legacy frame at default and accelerated "
         "settings");
+
+  // Current writers bind the sequence into each checksum; verify both old
+  // payload-only frame variants remain readable by the new replay path.
+  RewriteWalFrameAsLegacy(fs::path(raw_dir) / "wal.log", false);
+  const std::string old_compressed_dir = root + "/old-compressed";
+  fs::copy(compressed_dir, old_compressed_dir, fs::copy_options::recursive, ec);
+  Check(!ec, "copy compressed WAL for old-format compatibility test");
+  if (!ec) {
+    RewriteWalFrameAsLegacy(fs::path(old_compressed_dir) / "wal.log", true);
+    std::unique_ptr<Index> old_compressed_reader;
+    const m4::Status old_compressed_status =
+        Index::Open(old_compressed_dir, m4::Options{}, &old_compressed_reader);
+    Check(old_compressed_status.ok && old_compressed_reader &&
+              old_compressed_reader->GetStats().live_docs == 40,
+          "old payload-only compressed WAL remains readable");
+  }
   m4::Options fast_reader_options;
   std::unique_ptr<Index> fast_reader;
   Check(Index::Open(fast_compressed_dir, fast_reader_options, &fast_reader).ok,
@@ -1474,13 +1815,25 @@ void TestLz4WalFrames(const std::string &root) {
     wal.write(&checksum_byte, 1);
     Check(static_cast<bool>(wal), "corrupt compressed WAL checksum");
   }
+  std::string corrupt_frame_bytes;
+  {
+    std::ifstream wal(fs::path(corrupt_dir) / "wal.log", std::ios::binary);
+    corrupt_frame_bytes.assign(std::istreambuf_iterator<char>(wal),
+                               std::istreambuf_iterator<char>());
+  }
   m4::Options checksum_reader;
   std::unique_ptr<Index> checksum_index;
-  Check(Index::Open(corrupt_dir, checksum_reader, &checksum_index).ok,
-        "bad compressed WAL checksum truncates invalid suffix");
-  Check(checksum_index && checksum_index->GetStats().live_docs == 0 &&
-            fs::file_size(fs::path(corrupt_dir) / "wal.log", ec) == 0,
-        "invalid compressed frame is not replayed");
+  const m4::Status checksum_status =
+      Index::Open(corrupt_dir, checksum_reader, &checksum_index);
+  Check(!checksum_status.ok && !checksum_index,
+        "complete bad compressed WAL checksum fails closed");
+  {
+    std::ifstream wal(fs::path(corrupt_dir) / "wal.log", std::ios::binary);
+    const std::string after_recovery{std::istreambuf_iterator<char>(wal),
+                                     std::istreambuf_iterator<char>()};
+    Check(after_recovery == corrupt_frame_bytes,
+          "complete corrupt WAL frame remains untouched for recovery");
+  }
 
   const std::string corrupt_suffix_dir = root + "/corrupt-compressed-suffix";
   fs::copy(compressed_dir, corrupt_suffix_dir, fs::copy_options::recursive, ec);
@@ -1500,23 +1853,34 @@ void TestLz4WalFrames(const std::string &root) {
               static_cast<std::streamsize>(good_frame.size()));
     Check(static_cast<bool>(wal), "append checksum-corrupt compressed suffix");
   }
+  std::string corrupt_suffix_bytes;
+  {
+    std::ifstream wal(fs::path(corrupt_suffix_dir) / "wal.log",
+                      std::ios::binary);
+    corrupt_suffix_bytes.assign(std::istreambuf_iterator<char>(wal),
+                                std::istreambuf_iterator<char>());
+  }
   m4::Options suffix_reader_options;
   suffix_reader_options.max_delta_docs = 100000;
   suffix_reader_options.max_delta_bytes = 1ull << 30;
   std::unique_ptr<Index> suffix_reader;
-  Check(
-      Index::Open(corrupt_suffix_dir, suffix_reader_options, &suffix_reader).ok,
-      "valid compressed prefix survives checksum-corrupt suffix");
-  Check(suffix_reader && suffix_reader->GetStats().live_docs == 40 &&
-            fs::file_size(fs::path(corrupt_suffix_dir) / "wal.log", ec) ==
-                compressed_size,
-        "replay preserves complete prefix and truncates only bad frame");
-  suffix_reader.reset();
+  const m4::Status suffix_status =
+      Index::Open(corrupt_suffix_dir, suffix_reader_options, &suffix_reader);
+  Check(!suffix_status.ok && !suffix_reader,
+        "complete corrupt compressed suffix fails closed");
+  {
+    std::ifstream wal(fs::path(corrupt_suffix_dir) / "wal.log",
+                      std::ios::binary);
+    const std::string after_recovery{std::istreambuf_iterator<char>(wal),
+                                     std::istreambuf_iterator<char>()};
+    Check(after_recovery == corrupt_suffix_bytes,
+          "failed recovery preserves valid prefix and corrupt suffix bytes");
+  }
   {
     std::ifstream wal(fs::path(compressed_dir) / "wal.log", std::ios::binary);
     char magic[4]{};
     wal.read(magic, sizeof(magic));
-    Check(wal.gcount() == 4 && std::string(magic, 4) == "ZW4M",
+    Check(wal.gcount() == 4 && std::string(magic, 4) == "2W4M",
           "compressed WAL frame has versioned little-endian magic");
   }
 
@@ -1552,7 +1916,7 @@ void TestLz4WalFrames(const std::string &root) {
   {
     std::ofstream wal(fs::path(compressed_dir) / "wal.log",
                       std::ios::binary | std::ios::app);
-    wal.write("M4W", 3);
+    wal.write("2W4", 3); // A torn prefix of the compressed-frame magic.
   }
   Check(Index::Open(compressed_dir, compressed_reader, &index).ok,
         "compressed WAL torn suffix repair");
@@ -1825,7 +2189,7 @@ void TestAtomicMutationBatch(const std::string &root) {
     index.reset();
     {
       std::ofstream wal(fs::path(dir) / "wal.log", std::ios::binary | std::ios::app);
-      wal.write("M4W", 3);
+      wal.write("1W4", 3); // A torn prefix of the sequence-bound raw-frame magic.
     }
     Check(Index::Open(dir, options, &index).ok, "torn-tail replay repairs suffix");
     Check(index->GetStats().live_docs == 2, "torn-tail retains complete batch");
@@ -1989,7 +2353,7 @@ void TestAtomicMutationBatch(const std::string &root) {
       const std::string contents((std::istreambuf_iterator<char>(wal)),
                                  std::istreambuf_iterator<char>());
       size_t compressed_frames = 0;
-      for (size_t pos = 0; (pos = contents.find("ZW4M", pos)) != std::string::npos;
+      for (size_t pos = 0; (pos = contents.find("2W4M", pos)) != std::string::npos;
            pos += 4) {
         ++compressed_frames;
       }
@@ -4209,18 +4573,21 @@ void TestManifestFallback(const std::string& dir) {
     std::unique_ptr<Index> reopened;
     s = Index::Open(dir, opt, &reopened);
     Check(s.ok, "fallback reopen from bak: " + s.message);
-    if (!s.ok) return;
+    if (!s.ok)
+      return;
     m4::SearchResult r;
     Check(reopened->SearchFts("alpha", 50, &r).ok, "fallback search");
     Check(r.hits.size() == 40, "fallback restored all docs");
   }
 }
 
-}  // namespace
+} // namespace
 
-int main() {
+int main(int argc, char *argv[]) {
   TestSha256BlockBoundaries();
-  const std::string root = (fs::temp_directory_path() / "m4-research-tests").string();
+  const std::string root =
+      argc > 1 ? argv[1]
+               : (fs::current_path() / ".tmp" / "m4-research-tests").string();
   fs::remove_all(root);
   RunRandomized(root + "/random");
   TestTypedUint32Scalar(root + "/typed-u32");
@@ -4229,6 +4596,7 @@ int main() {
   TestStringPrefixRangeSearch(root + "/string-prefix-range");
   TestPhrase(root + "/phrase");
   TestCrashWal(root + "/wal");
+  TestWalSequenceChecksumBoundary(root + "/wal-sequence-boundary");
   TestLz4WalFrames(root + "/wal-lz4");
   TestAtomicPublicationSyncFailures(root + "/atomic-publication-sync-failures");
   TestFlushPublicationAndRecovery(root + "/flush-publication-recovery");
@@ -4254,6 +4622,8 @@ int main() {
   TestChurnOracle(root + "/churn");
   TestChurnOracle(root + "/churn-policy", true);
 
+  if (g_failures == 0)
+    fs::remove_all(root);
   std::printf("checks=%d failures=%d\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

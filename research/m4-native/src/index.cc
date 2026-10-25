@@ -12,17 +12,17 @@
 #include "m4/index.h"
 
 #include <fcntl.h>
+#include <lz4.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-#include <lz4.h>
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
-#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -32,8 +32,8 @@
 #include <iterator>
 #include <limits>
 #include <map>
-#include <mutex>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <queue>
 #include <set>
@@ -49,6 +49,10 @@
 #include "format.h"
 #include "tokenizer.h"
 #include "util.h"
+
+#ifndef M4_REPO_TMP_DIR
+#define M4_REPO_TMP_DIR ".tmp"
+#endif
 
 #ifdef M4_USE_ZVEC_NATIVE_TOKENIZER
 #include "db/index/column/fts_column/tokenizer/jieba_tokenizer.h"
@@ -88,40 +92,50 @@ struct DictionarySnapshotLease {
     auto& registry = GetDictionarySnapshotRegistry();
     std::lock_guard<std::mutex> lock(registry.mutex);
     const auto found = registry.entries.find(identity);
-    if (found == registry.entries.end() || found->second.leases == 0) return;
+    if (found == registry.entries.end() || found->second.leases == 0)
+      return;
     if (--found->second.leases == 0) {
       std::error_code error;
       std::filesystem::remove_all(found->second.directory, error);
       // Keep the entry only when cleanup failed so a later acquire can verify
       // and safely reuse the residual path. Successful release needs no
       // per-version registry metadata; the native cppjieba cache is separate.
-      if (!error) registry.entries.erase(found);
+      if (!error)
+        registry.entries.erase(found);
     }
   }
 };
 
 Status AcquireDictionarySnapshot(
-    const std::string& identity,
-    const std::vector<AnalyzerDictionaryFileSnapshot>& files,
-    std::string* directory, std::shared_ptr<void>* lease) {
+    const std::string &identity,
+    const std::vector<AnalyzerDictionaryFileSnapshot> &files,
+    std::string *directory, std::shared_ptr<void> *lease) {
   if (!directory || !lease || identity.size() != 64 || files.empty() ||
       !std::all_of(identity.begin(), identity.end(), [](unsigned char c) {
         return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
       })) {
-    return Status::Error("invalid content-addressed dictionary snapshot identity");
+    return Status::Error(
+        "invalid content-addressed dictionary snapshot identity");
   }
 
-  auto& registry = GetDictionarySnapshotRegistry();
+  auto &registry = GetDictionarySnapshotRegistry();
   std::lock_guard<std::mutex> lock(registry.mutex);
   if (registry.root.empty()) {
+    const std::filesystem::path workspace_tmp(M4_REPO_TMP_DIR);
+    std::error_code tmp_error;
+    std::filesystem::create_directories(workspace_tmp, tmp_error);
+    if (tmp_error) {
+      return Status::Error("could not create M4 workspace scratch directory: " +
+                           tmp_error.message());
+    }
     std::string pattern =
-        (std::filesystem::temp_directory_path() /
-         "m4-analyzer-snapshot-cache-XXXXXX").string();
+        (workspace_tmp / "m4-analyzer-snapshot-cache-XXXXXX").string();
     std::vector<char> buffer(pattern.begin(), pattern.end());
     buffer.push_back('\0');
-    char* created = ::mkdtemp(buffer.data());
+    char *created = ::mkdtemp(buffer.data());
     if (!created) {
-      return Status::Error("JiebaTokenizer could not create snapshot cache root");
+      return Status::Error(
+          "JiebaTokenizer could not create snapshot cache root");
     }
     registry.root = created;
   }
@@ -795,7 +809,8 @@ bool DecodeStatsCkpt(const std::string& bytes, StatsState* s) {
     if (!r.ok()) return false;
     out.df[term] = df;
   }
-  if (!r.ok()) return false;
+  if (!r.ok())
+    return false;
   *s = std::move(out);
   return true;
 }
@@ -808,6 +823,42 @@ struct WalRecord {
 };
 
 constexpr uint32_t kMaxWalCompressedPayloadBytes = 8u << 20;
+constexpr uint32_t kWalMagicLegacy = 0x4D34574C;     // M4WL: old raw frame.
+constexpr uint32_t kWalMagicCompressed = 0x4D34575A; // M4WZ: old LZ4 frame.
+constexpr uint32_t kWalMagicSequencedLegacy = 0x4D345731;     // M4W1.
+constexpr uint32_t kWalMagicSequencedCompressed = 0x4D345732; // M4W2.
+constexpr size_t kWalSequencedRawHeaderBytes = 24;
+constexpr size_t kWalSequencedCompressedHeaderBytes = 28;
+
+uint32_t WalHeaderChecksum(uint32_t magic, uint32_t len, uint64_t seq,
+                           uint32_t original_len) {
+  uint8_t metadata[sizeof(magic) + sizeof(len) + sizeof(seq) +
+                   sizeof(original_len)];
+  size_t offset = 0;
+  const auto append_le = [&metadata, &offset](uint64_t value, size_t width) {
+    for (size_t i = 0; i < width; ++i) {
+      metadata[offset++] = static_cast<uint8_t>(value >> (i * 8));
+    }
+  };
+  append_le(magic, sizeof(magic));
+  append_le(len, sizeof(len));
+  append_le(seq, sizeof(seq));
+  append_le(original_len, sizeof(original_len));
+  uint64_t checksum = Fnv1aInit();
+  Fnv1aUpdate(&checksum, metadata, sizeof(metadata));
+  return static_cast<uint32_t>(checksum & 0xffffffffu);
+}
+
+uint32_t WalSequenceChecksum(uint64_t seq, const char *payload, size_t size) {
+  uint8_t seq_bytes[sizeof(seq)];
+  for (size_t i = 0; i < sizeof(seq); ++i) {
+    seq_bytes[i] = static_cast<uint8_t>(seq >> (i * 8));
+  }
+  uint64_t checksum = Fnv1aInit();
+  Fnv1aUpdate(&checksum, seq_bytes, sizeof(seq_bytes));
+  Fnv1aUpdate(&checksum, payload, size);
+  return static_cast<uint32_t>(checksum & 0xffffffffu);
+}
 
 class Wal {
 public:
@@ -847,8 +898,8 @@ public:
       poisoned_ = true;
       return Status::Error("wal stat before append failed");
     }
-    const uint32_t checksum = static_cast<uint32_t>(
-        Fnv1a(payload.data(), payload.size()) & 0xffffffffu);
+    const uint32_t checksum =
+        WalSequenceChecksum(seq, payload.data(), payload.size());
     std::string compressed;
     bool use_compressed = false;
     if (compression_lz4_ && payload.size() <= kMaxWalCompressedPayloadBytes) {
@@ -860,9 +911,9 @@ public:
       const int bound = LZ4_compressBound(source_size);
       if (bound > 0) {
         compressed.resize(static_cast<size_t>(bound));
-        const int compressed_size = LZ4_compress_fast(
-            payload.data(), compressed.data(), source_size, bound,
-            static_cast<int>(lz4_acceleration_));
+        const int compressed_size =
+            LZ4_compress_fast(payload.data(), compressed.data(), source_size,
+                              bound, static_cast<int>(lz4_acceleration_));
         if (compressed_size > 0 &&
             static_cast<size_t>(compressed_size) < payload.size()) {
           compressed.resize(static_cast<size_t>(compressed_size));
@@ -883,16 +934,23 @@ public:
     }
     BufWriter w;
     if (use_compressed) {
-      w.U32(0x4D34575A); // M4WZ: LZ4 payload, length and checksum below.
-      w.U32(static_cast<uint32_t>(compressed.size()));
+      const uint32_t magic = kWalMagicSequencedCompressed;
+      const uint32_t compressed_len = static_cast<uint32_t>(compressed.size());
+      const uint32_t original_len = static_cast<uint32_t>(payload.size());
+      w.U32(magic); // M4W2: sequence- and header-bound LZ4 frame.
+      w.U32(compressed_len);
       w.U64(seq);
-      w.U32(static_cast<uint32_t>(payload.size()));
+      w.U32(original_len);
+      w.U32(WalHeaderChecksum(magic, compressed_len, seq, original_len));
       w.U32(checksum);
       w.Bytes(compressed.data(), compressed.size());
     } else {
-      w.U32(0x4D34574C); // M4WL: legacy uncompressed record.
-      w.U32(static_cast<uint32_t>(payload.size()));
+      const uint32_t magic = kWalMagicSequencedLegacy;
+      const uint32_t len = static_cast<uint32_t>(payload.size());
+      w.U32(magic); // M4W1: sequence- and header-bound raw frame.
+      w.U32(len);
       w.U64(seq);
+      w.U32(WalHeaderChecksum(magic, len, seq, len));
       w.U32(checksum);
       w.Bytes(payload.data(), payload.size());
     }
@@ -939,13 +997,15 @@ public:
     return Status::OK();
   }
 
-  Status Sync(double* fsync_ms = nullptr) {
-    if (fd_ < 0) return Status::OK();
+  Status Sync(double *fsync_ms = nullptr) {
+    if (fd_ < 0)
+      return Status::OK();
     if (poisoned_)
       return Status::Error("wal requires reopen after prior I/O failure");
     const double fsync_started = fsync_ms ? NowMs() : 0.0;
     const int result = ::fsync(fd_);
-    if (fsync_ms) *fsync_ms = NowMs() - fsync_started;
+    if (fsync_ms)
+      *fsync_ms = NowMs() - fsync_started;
     if (result != 0) {
       const int saved_errno = errno;
       poisoned_ = true;
@@ -999,47 +1059,163 @@ public:
       }
       done += static_cast<size_t>(n);
     }
+    const auto has_valid_frame_after = [&bytes](size_t start) {
+      for (size_t candidate = start; candidate + 20 <= bytes.size();
+           ++candidate) {
+        BufReader probe(bytes.data() + candidate, bytes.size() - candidate);
+        const uint32_t magic = probe.U32();
+        const uint32_t len = probe.U32();
+        const uint64_t seq = probe.U64();
+        const bool compressed = magic == kWalMagicCompressed ||
+                                magic == kWalMagicSequencedCompressed;
+        const bool sequence_checksum = magic == kWalMagicSequencedLegacy ||
+                                       magic == kWalMagicSequencedCompressed;
+        const bool header_checksum = sequence_checksum;
+        uint32_t original_len = len;
+        uint32_t header_crc = 0;
+        uint32_t crc = 0;
+        size_t header_size = 20;
+        if (magic == kWalMagicLegacy) {
+          crc = probe.U32();
+        } else if (magic == kWalMagicSequencedLegacy) {
+          if (bytes.size() - candidate < kWalSequencedRawHeaderBytes)
+            continue;
+          header_crc = probe.U32();
+          crc = probe.U32();
+          header_size = kWalSequencedRawHeaderBytes;
+        } else if (magic == kWalMagicCompressed) {
+          if (bytes.size() - candidate < 24)
+            continue;
+          original_len = probe.U32();
+          crc = probe.U32();
+          header_size = 24;
+        } else if (magic == kWalMagicSequencedCompressed) {
+          if (bytes.size() - candidate < kWalSequencedCompressedHeaderBytes) {
+            continue;
+          }
+          original_len = probe.U32();
+          header_crc = probe.U32();
+          crc = probe.U32();
+          header_size = kWalSequencedCompressedHeaderBytes;
+        } else {
+          continue;
+        }
+        if (header_checksum &&
+            header_crc != WalHeaderChecksum(magic, len, seq, original_len)) {
+          continue;
+        }
+        if (len > bytes.size() - candidate - header_size)
+          continue;
+        const char *payload = bytes.data() + candidate + header_size;
+        size_t payload_size = len;
+        std::string decoded;
+        if (compressed) {
+          if (len > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+              original_len > kMaxWalCompressedPayloadBytes) {
+            continue;
+          }
+          decoded.resize(original_len);
+          const int result = LZ4_decompress_safe(
+              payload, decoded.data(), static_cast<int>(len),
+              static_cast<int>(original_len));
+          if (result < 0 || static_cast<uint32_t>(result) != original_len) {
+            continue;
+          }
+          payload = decoded.data();
+          payload_size = decoded.size();
+        }
+        const uint32_t actual_crc =
+            sequence_checksum ? WalSequenceChecksum(seq, payload, payload_size)
+                              : static_cast<uint32_t>(
+                                    Fnv1a(payload, payload_size) & 0xffffffffu);
+        if (actual_crc == crc)
+          return true;
+      }
+      return false;
+    };
     size_t off = 0;
     while (off + 20 <= bytes.size()) {
       BufReader r(bytes.data() + off, bytes.size() - off);
       const uint32_t magic = r.U32();
       const uint32_t len = r.U32();
       const uint64_t seq = r.U64();
+      const bool compressed =
+          magic == kWalMagicCompressed || magic == kWalMagicSequencedCompressed;
+      const bool sequence_checksum = magic == kWalMagicSequencedLegacy ||
+                                     magic == kWalMagicSequencedCompressed;
+      const bool header_checksum = sequence_checksum;
       uint32_t original_len = len;
+      uint32_t header_crc = 0;
       uint32_t crc = 0;
       size_t header_size = 20;
-      if (magic == 0x4D34574C) { // Legacy M4WL.
+      if (magic == kWalMagicLegacy) {
         crc = r.U32();
-      } else if (magic == 0x4D34575A) { // M4WZ: LZ4 payload.
+      } else if (magic == kWalMagicSequencedLegacy) {
+        if (off + kWalSequencedRawHeaderBytes > bytes.size())
+          break;
+        header_crc = r.U32();
+        crc = r.U32();
+        header_size = kWalSequencedRawHeaderBytes;
+      } else if (magic == kWalMagicCompressed) {
         if (off + 24 > bytes.size())
           break;
         original_len = r.U32();
         crc = r.U32();
         header_size = 24;
+      } else if (magic == kWalMagicSequencedCompressed) {
+        if (off + kWalSequencedCompressedHeaderBytes > bytes.size())
+          break;
+        original_len = r.U32();
+        header_crc = r.U32();
+        crc = r.U32();
+        header_size = kWalSequencedCompressedHeaderBytes;
       } else {
+        return Status::Error("invalid WAL frame magic at offset " +
+                             std::to_string(off));
+      }
+      if (header_checksum &&
+          header_crc != WalHeaderChecksum(magic, len, seq, original_len)) {
+        return Status::Error("WAL frame header checksum mismatch at offset " +
+                             std::to_string(off));
+      }
+      if (len > bytes.size() - off - header_size) {
+        if (has_valid_frame_after(off + 1)) {
+          return Status::Error(
+              "incomplete WAL frame before a later valid frame");
+        }
         break;
       }
-      if (len > bytes.size() - off - header_size)
-        break;
       const char *encoded = bytes.data() + off + header_size;
       WalRecord rec;
       rec.seq = seq;
-      if (magic == 0x4D34575A) {
+      if (compressed) {
         if (len > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
             original_len > kMaxWalCompressedPayloadBytes) {
-          break;
+          return Status::Error(
+              "invalid compressed WAL frame length at offset " +
+              std::to_string(off));
         }
         rec.payload.resize(original_len);
         const int decoded = LZ4_decompress_safe(encoded, rec.payload.data(),
                                                 static_cast<int>(len),
                                                 static_cast<int>(original_len));
-        if (decoded < 0 || static_cast<uint32_t>(decoded) != original_len)
-          break;
+        if (decoded < 0 || static_cast<uint32_t>(decoded) != original_len) {
+          return Status::Error("corrupt compressed WAL frame at offset " +
+                               std::to_string(off));
+        }
       } else {
         rec.payload.assign(encoded, len);
       }
-      if ((Fnv1a(rec.payload.data(), rec.payload.size()) & 0xffffffffu) != crc)
-        break;
+      const uint32_t actual_crc =
+          sequence_checksum ? WalSequenceChecksum(rec.seq, rec.payload.data(),
+                                                  rec.payload.size())
+                            : static_cast<uint32_t>(Fnv1a(rec.payload.data(),
+                                                          rec.payload.size()) &
+                                                    0xffffffffu);
+      if (actual_crc != crc) {
+        return Status::Error("WAL frame checksum mismatch at offset " +
+                             std::to_string(off));
+      }
       const size_t old_vector_capacity = diagnostics ? out->capacity() : 0;
       uint64_t fixed_live_bytes = 0;
       if (diagnostics) {
@@ -1103,7 +1279,9 @@ public:
 
   uint64_t fsync_count() const { return fsync_count_; }
   uint64_t bytes_appended() const { return wal_bytes_appended_; }
-  uint64_t lz4_attempts() const { return lz4_attempts_.load(std::memory_order_relaxed); }
+  uint64_t lz4_attempts() const {
+    return lz4_attempts_.load(std::memory_order_relaxed);
+  }
   uint64_t lz4_attempted_input_bytes() const {
     return lz4_attempted_input_bytes_.load(std::memory_order_relaxed);
   }
@@ -1117,8 +1295,8 @@ public:
     return lz4_output_bytes_.load(std::memory_order_relaxed);
   }
   double lz4_compress_cpu_ms() const {
-    return static_cast<double>(lz4_compress_cpu_ns_.load(
-               std::memory_order_relaxed)) /
+    return static_cast<double>(
+               lz4_compress_cpu_ns_.load(std::memory_order_relaxed)) /
            1'000'000.0;
   }
 
@@ -2474,14 +2652,33 @@ class Index::Impl {
       Status s = wal_.Open((fs::path(dir_) / "wal.log").string(),
                            options_.wal_compression_lz4,
                            options_.wal_lz4_acceleration);
-      if (!s.ok) return s;
+      if (!s.ok)
+        return s;
       std::vector<WalRecord> records;
       s = wal_.Replay(&records, diagnostics);
-      if (!s.ok) return s;
-      for (const auto& rec : records) {
-        if (rec.seq <= manifest_.wal_seq) continue;
+      if (!s.ok)
+        return s;
+      uint64_t previous_wal_seq = 0;
+      bool have_previous_wal_seq = false;
+      for (const auto &rec : records) {
+        if (rec.seq == 0 ||
+            (have_previous_wal_seq &&
+             (previous_wal_seq == std::numeric_limits<uint64_t>::max() ||
+              rec.seq != previous_wal_seq + 1))) {
+          return Status::Error("invalid or non-contiguous WAL sequence");
+        }
+        previous_wal_seq = rec.seq;
+        have_previous_wal_seq = true;
+        if (rec.seq <= manifest_.wal_seq)
+          continue;
+        if (manifest_.wal_seq == std::numeric_limits<uint64_t>::max() ||
+            rec.seq != manifest_.wal_seq + 1) {
+          return Status::Error(
+              "WAL sequence does not follow manifest checkpoint");
+        }
         s = ReplayWalPayload(rec.payload);
-        if (!s.ok) return s;
+        if (!s.ok)
+          return s;
         manifest_.wal_seq = std::max(manifest_.wal_seq, rec.seq);
         next_wal_seq_ = std::max(next_wal_seq_, rec.seq + 1);
       }

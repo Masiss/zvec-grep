@@ -7,6 +7,11 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+get_filename_component(M4_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+set(M4_REPO_TMP_DIR "${M4_REPO_ROOT}/.tmp")
+file(MAKE_DIRECTORY "${M4_REPO_TMP_DIR}")
+add_compile_definitions(M4_REPO_TMP_DIR="${M4_REPO_TMP_DIR}")
+
 find_path(M4_LZ4_INCLUDE_DIR lz4.h)
 find_library(M4_LZ4_LIBRARY NAMES lz4)
 if(NOT M4_LZ4_INCLUDE_DIR OR NOT M4_LZ4_LIBRARY)
@@ -300,4 +305,10 @@ if(M4_ZVEC_ROOT)
 endif()
 
 enable_testing()
-add_test(NAME m4_correctness COMMAND m4_correctness)
+add_test(NAME m4_correctness
+  COMMAND m4_correctness "${M4_REPO_TMP_DIR}/m4-research-tests")
+get_property(M4_CTESTS DIRECTORY PROPERTY TESTS)
+foreach(M4_CTEST IN LISTS M4_CTESTS)
+  set_property(TEST "${M4_CTEST}" APPEND PROPERTY
+    ENVIRONMENT "TMPDIR=${M4_REPO_TMP_DIR}")
+endforeach()
