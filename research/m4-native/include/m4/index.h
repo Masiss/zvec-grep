@@ -82,8 +82,11 @@ struct Options {
   // mismatched build.
   uint32_t block_size{128};
 
-  // Active delta bounds. A delta is flushed when either bound is exceeded, so
-  // RAM is a function of the change rate, never of collection size.
+  // Active-delta soft thresholds. Bound inserted versions and pending
+  // tombstones independently so delete-only work is bounded without changing
+  // max_delta_docs' existing meaning. max_delta_bytes estimates retained delta
+  // data, not total process RSS. One operation/batch may cross a limit; later
+  // mutations retry the required flush before appending/applying.
   uint32_t max_delta_docs{512};
   uint64_t max_delta_bytes{8ull << 20};
 

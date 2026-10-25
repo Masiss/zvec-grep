@@ -2556,6 +2556,16 @@ class Index::Impl {
       diagnostics->state_mutex_wait_ms = NowMs() - wall_start;
       diagnostics->state_mutex_wait_cpu_ms = ThreadCpuMs() - cpu_start;
     }
+    const double retry_flush_wall = capture ? NowMs() : 0.0;
+    const double retry_flush_cpu = capture ? ThreadCpuMs() : 0.0;
+    const Status retry_flush = FlushPendingDeltaBeforeMutation();
+    if (capture) {
+      diagnostics->auto_flush_ms += NowMs() - retry_flush_wall;
+      diagnostics->auto_flush_cpu_ms += ThreadCpuMs() - retry_flush_cpu;
+    }
+    if (!retry_flush.ok) {
+      return retry_flush;
+    }
     ScopedStageTimer state_hold_timer(
         capture ? &diagnostics->state_mutex_hold_ms : nullptr,
         capture ? &diagnostics->state_mutex_hold_cpu_ms : nullptr);
@@ -2640,8 +2650,8 @@ class Index::Impl {
     }
     s = MaybeAutoFlush(&query_guard);
     if (capture) {
-      diagnostics->auto_flush_ms = NowMs() - wall_start;
-      diagnostics->auto_flush_cpu_ms = ThreadCpuMs() - cpu_start;
+      diagnostics->auto_flush_ms += NowMs() - wall_start;
+      diagnostics->auto_flush_cpu_ms += ThreadCpuMs() - cpu_start;
     }
     return s;
   }
@@ -2650,6 +2660,10 @@ class Index::Impl {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     const Status healthy = WriterGroupHealth();
     if (!healthy.ok) return healthy;
+    const Status retry_flush = FlushPendingDeltaBeforeMutation();
+    if (!retry_flush.ok) {
+      return retry_flush;
+    }
     const uint64_t id = LookupPk(pk);
     if (id == 0) return Status::OK();
     BufWriter w;
@@ -2721,6 +2735,16 @@ class Index::Impl {
       diagnostics->state_mutex_wait_ms = NowMs() - state_wait_wall;
       diagnostics->state_mutex_wait_cpu_ms =
           ThreadCpuMs() - state_wait_cpu;
+    }
+    const double retry_flush_wall = capture ? NowMs() : 0.0;
+    const double retry_flush_cpu = capture ? ThreadCpuMs() : 0.0;
+    const Status retry_flush = FlushPendingDeltaBeforeMutation();
+    if (capture) {
+      diagnostics->auto_flush_ms += NowMs() - retry_flush_wall;
+      diagnostics->auto_flush_cpu_ms += ThreadCpuMs() - retry_flush_cpu;
+    }
+    if (!retry_flush.ok) {
+      return retry_flush;
     }
     ScopedStageTimer state_hold_timer(
         capture ? &diagnostics->state_mutex_hold_ms : nullptr,
@@ -2846,8 +2870,8 @@ class Index::Impl {
     const double flush_cpu = capture ? ThreadCpuMs() : 0.0;
     Status flush_status = MaybeAutoFlush(&query_guard);
     if (capture) {
-      diagnostics->auto_flush_ms = NowMs() - flush_wall;
-      diagnostics->auto_flush_cpu_ms = ThreadCpuMs() - flush_cpu;
+      diagnostics->auto_flush_ms += NowMs() - flush_wall;
+      diagnostics->auto_flush_cpu_ms += ThreadCpuMs() - flush_cpu;
     }
     return flush_status;
   }
@@ -3704,9 +3728,24 @@ class Index::Impl {
 
   // ---------------------------- mutation --------------------------------
 
-  Status MaybeAutoFlush(std::unique_lock<detail::WriterPreferredSharedMutex>* query_guard) {
-    if (delta_docs_.size() >= options_.max_delta_docs ||
-        delta_bytes_ >= options_.max_delta_bytes) {
+  bool DeltaLimitReached() const {
+    return delta_docs_.size() >= options_.max_delta_docs ||
+           pending_delete_count_ >= options_.max_delta_docs ||
+           delta_bytes_ >= options_.max_delta_bytes;
+  }
+
+  Status FlushPendingDeltaBeforeMutation() {
+    if (!pending_flush_ || !DeltaLimitReached()) {
+      return Status::OK();
+    }
+    std::unique_lock<detail::WriterPreferredSharedMutex> query_guard(
+        query_mutex_);
+    return FlushInternal(query_guard);
+  }
+
+  Status MaybeAutoFlush(
+      std::unique_lock<detail::WriterPreferredSharedMutex>* query_guard) {
+    if (DeltaLimitReached()) {
       return FlushInternal(*query_guard);
     }
     return Status::OK();
@@ -3844,9 +3883,13 @@ class Index::Impl {
 
     AddStatsEvent({StatsEvent::Kind::kDocs, "", -1});
     AddStatsEvent({StatsEvent::Kind::kTokens, "", -static_cast<int64_t>(dl)});
+    delta_bytes_ += pk.size() + 64 +
+                    static_cast<uint64_t>(terms.size()) * 32;
     for (const auto& term : terms) {
+      delta_bytes_ += term.size();
       AddStatsEvent({StatsEvent::Kind::kDf, term, -1});
     }
+    ++pending_delete_count_;
     return Status::OK();
   }
 
@@ -3883,8 +3926,11 @@ class Index::Impl {
       AddStatsEvent({StatsEvent::Kind::kDf, term, 1});
     }
 
-    delta_bytes_ += doc.text.size() + 64 +
+    delta_bytes_ += pk.size() + doc.text.size() + 64 +
                     static_cast<uint64_t>(d.unique_terms.size()) * 32;
+    for (const auto& term : d.unique_terms) {
+      delta_bytes_ += term.size();
+    }
     for (const auto& value : doc.values) {
       delta_bytes_ += value.field.size() + value.value.size() + 32;
     }
@@ -4183,6 +4229,7 @@ class Index::Impl {
         retired_invert.swap(delta_invert_);
         retired_events.swap(pending_events_);
         delta_bytes_ = 0;
+        pending_delete_count_ = 0;
         pending_events_appended_count_ = 0;
         pending_flush_ = false;
       }
@@ -5662,6 +5709,7 @@ class Index::Impl {
                      std::unordered_map<std::string, std::vector<DocId>>>
       delta_invert_;
   uint64_t delta_bytes_{0};
+  uint64_t pending_delete_count_{0};  // pending tombstones since last flush
   std::vector<StatsEvent> pending_events_;
   size_t pending_events_appended_count_{0};
   bool pending_flush_{false};

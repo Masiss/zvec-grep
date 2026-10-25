@@ -2,6 +2,12 @@
 
 ## Live continuation — 2026-10-25
 
+### Delete-only delta bounds — VERIFIED
+
+Added a pre-mutation retry for a previously failed threshold flush. It prevents later `Upsert`, `Delete`, or `ApplyBatch` calls from growing the WAL/delta until the pending snapshot can be flushed. Delete count and inserted-delta count use independent limits, preserving the existing `max_delta_docs` meaning while bounding delete-only workloads; byte accounting includes tombstone keys and terms. A threshold-crossing mutation still follows existing WAL durability: its durable record may already be visible if the subsequent flush fails, and the next mutation retries before append.
+
+An initial correctness run exposed that combining inserted versions and deletes into one count changed the concurrent snapshot-rebase contract. The counters are now independent. Normal and TSan `m4_correctness` both pass (1/1 each). Build scratch used repository-local `.build-tmp` on the repository filesystem (24 GB available at build preflight), then operation-owned scratch was removed. No benchmark, production change, or durability-policy change.
+
 ### WAL replay memory follow-up — PARTIAL / OPERATION_BLOCKED
 
 - **Recovery correctness:** WAL replay retries `pread` on `EINTR`, fails closed on hard I/O errors and abnormal short reads, and has injected read-failure regressions. The quota test's fake-sysfs false pass was corrected. Native normal and TSan builds completed with `TMPDIR`, `TMP`, and `TEMP` rooted at the repository `$PWD/.build-tmp/20261025-wal-replay`; both `m4_correctness` runs passed 1/1. Scratch was locally ignored, capacity checked on the destination filesystem, then only this operation's scratch was removed. No `/tmp` compiler scratch was used and no resource/durability policy changed.
