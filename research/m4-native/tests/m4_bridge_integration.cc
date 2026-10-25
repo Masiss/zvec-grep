@@ -16,6 +16,8 @@
 #include <fcntl.h>
 #include <iostream>
 #include <iomanip>
+#include <initializer_list>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -260,7 +262,8 @@ void AppendSync(const fs::path& root, const std::string& record) {
 bool ValidWalRecord(const std::string& line, std::string* kind_out = nullptr,
                     uint32_t* generation_out = nullptr) {
   std::istringstream parsed(line); std::string kind, checksum; uint32_t generation;
-  if (!(parsed >> kind >> generation >> checksum)) return false;
+  std::string trailing;
+  if (!(parsed >> kind >> generation >> checksum) || (parsed >> trailing)) return false;
   const std::string body = kind + " " + std::to_string(generation);
   char expected[16]; std::snprintf(expected, sizeof(expected), "%08x", Checksum(body));
   if (checksum != expected || (kind != "R" && kind != "P")) return false;
@@ -270,35 +273,194 @@ bool ValidWalRecord(const std::string& line, std::string* kind_out = nullptr,
 }
 void RepairWal(const fs::path& root) {
   const fs::path path = root / "coordinator.wal";
-  if (!fs::exists(path)) return;
-  std::ifstream in(path, std::ios::binary); std::string line;
-  uintmax_t valid_end = 0; bool truncate = false;
+  if (!fs::exists(path))
+    return;
+  std::ifstream in(path, std::ios::binary);
+  if (!in)
+    throw std::runtime_error("open coordinator WAL for recovery");
+  std::string line;
+  uintmax_t valid_end = 0;
+  bool truncate = false;
+  bool append_terminator = false;
   while (std::getline(in, line)) {
+    if (in.bad())
+      throw std::runtime_error("read coordinator WAL");
+    if (in.eof()) {
+      if (ValidWalRecord(line)) {
+        valid_end = fs::file_size(path);
+        append_terminator = true;
+      } else {
+        truncate = true;
+      }
+      break;
+    }
+    if (!ValidWalRecord(line))
+      throw std::runtime_error("corrupt complete coordinator WAL record");
     const auto position = in.tellg();
-    if (in.eof() || !ValidWalRecord(line)) { truncate = true; break; }
+    if (position < 0)
+      throw std::runtime_error("locate coordinator WAL prefix");
     valid_end = static_cast<uintmax_t>(position);
   }
+  if (in.bad())
+    throw std::runtime_error("read coordinator WAL");
+  in.close();
   if (truncate) {
     fs::resize_file(path, valid_end);
-    int fd = ::open(path.c_str(), O_WRONLY);
-    if (fd < 0 || ::fsync(fd) != 0) throw std::runtime_error("sync repaired coordinator WAL");
+  } else if (append_terminator) {
+    const int fd = ::open(path.c_str(), O_WRONLY | O_APPEND | O_CLOEXEC);
+    if (fd < 0)
+      throw std::runtime_error("open coordinator WAL for terminator repair");
+    const char newline = '\n';
+    ssize_t written;
+    do {
+      written = ::write(fd, &newline, 1);
+    } while (written < 0 && errno == EINTR);
+    const bool write_ok = written == 1;
+    const bool sync_ok = write_ok && ::fsync(fd) == 0;
+    const int saved_errno = errno;
     ::close(fd);
+    if (!sync_ok) {
+      errno = saved_errno;
+      throw std::runtime_error("sync repaired coordinator WAL terminator");
+    }
+  }
+  if (truncate) {
+    const int fd = ::open(path.c_str(), O_WRONLY | O_CLOEXEC);
+    if (fd < 0)
+      throw std::runtime_error("open repaired coordinator WAL for sync");
+    const bool ok = ::fsync(fd) == 0;
+    const int saved_errno = errno;
+    ::close(fd);
+    if (!ok) {
+      errno = saved_errno;
+      throw std::runtime_error("sync repaired coordinator WAL");
+    }
   }
 }
 uint32_t Recover(const fs::path& root) {
   RepairWal(root);
   uint32_t published = ReadManifest(root), highest_reserved = published;
-  std::ifstream in(root / "coordinator.wal"); std::string line;
+  std::ifstream in(root / "coordinator.wal", std::ios::binary);
+  if (!in && fs::exists(root / "coordinator.wal"))
+    throw std::runtime_error("open coordinator WAL for replay");
+  std::string line;
   while (std::getline(in, line)) {
-    if (in.eof()) break;  // An unterminated suffix is a torn WAL record.
-    std::string kind; uint32_t gen;
-    if (!ValidWalRecord(line, &kind, &gen)) break;
-    if (kind == "R") highest_reserved = std::max(highest_reserved, gen);
-    else if (kind == "P") published = std::max(published, gen);
-    else break;
+    if (in.bad())
+      throw std::runtime_error("read coordinator WAL for replay");
+    if (in.eof())
+      throw std::runtime_error("unexpected torn coordinator WAL suffix");
+    std::string kind;
+    uint32_t gen;
+    if (!ValidWalRecord(line, &kind, &gen))
+      throw std::runtime_error("corrupt complete coordinator WAL record");
+    if (kind == "R")
+      highest_reserved = std::max(highest_reserved, gen);
+    else if (kind == "P")
+      published = std::max(published, gen);
+    else
+      throw std::runtime_error("unknown coordinator WAL record kind");
   }
-  if (published != ReadManifest(root)) AtomicManifest(root, published);
+  if (in.bad())
+    throw std::runtime_error("read coordinator WAL for replay");
+  if (published != ReadManifest(root))
+    AtomicManifest(root, published);
   return published;
+}
+void TestCoordinatorWalRecoveryIntegrity(const fs::path &root) {
+  const fs::path cases = root / "coordinator-wal-recovery-cases";
+  const auto read_bytes = [](const fs::path &path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in)
+      throw std::runtime_error("open WAL test bytes for reading");
+    return std::string(std::istreambuf_iterator<char>(in),
+                       std::istreambuf_iterator<char>());
+  };
+  const auto write_bytes = [](const fs::path &path, const std::string &bytes) {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    out.flush();
+    if (!out)
+      throw std::runtime_error("write WAL test bytes");
+  };
+  const auto seed = [](const fs::path &path,
+                       std::initializer_list<const char *> records) {
+    fs::create_directories(path);
+    AtomicManifest(path, 4);
+    for (const char *record : records)
+      AppendSync(path, record);
+  };
+  const auto corrupt_checksum = [](std::string bytes, size_t line_index) {
+    size_t start = 0;
+    for (size_t i = 0; i < line_index; ++i) {
+      start = bytes.find('\n', start);
+      if (start == std::string::npos)
+        throw std::runtime_error("missing WAL test line");
+      ++start;
+    }
+    const size_t end = bytes.find('\n', start);
+    if (end == std::string::npos)
+      throw std::runtime_error("unterminated WAL test line");
+    const size_t separator = bytes.rfind(' ', end - 1);
+    if (separator == std::string::npos || separator < start ||
+        separator + 1 == end)
+      throw std::runtime_error("missing WAL test checksum");
+    bytes[separator + 1] = bytes[separator + 1] == '0' ? '1' : '0';
+    return bytes;
+  };
+  const auto rejected_without_repair = [&](const fs::path &path,
+                                           size_t line_index,
+                                           const std::string &label) {
+    seed(path, {"R 5", "P 5", "R 6", "P 6"});
+    const fs::path wal = path / "coordinator.wal";
+    const std::string damaged = corrupt_checksum(read_bytes(wal), line_index);
+    write_bytes(wal, damaged);
+    std::string error;
+    try {
+      (void)Recover(path);
+    } catch (const std::exception &exception) {
+      error = exception.what();
+    }
+    Check(error == "corrupt complete coordinator WAL record",
+          label + " fails closed");
+    Check(read_bytes(wal) == damaged,
+          label + " preserves corrupt WAL evidence");
+    Check(ReadManifest(path) == 4,
+          label + " does not roll back manifest state");
+  };
+
+  rejected_without_repair(cases / "mid-log-corruption", 1,
+                          "mid-log coordinator WAL corruption");
+  rejected_without_repair(cases / "complete-final-corruption", 3,
+                          "complete final coordinator WAL corruption");
+
+  const fs::path valid_eof = cases / "valid-final-record-at-eof";
+  seed(valid_eof, {"R 5", "P 5"});
+  const fs::path valid_eof_wal = valid_eof / "coordinator.wal";
+  std::string valid_eof_bytes = read_bytes(valid_eof_wal);
+  valid_eof_bytes.pop_back();
+  write_bytes(valid_eof_wal, valid_eof_bytes);
+  Check(Recover(valid_eof) == 5 && ReadManifest(valid_eof) == 5,
+        "complete checksum-valid final record at EOF is recovered");
+  Check(read_bytes(valid_eof_wal) == valid_eof_bytes + "\n",
+        "valid EOF record is terminated before future append");
+
+  const fs::path torn = cases / "torn-final";
+  seed(torn, {"R 5", "P 5"});
+  const fs::path torn_wal = torn / "coordinator.wal";
+  const std::string valid_prefix = read_bytes(torn_wal);
+  {
+    std::ofstream out(torn_wal, std::ios::binary | std::ios::app);
+    out << "R 6 ";
+    out.flush();
+    if (!out)
+      throw std::runtime_error("append torn WAL test suffix");
+  }
+  Check(Recover(torn) == 5 && ReadManifest(torn) == 5,
+        "unterminated final WAL record preserves valid published prefix");
+  Check(read_bytes(torn_wal) == valid_prefix,
+        "unterminated final WAL suffix is truncated to valid prefix");
+  Check(Recover(torn) == 5 && read_bytes(torn_wal) == valid_prefix,
+        "torn WAL recovery is idempotent");
 }
 m4::Document M4Doc(const Row& row, uint32_t generation) {
   m4::Document doc; doc.text = row.text;
@@ -932,14 +1094,30 @@ class Coordinator {
     zvec_docs_free(docs, count); return out;
   }
   static uint32_t NextGeneration(const fs::path& root) {
+    RepairWal(root);
     uint32_t highest = ReadManifest(root);
-    std::ifstream in(root / "coordinator.wal"); std::string line;
+    std::ifstream in(root / "coordinator.wal", std::ios::binary);
+    if (!in && fs::exists(root / "coordinator.wal"))
+      throw std::runtime_error(
+          "open coordinator WAL for generation allocation");
+    std::string line;
     while (std::getline(in, line)) {
-      if (in.eof()) break;
-      std::string kind; uint32_t gen;
-      if (!ValidWalRecord(line, &kind, &gen)) break;
+      if (in.bad())
+        throw std::runtime_error(
+            "read coordinator WAL for generation allocation");
+      if (in.eof())
+        throw std::runtime_error("unexpected torn coordinator WAL suffix");
+      std::string kind;
+      uint32_t gen;
+      if (!ValidWalRecord(line, &kind, &gen))
+        throw std::runtime_error("corrupt complete coordinator WAL record");
       highest = std::max(highest, gen);
     }
+    if (in.bad())
+      throw std::runtime_error(
+          "read coordinator WAL for generation allocation");
+    if (highest == std::numeric_limits<uint32_t>::max())
+      throw std::overflow_error("coordinator generation space exhausted");
     return highest + 1;
   }
   fs::path root_; zvec_collection_t* vector_; m4::Index* fts_;
@@ -6483,6 +6661,7 @@ int main(int argc, char** argv) {
       std::atomic<bool> compaction_done{false};
       std::atomic<bool> compaction_ok{false};
       std::thread compaction_writer([&] {
+    TestCoordinatorWalRecoveryIntegrity(root);
         compaction_ok.store(barrier_index->CompactNow().ok,
                             std::memory_order_release);
         compaction_done.store(true, std::memory_order_release);
