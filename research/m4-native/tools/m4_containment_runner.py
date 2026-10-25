@@ -1861,6 +1861,13 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             expected_level_runs = workload[f'{role}_max_runs_per_level']
             expected_stats_threshold = workload[f'{role}_stats_log_threshold']
             expected_mutation_batch_docs = workload[f'{role}_mutation_batch_docs']
+            expected_wal_replay_batch_docs = workload.get(
+                f'{role}_wal_replay_batch_docs', expected_mutation_batch_docs)
+            expected_wal_replay_probe = '1' if workload.get('wal_replay_probe', False) else '0'
+            expected_wal_replay_torn_tail = '1' if workload.get(
+                'wal_replay_torn_tail', False) else '0'
+            expected_wal_replay_mixed_frames = '1' if workload.get(
+                f'{role}_wal_replay_mixed_frames', False) else '0'
             expected_coalesce_stats = '1' if workload[f'{role}_coalesce_stats'] else '0'
             expected_wal_compression_lz4 = '1' if workload[f'{role}_wal_compression_lz4'] else '0'
             expected_wal_lz4_acceleration = str(workload[f'{role}_wal_lz4_acceleration'])
@@ -1881,6 +1888,10 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 arm_env.get('M4_MAX_RUNS_PER_LEVEL') == str(expected_level_runs) and
                 arm_env.get('M4_STATS_LOG_THRESHOLD') == str(expected_stats_threshold) and
                 arm_env.get('M4_MUTATION_BATCH_DOCS') == str(expected_mutation_batch_docs) and
+                arm_env.get('M4_WAL_REPLAY_BATCH_DOCS') == str(expected_wal_replay_batch_docs) and
+                arm_env.get('M4_WAL_REPLAY_PROBE') == expected_wal_replay_probe and
+                arm_env.get('M4_WAL_REPLAY_TORN_TAIL') == expected_wal_replay_torn_tail and
+                arm_env.get('M4_WAL_REPLAY_MIXED_FRAMES') == expected_wal_replay_mixed_frames and
                 arm_env.get('M4_COALESCE_STATS') == expected_coalesce_stats and
                 arm_env.get('M4_WAL_COMPRESSION_LZ4') == expected_wal_compression_lz4 and
                 arm_env.get('M4_WAL_LZ4_ACCELERATION') == expected_wal_lz4_acceleration and

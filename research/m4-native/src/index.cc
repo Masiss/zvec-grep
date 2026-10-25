@@ -956,14 +956,21 @@ public:
     return Status::OK();
   }
 
-  Status Replay(std::vector<WalRecord> *out) {
+  Status Replay(std::vector<WalRecord> *out,
+                OpenDiagnostics *diagnostics = nullptr) {
     if (fd_ < 0)
       return Status::OK();
     struct stat st{};
     if (::fstat(fd_, &st) != 0)
       return Status::Error("wal stat");
+    if (st.st_size < 0)
+      return Status::Error("negative wal size");
     std::string bytes(static_cast<size_t>(st.st_size), '\0');
     size_t done = 0;
+    uint64_t decoded_payload_bytes = 0;
+    uint64_t decoded_payload_capacity_bytes = 0;
+    uint64_t vector_growths = 0;
+    uint64_t peak_tracked_capacity_bytes = bytes.capacity();
     const char *fault = std::getenv("M4_FAULT");
     bool inject_eintr = fault && std::string(fault) == "wal_pread_eintr_once";
     bool inject_error = fault && std::string(fault) == "wal_pread_error";
@@ -1033,8 +1040,46 @@ public:
       }
       if ((Fnv1a(rec.payload.data(), rec.payload.size()) & 0xffffffffu) != crc)
         break;
+      const size_t old_vector_capacity = diagnostics ? out->capacity() : 0;
+      uint64_t fixed_live_bytes = 0;
+      if (diagnostics) {
+        decoded_payload_bytes += rec.payload.size();
+        decoded_payload_capacity_bytes += rec.payload.capacity();
+        fixed_live_bytes = static_cast<uint64_t>(bytes.capacity()) +
+                           decoded_payload_capacity_bytes;
+        peak_tracked_capacity_bytes = std::max(
+            peak_tracked_capacity_bytes,
+            fixed_live_bytes + old_vector_capacity * sizeof(WalRecord));
+      }
       out->push_back(std::move(rec));
+      if (diagnostics) {
+        if (out->capacity() != old_vector_capacity) {
+          ++vector_growths;
+          // Conservative upper bound while a vector growth allocates the new
+          // backing store before releasing the old one.
+          peak_tracked_capacity_bytes = std::max(
+              peak_tracked_capacity_bytes,
+              fixed_live_bytes +
+                  (old_vector_capacity + out->capacity()) * sizeof(WalRecord));
+        }
+        peak_tracked_capacity_bytes =
+            std::max(peak_tracked_capacity_bytes,
+                     fixed_live_bytes + out->capacity() * sizeof(WalRecord));
+      }
       off += header_size + len;
+    }
+    if (diagnostics) {
+      diagnostics->wal_replay_encoded_file_bytes = bytes.size();
+      diagnostics->wal_replay_encoded_buffer_capacity_bytes = bytes.capacity();
+      diagnostics->wal_replay_record_count = out->size();
+      diagnostics->wal_replay_decoded_payload_bytes = decoded_payload_bytes;
+      diagnostics->wal_replay_decoded_payload_capacity_bytes =
+          decoded_payload_capacity_bytes;
+      diagnostics->wal_replay_record_vector_capacity_bytes =
+          out->capacity() * sizeof(WalRecord);
+      diagnostics->wal_replay_peak_tracked_live_bytes =
+          peak_tracked_capacity_bytes;
+      diagnostics->wal_replay_record_vector_growths = vector_growths;
     }
     if (off != bytes.size()) {
       // Drop only the invalid/torn suffix, preserving every complete frame.
@@ -2431,7 +2476,7 @@ class Index::Impl {
                            options_.wal_lz4_acceleration);
       if (!s.ok) return s;
       std::vector<WalRecord> records;
-      s = wal_.Replay(&records);
+      s = wal_.Replay(&records, diagnostics);
       if (!s.ok) return s;
       for (const auto& rec : records) {
         if (rec.seq <= manifest_.wal_seq) continue;

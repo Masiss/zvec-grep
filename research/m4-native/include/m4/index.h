@@ -370,6 +370,14 @@ struct OpenDiagnostics {
   double stats_load_cpu_ms{0.0};
   double wal_replay_ms{0.0};
   double wal_replay_cpu_ms{0.0};
+  uint64_t wal_replay_encoded_file_bytes{0};
+  uint64_t wal_replay_encoded_buffer_capacity_bytes{0};
+  uint64_t wal_replay_record_count{0};
+  uint64_t wal_replay_decoded_payload_bytes{0};
+  uint64_t wal_replay_decoded_payload_capacity_bytes{0};
+  uint64_t wal_replay_record_vector_capacity_bytes{0};
+  uint64_t wal_replay_peak_tracked_live_bytes{0};
+  uint64_t wal_replay_record_vector_growths{0};
   double live_key_map_ms{0.0};
   double live_key_map_cpu_ms{0.0};
   double garbage_collect_ms{0.0};

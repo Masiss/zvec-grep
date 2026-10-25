@@ -367,13 +367,23 @@ def m4_compaction_environment(role: str, workload: dict[str, Any]) -> dict[str, 
     stats_threshold = workload[f'{role}_stats_log_threshold']
     mutation_batch_docs = validate_mutation_batch_docs(
         role, workload[f'{role}_mutation_batch_docs'])
+    wal_replay_batch_docs = validate_mutation_batch_docs(
+        f'{role} WAL replay', workload.get(f'{role}_wal_replay_batch_docs',
+                                          mutation_batch_docs))
     coalesce_stats = workload[f'{role}_coalesce_stats']
     wal_compression_lz4 = workload[f'{role}_wal_compression_lz4']
     wal_lz4_acceleration = workload[f'{role}_wal_lz4_acceleration']
     wal_replay_probe = workload['wal_replay_probe']
+    wal_replay_torn_tail = workload.get('wal_replay_torn_tail', False)
+    wal_replay_mixed_frames = workload.get(
+        f'{role}_wal_replay_mixed_frames', False)
     trace_mutation_latency = workload.get('trace_mutation_latency', False)
     if not isinstance(wal_replay_probe, bool):
         raise ValueError('WAL replay probe setting must be boolean')
+    if not isinstance(wal_replay_torn_tail, bool):
+        raise ValueError('WAL replay torn-tail setting must be boolean')
+    if not isinstance(wal_replay_mixed_frames, bool):
+        raise ValueError(f'{role} WAL replay mixed-frames setting must be boolean')
     if not isinstance(trace_mutation_latency, bool):
         raise ValueError(f'{role} mutation-latency tracing setting must be boolean')
     if not isinstance(coalesce_stats, bool):
@@ -392,10 +402,13 @@ def m4_compaction_environment(role: str, workload: dict[str, Any]) -> dict[str, 
                    'M4_MAX_RUNS_PER_LEVEL': str(level_runs),
                    'M4_STATS_LOG_THRESHOLD': str(stats_threshold),
                    'M4_MUTATION_BATCH_DOCS': str(mutation_batch_docs),
+                   'M4_WAL_REPLAY_BATCH_DOCS': str(wal_replay_batch_docs),
                    'M4_COALESCE_STATS': '1' if coalesce_stats else '0',
                    'M4_WAL_COMPRESSION_LZ4': '1' if wal_compression_lz4 else '0',
                    'M4_WAL_LZ4_ACCELERATION': str(wal_lz4_acceleration),
-                   'M4_WAL_REPLAY_PROBE': '1' if wal_replay_probe else '0'}
+                   'M4_WAL_REPLAY_PROBE': '1' if wal_replay_probe else '0',
+                   'M4_WAL_REPLAY_TORN_TAIL': '1' if wal_replay_torn_tail else '0',
+                   'M4_WAL_REPLAY_MIXED_FRAMES': '1' if wal_replay_mixed_frames else '0'}
     if trace_mutation_latency:
         environment['M4_P42_LATENCY'] = '1'
     return environment
@@ -432,7 +445,7 @@ def make_write_amplification_context(root: Path, resource_root: Path, quota_proo
 
 def write_amp_workload_from_args(args: argparse.Namespace) -> dict[str, Any]:
     """Build the complete policy-bound workload identity used by main()."""
-    return {
+    workload = {
         'files': args.files, 'runs': args.runs,
         'control_arm': args.control_arm, 'candidate_arm': args.candidate_arm,
         'control_max_delta_docs': args.control_max_delta_docs,
@@ -458,6 +471,14 @@ def write_amp_workload_from_args(args: argparse.Namespace) -> dict[str, Any]:
         'm4_debt_ratio': args.m4_debt_ratio,
         'm4_debt_cap': args.m4_debt_cap,
     }
+    for role in ('control', 'candidate'):
+        for suffix in ('wal_replay_batch_docs', 'wal_replay_mixed_frames'):
+            key = f'{role}_{suffix}'
+            if key in WRITE_AMP_WORKLOAD:
+                workload[key] = WRITE_AMP_WORKLOAD[key]
+    if 'wal_replay_torn_tail' in WRITE_AMP_WORKLOAD:
+        workload['wal_replay_torn_tail'] = WRITE_AMP_WORKLOAD['wal_replay_torn_tail']
+    return workload
 
 
 def main():
@@ -570,6 +591,10 @@ def main():
             args.control_max_runs_per_level == args.candidate_max_runs_per_level and
             args.control_stats_log_threshold == args.candidate_stats_log_threshold and
             args.control_mutation_batch_docs == args.candidate_mutation_batch_docs and
+            WRITE_AMP_WORKLOAD.get('control_wal_replay_batch_docs',
+                                   args.control_mutation_batch_docs) ==
+            WRITE_AMP_WORKLOAD.get('candidate_wal_replay_batch_docs',
+                                   args.candidate_mutation_batch_docs) and
             args.control_coalesce_stats == args.candidate_coalesce_stats and
             args.control_wal_compression_lz4 == args.candidate_wal_compression_lz4 and
             args.control_wal_lz4_acceleration == args.candidate_wal_lz4_acceleration):
@@ -977,9 +1002,9 @@ def main():
     wal_replay_profiles = [p for p in run_profiles if has_wal_replay_probe(p)]
     if wal_replay_profiles:
         lines += ['', '## Durable WAL replay probe', '',
-                  'The probe uses durable `ApplyBatch` ACKs, closes without `Flush`, advises only the probe index files with `POSIX_FADV_DONTNEED`, and records `mincore` residency before/after. A zero post-advice residency is required to call the target index files cold; the rest of the host/page cache remains warm.',
-                  '', '| Pair | Role | Arm | WAL B | Write CPU ms | ACK p95 ms | Index bytes | Resident pages after/total | Replay-open wall ms | Replay-open CPU ms | Recovered docs |',
-                  '|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|']
+                  'The probe uses durable `ApplyBatch` ACKs, closes without `Flush`, optionally appends a 7-byte incomplete frame to simulate an interrupted final batch, advises only the probe index files with `POSIX_FADV_DONTNEED`, and records `mincore` residency before/after. Replay must retain the valid prefix and truncate the torn suffix. A zero post-advice residency is required to call the target index files cold; the rest of the host/page cache remains warm.',
+                  '', '| Pair | Role | Arm | WAL B | Torn tail B | Mixed frames | Write CPU ms | ACK p95 ms | Index bytes | Resident pages after/total | Replay-open wall ms | Replay-open CPU ms | Recovered docs |',
+                  '|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
         for p in wal_replay_profiles:
             stages: dict[str, Any] = stage_metrics_of(p)
             write_stage = stages.get('wal_replay_probe_write', {})
@@ -997,6 +1022,8 @@ def main():
             lines.append(
                 f"| {p['pair']} | {p['role']} | {p['arm']} | "
                 f"{replay_stage.get('wal_bytes_before_replay', 0):.0f} | "
+                f"{replay_stage.get('simulated_torn_tail_bytes', 0):.0f} | "
+                f"{replay_stage.get('mixed_legacy_lz4_frames', 0):.0f} | "
                 f"{write_stage.get('process_cpu_ms', 0):.1f} | {ack_p95_text} | "
                 f"{cache_stage.get('index_file_bytes', 0):.0f} | "
                 f"{cache_stage.get('resident_pages_after_advice', 0):.0f}/"
@@ -1004,6 +1031,40 @@ def main():
                 f"{open_stage.get('wall_ms', 0):.3f} | "
                 f"{open_stage.get('process_cpu_ms', 0):.1f} | "
                 f"{open_stage.get('replayed_live_docs', 0):.0f} |")
+        lines += ['', '### WAL replay memory accounting', '',
+                  'Tracked-capacity peak includes the encoded WAL string, decoded payload capacities, and `WalRecord` vector storage; it conservatively includes old+new vector backing stores during growth. It excludes allocator metadata, unrelated objects, and filesystem cache. RSS/PSS/Private_Dirty are process-wide snapshots around open; VmHWM is process-wide high-water, not replay-exclusive.',
+                  '', '| Pair | Role | Arm | WAL B | Torn tail B | Mixed frames | Records | Decoded payload B | Payload capacity B | Encoded capacity B | Record vector capacity B | Tracked peak upper-bound B | Tracked overhead upper-bound B | Vector growths | WAL stage wall ms | WAL stage CPU ms | Read bytes | RSS before→after B | PSS before→after B | Private_Dirty before→after B | VmHWM after B |',
+                  '|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
+        memory_metric_names = (
+            'wal_encoded_file_bytes', 'wal_decoded_record_count',
+            'wal_decoded_payload_bytes', 'wal_decoded_payload_capacity_bytes',
+            'wal_encoded_buffer_capacity_bytes', 'wal_record_vector_capacity_bytes',
+            'wal_replay_peak_tracked_live_bytes',
+            'tracked_capacity_overhead_upper_bound_bytes',
+            'wal_replay_record_vector_growths', 'wal_replay_stage_wall_ms',
+            'wal_replay_stage_cpu_ms', 'process_read_bytes',
+            'rss_before_bytes', 'rss_after_bytes', 'pss_before_bytes',
+            'pss_after_bytes', 'private_dirty_before_bytes',
+            'private_dirty_after_bytes', 'vmhwm_after_bytes')
+        for p in wal_replay_profiles:
+            stages = stage_metrics_of(p)
+            metrics = stages.get('wal_replay_probe_open', {})
+            replay = stages.get('wal_replay_probe', {})
+            metrics = metrics if isinstance(metrics, dict) else {}
+            replay = replay if isinstance(replay, dict) else {}
+            values = [metrics.get(name, 0.0) for name in memory_metric_names]
+            lines.append(
+                f"| {p['pair']} | {p['role']} | {p['arm']} | "
+                f"{replay.get('wal_bytes_before_replay', 0):.0f} | "
+                f"{replay.get('simulated_torn_tail_bytes', 0):.0f} | "
+                f"{replay.get('mixed_legacy_lz4_frames', 0):.0f} | "
+                f"{values[1]:.0f} | {values[2]:.0f} | "
+                f"{values[3]:.0f} | {values[4]:.0f} | {values[5]:.0f} | "
+                f"{values[6]:.0f} | {values[7]:.0f} | {values[8]:.0f} | "
+                f"{values[9]:.3f} | {values[10]:.3f} | {values[11]:.0f} | "
+                f"{values[12]:.0f}→{values[13]:.0f} | "
+                f"{values[14]:.0f}→{values[15]:.0f} | "
+                f"{values[16]:.0f}→{values[17]:.0f} | {values[18]:.0f} |")
     lines += ['', '## Latency percentiles (ms; pooled by role, arm and stage)', '',
               '| Role | Arm | Stage | Operation | N | P50 | P95 | P99 |',
               '|---|---|---|---|---:|---:|---:|---:|']

@@ -16,6 +16,7 @@
 #include <numeric>
 #include <openssl/sha.h>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <fcntl.h>
@@ -92,6 +93,53 @@ uint64_t ReadProcIo(const char* key) {
   return 0;
 }
 Counters Io() { return {ReadProcIo("read_bytes:"), ReadProcIo("write_bytes:")}; }
+struct ProcMemorySnapshot {
+  uint64_t rss_bytes{0};
+  uint64_t pss_bytes{0};
+  uint64_t private_dirty_bytes{0};
+  uint64_t vmhwm_bytes{0};
+};
+ProcMemorySnapshot ReadProcMemorySnapshot() {
+  ProcMemorySnapshot memory;
+  bool have_rss = false;
+  bool have_vmhwm = false;
+  std::ifstream status("/proc/self/status");
+  std::string line;
+  while (std::getline(status, line)) {
+    std::istringstream fields(line);
+    std::string key;
+    uint64_t kib = 0;
+    if (!(fields >> key >> kib))
+      continue;
+    if (key == "VmRSS:") {
+      memory.rss_bytes = kib * 1024;
+      have_rss = true;
+    } else if (key == "VmHWM:") {
+      memory.vmhwm_bytes = kib * 1024;
+      have_vmhwm = true;
+    }
+  }
+  bool have_pss = false;
+  bool have_private_dirty = false;
+  std::ifstream smaps("/proc/self/smaps_rollup");
+  while (std::getline(smaps, line)) {
+    std::istringstream fields(line);
+    std::string key;
+    uint64_t kib = 0;
+    if (!(fields >> key >> kib))
+      continue;
+    if (key == "Pss:") {
+      memory.pss_bytes = kib * 1024;
+      have_pss = true;
+    } else if (key == "Private_Dirty:") {
+      memory.private_dirty_bytes = kib * 1024;
+      have_private_dirty = true;
+    }
+  }
+  Require(have_rss && have_vmhwm && have_pss && have_private_dirty,
+          "read process RSS/PSS/Private_Dirty from procfs");
+  return memory;
+}
 double CpuMs() {
   timespec ts{};
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
@@ -504,7 +552,8 @@ std::pair<uint64_t, uint64_t> AdviseFileColdAndCountPages(const fs::path& path) 
     Require(::mincore(mapping, length, residency.data()) == 0,
             "mincore replay file: " + path.string());
     return static_cast<uint64_t>(std::count_if(
-        residency.begin(), residency.end(), [](unsigned char page) { return (page & 1) != 0; }));
+        residency.begin(), residency.end(),
+        [](unsigned char page) { return (page & 1) != 0; }));
   };
   const uint64_t before = count_resident();
   const int advice = ::posix_fadvise(fd, 0, st.st_size, POSIX_FADV_DONTNEED);
@@ -537,22 +586,32 @@ CacheResidency AdviseIndexFilesCold(const fs::path& index_dir) {
   return result;
 }
 
-void RunWalReplayProbe(const fs::path& main_path, const std::vector<Row>& rows,
-                       const m4::Options& base_options) {
-  const char* enabled = std::getenv("M4_WAL_REPLAY_PROBE");
+void RunWalReplayProbe(const fs::path &main_path, const std::vector<Row> &rows,
+                       const m4::Options &base_options) {
+  const char *enabled = std::getenv("M4_WAL_REPLAY_PROBE");
   if (enabled == nullptr || std::string(enabled) == "0" ||
-      std::string(enabled).empty()) return;
+      std::string(enabled).empty())
+    return;
   Require(std::string(enabled) == "1", "M4_WAL_REPLAY_PROBE must be 0 or 1");
-  const fs::path probe_dir = main_path.parent_path() /
+  bool mixed_frames = false;
+  if (const char *value = std::getenv("M4_WAL_REPLAY_MIXED_FRAMES")) {
+    Require(std::string(value) == "0" || std::string(value) == "1",
+            "M4_WAL_REPLAY_MIXED_FRAMES must be 0 or 1");
+    mixed_frames = std::string(value) == "1";
+  }
+  const fs::path probe_dir =
+      main_path.parent_path() /
       (main_path.filename().string() + "-wal-replay-probe");
-  Require(!fs::exists(probe_dir), "WAL replay probe path must be fresh: " +
-                                  probe_dir.string());
+  Require(!fs::exists(probe_dir),
+          "WAL replay probe path must be fresh: " + probe_dir.string());
   fs::create_directory(probe_dir);
 
   m4::Options write_options = base_options;
   write_options.wal_enabled = true;
   write_options.fsync_wal = true;
   write_options.coalesce_stats_events = false;
+  if (mixed_frames)
+    write_options.wal_compression_lz4 = false;
   write_options.stats_log_threshold = 1ull << 40;
   write_options.max_delta_docs = static_cast<uint32_t>(
       std::min<size_t>(rows.size() + 1, std::numeric_limits<uint32_t>::max()));
@@ -561,36 +620,71 @@ void RunWalReplayProbe(const fs::path& main_path, const std::vector<Row>& rows,
   auto status = m4::Index::Open(probe_dir.string(), write_options, &writer);
   Require(status.ok, "open WAL replay probe writer: " + status.message);
   size_t batch_limit = 256;
-  if (const char* value = std::getenv("M4_MUTATION_BATCH_DOCS")) {
-    char* end = nullptr;
+  if (const char *value = std::getenv("M4_MUTATION_BATCH_DOCS")) {
+    char *end = nullptr;
     const unsigned long parsed = std::strtoul(value, &end, 10);
     Require(end != value && *end == '\0' && parsed > 0 &&
                 parsed <= std::numeric_limits<uint32_t>::max(),
             "M4_MUTATION_BATCH_DOCS must be a positive uint32");
     batch_limit = static_cast<size_t>(parsed);
   }
+  if (const char *value = std::getenv("M4_WAL_REPLAY_BATCH_DOCS")) {
+    char *end = nullptr;
+    const unsigned long parsed = std::strtoul(value, &end, 10);
+    Require(end != value && *end == '\0' && parsed > 0 && parsed <= 256,
+            "M4_WAL_REPLAY_BATCH_DOCS must be in 1..256");
+    batch_limit = static_cast<size_t>(parsed);
+  }
   std::vector<m4::Mutation> mutations;
   mutations.reserve(rows.size());
-  for (const auto& row : rows)
+  for (const auto &row : rows)
     mutations.emplace_back(m4::MutationKind::UPSERT, row.pk, M4Document(row));
   EmitMetric("wal_replay_probe_write", "logical_input_text_bytes",
              static_cast<double>(TextBytes(rows)));
   const double write_cpu_before_ms = CpuMs();
   Measure("wal_replay_probe_write", [&] {
+    bool switched_to_compressed_writer = !mixed_frames;
+    const size_t mixed_switch_at = (mutations.size() + 1) / 2;
     for (size_t start = 0; start < mutations.size(); start += batch_limit) {
+      if (!switched_to_compressed_writer && start >= mixed_switch_at) {
+        writer.reset();
+        write_options.wal_compression_lz4 = true;
+        status = m4::Index::Open(probe_dir.string(), write_options, &writer);
+        Require(status.ok,
+                "reopen mixed WAL probe with LZ4 writer: " + status.message);
+        switched_to_compressed_writer = true;
+      }
       const size_t count = std::min(batch_limit, mutations.size() - start);
       const auto begin = Clock::now();
       status = writer->ApplyBatch(std::vector<m4::Mutation>(
           mutations.begin() + start, mutations.begin() + start + count));
       const auto end = Clock::now();
-      Require(status.ok, "WAL replay probe durable ApplyBatch: " + status.message);
-      EmitLatency("wal_replay_probe", "durable_apply_batch_ack_ms",
+      Require(status.ok,
+              "WAL replay probe durable ApplyBatch: " + status.message);
+      EmitLatency(
+          "wal_replay_probe", "durable_apply_batch_ack_ms",
           std::chrono::duration<double, std::milli>(end - begin).count());
     }
   });
   EmitMetric("wal_replay_probe_write", "process_cpu_ms",
              CpuMs() - write_cpu_before_ms);
   const fs::path wal_path = probe_dir / "wal.log";
+  writer.reset(); // Deliberately no Flush: the child state exists only in the
+                  // WAL.
+  uint64_t simulated_torn_tail_bytes = 0;
+  if (const char *value = std::getenv("M4_WAL_REPLAY_TORN_TAIL")) {
+    Require(std::string(value) == "0" || std::string(value) == "1",
+            "M4_WAL_REPLAY_TORN_TAIL must be 0 or 1");
+    if (std::string(value) == "1") {
+      const char torn_tail[] = {'M', '4', 'W', 'Z', 1, 0, 0};
+      std::ofstream wal(wal_path, std::ios::binary | std::ios::app);
+      Require(wal.is_open(), "open WAL to append simulated torn batch tail");
+      wal.write(torn_tail, sizeof(torn_tail));
+      wal.flush();
+      Require(static_cast<bool>(wal), "append simulated torn batch tail");
+      simulated_torn_tail_bytes = sizeof(torn_tail);
+    }
+  }
   std::error_code ec;
   const uint64_t wal_bytes = fs::file_size(wal_path, ec);
   Require(!ec && wal_bytes > 0, "WAL replay probe produced a non-empty WAL");
@@ -598,9 +692,13 @@ void RunWalReplayProbe(const fs::path& main_path, const std::vector<Row>& rows,
              static_cast<double>(wal_bytes));
   EmitMetric("wal_replay_probe", "wal_document_count",
              static_cast<double>(mutations.size()));
-  writer.reset();  // Deliberately no Flush: the child state exists only in the WAL.
+  EmitMetric("wal_replay_probe", "simulated_torn_tail_bytes",
+             static_cast<double>(simulated_torn_tail_bytes));
+  EmitMetric("wal_replay_probe", "mixed_legacy_lz4_frames",
+             mixed_frames ? 1.0 : 0.0);
 
-  // Drop only this fresh probe index's file pages; do not evict system-wide caches.
+  // Drop only this fresh probe index's file pages; do not evict system-wide
+  // caches.
   const CacheResidency cache = AdviseIndexFilesCold(probe_dir);
   EmitMetric("wal_replay_probe_cold_cache", "index_file_bytes",
              static_cast<double>(cache.file_bytes));
@@ -613,19 +711,85 @@ void RunWalReplayProbe(const fs::path& main_path, const std::vector<Row>& rows,
   EmitMetric("wal_replay_probe_cold_cache", "resident_pages_after_advice",
              static_cast<double>(cache.resident_after));
   EmitMetric("wal_replay_probe_cold_cache", "resident_fraction_after_advice",
-             cache.total_pages == 0 ? 0.0 :
-                 static_cast<double>(cache.resident_after) / cache.total_pages);
+             cache.total_pages == 0
+                 ? 0.0
+                 : static_cast<double>(cache.resident_after) /
+                       cache.total_pages);
 
   m4::Options replay_options = write_options;
   replay_options.wal_compression_lz4 = false;
   std::unique_ptr<m4::Index> recovered;
+  m4::OpenDiagnostics replay_diagnostics;
+  const ProcMemorySnapshot memory_before = ReadProcMemorySnapshot();
+  const Counters replay_io_before = Io();
   const double replay_cpu_before_ms = CpuMs();
   Measure("wal_replay_probe_open", [&] {
-    status = m4::Index::Open(probe_dir.string(), replay_options, &recovered);
-    Require(status.ok, "fresh-index cold WAL replay probe open: " + status.message);
+    status = m4::Index::Open(probe_dir.string(), replay_options, &recovered,
+                             &replay_diagnostics);
+    Require(status.ok,
+            "fresh-index cold WAL replay probe open: " + status.message);
   });
-  EmitMetric("wal_replay_probe_open", "process_cpu_ms",
-             CpuMs() - replay_cpu_before_ms);
+  const double replay_cpu_ms = CpuMs() - replay_cpu_before_ms;
+  const Counters replay_io_after = Io();
+  const ProcMemorySnapshot memory_after = ReadProcMemorySnapshot();
+  EmitMetric("wal_replay_probe_open", "process_cpu_ms", replay_cpu_ms);
+  EmitMetric("wal_replay_probe_open", "wal_replay_stage_wall_ms",
+             replay_diagnostics.wal_replay_ms);
+  EmitMetric("wal_replay_probe_open", "wal_replay_stage_cpu_ms",
+             replay_diagnostics.wal_replay_cpu_ms);
+  EmitMetric("wal_replay_probe_open", "process_read_bytes",
+             static_cast<double>(replay_io_after.read_bytes -
+                                 replay_io_before.read_bytes));
+  EmitMetric("wal_replay_probe_open", "rss_before_bytes",
+             static_cast<double>(memory_before.rss_bytes));
+  EmitMetric("wal_replay_probe_open", "rss_after_bytes",
+             static_cast<double>(memory_after.rss_bytes));
+  EmitMetric("wal_replay_probe_open", "pss_before_bytes",
+             static_cast<double>(memory_before.pss_bytes));
+  EmitMetric("wal_replay_probe_open", "pss_after_bytes",
+             static_cast<double>(memory_after.pss_bytes));
+  EmitMetric("wal_replay_probe_open", "private_dirty_before_bytes",
+             static_cast<double>(memory_before.private_dirty_bytes));
+  EmitMetric("wal_replay_probe_open", "private_dirty_after_bytes",
+             static_cast<double>(memory_after.private_dirty_bytes));
+  EmitMetric("wal_replay_probe_open", "vmhwm_before_bytes",
+             static_cast<double>(memory_before.vmhwm_bytes));
+  EmitMetric("wal_replay_probe_open", "vmhwm_after_bytes",
+             static_cast<double>(memory_after.vmhwm_bytes));
+  EmitMetric(
+      "wal_replay_probe_open", "wal_encoded_file_bytes",
+      static_cast<double>(replay_diagnostics.wal_replay_encoded_file_bytes));
+  EmitMetric("wal_replay_probe_open", "wal_encoded_buffer_capacity_bytes",
+             static_cast<double>(
+                 replay_diagnostics.wal_replay_encoded_buffer_capacity_bytes));
+  EmitMetric("wal_replay_probe_open", "wal_decoded_record_count",
+             static_cast<double>(replay_diagnostics.wal_replay_record_count));
+  EmitMetric(
+      "wal_replay_probe_open", "wal_decoded_payload_bytes",
+      static_cast<double>(replay_diagnostics.wal_replay_decoded_payload_bytes));
+  EmitMetric("wal_replay_probe_open", "wal_decoded_payload_capacity_bytes",
+             static_cast<double>(
+                 replay_diagnostics.wal_replay_decoded_payload_capacity_bytes));
+  EmitMetric("wal_replay_probe_open", "wal_record_vector_capacity_bytes",
+             static_cast<double>(
+                 replay_diagnostics.wal_replay_record_vector_capacity_bytes));
+  EmitMetric("wal_replay_probe_open", "wal_replay_peak_tracked_live_bytes",
+             static_cast<double>(
+                 replay_diagnostics.wal_replay_peak_tracked_live_bytes));
+  EmitMetric(
+      "wal_replay_probe_open", "wal_replay_record_vector_growths",
+      static_cast<double>(replay_diagnostics.wal_replay_record_vector_growths));
+  const uint64_t encoded_payload_bytes =
+      replay_diagnostics.wal_replay_encoded_file_bytes +
+      replay_diagnostics.wal_replay_decoded_payload_bytes;
+  EmitMetric("wal_replay_probe_open",
+             "tracked_capacity_overhead_upper_bound_bytes",
+             static_cast<double>(
+                 replay_diagnostics.wal_replay_peak_tracked_live_bytes >
+                         encoded_payload_bytes
+                     ? replay_diagnostics.wal_replay_peak_tracked_live_bytes -
+                           encoded_payload_bytes
+                     : 0));
   Require(recovered && recovered->GetStats().live_docs == mutations.size(),
           "WAL replay probe recovered every durable document");
   m4::SearchResult result;

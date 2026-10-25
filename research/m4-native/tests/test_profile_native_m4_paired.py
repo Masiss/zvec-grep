@@ -61,17 +61,21 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
             profiler.m4_compaction_environment('control', workload),
             {'M4_MAX_TOTAL_RUNS': '12', 'M4_MAX_RUNS_PER_LEVEL': '4',
              'M4_STATS_LOG_THRESHOLD': str(4 * 1024 * 1024),
-             'M4_MUTATION_BATCH_DOCS': '256', 'M4_COALESCE_STATS': '0',
-             'M4_WAL_COMPRESSION_LZ4': '0', 'M4_WAL_LZ4_ACCELERATION': '1',
-             'M4_WAL_REPLAY_PROBE': '1'},
+             'M4_MUTATION_BATCH_DOCS': '256', 'M4_WAL_REPLAY_BATCH_DOCS': '256',
+             'M4_COALESCE_STATS': '0', 'M4_WAL_COMPRESSION_LZ4': '0',
+             'M4_WAL_LZ4_ACCELERATION': '1',
+             'M4_WAL_REPLAY_PROBE': '1', 'M4_WAL_REPLAY_TORN_TAIL': '0',
+             'M4_WAL_REPLAY_MIXED_FRAMES': '0'},
         )
         self.assertEqual(
             profiler.m4_compaction_environment('candidate', workload),
             {'M4_MAX_TOTAL_RUNS': '12', 'M4_MAX_RUNS_PER_LEVEL': '4',
              'M4_STATS_LOG_THRESHOLD': str(16 * 1024 * 1024),
-             'M4_MUTATION_BATCH_DOCS': '256', 'M4_COALESCE_STATS': '1',
-             'M4_WAL_COMPRESSION_LZ4': '1', 'M4_WAL_LZ4_ACCELERATION': '4',
-             'M4_WAL_REPLAY_PROBE': '1'},
+             'M4_MUTATION_BATCH_DOCS': '256', 'M4_WAL_REPLAY_BATCH_DOCS': '256',
+             'M4_COALESCE_STATS': '1', 'M4_WAL_COMPRESSION_LZ4': '1',
+             'M4_WAL_LZ4_ACCELERATION': '4',
+             'M4_WAL_REPLAY_PROBE': '1', 'M4_WAL_REPLAY_TORN_TAIL': '0',
+             'M4_WAL_REPLAY_MIXED_FRAMES': '0'},
         )
         workload['candidate_max_runs_per_level'] = 0
         with self.assertRaisesRegex(ValueError, 'positive uint32'):
@@ -118,6 +122,36 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
             profiler.m4_compaction_environment('control', workload)['M4_P42_LATENCY'], '1')
         with self.assertRaisesRegex(ValueError, 'must be 1..256'):
             profiler.validate_mutation_batch_docs('candidate', 512)
+
+    def test_many_record_replay_profile_isolates_replay_batch_size(self):
+        standard = profiler.write_amp_workload_profile('standard')
+        workload = profiler.write_amp_workload_profile(
+            'wal-replay-memory-many-records')
+        self.assertEqual(workload['files'], standard['files'])
+        self.assertEqual(workload['control_mutation_batch_docs'],
+                         standard['control_mutation_batch_docs'])
+        self.assertEqual(workload['candidate_mutation_batch_docs'],
+                         standard['candidate_mutation_batch_docs'])
+        self.assertEqual(workload['control_wal_replay_batch_docs'], 16)
+        self.assertEqual(workload['candidate_wal_replay_batch_docs'], 16)
+        self.assertTrue(workload['wal_replay_torn_tail'])
+        self.assertFalse(workload['control_wal_replay_mixed_frames'])
+        self.assertTrue(workload['candidate_wal_replay_mixed_frames'])
+        self.assertFalse(workload['control_wal_compression_lz4'])
+        self.assertTrue(workload['candidate_wal_compression_lz4'])
+        self.assertTrue(workload['trace_mutation_latency'])
+        small = profiler.write_amp_workload_profile('wal-replay-memory-small')
+        self.assertEqual(small['files'], 64)
+        self.assertEqual({key for key in workload if workload[key] != small[key]},
+                         {'files'})
+        for role in ('control', 'candidate'):
+            self.assertEqual(
+                profiler.m4_compaction_environment(role, workload)[
+                    'M4_WAL_REPLAY_BATCH_DOCS'], '16')
+            self.assertEqual(
+                profiler.m4_compaction_environment(role, workload)[
+                    'M4_WAL_REPLAY_MIXED_FRAMES'],
+                '0' if role == 'control' else '1')
 
     def test_full_size_mutation_batch_profile_isolates_chunk_size(self):
         standard = profiler.write_amp_workload_profile('standard')
@@ -345,10 +379,15 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
                 'M4_MAX_RUNS_PER_LEVEL': str(workload['candidate_max_runs_per_level']),
                 'M4_STATS_LOG_THRESHOLD': str(workload['candidate_stats_log_threshold']),
                 'M4_MUTATION_BATCH_DOCS': str(workload['candidate_mutation_batch_docs']),
+                'M4_WAL_REPLAY_BATCH_DOCS': str(workload.get(
+                    'candidate_wal_replay_batch_docs',
+                    workload['candidate_mutation_batch_docs'])),
                 'M4_COALESCE_STATS': '0' if workload['candidate_coalesce_stats'] else '1',
                 'M4_WAL_COMPRESSION_LZ4': '0',
                 'M4_WAL_LZ4_ACCELERATION': str(workload['candidate_wal_lz4_acceleration']),
                 'M4_WAL_REPLAY_PROBE': '1',
+                'M4_WAL_REPLAY_TORN_TAIL': '0',
+                'M4_WAL_REPLAY_MIXED_FRAMES': '0',
                 'TMPDIR': str(temp_dir.resolve()),
             }
             command = [str(binary), 'm4-batch', str(workspace), str(workload['files']),

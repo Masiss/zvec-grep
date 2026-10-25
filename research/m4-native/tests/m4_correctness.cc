@@ -1395,15 +1395,26 @@ void TestLz4WalFrames(const std::string &root) {
   fast_reader.reset();
 
   m4::Options replay_options;
+  m4::OpenDiagnostics replay_diagnostics;
   std::unique_ptr<Index> interrupted_reader;
   Check(::setenv("M4_FAULT", "wal_pread_eintr_once", 1) == 0,
         "set WAL replay EINTR injection");
-  const m4::Status interrupted_status =
-      Index::Open(compressed_dir, replay_options, &interrupted_reader);
+  const m4::Status interrupted_status = Index::Open(
+      compressed_dir, replay_options, &interrupted_reader, &replay_diagnostics);
   ::unsetenv("M4_FAULT");
   Check(interrupted_status.ok && interrupted_reader &&
             interrupted_reader->GetStats().live_docs == 40,
         "WAL replay retries interrupted pread and recovers every frame");
+  Check(
+      replay_diagnostics.wal_replay_record_count == 1 &&
+          replay_diagnostics.wal_replay_encoded_file_bytes > 0 &&
+          replay_diagnostics.wal_replay_decoded_payload_bytes > 0 &&
+          replay_diagnostics.wal_replay_decoded_payload_capacity_bytes >=
+              replay_diagnostics.wal_replay_decoded_payload_bytes &&
+          replay_diagnostics.wal_replay_peak_tracked_live_bytes >=
+              replay_diagnostics.wal_replay_encoded_buffer_capacity_bytes +
+                  replay_diagnostics.wal_replay_decoded_payload_capacity_bytes,
+      "WAL replay reports encoded/decoded live-capacity diagnostics");
   interrupted_reader.reset();
 
   std::unique_ptr<Index> failed_reader;
@@ -1421,6 +1432,33 @@ void TestLz4WalFrames(const std::string &root) {
             recovered_reader->GetStats().live_docs == 40,
         "WAL remains intact after replay read error and recovers on retry");
   recovered_reader.reset();
+
+  m4::Options mixed_writer_options;
+  mixed_writer_options.wal_compression_lz4 = true;
+  std::unique_ptr<Index> mixed_writer;
+  const m4::Status mixed_writer_status =
+      Index::Open(raw_dir, mixed_writer_options, &mixed_writer);
+  Check(mixed_writer_status.ok && mixed_writer,
+        "open legacy WAL to append mixed compressed frame");
+  if (mixed_writer) {
+    Document mixed_document;
+    mixed_document.text = "mixed legacy compressed recovery";
+    Check(mixed_writer
+              ->ApplyBatch({m4::Mutation(m4::MutationKind::UPSERT,
+                                         "mixed-frame", mixed_document)})
+              .ok,
+          "append compressed record after legacy WAL frame");
+    mixed_writer.reset();
+  }
+  m4::OpenDiagnostics mixed_diagnostics;
+  std::unique_ptr<Index> mixed_reader;
+  const m4::Status mixed_status =
+      Index::Open(raw_dir, replay_options, &mixed_reader, &mixed_diagnostics);
+  Check(mixed_status.ok && mixed_reader &&
+            mixed_reader->GetStats().live_docs == 41 &&
+            mixed_diagnostics.wal_replay_record_count == 2,
+        "mixed legacy/LZ4 WAL frames replay in order");
+  mixed_reader.reset();
 
   const std::string corrupt_dir = root + "/corrupt-checksum";
   fs::copy(compressed_dir, corrupt_dir, fs::copy_options::recursive, ec);
