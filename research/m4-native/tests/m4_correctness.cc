@@ -4331,6 +4331,36 @@ void TestEmptyMergeTombstoneCrash(const std::string &dir) {
         "empty-merge crash recovery does not resurrect acknowledged delete");
 }
 
+void TestWandUsesListWideUpperBound(const std::string &dir) {
+  fs::remove_all(dir);
+  m4::Options options;
+  options.max_delta_docs = 1000;
+  options.block_size = 128;
+  std::unique_ptr<Index> index;
+  const m4::Status open_status = Index::Open(dir, options, &index);
+  Check(open_status.ok, "WAND bound open");
+  if (!open_status.ok)
+    return;
+
+  Document common;
+  common.text = "alpha";
+  for (uint32_t i = 0; i < 256; ++i) {
+    Document document = common;
+    if (i == 255) {
+      for (int repeat = 1; repeat < 20; ++repeat) {
+        document.text += " alpha";
+      }
+    }
+    Check(index->Upsert("doc-" + std::to_string(i), document).ok,
+          "WAND bound upsert");
+  }
+  Check(index->Flush().ok, "WAND bound flush");
+  m4::SearchResult result;
+  Check(index->SearchFts("alpha", 1, &result).ok && result.hits.size() == 1 &&
+            result.hits[0].pk == "doc-255",
+        "WAND sees a high-scoring hit in a later posting block");
+}
+
 void TestCompactionPositionBudget(const std::string& dir) {
   fs::remove_all(dir);
   m4::Options opt;
@@ -4708,6 +4738,7 @@ int main(int argc, char *argv[]) {
   TestSnapshotCompactionBudget(root + "/snapshot-budget");
   TestSnapshotCompactionFaults(root + "/snapshot-faults");
   TestEmptyMergeTombstoneCrash(root + "/empty-merge-tombstone-crash");
+  TestWandUsesListWideUpperBound(root + "/wand-list-bound");
   TestCompactionPositionBudget(root + "/position-budget");
   TestManifestFallback(root + "/manifest-fallback");
   TestCompactionFaults(root + "/faults");

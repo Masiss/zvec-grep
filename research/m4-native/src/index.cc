@@ -1550,6 +1550,7 @@ class PostingCursor {
   virtual uint32_t tf() const = 0;
   virtual uint32_t dl() const = 0;
   virtual const std::vector<uint32_t>& positions() const = 0;
+  // Conservative upper bound over every posting in this cursor.
   virtual float max_score() const = 0;
   virtual bool Next() = 0;
   virtual bool Advance(DocId target) = 0;
@@ -1566,6 +1567,14 @@ class SegmentCursor : public PostingCursor {
         b_(b),
         avg_dl_(avg_dl),
         diagnostics_(diagnostics) {
+    if (term && term->max_tf > 0 && avg_dl_ > 0.0) {
+      const double tf = term->max_tf;
+      const double dl = term->min_dl;
+      const double denom = tf + k1_ * (1.0 - b_ + b_ * dl / avg_dl_);
+      if (denom > 0.0) {
+        max_score_ = static_cast<float>(idf_ * tf * (k1_ + 1.0) / denom);
+      }
+    }
     if (diagnostics_ && it_.valid()) ++diagnostics_->postings_scanned;
   }
 
@@ -1576,9 +1585,7 @@ class SegmentCursor : public PostingCursor {
   const std::vector<uint32_t>& positions() const override {
     return it_.positions();
   }
-  float max_score() const override {
-    return it_.BlockMaxScore(idf_, k1_, b_, avg_dl_);
-  }
+  float max_score() const override { return max_score_; }
   bool Next() override {
     if (diagnostics_) ++diagnostics_->cursor_next_calls;
     const bool ok = it_.Next();
@@ -1601,6 +1608,7 @@ class SegmentCursor : public PostingCursor {
   double k1_;
   double b_;
   double avg_dl_;
+  float max_score_{0.0f};
   QueryDiagnostics* diagnostics_{nullptr};
 };
 

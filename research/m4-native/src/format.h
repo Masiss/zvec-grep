@@ -89,6 +89,9 @@ struct TermRef {
   // meta/payload areas; v2 stores per-term chunk offsets.
   uint64_t meta_base{0};
   uint64_t payload_base{0};
+  // In-memory extrema across all posting blocks for a list-wide WAND bound.
+  uint32_t max_tf{0};
+  uint32_t min_dl{0};
 };
 
 struct InvertValueRef {
@@ -237,9 +240,6 @@ class SegmentTermIterator {
   bool Next();
   bool Advance(DocId target);
 
-  // Query-time upper bound for the current block. IDF is supplied by the
-  // caller and therefore always reflects current live corpus statistics.
-  float BlockMaxScore(double idf, double k1, double b, double avg_dl) const;
   uint32_t block_index() const { return block_; }
 
  private:
@@ -253,8 +253,6 @@ class SegmentTermIterator {
   bool valid_{false};
   uint32_t block_{0};
   uint64_t block_last_doc_{0};
-  uint32_t block_max_tf_{0};
-  uint32_t block_min_dl_{0};
   std::vector<uint32_t> offsets_;  // entry offsets within decoded block
   std::vector<DocId> doc_ids_;
   std::vector<uint32_t> tfs_;

@@ -566,6 +566,18 @@ Status Segment::Open(const std::string& path, SegmentPtr* out,
     }
   }
 
+  // Aggregate the per-block extrema once when opening a segment. Query-time
+  // WAND needs a bound for the whole term list, not just the current block.
+  for (auto &term : seg->terms_) {
+    for (uint32_t block = 0; block < term.block_count; ++block) {
+      const FtsBlockMeta meta = seg->fts_meta_at(
+          term.meta_base + static_cast<uint64_t>(block) * sizeof(FtsBlockMeta));
+      term.max_tf = std::max(term.max_tf, meta.max_tf);
+      term.min_dl =
+          block == 0 ? meta.min_dl : std::min(term.min_dl, meta.min_dl);
+    }
+  }
+
   // Invert fields.
   if (version == kVersionV2) {
     if (invert_size < sizeof(InvertFooterV2)) {
@@ -854,8 +866,6 @@ bool SegmentTermIterator::LoadBlock(uint32_t block) {
 
   block_ = block;
   block_last_doc_ = meta.last_doc;
-  block_max_tf_ = meta.max_tf;
-  block_min_dl_ = meta.min_dl;
   entry_ = 0;
   doc_ = doc_ids_[0];
   tf_ = tfs_[0];
@@ -949,16 +959,6 @@ bool SegmentTermIterator::Advance(DocId target) {
     return false;
   }
   return SeekInBlock(target);
-}
-
-float SegmentTermIterator::BlockMaxScore(double idf, double k1, double b,
-                                         double avg_dl) const {
-  if (!valid_ || block_max_tf_ == 0 || avg_dl <= 0.0) return 0.0f;
-  const double tf = block_max_tf_;
-  const double dl = block_min_dl_;
-  const double denom = tf + k1 * (1.0 - b + b * dl / avg_dl);
-  if (denom <= 0.0) return 0.0f;
-  return static_cast<float>((idf * tf * (k1 + 1.0)) / denom);
 }
 
 }  // namespace m4
