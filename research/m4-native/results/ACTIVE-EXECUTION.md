@@ -1,5 +1,9 @@
 # Active M4 execution checkpoint
 
+## Latest audit follow-up — 2026-10-25
+
+The architecture audit at `rust/docs/audit-20261025.md` has been rechecked against source and worked through independent gated slices. Local commits: `e955d97` fixes M-02 compaction tombstone overwrite; `14cc4a3` fixes M-03 WAND bound correctness; `943994f` removes nested query-lock acquisition from M-01 filter evaluation. M-01's source-level lock-order hazard is fixed with unlocked leaf helpers under the caller's shared lock. Normal `m4_correctness` passed 1/1 (15.27 s); final TSan run passed `m4_correctness` and `m4_writer_preferred_mutex_test` 2/2 (41.34 s). The deterministic index-level queued-writer regression for M-01 remains open; the mutex priority test and call-graph review support the fix but are not a substitute for that integration reproducer. The audit records M-04..M-07, maintenance D, retrieval E, model-memory F, and telemetry G as still gated/planned. No production changes, benchmarks, or pushes were made. Other dirty/untracked work remains untouched.
+
 ## Live continuation — 2026-10-25
 
 ### Base/delta hybrid score normalization — VERIFIED (research prototype)
