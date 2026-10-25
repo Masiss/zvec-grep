@@ -1651,6 +1651,54 @@ void TestWalSequenceChecksumBoundary(const std::string &dir) {
     Check(after_recovery != clean_bytes && after_recovery == bytes,
           "manifest-boundary corruption is detected without truncating WAL");
   }
+
+  const std::string payload_checksum_dir = dir + "-payload-checksum";
+  fs::remove_all(payload_checksum_dir);
+  std::error_code copy_error;
+  fs::copy(dir, payload_checksum_dir, fs::copy_options::recursive, copy_error);
+  Check(!copy_error, "copy index for sequence-bound payload checksum test");
+  if (!copy_error) {
+    std::string header_valid_sequence_corruption = clean_bytes;
+    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
+      header_valid_sequence_corruption[8 + i] =
+          static_cast<char>(i == 0 ? 1 : 0);
+    }
+    m4::BufReader clean_frame(clean_bytes.data(), clean_bytes.size());
+    const uint32_t clean_magic = clean_frame.U32();
+    const uint32_t clean_len = clean_frame.U32();
+    const uint32_t header_checksum =
+        WalHeaderChecksumForTest(clean_magic, clean_len, 1, clean_len);
+    for (size_t i = 0; i < sizeof(uint32_t); ++i) {
+      header_valid_sequence_corruption[16 + i] =
+          static_cast<char>(header_checksum >> (i * 8));
+    }
+    const fs::path payload_wal_path =
+        fs::path(payload_checksum_dir) / "wal.log";
+    {
+      std::ofstream output(payload_wal_path,
+                           std::ios::binary | std::ios::trunc);
+      output.write(header_valid_sequence_corruption.data(),
+                   static_cast<std::streamsize>(
+                       header_valid_sequence_corruption.size()));
+      output.flush();
+      Check(output.good(), "write header-valid sequence corruption fixture");
+    }
+    std::unique_ptr<Index> payload_checksum_index;
+    const m4::Status payload_checksum_status =
+        Index::Open(payload_checksum_dir, options, &payload_checksum_index);
+    Check(!payload_checksum_status.ok && !payload_checksum_index &&
+              payload_checksum_status.message.find(
+                  "WAL frame checksum mismatch") != std::string::npos,
+          "sequence-bound payload checksum rejects tampering after valid "
+          "header CRC");
+    {
+      std::ifstream input(payload_wal_path, std::ios::binary);
+      const std::string after_recovery{std::istreambuf_iterator<char>(input),
+                                       std::istreambuf_iterator<char>()};
+      Check(after_recovery == header_valid_sequence_corruption,
+            "payload checksum failure preserves the original WAL bytes");
+    }
+  }
 }
 
 void TestLz4WalFrames(const std::string &root) {
