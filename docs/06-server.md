@@ -111,8 +111,8 @@ zg --server on --mcp-toolset full
 ```
 
 The Server releases a Workspace watcher and its lightweight runtime after four
-hours without a client request or a relevant file-system change. Periodic
-reconciliation does not extend this idle deadline. To select another timeout,
+hours without a client request. Watcher-driven file-system changes and periodic
+reconciliation do not renew this idle deadline. To select another timeout,
 set the number of seconds before starting or restarting the Server:
 
 ```bash

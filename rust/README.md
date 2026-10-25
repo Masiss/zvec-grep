@@ -165,7 +165,8 @@ either full content or UTF-8 byte offsets relative to the entity's content. Sour
 locations, including line and column numbers, are calculated when needed;
 fragments do not duplicate content or source coordinates.
 Model collections store the text and vectors needed for retrieval, with entity
-metadata included in search projections. Index format 5 uses this layout.
+metadata included in search projections. The Rust workspace manifest records
+index format version 2 for this persisted layout and its indexing semantics.
 
 Lexical search runs in-process with ripgrep's `grep` and `ignore` crates; the
 binary and ordinary CI jobs do not require a system `rg` executable.
