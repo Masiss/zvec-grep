@@ -355,6 +355,127 @@ async fn native_watcher_clean_refreshes_reuse_the_initial_reconciliation() {
     engine.close();
 }
 
+struct M4ResearchExecutor {
+    index: Arc<M4ResearchWorkspace>,
+}
+
+#[async_trait]
+impl IndexExecutor for M4ResearchExecutor {
+    async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
+        self.index.index(&options.changes).await
+    }
+}
+
+#[tokio::test]
+async fn daemon_watcher_failure_keeps_m4_dirty_until_full_recovery_retry() {
+    let temp = tempdir().expect("workspace");
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    std::fs::write(root.join("src/a.rs"), "initialalpha").expect("first source");
+    std::fs::write(root.join("src/b.rs"), "initialbeta").expect("second source");
+    std::fs::write(root.join("stable.txt"), "stablemarker").expect("stable source");
+    let root = root.canonicalize().expect("workspace root");
+    let index = Arc::new(
+        M4ResearchWorkspace::open(&root, &temp.path().join("index"))
+            .expect("M4 research workspace"),
+    );
+    let factory = NativeWatcherFactory::new().with_config(NativeWatcherConfig {
+        debounce: Duration::from_millis(30),
+        max_wait: Duration::from_millis(100),
+        reconcile_interval: None,
+        resume_check_interval: None,
+        poll_interval: Some(Duration::from_millis(15)),
+        ..NativeWatcherConfig::default()
+    });
+    let manager = WorkspaceRuntimeManager::new(
+        Arc::new(M4ResearchExecutor {
+            index: Arc::clone(&index),
+        }),
+        Arc::new(factory),
+        SchedulerConfig::default(),
+    );
+    let options = IndexOptions {
+        root: Some(root.clone()),
+        ..IndexOptions::default()
+    };
+    manager
+        .refresh_index(options.clone(), true)
+        .await
+        .expect("initial daemon-managed indexing");
+    assert_eq!(
+        index
+            .search_count("stablemarker")
+            .await
+            .expect("initial query"),
+        1
+    );
+    let initial_revision = manager.runtime_snapshot(&root).dirty_revision;
+
+    index.fail_after_first_publish_once();
+    std::fs::write(root.join("src/a.rs"), "updatedalpha").expect("update first source");
+    std::fs::write(root.join("src/b.rs"), "updatedbeta").expect("update second source");
+    tokio::time::timeout(Duration::from_secs(8), async {
+        loop {
+            let runtime = manager.runtime_snapshot(&root);
+            let job = manager.job_for_root(&root);
+            if runtime.dirty_revision > initial_revision
+                && runtime.indexed_revision < runtime.dirty_revision
+                && job.is_some_and(|job| job.state == JobState::Failed)
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("real watcher schedules a failed M4 update job");
+    let failed = manager.runtime_snapshot(&root);
+    assert!(failed.indexed_revision < failed.dirty_revision);
+    assert_eq!(
+        index
+            .search_count("updatedalpha")
+            .await
+            .expect("hidden failed update"),
+        0
+    );
+    assert_eq!(
+        index
+            .search_count("updatedbeta")
+            .await
+            .expect("no partial file result"),
+        0
+    );
+    assert_eq!(
+        index
+            .search_count("stablemarker")
+            .await
+            .expect("unmodified file remains"),
+        1
+    );
+
+    assert!(
+        manager
+            .refresh_index(options, true)
+            .await
+            .expect("full reconciliation retries unacknowledged changes")
+    );
+    assert_eq!(
+        index
+            .search_count("updatedalpha")
+            .await
+            .expect("first retry result"),
+        1
+    );
+    assert_eq!(
+        index
+            .search_count("updatedbeta")
+            .await
+            .expect("second retry result"),
+        1
+    );
+    manager.shutdown_all().await.expect("daemon shutdown");
+}
+
 #[tokio::test]
 async fn rejected_watcher_batches_require_full_repair_after_queue_pressure_ends() {
     let workspace = tempdir().expect("workspace");

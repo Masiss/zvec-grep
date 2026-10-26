@@ -10,5 +10,5 @@ pub(crate) mod storage;
 
 pub(crate) mod writer;
 
-#[cfg(test)]
-mod m4_integration_tests;
+#[cfg(feature = "m4-research-integration")]
+pub mod m4_integration_tests;

@@ -1345,16 +1345,17 @@ mod tests {
     use tempfile::tempdir;
     use tokio::sync::mpsc;
     use zg_engine::{
-        EngineError,
+        EngineError, M4ResearchWorkspace,
         api::index::{IndexOptions, IndexResult, options::WorkspaceChange as IndexChange},
         api::info::InfoOptions,
     };
     use zg_host_native::{
-        HostError, TaskControl, WatchRequest, WorkspaceChange, WorkspaceChangeBatch,
-        WorkspaceWatchSessionPort, WorkspaceWatcherFactoryPort,
+        HostError, NativeWatcherConfig, NativeWatcherFactory, TaskControl, WatchRequest,
+        WorkspaceChange, WorkspaceChangeBatch, WorkspaceWatchSessionPort,
+        WorkspaceWatcherFactoryPort,
     };
 
-    use crate::job_scheduler::{IndexExecutor, SchedulerConfig};
+    use crate::job_scheduler::{IndexExecutor, JobState, SchedulerConfig};
 
     use super::WorkspaceRuntimeManager;
 

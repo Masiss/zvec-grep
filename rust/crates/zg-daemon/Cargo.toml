@@ -33,6 +33,7 @@ zg-daemon-protocol = { path = "../zg-daemon-protocol" }
 zg-transport-mcp = { path = "../zg-transport-mcp" }
 
 [dev-dependencies]
+zg-engine = { path = "../zg-engine", features = ["m4-research-integration"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }
 

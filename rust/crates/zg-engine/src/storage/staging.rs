@@ -298,7 +298,7 @@ impl DiskStagedBatches {
         self.entities
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "m4-research-integration"))]
     pub(crate) fn fragment_count(&self) -> usize {
         self.fragments
     }

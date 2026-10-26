@@ -108,7 +108,7 @@ pub(crate) struct StorageSearchHit {
     pub path: StorageSearchPath,
     pub score: f64,
     /// Research-only generation token carried across search and hydration.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "m4-research-integration"))]
     pub m4_revision: Option<u64>,
 }
 

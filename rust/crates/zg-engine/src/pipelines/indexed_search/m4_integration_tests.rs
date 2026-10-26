@@ -1,35 +1,40 @@
-#![cfg(test)]
+#![allow(dead_code)]
 
 use std::{
     collections::{BTreeSet, HashMap},
+    io::{Read, Write},
     path::{Path, PathBuf},
     sync::{
-        Arc, Condvar, Mutex,
+        Condvar, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
 };
+#[cfg(test)]
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use m4_rust_bridge_research::{Adapter, Hit};
+#[cfg(test)]
 use tempfile::tempdir;
+use zg_host_native::NativeScanner;
+#[cfg(test)]
 use zg_host_native::{
-    AllowAllPaths, NativeScanner, NativeWatcherConfig, NativeWatcherFactory, RootSpec, TaskControl,
-    WatchRequest, WorkspaceChange as HostWorkspaceChange, WorkspaceWatcherFactoryPort,
+    AllowAllPaths, NativeWatcherConfig, NativeWatcherFactory, RootSpec, TaskControl, WatchRequest,
+    WorkspaceChange as HostWorkspaceChange, WorkspaceWatcherFactoryPort,
 };
+
+#[cfg(test)]
+use crate::{api::context::result::MatchedBy, domain::SymbolType};
 
 use crate::{
     EngineError, EngineResult,
     api::{
-        context::{
-            options::{ContextRoute, ContextRouteMode, QueryFilter},
-            result::MatchedBy,
-        },
-        index::{options::WorkspaceChange, progress::IndexProgressReporter},
+        context::options::{ContextRoute, ContextRouteMode, QueryFilter},
+        index::{IndexResult, options::WorkspaceChange, progress::IndexProgressReporter},
     },
     domain::{
         Content, Entity, EntityId, EntityMetadata, FileId, FileRecord, IndexDescriptor, IndexState,
-        ScanRules, SymbolType, Workspace,
+        ScanRules, Workspace,
         model::{EmbeddingModelInfo, EmbeddingResult, Metric, ModelInfo},
     },
     models::{EmbeddingConcurrencyDefaults, EmbeddingOptions, EmbeddingPrepareOptions, ModelError},
@@ -91,11 +96,13 @@ struct PendingUpdate {
 
 struct M4ResearchStorage {
     native: IndexStore,
+    sidecar_root: PathBuf,
     sidecar: Mutex<Adapter>,
     pending_updates: Mutex<Vec<PendingUpdate>>,
     pending_deletes: Mutex<Vec<FileId>>,
     pass_gate: PassGate,
     fail_after_native_commit: AtomicBool,
+    fail_after_first_m4_publish: AtomicBool,
 }
 
 impl M4ResearchStorage {
@@ -104,8 +111,9 @@ impl M4ResearchStorage {
             storage_path: root.join("native"),
             embeddings: vec![model.clone()],
         })?;
-        let mut sidecar =
-            Adapter::open(&root.join("m4-sidecar")).map_err(EngineError::storage_failure)?;
+        let sidecar_root = root.join("m4-sidecar");
+        let mut sidecar = Adapter::open(&sidecar_root).map_err(EngineError::storage_failure)?;
+        recover_pending_pass(&native, &mut sidecar, &sidecar_root)?;
         let mut staged_ids = Vec::new();
         for file in native.list_files()? {
             let state = sidecar
@@ -135,11 +143,13 @@ impl M4ResearchStorage {
         }
         Ok(Self {
             native,
+            sidecar_root,
             sidecar: Mutex::new(sidecar),
             pending_updates: Mutex::new(Vec::new()),
             pending_deletes: Mutex::new(Vec::new()),
             pass_gate: PassGate::default(),
             fail_after_native_commit: AtomicBool::new(false),
+            fail_after_first_m4_publish: AtomicBool::new(false),
         })
     }
 
@@ -149,13 +159,13 @@ impl M4ResearchStorage {
         entities: &[Entity],
         entries: &[IndexedFragment],
     ) -> EngineResult<()> {
+        self.ensure_no_pending_pass()?;
         let mut entries = entries.to_vec();
         entries.sort_unstable_by(|left, right| left.fragment_id.cmp(&right.fragment_id));
         let staged = make_staged(file.clone(), entities.to_vec(), &entries)?;
         let docs = bounded_docs(&entries)?;
         let file_id = u64::from(file.id.get());
 
-        self.pass_gate.begin();
         let mut sidecar = self.sidecar.lock().expect("M4 adapter");
         let state = sidecar
             .file_state(file_id)
@@ -164,6 +174,7 @@ impl M4ResearchStorage {
             .revision
             .checked_add(1)
             .ok_or_else(|| EngineError::storage_failure("M4 revision exhausted"))?;
+        self.pass_gate.begin();
         if let Err(error) = sidecar.stage_file(file_id, revision, &docs) {
             self.pass_gate.finish();
             return Err(EngineError::storage_failure(error));
@@ -391,6 +402,7 @@ impl IndexStorage for M4ResearchStorage {
     }
 
     fn delete_files(&self, file_ids: &[FileId]) -> EngineResult<()> {
+        self.ensure_no_pending_pass()?;
         if !file_ids.is_empty() {
             self.pass_gate.begin();
             self.pending_deletes
@@ -408,6 +420,25 @@ impl IndexStorage for M4ResearchStorage {
                 std::mem::take(&mut *self.pending_updates.lock().expect("pending updates"));
             let deletes =
                 std::mem::take(&mut *self.pending_deletes.lock().expect("pending deletes"));
+            if updates
+                .len()
+                .checked_add(deletes.len())
+                .is_none_or(|count| count > MAX_PENDING_PASS_IDS)
+            {
+                return Err(EngineError::invalid_argument(
+                    "research sidecar pass exceeds 65,536-file recovery limit",
+                ));
+            }
+            let pass_ids = updates
+                .iter()
+                .map(|pending| pending.file_id)
+                .chain(deletes.iter().map(|file_id| u64::from(file_id.get())))
+                .collect::<BTreeSet<_>>();
+            let pass_manifest = if pass_ids.is_empty() {
+                None
+            } else {
+                Some(encode_pending_pass(&pass_ids)?)
+            };
             let mut publish_after_commit = Vec::with_capacity(updates.len());
             for pending in updates {
                 self.native.replace_file_from_staged(pending.staged)?;
@@ -422,10 +453,22 @@ impl IndexStorage for M4ResearchStorage {
                     "injected crash window after native commit and before M4 publication",
                 ));
             }
-            for (file_id, revision) in publish_after_commit {
+            if let Some(manifest) = pass_manifest.as_deref() {
+                persist_pending_pass(&self.sidecar_root, manifest)?;
+            }
+            for (published, (file_id, revision)) in publish_after_commit.iter().enumerate() {
                 sidecar
-                    .publish(file_id, revision)
+                    .publish(*file_id, *revision)
                     .map_err(EngineError::storage_failure)?;
+                if published == 0
+                    && self
+                        .fail_after_first_m4_publish
+                        .swap(false, Ordering::SeqCst)
+                {
+                    return Err(EngineError::storage_failure(
+                        "injected crash after first file publication in a multi-file pass",
+                    ));
+                }
             }
             for file_id in deletes {
                 let id = u64::from(file_id.get());
@@ -441,6 +484,9 @@ impl IndexStorage for M4ResearchStorage {
                     .delete(id, revision)
                     .map_err(EngineError::storage_failure)?;
             }
+            if pass_manifest.is_some() {
+                clear_pending_pass(&self.sidecar_root)?;
+            }
             Ok(())
         })();
         self.pass_gate.finish();
@@ -448,24 +494,39 @@ impl IndexStorage for M4ResearchStorage {
     }
 }
 
+impl M4ResearchStorage {
+    fn ensure_no_pending_pass(&self) -> EngineResult<()> {
+        if pending_pass_path(&self.sidecar_root).exists() {
+            return Err(EngineError::storage_failure(
+                "M4 workspace publication is incomplete; reopen to recover before querying",
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl SearchStorage for M4ResearchStorage {
     fn list_file_paths(&self) -> EngineResult<Vec<(FileId, PathBuf)>> {
         self.pass_gate.wait();
+        self.ensure_no_pending_pass()?;
         self.native.list_file_paths()
     }
 
     fn list_file_attributes(&self) -> EngineResult<Vec<StoredFileAttributes>> {
         self.pass_gate.wait();
+        self.ensure_no_pending_pass()?;
         self.native.list_file_attributes()
     }
 
     fn has_non_unicode_file_names(&self) -> EngineResult<bool> {
         self.pass_gate.wait();
+        self.ensure_no_pending_pass()?;
         self.native.has_non_unicode_file_names()
     }
 
     fn load_search_hits(&self, hits: &[StorageSearchHit]) -> EngineResult<StoredSearchData> {
         self.pass_gate.wait();
+        self.ensure_no_pending_pass()?;
         let mut sidecar = self.sidecar.lock().expect("M4 adapter");
         let mut valid = Vec::with_capacity(hits.len());
         for hit in hits {
@@ -489,6 +550,7 @@ impl SearchStorage for M4ResearchStorage {
         limit: usize,
         filter: Option<&StorageSearchFilter>,
     ) -> EngineResult<Vec<StorageSearchHit>> {
+        self.ensure_no_pending_pass()?;
         self.search_m4(query, limit, filter)
     }
 
@@ -500,6 +562,7 @@ impl SearchStorage for M4ResearchStorage {
         filter: Option<&StorageSearchFilter>,
     ) -> EngineResult<Vec<StorageSearchHit>> {
         self.pass_gate.wait();
+        self.ensure_no_pending_pass()?;
         self.native.search_vector(model, vector, limit, filter)
     }
 }
@@ -520,6 +583,205 @@ fn make_staged(
         staged.append(batch.to_vec())?;
     }
     Ok(staged)
+}
+
+const MAX_PENDING_PASS_IDS: usize = 65_536;
+const MAX_PENDING_PASS_BYTES: usize = 2 << 20;
+
+fn pending_pass_path(sidecar_root: &Path) -> PathBuf {
+    sidecar_root.join("workspace-pass.pending")
+}
+
+fn pass_checksum(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    })
+}
+
+fn encode_pending_pass(ids: &BTreeSet<u64>) -> EngineResult<Vec<u8>> {
+    if ids.len() > MAX_PENDING_PASS_IDS {
+        return Err(EngineError::invalid_argument(
+            "research sidecar pass exceeds 65,536-file recovery limit",
+        ));
+    }
+    let mut payload = format!("M4PASS1\n{}\n", ids.len());
+    for id in ids {
+        payload.push_str(&format!("{id}\n"));
+    }
+    let checksum = pass_checksum(payload.as_bytes());
+    payload.push_str(&format!("{checksum:016x}\n"));
+    if payload.len() > MAX_PENDING_PASS_BYTES {
+        return Err(EngineError::invalid_argument(
+            "research sidecar recovery manifest exceeds 2 MiB",
+        ));
+    }
+    Ok(payload.into_bytes())
+}
+
+fn decode_pending_pass(bytes: &[u8]) -> EngineResult<BTreeSet<u64>> {
+    if bytes.len() > MAX_PENDING_PASS_BYTES {
+        return Err(EngineError::storage_failure(
+            "M4 workspace recovery manifest exceeds 2 MiB",
+        ));
+    }
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| EngineError::storage_failure("malformed M4 workspace recovery manifest"))?;
+    let mut lines = text.lines();
+    if lines.next() != Some("M4PASS1") {
+        return Err(EngineError::storage_failure(
+            "unsupported M4 workspace recovery manifest",
+        ));
+    }
+    let count = lines
+        .next()
+        .and_then(|line| line.parse::<usize>().ok())
+        .filter(|count| *count <= MAX_PENDING_PASS_IDS)
+        .ok_or_else(|| EngineError::storage_failure("invalid M4 recovery file count"))?;
+    let mut ids = BTreeSet::new();
+    let mut payload_len = b"M4PASS1\n".len() + lines_count_bytes(count);
+    for _ in 0..count {
+        let line = lines
+            .next()
+            .ok_or_else(|| EngineError::storage_failure("truncated M4 recovery file list"))?;
+        let id = line
+            .parse::<u64>()
+            .map_err(|_| EngineError::storage_failure("invalid M4 recovery file id"))?;
+        if !ids.insert(id) {
+            return Err(EngineError::storage_failure(
+                "duplicate M4 recovery file id",
+            ));
+        }
+        payload_len += line.len() + 1;
+    }
+    let checksum_line = lines
+        .next()
+        .ok_or_else(|| EngineError::storage_failure("missing M4 recovery checksum"))?;
+    if lines.next().is_some() {
+        return Err(EngineError::storage_failure(
+            "trailing M4 recovery manifest data",
+        ));
+    }
+    let checksum = u64::from_str_radix(checksum_line, 16)
+        .map_err(|_| EngineError::storage_failure("invalid M4 recovery checksum"))?;
+    if payload_len > bytes.len()
+        || pass_checksum(&bytes[..payload_len]) != checksum
+        || !bytes.ends_with(b"\n")
+    {
+        return Err(EngineError::storage_failure(
+            "M4 recovery checksum mismatch",
+        ));
+    }
+    Ok(ids)
+}
+
+fn lines_count_bytes(count: usize) -> usize {
+    count.to_string().len() + 1
+}
+
+fn sync_directory(path: &Path) -> EngineResult<()> {
+    std::fs::File::open(path)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|error| EngineError::storage_failure(error.to_string()))
+}
+
+fn persist_pending_pass(sidecar_root: &Path, bytes: &[u8]) -> EngineResult<()> {
+    std::fs::create_dir_all(sidecar_root)
+        .map_err(|error| EngineError::storage_failure(error.to_string()))?;
+    let target = pending_pass_path(sidecar_root);
+    let temporary = sidecar_root.join(format!("workspace-pass.pending.tmp.{}", std::process::id()));
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temporary)
+        .map_err(|error| EngineError::storage_failure(error.to_string()))?;
+    if let Err(error) = file.write_all(bytes).and_then(|()| file.sync_all()) {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(EngineError::storage_failure(error.to_string()));
+    }
+    drop(file);
+    if let Err(error) = std::fs::rename(&temporary, &target) {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(EngineError::storage_failure(error.to_string()));
+    }
+    sync_directory(sidecar_root)
+}
+
+fn clear_pending_pass(sidecar_root: &Path) -> EngineResult<()> {
+    let path = pending_pass_path(sidecar_root);
+    match std::fs::remove_file(path) {
+        Ok(()) => sync_directory(sidecar_root),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(EngineError::storage_failure(error.to_string())),
+    }
+}
+
+fn recover_pending_pass(
+    native: &IndexStore,
+    sidecar: &mut Adapter,
+    sidecar_root: &Path,
+) -> EngineResult<()> {
+    let path = pending_pass_path(sidecar_root);
+    let file = match std::fs::File::open(&path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(EngineError::storage_failure(error.to_string())),
+    };
+    if file
+        .metadata()
+        .map_err(|error| EngineError::storage_failure(error.to_string()))?
+        .len()
+        > MAX_PENDING_PASS_BYTES as u64
+    {
+        return Err(EngineError::storage_failure(
+            "M4 workspace recovery manifest exceeds 2 MiB",
+        ));
+    }
+    let mut bytes = Vec::new();
+    file.take((MAX_PENDING_PASS_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| EngineError::storage_failure(error.to_string()))?;
+    let ids = decode_pending_pass(&bytes)?;
+    let native_files = native
+        .list_files()?
+        .into_iter()
+        .filter(|file| ids.contains(&u64::from(file.id.get())))
+        .map(|file| file.id)
+        .collect::<Vec<_>>();
+    if !native_files.is_empty() {
+        native.delete_files(&native_files)?;
+        native.finalize_writes()?;
+    }
+    for id in ids {
+        let state = sidecar
+            .file_state(id)
+            .map_err(EngineError::storage_failure)?;
+        if state.found == 0 {
+            continue;
+        }
+        let revision = state
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| EngineError::storage_failure("M4 recovery revision exhausted"))?;
+        sidecar
+            .delete(id, revision)
+            .map_err(EngineError::storage_failure)?;
+    }
+    clear_pending_pass(sidecar_root)
+}
+
+#[cfg(test)]
+#[test]
+fn workspace_pass_manifest_is_bounded_and_checksummed() {
+    let ids = BTreeSet::from([4, 17, u64::MAX]);
+    let encoded = encode_pending_pass(&ids).expect("bounded pass manifest");
+    assert_eq!(decode_pending_pass(&encoded).expect("valid manifest"), ids);
+
+    let mut corrupted = encoded.clone();
+    corrupted[8] ^= 1;
+    assert!(decode_pending_pass(&corrupted).is_err());
+
+    let too_many = (0..=MAX_PENDING_PASS_IDS as u64).collect::<BTreeSet<_>>();
+    assert!(encode_pending_pass(&too_many).is_err());
 }
 
 fn bounded_docs(entries: &[IndexedFragment]) -> EngineResult<Vec<String>> {
@@ -629,7 +891,7 @@ async fn run_index_pass(
     scanner: &NativeScanner,
     model: &FixedEmbeddingModel,
     changes: &[WorkspaceChange],
-) -> EngineResult<()> {
+) -> EngineResult<IndexResult> {
     let models: [&dyn IndexEmbeddingRuntime; 1] = [model];
     index_workspace(&IndexingContext {
         workspace_index: workspace,
@@ -641,8 +903,95 @@ async fn run_index_pass(
         signal: None,
         changes,
     })
-    .await?;
-    Ok(())
+    .await
+}
+
+/// Test-only workspace driver used by `zg-daemon` to exercise the real runtime
+/// watcher/job lifecycle against the research M4 sidecar without production wiring.
+pub struct M4ResearchWorkspace {
+    workspace: Workspace,
+    index_root: PathBuf,
+    scanner: NativeScanner,
+    model: FixedEmbeddingModel,
+    storage: tokio::sync::Mutex<Option<M4ResearchStorage>>,
+    fail_after_first_publish: AtomicBool,
+}
+
+impl M4ResearchWorkspace {
+    pub fn open(root: &Path, index_root: &Path) -> EngineResult<Self> {
+        let root = root
+            .canonicalize()
+            .map_err(|error| EngineError::storage_failure(error.to_string()))?;
+        std::fs::create_dir_all(index_root)
+            .map_err(|error| EngineError::storage_failure(error.to_string()))?;
+        let model = FixedEmbeddingModel::new();
+        let workspace = Workspace {
+            name: "m4-daemon-research-test".into(),
+            root,
+            scan: ScanRules::default(),
+            index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+            created_epoch_ms: 1,
+            updated_epoch_ms: 1,
+        };
+        let storage = M4ResearchStorage::open(index_root, &model.info)?;
+        Ok(Self {
+            workspace,
+            index_root: index_root.to_path_buf(),
+            scanner: NativeScanner::default(),
+            model,
+            storage: tokio::sync::Mutex::new(Some(storage)),
+            fail_after_first_publish: AtomicBool::new(false),
+        })
+    }
+
+    pub async fn index(&self, changes: &[WorkspaceChange]) -> EngineResult<IndexResult> {
+        let mut storage = self.storage.lock().await;
+        if storage.is_none() {
+            *storage = Some(M4ResearchStorage::open(&self.index_root, &self.model.info)?);
+        }
+        let current = storage.as_mut().expect("M4 store opened");
+        current.fail_after_first_m4_publish.store(
+            self.fail_after_first_publish.swap(false, Ordering::SeqCst),
+            Ordering::SeqCst,
+        );
+        let result = run_index_pass(
+            &self.workspace,
+            current,
+            &self.scanner,
+            &self.model,
+            changes,
+        )
+        .await;
+        if result.is_err() {
+            storage.take();
+            match M4ResearchStorage::open(&self.index_root, &self.model.info) {
+                Ok(recovered) => *storage = Some(recovered),
+                Err(recovery) => {
+                    return Err(EngineError::storage_failure(format!(
+                        "M4 index pass failed ({}) and recovery failed ({recovery})",
+                        result.expect_err("error checked").message()
+                    )));
+                }
+            }
+        }
+        result
+    }
+
+    pub async fn search_count(&self, query: &str) -> EngineResult<usize> {
+        let mut storage = self.storage.lock().await;
+        if storage.is_none() {
+            *storage = Some(M4ResearchStorage::open(&self.index_root, &self.model.info)?);
+        }
+        let current = storage.as_ref().expect("M4 store opened");
+        Ok(search(current, &self.workspace.root, query, Vec::new())
+            .await?
+            .hits
+            .len())
+    }
+
+    pub fn fail_after_first_publish_once(&self) {
+        self.fail_after_first_publish.store(true, Ordering::SeqCst);
+    }
 }
 
 fn plan(query: &str, globs: Vec<crate::domain::GlobRule>) -> SearchPlan {
@@ -670,6 +1019,7 @@ async fn search(
     search_workspace_index(root, plan(query, globs), storage, &[]).await
 }
 
+#[cfg(test)]
 #[tokio::test]
 async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results() {
     let temp = tempdir().expect("workspace");
@@ -889,6 +1239,111 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
     storage.native.close().expect("close native store");
 }
 
+#[cfg(test)]
+#[tokio::test]
+async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry() {
+    let temp = tempdir().expect("workspace");
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    std::fs::write(root.join("src/a.rs"), "oldalpha").expect("first source");
+    std::fs::write(root.join("src/b.rs"), "oldbeta").expect("second source");
+    std::fs::write(root.join("stable.txt"), "stablemarker").expect("stable source");
+
+    let model = FixedEmbeddingModel::new();
+    let workspace = Workspace {
+        name: "m4-multifile-recovery".into(),
+        root: root.clone(),
+        scan: ScanRules::default(),
+        index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+        created_epoch_ms: 1,
+        updated_epoch_ms: 1,
+    };
+    let scanner = NativeScanner::default();
+    let index_root = temp.path().join("index");
+    std::fs::create_dir_all(&index_root).expect("index parent");
+    let storage = M4ResearchStorage::open(&index_root, &model.info).expect("open stores");
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("initial index");
+
+    std::fs::write(root.join("src/a.rs"), "newalpha").expect("update first source");
+    std::fs::write(root.join("src/b.rs"), "newbeta").expect("update second source");
+    storage
+        .fail_after_first_m4_publish
+        .store(true, Ordering::SeqCst);
+    let changes = [
+        WorkspaceChange::Upsert(PathBuf::from("src/a.rs")),
+        WorkspaceChange::Upsert(PathBuf::from("src/b.rs")),
+    ];
+    assert!(
+        run_index_pass(&workspace, &storage, &scanner, &model, &changes)
+            .await
+            .is_err(),
+        "interruption after the first file publication is not an ACK"
+    );
+    assert!(
+        search(&storage, &root, "newalpha", Vec::new())
+            .await
+            .is_err(),
+        "the durable pass marker prevents readers from observing a partial publication"
+    );
+
+    drop(storage);
+    let storage = M4ResearchStorage::open(&index_root, &model.info)
+        .expect("reopen recovers all files named by the incomplete pass");
+    assert_eq!(
+        search(&storage, &root, "newalpha", Vec::new())
+            .await
+            .expect("query after recovery")
+            .hits
+            .len(),
+        0
+    );
+    assert_eq!(
+        search(&storage, &root, "newbeta", Vec::new())
+            .await
+            .expect("second file remains hidden")
+            .hits
+            .len(),
+        0
+    );
+    assert_eq!(
+        search(&storage, &root, "stablemarker", Vec::new())
+            .await
+            .expect("unmodified file stays visible")
+            .hits
+            .len(),
+        1
+    );
+
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("rescan retries the unacknowledged pass");
+    for term in ["newalpha", "newbeta"] {
+        assert_eq!(
+            search(&storage, &root, term, Vec::new())
+                .await
+                .expect("both files republished after retry")
+                .hits
+                .len(),
+            1
+        );
+    }
+}
+
+#[cfg(test)]
 #[tokio::test]
 async fn native_watcher_changes_drive_index_and_search_pipelines() {
     let temp = tempdir().expect("workspace");
