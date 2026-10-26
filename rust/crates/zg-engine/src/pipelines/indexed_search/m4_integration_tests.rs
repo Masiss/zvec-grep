@@ -101,8 +101,11 @@ struct M4ResearchStorage {
     pending_updates: Mutex<Vec<PendingUpdate>>,
     pending_deletes: Mutex<Vec<FileId>>,
     pass_gate: PassGate,
+    fail_after_pass_intent: AtomicBool,
     fail_after_native_commit: AtomicBool,
     fail_after_first_m4_publish: AtomicBool,
+    #[cfg(test)]
+    publication_pause: Mutex<Option<Arc<PublicationPause>>>,
 }
 
 impl M4ResearchStorage {
@@ -148,8 +151,11 @@ impl M4ResearchStorage {
             pending_updates: Mutex::new(Vec::new()),
             pending_deletes: Mutex::new(Vec::new()),
             pass_gate: PassGate::default(),
+            fail_after_pass_intent: AtomicBool::new(false),
             fail_after_native_commit: AtomicBool::new(false),
             fail_after_first_m4_publish: AtomicBool::new(false),
+            #[cfg(test)]
+            publication_pause: Mutex::new(None),
         })
     }
 
@@ -439,6 +445,14 @@ impl IndexStorage for M4ResearchStorage {
             } else {
                 Some(encode_pending_pass(&pass_ids)?)
             };
+            if let Some(manifest) = pass_manifest.as_deref() {
+                persist_pending_pass(&self.sidecar_root, manifest)?;
+            }
+            if self.fail_after_pass_intent.swap(false, Ordering::SeqCst) {
+                return Err(EngineError::storage_failure(
+                    "injected crash after durable pass intent and before native mutation",
+                ));
+            }
             let mut publish_after_commit = Vec::with_capacity(updates.len());
             for pending in updates {
                 self.native.replace_file_from_staged(pending.staged)?;
@@ -453,8 +467,15 @@ impl IndexStorage for M4ResearchStorage {
                     "injected crash window after native commit and before M4 publication",
                 ));
             }
-            if let Some(manifest) = pass_manifest.as_deref() {
-                persist_pending_pass(&self.sidecar_root, manifest)?;
+            #[cfg(test)]
+            if let Some(pause) = self
+                .publication_pause
+                .lock()
+                .expect("publication pause")
+                .take()
+            {
+                pause.entered.wait();
+                pause.release.wait();
             }
             for (published, (file_id, revision)) in publish_after_commit.iter().enumerate() {
                 sidecar
@@ -915,6 +936,8 @@ pub struct M4ResearchWorkspace {
     model: FixedEmbeddingModel,
     storage: tokio::sync::Mutex<Option<M4ResearchStorage>>,
     fail_after_first_publish: AtomicBool,
+    #[cfg(test)]
+    publication_pause: Mutex<Option<Arc<PublicationPause>>>,
 }
 
 impl M4ResearchWorkspace {
@@ -941,6 +964,8 @@ impl M4ResearchWorkspace {
             model,
             storage: tokio::sync::Mutex::new(Some(storage)),
             fail_after_first_publish: AtomicBool::new(false),
+            #[cfg(test)]
+            publication_pause: Mutex::new(None),
         })
     }
 
@@ -954,6 +979,14 @@ impl M4ResearchWorkspace {
             self.fail_after_first_publish.swap(false, Ordering::SeqCst),
             Ordering::SeqCst,
         );
+        #[cfg(test)]
+        {
+            *current.publication_pause.lock().expect("publication pause") = self
+                .publication_pause
+                .lock()
+                .expect("workspace publication pause")
+                .take();
+        }
         let result = run_index_pass(
             &self.workspace,
             current,
@@ -992,6 +1025,24 @@ impl M4ResearchWorkspace {
     pub fn fail_after_first_publish_once(&self) {
         self.fail_after_first_publish.store(true, Ordering::SeqCst);
     }
+
+    #[cfg(test)]
+    fn pause_next_publication(&self) -> (Arc<std::sync::Barrier>, Arc<std::sync::Barrier>) {
+        let pause = Arc::new(PublicationPause {
+            entered: Arc::new(std::sync::Barrier::new(2)),
+            release: Arc::new(std::sync::Barrier::new(2)),
+        });
+        let entered = Arc::clone(&pause.entered);
+        let release = Arc::clone(&pause.release);
+        *self.publication_pause.lock().expect("publication pause") = Some(pause);
+        (entered, release)
+    }
+}
+
+#[cfg(test)]
+struct PublicationPause {
+    entered: Arc<std::sync::Barrier>,
+    release: Arc<std::sync::Barrier>,
 }
 
 fn plan(query: &str, globs: Vec<crate::domain::GlobRule>) -> SearchPlan {
@@ -1073,6 +1124,20 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
         m4_paths, native_paths,
         "M4 and native retrieval parity on the same corpus/query"
     );
+    let m4_rank_order = all
+        .hits
+        .iter()
+        .map(|hit| hit.file.relative_path.as_path().to_path_buf())
+        .collect::<Vec<_>>();
+    let native_rank_order = native_all
+        .hits
+        .iter()
+        .map(|hit| hit.file.relative_path.as_path().to_path_buf())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        m4_rank_order, native_rank_order,
+        "M4 and native FTS return the same ranked paths on the parity fixture"
+    );
     assert!(
         all.hits
             .iter()
@@ -1150,25 +1215,24 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
             .is_err(),
         "the interrupted pass must not acknowledge the cross-store update"
     );
-    let after_update = storage
-        .load_search_hits(&pre_update_hits)
-        .expect("revalidate pre-update hits");
-    assert_eq!(
-        after_update.fragments.len(),
-        1,
-        "only the unchanged file remains hydratable"
+    assert!(
+        storage.load_search_hits(&pre_update_hits).is_err(),
+        "no cross-store result can be acquired while durable pass intent is pending"
     );
     assert!(
-        !after_update
-            .entities
-            .values()
-            .any(|stored| stored.file.relative_path.as_path() == Path::new("src/main.rs")),
-        "stale M4 revision is rejected at hydration"
+        search(&storage, &root, "orchard", Vec::new())
+            .await
+            .is_err(),
+        "the incomplete workspace is fail-closed until recovery"
     );
+
+    drop(storage);
+    let storage = M4ResearchStorage::open(&index_root, &model.info)
+        .expect("reopen and fail-close the incomplete cross-store revision");
     assert_eq!(
         search(&storage, &root, "orchard", Vec::new())
             .await
-            .expect("unchanged orchard remains searchable")
+            .expect("unchanged orchard remains searchable after recovery")
             .hits
             .len(),
         1
@@ -1176,15 +1240,11 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
     assert_eq!(
         search(&storage, &root, "plum", Vec::new())
             .await
-            .expect("unpublished M4 revision is hidden")
+            .expect("unpublished M4 revision is hidden after recovery")
             .hits
             .len(),
         0
     );
-
-    drop(storage);
-    let storage = M4ResearchStorage::open(&index_root, &model.info)
-        .expect("reopen and fail-close the incomplete cross-store revision");
     let retry = [WorkspaceChange::Rescan];
     run_index_pass(&workspace, &storage, &scanner, &model, &retry)
         .await
@@ -1274,9 +1334,7 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
 
     std::fs::write(root.join("src/a.rs"), "newalpha").expect("update first source");
     std::fs::write(root.join("src/b.rs"), "newbeta").expect("update second source");
-    storage
-        .fail_after_first_m4_publish
-        .store(true, Ordering::SeqCst);
+    storage.fail_after_pass_intent.store(true, Ordering::SeqCst);
     let changes = [
         WorkspaceChange::Upsert(PathBuf::from("src/a.rs")),
         WorkspaceChange::Upsert(PathBuf::from("src/b.rs")),
@@ -1285,7 +1343,7 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
         run_index_pass(&workspace, &storage, &scanner, &model, &changes)
             .await
             .is_err(),
-        "interruption after the first file publication is not an ACK"
+        "a durable pass intent without native mutation is not an ACK"
     );
     assert!(
         search(&storage, &root, "newalpha", Vec::new())
@@ -1300,7 +1358,7 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
     assert_eq!(
         search(&storage, &root, "newalpha", Vec::new())
             .await
-            .expect("query after recovery")
+            .expect("query after pre-native recovery")
             .hits
             .len(),
         0
@@ -1322,6 +1380,39 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
         1
     );
 
+    storage
+        .fail_after_first_m4_publish
+        .store(true, Ordering::SeqCst);
+    assert!(
+        run_index_pass(
+            &workspace,
+            &storage,
+            &scanner,
+            &model,
+            &[WorkspaceChange::Rescan],
+        )
+        .await
+        .is_err(),
+        "a repeated publication failure must remain unacknowledged"
+    );
+    assert!(
+        search(&storage, &root, "newalpha", Vec::new())
+            .await
+            .is_err(),
+        "repeated failure must keep the workspace fenced until recovery"
+    );
+    drop(storage);
+    let storage = M4ResearchStorage::open(&index_root, &model.info)
+        .expect("second reopen recovers the repeated failure");
+    assert_eq!(
+        search(&storage, &root, "stablemarker", Vec::new())
+            .await
+            .expect("stable file remains visible after repeated recovery")
+            .hits
+            .len(),
+        1
+    );
+
     run_index_pass(
         &workspace,
         &storage,
@@ -1330,7 +1421,7 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
         &[WorkspaceChange::Rescan],
     )
     .await
-    .expect("rescan retries the unacknowledged pass");
+    .expect("rescan retries after repeated unacknowledged failures");
     for term in ["newalpha", "newbeta"] {
         assert_eq!(
             search(&storage, &root, term, Vec::new())
@@ -1341,6 +1432,140 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
             1
         );
     }
+}
+
+#[cfg(test)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+async fn query_waits_for_atomic_cross_store_publication() {
+    let temp = tempdir().expect("workspace");
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    std::fs::write(root.join("src/a.rs"), "beforetoken").expect("source");
+    let index_root = temp.path().join("index");
+    let workspace =
+        Arc::new(M4ResearchWorkspace::open(&root, &index_root).expect("M4 research workspace"));
+    workspace
+        .index(&[WorkspaceChange::Rescan])
+        .await
+        .expect("initial index");
+    assert_eq!(workspace.search_count("beforetoken").await.unwrap(), 1);
+
+    std::fs::write(root.join("src/a.rs"), "aftertoken").expect("updated source");
+    let (entered, release) = workspace.pause_next_publication();
+    let writer = Arc::clone(&workspace);
+    let writer = tokio::spawn(async move {
+        writer
+            .index(&[WorkspaceChange::Upsert(PathBuf::from("src/a.rs"))])
+            .await
+    });
+    tokio::task::spawn_blocking(move || entered.wait())
+        .await
+        .expect("publication pause reached");
+    assert!(
+        index_root
+            .join("m4-sidecar/workspace-pass.pending")
+            .exists(),
+        "durable pass intent must precede native commit and M4 publication"
+    );
+
+    let reader = Arc::clone(&workspace);
+    let reader = tokio::spawn(async move { reader.search_count("aftertoken").await });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(
+        !reader.is_finished(),
+        "cross-store query must not acquire a mixed native/M4 snapshot during publication"
+    );
+    tokio::task::spawn_blocking(move || release.wait())
+        .await
+        .expect("release publication pause");
+    writer
+        .await
+        .expect("index task")
+        .expect("publication succeeds");
+    assert_eq!(reader.await.expect("query task").unwrap(), 1);
+    assert_eq!(workspace.search_count("beforetoken").await.unwrap(), 0);
+
+    drop(workspace);
+    let reopened = M4ResearchWorkspace::open(&root, &index_root)
+        .expect("reopen after durable index acknowledgement");
+    assert_eq!(reopened.search_count("aftertoken").await.unwrap(), 1);
+    assert_eq!(reopened.search_count("beforetoken").await.unwrap(), 0);
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn filtered_m4_search_refills_candidates_before_hydration() {
+    let temp = tempdir().expect("workspace");
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    for index in 0..39 {
+        std::fs::write(
+            root.join("src").join(format!("{index:02}.txt")),
+            format!("needle needle needle common{index}"),
+        )
+        .expect("write high-ranked file");
+    }
+    std::fs::write(root.join("zz-target.txt"), "needle raretarget").expect("write filtered target");
+
+    let model = FixedEmbeddingModel::new();
+    let workspace = Workspace {
+        name: "m4-refill-test".into(),
+        root: root.clone(),
+        scan: ScanRules::default(),
+        index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+        created_epoch_ms: 1,
+        updated_epoch_ms: 1,
+    };
+    let index_root = temp.path().join("index");
+    std::fs::create_dir_all(&index_root).expect("index parent");
+    let storage = M4ResearchStorage::open(&index_root, &model.info).expect("open stores");
+    run_index_pass(
+        &workspace,
+        &storage,
+        &NativeScanner::default(),
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("index refill corpus");
+
+    let first_page = storage
+        .search_fts("needle", 32, None)
+        .expect("unfiltered first page");
+    let target_id = storage
+        .native
+        .list_file_paths()
+        .expect("list indexed paths")
+        .into_iter()
+        .find_map(|(file_id, path)| (path == Path::new("zz-target.txt")).then_some(file_id))
+        .expect("target file id");
+    assert!(
+        first_page.iter().all(|hit| hit.file_id != target_id),
+        "filtered target must lie beyond the initial candidate window"
+    );
+
+    let filter = StorageSearchFilter {
+        path: Some(StoragePathFilter::FileNameExact("zz-target.txt".into())),
+        ..StorageSearchFilter::default()
+    };
+    let hits = storage
+        .search_fts("needle", 1, Some(&filter))
+        .expect("candidate-refilled filtered search");
+    assert_eq!(
+        hits.len(),
+        1,
+        "search must refill beyond filtered candidates"
+    );
+    assert_eq!(hits[0].file_id, target_id);
+    let hydrated = storage
+        .load_search_hits(&hits)
+        .expect("hydrate refilled result");
+    assert!(
+        hydrated
+            .entities
+            .values()
+            .any(|entity| { entity.file.relative_path.as_path() == Path::new("zz-target.txt") })
+    );
 }
 
 #[cfg(test)]
