@@ -763,6 +763,23 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
         symbol_hits.hits[0].entity.metadata.as_ref(),
         Some(EntityMetadata::Code(code)) if code.symbol_type == Some(SymbolType::Function)
     ));
+    let mut native_symbol_plan = plan("orchard", Vec::new());
+    native_symbol_plan.filter.symbol_types = vec![SymbolType::Function];
+    let native_symbol_hits =
+        search_workspace_index(&root, native_symbol_plan, &storage.native, &[])
+            .await
+            .expect("native function-symbol metadata filter baseline");
+    let symbol_paths = symbol_hits
+        .hits
+        .iter()
+        .map(|hit| hit.file.relative_path.as_path().to_path_buf())
+        .collect::<BTreeSet<_>>();
+    let native_symbol_paths = native_symbol_hits
+        .hits
+        .iter()
+        .map(|hit| hit.file.relative_path.as_path().to_path_buf())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(symbol_paths, native_symbol_paths, "symbol-filter parity");
     let pre_update_hits = storage
         .search_fts("orchard", 10, None)
         .expect("capture pre-update hits");
