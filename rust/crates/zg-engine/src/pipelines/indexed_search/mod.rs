@@ -9,3 +9,6 @@ pub(crate) mod service;
 pub(crate) mod storage;
 
 pub(crate) mod writer;
+
+#[cfg(test)]
+mod m4_integration_tests;

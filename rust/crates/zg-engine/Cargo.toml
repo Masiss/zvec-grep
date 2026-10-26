@@ -67,6 +67,7 @@ dunce = "1.0.5"
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["directml"] }
 
 [dev-dependencies]
+m4-rust-bridge-research = { path = "../../../research/m4-native/rust-bridge" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

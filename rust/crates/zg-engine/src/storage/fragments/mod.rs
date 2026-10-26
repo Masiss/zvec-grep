@@ -562,6 +562,8 @@ fn decode_search_hit(doc: &Doc, path: StorageSearchPath) -> EngineResult<Storage
         file_id: FileId::new(u32_field(doc, "file_id")?),
         path,
         score: f64::from(doc.get_score()),
+        #[cfg(test)]
+        m4_revision: None,
     })
 }
 

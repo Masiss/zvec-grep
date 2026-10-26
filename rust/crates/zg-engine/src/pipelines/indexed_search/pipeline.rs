@@ -2184,6 +2184,8 @@ mod tests {
                 file_id: stored.file.id,
                 path,
                 score,
+                #[cfg(test)]
+                m4_revision: None,
             },
             fragment: EntityFragment {
                 id: fragment_id,

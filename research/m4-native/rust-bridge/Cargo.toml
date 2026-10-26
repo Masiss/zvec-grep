@@ -1,0 +1,21 @@
+[package]
+name = "m4-rust-bridge-research"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+
+[[test]]
+name = "file_publication"
+path = "tests/file_publication.rs"
+
+[workspace]
+
+[profile.test]
+debug = 1

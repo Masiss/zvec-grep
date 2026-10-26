@@ -31,6 +31,11 @@ target_compile_options(m4_research PRIVATE -Wall -Wextra)
 target_include_directories(m4_research PRIVATE ${M4_LZ4_INCLUDE_DIR})
 target_link_libraries(m4_research PUBLIC ${M4_LZ4_LIBRARY})
 
+# Research-only Rust FFI proof. It is never linked by production targets.
+add_library(m4_rust_file_adapter STATIC src/rust_file_adapter.cc)
+target_link_libraries(m4_rust_file_adapter PRIVATE m4_research)
+target_compile_options(m4_rust_file_adapter PRIVATE -Wall -Wextra -Werror)
+
 # Optional compatibility mode: compile pinned native Zvec tokenizer and
 # lowercase-filter sources while keeping M4 files and storage research-only.
 set(M4_ZVEC_ROOT "" CACHE PATH "Native Zvec source checkout")

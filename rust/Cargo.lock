@@ -1579,6 +1579,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e20f57f9918e5bd7bc58c22cdd70a6afc7375d4dd9683af5f2b34bd3d2bba619"
 
 [[package]]
+name = "m4-rust-bridge-research"
+version = "0.1.0"
+
+[[package]]
 name = "macro_rules_attribute"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4115,6 +4119,7 @@ dependencies = [
  "httpdate",
  "ignore",
  "llama-cpp-2",
+ "m4-rust-bridge-research",
  "ort",
  "rayon",
  "reqwest",

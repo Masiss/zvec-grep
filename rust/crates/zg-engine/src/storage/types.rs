@@ -107,6 +107,9 @@ pub(crate) struct StorageSearchHit {
     pub file_id: FileId,
     pub path: StorageSearchPath,
     pub score: f64,
+    /// Research-only generation token carried across search and hydration.
+    #[cfg(test)]
+    pub m4_revision: Option<u64>,
 }
 
 #[derive(Default)]
