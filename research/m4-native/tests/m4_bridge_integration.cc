@@ -278,15 +278,34 @@ void RepairWal(const fs::path& root) {
   std::ifstream in(path, std::ios::binary);
   if (!in)
     throw std::runtime_error("open coordinator WAL for recovery");
+  constexpr size_t kMaxCoordinatorWalLineBytes = 64;
   std::string line;
   uintmax_t valid_end = 0;
   bool truncate = false;
   bool append_terminator = false;
-  while (std::getline(in, line)) {
+  for (;;) {
+    line.clear();
+    bool oversized = false;
+    bool had_bytes = false;
+    bool terminated = false;
+    char byte = 0;
+    while (in.get(byte)) {
+      had_bytes = true;
+      if (byte == '\n') {
+        terminated = true;
+        break;
+      }
+      if (line.size() < kMaxCoordinatorWalLineBytes)
+        line.push_back(byte);
+      else
+        oversized = true;
+    }
     if (in.bad())
       throw std::runtime_error("read coordinator WAL");
-    if (in.eof()) {
-      if (ValidWalRecord(line)) {
+    if (!had_bytes)
+      break;
+    if (!terminated) {
+      if (!oversized && ValidWalRecord(line)) {
         valid_end = fs::file_size(path);
         append_terminator = true;
       } else {
@@ -294,6 +313,8 @@ void RepairWal(const fs::path& root) {
       }
       break;
     }
+    if (oversized)
+      throw std::runtime_error("oversized complete coordinator WAL record");
     if (!ValidWalRecord(line))
       throw std::runtime_error("corrupt complete coordinator WAL record");
     const auto position = in.tellg();
@@ -369,6 +390,7 @@ uint32_t Recover(const fs::path& root) {
       }
     } else {
       throw std::runtime_error("unknown coordinator WAL record kind");
+    }
   }
   if (in.bad())
     throw std::runtime_error("read coordinator WAL for replay");
@@ -478,6 +500,36 @@ void TestCoordinatorWalRecoveryIntegrity(const fs::path &root) {
         "complete checksum-valid final record at EOF is recovered");
   Check(read_bytes(valid_eof_wal) == valid_eof_bytes + "\n",
         "valid EOF record is terminated before future append");
+
+  const fs::path oversized_complete = cases / "oversized-complete-record";
+  seed(oversized_complete, {"R 5", "P 5"});
+  const fs::path oversized_complete_wal = oversized_complete / "coordinator.wal";
+  const std::string oversized_complete_bytes =
+      read_bytes(oversized_complete_wal) + std::string(65, 'x') + "\n";
+  write_bytes(oversized_complete_wal, oversized_complete_bytes);
+  std::string oversized_error;
+  try {
+    (void)Recover(oversized_complete);
+  } catch (const std::exception& exception) {
+    oversized_error = exception.what();
+  }
+  Check(oversized_error == "oversized complete coordinator WAL record",
+        "oversized complete coordinator record fails closed");
+  Check(read_bytes(oversized_complete_wal) == oversized_complete_bytes,
+        "oversized complete coordinator record is preserved for diagnosis");
+  Check(ReadManifest(oversized_complete) == 4,
+        "oversized complete coordinator record does not advance manifest");
+
+  const fs::path oversized_torn = cases / "oversized-torn-record";
+  seed(oversized_torn, {"R 5", "P 5"});
+  const fs::path oversized_torn_wal = oversized_torn / "coordinator.wal";
+  const std::string oversized_torn_prefix = read_bytes(oversized_torn_wal);
+  write_bytes(oversized_torn_wal,
+              oversized_torn_prefix + std::string(65, 'x'));
+  Check(Recover(oversized_torn) == 5 && ReadManifest(oversized_torn) == 5,
+        "oversized unterminated coordinator suffix preserves published prefix");
+  Check(read_bytes(oversized_torn_wal) == oversized_torn_prefix,
+        "oversized unterminated coordinator suffix is truncated");
 
   const fs::path torn = cases / "torn-final";
   seed(torn, {"R 5", "P 5"});
