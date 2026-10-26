@@ -339,7 +339,9 @@ void RepairWal(const fs::path& root) {
 }
 uint32_t Recover(const fs::path& root) {
   RepairWal(root);
-  uint32_t published = ReadManifest(root), highest_reserved = published;
+  const uint32_t manifest_generation = ReadManifest(root);
+  uint32_t published = manifest_generation;
+  uint32_t highest_reserved = manifest_generation;
   std::ifstream in(root / "coordinator.wal", std::ios::binary);
   if (!in && fs::exists(root / "coordinator.wal"))
     throw std::runtime_error("open coordinator WAL for replay");
@@ -353,16 +355,24 @@ uint32_t Recover(const fs::path& root) {
     uint32_t gen;
     if (!ValidWalRecord(line, &kind, &gen))
       throw std::runtime_error("corrupt complete coordinator WAL record");
-    if (kind == "R")
-      highest_reserved = std::max(highest_reserved, gen);
-    else if (kind == "P")
-      published = std::max(published, gen);
-    else
+    if (kind == "R") {
+      if (gen > manifest_generation) {
+        if (gen <= highest_reserved)
+          throw std::runtime_error("coordinator WAL reservation is not increasing");
+        highest_reserved = gen;
+      }
+    } else if (kind == "P") {
+      if (gen > manifest_generation) {
+        if (gen <= published || gen != highest_reserved)
+          throw std::runtime_error("coordinator WAL publish has no matching reservation");
+        published = gen;
+      }
+    } else {
       throw std::runtime_error("unknown coordinator WAL record kind");
   }
   if (in.bad())
     throw std::runtime_error("read coordinator WAL for replay");
-  if (published != ReadManifest(root))
+  if (published != manifest_generation)
     AtomicManifest(root, published);
   return published;
 }
@@ -434,6 +444,31 @@ void TestCoordinatorWalRecoveryIntegrity(const fs::path &root) {
                           "complete final coordinator WAL corruption");
 
   const fs::path valid_eof = cases / "valid-final-record-at-eof";
+  const auto rejected_semantic_error = [&](
+      const fs::path &path, std::initializer_list<const char *> records,
+      const std::string &label) {
+    seed(path, records);
+    const fs::path wal = path / "coordinator.wal";
+    const std::string bytes = read_bytes(wal);
+    std::string error;
+    try {
+      (void)Recover(path);
+    } catch (const std::exception &exception) {
+      error = exception.what();
+    }
+    Check(error == "coordinator WAL publish has no matching reservation",
+          label + " fails closed");
+    Check(read_bytes(wal) == bytes,
+          label + " preserves coordinator WAL bytes");
+    Check(ReadManifest(path) == 4,
+          label + " does not advance the published generation");
+  };
+  rejected_semantic_error(cases / "publish-without-reservation", {"P 5"},
+                          "unreserved coordinator publish");
+  rejected_semantic_error(cases / "publish-not-latest-reservation",
+                          {"R 5", "R 6", "P 5"},
+                          "out-of-order coordinator publish");
+
   seed(valid_eof, {"R 5", "P 5"});
   const fs::path valid_eof_wal = valid_eof / "coordinator.wal";
   std::string valid_eof_bytes = read_bytes(valid_eof_wal);
