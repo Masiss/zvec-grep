@@ -4,15 +4,19 @@ use std::{
     collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::{
-        Condvar, Mutex,
+        Arc, Condvar, Mutex,
         atomic::{AtomicBool, Ordering},
     },
+    time::Duration,
 };
 
 use async_trait::async_trait;
 use m4_rust_bridge_research::{Adapter, Hit};
 use tempfile::tempdir;
-use zg_host_native::NativeScanner;
+use zg_host_native::{
+    AllowAllPaths, NativeScanner, NativeWatcherConfig, NativeWatcherFactory, RootSpec, TaskControl,
+    WatchRequest, WorkspaceChange as HostWorkspaceChange, WorkspaceWatcherFactoryPort,
+};
 
 use crate::{
     EngineError, EngineResult,
@@ -866,4 +870,122 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
         .finalize_writes()
         .expect("durability checkpoint");
     storage.native.close().expect("close native store");
+}
+
+#[tokio::test]
+async fn native_watcher_changes_drive_index_and_search_pipelines() {
+    let temp = tempdir().expect("workspace");
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    let source = root.join("src/watched.txt");
+    std::fs::write(&source, "amber initialmarker").expect("initial source");
+
+    let factory = NativeWatcherFactory::new().with_config(NativeWatcherConfig {
+        debounce: Duration::from_millis(20),
+        max_wait: Duration::from_millis(60),
+        reconcile_interval: None,
+        resume_check_interval: None,
+        poll_interval: Some(Duration::from_millis(20)),
+        ..NativeWatcherConfig::default()
+    });
+    let watch = factory
+        .watch(
+            &WatchRequest {
+                root: RootSpec::new(root.clone(), Arc::new(AllowAllPaths)),
+            },
+            &TaskControl::default(),
+        )
+        .await
+        .expect("native filesystem watcher");
+
+    let model = FixedEmbeddingModel::new();
+    let workspace = Workspace {
+        name: "m4-watcher-e2e".into(),
+        root: root.clone(),
+        scan: ScanRules::default(),
+        index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+        created_epoch_ms: 1,
+        updated_epoch_ms: 1,
+    };
+    let scanner = NativeScanner::default();
+    let index_root = temp.path().join("index");
+    std::fs::create_dir_all(&index_root).expect("index parent");
+    let storage = M4ResearchStorage::open(&index_root, &model.info).expect("open stores");
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("initial real indexing pipeline");
+    assert_eq!(
+        search(&storage, &root, "amber", Vec::new())
+            .await
+            .expect("initial indexed query")
+            .hits
+            .len(),
+        1
+    );
+    watch
+        .flush_pending()
+        .await
+        .expect("drain initial watcher events");
+
+    std::fs::write(&source, "blue updatedmarker").expect("mutate watched source");
+    let batch = tokio::time::timeout(
+        Duration::from_secs(5),
+        watch.next_changes(&TaskControl::default()),
+    )
+    .await
+    .expect("watcher observes update before deadline")
+    .expect("watcher delivers update batch");
+    assert!(
+        batch
+            .changes
+            .contains(&HostWorkspaceChange::Upsert(PathBuf::from(
+                "src/watched.txt"
+            ))),
+        "real watcher reports the changed file, got {:?}",
+        batch.changes
+    );
+    let changes = batch
+        .changes
+        .into_iter()
+        .map(|change| match change {
+            HostWorkspaceChange::Upsert(path) => WorkspaceChange::Upsert(path),
+            HostWorkspaceChange::Delete(path) => WorkspaceChange::Delete(path),
+            HostWorkspaceChange::RescanDirectory(path) => WorkspaceChange::RescanDirectory(path),
+            HostWorkspaceChange::DeletePrefix(path) => WorkspaceChange::DeletePrefix(path),
+            HostWorkspaceChange::Rescan => WorkspaceChange::Rescan,
+        })
+        .collect::<Vec<_>>();
+    run_index_pass(&workspace, &storage, &scanner, &model, &changes)
+        .await
+        .expect("watcher-driven indexing pass");
+    let updated = search(&storage, &root, "updatedmarker", Vec::new())
+        .await
+        .expect("query after watcher-driven publication");
+    assert_eq!(updated.hits.len(), 1);
+    assert_eq!(
+        updated.hits[0].file.relative_path.as_path(),
+        Path::new("src/watched.txt")
+    );
+    assert!(!updated.hits[0].evidence.is_empty());
+    assert_eq!(
+        search(&storage, &root, "amber", Vec::new())
+            .await
+            .expect("old term is retired after publication")
+            .hits
+            .len(),
+        0
+    );
+
+    watch.close().await.expect("close native watcher");
+    storage
+        .native
+        .finalize_writes()
+        .expect("durability checkpoint");
+    storage.native.close().expect("close native index");
 }
