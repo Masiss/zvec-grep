@@ -25,7 +25,7 @@ use crate::{
     },
     domain::{
         Content, Entity, EntityId, EntityMetadata, FileId, FileRecord, IndexDescriptor, IndexState,
-        ScanRules, Workspace,
+        ScanRules, SymbolType, Workspace,
         model::{EmbeddingModelInfo, EmbeddingResult, Metric, ModelInfo},
     },
     models::{EmbeddingConcurrencyDefaults, EmbeddingOptions, EmbeddingPrepareOptions, ModelError},
@@ -672,7 +672,11 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
     let root = temp.path().join("workspace");
     std::fs::create_dir_all(root.join("src")).expect("src dir");
     std::fs::create_dir_all(root.join("tests")).expect("tests dir");
-    std::fs::write(root.join("src/main.txt"), "orchard alpha stableterm").expect("source");
+    std::fs::write(
+        root.join("src/main.rs"),
+        "pub fn orchard_function() { /* orchard */ let _alpha = \"stableterm\"; }",
+    )
+    .expect("code source");
     std::fs::write(root.join("tests/other.txt"), "orchard beta stableterm").expect("source");
 
     let model = FixedEmbeddingModel::new();
@@ -730,7 +734,7 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
     assert_eq!(filtered.hits.len(), 1);
     assert_eq!(
         filtered.hits[0].file.relative_path.as_path(),
-        Path::new("src/main.txt")
+        Path::new("src/main.rs")
     );
     let native_filtered = search_workspace_index(
         &root,
@@ -745,14 +749,27 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
         filtered.hits[0].file.relative_path, native_filtered.hits[0].file.relative_path,
         "M4 and native path-filter retrieval parity"
     );
+    let mut symbol_plan = plan("orchard", Vec::new());
+    symbol_plan.filter.symbol_types = vec![SymbolType::Function];
+    let symbol_hits = search_workspace_index(&root, symbol_plan, &storage, &[])
+        .await
+        .expect("M4 symbol metadata filter");
+    assert_eq!(symbol_hits.hits.len(), 1);
+    assert!(matches!(
+        symbol_hits.hits[0].entity.metadata.as_ref(),
+        Some(EntityMetadata::Code(code)) if code.symbol_type == Some(SymbolType::Function)
+    ));
     let pre_update_hits = storage
         .search_fts("orchard", 10, None)
         .expect("capture pre-update hits");
     assert!(pre_update_hits.iter().all(|hit| hit.m4_revision.is_some()));
 
-    std::fs::write(root.join("src/main.txt"), "plum replacement stableterm")
-        .expect("update source");
-    let update = [WorkspaceChange::Upsert(PathBuf::from("src/main.txt"))];
+    std::fs::write(
+        root.join("src/main.rs"),
+        "pub fn plum_function() { /* plum */ let _replacement = \"stableterm\"; }",
+    )
+    .expect("updated code source");
+    let update = [WorkspaceChange::Upsert(PathBuf::from("src/main.rs"))];
     storage
         .fail_after_native_commit
         .store(true, Ordering::SeqCst);
@@ -774,7 +791,7 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
         !after_update
             .entities
             .values()
-            .any(|stored| stored.file.relative_path.as_path() == Path::new("src/main.txt")),
+            .any(|stored| stored.file.relative_path.as_path() == Path::new("src/main.rs")),
         "stale M4 revision is rejected at hydration"
     );
     assert_eq!(
