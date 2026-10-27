@@ -86,6 +86,26 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(state.stdout.strip(), 'not-found')
         return receipt, receipt_dir
 
+    def test_watchdog_observer_summary_reports_cadence_and_cpu_separately(self) -> None:
+        summary = runner.watchdog_observer_summary([
+            {
+                'watchdog_sample_start_monotonic_ns': 1_000,
+                'watchdog_loop_cpu_ns': 80,
+                'watchdog_loop_work_ns': 200,
+            },
+            {
+                'watchdog_sample_start_monotonic_ns': 1_500,
+                'watchdog_loop_cpu_ns': 40,
+                'watchdog_loop_work_ns': 100,
+            },
+        ])
+        self.assertEqual(summary['sample_start_gap_max_ns'], 500)
+        self.assertEqual(summary['watchdog_loop_cpu_ns_sum'], 120)
+        self.assertEqual(summary['watchdog_loop_work_ns_sum'], 300)
+        self.assertAlmostEqual(summary['watchdog_cpu_to_active_work_ratio'], 0.4)
+        self.assertEqual(summary['watchdog_loop_cpu_ns_max'], 80)
+        self.assertEqual(summary['watchdog_loop_work_ns_max'], 200)
+
     def test_rust_lifecycle_environment_binds_internal_memory_budget(self) -> None:
         context = {
             'arm_role': 'native', 'source_root': str(self.fixture_root / 'src'),
@@ -474,6 +494,11 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertIn('not a per-arm physical-write attribution', receipt['io_control']['fallback'])
         child_pid = int(next(line.split('=', 1)[1] for line in (directory / 'stdout.log').read_text().splitlines() if line.startswith('CHILD_PID=')))
         samples = [json.loads(line) for line in (directory / 'runtime.jsonl').read_text().splitlines()]
+        observer = json.loads((directory / 'watchdog-summary.json').read_text())['observer']
+        self.assertIsInstance(observer['sample_start_gap_max_ns'], int)
+        self.assertGreaterEqual(observer['watchdog_loop_cpu_ns_sum'], 0)
+        self.assertGreaterEqual(observer['watchdog_loop_work_ns_sum'], observer['watchdog_loop_cpu_ns_sum'])
+        self.assertTrue(all('watchdog_loop_cpu_ns' in row and 'watchdog_loop_work_ns' in row for row in samples))
         self.assertTrue(any(child_pid in row['cgroup']['pids'] for row in samples), 'descendant was not observed in arm cgroup')
         self.assertTrue(any('process_tree_pss_kib' in row['cgroup'] and 'memory_peak_bytes' in row['cgroup'] for row in samples))
         self.assertIn('diskstats', samples[0]['host'])

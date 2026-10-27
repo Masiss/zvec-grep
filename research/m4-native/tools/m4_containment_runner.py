@@ -1601,6 +1601,31 @@ def cgroup_populated(cg: pathlib.Path) -> int:
     return parse_kv(read_text(cg / 'cgroup.events')).get('populated', -1)
 
 
+def watchdog_observer_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
+    sample_starts = [row.get('watchdog_sample_start_monotonic_ns') for row in samples]
+    sample_starts = [value for value in sample_starts if isinstance(value, int)]
+    gaps = [right - left for left, right in zip(sample_starts, sample_starts[1:], strict=False)]
+    loop_cpu_ns = [row.get('watchdog_loop_cpu_ns') for row in samples]
+    loop_cpu_ns = [value for value in loop_cpu_ns if isinstance(value, int) and value >= 0]
+    loop_work_ns = [row.get('watchdog_loop_work_ns') for row in samples]
+    loop_work_ns = [value for value in loop_work_ns if isinstance(value, int) and value >= 0]
+    total_cpu_ns = sum(loop_cpu_ns)
+    total_work_ns = sum(loop_work_ns)
+    return {
+        'telemetry_complete': bool(samples) and len(sample_starts) == len(samples)
+        and len(loop_cpu_ns) == len(samples) and len(loop_work_ns) == len(samples),
+        'sample_start_count': len(sample_starts),
+        'loop_cpu_sample_count': len(loop_cpu_ns),
+        'loop_work_sample_count': len(loop_work_ns),
+        'sample_start_gap_max_ns': max(gaps, default=None),
+        'watchdog_loop_cpu_ns_sum': total_cpu_ns,
+        'watchdog_loop_work_ns_sum': total_work_ns,
+        'watchdog_cpu_to_active_work_ratio': total_cpu_ns / total_work_ns if total_work_ns else None,
+        'watchdog_loop_cpu_ns_max': max(loop_cpu_ns, default=None),
+        'watchdog_loop_work_ns_max': max(loop_work_ns, default=None),
+    }
+
+
 def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
     config = strict_json_file(path)
     for key in ('cgroup_path', 'cgroup_rel', 'workspace_root', 'resource_root', 'sample_interval_ms',
@@ -1674,6 +1699,10 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     ready_marker = pathlib.Path(config['watchdog_ready_path'])
     socket_dir = pathlib.Path(config['socket_dir'])
     while abort is None:
+        loop_started_ns = time.monotonic_ns()
+        loop_cpu_started_ns = time.process_time_ns()
+        row: dict[str, Any] | None = None
+        loop_done = False
         if poller is not None and poller.poll(0) and cg.exists() and cgroup_populated(cg) == 1:
             abort = {'reason': 'supervisor_lost', 'timestamp_utc': utc_now()}
             break
@@ -1705,6 +1734,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 work_row, budget, config.get('policy_mode', 'legacy'), quota_sample)
             row = {
                 'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
+                'watchdog_sample_start_monotonic_ns': sample_started_ns,
                 'elapsed_ns': None if started_ns is None else time.monotonic_ns() - started_ns,
                 'cgroup': cgroup_row, 'host': host_row, 'workspace': work_row,
                 'workspace_quota': quota_sample,
@@ -1798,11 +1828,13 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                     write_json(ready_marker, {'mode': CONTENTION_MODE, 'policy_context_digest': contention_context_digest(context)})
                 else:
                     ready_marker.write_text(str(time.monotonic_ns()), encoding='ascii')
-            if cgroup_row.get('populated') == 0 or command_done_marker.exists():
-                break
+            loop_done = cgroup_row.get('populated') == 0 or command_done_marker.exists()
         except Exception as exc:
             abort = {'reason': 'required_telemetry_missing', 'detail': f'{type(exc).__name__}: {exc}', 'timestamp_utc': utc_now()}
-        if abort is not None:
+        if row is not None and samples and samples[-1] is row:
+            row['watchdog_loop_work_ns'] = time.monotonic_ns() - loop_started_ns
+            row['watchdog_loop_cpu_ns'] = time.process_time_ns() - loop_cpu_started_ns
+        if abort is not None or loop_done:
             break
         time.sleep(interval)
     if abort is not None and cg.exists():
@@ -1849,6 +1881,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     memory_stat_keys = set().union(*(row.keys() for row in memory_stat_rows)) if memory_stat_rows else set()
     summary = {
         'schema_version': SCHEMA_VERSION, 'samples': len(samples),
+        'observer': watchdog_observer_summary(samples),
         'workspace_samples_complete': workspace_samples_complete,
         'workspace_accounting_status': ('SAMPLED_NOT_PROOF' if workspace_samples_complete else
                                         'UNKNOWN_INVENTORY_KERNEL_QUOTA_BOUND' if workspace_quota_samples_complete and workspace_quota_bound is not None else
