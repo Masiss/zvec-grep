@@ -487,7 +487,11 @@ class ContainmentRunnerTests(unittest.TestCase):
         def run_arm() -> None:
             try:
                 outcome['receipt'] = runner.run_arm(
-                    [sys.executable, '-c', 'import time; time.sleep(20)'],
+                    [
+                        sys.executable,
+                        '-c',
+                        'import sys,time; print("QUERY_LOAD_SNAPSHOT {\\"offered_slots\\":1}", file=sys.stderr, flush=True); time.sleep(20)',
+                    ],
                     receipt_dir, self.fixture_root, self.fixture_root / 'workspace',
                     self.fixture_root.parent, 10.0, sample_interval_ms=20,
                     enforce_host_gates=False,
@@ -526,6 +530,7 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(receipt['watchdog_abort']['operator_stop_request'], request)
         self.assertTrue(receipt['unit_cleanup']['verified'])
         self.assertTrue(receipt['unit_cleanup']['unit_collected'])
+        self.assertIn('QUERY_LOAD_SNAPSHOT', (receipt_dir / 'stderr.log').read_text())
 
     def test_normal_exit_and_descendant_share_owned_cgroup(self) -> None:
         command = [sys.executable, '-c', (
