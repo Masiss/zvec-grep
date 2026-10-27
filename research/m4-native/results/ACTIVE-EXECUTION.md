@@ -1,6 +1,14 @@
 # Active M4 execution checkpoint
 
-## Current milestone — Gate 1 measurement integrity and Gate 2 selective-fence evidence (2026-10-27)
+## Current milestone — Gate 3 diagnostic halted; no comparison (2026-10-27)
+
+**The one newly authorized diagnostic pair was consumed and stopped in the native arm after over three minutes without indexing progress.** The M4 arm never launched; there is no Native–M4 result. The process was stopped through its owned unit; watchdog reported `CONTAINMENT_UNVERIFIED` because cgroup exit telemetry disappeared, despite a separate unit-cleanup receipt verifying the unit was collected. No operation process remains. Keep the partial workspace and raw telemetry. Do not retry under the consumed authorization. Details: [`M4-RECOVERY-GATE-3-DIAGNOSTIC-20261027.md`](M4-RECOVERY-GATE-3-DIAGNOSTIC-20261027.md).
+
+The qgroup and cgroup hard limits did not fire before the stop: 297/297 qgroup samples passed, minimum headroom was 94,289,920 bytes, memory peak 364,802,048 bytes, and `memory.events.max=0`. Sampling cadence nevertheless drifted to median 1,013 ms / p95 1,269 ms / max 1,573 ms against a configured 500 ms interval; a live watchdog snapshot also showed about 50% CPU. The watchdog now records per-sample process CPU, loop work, sample-start gaps, and a completeness flag. The trace confirms native search and index mutations share `IndexStore`'s state mutex, a plausible but unproven contention path; the native arm was not waiting on the M4 selective fence. See the Gate 3 report for evidence and limits.
+
+Gate 1 setup and Gate 2 tested research cases retain their bounded evidence in [`M4-RECOVERY-GATE-1-2-20261027.md`](M4-RECOVERY-GATE-1-2-20261027.md); they do not qualify Gate 3/4 or production. Remaining non-benchmark work: add a bounded deterministic regression/telemetry to distinguish native search time from store-lock wait, and make operator stop requests visible to the watchdog before unit teardown. No additional arm is authorized; a fresh owner authorization and no-launch preflight are required. Numeric qualification thresholds remain unapproved. Overall disposition: **PARTIAL / OPERATION_BLOCKED; architecture REWORK; no production GO**.
+
+## Previous milestone — Gate 1 measurement integrity and Gate 2 selective-fence evidence (2026-10-27)
 
 **Gate 1 infrastructure PASS for a bounded diagnostic setup; Gate 2 PASS for the tested research cases, not exhaustive qualification. Gate 3 NOT RUN; Gate 4 remains open; Gate 5 is outside current authority. Overall: PARTIAL / OWNER_DECISION_REQUIRED, not production GO.** The implementation and evidence are in [`M4-RECOVERY-GATE-1-2-20261027.md`](M4-RECOVERY-GATE-1-2-20261027.md).
 
