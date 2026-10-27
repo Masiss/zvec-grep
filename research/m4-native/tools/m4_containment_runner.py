@@ -205,6 +205,8 @@ def failure_class(status: str | None = None, reason: str | None = None,
         return 'OOM_ABORT'
     if reason == 'supervisor_lost':
         return 'CONTROLLER_CRASH_ABORT'
+    if reason == 'operator_requested_stop':
+        return 'OPERATOR_ABORT'
     if reason == 'runtime_timeout':
         return 'TIMEOUT_ABORT'
     if reason == 'workspace_capacity_unverifiable':
@@ -1637,6 +1639,68 @@ def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
     return config
 
 
+def request_operator_stop(receipt_dir: pathlib.Path, confirm_unit: str) -> dict[str, Any]:
+    receipt_dir = receipt_dir.resolve()
+    config = read_watchdog_config(receipt_dir / 'watchdog-config.json')
+    if not confirm_unit or config.get('unit') != confirm_unit:
+        raise ValueError('confirmation unit does not match the operation-bound systemd unit')
+    if pathlib.Path(config['watchdog_output']).resolve() != receipt_dir:
+        raise ValueError('watchdog output is not bound to the supplied receipt directory')
+    run_state = strict_json_file(receipt_dir / 'run-state.json')
+    if run_state.get('unit') != confirm_unit or run_state.get('state') != 'delegated_and_armed':
+        raise ValueError('run-state is not an active armed operation for the confirmed unit')
+    if not pathlib.Path(config['watchdog_ready_path']).is_file():
+        raise RuntimeError('watchdog has not completed its initial hard-safety telemetry sample')
+    if not pathlib.Path(config['start_marker']).is_file():
+        raise RuntimeError('workload has not reached the started state')
+    cg = pathlib.Path(config['cgroup_path'])
+    if cgroup_path_from_unit(confirm_unit) != cg or not cg.exists():
+        raise RuntimeError('confirmed unit no longer maps to the operation-owned cgroup')
+    if str(cg.relative_to(CGROOT)) != config['cgroup_rel'] or cgroup_populated(cg) != 1:
+        raise RuntimeError('operation cgroup identity/population is not active')
+    if pathlib.Path(config['command_done_marker']).exists():
+        raise RuntimeError('workload has already completed; refusing a late stop request')
+    if (receipt_dir / 'watchdog-abort.json').exists() or (receipt_dir / 'receipt.json').exists():
+        raise RuntimeError('operation already has a terminal receipt')
+
+    marker = receipt_dir / 'operator-stop-request.json'
+    temporary = receipt_dir / f'.operator-stop-request-{uuid.uuid4().hex}.tmp'
+    request = {
+        'schema_version': 1,
+        'unit': confirm_unit,
+        'cgroup_relative_path': config['cgroup_rel'],
+        'controller_pid': config['controller_pid'],
+        'policy_context_digest': config.get('policy_context_digest'),
+        'requested_at_utc': utc_now(),
+        'requested_monotonic_ns': time.monotonic_ns(),
+    }
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+    published = False
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump(request, stream, indent=2, sort_keys=True)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, marker)  # atomic, no-overwrite publication for the watchdog
+        published = True
+        temporary.unlink()
+        dir_fd = os.open(receipt_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            temporary.unlink()
+        if not published:
+            raise
+        # Publication already reached the watchdog: preserve the request if a
+        # later durability operation reports an error rather than retract it.
+        raise
+    return request
+
+
 def validate_watchdog_operation_binding(config: dict[str, Any]) -> dict[str, Any]:
     context = config.get('policy_context')
     if (config.get('policy_mode') == CONTENTION_MODE) != (context is not None):
@@ -1698,7 +1762,32 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     command_done_marker = pathlib.Path(config['command_done_marker'])
     ready_marker = pathlib.Path(config['watchdog_ready_path'])
     socket_dir = pathlib.Path(config['socket_dir'])
+    operator_stop_path = pathlib.Path(config['watchdog_output']) / 'operator-stop-request.json'
     while abort is None:
+        if operator_stop_path.exists() and not command_done_marker.exists():
+            try:
+                request = strict_json_file(operator_stop_path)
+                expected_request = {
+                    'schema_version': 1,
+                    'unit': config['unit'],
+                    'cgroup_relative_path': expected,
+                    'controller_pid': controller_pid,
+                    'policy_context_digest': config.get('policy_context_digest'),
+                }
+                if any(request.get(key) != value for key, value in expected_request.items()):
+                    raise ValueError('operator stop request identity does not match watchdog operation')
+                abort = {
+                    'reason': 'operator_requested_stop',
+                    'operator_stop_request': request,
+                    'timestamp_utc': utc_now(),
+                }
+            except Exception as exc:
+                abort = {
+                    'reason': 'operator_stop_request_invalid',
+                    'detail': f'{type(exc).__name__}: {exc}',
+                    'timestamp_utc': utc_now(),
+                }
+            break
         loop_started_ns = time.monotonic_ns()
         loop_cpu_started_ns = time.process_time_ns()
         row: dict[str, Any] | None = None
@@ -2543,7 +2632,10 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         watchdog_summary_path = receipt_dir / 'watchdog-summary.json'
         watchdog_summary = json.loads(watchdog_summary_path.read_text()) if watchdog_summary_path.exists() else None
         abort = json.loads(abort_file.read_text()) if abort_file.exists() else None
-        if abort_requested:
+        if abort and abort.get('reason') == 'operator_requested_stop':
+            status = 'WATCHDOG_ABORT'
+            reason = 'operator_requested_stop'
+        elif abort_requested:
             status = 'WATCHDOG_ABORT'
             reason = abort_requested
         elif abort:
@@ -2628,6 +2720,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'limits_applied': applied, 'approved_budget': budget,
             'memory_swap_pressure_limits': pressure_limits,
             'watchdog_abort': abort, 'watchdog_summary': watchdog_summary,
+            'operator_stop_request': (json.loads((receipt_dir / 'operator-stop-request.json').read_text())
+                                     if (receipt_dir / 'operator-stop-request.json').exists() else None),
             'workspace_capacity_status': ('WORKSPACE_CAPACITY_UNVERIFIED'
                                           if policy_context and policy_context.get('purpose') == M4_SCALAR_LATENCY_PURPOSE
                                           else None),
@@ -2805,6 +2899,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
     sub.add_parser('probe', help='report actual user cgroup/systemd capabilities (read-only)')
+    stop = sub.add_parser('stop', help='request a watchdog-recorded stop for one active operation')
+    stop.add_argument('--receipt-dir', type=pathlib.Path, required=True)
+    stop.add_argument('--confirm-unit', required=True,
+                      help='exact transient systemd unit recorded in the active operation receipt')
     run = sub.add_parser('run', help='run one command in an isolated transient user service')
     run.add_argument('--receipt-dir', type=pathlib.Path, required=True)
     run.add_argument('--resource-root', type=pathlib.Path, required=True)
@@ -2820,6 +2918,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.action == 'probe':
         print(json.dumps(probe(), indent=2, sort_keys=True))
+        return 0
+    if args.action == 'stop':
+        request = request_operator_stop(args.receipt_dir, args.confirm_unit)
+        print(json.dumps({'status': 'STOP_REQUESTED', 'request': request}, indent=2, sort_keys=True))
         return 0
     command = list(args.command)
     if command and command[0] == '--':

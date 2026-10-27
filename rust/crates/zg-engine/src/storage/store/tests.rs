@@ -68,6 +68,21 @@ fn file_at(storage: &IndexStore, path: &str) -> (FileRecord, FixtureEntity) {
 }
 
 #[test]
+fn store_state_lock_wait_telemetry_is_thread_local_and_resettable() {
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    let _ = storage.take_state_lock_wait_telemetry_for_test();
+
+    storage.list_files().expect("read file catalog");
+    let (count, total_ns, max_ns) = storage.take_state_lock_wait_telemetry_for_test();
+    assert!(count >= 1);
+    assert!(total_ns >= max_ns);
+
+    assert_eq!(storage.take_state_lock_wait_telemetry_for_test(), (0, 0, 0));
+    storage.close().expect("close storage");
+}
+
+#[test]
 fn gate_a_checkpoint_only_runs_on_clean_storage() {
     let temporary = tempfile::tempdir().expect("workspace");
     let storage = open(temporary.path(), false);

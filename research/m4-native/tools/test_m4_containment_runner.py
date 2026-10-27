@@ -12,8 +12,10 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
+from typing import Any
 from unittest import mock
 
 os.environ['M4_TEST_FIXTURE_MODE'] = '1'
@@ -477,6 +479,53 @@ class ContainmentRunnerTests(unittest.TestCase):
         runtime = [json.loads(line) for line in (directory/'runtime.jsonl').read_text().splitlines()]
         self.assertTrue(all(isinstance(row['cgroup']['pids_current'],int) for row in runtime))
         self.assertTrue(all(row['cgroup']['pids_events']['max']==0 for row in runtime))
+
+    def test_operator_stop_is_recorded_before_owned_unit_cleanup(self) -> None:
+        receipt_dir = self.output_root / 'operator-stop'
+        outcome: dict[str, Any] = {}
+
+        def run_arm() -> None:
+            try:
+                outcome['receipt'] = runner.run_arm(
+                    [sys.executable, '-c', 'import time; time.sleep(20)'],
+                    receipt_dir, self.fixture_root, self.fixture_root / 'workspace',
+                    self.fixture_root.parent, 10.0, sample_interval_ms=20,
+                    enforce_host_gates=False,
+                )
+            except BaseException as exc:
+                outcome['error'] = exc
+
+        thread = threading.Thread(target=run_arm, daemon=True)
+        thread.start()
+        deadline = time.monotonic() + 5.0
+        request = None
+        while time.monotonic() < deadline and thread.is_alive():
+            state_path = receipt_dir / 'run-state.json'
+            if state_path.is_file():
+                state = json.loads(state_path.read_text())
+                if state.get('state') == 'delegated_and_armed':
+                    config_path = receipt_dir / 'watchdog-config.json'
+                    if config_path.is_file():
+                        config = json.loads(config_path.read_text())
+                        if (pathlib.Path(config['watchdog_ready_path']).is_file()
+                                and pathlib.Path(config['start_marker']).is_file()):
+                            with self.assertRaisesRegex(ValueError, 'confirmation unit'):
+                                runner.request_operator_stop(receipt_dir, 'wrong-unit.service')
+                            request = runner.request_operator_stop(receipt_dir, state['unit'])
+                            break
+            time.sleep(0.02)
+        thread.join(timeout=10.0)
+        self.assertFalse(thread.is_alive(), 'contained runner did not finish after operator stop')
+        self.assertNotIn('error', outcome, repr(outcome.get('error')))
+        self.assertIsNotNone(request, 'operation never reached the armed state')
+        receipt = outcome['receipt']
+        self.assertEqual(receipt['status'], 'WATCHDOG_ABORT')
+        self.assertEqual(receipt['reason'], 'operator_requested_stop')
+        self.assertEqual(receipt['failure_class'], 'OPERATOR_ABORT')
+        self.assertEqual(receipt['safety_outcome'], 'ABORTED_CONTAINED')
+        self.assertEqual(receipt['watchdog_abort']['operator_stop_request'], request)
+        self.assertTrue(receipt['unit_cleanup']['verified'])
+        self.assertTrue(receipt['unit_cleanup']['unit_collected'])
 
     def test_normal_exit_and_descendant_share_owned_cgroup(self) -> None:
         command = [sys.executable, '-c', (

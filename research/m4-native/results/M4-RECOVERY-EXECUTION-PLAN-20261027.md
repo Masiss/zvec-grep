@@ -6,7 +6,7 @@
 
 - **Gate A:** PASS only for the research integration's pass-intent, changed-file masking, query-scoped read view and fail-closed recovery behavior covered by focused tests. It does not establish power-loss durability, production readiness, or latency acceptability.
 - **Publication architecture:** the original whole-pass `PassGate` fence is **REWORK** for continued research: prior lifecycle runs repeatedly recorded multi-second waits during rescan/update/rename. The selective-visibility plus commit-scoped query/writer fence is the current research candidate, not qualified.
-- **Gate B:** **PARTIAL / OPERATION_BLOCKED.** No valid matched Native–M4 lifecycle or query-latency result exists. The 64-file pilot is diagnostic only. The latest pair (`b6a1348d`) ran the M4 arm, then stopped the native arm when the bounded live workspace traversal exceeded its per-scan entry/time budget. No native report or parity result was produced.
+- **Gate B:** **PARTIAL / OPERATION_BLOCKED.** No valid matched Native–M4 lifecycle or query-latency result exists. The latest authorized pair (`dc8e1120`) stopped in the native arm at 50/64 with the watchdog still active; the M4 arm never ran. It produced no completed query trace or comparison. The earlier `b6a1348d` attempt remains a separate observer/accounting failure.
 - **Measurement:** earlier query p95s are non-comparable because fixed-cadence single-flight query schedules missed hundreds of slots. The 5.53 s pilot p95 from 16 observations is not a valid estimate. The later selective-fence M4 arm still missed 208 slots; its 71.7 ms aggregate p95 is not comparable. These data cannot establish that the candidate is fast enough or that the observed fence maxima are a representative distribution.
 - **Containment:** preserve the existing 512 MiB memory / zero-swap / two-CPU / 128-pid / runtime / host-disk-reserve limits, and the applicable workspace controls. Do not bypass observer failures, loosen a hard limit, retry a stopped operation, delete evidence, or treat a 64-file run as full-corpus qualification. Any future launch needs a fresh explicit operation authorization, fresh operation identity, valid preflight, and the required recovery conditions.
 - **Decision today:** **REWORK / not production GO**. There is not enough valid evidence for a final NO-GO on the overall M4 idea; there is enough to reject the whole-pass fence as the current research design and to block qualification until the dependencies below are resolved.
@@ -17,10 +17,10 @@ The active checkpoint and latest Gate B reports were compared with the current s
 
 - `results/ACTIVE-EXECUTION.md` and `results/M4-GATE-B-QUERY-LATENCY-20261026.md`.
 - `results/M4-GATE-B-PREFLIGHT-20261026.md` and `results/M4-GATE-B-64-FILE-PILOT-20261026.md`.
-- `results/M4-GATE-B-QUERY-LATENCY-20261026/launch-{f4a09e2c,7c21f33a,b6a1348d}.json` and the b6a1348d pair receipts, watchdog summary/abort, runtime samples and retained workspace.
+- `results/M4-GATE-B-QUERY-LATENCY-20261026/launch-{f4a09e2c,7c21f33a,b6a1348d}.json`, the b6a1348d pair receipts, and the latest `M4-RECOVERY-GATE-3-DIAGNOSTIC-20261027.md` with `dc8e1120` receipts/runtime samples and retained workspace.
 - Current implementation: `tools/m4_containment_runner.py` (`workspace_usage`, `workspace_capacity_decision`, watchdog sampling and arm completion), `tools/run_rust_lifecycle_pair.py`, `docs/benchmark-policy.json`, `rust/crates/zg-engine/src/pipelines/indexed_search/{pipeline.rs,storage.rs,m4_integration_tests.rs,m4_integration_tests/gate_b_lifecycle.rs}`, and the research FFI/adapter.
 
-The observer's `workspace_usage` performs a fresh recursive descriptor walk on every watchdog sample (one pass per sample; current scan budget 0.25 seconds, entry budget 16,384), installs inotify watches while walking directories, and drains only one bounded event buffer. Its deadline is cooperative and cannot bound a blocked filesystem syscall. In the b6 native arm, the raw failure names `index/storage/reconciliation` and then the workspace-root cooperative deadline; the watchdog classified it `WORKSPACE_CAPACITY_UNVERIFIABLE`, with `workspace_samples_complete=false`. The measured memory peak was 260.4 MiB, below the 512 MiB cap; this stop was an **observer/accounting failure**, not the previous memory-cap stop. The small tree measured after termination cannot reconstruct peak live state.
+The observer's `workspace_usage` performs a fresh recursive descriptor walk on every watchdog sample (one pass per sample; current scan budget 0.25 seconds, entry budget 16,384), installs inotify watches while walking directories, and drains only one bounded event buffer. Its deadline is cooperative and cannot bound a blocked filesystem syscall. In the earlier b6 native arm, the raw failure named `index/storage/reconciliation` and then the workspace-root cooperative deadline; the watchdog classified it `WORKSPACE_CAPACITY_UNVERIFIABLE`. In the later dc8e native arm, the kernel qgroup samples were complete and passed; the operator stopped the stalled workload after >3 minutes without progress. The two stops have different causes and neither produced a Native–M4 comparison.
 
 The evidence supports this diagnosis: walking a changing tree while each 0.5-second monitor tick launches another bounded full traversal is an observer-capacity problem; it is not evidence that the workload exceeded the workspace's physical limit. That causal explanation remains a hypothesis until isolated tests establish scan cost and workload sensitivity. Current policy defaults to fail-closed for work-budget failure; the exact Btrfs quota attestation is registered for a different benchmark purpose, not this lifecycle pair. Do not silently reuse that proof or convert incomplete traversal into PASS.
 
@@ -105,18 +105,18 @@ Only after Gates 1–2 pass, the owner explicitly authorizes one fresh bounded d
 | I/O telemetry availability | I/O efficiency claim | Instrumented trustworthy I/O metric or explicitly qualified limitation; current cgroup I/O controllers unavailable |
 | Production readiness/rollback | Any production GO | Separate migration, fallback/rollback, watcher, operational and owner approval |
 
-## Immediate next actions (planning only; not yet authorized for execution)
+## Remaining execution actions (no new benchmark authorization)
 
-1. Preserve the b6a1348d stopped evidence and do not relaunch it.
-2. **Completed:** selected exact-purpose root-attested Btrfs qgroup certification under unchanged caps, with sampled inventory diagnostic-only and incomplete inventory remaining unknown. Current qgroup registration is bound to the lifecycle pair; see the execution update below.
-3. Implement and test only the selected observer/telemetry correction; keep failures fail-closed. No benchmark yet.
-4. Expand the selective-fence correctness matrix and crash-point tests; update the invariant documentation from actual source.
-5. Preregister latency/load/performance thresholds, then seek fresh authorization for a new 64-file diagnostic pair only if Gates 1–2 and no-launch preflight pass.
-6. Attempt representative full-corpus Gate B only after the 64-file protocol is measurement-valid and the native arm demonstrably fits the current 512 MiB limit. If it does not, return a resource-bounded REWORK/NO-GO decision rather than raising limits.
+1. Preserve both b6a1348d and dc8e1120 evidence; do not relaunch either operation.
+2. **Completed:** selected exact-purpose root-attested Btrfs qgroup certification under unchanged caps, with sampled inventory diagnostic-only and incomplete inventory remaining unknown.
+3. **Completed:** fixed-deadline offered-load telemetry and observer cadence/CPU/completeness accounting have regression coverage; current Gate 3 evidence still has no complete query trace.
+4. **Completed:** add a watchdog-recorded operator-stop command bound to the exact active unit/cgroup; validate its no-overwrite request path with a contained synthetic fixture. Preserve the original dc8e1120 `CONTAINMENT_UNVERIFIED` classification.
+5. **Implemented, not arm-qualified:** added `cfg(test)` `IndexStore` mutex-wait attribution and periodic fixed-deadline query-load JSON snapshots to captured arm stderr, plus snapshot-schema and thread-local reset regressions. This allows service-time/lock-wait analysis and leaves interim offer/start/completion/drop counters before final report serialization; end-to-end persistence through an actual externally stopped arm remains unverified. Keep workload and production runtime unchanged.
+6. Expand selective-fence correctness/crash-point coverage independently. A new diagnostic pair requires fresh explicit owner authorization and passing no-launch preflight; full-corpus Gate B additionally needs preregistered thresholds and a safe native memory result under the unchanged 512 MiB cap.
 
 ## Completion statement
 
-This document began as an execution plan; the execution update below records subsequent implementation and test evidence. Current status remains Gate A research-scope PASS; Gate 1 diagnostic infrastructure PASS; Gate 2 selective-fence correctness PASS for tested cases but not exhaustive qualification; Gate 3 NOT RUN; Gate 4 memory envelope open; Gate 5 outside current authority. Overall M4 remains **PARTIAL / OWNER_DECISION_REQUIRED / not production GO**. The 2026-10-27 Technical Lead direction authorized infrastructure work but explicitly did not authorize a new benchmark operation.
+This document began as an execution plan; the execution updates below record subsequent implementation and test evidence. Current status is Gate A research-scope PASS; Gate 1 diagnostic infrastructure PASS for the bounded setup; Gate 2 selective-fence correctness PASS for tested cases but not exhaustive qualification; Gate 3 attempted but incomplete with no comparison; Gate 4 memory envelope open; Gate 5 outside current authority. Overall M4 remains **PARTIAL / OPERATION_BLOCKED / architecture REWORK, not production GO**. The 2026-10-27 Technical Lead direction and later continuation authorize independent infrastructure/correctness work, but no fresh benchmark operation.
 
 ## Execution update — 2026-10-27
 
@@ -126,7 +126,17 @@ The fixed-deadline offered-load reader and independent cross-arm report analyzer
 
 No benchmark workload was launched. Machine policy says the explicit 2026-10-26 one-pair authorization has been consumed and the 2026-10-27 direction does not authorize a new operation. A fresh explicit owner authorization is required for another diagnostic pair. Representative qualification also awaits numeric preregistered acceptance thresholds, a safe memory result under the unchanged 512 MiB cap, and counterbalanced representative runs. cgroup `io.stat`/`io.max` are unavailable, so per-arm physical-I/O attribution is not supported.
 
-Detailed evidence and current blockers: [`M4-RECOVERY-GATE-1-2-20261027.md`](M4-RECOVERY-GATE-1-2-20261027.md). Existing stopped operations remain immutable and are not retried.
+Detailed evidence: [`M4-RECOVERY-GATE-1-2-20261027.md`](M4-RECOVERY-GATE-1-2-20261027.md) and [`M4-RECOVERY-GATE-3-DIAGNOSTIC-20261027.md`](M4-RECOVERY-GATE-3-DIAGNOSTIC-20261027.md). Existing stopped operations remain immutable and are not retried.
+
+### Gate 3 measurement follow-up — 2026-10-27
+
+The latest diagnostic (`dc8e1120`) remains invalid for comparison: the native arm stopped after 50/64 files and the M4 arm never started. Its qgroup and cgroup limits passed until the operator stop, but it had no completed query telemetry. The original stop classification remains `CONTAINMENT_UNVERIFIED` because the transient unit was removed before workload-exit telemetry was captured.
+
+The containment runner now offers `stop --receipt-dir ... --confirm-unit ...`. It requires the exact active unit, a live operation-owned cgroup, a completed initial watchdog safety sample, a started workload, and no terminal marker. The stop request is written durably and atomically without overwrite; the watchdog verifies the operation binding, records `operator_requested_stop`, and owns subsequent cgroup cleanup. A late request after the workload completion marker does not abort completed work. The synthetic systemd-backed regression initially exposed a race when cancellation preceded the watchdog baseline; the command now refuses that state. Final containment suite: **26 passed**. This validates only the control path, not benchmark performance or qualification.
+
+Fresh Rust verification compiled the current feature-enabled M4 integration test source and passed **9 tests, 1 intentionally ignored**. The reported `reader_sampling_capped` finding and the cited line-595 finding do not match the current file: line 343 is the search call's `&[]`, line 595 is blank, and the aggregate uses `Value::as_u64`. LSP recheck was inconclusive, so the compiler/test run is the verification evidence. The compiler also reports `DEFAULT_MAINTENANCE_THRESHOLD` as dead code in the library build; tracing shows it is referenced only by a `#[cfg(test)]` fallback. It is outside this measurement-control change and was not edited.
+
+Next safe work remains research/test-only: attribute native search service versus shared-state mutex wait, retain offered-load completion/drop telemetry on abnormal test termination, and extend selective-fence crash/concurrency coverage. No benchmark or production-runtime change was made.
 
 ## Navigation
 
