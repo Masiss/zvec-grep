@@ -23,9 +23,35 @@ assert spec and spec.loader
 runner = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = runner
 spec.loader.exec_module(runner)
+PAIR_RUNNER_PATH = pathlib.Path(__file__).with_name('run_rust_lifecycle_pair.py').resolve()
+pair_spec = importlib.util.spec_from_file_location('run_rust_lifecycle_pair', PAIR_RUNNER_PATH)
+assert pair_spec and pair_spec.loader
+pair_runner = importlib.util.module_from_spec(pair_spec)
+sys.modules[pair_spec.name] = pair_runner
+pair_spec.loader.exec_module(pair_runner)
 
 
 class ContainmentRunnerTests(unittest.TestCase):
+    def test_rust_pipeline_lifecycle_profile_is_one_bounded_pair(self) -> None:
+        contract = runner.BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
+        self.assertTrue(contract['single_pair_only'])
+        self.assertEqual(contract['workload']['source_file_count'], 64)
+        self.assertEqual(contract['workload']['source_bytes'], 694_421)
+        self.assertEqual(contract['workload']['source_selection']['path_prefix'],
+                         'rust/crates/zg-engine/src/')
+        self.assertEqual(contract['workload']['profile_label'],
+                         '64-file Rust engine pilot; not full-corpus Gate B')
+        self.assertEqual(contract['workload']['full_corpus_reference']['source_file_count'], 421)
+        self.assertEqual(contract['workload']['reader_query_queue_capacity'], 8)
+        self.assertEqual(contract['workload']['zvec_native_memory_limit_bytes'], 134_217_728)
+        self.assertEqual(contract['arm_roles'], ['native', 'm4'])
+        self.assertEqual(contract['resource_controls']['memory_max_bytes'], 536_870_912)
+        self.assertEqual(contract['resource_controls']['memory_swap_max_bytes'], 0)
+        self.assertEqual(contract['resource_controls']['cpu_max'], '200000 100000')
+        self.assertEqual(contract['resource_controls']['workspace_max_allocated_bytes'], 33_554_432)
+        self.assertEqual(contract['workspace_quota']['max_referenced_bytes'], 134_217_728)
+        self.assertIn('io.max unavailable', contract['io_pressure_mode'])
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.output_root = pathlib.Path(os.environ['M4_CONTAINMENT_TEST_OUTPUT']).resolve()
@@ -60,10 +86,143 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(state.stdout.strip(), 'not-found')
         return receipt, receipt_dir
 
+    def test_rust_lifecycle_environment_binds_internal_memory_budget(self) -> None:
+        context = {
+            'arm_role': 'native', 'source_root': str(self.fixture_root / 'src'),
+            'index_root': str(self.fixture_root / 'index'),
+            'report_path': str(self.fixture_root / 'report.json'),
+            'temporary_directory': str(self.fixture_root / 'tmp'),
+            'library_path': '/opt/zvec/lib',
+            'reader_query_interval_ms': 25,
+            'reader_query_max_samples_per_pass': 256,
+            'reader_query_queue_capacity': 8,
+            'zvec_native_memory_limit_bytes': 134_217_728,
+        }
+        environment = runner.rust_lifecycle_expected_environment(context)
+        self.assertEqual(environment['ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES'], '134217728')
+        self.assertEqual(environment['M4_GATE_B_ARM'], 'native')
+        self.assertEqual(environment['M4_GATE_B_READER_QUERY_INTERVAL_MS'], '25')
+        self.assertEqual(environment['M4_GATE_B_READER_QUERY_MAX_SAMPLES'], '256')
+        self.assertEqual(environment['M4_GATE_B_READER_QUERY_QUEUE_CAPACITY'], '8')
+        self.assertEqual(environment['LD_LIBRARY_PATH'], '/opt/zvec/lib')
+
+    def test_registered_qgroup_bound_allows_unknown_inventory_but_not_scope_or_quota_errors(self) -> None:
+        contract = runner.BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']['workspace_quota']
+        budget = {
+            'purpose': runner.M4_RUST_LIFECYCLE_PURPOSE,
+            'workspace_max_allocated_bytes': runner.BENCHMARK_POLICY[
+                'rust_pipeline_lifecycle_pair']['resource_controls']['workspace_max_allocated_bytes'],
+            'workspace_max_apparent_bytes': runner.BENCHMARK_POLICY[
+                'rust_pipeline_lifecycle_pair']['resource_controls']['workspace_max_apparent_bytes'],
+            'workspace_quota_proof': {
+                'status': 'VERIFIED', 'attestation_path': contract['attestation_path'],
+                'workspace_root': contract['workspace_subvolume'],
+                'filesystem_uuid': contract['filesystem_uuid'], 'subvolume_id': contract['subvolume_id'],
+                'qgroup_id': contract['qgroup_id'],
+                'max_referenced_bytes': contract['max_referenced_bytes'],
+                'accounting_mode': contract['accounting_mode'], 'attestation_sha256': 'a' * 64,
+            },
+        }
+        observation = runner.workspace_quota_bounded_observation(self.fixture_root / 'workspace')
+        sample = {
+            'status': 'PASS', 'referenced_bytes': contract['max_referenced_bytes'] - contract['minimum_free_bytes'],
+            'max_referenced_bytes': contract['max_referenced_bytes'],
+            'available_bytes': contract['minimum_free_bytes'],
+            'required_free_bytes': contract['minimum_free_bytes'],
+        }
+        decision = runner.workspace_capacity_decision(observation, budget, runner.CONTENTION_MODE, sample)
+        self.assertTrue(decision['continuation_allowed'])
+        self.assertEqual(decision['measurement_quality'], 'HARD_QUOTA_BOUND')
+        self.assertFalse(decision['workspace_inventory_complete'])
+        self.assertEqual(decision['indeterminate_overages'][0]['observed_bytes'], None)
+
+        no_headroom = dict(sample, available_bytes=contract['minimum_free_bytes'] - 1)
+        blocked = runner.workspace_capacity_decision(observation, budget, runner.CONTENTION_MODE, no_headroom)
+        self.assertFalse(blocked['continuation_allowed'])
+        self.assertEqual(blocked['reason'], 'workspace_quota_telemetry_unverified')
+
+        scope_error = dict(observation, inventory_status='UNVERIFIABLE',
+                           issues=[{'kind': 'ROOT_OR_TRAVERSAL_ERROR', 'detail': 'denied', 'known_race': False}],
+                           issue_count=1)
+        denied = runner.workspace_capacity_decision(scope_error, budget, runner.CONTENTION_MODE, sample)
+        self.assertFalse(denied['continuation_allowed'])
+
+    def test_query_latency_gate_preserves_role_labels_and_rejects_omission_traces(self) -> None:
+        def report(role: str, p95_us: int) -> dict:
+            return {
+                'arm': role, 'reader_query_interval_ms': 25,
+                'reader_query_max_samples_per_pass': 256, 'reader_query_queue_capacity': 8,
+                'query_filter': '**/*.rs', 'query_route': 'FTS',
+                'concurrent_query_latency_p95_comparable': True,
+                'concurrent_query_total': 24, 'concurrent_query_offered_slots': 24,
+                'concurrent_query_accepted_slots': 24, 'concurrent_query_started': 24,
+                'concurrent_query_dropped_slots': 0,
+                'concurrent_query_slots_not_offered_by_cap': 0,
+                'concurrent_query_schedule_slots_missed': 0,
+                'concurrent_query_failures': 0,
+                'concurrent_query_sampling_capped_passes': 0,
+                'concurrent_query_max_schedule_lag_us': 7_000,
+                'concurrent_query_p95_us': p95_us,
+            }
+
+        native = {'role': 'native', 'workload_report': report('native', 105_000)}
+        m4 = {'role': 'm4', 'workload_report': report('m4', 122_000)}
+        gate = pair_runner.query_latency_pair_gate([m4, native])
+        self.assertTrue(gate['comparable'])
+        self.assertTrue(gate['offered_load_protocol_equal'])
+        self.assertEqual(gate['p95_us_by_role'], {'native': 105_000, 'm4': 122_000})
+
+        for key, value in (
+            ('concurrent_query_dropped_slots', 1),
+            ('concurrent_query_slots_not_offered_by_cap', 1),
+            ('concurrent_query_schedule_slots_missed', 1),
+            ('concurrent_query_failures', 1),
+            ('concurrent_query_sampling_capped_passes', 1),
+            ('concurrent_query_max_schedule_lag_us', 25_001),
+            ('concurrent_query_total', 19),
+        ):
+            overloaded = report('m4', 122_000)
+            overloaded[key] = value
+            rejected = pair_runner.query_latency_pair_gate([
+                {'role': 'native', 'workload_report': report('native', 105_000)},
+                {'role': 'm4', 'workload_report': overloaded},
+            ])
+            self.assertFalse(rejected['comparable'], key)
+
+        mismatched = report('m4', 122_000)
+        mismatched['reader_query_queue_capacity'] = 4
+        protocol_rejected = pair_runner.query_latency_pair_gate([
+            native, {'role': 'm4', 'workload_report': mismatched},
+        ])
+        self.assertFalse(protocol_rejected['comparable'])
+        self.assertIn('offered_load_protocol_mismatch', protocol_rejected['reasons'])
+
+    def test_pair_continues_after_accounting_uncertainty_only_with_clean_hard_safety(self) -> None:
+        receipt = {
+            'status': 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY',
+            'workload_returncode': 0,
+            'watchdog_abort': None,
+            'safety_outcome': 'NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED',
+            'watchdog_summary': {'hard_safety_telemetry_complete': True},
+            'unit_cleanup': {'verified': True, 'unit_collected': True},
+            'postflight_decision': {'continuation_allowed': True},
+        }
+        self.assertTrue(pair_runner.arm_result_allows_pair_continuation(receipt))
+        receipt['workload_returncode'] = -15
+        self.assertFalse(pair_runner.arm_result_allows_pair_continuation(receipt))
+        receipt['workload_returncode'] = 0
+        receipt['unit_cleanup']['verified'] = False
+        self.assertFalse(pair_runner.arm_result_allows_pair_continuation(receipt))
+
     def test_terminal_classes_distinguish_oom_and_abort_types(self) -> None:
         self.assertEqual(runner.failure_class(reason='cgroup_oom_event'), 'OOM_ABORT')
         self.assertEqual(runner.failure_class(reason='runtime_timeout'), 'TIMEOUT_ABORT')
         self.assertEqual(runner.failure_class(reason='supervisor_lost'), 'CONTROLLER_CRASH_ABORT')
+        status, reason = runner.contention_completion_status(
+            'WATCHDOG_ABORT', True, True, 0, 'runtime_timeout')
+        self.assertEqual((status, reason), ('WATCHDOG_ABORT', 'runtime_timeout'))
+        self.assertEqual(runner.failure_class(status, reason, returncode=-15), 'TIMEOUT_ABORT')
+        self.assertEqual(runner.failure_class('SIGNAL_EXIT', returncode=-15), 'SIGNAL_EXIT')
 
     def test_missing_host_pressure_and_memavailable_are_optional_observations(self) -> None:
         statvfs = type('StatVfs', (), {'f_bavail': 50_000_000, 'f_frsize': 4096})()
@@ -142,9 +301,81 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(runner.pressure_baseline_failures(state, limits), [])
 
     def test_missing_telemetry_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(prefix='m4-cgroup-empty-') as root, \
+        with tempfile.TemporaryDirectory(prefix='m4-cgroup-empty-', dir=self.output_root) as root, \
                 self.assertRaisesRegex(RuntimeError, 'memory.current'):
             runner.validate_required_cgroup_metrics(pathlib.Path(root))
+
+    def test_read_cgroup_metric_retries_process_exit_race(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='m4-cgroup-exit-race-', dir=self.output_root) as root:
+            cgroup_root = pathlib.Path(root)
+            cg = cgroup_root / 'cgroup'
+            cg.mkdir()
+            for name, value in {
+                'cgroup.procs': '123\n', 'cgroup.events': 'populated 0\n',
+                'memory.current': '0\n', 'memory.peak': '0\n', 'memory.events': 'oom 0\n',
+                'memory.swap.current': '0\n', 'memory.swap.peak': '0\n',
+                'memory.swap.events': 'oom 0\n', 'cpu.stat': 'usage_usec 0\n',
+                'memory.pressure': '', 'io.pressure': '', 'cgroup.controllers': 'cpu memory pids\n',
+            }.items():
+                (cg / name).write_text(value)
+            original_read_text = runner.read_text
+            procs_reads = iter(('123\n', '', '', ''))
+
+            def read_cgroup_file(path):
+                if pathlib.Path(path) == cg / 'cgroup.procs':
+                    return next(procs_reads)
+                return original_read_text(path)
+
+            original_path_read_text = pathlib.Path.read_text
+
+            def read_proc_file(path, *args, **kwargs):
+                if str(path) in ('/proc/123/io', '/proc/123/smaps_rollup'):
+                    raise FileNotFoundError(str(path))
+                return original_path_read_text(path, *args, **kwargs)
+
+            with (
+                mock.patch.object(runner, 'CGROOT', cgroup_root),
+                mock.patch.object(runner, 'read_text', side_effect=read_cgroup_file),
+                mock.patch.object(runner, 'proc_cgroup_contains', return_value=True),
+                mock.patch.object(runner, 'parse_pressure', return_value=None),
+                mock.patch.object(pathlib.Path, 'read_text', read_proc_file),
+            ):
+                metrics = runner.read_cgroup_metric(cg)
+
+        self.assertEqual(metrics['pids'], [])
+        self.assertTrue(metrics['process_io_sample_complete'])
+        self.assertTrue(metrics['process_memory_sample_complete'])
+
+    def test_read_cgroup_metric_stays_incomplete_for_unreadable_live_process(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='m4-cgroup-unreadable-', dir=self.output_root) as root:
+            cgroup_root = pathlib.Path(root)
+            cg = cgroup_root / 'cgroup'
+            cg.mkdir()
+            for name, value in {
+                'cgroup.procs': '123\n', 'cgroup.events': 'populated 1\n',
+                'memory.current': '0\n', 'memory.peak': '0\n', 'memory.events': 'oom 0\n',
+                'memory.swap.current': '0\n', 'memory.swap.peak': '0\n',
+                'memory.swap.events': 'oom 0\n', 'cpu.stat': 'usage_usec 0\n',
+                'memory.pressure': '', 'io.pressure': '', 'cgroup.controllers': 'cpu memory pids\n',
+            }.items():
+                (cg / name).write_text(value)
+            original_path_read_text = pathlib.Path.read_text
+
+            def read_proc_file(path, *args, **kwargs):
+                if str(path) in ('/proc/123/io', '/proc/123/smaps_rollup'):
+                    raise FileNotFoundError(str(path))
+                return original_path_read_text(path, *args, **kwargs)
+
+            with (
+                mock.patch.object(runner, 'CGROOT', cgroup_root),
+                mock.patch.object(runner, 'proc_cgroup_contains', return_value=True),
+                mock.patch.object(runner, 'parse_pressure', return_value=None),
+                mock.patch.object(pathlib.Path, 'read_text', read_proc_file),
+            ):
+                metrics = runner.read_cgroup_metric(cg)
+
+        self.assertFalse(metrics['process_io_sample_complete'])
+        self.assertFalse(metrics['process_memory_sample_complete'])
 
     def test_guard_override_is_blocked_outside_explicit_fixture_mode(self) -> None:
         receipt_dir = self.output_root / 'unapproved-fixture-override'

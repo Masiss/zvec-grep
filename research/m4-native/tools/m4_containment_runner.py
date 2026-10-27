@@ -298,7 +298,66 @@ M4_SCALAR_LATENCY_PURPOSE = 'm4-scalar-open-latency-diagnostic'
 M4_SHARED_COLLECTION_PAIR_PURPOSE = 'm4-shared-collection-pair'
 M4_LOCK_CONTENTION_MICROBENCH_PURPOSE = 'm4-lock-contention-microbench'
 M4_WRITE_AMPLIFICATION_PURPOSE = 'immutable-write-amplification-pair'
+M4_RUST_LIFECYCLE_PURPOSE = 'm4-rust-full-lifecycle-pair'
 M4_SCALAR_OPEN_PURPOSES = frozenset({M4_SCALAR_RESOURCE_PURPOSE, M4_SCALAR_LATENCY_PURPOSE})
+
+
+def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
+    contract = BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
+    operation_id = context.get('operation_id')
+    operation_root = pathlib.Path(context.get('operation_root', '')).resolve()
+    resource_root = pathlib.Path(context.get('resource_root', '')).resolve()
+    order = context.get('execution_order')
+    role = context.get('arm_role')
+    arm_name = 'pair-first' if order and role == order[0] else 'pair-second'
+    arm_root = operation_root / arm_name
+    workspace_root = arm_root / 'workspace'
+    expected_source = workspace_root / 'source'
+    binary_path = pathlib.Path(context.get('binary_path', '')).resolve()
+    expected_resource_controls = contract['resource_controls']
+    zvec_memory_limit = contract['workload'].get('zvec_native_memory_limit_bytes')
+    if (isinstance(zvec_memory_limit, bool) or not isinstance(zvec_memory_limit, int) or
+            zvec_memory_limit <= 0 or zvec_memory_limit >= expected_resource_controls['memory_max_bytes']):
+        raise ValueError('Rust lifecycle Zvec memory setting must be positive and below the cgroup hard cap')
+    if (not isinstance(operation_id, str) or not re.fullmatch(r'm4-rust-lifecycle-pair-[a-z0-9-]{8,48}', operation_id) or
+            operation_root.name != operation_id or not operation_root.is_relative_to(resource_root) or
+            context.get('arm_name') != arm_name or
+            context.get('purpose') != M4_RUST_LIFECYCLE_PURPOSE or
+            context.get('approval_reference') != contract['approval_reference'] or
+            context.get('execution_authorization_reference') != contract['execution_authorization_reference'] or
+            context.get('risk_acceptance_reference') != contract['risk_acceptance_reference'] or
+            context.get('workload') != contract['workload'] or
+            context.get('reader_query_interval_ms') != contract['workload']['reader_query_interval_ms'] or
+            context.get('reader_query_max_samples_per_pass') != contract['workload']['reader_query_max_samples_per_pass'] or
+            context.get('reader_query_queue_capacity') != contract['workload']['reader_query_queue_capacity'] or
+            context.get('zvec_native_memory_limit_bytes') != zvec_memory_limit or
+            context.get('arm_role') not in contract['arm_roles'] or
+            context.get('execution_order') not in contract['arm_orders'] or
+            context.get('resource_root') != contract['resource_root'] or
+            pathlib.Path(context.get('workspace_root', '')).resolve() != workspace_root.resolve() or
+            pathlib.Path(context.get('source_root', '')).resolve() != expected_source.resolve() or
+            pathlib.Path(context.get('index_root', '')).resolve() != (workspace_root / 'index').resolve() or
+            pathlib.Path(context.get('report_path', '')).resolve() != (workspace_root / 'gate-b-report.json').resolve() or
+            pathlib.Path(context.get('temporary_directory', '')).resolve() != (workspace_root / 'tmp').resolve() or
+            binary_path.name != context.get('binary_name') or
+            not binary_path.is_relative_to(pathlib.Path(__file__).resolve().parents[3] / 'rust/target/debug/deps') or
+            not binary_path.is_file() or
+            context.get('binary_sha256') != hashlib.sha256(binary_path.read_bytes()).hexdigest() or
+            context.get('approved_binary_sha256') != context.get('binary_sha256') or
+            context.get('io_pressure_mode') != contract['io_pressure_mode'] or
+            any(context.get(key) != value for key, value in expected_resource_controls.items())):
+        raise ValueError('Rust lifecycle context differs from its explicit bounded exploratory contract')
+    quota = verify_workspace_quota(resource_root, contract['workspace_quota'])
+    proof = context.get('workspace_quota_proof')
+    identity_fields = ('status', 'attestation_path', 'workspace_root', 'filesystem_uuid',
+                       'subvolume_id', 'qgroup_id', 'max_referenced_bytes',
+                       'accounting_mode', 'attestation_sha256')
+    if (not isinstance(proof, dict) or
+            any(quota.get(key) != proof.get(key) for key in identity_fields) or
+            not isinstance(proof.get('live_headroom'), dict) or
+            proof['live_headroom'].get('required_free_bytes') !=
+            contract['workspace_quota'].get('minimum_free_bytes')):
+        raise ValueError('Rust lifecycle context lacks the current root-attested workspace quota proof')
 
 
 def lock_contention_workload(context: dict[str, Any]) -> dict[str, Any]:
@@ -364,7 +423,7 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
     if context.get('policy_sha256') != hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest():
         raise ValueError('contention plan policy identity mismatch')
     operation = context.get('operation_id', '')
-    if not re.fullmatch(r'(?:m4-contention-[a-zA-Z0-9_-]+|m4-scalar-open-(?:rehearsal|latency-diagnostic)-[a-zA-Z0-9_-]+|m4-shared-collection-pair-[a-zA-Z0-9_-]+|m4-lock-contention-microbench-[a-zA-Z0-9_-]+|m4-write-amplification-pair-[a-zA-Z0-9_-]+)', operation):
+    if not re.fullmatch(r'(?:m4-contention-[a-zA-Z0-9_-]+|m4-scalar-open-(?:rehearsal|latency-diagnostic)-[a-zA-Z0-9_-]+|m4-shared-collection-pair-[a-zA-Z0-9_-]+|m4-lock-contention-microbench-[a-zA-Z0-9_-]+|m4-write-amplification-pair-[a-zA-Z0-9_-]+|m4-rust-lifecycle-pair-[a-zA-Z0-9_-]+)', operation):
         raise ValueError('invalid contention operation_id')
     for key in ('operation_root', 'resource_root'):
         if str(pathlib.Path(context[key]).resolve()) != context[key]:
@@ -389,6 +448,8 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
                 context.get('binary_sha256') != hashlib.sha256(binary_path.read_bytes()).hexdigest() or
                 context.get('approved_binary_sha256') != context.get('binary_sha256')):
             raise ValueError('M4 scalar-open mode requires exact 84-open workload and pinned binary identity')
+    elif context.get('purpose') == M4_RUST_LIFECYCLE_PURPOSE:
+        validate_rust_lifecycle_context(context)
     elif context.get('purpose') == M4_SHARED_COLLECTION_PAIR_PURPOSE:
         contract = BENCHMARK_POLICY['shared_collection_pair']
         binary_path = pathlib.Path(context.get('binary_path', '')).resolve()
@@ -640,6 +701,21 @@ def write_amplification_phase_role(context: dict[str, Any], arm_name: str) -> st
     return order[phase_index] if phase_index is not None and len(order) == 2 else None
 
 
+def rust_lifecycle_expected_environment(context: dict[str, Any]) -> dict[str, str]:
+    return {
+        'M4_GATE_B_ARM': context['arm_role'],
+        'M4_GATE_B_WORKSPACE': str(pathlib.Path(context['source_root']).resolve()),
+        'M4_GATE_B_INDEX_ROOT': str(pathlib.Path(context['index_root']).resolve()),
+        'M4_GATE_B_REPORT': str(pathlib.Path(context['report_path']).resolve()),
+        'TMPDIR': str(pathlib.Path(context['temporary_directory']).resolve()),
+        'LD_LIBRARY_PATH': context['library_path'],
+        'M4_GATE_B_READER_QUERY_INTERVAL_MS': str(context['reader_query_interval_ms']),
+        'M4_GATE_B_READER_QUERY_MAX_SAMPLES': str(context['reader_query_max_samples_per_pass']),
+        'M4_GATE_B_READER_QUERY_QUEUE_CAPACITY': str(context['reader_query_queue_capacity']),
+        'ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES': str(context['zvec_native_memory_limit_bytes']),
+    }
+
+
 def contention_budget(context: dict[str, Any]) -> dict[str, Any]:
     validate_contention_context(context)
     budget = {key: context[key] for key in ('approval_reference', 'memory_max_bytes',
@@ -648,7 +724,8 @@ def contention_budget(context: dict[str, Any]) -> dict[str, Any]:
     if 'purpose' in context:
         budget['purpose'] = context['purpose']
     if context.get('purpose') in (M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
-                                   M4_WRITE_AMPLIFICATION_PURPOSE):
+                                   M4_WRITE_AMPLIFICATION_PURPOSE,
+                                   M4_RUST_LIFECYCLE_PURPOSE):
         budget['workspace_quota_proof'] = context['workspace_quota_proof']
     return budget
 
@@ -760,7 +837,8 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
                 'some_avg10_percent': ((state.get('io_pressure') or {}).get('some') or {}).get('avg10'),
                 'disposition': 'observational-only; elevated, missing or arm-mismatched host pressure is not an admission/abort/recovery gate',
             } if context.get('purpose') in (M4_SHARED_COLLECTION_PAIR_PURPOSE,
-                                                M4_LOCK_CONTENTION_MICROBENCH_PURPOSE) else None)}
+                                                M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
+                                                M4_RUST_LIFECYCLE_PURPOSE) else None)}
 
 
 def m4_scalar_rehearsal_host_observation(state: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
@@ -885,36 +963,48 @@ def read_cgroup_metric(cg: pathlib.Path) -> dict[str, Any]:
     missing = [name for name in required if not (cg / name).is_file()]
     if missing:
         raise RuntimeError('missing required cgroup telemetry: ' + ', '.join(missing))
-    pids = [int(x) for x in read_text(cg / 'cgroup.procs').splitlines() if x.strip()]
-    proc_io_read = 0
-    proc_io_write = 0
-    proc_io_complete = True
-    proc_pss = proc_rss = proc_swap = 0
-    proc_memory_complete = True
     expected_rel = str(cg.relative_to(CGROOT))
-    for pid in pids:
-        try:
-            if not proc_cgroup_contains(pid, expected_rel):
-                proc_io_complete = proc_memory_complete = False
-                continue
-            values = parse_kv(pathlib.Path(f'/proc/{pid}/io').read_text())
-            if 'read_bytes' not in values or 'write_bytes' not in values:
-                proc_io_complete = False
-            proc_io_read += values.get('read_bytes', 0)
-            proc_io_write += values.get('write_bytes', 0)
-        except (FileNotFoundError, ProcessLookupError, PermissionError):
-            # A process may exit between cgroup.procs and /proc reads.
-            proc_io_complete = False
-        try:
-            smaps = pathlib.Path(f'/proc/{pid}/smaps_rollup').read_text().splitlines()
-            memory = {line.split(':', 1)[0]: int(line.split()[1])
-                      for line in smaps if ':' in line and len(line.split()) >= 2
-                      and line.split()[1].isdigit()}
-            proc_pss += memory['Pss']
-            proc_rss += memory['Rss']
-            proc_swap += memory.get('Swap', 0)
-        except (FileNotFoundError, ProcessLookupError, PermissionError, KeyError, ValueError):
-            proc_memory_complete = False
+    # cgroup.procs and /proc are separate snapshots. Retry a bounded number of
+    # times if membership changes while reading process counters; persistent
+    # churn or unreadable live members remains incomplete and fail-closed.
+    proc_io_read = proc_io_write = 0
+    proc_io_complete = proc_memory_complete = False
+    proc_pss = proc_rss = proc_swap = 0
+    pids: list[int] = []
+    for _attempt in range(3):
+        pids = [int(x) for x in read_text(cg / 'cgroup.procs').splitlines() if x.strip()]
+        attempt_io_read = attempt_io_write = 0
+        attempt_pss = attempt_rss = attempt_swap = 0
+        attempt_io_complete = attempt_memory_complete = True
+        for pid in pids:
+            try:
+                if not proc_cgroup_contains(pid, expected_rel):
+                    attempt_io_complete = attempt_memory_complete = False
+                    continue
+                values = parse_kv(pathlib.Path(f'/proc/{pid}/io').read_text())
+                if 'read_bytes' not in values or 'write_bytes' not in values:
+                    attempt_io_complete = False
+                attempt_io_read += values.get('read_bytes', 0)
+                attempt_io_write += values.get('write_bytes', 0)
+            except (FileNotFoundError, ProcessLookupError, PermissionError):
+                attempt_io_complete = False
+            try:
+                smaps = pathlib.Path(f'/proc/{pid}/smaps_rollup').read_text().splitlines()
+                memory = {line.split(':', 1)[0]: int(line.split()[1])
+                          for line in smaps if ':' in line and len(line.split()) >= 2
+                          and line.split()[1].isdigit()}
+                attempt_pss += memory['Pss']
+                attempt_rss += memory['Rss']
+                attempt_swap += memory.get('Swap', 0)
+            except (FileNotFoundError, ProcessLookupError, PermissionError, KeyError, ValueError):
+                attempt_memory_complete = False
+        after_pids = [int(x) for x in read_text(cg / 'cgroup.procs').splitlines() if x.strip()]
+        if after_pids == pids:
+            proc_io_read, proc_io_write = attempt_io_read, attempt_io_write
+            proc_pss, proc_rss, proc_swap = attempt_pss, attempt_rss, attempt_swap
+            proc_io_complete, proc_memory_complete = attempt_io_complete, attempt_memory_complete
+            break
+        pids = after_pids
     events = parse_kv(read_text(cg / 'memory.events'))
     memory_stat_path = cg / 'memory.stat'
     memory_stat = parse_kv(read_text(memory_stat_path)) if memory_stat_path.is_file() else None
@@ -1101,10 +1191,19 @@ def workspace_usage(root: pathlib.Path) -> dict[str, Any]:
     }
 
 
+def registered_workspace_quota_contract(budget: dict[str, Any] | None) -> dict[str, Any] | None:
+    purpose = (budget or {}).get('purpose')
+    if purpose == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE:
+        return BENCHMARK_POLICY['lock_contention_microbench'].get('workspace_quota')
+    if purpose == M4_RUST_LIFECYCLE_PURPOSE:
+        return BENCHMARK_POLICY['rust_pipeline_lifecycle_pair'].get('workspace_quota')
+    return None
+
+
 def workspace_quota_bound_bytes(budget: dict[str, Any] | None) -> int | None:
     proof = (budget or {}).get('workspace_quota_proof')
-    contract = BENCHMARK_POLICY['lock_contention_microbench'].get('workspace_quota', {})
-    if (not isinstance(proof, dict) or proof.get('status') != 'VERIFIED' or
+    contract = registered_workspace_quota_contract(budget)
+    if (not isinstance(contract, dict) or not isinstance(proof, dict) or proof.get('status') != 'VERIFIED' or
             proof.get('attestation_path') != contract.get('attestation_path') or
             proof.get('workspace_root') != contract.get('workspace_subvolume') or
             proof.get('filesystem_uuid') != contract.get('filesystem_uuid') or
@@ -1117,47 +1216,156 @@ def workspace_quota_bound_bytes(budget: dict[str, Any] | None) -> int | None:
     return contract['max_referenced_bytes']
 
 
+def workspace_quota_live_sample(budget: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Read kernel-maintained qgroup headroom for a previously verified contract."""
+    contract = registered_workspace_quota_contract(budget)
+    if contract is None or workspace_quota_bound_bytes(budget) is None:
+        return None
+    try:
+        headroom = verify_workspace_quota_headroom(contract)
+        return {'status': 'PASS', **headroom}
+    except (OSError, ValueError) as exc:
+        return {'status': 'UNVERIFIABLE', 'error': str(exc)}
+
+
+def workspace_quota_bounded_observation(root: pathlib.Path) -> dict[str, Any]:
+    """Cheap scope check when an exact registered qgroup is the capacity bound.
+
+    It intentionally does not claim a workspace inventory. The caller must retain
+    the qgroup sample separately and classify soft workspace budgets UNKNOWN.
+    """
+    started = time.monotonic_ns()
+    root_stat = None
+    issues: list[dict[str, Any]] = []
+    try:
+        root_stat = root.lstat()
+        if not stat.S_ISDIR(root_stat.st_mode):
+            issues.append({'path': str(root), 'kind': 'SCOPE_UNVERIFIABLE',
+                           'detail': 'workspace root is not a real directory', 'known_race': False})
+    except OSError as exc:
+        issues.append({'path': str(root), 'kind': 'ROOT_OR_TRAVERSAL_ERROR',
+                       'detail': str(exc), 'known_race': False})
+    complete_scope = not issues
+    return {
+        'schema_version': 3, 'root': str(root),
+        'root_identity': None if root_stat is None else [root_stat.st_dev, root_stat.st_ino],
+        'apparent_bytes': None, 'allocated_st_blocks_bytes_gross': None,
+        'allocated_semantics': 'not sampled; kernel qgroup is the independent capacity bound',
+        'file_count': None, 'directory_count': None, 'symlink_count': None,
+        'generation_directory_names': None, 'generation_apparent_bytes': None,
+        'staging_named_apparent_bytes': None, 'scan_duration_ns': time.monotonic_ns() - started,
+        'entries_observed': 0, 'scan_complete': False,
+        'scan_errors': [f"{item['path']}: {item['detail']}" for item in issues],
+        'inventory_status': 'NOT_SAMPLED_KERNEL_QUOTA_BOUND' if complete_scope else 'UNVERIFIABLE',
+        'complete_snapshot': False, 'issues': issues, 'issue_count': len(issues),
+        'mutation_observer': 'not sampled; registered kernel qgroup is the capacity bound',
+        'independent_capacity_upper_bound': None, 'verified_peak': None,
+        'reservation_credit_bytes': 0,
+        'limitations': 'Workspace inventory and soft-budget peaks are UNKNOWN; qgroup capacity proof covers only its registered Btrfs subvolume and is not physical-device usage.'}
+
+
 def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, Any] | None,
-                                policy_mode: str = 'legacy') -> dict[str, Any]:
-    """Combine sampled observations with any independently verified hard-quota bound."""
+                                policy_mode: str = 'legacy',
+                                quota_sample: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Combine inventory observations with an exact registered kernel quota bound."""
     if not isinstance(observation.get('scan_complete'), bool):
         raise ValueError('missing/invalid workspace scan completeness')
     for key in ('allocated_st_blocks_bytes_gross', 'apparent_bytes'):
         value = observation.get(key)
+        if value is None and not observation['scan_complete']:
+            continue
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError('missing/invalid workspace counter: ' + key)
     if policy_mode == CONTENTION_MODE:
-        contract = BENCHMARK_POLICY['workspace_observer']['contention_aware']
-        if contract['enforcement'] != 'monitored-soft-budgets':
+        observer_contract = BENCHMARK_POLICY['workspace_observer']['contention_aware']
+        if observer_contract['enforcement'] != 'monitored-soft-budgets':
             raise ValueError('unknown exploratory workspace contract')
         warnings = []
+        indeterminate_overages = []
         for key, limit_key in (('allocated_st_blocks_bytes_gross', 'workspace_max_allocated_bytes'),
                                ('apparent_bytes', 'workspace_max_apparent_bytes')):
             limit = (budget or {}).get(limit_key)
-            if limit is not None and observation[key] > limit:
-                warnings.append({'metric': key, 'observed_bytes': observation[key], 'budget_bytes': limit,
-                                 'excess_bytes': observation[key] - limit, 'scan_complete': observation['scan_complete']})
-        known_race = observation.get('inventory_status') == contract['race_continuation_inventory_status']
-        # Readable-after-drain is not an observed overflow/unmount: it can be a
-        # new event from a writer still running. Keep the raw UNVERIFIABLE row;
-        # accept only this exact accounting uncertainty, never scope/I/O errors.
+            value = observation.get(key)
+            if limit is None:
+                continue
+            if isinstance(value, int) and not isinstance(value, bool) and value > limit:
+                overage = {'metric': key, 'observed_bytes': value, 'budget_bytes': limit,
+                           'excess_bytes': value - limit, 'scan_complete': observation['scan_complete']}
+                (warnings if observation['scan_complete'] else indeterminate_overages).append(overage)
+            elif value is None:
+                indeterminate_overages.append({'metric': key, 'observed_bytes': None,
+                                               'budget_bytes': limit, 'excess_bytes': None,
+                                               'scan_complete': False, 'reason': 'inventory_not_sampled'})
+        known_race = observation.get('inventory_status') == observer_contract['race_continuation_inventory_status']
         issues = observation.get('issues', [])
-        pending = contract['pending_event_drain_issue']
+        pending = observer_contract['pending_event_drain_issue']
         pending_only = (observation.get('root_identity') is not None and bool(issues)
                         and observation.get('issue_count') == len(issues)
                         and all(item.get('known_race') is True or
                                 (item.get('kind') == pending['kind'] and item.get('detail') == pending['detail'])
                                 for item in issues))
-        tolerated_uncertainty = known_race or pending_only
         quota_bound = workspace_quota_bound_bytes(budget)
+        purpose = (budget or {}).get('purpose')
+        quota_contract = registered_workspace_quota_contract(budget)
+        quota_valid = False
+        if quota_bound is not None and quota_contract is not None and quota_sample is not None:
+            referenced = quota_sample.get('referenced_bytes')
+            maximum = quota_sample.get('max_referenced_bytes')
+            available = quota_sample.get('available_bytes')
+            required = quota_sample.get('required_free_bytes')
+            if (quota_sample.get('status') == 'PASS'
+                    and isinstance(referenced, int) and not isinstance(referenced, bool) and referenced >= 0
+                    and isinstance(maximum, int) and not isinstance(maximum, bool)
+                    and isinstance(available, int) and not isinstance(available, bool)
+                    and isinstance(required, int) and not isinstance(required, bool)):
+                quota_valid = (
+                    maximum == quota_bound
+                    and available == maximum - referenced
+                    and required == quota_contract.get('minimum_free_bytes')
+                    and available >= required
+                )
+        quota_required = quota_bound is not None
+        rust_quota_fallback = purpose == M4_RUST_LIFECYCLE_PURPOSE and quota_required
+        if quota_required and not quota_valid:
+            return {'state': 'CAPACITY_UNVERIFIABLE', 'continuation_allowed': False,
+                    'reason': 'workspace_quota_telemetry_unverified',
+                    'inventory_status': observation.get('inventory_status'),
+                    'errors': observation.get('scan_errors', []),
+                    'independent_capacity_upper_bound': quota_bound}
+        budget_only_failure = (
+            observation.get('root_identity') is not None and bool(issues)
+            and observation.get('issue_count') == len(issues)
+            and all(item.get('kind') == 'WORK_BUDGET_EXHAUSTED' for item in issues)
+        )
+        quota_only_inventory = (
+            rust_quota_fallback and quota_valid
+            and observation.get('inventory_status') == 'NOT_SAMPLED_KERNEL_QUOTA_BOUND'
+            and observation.get('root_identity') is not None and not issues
+        )
+        quota_bound_inventory_failure = rust_quota_fallback and quota_valid and budget_only_failure
+        tolerated_uncertainty = known_race or pending_only or quota_only_inventory or quota_bound_inventory_failure
+        continuation_allowed = observation['scan_complete'] or tolerated_uncertainty
+        if quota_only_inventory:
+            continuation_basis = 'VERIFIED_KERNEL_QGROUP; INVENTORY_AND_SOFT_BUDGETS_UNKNOWN'
+        elif quota_bound_inventory_failure:
+            continuation_basis = 'VERIFIED_KERNEL_QGROUP; WALK_BUDGET_EXHAUSTED; INVENTORY_UNKNOWN'
+        elif known_race or pending_only:
+            continuation_basis = 'OWNER_APPROVED_MUTATION_ACCOUNTING_UNCERTAINTY'
+        else:
+            continuation_basis = None
         return {'state': ('SOFT_BUDGET_EXCEEDED' if warnings else 'SAMPLED_SOFT_BUDGET_NOT_EXCEEDED')
                         if observation['scan_complete'] else 'UNKNOWN',
-                'continuation_allowed': observation['scan_complete'] or tolerated_uncertainty,
-                'reason': None if observation['scan_complete'] or tolerated_uncertainty else 'workspace_capacity_unverifiable',
+                'continuation_allowed': continuation_allowed,
+                'reason': None if continuation_allowed else 'workspace_capacity_unverifiable',
+                'continuation_basis': continuation_basis,
                 'inventory_status': observation.get('inventory_status'),
-                'measurement_quality': ('HARD_QUOTA_BOUND' if quota_bound is not None else
+                'measurement_quality': ('HARD_QUOTA_BOUND' if quota_valid else
                                         'COMPLETE_TRAVERSAL_NOT_PROOF' if observation['scan_complete'] else 'INCOMPLETE'),
-                'warnings': warnings, 'errors': observation.get('scan_errors', []),
+                'warnings': warnings,
+                'indeterminate_overages': indeterminate_overages,
+                'errors': observation.get('scan_errors', []),
+                'workspace_inventory_complete': observation['scan_complete'],
+                'kernel_quota_sample': quota_sample,
                 'proof_semantics': ('root-attested Btrfs squota max-referenced bound; not a physical-device bound; retained-disk reserve remains enforced'
                                      if quota_bound is not None else
                                      'owner-approved monitored soft budgets only; NOT hard enforcement/capacity proof'),
@@ -1168,9 +1376,10 @@ def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, A
             ('allocated_st_blocks_bytes_gross', 'workspace_max_allocated_bytes', 'workspace_allocated_watchdog'),
             ('apparent_bytes', 'workspace_max_apparent_bytes', 'workspace_apparent_watchdog')):
         limit = (budget or {}).get(limit_key)
-        if limit is not None and observation[key] > limit:
+        value = observation.get(key)
+        if limit is not None and isinstance(value, int) and not isinstance(value, bool) and value > limit:
             return {'state': 'OBSERVED_LIMIT_EXCEEDED', 'continuation_allowed': False,
-                    'reason': reason, 'observed_bytes': observation[key], 'limit_bytes': limit,
+                    'reason': reason, 'observed_bytes': value, 'limit_bytes': limit,
                     'proof_semantics': 'sampled aggregate breach; not an atomic/coexisting inventory proof'}
     if not observation['scan_complete']:
         return {'state': 'CAPACITY_UNVERIFIABLE', 'continuation_allowed': False,
@@ -1399,26 +1608,33 @@ def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
                 'command_done_marker', 'watchdog_ready_path', 'socket_dir', 'pressure_limits'):
         if key not in config:
             raise ValueError(f'watchdog config missing {key}')
+    validate_watchdog_operation_binding(config)
+    return config
+
+
+def validate_watchdog_operation_binding(config: dict[str, Any]) -> dict[str, Any]:
     context = config.get('policy_context')
     if (config.get('policy_mode') == CONTENTION_MODE) != (context is not None):
         raise ValueError('watchdog policy mode/context mismatch')
-    if context is not None:
-        validate_contention_context(context)
-        arm = config.get('arm_name')
-        expected = pathlib.Path(context['operation_root']) / str(arm) / 'containment'
-        allowed_arms = (('pair-first', 'pair-second')
-                        if context.get('purpose') in (M4_SHARED_COLLECTION_PAIR_PURPOSE,
-                                                       M4_WRITE_AMPLIFICATION_PURPOSE)
-                        else ('microbench',) if context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
-                        else ('aa-first', 'aa-second'))
-        if (arm not in allowed_arms or
-                pathlib.Path(config['watchdog_output']).resolve() != expected or
-                str(pathlib.Path(config['resource_root']).resolve()) != context['resource_root'] or
-                not config.get('enforce_host_gates', True) or
-                config.get('budget') != contention_budget(context) or
-                config['runtime_limit_seconds'] != context['runtime_limit_seconds'] or
-                config.get('policy_context_digest') != contention_context_digest(context)):
-            raise ValueError('watchdog contention context/budget/operation binding mismatch')
+    if context is None:
+        return config
+    validate_contention_context(context)
+    arm = config.get('arm_name')
+    expected = pathlib.Path(context['operation_root']) / str(arm) / 'containment'
+    allowed_arms = (('pair-first', 'pair-second')
+                    if context.get('purpose') in (M4_SHARED_COLLECTION_PAIR_PURPOSE,
+                                                   M4_WRITE_AMPLIFICATION_PURPOSE,
+                                                   M4_RUST_LIFECYCLE_PURPOSE)
+                    else ('microbench',) if context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
+                    else ('aa-first', 'aa-second'))
+    if (arm not in allowed_arms or
+            pathlib.Path(config['watchdog_output']).resolve() != expected or
+            str(pathlib.Path(config['resource_root']).resolve()) != context['resource_root'] or
+            not config.get('enforce_host_gates', True) or
+            config.get('budget') != contention_budget(context) or
+            config['runtime_limit_seconds'] != context['runtime_limit_seconds'] or
+            config.get('policy_context_digest') != contention_context_digest(context)):
+        raise ValueError('watchdog contention context/budget/operation binding mismatch')
     return config
 
 
@@ -1476,12 +1692,22 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 break
             cgroup_row = read_cgroup_metric(cg)
             host_row = host_snapshot(resource_root)
-            work_row = workspace_usage(workspace)
-            workspace_decision = workspace_capacity_decision(work_row, config.get('budget'), config.get('policy_mode', 'legacy'))
+            budget = config.get('budget')
+            quota_sample = workspace_quota_live_sample(budget)
+            policy_context = config.get('policy_context')
+            if (policy_context is not None
+                    and policy_context.get('purpose') == M4_RUST_LIFECYCLE_PURPOSE
+                    and workspace_quota_bound_bytes(budget) is not None):
+                work_row = workspace_quota_bounded_observation(workspace)
+            else:
+                work_row = workspace_usage(workspace)
+            workspace_decision = workspace_capacity_decision(
+                work_row, budget, config.get('policy_mode', 'legacy'), quota_sample)
             row = {
                 'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
                 'elapsed_ns': None if started_ns is None else time.monotonic_ns() - started_ns,
                 'cgroup': cgroup_row, 'host': host_row, 'workspace': work_row,
+                'workspace_quota': quota_sample,
                 'workspace_capacity_decision': workspace_decision,
             }
             if config.get('policy_context') is not None:
@@ -1611,6 +1837,12 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     )
     workspace_samples_complete = bool(samples) and all(r['workspace']['scan_complete'] for r in samples)
     workspace_quota_bound = workspace_quota_bound_bytes(config.get('budget'))
+    workspace_quota_rows = [r.get('workspace_quota') for r in samples]
+    workspace_quota_samples_complete = (
+        workspace_quota_bound is None
+        or bool(workspace_quota_rows and all(
+            isinstance(row, dict) and row.get('status') == 'PASS' for row in workspace_quota_rows))
+    )
     complete_workspace_rows = [r['workspace'] for r in samples if r['workspace']['scan_complete']]
     memory_stat_rows = [r['cgroup']['memory_stat_bytes'] for r in samples
                         if isinstance(r['cgroup'].get('memory_stat_bytes'), dict)]
@@ -1618,25 +1850,41 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     summary = {
         'schema_version': SCHEMA_VERSION, 'samples': len(samples),
         'workspace_samples_complete': workspace_samples_complete,
-        'workspace_accounting_status': 'SAMPLED_NOT_PROOF' if workspace_samples_complete else 'UNKNOWN',
+        'workspace_accounting_status': ('SAMPLED_NOT_PROOF' if workspace_samples_complete else
+                                        'UNKNOWN_INVENTORY_KERNEL_QUOTA_BOUND' if workspace_quota_samples_complete and workspace_quota_bound is not None else
+                                        'UNKNOWN'),
         'workspace_capacity_upper_bound_bytes': workspace_quota_bound,
+        'workspace_quota_samples_complete': workspace_quota_samples_complete,
+        'workspace_quota_referenced_peak_bytes': max(
+            (row['referenced_bytes'] for row in workspace_quota_rows
+             if isinstance(row, dict) and row.get('status') == 'PASS'), default=None),
+        'workspace_quota_minimum_headroom_bytes': min(
+            (row['available_bytes'] for row in workspace_quota_rows
+             if isinstance(row, dict) and row.get('status') == 'PASS'), default=None),
         'workspace_capacity_bound_semantics': ('root-attested Btrfs squota max referenced bytes; excludes host/global metadata/chunk overhead'
                                                if workspace_quota_bound is not None else None),
         'workspace_soft_budget_warning_samples': sum(bool(r['workspace_capacity_decision'].get('warnings')) for r in samples),
-        'hard_safety_telemetry_complete': bool(samples and process_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error')),
-        'workspace_snapshot_semantics': 'sampled traversals, NOT atomic snapshots or verified lifetime peaks',
+        'workspace_soft_budget_indeterminate_samples': sum(bool(r['workspace_capacity_decision'].get('indeterminate_overages')) for r in samples),
+        'hard_safety_telemetry_complete': bool(
+            samples and process_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error')
+            and workspace_quota_samples_complete),
+        'workspace_snapshot_semantics': ('sampled traversal, NOT atomic snapshot or verified lifetime peak'
+                                         if workspace_samples_complete else
+                                         'workspace inventory NOT sampled; live qgroup capacity samples only; soft-budget peaks UNKNOWN'),
         'workspace_verified_peak': None,
         'max_observed_complete_traversal_apparent_bytes': max((w['apparent_bytes'] for w in complete_workspace_rows), default=None),
         'max_observed_complete_traversal_allocated_bytes': max((w['allocated_st_blocks_bytes_gross'] for w in complete_workspace_rows), default=None),
         'policy_mode': config.get('policy_mode', 'legacy'),
         'policy_context_digest': config.get('policy_context_digest'),
-        'measurement_quality': ('HARD_QUOTA_BOUND' if samples and process_samples_complete and workspace_quota_bound is not None and isinstance(final_cgroup, dict) and not final_cgroup.get('error') else
+        'measurement_quality': ('HARD_QUOTA_BOUND' if samples and process_samples_complete and workspace_quota_bound is not None and workspace_quota_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error') else
                                 'COMPLETE' if samples and process_samples_complete and workspace_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error') else
                                 'INCOMPLETE'),
         'process_tree_samples_complete': process_samples_complete,
         'safety_outcome': 'ABORTED_CONTAINED' if abort is not None else 'WATCHDOG_COMPLETED_NO_ABORT',
         'sample_interval_ms_requested': config['sample_interval_ms'],
-        'sampling_scope': 'external watchdog; workspace scans are sampled and may miss short-lived files',
+        'sampling_scope': ('external watchdog; workspace scans are sampled and may miss short-lived files'
+                           if workspace_samples_complete else
+                           'external watchdog; live kernel qgroup capacity sampled; workspace inventory and soft-budget peaks UNKNOWN'),
         'abort': abort, 'final_cgroup': final_cgroup,
         'workspace_shared_extent_inspection': fiemap,
         'peak_sampled_workspace_apparent_bytes': max((w['apparent_bytes'] for w in complete_workspace_rows), default=None) if workspace_samples_complete else None,
@@ -1791,13 +2039,15 @@ def retire_unit(unit: str, cg: pathlib.Path | None, receipt_dir: pathlib.Path,
 
 
 def contention_completion_status(status: str, hard_complete: bool, measurement_complete: bool,
-                                workspace_warning_samples: int) -> tuple[str, str | None]:
+                                workspace_warning_samples: int,
+                                reason: str | None = None,
+                                workspace_samples_complete: bool = True) -> tuple[str, str | None]:
     """Keep workspace caveats distinct from PASS in exploratory receipts."""
     if status != 'PASS':
-        return status, None
+        return status, reason
     if not hard_complete:
         return 'TELEMETRY_INCOMPLETE', 'incomplete required contention safety/process telemetry'
-    if not measurement_complete:
+    if not measurement_complete or not workspace_samples_complete:
         return 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'workspace accounting INCOMPLETE/UNKNOWN'
     if workspace_warning_samples:
         return 'COMPLETED_WITH_WORKSPACE_WARNINGS', 'workspace soft budget exceeded; see raw warnings'
@@ -1820,6 +2070,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         m4_shared_pair = policy_context.get('purpose') == M4_SHARED_COLLECTION_PAIR_PURPOSE
         m4_lock_microbench = policy_context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
         m4_write_amplification = policy_context.get('purpose') == M4_WRITE_AMPLIFICATION_PURPOSE
+        m4_rust_lifecycle = policy_context.get('purpose') == M4_RUST_LIFECYCLE_PURPOSE
         expected_flag = ('--m4-scalar-open-latency-diagnostic' if m4_latency
                          else '--m4-scalar-open-resource-rehearsal')
         binary_path = pathlib.Path(policy_context.get('binary_path', '')).resolve()
@@ -1851,6 +2102,20 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                                 str(contract_workload['rounds'])] and
                 not pathlib.Path(command[1]).exists() and
                 hashlib.sha256(binary_path.read_bytes()).hexdigest() == policy_context['binary_sha256'])
+        elif m4_rust_lifecycle:
+            expected_workspace = pathlib.Path(policy_context['workspace_root']).resolve()
+            expected_binary = pathlib.Path(policy_context['binary_path']).resolve()
+            expected_command = [str(expected_binary), '--exact', policy_context['workload']['test_name'], '--ignored', '--nocapture']
+            expected_env = rust_lifecycle_expected_environment(policy_context)
+            command_bound = (
+                command == expected_command and cwd.resolve() == expected_workspace and
+                (env or {}) == expected_env and expected_workspace.is_dir() and
+                pathlib.Path(policy_context['source_root']).is_dir() and
+                not pathlib.Path(policy_context['index_root']).exists() and
+                not pathlib.Path(policy_context['report_path']).exists() and
+                pathlib.Path(policy_context['temporary_directory']).is_dir() and
+                pathlib.Path(policy_context['binary_path']).is_file() and
+                hashlib.sha256(expected_binary.read_bytes()).hexdigest() == policy_context['binary_sha256'])
         elif m4_write_amplification:
             workload = policy_context['workload']
             role = policy_context['arm_role']
@@ -1911,7 +2176,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 not enforce_host_gates or budget != contention_budget(policy_context) or
                 runtime_seconds != policy_context['runtime_limit_seconds'] or
                 not command_bound or
-                ((rehearsal or m4_scalar_open or m4_shared_pair or m4_lock_microbench or m4_write_amplification) and cwd.resolve() != workspace_root.resolve()) or
+                ((rehearsal or m4_scalar_open or m4_shared_pair or m4_lock_microbench or m4_write_amplification or m4_rust_lifecycle) and cwd.resolve() != workspace_root.resolve()) or
                 (env or {}).get('LD_PRELOAD') or any(k.startswith('M4_FAULT') for k in (env or {}))):
             raise ValueError('contained arm contention operation/command/budget binding mismatch')
     if not command:
@@ -1923,8 +2188,11 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
     workspace_root = workspace_root.resolve(strict=True)
     cwd = cwd.resolve(strict=True)
     if (policy_context is not None and
-            policy_context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE):
-        quota_contract = BENCHMARK_POLICY['lock_contention_microbench']['workspace_quota']
+            policy_context.get('purpose') in (M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
+                                               M4_RUST_LIFECYCLE_PURPOSE)):
+        quota_contract = (BENCHMARK_POLICY['lock_contention_microbench']['workspace_quota']
+                          if policy_context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
+                          else BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']['workspace_quota'])
         verified_quota = verify_workspace_quota(resource_root, quota_contract)
         proof = policy_context.get('workspace_quota_proof')
         identity_fields = ('status', 'attestation_path', 'workspace_root', 'filesystem_uuid',
@@ -2121,7 +2389,11 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         applied = apply_budget(cg, budget)
         if policy_context is not None:
             verify_contention_caps(cg, policy_context)
-            applied['workspace_limits'] = 'monitored-soft-budgets; warnings only; no kernel/filesystem quota'
+            applied['workspace_limits'] = ('monitored soft inventory budgets; exact registered kernel qgroup is an independent hard capacity bound'
+                                           if policy_context.get('purpose') in (
+                                               M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
+                                               M4_RUST_LIFECYCLE_PURPOSE)
+                                           else 'monitored-soft-budgets; warnings only; no kernel/filesystem quota')
         wconfig = {
             'cgroup_path': str(cg), 'cgroup_rel': expected_path,
             'workspace_root': str(workspace_root), 'resource_root': str(resource_root),
@@ -2273,7 +2545,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                                     summary.get('measurement_quality') in {'COMPLETE', 'HARD_QUOTA_BOUND'})
             status, reason = contention_completion_status(
                 status, hard_complete, measurement_complete,
-                summary.get('workspace_soft_budget_warning_samples', 0))
+                summary.get('workspace_soft_budget_warning_samples', 0), reason,
+                summary.get('workspace_samples_complete') is True)
         completed_statuses = {'PASS', 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'COMPLETED_WITH_WORKSPACE_WARNINGS'}
         measurement_quality = ('HARD_QUOTA_BOUND' if measurement_complete and
                                workspace_quota_bound_bytes(budget) is not None else
@@ -2334,10 +2607,13 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         if policy_context is not None:
             phase = 'runtime-first' if arm_name in ('aa-first', 'pair-first') else 'runtime-second'
             post_workspace = workspace_usage(workspace_root)
-            post_workspace_decision = workspace_capacity_decision(post_workspace, budget, CONTENTION_MODE)
+            post_quota_sample = workspace_quota_live_sample(budget)
+            post_workspace_decision = workspace_capacity_decision(
+                post_workspace, budget, CONTENTION_MODE, post_quota_sample)
             post_decision = contention_decision(post_state, policy_context, phase,
                                                 workspace_reservation_credit(post_workspace))
             result['postflight_workspace'] = post_workspace
+            result['postflight_workspace_quota'] = post_quota_sample
             result['postflight_workspace_capacity'] = post_workspace_decision
             result['postflight_decision'] = post_decision
             if status in completed_statuses:

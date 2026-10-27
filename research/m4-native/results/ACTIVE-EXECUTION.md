@@ -1,12 +1,16 @@
 # Active M4 execution checkpoint
 
-## Current milestone — M4 recovery and execution planning (2026-10-27)
+## Current milestone — Gate 1 measurement integrity and Gate 2 selective-fence evidence (2026-10-27)
 
-**Planning complete; execution not authorized by this milestone.** The source-first execution plan, dependency order, gate exit criteria, measurement-integrity requirements, architecture decision framework and explicit production boundary are in [`M4-RECOVERY-EXECUTION-PLAN-20261027.md`](M4-RECOVERY-EXECUTION-PLAN-20261027.md). No code, tests, benchmark, or containment launch was performed to create that plan.
+**Gate 1 infrastructure PASS for a bounded diagnostic setup; Gate 2 PASS for the tested research cases, not exhaustive qualification. Gate 3 NOT RUN; Gate 4 remains open; Gate 5 is outside current authority. Overall: PARTIAL / OWNER_DECISION_REQUIRED, not production GO.** The implementation and evidence are in [`M4-RECOVERY-GATE-1-2-20261027.md`](M4-RECOVERY-GATE-1-2-20261027.md).
 
-Current evidence status remains **Gate A PASS only in research scope; whole-pass fence REWORK; selective-visibility/short-commit-fence candidate unqualified; Gate B PARTIAL / OPERATION_BLOCKED; overall M4 REWORK / not production GO**. The latest pair (`b6a1348d`) has no valid Native–M4 comparison: native stopped on bounded workspace-observer failure after M4 completed, and query sampling was incomplete. Preserve its receipts and do not retry it. The plan's first execution dependency is resolving the observer/capacity-certification and query-measurement integrity without weakening hard containment; later full-corpus work is separately blocked by the unchanged resource envelope.
+The recursive workspace-inventory watchdog has been replaced as the capacity authority by the registered kernel-enforced Btrfs qgroup, with sampled inventory treated as diagnostic/unknown when incomplete. Fresh no-launch validation passed: root free 21,756,448,768 bytes against 18,286,108,864 required; qgroup `0/259` has 117,755,904 bytes available and retains the 67,108,864-byte minimum reserve after the 33,554,432-byte per-arm workspace allowance. Offered-load query measurement now uses fixed deadlines and bounded queue telemetry; drops, missed/capped slots, scheduler lag, failures, queue/service/response/fence time and arm roles remain explicit. No benchmark workload was launched.
 
-Evidence and raw artifacts: [`M4-GATE-B-QUERY-LATENCY-20261026.md`](M4-GATE-B-QUERY-LATENCY-20261026.md) and `research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261026-b6a1348d/`. No production wiring, deployment, hard-guard change, or limit increase is authorized.
+Rust research integration tests: **9 passed, 0 failed, 1 ignored** (the contained workload); Python containment/pair-analyzer tests: **24 passed, 0 failed**. Selective visibility tests cover unaffected queries during preparation, hidden changed-file revisions, the short commit fence and reopen/retry. These do not establish power-loss safety, all-interleaving correctness, or performance.
+
+The machine policy records the 2026-10-26 one-pair authorization as consumed and states that the 2026-10-27 infrastructure direction does not itself authorize another operation. Therefore the passing `--validate-only` result is not launch authority. A fresh owner authorization is required for another diagnostic pair; representative qualification additionally requires preregistered numeric performance/resource thresholds. The prior `b6a1348d` stopped evidence remains immutable; do not retry it. Cgroup `io.stat`/`io.max` are unavailable, so no per-arm physical-I/O attribution is possible.
+
+The source-first gate plan is in [`M4-RECOVERY-EXECUTION-PLAN-20261027.md`](M4-RECOVERY-EXECUTION-PLAN-20261027.md). No production wiring, deployment, hard-guard change, limit increase, WAL/codec research, or push is authorized.
 
 ## Historical milestone — Gate B 64-file diagnostic pilot (superseded 2026-10-26)
 

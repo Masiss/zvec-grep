@@ -108,7 +108,7 @@ Only after Gates 1–2 pass, the owner explicitly authorizes one fresh bounded d
 ## Immediate next actions (planning only; not yet authorized for execution)
 
 1. Preserve the b6a1348d stopped evidence and do not relaunch it.
-2. Ask the owner to choose the observer-certification route in Gate 1: exact-purpose root-attested qgroup registration under unchanged caps, or retain scan-based fail-closed accounting and first resolve/test its capacity failure. The current quota registration is not for this lifecycle pair.
+2. **Completed:** selected exact-purpose root-attested Btrfs qgroup certification under unchanged caps, with sampled inventory diagnostic-only and incomplete inventory remaining unknown. Current qgroup registration is bound to the lifecycle pair; see the execution update below.
 3. Implement and test only the selected observer/telemetry correction; keep failures fail-closed. No benchmark yet.
 4. Expand the selective-fence correctness matrix and crash-point tests; update the invariant documentation from actual source.
 5. Preregister latency/load/performance thresholds, then seek fresh authorization for a new 64-file diagnostic pair only if Gates 1–2 and no-launch preflight pass.
@@ -116,7 +116,17 @@ Only after Gates 1–2 pass, the owner explicitly authorizes one fresh bounded d
 
 ## Completion statement
 
-This document is an execution plan, not evidence that any gate has been newly passed. The latest verified state remains Gate A research-scope PASS; whole-pass fence REWORK; selective-fence candidate unqualified; Gate B partial/blocked; overall M4 **REWORK / not production GO**. No new benchmark authorization is inferred from this plan.
+This document began as an execution plan; the execution update below records subsequent implementation and test evidence. Current status remains Gate A research-scope PASS; Gate 1 diagnostic infrastructure PASS; Gate 2 selective-fence correctness PASS for tested cases but not exhaustive qualification; Gate 3 NOT RUN; Gate 4 memory envelope open; Gate 5 outside current authority. Overall M4 remains **PARTIAL / OWNER_DECISION_REQUIRED / not production GO**. The 2026-10-27 Technical Lead direction authorized infrastructure work but explicitly did not authorize a new benchmark operation.
+
+## Execution update — 2026-10-27
+
+Gate 1 selected the registered kernel-enforced qgroup plus light sampled telemetry. Live no-launch validation passed with qgroup `0/259` available headroom 117,755,904 bytes, a 67,108,864-byte required minimum-free reserve and a 33,554,432-byte per-arm allocation budget. The root-disk free-space reserve also passed. The observer no longer relies on recursive inventory as the hard capacity authority; incomplete inventory is explicitly unknown.
+
+The fixed-deadline offered-load reader and independent cross-arm report analyzer were implemented. The Python containment/pair-analysis suite passed 24/24; synthetic traces exercise known p95 values, reversed arm order, queue drops, cap-denied/missed starts, query failure, sampling cap, scheduler stall and protocol mismatch. The already-built feature-enabled Rust M4 test binary passed 9 tests; the contained lifecycle workload remained ignored. Selective visibility, unaffected reads, commit fencing, reopen/retry and existing search/filter/watcher regressions are covered in the passing tests, but this is not exhaustive or power-loss qualification.
+
+No benchmark workload was launched. Machine policy says the explicit 2026-10-26 one-pair authorization has been consumed and the 2026-10-27 direction does not authorize a new operation. A fresh explicit owner authorization is required for another diagnostic pair. Representative qualification also awaits numeric preregistered acceptance thresholds, a safe memory result under the unchanged 512 MiB cap, and counterbalanced representative runs. cgroup `io.stat`/`io.max` are unavailable, so per-arm physical-I/O attribution is not supported.
+
+Detailed evidence and current blockers: [`M4-RECOVERY-GATE-1-2-20261027.md`](M4-RECOVERY-GATE-1-2-20261027.md). Existing stopped operations remain immutable and are not retried.
 
 ## Navigation
 

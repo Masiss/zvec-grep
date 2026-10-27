@@ -97,6 +97,73 @@
     "no_attribution_shortcut": "Host-wide pressure is not evidence that M4 caused it; observed during-minus-baseline is temporal association, not identified incremental causality",
     "no_automatic_retry": true
   },
+  "rust_pipeline_lifecycle_pair": {
+    "purpose": "m4-rust-full-lifecycle-pair",
+    "approval_status": "approved",
+    "approval_reference": "Current explicit owner request 2026-10-26: finish Gate B and independently choose safe ways to obtain useful research output; research-only, no production migration. After full-corpus attempts hit hard resource gates, this operation is explicitly a reduced-scope diagnostic pilot, not a substitute for full-corpus Gate B.",
+    "execution_authorization_reference": "Current explicit owner request 2026-10-26: diagnose query latency and workspace soft-budget measurement, correct observer bias, then run one fresh matched 64-file diagnostic pair. Technical Lead direction 2026-10-27 authorizes implementation of offered-load telemetry and exact attestation-bound live qgroup capacity certification; this does not itself authorize a new operation. Preserve all hard cgroup/disk/quota controls; do not retry previously stopped operations or interpret this as full-corpus Gate B. Arm two may proceed only after arm one exits 0 with verified hard-safety telemetry, verified cleanup and an allowed postflight decision; workspace accounting caveats remain non-qualifying.",
+    "risk_acceptance_reference": "One pair is descriptive exploratory evidence only; shared-host state, missing cgroup I/O isolation, fixed-embedding test runtime, one repository corpus, and a single execution order prohibit causal, qualification, or architecture-win claims. Under the explicit Technical Lead direction of 2026-10-27, concurrent queries use fixed offered-load deadlines with a bounded queue; scheduler lag, accepted/failed/dropped/capped offers, queue delay, service time, end-to-end response, and measured M4 PassGate wait are recorded. Aggregate p95 is non-comparable whenever an offer is dropped/capped/failed, scheduler lag exceeds one interval, or sample count is insufficient.",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "io_pressure_mode": "observational-only; cgroup io.stat/io.max unavailable",
+    "workload": {
+      "source_commit": "34d75aa14c760d302e497831c7501e1a31400f2b",
+      "source_manifest_sha256": "7fbc9f951a9b1f75388150a891c984f23dd72717a6ce59070f89fd9f3ad832a3",
+      "source_file_count": 64,
+      "source_bytes": 694421,
+      "source_selection": {
+        "path_prefix": "rust/crates/zg-engine/src/",
+        "extensions": [".rs"],
+        "max_files": 64,
+        "ordering": "lexicographic path order at source_commit"
+      },
+      "profile_label": "64-file Rust engine pilot; not full-corpus Gate B",
+      "full_corpus_reference": {
+        "source_manifest_sha256": "a4d53604bd03386ce0745e902d4099b39def0102753e584ff5312bfaab2d338b",
+        "source_file_count": 421,
+        "source_bytes": 7070189
+      },
+      "test_name": "pipelines::indexed_search::m4_integration_tests::gate_b_lifecycle::gate_b_full_lifecycle_arm",
+      "passes": ["initial_rescan", "single_file_update", "rename", "delete", "repeat_rescan_1", "repeat_rescan_2"],
+      "reader_queries_during_each_pass": true,
+      "query_filter": "**/*.rs",
+      "reopen_and_search": true,
+      "reader_query_interval_ms": 25,
+      "reader_query_max_samples_per_pass": 256,
+      "reader_query_queue_capacity": 8,
+      "reader_query_schedule": "fixed offered-load deadlines from pass start; bounded single-worker queue; record scheduler lag, accepted, failed, dropped and capped offers, queue delay, service time and end-to-end response; never suppress missed or overload starts",
+      "query_fence_wait_attribution": "cumulative M4 PassGate blocked wall time per query; native baseline reports zero",
+      "zvec_native_memory_limit_bytes": 134217728
+    },
+    "arm_roles": ["native", "m4"],
+    "arm_orders": [["native", "m4"], ["m4", "native"]],
+    "single_pair_only": true,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 900,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
+    },
+    "max_arm_runtime_seconds": 3600,
+    "workspace_quota": {
+      "attestation_path": "/var/tmp/m4-native-workspace-quota-pwd.attestation.json",
+      "workspace_subvolume": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+      "filesystem_uuid": "6c15377e-2602-4870-96ba-50e58605309c",
+      "subvolume_id": 259,
+      "qgroup_id": "0/259",
+      "max_referenced_bytes": 134217728,
+      "minimum_free_bytes": 67108864,
+      "accounting_mode": "squota",
+      "attestation_owner_uid": 0,
+      "max_attestation_age_seconds": 86400
+    }
+  },
   "shared_collection_pair": {
     "purpose": "m4-shared-collection-pair",
     "approval_status": "approved",
@@ -223,6 +290,15 @@
         "candidate_mutation_batch_docs": 128,
         "candidate_coalesce_stats": true,
         "candidate_wal_compression_lz4": false,
+        "trace_mutation_latency": true
+      },
+      "stats-coalescing-at-batch-128-lz4-full-1200": {
+        "files": 1200,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 128,
+        "control_wal_compression_lz4": true,
+        "candidate_wal_compression_lz4": true,
+        "candidate_coalesce_stats": true,
         "trace_mutation_latency": true
       },
       "mutation-batch-128-vs-256-full-1200": {
@@ -650,12 +726,13 @@
         "detail": "events exceed one bounded drain"
       },
       "pending_event_semantics": "A readable queue after one drain is accounting UNKNOWN, not observed overflow. Only this exact issue plus known mutations may continue with raw UNVERIFIABLE/INCOMPLETE retained, valid root identity and all issue examples present. Actual overflow/unmount/truncated events, scope, permissions and I/O errors remain fatal. No extra drain/rescan.",
-      "breach_action": "warn with raw observed/limit/excess bytes; never claim hard-cap enforcement",
-      "scope_error_action": "abort; unknown scope, permission/EIO, actual overflow/unmount/truncated records and watch/scan work-budget failures are not accepted publication races. Pending readable queue alone is handled by the exact accounting-uncertainty rule, not fabricated complete telemetry",
-      "completion_semantics": "Workspace uncertainty remains INCOMPLETE/UNKNOWN; completion with warnings is not PASS or qualifying evidence. All independent hard safety telemetry remains mandatory."
+      "breach_action": "complete traversal overage: warn with raw observed/limit/excess bytes; never claim hard-cap enforcement",
+      "incomplete_overage_action": "retain raw observed/limit/excess bytes as indeterminate; incomplete traversal values are not verified budget breaches or peaks and remain UNKNOWN/INCOMPLETE",
+      "scope_error_action": "abort unknown scope, permission/EIO, actual overflow/unmount/truncated records and all unverified quota states. Observer depth/entry/time exhaustion remains fatal except for the separately registered Rust lifecycle pilot when its exact fresh root-owned qgroup attestation is revalidated and every live kernel qgroup sample passes; then the raw inventory remains UNKNOWN and soft workspace budgets are explicitly uncertified. Pending readable queue alone is handled by the exact accounting-uncertainty rule, not fabricated complete telemetry",
+      "completion_semantics": "Workspace inventory uncertainty remains INCOMPLETE/UNKNOWN; a qgroup-bounded Rust pilot may complete only with explicit non-qualifying workspace uncertainty. Completion with warnings or unknown soft budgets is not PASS/qualification. All independent hard safety telemetry and retained disk reserve remain mandatory."
     },
     "reservation_credit": "Zero: sampled gross allocated bytes are not a conservative lower bound on scoped physical allocation and cannot reduce shared-disk reserve requirements",
-    "independent_capacity_proof": "Unavailable by default; only the separately registered lock-contention microbenchmark may use its root-owned, policy-bound Btrfs simple-quota attestation. No external JSON, environment or fixture assertion can certify a bound"
+    "independent_capacity_proof": "Unavailable by default; only the separately registered lock-contention microbenchmark and Rust lifecycle pilot may use their exact root-owned, policy-bound Btrfs simple-quota attestations. The Rust pilot still reports inventory and soft workspace budgets UNKNOWN when traversal is not sampled; the qgroup covers only the registered subvolume, not physical-device usage. No external JSON, environment or fixture assertion can certify a bound"
   },
   "baseline_pressure_guard": {
     "gate_id": "M4-RG-MEMSWAP-BASELINE",
