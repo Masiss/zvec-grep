@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one policy-bound, quota-contained Rust Gate B lifecycle pair."""
+"""Run a policy-bound, quota-contained Rust Gate B pair or authorized diagnostic."""
 from __future__ import annotations
 
 import argparse
@@ -15,9 +15,11 @@ from io import BytesIO
 from typing import Any
 
 import m4_containment_runner as containment
+import create_measurement_artifact as measurement_artifact
 
 REPO = pathlib.Path(__file__).resolve().parents[3]
 CONTRACT = containment.BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
+RUST_TARGET_DIR = containment.M4_RUST_LIFECYCLE_TARGET
 CODE_EXTENSIONS = {'.rs', '.cc', '.cpp', '.h', '.hpp', '.c', '.py'}
 TEST_NAME = CONTRACT['workload']['test_name']
 SAMPLE_INTERVAL_MS = 500
@@ -60,16 +62,45 @@ def frozen_manifest() -> tuple[list[tuple[str, str, int]], str]:
     return entries, digest
 
 
-def find_test_binary() -> tuple[pathlib.Path, pathlib.Path]:
-    candidates = sorted((REPO / 'rust/target/debug/deps').glob('zg_engine-*'))
+def find_test_binary(binary_override: pathlib.Path | None = None,
+                     library_override: pathlib.Path | None = None) -> tuple[pathlib.Path, pathlib.Path]:
+    if binary_override is None:
+        candidates = sorted((RUST_TARGET_DIR / 'debug/deps').glob('zg_engine-*'))
+    else:
+        binary = binary_override.resolve(strict=True)
+        deps = (RUST_TARGET_DIR / 'debug/deps').resolve(strict=True)
+        measurement_dir = deps / '.m4-measurement'
+        allowed = measurement_dir.resolve(strict=True)
+        if (measurement_dir.is_symlink() or allowed.parent != deps or
+                not binary.is_relative_to(allowed) or not binary.name.startswith('zg_engine-') or
+                not binary.name.endswith('-nodebug') or not binary.is_file() or not os.access(binary, os.X_OK)):
+            raise ValueError('opt-in binary must be a nodebug executable in the measurement artifact directory')
+        original = deps / binary.name.removesuffix('-nodebug')
+        if (not original.is_file() or original.is_symlink() or original.resolve().parent != deps or
+                measurement_artifact.load_segments(original) != measurement_artifact.load_segments(binary)):
+            raise ValueError('measurement binary differs from its original ELF load image')
+        candidates = [binary]
     matches: list[tuple[pathlib.Path, pathlib.Path]] = []
-    libs = sorted((REPO / 'rust/target/debug/build').glob('zvec-rust-sys-*/out/zvec-prebuilt/libzvec_c_api.so'))
-    if not libs:
-        raise FileNotFoundError('compiled libzvec_c_api.so is missing; build before Gate B validation')
+    build_root = (RUST_TARGET_DIR / 'debug/build').resolve(strict=True)
+    if library_override is None:
+        libs = sorted(build_root.glob('zvec-rust-sys-*/out/zvec-prebuilt/libzvec_c_api.so'))
+        if not libs:
+            raise FileNotFoundError('compiled libzvec_c_api.so is missing; build before Gate B validation')
+        library_dirs = [libs[-1].parent.resolve(strict=True)]
+    else:
+        if library_override.is_symlink():
+            raise ValueError('native library override must not be a symlink')
+        library_dir = library_override.resolve(strict=True)
+        library_file = library_dir / 'libzvec_c_api.so'
+        if (not library_dir.is_relative_to(build_root) or not library_dir.is_dir() or
+                library_file.is_symlink() or not library_file.is_file() or
+                library_file.resolve(strict=True).parent != library_dir):
+            raise ValueError('native library override must be an exact artifact under debug/build')
+        library_dirs = [library_dir]
     for binary in candidates:
         if not binary.is_file() or not os.access(binary, os.X_OK):
             continue
-        lib = libs[-1].parent
+        lib = library_dirs[0]
         env = {**os.environ, 'LD_LIBRARY_PATH': str(lib)}
         listing = subprocess.run([str(binary), '--list'], cwd=REPO, env=env, capture_output=True, text=True)
         if listing.returncode == 0 and any(line.startswith(TEST_NAME + ': test') for line in listing.stdout.splitlines()):
@@ -85,32 +116,58 @@ def find_test_binary() -> tuple[pathlib.Path, pathlib.Path]:
     return matches[-1]
 
 
+def capture_pair_artifacts(binary: pathlib.Path, library_path: pathlib.Path) -> dict[str, str]:
+    binary = binary.resolve(strict=True)
+    library_path = library_path.resolve(strict=True)
+    library = (library_path / 'libzvec_c_api.so').resolve(strict=True)
+    if library.parent != library_path or not binary.is_file() or not library.is_file():
+        raise ValueError('binary or native library path is not an exact regular artifact')
+    return {'binary_path': str(binary), 'binary_sha256': containment.file_sha256(binary),
+            'library_path': str(library_path), 'library_file': str(library),
+            'library_sha256': containment.file_sha256(library)}
+
+
+def verify_pair_artifacts(expected: dict[str, str]) -> None:
+    actual = capture_pair_artifacts(pathlib.Path(expected['binary_path']), pathlib.Path(expected['library_path']))
+    if actual != expected:
+        raise ValueError('pair binary or native library identity changed; refusing continuation')
+
+
 def make_context(operation_id: str, operation_root: pathlib.Path, arm_role: str,
-                 execution_order: list[str], binary: pathlib.Path, library_path: pathlib.Path,
+                 execution_order: list[str], artifacts: dict[str, str],
                  workspace_root: pathlib.Path, source_root: pathlib.Path,
-                 quota_proof: dict[str, Any]) -> dict[str, Any]:
+                 quota_proof: dict[str, Any], operation_mode: str = 'pair') -> dict[str, Any]:
     arm_name = 'pair-first' if arm_role == execution_order[0] else 'pair-second'
+    authorization = (CONTRACT['native_query_stage_diagnostic']
+                     if operation_mode == 'native_query_stage_diagnostic' else CONTRACT)
+    arm_roles = authorization.get('arm_roles', CONTRACT['arm_roles'])
     index_root = workspace_root / 'index'
     report_path = workspace_root / 'gate-b-report.json'
     temporary_directory = workspace_root / 'tmp'
+    resource_basis = (
+        'one quota-contained native-only Gate B query-stage diagnostic; no M4 arm or pair comparison'
+        if operation_mode == 'native_query_stage_diagnostic' else
+        'one quota-contained matched Gate B pair with preserved 18.219 GB disk reserve and enforced cgroup memory/swap/cpu/pids ceilings'
+    )
     context: dict[str, Any] = {
         'schema_version': 1,
         'approval_status': 'approved',
         'mode': containment.CONTENTION_MODE,
         'policy_sha256': hashlib.sha256(containment.POLICY_PATH.read_bytes()).hexdigest(),
-        'resource_basis': 'one quota-contained matched Gate B pair with preserved 18.219 GB disk reserve and enforced cgroup memory/swap/cpu/pids ceilings',
+        'resource_basis': resource_basis,
         'purpose': containment.M4_RUST_LIFECYCLE_PURPOSE,
+        'operation_mode': operation_mode,
         'operation_id': operation_id,
         'operation_root': str(operation_root),
-        'approval_reference': CONTRACT['approval_reference'],
-        'execution_authorization_reference': CONTRACT['execution_authorization_reference'],
-        'risk_acceptance_reference': CONTRACT['risk_acceptance_reference'],
+        'approval_reference': authorization['approval_reference'],
+        'execution_authorization_reference': authorization['execution_authorization_reference'],
+        'risk_acceptance_reference': authorization['risk_acceptance_reference'],
         'workload': CONTRACT['workload'],
         'reader_query_interval_ms': CONTRACT['workload']['reader_query_interval_ms'],
         'reader_query_max_samples_per_pass': CONTRACT['workload']['reader_query_max_samples_per_pass'],
         'reader_query_queue_capacity': CONTRACT['workload']['reader_query_queue_capacity'],
         'zvec_native_memory_limit_bytes': CONTRACT['workload']['zvec_native_memory_limit_bytes'],
-        'arm_roles': CONTRACT['arm_roles'],
+        'arm_roles': arm_roles,
         'arm_role': arm_role,
         'execution_order': execution_order,
         'resource_root': CONTRACT['resource_root'],
@@ -119,16 +176,22 @@ def make_context(operation_id: str, operation_root: pathlib.Path, arm_role: str,
         'index_root': str(index_root),
         'report_path': str(report_path),
         'temporary_directory': str(temporary_directory),
-        'binary_path': str(binary),
-        'binary_name': binary.name,
-        'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
-        'approved_binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
-        'library_path': str(library_path),
+        'binary_path': artifacts['binary_path'],
+        'binary_name': pathlib.Path(artifacts['binary_path']).name,
+        'binary_sha256': artifacts['binary_sha256'],
+        'approved_binary_sha256': artifacts['binary_sha256'],
+        'library_path': artifacts['library_path'],
+        'library_file': artifacts['library_file'],
+        'library_sha256': artifacts['library_sha256'],
+        'approved_library_sha256': artifacts['library_sha256'],
         'io_pressure_mode': CONTRACT['io_pressure_mode'],
         'workspace_quota_proof': quota_proof,
         **CONTRACT['resource_controls'],
     }
     context['arm_name'] = arm_name
+    if operation_mode == 'native_query_stage_diagnostic':
+        context['native_profile_trace_path'] = str(
+            operation_root / arm_name / 'containment' / 'native-profile.jsonl')
     return context
 
 
@@ -138,6 +201,10 @@ def build_environment(context: dict[str, Any]) -> dict[str, str]:
 
 def test_command(context: dict[str, Any]) -> list[str]:
     return [context['binary_path'], '--exact', TEST_NAME, '--ignored', '--nocapture']
+
+
+def is_qgroup_headroom_gate_failure(error: BaseException) -> bool:
+    return 'insufficient qgroup headroom for the next workspace allocation' in str(error)
 
 
 def require_pair_workspace_headroom(quota: dict[str, Any], additional_bytes: int) -> None:
@@ -150,9 +217,36 @@ def require_pair_workspace_headroom(quota: dict[str, Any], additional_bytes: int
             f'required_free={live["required_free_bytes"]}, total_required={required}')
 
 
-def preflight(operation_id: str) -> dict[str, Any]:
+def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
+              expected_binary_sha256: str | None = None,
+              library_override: pathlib.Path | None = None,
+              expected_library_sha256: str | None = None,
+              native_only_diagnostic: bool = False) -> dict[str, Any]:
+    operation_mode = ('native_query_stage_diagnostic' if native_only_diagnostic else 'pair')
+    diagnostic = CONTRACT.get('native_query_stage_diagnostic')
+    diagnostic_ids = (diagnostic.get('authorized_operation_ids')
+                      if isinstance(diagnostic, dict) else [])
+    if not isinstance(diagnostic_ids, list):
+        diagnostic_ids = []
+    if not native_only_diagnostic and operation_id in diagnostic_ids:
+        raise ValueError('native-only diagnostic operation ID cannot launch a matched pair')
+    if native_only_diagnostic:
+        authorized_ids = diagnostic.get('authorized_operation_ids') if isinstance(diagnostic, dict) else None
+        authorized_limit = diagnostic.get('max_authorized_operations') if isinstance(diagnostic, dict) else None
+        if (not isinstance(diagnostic, dict) or diagnostic.get('approval_status') != 'approved' or
+                not isinstance(authorized_limit, int) or isinstance(authorized_limit, bool) or
+                not isinstance(authorized_ids, list) or len(authorized_ids) != authorized_limit or
+                len(set(authorized_ids)) != authorized_limit or operation_id not in authorized_ids or
+                diagnostic.get('arm_roles') != ['native'] or
+                diagnostic.get('execution_order') != ['native']):
+            raise ValueError('operation ID is outside the native-only diagnostic authorization')
     entries, digest = frozen_manifest()
-    binary, library = find_test_binary()
+    binary, library = find_test_binary(binary_override, library_override)
+    artifacts = capture_pair_artifacts(binary, library)
+    if expected_binary_sha256 is not None and artifacts['binary_sha256'] != expected_binary_sha256:
+        raise ValueError('selected binary SHA-256 differs from explicitly expected artifact')
+    if expected_library_sha256 is not None and artifacts['library_sha256'] != expected_library_sha256:
+        raise ValueError('selected native library SHA-256 differs from explicitly expected artifact')
     resource_root = pathlib.Path(CONTRACT['resource_root'])
     controls = CONTRACT['resource_controls']
     quota = containment.verify_workspace_quota(resource_root, CONTRACT['workspace_quota'])
@@ -164,15 +258,18 @@ def preflight(operation_id: str) -> dict[str, Any]:
     if disk_free < required_free:
         raise RuntimeError(f'disk reserve/capacity gate: free={disk_free}, required={required_free}; no launch')
     operation_root = resource_root / operation_id
-    order = (['native', 'm4'] if hashlib.sha256(operation_id.encode()).digest()[0] & 1
+    if operation_root.exists():
+        raise ValueError('operation ID already has a workspace; reuse is refused')
+    order = (['native'] if native_only_diagnostic else
+             ['native', 'm4'] if hashlib.sha256(operation_id.encode()).digest()[0] & 1
              else ['m4', 'native'])
     contexts = []
     for role in order:
         arm_name = 'pair-first' if role == order[0] else 'pair-second'
         arm_root = operation_root / arm_name / 'workspace'
         source_root = arm_root / 'source'
-        context = make_context(operation_id, operation_root, role, order, binary, library,
-                               arm_root, source_root, quota)
+        context = make_context(operation_id, operation_root, role, order, artifacts,
+                               arm_root, source_root, quota, operation_mode)
         containment.validate_contention_context(context)
         env = build_environment(context)
         receipt_dir = operation_root / arm_name / 'containment'
@@ -198,21 +295,27 @@ def preflight(operation_id: str) -> dict[str, Any]:
                     CONTRACT['workload']['reader_query_queue_capacity']) or
                 env['ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES'] != str(
                     CONTRACT['workload']['zvec_native_memory_limit_bytes']) or
-                pathlib.Path(env['M4_GATE_B_WORKSPACE']) != source_root):
+                pathlib.Path(env['M4_GATE_B_WORKSPACE']) != source_root or
+                (native_only_diagnostic and pathlib.Path(
+                    env.get('M4_NATIVE_PROFILE_LOG_PATH', '')).resolve() !=
+                    (receipt_dir / 'native-profile.jsonl').resolve())):
             raise ValueError('Gate B command/environment binding failed')
         contexts.append({
             'role': role, 'arm_name': arm_name, 'command': command,
             'receipt_dir': str(receipt_dir), 'workspace_root': str(arm_root),
+            'native_profile_trace_path': context.get('native_profile_trace_path'),
             'binary_sha256': context['binary_sha256'],
             'policy_context_sha256': containment.contention_context_digest(context),
         })
     return {
         'operation_id': operation_id,
+        'operation_mode': operation_mode,
         'operation_root': str(operation_root),
         'corpus_commit': CONTRACT['workload']['source_commit'],
         'corpus_file_count': len(entries), 'corpus_bytes': sum(item[2] for item in entries),
         'corpus_manifest_sha256': digest,
         'execution_order': order,
+        'artifacts': artifacts,
         'workspace_quota_proof': quota,
         'resource_controls': CONTRACT['resource_controls'],
         'observer': {'sample_interval_ms': SAMPLE_INTERVAL_MS,
@@ -276,8 +379,13 @@ def arm_result_allows_pair_continuation(result: dict[str, Any]) -> bool:
     )
 
 
-def run_pair(operation_id: str) -> dict[str, Any]:
-    plan = preflight(operation_id)
+def run_pair(operation_id: str, binary_override: pathlib.Path | None = None,
+             expected_binary_sha256: str | None = None,
+             library_override: pathlib.Path | None = None,
+             expected_library_sha256: str | None = None,
+             native_only_diagnostic: bool = False) -> dict[str, Any]:
+    plan = preflight(operation_id, binary_override, expected_binary_sha256,
+                      library_override, expected_library_sha256, native_only_diagnostic)
     operation_root = pathlib.Path(plan['operation_root'])
     if operation_root.exists():
         raise FileExistsError(f'fresh operation root already exists: {operation_root}')
@@ -288,7 +396,7 @@ def run_pair(operation_id: str) -> dict[str, Any]:
         return _run_pair_arms(operation_id, plan, entries, operation_root, arm_results)
     except Exception as error:
         error_text = f'{type(error).__name__}: {error}'
-        quota_safety_stop = 'insufficient live Btrfs qgroup headroom' in str(error)
+        quota_safety_stop = is_qgroup_headroom_gate_failure(error)
         recorded_arms = {arm.get('arm_name') for arm in arm_results}
         for item in plan['arms']:
             if item['arm_name'] in recorded_arms:
@@ -302,14 +410,20 @@ def run_pair(operation_id: str) -> dict[str, Any]:
                 })
         failure = {
             'schema_version': 1, 'operation_id': operation_id,
-            'status': 'OPERATION_BLOCKED' if quota_safety_stop else 'OPERATION_ERROR',
+            'operation_mode': plan['operation_mode'],
+            'status': ('DIAGNOSTIC_BLOCKED' if quota_safety_stop else 'DIAGNOSTIC_ERROR')
+                      if plan['operation_mode'] == 'native_query_stage_diagnostic' else
+                      'OPERATION_BLOCKED' if quota_safety_stop else 'OPERATION_ERROR',
             'failure_class': 'SAFETY_STOP' if quota_safety_stop else 'IMPLEMENTATION_OR_OPERATION_ERROR',
             'operation_outcome': 'SAFETY_STOP' if quota_safety_stop else 'OPERATION_ERROR',
             'benchmark_started': any(arm.get('runner', {}).get('benchmark_started') for arm in arm_results),
             'error': error_text, 'arms': arm_results,
-            'retry': 'do not automatically retry after a safety stop; any future operation requires restored live headroom and a fresh ID',
+            'retry': 'do not automatically retry after a refusal or safety stop; any future operation requires a fresh owner authorization and ID',
         }
-        (operation_root / 'pair-result.json').write_text(json.dumps(failure, indent=2) + '\n')
+        filename = ('native-query-stage-result.json'
+                    if plan['operation_mode'] == 'native_query_stage_diagnostic'
+                    else 'pair-result.json')
+        (operation_root / filename).write_text(json.dumps(failure, indent=2) + '\n')
         raise
 
 
@@ -334,6 +448,11 @@ def _query_latency_arm_reasons(role: str, report: dict[str, Any]) -> list[str]:
             reasons.append('missing_or_invalid_offer_telemetry')
             return reasons
         values[key] = value
+    if values['reader_query_interval_ms'] == 0:
+        reasons.append('invalid_query_interval')
+    p95 = report.get('concurrent_query_p95_us')
+    if isinstance(p95, bool) or not isinstance(p95, int) or p95 < 0:
+        reasons.append('missing_or_invalid_p95')
     if values['concurrent_query_total'] < 20:
         reasons.append('fewer_than_20_successful_queries')
     if not (values['concurrent_query_offered_slots'] == values['concurrent_query_accepted_slots'] ==
@@ -361,8 +480,20 @@ def query_latency_pair_gate(arm_results: list[dict[str, Any]]) -> dict[str, Any]
         'reader_query_interval_ms', 'reader_query_max_samples_per_pass',
         'reader_query_queue_capacity', 'query_filter', 'query_route',
     )
-    protocol_equal = all(native.get(key) == m4.get(key) for key in protocol_fields)
-    reasons = [] if protocol_equal else ['offered_load_protocol_mismatch']
+    def valid_protocol(report: dict[str, Any]) -> bool:
+        for key in ('reader_query_interval_ms', 'reader_query_max_samples_per_pass',
+                    'reader_query_queue_capacity'):
+            value = report.get(key)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                return False
+        return all(isinstance(report.get(key), str) and bool(report[key].strip())
+                   for key in ('query_filter', 'query_route'))
+
+    protocols_valid = valid_protocol(native) and valid_protocol(m4)
+    protocol_equal = protocols_valid and all(native[key] == m4[key] for key in protocol_fields)
+    reasons = [] if protocols_valid else ['missing_or_invalid_offered_load_protocol']
+    if protocols_valid and not protocol_equal:
+        reasons.append('offered_load_protocol_mismatch')
     native_reasons = _query_latency_arm_reasons('native', native)
     m4_reasons = _query_latency_arm_reasons('m4', m4)
     reasons.extend(f'native:{reason}' for reason in native_reasons)
@@ -403,9 +534,10 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
         remaining_workspace = max(
             0, CONTRACT['resource_controls']['workspace_max_allocated_bytes'] - materialized_bytes)
         require_pair_workspace_headroom(quota, remaining_workspace)
-        binary, library = find_test_binary()
+        verify_pair_artifacts(plan['artifacts'])
         context = make_context(operation_id, operation_root, role, plan['execution_order'],
-                               binary, library, workspace_root, source_root, quota)
+                               plan['artifacts'], workspace_root, source_root, quota,
+                               plan['operation_mode'])
         containment.validate_contention_context(context)
         receipt_dir = operation_root / arm_name / 'containment'
         result = containment.run_arm(
@@ -416,13 +548,57 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
             budget=containment.contention_budget(context),
             env=build_environment(context), enforce_host_gates=True,
             policy_context=context)
-        arm_results.append({'role': role, 'arm_name': arm_name, 'runner': result})
-        if not arm_result_allows_pair_continuation(result):
-            pair = {'operation_id': operation_id, 'status': 'PAIR_STOPPED',
-                    'stop_reason': f'{arm_name} did not complete with verified hard safety and cleanup; no retry',
-                    'arms': arm_results}
-            (operation_root / 'pair-result.json').write_text(json.dumps(pair, indent=2) + '\n')
-            return pair
+        arm_record: dict[str, Any] = {'role': role, 'arm_name': arm_name, 'runner': result}
+        trace_complete = True
+        if plan['operation_mode'] == 'native_query_stage_diagnostic':
+            trace_path = receipt_dir / 'native-profile.jsonl'
+            valid_lines = 0
+            malformed_lines = 0
+            if trace_path.is_file():
+                with trace_path.open('r', encoding='utf-8', errors='replace') as trace_file:
+                    for line in trace_file:
+                        if (line.startswith('NATIVE_PROFILE event=') and
+                                all(key in line for key in (
+                                    ' thread_id=', ' wall_start_ns=', ' wall_end_ns=',
+                                    ' wall_ns=', ' thread_cpu_ns=', ' clock_ok='))):
+                            valid_lines += 1
+                        else:
+                            malformed_lines += 1
+            trace_complete = valid_lines > 0 and malformed_lines == 0
+            arm_record['native_profile_trace'] = {
+                'status': 'PRESENT' if trace_complete else 'INCOMPLETE',
+                'path': str(trace_path),
+                'bytes': trace_path.stat().st_size if trace_path.is_file() else 0,
+                'valid_event_lines': valid_lines,
+                'malformed_lines': malformed_lines,
+                'sha256': hashlib.sha256(trace_path.read_bytes()).hexdigest()
+                if trace_path.is_file() else None,
+            }
+        arm_results.append(arm_record)
+        if not arm_result_allows_pair_continuation(result) or not trace_complete:
+            trace_stop = (plan['operation_mode'] == 'native_query_stage_diagnostic' and
+                          not trace_complete and arm_result_allows_pair_continuation(result))
+            stopped = {
+                'schema_version': 1,
+                'operation_id': operation_id,
+                'operation_mode': plan['operation_mode'],
+                'status': ('DIAGNOSTIC_STOPPED' if plan['operation_mode'] == 'native_query_stage_diagnostic'
+                           else 'PAIR_STOPPED'),
+                'stop_reason': (
+                    'native lock trace missing or malformed; operation consumed, no automatic retry'
+                    if trace_stop else
+                    f'{arm_name} did not complete with verified hard safety and cleanup; no retry'),
+                'benchmark_started': bool(result.get('benchmark_started')),
+                'native_profile_trace': arm_record.get('native_profile_trace'),
+                'arms': arm_results,
+                'retry': 'do not automatically retry; a future operation requires a fresh owner authorization and ID',
+            }
+            filename = ('native-query-stage-result.json'
+                        if plan['operation_mode'] == 'native_query_stage_diagnostic'
+                        else 'pair-result.json')
+            (operation_root / filename).write_text(json.dumps(stopped, indent=2) + '\n')
+            return stopped
+        verify_pair_artifacts(plan['artifacts'])
         report_path = pathlib.Path(context['report_path'])
         report = json.loads(report_path.read_text())
         report['query_filter'] = CONTRACT['workload']['query_filter']
@@ -436,6 +612,42 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
         shutil.rmtree(workspace_root)
         if workspace_root.exists():
             raise RuntimeError('operation-owned workspace cleanup failed')
+
+    if plan['operation_mode'] == 'native_query_stage_diagnostic':
+        arm = arm_results[0]
+        post_cleanup_quota = containment.verify_workspace_quota(
+            pathlib.Path(CONTRACT['resource_root']), CONTRACT['workspace_quota'])
+        workload_report = arm['workload_report']
+        runner_status = arm['runner']['status']
+        result = {
+            'schema_version': 1,
+            'operation_id': operation_id,
+            'operation_mode': plan['operation_mode'],
+            'status': ('DIAGNOSTIC_COMPLETED' if runner_status == 'PASS'
+                       else 'DIAGNOSTIC_COMPLETED_WITH_CAVEATS'),
+            'measurement_status': runner_status,
+            'scope': 'single native Gate B lifecycle arm for FTS stage attribution only',
+            'pair_comparison_performed': False,
+            'query_latency_comparison': 'NOT_RUN_NATIVE_ONLY_DIAGNOSTIC',
+            'performance_eligible': False,
+            'corpus': {'commit': CONTRACT['workload']['source_commit'],
+                       'manifest_sha256': plan['corpus_manifest_sha256'],
+                       'file_count': plan['corpus_file_count'], 'bytes': plan['corpus_bytes']},
+            'execution_order': ['native'],
+            'artifacts': plan['artifacts'],
+            'native_profile_trace': arm.get('native_profile_trace'),
+            'native_arm': arm,
+            'native_workload_report': workload_report,
+            'post_cleanup_workspace_quota': post_cleanup_quota,
+            'limitations': [
+                'single native-only diagnostic; no paired M4 comparison',
+                'no performance or architecture-win claim',
+                'if target stalls are not reproduced or stage spans are incomplete, attribution remains inconclusive',
+            ],
+        }
+        (operation_root / 'native-query-stage-result.json').write_text(
+            json.dumps(result, indent=2) + '\n')
+        return result
 
     by_role = {arm['role']: arm for arm in arm_results}
     native = by_role['native']['workload_report']
@@ -465,7 +677,8 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
         'corpus': {'commit': CONTRACT['workload']['source_commit'],
                    'manifest_sha256': plan['corpus_manifest_sha256'],
                    'file_count': plan['corpus_file_count'], 'bytes': plan['corpus_bytes']},
-        'execution_order': plan['execution_order'], 'parity': parity, 'arms': arm_results,
+        'execution_order': plan['execution_order'], 'artifacts': plan['artifacts'],
+        'parity': parity, 'arms': arm_results,
         'limitations': ['one repository snapshot', 'one pair', 'no cgroup io.stat/io.max',
                         'host I/O pressure is observational', 'fixed deterministic embedding model'],
     }
@@ -477,21 +690,49 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--validate-only', action='store_true',
                         help='validate corpus, binary, quota, policy bindings and commands without creating files or launching')
+    parser.add_argument('--native-only-diagnostic', action='store_true',
+                        help='use only the exactly authorized native arm for FTS stage attribution; never run the M4 arm or a pair comparison')
     parser.add_argument('--operation-id', help='fresh unique operation ID; required for launch')
+    parser.add_argument('--binary-path', type=pathlib.Path,
+                        help='opt in to a test binary under debug/deps/.m4-measurement; all existing preflight and hash guards still apply')
+    parser.add_argument('--expected-binary-sha256',
+                        help='require this exact lowercase SHA-256 for the selected test binary, whether explicitly supplied or default-discovered')
+    parser.add_argument('--library-path', type=pathlib.Path,
+                        help='opt in to one exact native-library directory under debug/build')
+    parser.add_argument('--expected-library-sha256',
+                        help='require this exact lowercase SHA-256 before the native library is used')
     args = parser.parse_args()
+    if args.expected_binary_sha256 is not None and (
+            len(args.expected_binary_sha256) != 64 or
+            any(c not in '0123456789abcdef' for c in args.expected_binary_sha256)):
+        parser.error('--expected-binary-sha256 requires 64 lowercase hexadecimal characters')
+    if args.expected_library_sha256 is not None and (args.library_path is None or
+            len(args.expected_library_sha256) != 64 or
+            any(c not in '0123456789abcdef' for c in args.expected_library_sha256)):
+        parser.error('--expected-library-sha256 requires --library-path and 64 lowercase hexadecimal characters')
+    if args.library_path is not None and args.expected_library_sha256 is None:
+        parser.error('--library-path requires an exact --expected-library-sha256')
     if args.validate_only:
+        if args.native_only_diagnostic and not args.operation_id:
+            parser.error('--native-only-diagnostic requires its exact authorized --operation-id')
         operation_id = args.operation_id or (
             'm4-rust-lifecycle-pair-validate-' + uuid.uuid4().hex[:12])
         if not operation_id.startswith('m4-rust-lifecycle-pair-'):
             parser.error('operation ID must use the m4-rust-lifecycle-pair- prefix')
-        plan = preflight(operation_id)
+        plan = preflight(operation_id, args.binary_path, args.expected_binary_sha256,
+                         args.library_path, args.expected_library_sha256,
+                         native_only_diagnostic=args.native_only_diagnostic)
         print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
     if not args.operation_id:
         parser.error('--operation-id is required for launch')
-    result = run_pair(args.operation_id)
+    result = run_pair(args.operation_id, args.binary_path, args.expected_binary_sha256,
+                      args.library_path, args.expected_library_sha256,
+                      native_only_diagnostic=args.native_only_diagnostic)
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if result['status'] == 'PASS' else 2
+    return 0 if result['status'] in {
+        'PASS', 'DIAGNOSTIC_COMPLETED', 'DIAGNOSTIC_COMPLETED_WITH_CAVEATS'
+    } else 2
 
 
 if __name__ == '__main__':

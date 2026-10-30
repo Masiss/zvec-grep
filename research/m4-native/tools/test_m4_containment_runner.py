@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -34,9 +35,35 @@ pair_spec.loader.exec_module(pair_runner)
 
 
 class ContainmentRunnerTests(unittest.TestCase):
-    def test_rust_pipeline_lifecycle_profile_is_one_bounded_pair(self) -> None:
+    def test_rust_lifecycle_native_diagnostic_authorization_is_consumed(self) -> None:
         contract = runner.BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
         self.assertTrue(contract['single_pair_only'])
+        self.assertEqual(contract['max_authorized_pair_operations'], 0)
+        self.assertEqual(contract['authorized_operation_ids'], [])
+        diagnostic = contract['native_query_stage_diagnostic']
+        self.assertEqual(diagnostic['approval_status'], 'approved')
+        self.assertEqual(diagnostic['max_authorized_operations'], 0)
+        self.assertEqual(diagnostic['authorized_operation_ids'], [])
+        self.assertEqual(diagnostic['max_concurrent_operations'], 1)
+        self.assertTrue(diagnostic['review_after_each_operation'])
+        self.assertTrue(diagnostic['stop_on_gate_refusal'])
+        self.assertEqual(diagnostic['previous_attempts'][-1]['operation_id'],
+                         'm4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1')
+        self.assertEqual(diagnostic['previous_attempts'][-1]['outcome'],
+                         'DIAGNOSTIC_COMPLETED_WITH_CAVEATS')
+        self.assertEqual(diagnostic['arm_roles'], ['native'])
+        self.assertEqual(diagnostic['execution_order'], ['native'])
+        self.assertFalse(diagnostic['performance_eligible'])
+        timeline = contract['native_flush_timeline']
+        self.assertEqual(timeline['events'], [
+            'segment_flush_stage', 'collection_query', 'collection_query_stage',
+            'collection_flush', 'collection_flush_stage', 'fts_recall_stage',
+            'schema_handle_lock_owner',
+        ])
+        self.assertEqual(
+            contract['previous_authorization_batches'][0]['unused_not_reauthorized'],
+            ['m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r3a'],
+        )
         self.assertEqual(contract['workload']['source_file_count'], 64)
         self.assertEqual(contract['workload']['source_bytes'], 694_421)
         self.assertEqual(contract['workload']['source_selection']['path_prefix'],
@@ -51,8 +78,67 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(contract['resource_controls']['memory_swap_max_bytes'], 0)
         self.assertEqual(contract['resource_controls']['cpu_max'], '200000 100000')
         self.assertEqual(contract['resource_controls']['workspace_max_allocated_bytes'], 33_554_432)
-        self.assertEqual(contract['workspace_quota']['max_referenced_bytes'], 134_217_728)
+        self.assertEqual(contract['workspace_quota']['max_referenced_bytes'], 167_772_160)
         self.assertIn('io.max unavailable', contract['io_pressure_mode'])
+
+    def test_background_compaction_profiles_are_registered_with_containment_runner(self) -> None:
+        contract = runner.BENCHMARK_POLICY['lock_contention_microbench']
+        self.assertEqual(contract['evidence_class'], runner.CONTENTION_EVIDENCE)
+        for profile in ('background_compaction_pair_off_first',
+                        'background_compaction_pair_on_first'):
+            with self.subTest(profile=profile):
+                self.assertEqual(
+                    runner.lock_contention_workload({'workload_profile': profile}),
+                    contract[profile]['workload'])
+                authorization = contract[profile]['execution_authorization_reference']
+                self.assertIn("tôi cho bạn 3 pair nữa", authorization)
+                self.assertIn('prior renewed batch completed 3/3', authorization)
+                self.assertIn('consumed 3/3', authorization)
+                self.assertIn('No further operations are authorized', authorization)
+
+    def test_policy_bound_exploratory_receipts_are_nonqualifying_by_design(self) -> None:
+        context = {'purpose': runner.M4_LOCK_CONTENTION_MICROBENCH_PURPOSE}
+        self.assertEqual(runner.contention_evidence_class(context), runner.CONTENTION_EVIDENCE)
+        self.assertFalse(runner.is_performance_eligible('PASS', True, context))
+        self.assertFalse(runner.is_performance_eligible('COMPLETED_WITH_WORKSPACE_UNCERTAINTY', True, context))
+        self.assertTrue(runner.is_performance_eligible('PASS', True, None))
+        self.assertFalse(runner.is_performance_eligible('PASS', False, None))
+
+    def test_background_compaction_binding_requires_arm_order_and_workspace_cache(self) -> None:
+        profile = 'background_compaction_pair_off_first'
+        with tempfile.TemporaryDirectory(dir=self.fixture_root) as temp:
+            base = pathlib.Path(temp)
+            workspace = base / 'workspace'
+            workspace.mkdir()
+            binary = base / 'benchmark'
+            binary.write_bytes(b'fixed test binary')
+            dictionary = base / 'dict'
+            dictionary.mkdir()
+            native_cache = workspace / 'native-cache'
+            context = {
+                'workload_profile': profile,
+                'dictionary_path': str(dictionary),
+                'native_cache_root': str(native_cache),
+                'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
+            }
+            workload = runner.lock_contention_workload(context)
+            command = [
+                str(binary.resolve()), str((workspace / 'root').resolve()),
+                str(dictionary.resolve()), workload['mode'],
+                str(workload['documents']), str(workload['rounds']),
+                workload['arm_order'],
+            ]
+            env = {'M4_REPO_TMP_DIR': str(native_cache)}
+            self.assertTrue(runner.lock_contention_command_bound(
+                command, binary.resolve(), workspace, context, env))
+            self.assertFalse(runner.lock_contention_command_bound(
+                command[:-1], binary.resolve(), workspace, context, env))
+            wrong_order = [*command[:-1], 'background_on_first']
+            self.assertFalse(runner.lock_contention_command_bound(
+                wrong_order, binary.resolve(), workspace, context, env))
+            self.assertFalse(runner.lock_contention_command_bound(
+                command, binary.resolve(), workspace, context,
+                {'M4_REPO_TMP_DIR': str(base / 'outside-cache')}))
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -122,11 +208,45 @@ class ContainmentRunnerTests(unittest.TestCase):
         }
         environment = runner.rust_lifecycle_expected_environment(context)
         self.assertEqual(environment['ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES'], '134217728')
+        self.assertEqual(environment['M4_NATIVE_FLUSH_TIMELINE'], '1')
         self.assertEqual(environment['M4_GATE_B_ARM'], 'native')
         self.assertEqual(environment['M4_GATE_B_READER_QUERY_INTERVAL_MS'], '25')
         self.assertEqual(environment['M4_GATE_B_READER_QUERY_MAX_SAMPLES'], '256')
         self.assertEqual(environment['M4_GATE_B_READER_QUERY_QUEUE_CAPACITY'], '8')
         self.assertEqual(environment['LD_LIBRARY_PATH'], '/opt/zvec/lib')
+
+    def test_native_query_stage_diagnostic_binds_trace_to_its_receipt_directory(self) -> None:
+        operation_root = self.fixture_root / 'operation'
+        trace_path = operation_root / 'pair-first' / 'containment' / 'native-profile.jsonl'
+        context = {
+            'arm_role': 'native', 'source_root': str(self.fixture_root / 'src'),
+            'index_root': str(self.fixture_root / 'index'),
+            'report_path': str(self.fixture_root / 'report.json'),
+            'temporary_directory': str(self.fixture_root / 'tmp'),
+            'library_path': '/opt/zvec/lib',
+            'reader_query_interval_ms': 25,
+            'reader_query_max_samples_per_pass': 256,
+            'reader_query_queue_capacity': 8,
+            'zvec_native_memory_limit_bytes': 134_217_728,
+            'operation_mode': 'native_query_stage_diagnostic',
+            'operation_root': str(operation_root), 'arm_name': 'pair-first',
+            'native_profile_trace_path': str(trace_path),
+        }
+        environment = runner.rust_lifecycle_expected_environment(context)
+        self.assertEqual(environment['M4_NATIVE_PROFILE_LOG_PATH'], str(trace_path.resolve()))
+        paired = dict(context, operation_mode='pair')
+        paired.pop('native_profile_trace_path')
+        self.assertNotIn('M4_NATIVE_PROFILE_LOG_PATH',
+                         runner.rust_lifecycle_expected_environment(paired))
+
+    def test_native_query_stage_diagnostic_reserves_one_disk_workspace_only(self) -> None:
+        native_only = {
+            'purpose': runner.M4_RUST_LIFECYCLE_PURPOSE,
+            'operation_mode': 'native_query_stage_diagnostic',
+        }
+        paired = {'purpose': runner.M4_RUST_LIFECYCLE_PURPOSE, 'operation_mode': 'pair'}
+        self.assertTrue(runner.is_m4_single_arm_capacity_plan(native_only))
+        self.assertFalse(runner.is_m4_single_arm_capacity_plan(paired))
 
     def test_registered_qgroup_bound_allows_unknown_inventory_but_not_scope_or_quota_errors(self) -> None:
         contract = runner.BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']['workspace_quota']
@@ -152,6 +272,22 @@ class ContainmentRunnerTests(unittest.TestCase):
             'available_bytes': contract['minimum_free_bytes'],
             'required_free_bytes': contract['minimum_free_bytes'],
         }
+        accounting = runner.workspace_accounting_summary(
+            [{'workspace': observation, 'workspace_quota': sample}], budget)
+        self.assertFalse(accounting['workspace_samples_complete'])
+        self.assertEqual(accounting['workspace_accounting_status'], 'UNKNOWN_INVENTORY_KERNEL_QUOTA_BOUND')
+        self.assertTrue(accounting['workspace_quota_samples_complete'])
+        self.assertEqual(accounting['workspace_quota_referenced_peak_bytes'], sample['referenced_bytes'])
+        self.assertEqual(accounting['workspace_quota_minimum_headroom_bytes'], sample['available_bytes'])
+        self.assertIn('inventory NOT sampled', accounting['workspace_snapshot_semantics'])
+
+        incomplete_accounting = runner.workspace_accounting_summary(
+            [{'workspace': observation, 'workspace_quota': {'status': 'UNVERIFIABLE'}}], budget)
+        self.assertFalse(incomplete_accounting['workspace_quota_samples_complete'])
+        self.assertEqual(incomplete_accounting['workspace_accounting_status'], 'UNKNOWN')
+        self.assertIsNone(incomplete_accounting['workspace_quota_referenced_peak_bytes'])
+        self.assertIsNone(incomplete_accounting['workspace_quota_minimum_headroom_bytes'])
+
         decision = runner.workspace_capacity_decision(observation, budget, runner.CONTENTION_MODE, sample)
         self.assertTrue(decision['continuation_allowed'])
         self.assertEqual(decision['measurement_quality'], 'HARD_QUOTA_BOUND')
@@ -513,6 +649,10 @@ class ContainmentRunnerTests(unittest.TestCase):
                         config = json.loads(config_path.read_text())
                         if (pathlib.Path(config['watchdog_ready_path']).is_file()
                                 and pathlib.Path(config['start_marker']).is_file()):
+                            stderr_path = receipt_dir / 'stderr.log'
+                            if (not stderr_path.is_file() or
+                                    'QUERY_LOAD_SNAPSHOT' not in stderr_path.read_text()):
+                                continue
                             with self.assertRaisesRegex(ValueError, 'confirmation unit'):
                                 runner.request_operator_stop(receipt_dir, 'wrong-unit.service')
                             request = runner.request_operator_stop(receipt_dir, state['unit'])

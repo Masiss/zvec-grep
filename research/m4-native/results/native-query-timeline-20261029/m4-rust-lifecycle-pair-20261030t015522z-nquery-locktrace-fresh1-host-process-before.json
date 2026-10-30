@@ -1,0 +1,414 @@
+{
+  "controller_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "monotonic_ns": 513265097121097,
+  "timestamp_utc": "2026-10-30T02:00:18.494496+00:00",
+  "top_processes": [
+    {
+      "command": "python3",
+      "cpu_percent": 66.6,
+      "elapsed_seconds": 0,
+      "pid": 5549,
+      "ppid": 5537,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 5549,
+        "smaps_rollup": {
+          "Pss": "15684 kB",
+          "Swap": "0 kB",
+          "SwapPss": "0 kB"
+        },
+        "start_ticks": 81413180,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "python3",
+          "VmRSS": "21832 kB",
+          "VmSwap": "0 kB"
+        },
+        "stime_ticks": 0,
+        "utime_ticks": 2
+      },
+      "rss_kib": 21704
+    },
+    {
+      "command": "firefox",
+      "cpu_percent": 9.1,
+      "elapsed_seconds": 43247,
+      "pid": 3052016,
+      "ppid": 2493309,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 3052016,
+        "smaps_rollup": {
+          "Pss": "348142 kB",
+          "Swap": "492316 kB",
+          "SwapPss": "488780 kB"
+        },
+        "start_ticks": 77088405,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "firefox",
+          "VmRSS": "403956 kB",
+          "VmSwap": "488780 kB"
+        },
+        "stime_ticks": 30004,
+        "utime_ticks": 365590
+      },
+      "rss_kib": 403956
+    },
+    {
+      "command": "pi",
+      "cpu_percent": 4.2,
+      "elapsed_seconds": 77637,
+      "pid": 774676,
+      "ppid": 920534,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 774676,
+        "smaps_rollup": {
+          "Pss": "799531 kB",
+          "Swap": "284044 kB",
+          "SwapPss": "284044 kB"
+        },
+        "start_ticks": 73649454,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "pi",
+          "VmRSS": "824016 kB",
+          "VmSwap": "284044 kB"
+        },
+        "stime_ticks": 33060,
+        "utime_ticks": 298667
+      },
+      "rss_kib": 824016
+    },
+    {
+      "command": "Hyprland",
+      "cpu_percent": 4.2,
+      "elapsed_seconds": 814113,
+      "pid": 2011,
+      "ppid": 2006,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 2011,
+        "smaps_rollup": {
+          "Pss": "34042 kB",
+          "Swap": "150536 kB",
+          "SwapPss": "76796 kB"
+        },
+        "start_ticks": 1798,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "Hyprland",
+          "VmRSS": "60228 kB",
+          "VmSwap": "76796 kB"
+        },
+        "stime_ticks": 1256924,
+        "utime_ticks": 2206475
+      },
+      "rss_kib": 60228
+    },
+    {
+      "command": "pi",
+      "cpu_percent": 4.1,
+      "elapsed_seconds": 148983,
+      "pid": 1135260,
+      "ppid": 1135184,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 1135260,
+        "smaps_rollup": {
+          "Pss": "587482 kB",
+          "Swap": "550536 kB",
+          "SwapPss": "550536 kB"
+        },
+        "start_ticks": 66514809,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "pi",
+          "VmRSS": "617104 kB",
+          "VmSwap": "550536 kB"
+        },
+        "stime_ticks": 55142,
+        "utime_ticks": 558447
+      },
+      "rss_kib": 617104
+    },
+    {
+      "command": "zed-editor",
+      "cpu_percent": 4.0,
+      "elapsed_seconds": 174662,
+      "pid": 3072223,
+      "ppid": 1855,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 3072223,
+        "smaps_rollup": {
+          "Pss": "243968 kB",
+          "Swap": "1620292 kB",
+          "SwapPss": "1619948 kB"
+        },
+        "start_ticks": 63946928,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "zed-editor",
+          "VmRSS": "248188 kB",
+          "VmSwap": "1619948 kB"
+        },
+        "stime_ticks": 87341,
+        "utime_ticks": 626638
+      },
+      "rss_kib": 248188
+    },
+    {
+      "command": "zen-bin",
+      "cpu_percent": 3.6,
+      "elapsed_seconds": 34299,
+      "pid": 3797183,
+      "ppid": 2011,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 3797183,
+        "smaps_rollup": {
+          "Pss": "484717 kB",
+          "Swap": "445812 kB",
+          "SwapPss": "432564 kB"
+        },
+        "start_ticks": 77983209,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "zen-bin",
+          "VmRSS": "614436 kB",
+          "VmSwap": "432564 kB"
+        },
+        "stime_ticks": 23370,
+        "utime_ticks": 101530
+      },
+      "rss_kib": 614436
+    },
+    {
+      "command": "pi",
+      "cpu_percent": 2.8,
+      "elapsed_seconds": 170774,
+      "pid": 3387746,
+      "ppid": 3386848,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 3387746,
+        "smaps_rollup": {
+          "Pss": "523458 kB",
+          "Swap": "444784 kB",
+          "SwapPss": "444784 kB"
+        },
+        "start_ticks": 64335734,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "pi",
+          "VmRSS": "546388 kB",
+          "VmSwap": "444784 kB"
+        },
+        "stime_ticks": 34731,
+        "utime_ticks": 443487
+      },
+      "rss_kib": 546388
+    },
+    {
+      "command": "eww",
+      "cpu_percent": 1.7,
+      "elapsed_seconds": 814111,
+      "pid": 2200,
+      "ppid": 1855,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 2200,
+        "smaps_rollup": {
+          "Pss": "24788 kB",
+          "Swap": "38808 kB",
+          "SwapPss": "36368 kB"
+        },
+        "start_ticks": 2024,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "eww",
+          "VmRSS": "34796 kB",
+          "VmSwap": "36368 kB"
+        },
+        "stime_ticks": 614043,
+        "utime_ticks": 837484
+      },
+      "rss_kib": 34796
+    },
+    {
+      "command": "Web Content",
+      "cpu_percent": 1.5,
+      "elapsed_seconds": 1008,
+      "pid": 4128654,
+      "ppid": 3798190,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 4128654,
+        "smaps_rollup": {
+          "Pss": "79510 kB",
+          "Swap": "6192 kB",
+          "SwapPss": "365 kB"
+        },
+        "start_ticks": 81312304,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "Web Content",
+          "VmRSS": "176548 kB",
+          "VmSwap": "4396 kB"
+        },
+        "stime_ticks": 367,
+        "utime_ticks": 1202
+      },
+      "rss_kib": 176548
+    },
+    {
+      "command": "Web Content",
+      "cpu_percent": 1.2,
+      "elapsed_seconds": 34289,
+      "pid": 3800335,
+      "ppid": 3798190,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 3800335,
+        "smaps_rollup": {
+          "Pss": "712826 kB",
+          "Swap": "208992 kB",
+          "SwapPss": "202398 kB"
+        },
+        "start_ticks": 77984197,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "Web Content",
+          "VmRSS": "798800 kB",
+          "VmSwap": "206696 kB"
+        },
+        "stime_ticks": 4701,
+        "utime_ticks": 37701
+      },
+      "rss_kib": 798800
+    },
+    {
+      "command": "kitty",
+      "cpu_percent": 1.1,
+      "elapsed_seconds": 692888,
+      "pid": 660203,
+      "ppid": 2011,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 660203,
+        "smaps_rollup": {
+          "Pss": "12158 kB",
+          "Swap": "69864 kB",
+          "SwapPss": "69860 kB"
+        },
+        "start_ticks": 12124329,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "kitty",
+          "VmRSS": "18148 kB",
+          "VmSwap": "69860 kB"
+        },
+        "stime_ticks": 238913,
+        "utime_ticks": 589328
+      },
+      "rss_kib": 18148
+    },
+    {
+      "command": "WebExtensions",
+      "cpu_percent": 1.1,
+      "elapsed_seconds": 34297,
+      "pid": 3799263,
+      "ppid": 3798190,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 3799263,
+        "smaps_rollup": {
+          "Pss": "241711 kB",
+          "Swap": "109180 kB",
+          "SwapPss": "103326 kB"
+        },
+        "start_ticks": 77983444,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "WebExtensions",
+          "VmRSS": "325240 kB",
+          "VmSwap": "107328 kB"
+        },
+        "stime_ticks": 7487,
+        "utime_ticks": 31456
+      },
+      "rss_kib": 325240
+    },
+    {
+      "command": "Web Content",
+      "cpu_percent": 1.1,
+      "elapsed_seconds": 34292,
+      "pid": 3800113,
+      "ppid": 3798190,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 3800113,
+        "smaps_rollup": {
+          "Pss": "636112 kB",
+          "Swap": "212320 kB",
+          "SwapPss": "206413 kB"
+        },
+        "start_ticks": 77983902,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "Web Content",
+          "VmRSS": "722728 kB",
+          "VmSwap": "210440 kB"
+        },
+        "stime_ticks": 2738,
+        "utime_ticks": 35273
+      },
+      "rss_kib": 722728
+    },
+    {
+      "command": "kswapd0",
+      "cpu_percent": 0.9,
+      "elapsed_seconds": 814130,
+      "pid": 175,
+      "ppid": 2,
+      "proc": {
+        "clock_ticks_per_second": 100,
+        "pid": 175,
+        "smaps_rollup": {
+          "unavailable": "ProcessLookupError: [Errno 3] No such process: '/proc/175/smaps_rollup'"
+        },
+        "start_ticks": 181,
+        "status": {
+          "Cpus_allowed_list": "0-19",
+          "Name": "kswapd0"
+        },
+        "stime_ticks": 813555,
+        "utime_ticks": 0
+      },
+      "rss_kib": 0
+    }
+  ]
+}

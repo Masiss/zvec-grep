@@ -100,12 +100,26 @@
   "rust_pipeline_lifecycle_pair": {
     "purpose": "m4-rust-full-lifecycle-pair",
     "approval_status": "approved",
-    "approval_reference": "Current explicit owner request 2026-10-26: finish Gate B and independently choose safe ways to obtain useful research output; research-only, no production migration. After full-corpus attempts hit hard resource gates, this operation is explicitly a reduced-scope diagnostic pilot, not a substitute for full-corpus Gate B.",
-    "execution_authorization_reference": "Current explicit owner request 2026-10-26: diagnose query latency and workspace soft-budget measurement, correct observer bias, then run one fresh matched 64-file diagnostic pair. Technical Lead direction 2026-10-27 authorizes implementation of offered-load telemetry and exact attestation-bound live qgroup capacity certification; this does not itself authorize a new operation. Preserve all hard cgroup/disk/quota controls; do not retry previously stopped operations or interpret this as full-corpus Gate B. Arm two may proceed only after arm one exits 0 with verified hard-safety telemetry, verified cleanup and an allowed postflight decision; workspace accounting caveats remain non-qualifying.",
-    "risk_acceptance_reference": "One pair is descriptive exploratory evidence only; shared-host state, missing cgroup I/O isolation, fixed-embedding test runtime, one repository corpus, and a single execution order prohibit causal, qualification, or architecture-win claims. Under the explicit Technical Lead direction of 2026-10-27, concurrent queries use fixed offered-load deadlines with a bounded queue; scheduler lag, accepted/failed/dropped/capped offers, queue delay, service time, end-to-end response, and measured M4 PassGate wait are recorded. Aggregate p95 is non-comparable whenever an offer is dropped/capped/failed, scheduler lag exceeds one interval, or sample count is insufficient.",
+    "approval_reference": "Current explicit owner request 2026-10-26: finish Gate B and independently choose safe ways to obtain useful research output; research-only, no production migration. After full-corpus attempts hit hard resource gates, this operation is explicitly a reduced-scope diagnostic pilot, not a substitute for full-corpus Gate B. Current explicit owner authorization 2026-10-28: analyze, fix, and run up to three new distinct matched lifecycle-pair operations. Current explicit owner request 2026-10-29 after R2: try up to three additional fresh distinct matched lifecycle-pair operations, research-only, after instrumentation/correctness fixes. Following the source-trace review, the owner explicitly authorized up to three further fresh distinct pairs with expanded query/flush timeline instrumentation: “tôi cho 3 pair nữa, nhưng bạn phải check kĩ” (2026-10-29). The owner subsequently requested a deep dive and explicitly approved exactly one additional fresh native-first diagnostic pair, conditional on a passing no-launch preflight, unchanged gates, and no retry (2026-10-29). That one attempt was refused before launch by the qgroup reserve gate and is consumed.",
+    "execution_authorization_reference": "The 2026-10-26 one-pair authorization was consumed. New explicit owner authorization on 2026-10-27 (\"ok, làm đi\", following the request for fresh diagnostic authority) authorized exactly one fresh matched 64-file diagnostic pair under this unchanged policy; it was consumed by operation m4-rust-lifecycle-pair-20261027-dc8e1120, which was stopped during the native arm for liveness concerns and produced no comparison. The owner's subsequent direction to finish the whole plan authorized at most one additional fresh 64-file diagnostic pair, only after Gate 2 correctness work and an immediate successful no-launch preflight. That authorization was consumed by operation m4-rust-lifecycle-pair-20261027-030722-1b7f7407: its validate-only preflight refused before launch because qgroup available bytes (89,235,456) were below the 100,663,296-byte required headroom. No arm or workspace materialization started. A subsequent explicit owner authorization on 2026-10-27 authorized at most one new fresh 64-file pair under these same controls. Following the owner's separately approved evidence-preserving cleanup, the previous stopped operation `m4-rust-lifecycle-pair-20261027-dc8e1120` was copied outside the quota subvolume with `--reflink=never`, verified against a 368-entry SHA-256 manifest, then removed only from its original operation-owned path. Qgroup became 16,461,824 bytes referenced and 117,755,904 bytes available; the 100,663,296-byte preflight requirement was met. The fresh no-launch preflight passed for operation `m4-rust-lifecycle-pair-20261027-034750-2d863149`, then the one-pair authorization was consumed when its M4 arm hit `runtime_timeout` at 900 seconds during initial indexing; the native arm did not start and no comparison was produced. Containment cleanup was verified. The evidence-bearing partial operation root was subsequently archived outside the quota subvolume using `cp -a --reflink=never`, verified against a 449-entry SHA-256 manifest, and removed only after separate owner approval. Current qgroup is 16,461,824 bytes referenced and 117,755,904 bytes available, 17,092,608 bytes above the next-pair requirement. This restores capacity only; the one-pair authorization remains consumed, and no new preflight or benchmark was run. Do not retry or change controls. Post-run inspection found the two-party start barrier was used by three test participants, allowing the query scheduler to be stranded and emit no query offers; the harness barrier was corrected to three parties. Build-only compilation and the non-ignored Gate B tests passed (10 passed, 1 ignored); the original ignored workload was not rerun. The initial-indexing stall at file 50 remains unexplained. The earlier source/binary mismatch claim was retracted after confirming the binary contained the snapshot marker; a shell pipeline false negative caused that claim. The owner then explicitly authorized exactly one fresh 64-file diagnostic pair on 2026-10-27 (structured response: \"Cho phép một cặp mới\"), using the binary built after the three-party barrier fix, unchanged hard controls, and a fresh immediate --validate-only. This authorization was consumed by operation m4-rust-lifecycle-pair-20261027T045033Z-9da70ee5, whose --validate-only was refused because uppercase T/Z violated the lowercase operation-ID contract. No workspace or arm launched; qgroup remained at 117,755,904 bytes available. Preserve the refusal and do not retry with a corrected ID under this authorization. The owner authorized one additional fresh 64-file diagnostic pair on 2026-10-27 (direct response: tôi cho phép), under unchanged hard controls, using a lowercase-valid ID and immediate fresh --validate-only. This authorization was consumed by m4-rust-lifecycle-pair-20261027t04551793076905z-6a1dd11d: preflight passed, the native first arm completed with workspace uncertainty, then the second-arm qgroup gate refused at 97,935,360 B available versus 100,663,296 B required. M4 did not start; do not retry. A later read-only check showed 117,407,744 B available, but this does not authorize a retry. The raw pair-result classification was left unchanged; the wrapper's qgroup-failure classifier was corrected and its focused tests passed 2/2. The owner has now authorized archiving outside the quota subvolume, manifest verification, and deletion of exactly the retained roots m4-rust-lifecycle-pair-20261026-b6a1348d and m4-rust-lifecycle-pair-20261027t04551793076905z-6a1dd11d, followed by exactly one further 64-file diagnostic pair under unchanged hard controls. Cleanup and manifest verification succeeded for exactly the two authorized roots, with no other qgroup paths removed. The one fresh pair ran as m4-rust-lifecycle-pair-20261027t051335z-c8cf6382 (M4 then native); both workload return codes were zero and correctness parity passed, but both arms had workspace uncertainty and query drops/missed starts/sampling caps, so the pair is PAIR_COMPLETED_WITH_WORKSPACE_CAVEATS and performance_eligible=false. Current qgroup is 102,072,320 bytes available, only 1,409,024 bytes above the 100,663,296-byte next-workspace requirement. This authorization is consumed; no retry, new preflight, or cleanup is authorized. The owner has since authorized one additional 64-file diagnostic pair in this session to exercise the added queue-full versus receiver-disconnected telemetry, with unchanged workload and hard controls. This one-pair authority was consumed by operation `m4-rust-lifecycle-pair-20261027t052952z-332a873b`: its immediate preflight passed, both M4-first/native-second workloads exited 0, hard-safety telemetry and cleanup were verified, and the pair completed with workspace caveats and non-comparable query p95. Cause-specific counters showed queue-full drops (M4 308, native 130) and zero disconnected-receiver drops. Do not retry or launch another operation under this instruction. No cleanup, threshold/control change, full-corpus qualification, or production work is authorized by this instruction. This remains diagnostic only: no full-corpus Gate B qualification, performance-win claim, or production work. Preserve all hard cgroup/disk/qgroup controls. No operation-specific authorization remained active at that historical checkpoint. On 2026-10-28 the owner authorized exactly one fresh pair m4-rust-lifecycle-pair-20261028t085552z-light, conditional on the reduced-artifact observer diagnostic completing safely and showing a clear cost reduction; immediate unchanged preflight and all hard gates remain mandatory, and no retry is authorized after refusal or stop. Query p95 is non-comparable because offers were dropped/capped; in-run workspace inventory and soft-budget peaks remain UNKNOWN while qgroup capacity samples are complete. See `results/M4-GATE-B-QUERY-DROP-CAUSE-20261027.md` and `results/HANDOFF-20261027.md`. The owner separately approved raising the shared qgroup max referenced cap to 150994944 bytes (144 MiB), retaining the 67108864-byte minimum-free reserve and all other controls; this quota amendment does not authorize a new pair. See `results/M4-PHASE3-QGROUP-CAP-AMENDMENT-20261028.md`. The owner applied the cap and refreshed the root attestation on 2026-10-28; supplied output confirmed max referenced=150994944 bytes, consistent squota and 140025856 bytes headroom. This does not renew the consumed pair authorization. The owner subsequently gave a structured explicit approval on 2026-10-28 ('Authorize one diagnostic pair') for exactly one fresh operation `m4-rust-lifecycle-pair-20261028t141504z-nativefts`, to collect direct native FTS-call wall time alongside existing query-worker state-lock telemetry. It uses the opt-in reduced binary SHA-256 `c17e234f9ec300f5f066ce7713790c0e2c2bbecdc375d03efea221ad77d88c27` and unchanged library SHA-256 `58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a`, with the applied 144 MiB qgroup cap and all other controls unchanged. Run immediate no-launch validation before launch; any refusal or safety stop consumes this authorization and is not retried. Lost offers or a capped/incomplete pass make p95 ineligible. The 2026-10-28 authorization completed R1 (`m4-rust-lifecycle-pair-20261028t170509z-nflush-r1`) and R2 (`m4-rust-lifecycle-pair-20261028t170509z-nflush-r2-m4first-a`); its R3 ID was never preflighted or launched. On 2026-10-29, after R2, the owner explicitly authorized up to three additional fresh distinct pairs. The exact current allowlist is `m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r1a`, `m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r2a`, and `m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r3a`; it replaces the prior unused R3 slot, so this authorization is at most three pairs, not four. Each requires immediate fresh no-launch validation. Workload, artifact pinning, resource ceilings, qgroup reserve/cap, durability/correctness, queue and offered-load eligibility, containment, cleanup, and all safety gates remain unchanged. The first 2026-10-29 batch added Linux query-thread CPU time and opt-in native segment-flush-stage wall/CPU spans. That batch is closed: R1a and R2a ran; its unused R3a is not reauthorized or reused. The current owner authorization covers up to three new IDs listed below, with opt-in C++ collection query/flush lock-boundary and FTS-recall worker-stage wall/thread-CPU spans (monotonic intervals, thread IDs, collection/segment identifiers) under the same timeline environment gate. Workload, queue, synchronization, durability, resource controls, and eligibility rules remain unchanged. Each operation needs immediate fresh no-launch validation. Any hard-gate refusal or safety stop halts this batch pending owner review; do not retry or bypass. Stop early when the attribution question is resolved. The owner then explicitly approved exactly one fresh native-first diagnostic pair under the unchanged controls, with a new operation ID and launch permitted only after a fresh no-launch preflight passes (2026-10-29). Operation m4-rust-lifecycle-pair-20261029t151203z-nquery-r4b was refused before launch because qgroup headroom was 114,688 B below the required reserve; no retry or gate change is authorized.",
+    "risk_acceptance_reference": "Pair results remain descriptive exploratory evidence only; shared-host state, missing cgroup I/O isolation, fixed-embedding test runtime, one repository corpus, and a small number of execution orders prohibit causal, qualification, or architecture-win claims. Under the explicit Technical Lead direction of 2026-10-27, concurrent queries use fixed offered-load deadlines with a bounded queue; scheduler lag, accepted/failed/dropped/capped offers, queue delay, service time, end-to-end response, measured M4 PassGate wait, native FTS wall/thread CPU time, native flush-stage intervals, C++ collection-lock boundaries, and FTS-recall worker-stage wall/thread CPU spans are recorded. These are diagnostic attribution data, not performance qualification. Aggregate p95 is non-comparable whenever an offer is dropped/capped/failed, scheduler lag exceeds one interval, or sample count is insufficient.",
     "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
     "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
     "io_pressure_mode": "observational-only; cgroup io.stat/io.max unavailable",
+    "native_flush_timeline": {
+      "environment_variable": "M4_NATIVE_FLUSH_TIMELINE",
+      "value": "1",
+      "scope": "Opt-in Linux diagnostic timeline for the contained lifecycle pair. Existing per-segment flush-stage spans remain; added spans cover CollectionImpl query/flush lock waits and held intervals, query validation/segment enumeration/SQL-engine execution, and FTS-recall schema fetch/filter computation/segment FTS search/result fetch. Each span records CLOCK_MONOTONIC wall bounds, CLOCK_THREAD_CPUTIME_ID duration, thread ID, and collection or segment identity. Diagnostic logging only; no workload, queue, synchronization, durability, or resource-control changes.",
+      "events": [
+        "segment_flush_stage",
+        "collection_query",
+        "collection_query_stage",
+        "collection_flush",
+        "collection_flush_stage",
+        "fts_recall_stage",
+        "schema_handle_lock_owner"
+      ]
+    },
     "workload": {
       "source_commit": "34d75aa14c760d302e497831c7501e1a31400f2b",
       "source_manifest_sha256": "7fbc9f951a9b1f75388150a891c984f23dd72717a6ce59070f89fd9f3ad832a3",
@@ -131,13 +145,142 @@
       "reader_query_interval_ms": 25,
       "reader_query_max_samples_per_pass": 256,
       "reader_query_queue_capacity": 8,
-      "reader_query_schedule": "fixed offered-load deadlines from pass start; bounded single-worker queue; record scheduler lag, accepted, failed, dropped and capped offers, queue delay, service time and end-to-end response; never suppress missed or overload starts",
+      "reader_query_schedule": "fixed offered-load deadlines from pass start; bounded single-worker queue; record scheduler lag, accepted, failed, dropped and capped offers, distinguish queue-full from receiver-disconnected drops, record queue delay, service time and end-to-end response; never suppress missed or overload starts",
       "query_fence_wait_attribution": "cumulative M4 PassGate blocked wall time per query; native baseline reports zero",
       "zvec_native_memory_limit_bytes": 134217728
     },
     "arm_roles": ["native", "m4"],
     "arm_orders": [["native", "m4"], ["m4", "native"]],
     "single_pair_only": true,
+    "max_authorized_pair_operations": 0,
+    "authorized_operation_ids": [],
+    "native_query_stage_diagnostic": {
+      "approval_status": "approved",
+      "approval_reference": "Fresh owner instruction 2026-10-30: after the prior artifact-provenance refusal, authorize one new native-only trace using default binary discovery pinned to SHA-256 c6b1b11effe9026c0a85fc0b262bc3056ab2b84252fe95350d17a44c41ff8f19 and the isolated v4 native library pinned to SHA-256 65817813bacc710b29ea01d273ca604c0e1177b1e5aabf618604fe45c701a971; launch only after a fresh no-launch preflight passes.",
+      "execution_authorization_reference": "The previous three-ID authorization batch was closed after its first ID was refused on artifact provenance. The owner then authorized exactly one fresh sequential native-only diagnostic with default binary discovery and explicit expected SHA-256 pins. That run completed with workspace-accounting caveats and is consumed; no active IDs remain. The observed optimize_seal exclusive owner explains most long waits, while three query waits remain unresolved. Any additional trace or code change requires a fresh owner instruction. No M4 arm, matched pair, performance comparison, retry of an old ID, quota change, cleanup, or production action is included.",
+      "risk_acceptance_reference": "The operation remains a bounded attribution diagnostic under existing containment and hard resource controls. Results are not a performance or production claim. Preserve every refusal and incomplete trace. Do not bypass a safety/resource gate or automatically retry a rejected ID.",
+      "max_authorized_operations": 0,
+      "authorized_operation_ids": [],
+      "previous_attempts": [{
+        "operation_id": "m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00",
+        "outcome": "IMPLEMENTATION_DEFECT_BEFORE_WORKLOAD",
+        "benchmark_started": false,
+        "error": "Runner rebuilt the arm context with default pair mode instead of propagating native_query_stage_diagnostic; policy correctly rejected it.",
+        "evidence": [
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00-preflight.json",
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00-run.log",
+          "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00/native-query-stage-result.json"
+        ],
+        "recovery": "Fixed arm-context operation_mode propagation; the old ID remains consumed and is not reused. The one replacement diagnostic later completed under its own ID; no further attempt is authorized."
+      }, {
+        "operation_id": "m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00",
+        "outcome": "DIAGNOSTIC_COMPLETED_WITH_CAVEATS",
+        "benchmark_started": true,
+        "measurement_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        "workload_returncode": 0,
+        "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+        "summary": "Five direct native collection-query calls exceeded 100 ms. Four spent 111.697-1243.589 ms in schema_handle_lock acquisition; two overlapped a flush shared-lock-held interval, which does not establish that flush caused the wait. One 153.214 ms call had an uninstrumented pre-validation gap. Inner FTS recall stages remained below 1 ms. No pair or performance comparison.",
+        "evidence": [
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00-preflight-final.json",
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00-launch-stdout.json",
+          "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00/native-query-stage-result.json",
+          "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00/pair-first/containment/receipt.json",
+          "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00/pair-first/containment/stderr.log"
+        ],
+        "recovery": "The one-time native-only diagnostic is consumed. Do not retry or reuse this ID. Exact owner of every schema-mutex wait and the uninstrumented gap remain unresolved; additional instrumentation needs fresh owner authorization."
+      }, {
+        "operation_id": "m4-rust-lifecycle-pair-20261030t011938z-nquery-locktrace-r1",
+        "outcome": "PREFLIGHT_REFUSED_ARTIFACT_PROVENANCE",
+        "benchmark_started": false,
+        "preflight_returncode": 1,
+        "error": "The explicit measurement executable zg_engine-552d5229013b8e71-nodebug did not match the current original ELF load image; all four PT_LOAD segment identities differed. The preflight stopped in find_test_binary before resource-gate adjudication, workspace creation, or workload launch. An earlier invocation for this ID was rejected at CLI argument parsing because expected binary SHA was supplied without --binary-path.",
+        "artifact_evidence": {
+          "measurement_path": "research/m4-native/.work/build/rust-bridge-target/debug/deps/.m4-measurement/zg_engine-552d5229013b8e71-nodebug",
+          "measurement_sha256": "c17e234f9ec300f5f066ce7713790c0e2c2bbecdc375d03efea221ad77d88c27",
+          "current_original_path": "research/m4-native/.work/build/rust-bridge-target/debug/deps/zg_engine-552d5229013b8e71",
+          "current_original_sha256": "020f8397af778b38082611c2178757e0052f6386c37091aad2b7197e73c9899b",
+          "expected_native_library_sha256": "65817813bacc710b29ea01d273ca604c0e1177b1e5aabf618604fe45c701a971"
+        },
+        "evidence": [
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t011938z-nquery-locktrace-r1-preflight.json",
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t011938z-nquery-locktrace-r1-preflight-final.json",
+          "research/m4-native/results/M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-PREFLIGHT-REFUSAL-20261030.md",
+          "research/m4-native/results/native-query-timeline-20261029/native-schema-lock-trace-build-v4.json"
+        ],
+        "recovery": "ID is consumed and must not be retried. Per stop_on_gate_refusal, the remaining IDs from this authorization batch are not active. Continue only after fresh owner instruction and a new one-use ID, with artifact provenance fixed and a fresh no-launch preflight. No quota/cap change is indicated by the observed qgroup snapshot."
+      }, {
+        "operation_id": "m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1",
+        "outcome": "DIAGNOSTIC_COMPLETED_WITH_CAVEATS",
+        "benchmark_started": true,
+        "measurement_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        "workload_returncode": 0,
+        "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+        "trace_sha256": "180698e7c8a1599ae751a7b44378b2017160e9219a46e7de6ce26652b430c8de",
+        "summary": "Four of 251 collection-query spans exceeded 100 ms. Three query shared-lock waits overlapped same-object optimize_seal exclusive holds by 99.917-99.995%; five fetch waits >10 ms also overlapped optimize_seal exclusive holds. The remaining 502.642 ms query lock wait overlapped a flush shared hold but no exclusive event; cause remains unresolved. Dedicated trace had 13,886 valid lines and zero malformed/invalid clocks. No performance comparison.",
+        "evidence": [
+          "research/m4-native/results/M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-REAUTH-20261030.md",
+          "research/m4-native/results/M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-RESULT-20261030.md",
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1-preflight.json",
+          "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1-analysis.json",
+          "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/native-query-stage-result.json",
+          "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/pair-first/containment/native-profile.jsonl",
+          "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/pair-first/containment/receipt.json"
+        ],
+        "recovery": "The one-run authorization is consumed; no operation IDs remain active. Preserve COMPLETED_WITH_WORKSPACE_UNCERTAINTY and performance_eligible=false. The optimize_seal exclusive critical section is the evidence-directed research target; do not change locking or run another trace without fresh owner instruction."
+      }],
+      "operation_sequence": "sequential; one operation at a time; evidence review required before next ID",
+      "max_concurrent_operations": 1,
+      "review_after_each_operation": true,
+      "stop_when_attribution_resolved": true,
+      "stop_on_gate_refusal": true,
+      "arm_roles": ["native"],
+      "execution_order": ["native"],
+      "performance_eligible": false
+    },
+    "previous_authorization_batches": [
+      {
+        "operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r1a",
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r2a",
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r3a"
+        ],
+        "completed_operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r1a",
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r2a"
+        ],
+        "unused_not_reauthorized": [
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r3a"
+        ]
+      },
+      {
+        "operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r1b",
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r2e",
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r3c"
+        ],
+        "preflight_rejected_before_launch": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r1b"
+        ],
+        "stopped_after_safety_gate": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r2e"
+        ],
+        "unused_not_reauthorized": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r3c"
+        ]
+      },
+      {
+        "operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t151203z-nquery-r4b"
+        ],
+        "preflight_refused_before_launch": [
+          "m4-rust-lifecycle-pair-20261029t151203z-nquery-r4b"
+        ],
+        "qgroup_available_bytes": 100548608,
+        "qgroup_required_bytes": 100663296,
+        "qgroup_shortfall_bytes": 114688,
+        "retry_authorized": false
+      }
+    ],
     "resource_controls": {
       "memory_max_bytes": 536870912,
       "memory_swap_max_bytes": 0,
@@ -157,11 +300,87 @@
       "filesystem_uuid": "6c15377e-2602-4870-96ba-50e58605309c",
       "subvolume_id": 259,
       "qgroup_id": "0/259",
-      "max_referenced_bytes": 134217728,
+      "max_referenced_bytes": 167772160,
       "minimum_free_bytes": 67108864,
       "accounting_mode": "squota",
       "attestation_owner_uid": 0,
       "max_attestation_age_seconds": 86400
+    }
+  },
+  "observer_overhead_diagnostic": {
+    "purpose": "m4-observer-overhead-diagnostic",
+    "approval_status": "approved",
+    "approval_reference": "Owner authorized one independent bounded observer overhead diagnostic, 2026-10-28",
+    "execution_authorization_reference": "One diagnostic only; no native/M4 arm, pair retry, quota change, or unrelated cleanup",
+    "risk_acceptance_reference": "Shared-host observer timing is descriptive only; it cannot establish absence of impact on query offers",
+    "operation_id": "m4-observer-diagnostic-20261028t065055z",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "fixture_script": "research/m4-native/tools/observer_overhead_fixture.py",
+    "sample_binary": "research/m4-native/.work/build/rust-bridge-target/debug/deps/zg_engine-552d5229013b8e71",
+    "sample_library": "research/m4-native/.work/build/rust-bridge-target/debug/build/zvec-rust-sys-8fcdeed82df8350b/out/zvec-prebuilt/libzvec_c_api.so",
+    "sample_interval_ms": 500,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 20,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
+    }
+  },
+  "observer_overhead_reduced_diagnostic": {
+    "purpose": "m4-observer-overhead-diagnostic",
+    "approval_status": "approved",
+    "approval_reference": "Owner authorized one independent bounded observer diagnostic with the reduced artifact, 2026-10-28",
+    "execution_authorization_reference": "One fresh diagnostic; one separate fresh pair only if diagnostic is favorable and all unchanged gates pass; no retry after refusal",
+    "risk_acceptance_reference": "Single idle shared-host diagnostic is descriptive only and cannot establish absence of query interference",
+    "operation_id": "m4-observer-diagnostic-20261028t085552z",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "fixture_script": "research/m4-native/tools/observer_overhead_fixture_reduced.py",
+    "sample_binary": "research/m4-native/.work/build/rust-bridge-target/debug/deps/.m4-measurement/zg_engine-552d5229013b8e71-nodebug",
+    "sample_binary_sha256": "c17e234f9ec300f5f066ce7713790c0e2c2bbecdc375d03efea221ad77d88c27",
+    "sample_library": "research/m4-native/.work/build/rust-bridge-target/debug/build/zvec-rust-sys-8fcdeed82df8350b/out/zvec-prebuilt/libzvec_c_api.so",
+    "sample_library_sha256": "58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a",
+    "sample_interval_ms": 500,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 20,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
+    }
+  },
+  "qgroup_reclaim_diagnostic": {
+    "purpose": "m4-qgroup-reclaim-diagnostic",
+    "approval_status": "approved",
+    "approval_reference": "Owner approved one independent bounded qgroup diagnostic after the Phase 3 safety stop, 2026-10-28",
+    "execution_authorization_reference": "Exactly one diagnostic operation; no benchmark arm, retry, automatic pair, quota change, forced sync/reclaim, or unrelated cleanup",
+    "risk_acceptance_reference": "Single diagnostic samples are descriptive, shared-qgroup usage is not isolated, and causality may remain inconclusive",
+    "operation_id": "m4-qgroup-diagnostic-20261028t033016z",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "fixture_script": "research/m4-native/tools/qgroup_reclaim_fixture.py",
+    "fixture_bytes": 16777216,
+    "sample_interval_ms": 1000,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 60,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
     }
   },
   "shared_collection_pair": {
@@ -371,7 +590,7 @@
       "filesystem_uuid": "6c15377e-2602-4870-96ba-50e58605309c",
       "subvolume_id": 259,
       "qgroup_id": "0/259",
-      "max_referenced_bytes": 134217728,
+      "max_referenced_bytes": 167772160,
       "minimum_free_bytes": 67108864,
       "accounting_mode": "squota",
       "attestation_owner_uid": 0,
@@ -688,6 +907,50 @@
         "tracing": false
       },
       "measurement_semantics": "A distinct one-shot follow-up to the consumed writer_group_commit_flush_reader_pair. That operation showed the default arm's post-writer explicit Flush had no pending delta and did not exercise metadata staging; do not infer reader-through-flush impact from its default-arm trace. This profile compares ordinary Upsert with bounded four-record/500-us Upsert group commit while both use metadata staging, with 8,192 seed documents and 32 concurrent logical writes. Immediately before the continuous-reader phase, each arm applies a separate 256-document WAL-durable batch with unique flushmarker terms; this intentionally leaves a bounded pending delta below max_delta_docs so the explicit Flush must persist real data. Verify exactly 256 flushmarker hits after close/reopen. Timestamp two continuously active readers across that flush; require at least two completed queries before/after, a started+overlapping query during it, phase-log corroboration, pending_flush_ms and nonzero segment build/write work. Preserve atomic publication and WAL durability. Capture writer/group queue and fsync metrics, reader wall/mutex/CPU, flush stages/locks, bytes, cgroup/host resource and I/O evidence. New profile, not retry or reuse of the prior one; any gate/containment/overlap/flush-work check failure consumes it without retry. Exploratory only; no stable-tail, architecture, qualification or production claim."
+    },
+    "background_compaction_pair_off_first": {
+      "profile_id": "background_compaction_pair_off_first",
+      "binary_relative_path": ".work/build/background-compaction-benchmark-20261029/m4_compaction_writer_contention",
+      "binary_sha256": "74cb7214fe669590b7920dd18df482416d246bf465700190b728cdc140620474",
+      "runtime_library_relative_path": ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+      "runtime_library_sha256": "cbb596cadb910a691b4ee367283031cb3819efb4e919beefa62328e9d101e6d3",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-background-compaction-pair",
+        "compaction_modes": ["background_off", "background_on"],
+        "arm_order": "background_off_first",
+        "tracing": false
+      },
+      "execution_authorization_reference": "Owner instruction 2026-10-29: 'tôi cho bạn 3 pair nữa, làm theo bạn đề xuất đi' authorized up to three additional fresh bounded ON/OFF pair operations after the prior renewed batch completed 3/3. This authorization was consumed 3/3 in OFF/ON, ON/OFF, OFF/ON order; exact operation IDs and evidence are in results/native-background-compaction-20261029/second-renewal-batch-identity.json. No further operations are authorized by this instruction. The work remains exploratory/non-qualifying under unchanged containment/safety policy; no retry, bypass, threshold change, or production use.",
+      "risk_acceptance_reference": "Each operation is one contained process with two sequential arms; the cross-operation order is OFF/ON, ON/OFF, OFF/ON. Each arm builds the same eight-run fixture with automatic compaction suppressed and raised thresholds, then reopens at a four-run cap; OFF uses synchronous post-flush compaction, ON uses the opt-in background worker. The measured interval includes four concurrent writers (32 durable Upserts), two search readers (64 queries), automatic delta flushes and a final flush/reopen oracle. Fixture setup is separately marked but remains inside containment; M4_REPO_TMP_DIR redirects the analyzer snapshot cache into each operation workspace and the harness asserts that placement. The dynamically linked libzvec_c_api.so is SHA-pinned and its resolved path is verified before launch. Three pairs are descriptive exploratory evidence only; small sample count, sequential arms and shared-host pressure prohibit qualification or a stable performance claim. Resource limits and stop conditions are inherited unchanged. Stop the batch on any safety, capacity, correctness, durability, telemetry-integrity or cleanup refusal; never retry a refused operation.",
+      "measurement_semantics": "One owner-authorized paired background-compaction operation, OFF-first. Both arms rebuild identical 8,192-document/eight-run fixtures; the measured reopen uses max_total_runs=4, max_runs_per_level=4, max_delta_docs=8, and WAL fsync remains enabled. OFF leaves background_compaction_enabled=false, so maintenance runs synchronously on threshold-triggered flush; ON sets it true, queues startup maintenance and moves post-flush compaction to the coalescing worker. Each arm runs four concurrent writers for 32 logical Upserts and two readers for 64 FTS queries, explicitly flushes, waits for background work where enabled, and verifies retrieval after reopen. Validate fixture run count, actual compaction merges, final run cap, parity, per-call latency, WAL/segment/physical writes, per-process CPU/RSS/PSS/swap and host/cgroup telemetry. This pair operation is one repeat; no qualification, production or stable-win claim. No automatic retry after a gate refusal."
+    },
+    "background_compaction_pair_on_first": {
+      "profile_id": "background_compaction_pair_on_first",
+      "binary_relative_path": ".work/build/background-compaction-benchmark-20261029/m4_compaction_writer_contention",
+      "binary_sha256": "74cb7214fe669590b7920dd18df482416d246bf465700190b728cdc140620474",
+      "runtime_library_relative_path": ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+      "runtime_library_sha256": "cbb596cadb910a691b4ee367283031cb3819efb4e919beefa62328e9d101e6d3",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-background-compaction-pair",
+        "compaction_modes": ["background_on", "background_off"],
+        "arm_order": "background_on_first",
+        "tracing": false
+      },
+      "execution_authorization_reference": "Owner instruction 2026-10-29: 'tôi cho bạn 3 pair nữa, làm theo bạn đề xuất đi' authorized up to three additional fresh bounded ON/OFF pair operations after the prior renewed batch completed 3/3. This authorization was consumed 3/3 in OFF/ON, ON/OFF, OFF/ON order; exact operation IDs and evidence are in results/native-background-compaction-20261029/second-renewal-batch-identity.json. No further operations are authorized by this instruction. The work remains exploratory/non-qualifying under unchanged containment/safety policy; no retry, bypass, threshold change, or production use.",
+      "risk_acceptance_reference": "Same pair-level evidence and non-qualification limits as background_compaction_pair_off_first; reverse the arm order once to reduce systematic order bias. This one contained operation is one of at most three pairs, not a retry. Stop the remaining batch on any formal safety/capacity/correctness/telemetry/cleanup refusal.",
+      "measurement_semantics": "One owner-authorized paired background-compaction operation, ON-first. The workload, fixture, options, telemetry and acceptance checks are identical to background_compaction_pair_off_first; only the sequential arm order is reversed. This is a distinct order counterbalance, not a retry."
     },
     "single_arm": false,
     "multi_arm_within_operation": true,

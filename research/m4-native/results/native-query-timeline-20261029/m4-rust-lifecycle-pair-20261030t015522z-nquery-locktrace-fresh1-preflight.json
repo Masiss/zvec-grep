@@ -1,0 +1,77 @@
+{
+  "arms": [
+    {
+      "arm_name": "pair-first",
+      "binary_sha256": "c6b1b11effe9026c0a85fc0b262bc3056ab2b84252fe95350d17a44c41ff8f19",
+      "command": [
+        "/home/masis/src/zvec-grep/research/m4-native/.work/build/rust-bridge-target/debug/deps/zg_engine-28bb1915fe9f2135",
+        "--exact",
+        "pipelines::indexed_search::m4_integration_tests::gate_b_lifecycle::gate_b_full_lifecycle_arm",
+        "--ignored",
+        "--nocapture"
+      ],
+      "native_profile_trace_path": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/pair-first/containment/native-profile.jsonl",
+      "policy_context_sha256": "c449ce9c4653ca4da4b9ddfa9bfec5f5ae590a78682204239ff5d1c21347c867",
+      "receipt_dir": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/pair-first/containment",
+      "role": "native",
+      "workspace_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/pair-first/workspace"
+    }
+  ],
+  "artifacts": {
+    "binary_path": "/home/masis/src/zvec-grep/research/m4-native/.work/build/rust-bridge-target/debug/deps/zg_engine-28bb1915fe9f2135",
+    "binary_sha256": "c6b1b11effe9026c0a85fc0b262bc3056ab2b84252fe95350d17a44c41ff8f19",
+    "library_file": "/home/masis/src/zvec-grep/research/m4-native/.work/build/rust-bridge-target/debug/build/m4-native-schema-lock-trace-v4/out/zvec-prebuilt/libzvec_c_api.so",
+    "library_path": "/home/masis/src/zvec-grep/research/m4-native/.work/build/rust-bridge-target/debug/build/m4-native-schema-lock-trace-v4/out/zvec-prebuilt",
+    "library_sha256": "65817813bacc710b29ea01d273ca604c0e1177b1e5aabf618604fe45c701a971"
+  },
+  "benchmark_started": false,
+  "corpus_bytes": 694421,
+  "corpus_commit": "34d75aa14c760d302e497831c7501e1a31400f2b",
+  "corpus_file_count": 64,
+  "corpus_manifest_sha256": "7fbc9f951a9b1f75388150a891c984f23dd72717a6ce59070f89fd9f3ad832a3",
+  "disk_capacity": {
+    "free_bytes": 18431365120,
+    "headroom_bytes": 145256256,
+    "required_bytes": 18286108864
+  },
+  "execution_order": [
+    "native"
+  ],
+  "observer": {
+    "max_monitor_gap_seconds": 2,
+    "sample_interval_ms": 500
+  },
+  "operation_id": "m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1",
+  "operation_mode": "native_query_stage_diagnostic",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1",
+  "resource_controls": {
+    "cpu_max": "200000 100000",
+    "disk_reserve_bytes": 18219000000,
+    "host_memory_reserve_bytes": 3221225472,
+    "max_monitor_gap_seconds": 2,
+    "memory_max_bytes": 536870912,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 128,
+    "runtime_limit_seconds": 900,
+    "workspace_max_allocated_bytes": 33554432,
+    "workspace_max_apparent_bytes": 67108864
+  },
+  "workspace_quota_proof": {
+    "accounting_mode": "squota",
+    "attestation_path": "/var/tmp/m4-native-workspace-quota-pwd.attestation.json",
+    "attestation_sha256": "bde09756584129c69da3482ad6af6118e4c5255892e618c43f1a9b54073440b6",
+    "filesystem_uuid": "6c15377e-2602-4870-96ba-50e58605309c",
+    "live_headroom": {
+      "available_bytes": 113934336,
+      "max_referenced_bytes": 167772160,
+      "referenced_bytes": 53837824,
+      "required_free_bytes": 67108864
+    },
+    "max_referenced_bytes": 167772160,
+    "qgroup_id": "0/259",
+    "status": "VERIFIED",
+    "subvolume_id": 259,
+    "verified_at_utc": "2026-10-30T01:59:15Z",
+    "workspace_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota"
+  }
+}

@@ -1,5 +1,13 @@
 # Active M4 execution checkpoint
 
+## Current task — schema-lock owner attribution (2026-10-30)
+
+The earlier trace reproduced four >100 ms collection-query calls but did not identify their owners or cover the pre-validation interval. The new one-run trace found **three of four** query shared-lock waits were almost entirely overlapped by a same-object `optimize_seal` exclusive hold (thread 9785; 99.917–99.995% overlap). Five additional `fetch_shared_wait` spans >10 ms also matched `optimize_seal` exclusive holds. The remaining 502.642 ms query lock wait overlapped only a flush shared hold; because both are shared mode and no exclusive owner span overlapped, its cause remains unresolved. The query setup/validation and FTS inner spans were sub-millisecond. Full evidence: [fresh1 result](M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-RESULT-20261030.md); the earlier stale-binary preflight refusal is preserved [here](M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-PREFLIGHT-REFUSAL-20261030.md).
+
+The v4 isolated native library was hash-pinned and used by exactly one authorized native-only run: ID `m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1`. Test result: 1 passed; trace: 13,886 valid lines, 0 malformed/invalid. Runner status is `DIAGNOSTIC_COMPLETED_WITH_CAVEATS` / `COMPLETED_WITH_WORKSPACE_UNCERTAINTY`, and `performance_eligible=false`. Hard qgroup/disk limits passed; workspace inventory samples were incomplete/unknown. No M4 arm, pair comparison, quota change, cleanup, lock fix, or production action occurred.
+
+The narrow runner CLI change allows expected-SHA pinning with default binary discovery. Focused lifecycle tests pass 25/25, benchmark-policy tests 34/34, Python compilation and JSON validation pass. The one-run authorization is consumed; no operation IDs remain active. Any lock-scope change or additional trace requires fresh owner instruction. **Current status: PARTIAL / DIAGNOSTIC COMPLETED WITH CAVEATS / AUTHORIZATION CONSUMED / PRODUCTION NO-GO.**
+
 ## Current milestone — Gate 3 diagnostic halted; no comparison (2026-10-27)
 
 **The one newly authorized diagnostic pair was consumed and stopped in the native arm after over three minutes without indexing progress.** The M4 arm never launched; there is no Native–M4 result. The process was stopped through its owned unit; watchdog reported `CONTAINMENT_UNVERIFIED` because cgroup exit telemetry disappeared, despite a separate unit-cleanup receipt verifying the unit was collected. No operation process remains. Keep the partial workspace and raw telemetry. Do not retry under the consumed authorization. Details: [`M4-RECOVERY-GATE-3-DIAGNOSTIC-20261027.md`](M4-RECOVERY-GATE-3-DIAGNOSTIC-20261027.md).

@@ -88,6 +88,12 @@ def read_text(path: pathlib.Path) -> str:
     return path.read_text(encoding='utf-8').strip()
 
 
+def file_sha256(path: pathlib.Path) -> str:
+    """Hash the entire file with bounded buffering, preserving the exact digest gate."""
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
 def directory_sha256(path: pathlib.Path) -> str:
     root = path.resolve(strict=True)
     if not root.is_dir():
@@ -199,6 +205,52 @@ def host_snapshot(resource_root: pathlib.Path) -> dict[str, Any]:
     }
 
 
+def process_resource_sample(pid: int) -> dict[str, Any]:
+    root = pathlib.Path('/proc') / str(pid)
+    status = {}
+    for line in (root / 'status').read_text().splitlines():
+        if ':' in line:
+            key, value = line.split(':', 1)
+            if key in ('Name', 'VmRSS', 'VmSwap', 'Cpus_allowed_list'):
+                status[key] = value.strip()
+    smaps = {}
+    try:
+        for line in (root / 'smaps_rollup').read_text().splitlines():
+            if ':' in line:
+                key, value = line.split(':', 1)
+                if key in ('Pss', 'Swap', 'SwapPss'):
+                    smaps[key] = value.strip()
+    except OSError as exc:
+        smaps['unavailable'] = f'{type(exc).__name__}: {exc}'
+    raw = (root / 'stat').read_text()
+    tail = raw[raw.rfind(')') + 2:].split()
+    if len(tail) < 20:
+        raise ValueError('incomplete process stat')
+    return {'pid': pid, 'status': status, 'smaps_rollup': smaps,
+            'utime_ticks': int(tail[11]), 'stime_ticks': int(tail[12]), 'start_ticks': int(tail[19]),
+            'clock_ticks_per_second': os.sysconf('SC_CLK_TCK')}
+
+
+def host_process_snapshot() -> dict[str, Any]:
+    result = subprocess.run(['ps', '-eo', 'pid,ppid,pcpu,rss,etimes,comm', '--sort=-pcpu'],
+                            check=True, capture_output=True, text=True, timeout=10)
+    top = []
+    for line in result.stdout.splitlines()[1:16]:
+        fields = line.split(None, 5)
+        if len(fields) != 6:
+            raise ValueError('incomplete top-process listing')
+        pid = int(fields[0])
+        item: dict[str, Any] = {'pid': pid, 'ppid': int(fields[1]), 'cpu_percent': float(fields[2]),
+                                'rss_kib': int(fields[3]), 'elapsed_seconds': int(fields[4]), 'command': fields[5]}
+        try:
+            item['proc'] = process_resource_sample(pid)
+        except (OSError, ValueError) as exc:
+            item['proc_unavailable'] = f'{type(exc).__name__}: {exc}'
+        top.append(item)
+    return {'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
+            'controller_affinity': sorted(os.sched_getaffinity(0)), 'top_processes': top}
+
+
 def failure_class(status: str | None = None, reason: str | None = None,
                   returncode: int | None = None) -> str:
     if reason == 'cgroup_oom_event':
@@ -301,12 +353,41 @@ M4_SHARED_COLLECTION_PAIR_PURPOSE = 'm4-shared-collection-pair'
 M4_LOCK_CONTENTION_MICROBENCH_PURPOSE = 'm4-lock-contention-microbench'
 M4_WRITE_AMPLIFICATION_PURPOSE = 'immutable-write-amplification-pair'
 M4_RUST_LIFECYCLE_PURPOSE = 'm4-rust-full-lifecycle-pair'
+M4_QGROUP_DIAGNOSTIC_PURPOSE = 'm4-qgroup-reclaim-diagnostic'
+M4_OBSERVER_DIAGNOSTIC_PURPOSE = 'm4-observer-overhead-diagnostic'
+M4_RUST_LIFECYCLE_TARGET = (pathlib.Path(__file__).resolve().parents[1] /
+                            '.work/build/rust-bridge-target')
 M4_SCALAR_OPEN_PURPOSES = frozenset({M4_SCALAR_RESOURCE_PURPOSE, M4_SCALAR_LATENCY_PURPOSE})
 
 
 def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
     contract = BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
     operation_id = context.get('operation_id')
+    operation_mode = context.get('operation_mode', 'pair')
+    if operation_mode == 'native_query_stage_diagnostic':
+        authorization = contract.get('native_query_stage_diagnostic')
+        authorized_ids = authorization.get('authorized_operation_ids') if isinstance(authorization, dict) else None
+        authorized_limit = authorization.get('max_authorized_operations') if isinstance(authorization, dict) else None
+        expected_roles = authorization.get('arm_roles') if isinstance(authorization, dict) else None
+        expected_orders = [authorization.get('execution_order')] if isinstance(authorization, dict) else None
+    elif operation_mode == 'pair':
+        authorization = contract
+        authorized_ids = contract.get('authorized_operation_ids')
+        authorized_limit = contract.get('max_authorized_pair_operations')
+        expected_roles = contract.get('arm_roles')
+        expected_orders = contract.get('arm_orders')
+    else:
+        raise ValueError('unknown Rust lifecycle operation mode')
+    if (not isinstance(authorization, dict) or authorization.get('approval_status') != 'approved' or
+            not isinstance(expected_roles, list) or
+            not isinstance(expected_orders, list)):
+        raise ValueError('Rust lifecycle authorization has invalid approval or arm roles/order')
+    if (not isinstance(authorized_limit, int) or isinstance(authorized_limit, bool) or
+            not isinstance(authorized_ids, list) or
+            any(not isinstance(item, str) for item in authorized_ids) or
+            len(authorized_ids) != authorized_limit or len(set(authorized_ids)) != authorized_limit or
+            operation_id not in authorized_ids):
+        raise ValueError('Rust lifecycle operation ID is outside the current owner authorization')
     operation_root = pathlib.Path(context.get('operation_root', '')).resolve()
     resource_root = pathlib.Path(context.get('resource_root', '')).resolve()
     order = context.get('execution_order')
@@ -315,7 +396,17 @@ def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
     arm_root = operation_root / arm_name
     workspace_root = arm_root / 'workspace'
     expected_source = workspace_root / 'source'
+    expected_trace_path = arm_root / 'containment' / 'native-profile.jsonl'
+    configured_trace_path = context.get('native_profile_trace_path')
+    if operation_mode == 'native_query_stage_diagnostic':
+        if (not isinstance(configured_trace_path, str) or
+                pathlib.Path(configured_trace_path).resolve() != expected_trace_path.resolve()):
+            raise ValueError('native profile trace path must be bound to the operation receipt directory')
+    elif configured_trace_path is not None:
+        raise ValueError('native profile trace output is only permitted for the native-only diagnostic')
     binary_path = pathlib.Path(context.get('binary_path', '')).resolve()
+    library_path = pathlib.Path(context.get('library_path', '')).resolve()
+    library_file = pathlib.Path(context.get('library_file', '')).resolve()
     expected_resource_controls = contract['resource_controls']
     zvec_memory_limit = contract['workload'].get('zvec_native_memory_limit_bytes')
     if (isinstance(zvec_memory_limit, bool) or not isinstance(zvec_memory_limit, int) or
@@ -325,16 +416,17 @@ def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
             operation_root.name != operation_id or not operation_root.is_relative_to(resource_root) or
             context.get('arm_name') != arm_name or
             context.get('purpose') != M4_RUST_LIFECYCLE_PURPOSE or
-            context.get('approval_reference') != contract['approval_reference'] or
-            context.get('execution_authorization_reference') != contract['execution_authorization_reference'] or
-            context.get('risk_acceptance_reference') != contract['risk_acceptance_reference'] or
+            context.get('approval_reference') != authorization['approval_reference'] or
+            context.get('execution_authorization_reference') != authorization['execution_authorization_reference'] or
+            context.get('risk_acceptance_reference') != authorization['risk_acceptance_reference'] or
             context.get('workload') != contract['workload'] or
             context.get('reader_query_interval_ms') != contract['workload']['reader_query_interval_ms'] or
             context.get('reader_query_max_samples_per_pass') != contract['workload']['reader_query_max_samples_per_pass'] or
             context.get('reader_query_queue_capacity') != contract['workload']['reader_query_queue_capacity'] or
             context.get('zvec_native_memory_limit_bytes') != zvec_memory_limit or
-            context.get('arm_role') not in contract['arm_roles'] or
-            context.get('execution_order') not in contract['arm_orders'] or
+            context.get('operation_mode', 'pair') != operation_mode or
+            context.get('arm_role') not in expected_roles or
+            context.get('execution_order') not in expected_orders or
             context.get('resource_root') != contract['resource_root'] or
             pathlib.Path(context.get('workspace_root', '')).resolve() != workspace_root.resolve() or
             pathlib.Path(context.get('source_root', '')).resolve() != expected_source.resolve() or
@@ -342,10 +434,14 @@ def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
             pathlib.Path(context.get('report_path', '')).resolve() != (workspace_root / 'gate-b-report.json').resolve() or
             pathlib.Path(context.get('temporary_directory', '')).resolve() != (workspace_root / 'tmp').resolve() or
             binary_path.name != context.get('binary_name') or
-            not binary_path.is_relative_to(pathlib.Path(__file__).resolve().parents[3] / 'rust/target/debug/deps') or
+            not binary_path.is_relative_to(M4_RUST_LIFECYCLE_TARGET / 'debug/deps') or
             not binary_path.is_file() or
-            context.get('binary_sha256') != hashlib.sha256(binary_path.read_bytes()).hexdigest() or
+            context.get('binary_sha256') != file_sha256(binary_path) or
             context.get('approved_binary_sha256') != context.get('binary_sha256') or
+            not library_path.is_relative_to(M4_RUST_LIFECYCLE_TARGET / 'debug/build') or
+            library_file != library_path / 'libzvec_c_api.so' or not library_file.is_file() or
+            context.get('library_sha256') != file_sha256(library_file) or
+            context.get('approved_library_sha256') != context.get('library_sha256') or
             context.get('io_pressure_mode') != contract['io_pressure_mode'] or
             any(context.get(key) != value for key, value in expected_resource_controls.items())):
         raise ValueError('Rust lifecycle context differs from its explicit bounded exploratory contract')
@@ -380,9 +476,37 @@ def lock_contention_workload(context: dict[str, Any]) -> dict[str, Any]:
                    'writer_group_commit_snapshot_rebase',
                    'flush_reader_staging_pair',
                    'writer_group_commit_flush_reader_pair',
-                   'writer_group_commit_pending_flush_reader_pair'):
+                   'writer_group_commit_pending_flush_reader_pair',
+                   'background_compaction_pair_off_first',
+                   'background_compaction_pair_on_first'):
         return contract[profile]['workload']
     raise ValueError('unknown lock-contention workload profile')
+
+
+def lock_contention_command_bound(command: list[str], binary_path: pathlib.Path,
+                                  workspace_root: pathlib.Path,
+                                  policy_context: dict[str, Any],
+                                  env: dict[str, str] | None) -> bool:
+    workload = lock_contention_workload(policy_context)
+    expected_command = [
+        str(binary_path), str(workspace_root.resolve() / 'root'),
+        str(pathlib.Path(policy_context['dictionary_path']).resolve()),
+        workload['mode'], str(workload['documents']), str(workload['rounds']),
+    ]
+    if 'arm_order' in workload:
+        expected_command.append(workload['arm_order'])
+    expected_native_tmp = policy_context.get('native_cache_root')
+    native_tmp_env = (env or {}).get('M4_REPO_TMP_DIR')
+    native_tmp_bound = (native_tmp_env == expected_native_tmp
+                        if expected_native_tmp is not None
+                        else native_tmp_env is None)
+    return (
+        command == expected_command and native_tmp_bound and
+        binary_path == pathlib.Path(command[0]).resolve() and
+        not pathlib.Path(command[1]).exists() and
+        hashlib.sha256(binary_path.read_bytes()).hexdigest() == policy_context['binary_sha256'])
+
+
 M4_SCALAR_LATENCY_EVIDENCE = 'EXPLORATORY / NON-QUALIFYING'
 
 
@@ -394,9 +518,20 @@ def contention_evidence_class(context: dict[str, Any] | None) -> str:
     return M4_SCALAR_LATENCY_EVIDENCE if context and context.get('purpose') == M4_SCALAR_LATENCY_PURPOSE else CONTENTION_EVIDENCE
 
 
+def is_performance_eligible(status: str, enforce_host_gates: bool,
+                            policy_context: dict[str, Any] | None) -> bool:
+    """The receipt flag is reserved for standalone runs, not policy-bound exploratory evidence."""
+    return status == 'PASS' and enforce_host_gates and policy_context is None
+
+
 def is_m4_single_arm_capacity_plan(context: dict[str, Any] | None) -> bool:
     return is_m4_scalar_open_exploratory(context) or bool(
-        context and context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE)
+        context and (
+            context.get('purpose') in (M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
+                                       M4_QGROUP_DIAGNOSTIC_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE) or
+            (context.get('purpose') == M4_RUST_LIFECYCLE_PURPOSE and
+             context.get('operation_mode') == 'native_query_stage_diagnostic')
+        ))
 
 
 # Fixed, tiny workload only; never an alternate admission path for native commands.
@@ -425,7 +560,7 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
     if context.get('policy_sha256') != hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest():
         raise ValueError('contention plan policy identity mismatch')
     operation = context.get('operation_id', '')
-    if not re.fullmatch(r'(?:m4-contention-[a-zA-Z0-9_-]+|m4-scalar-open-(?:rehearsal|latency-diagnostic)-[a-zA-Z0-9_-]+|m4-shared-collection-pair-[a-zA-Z0-9_-]+|m4-lock-contention-microbench-[a-zA-Z0-9_-]+|m4-write-amplification-pair-[a-zA-Z0-9_-]+|m4-rust-lifecycle-pair-[a-zA-Z0-9_-]+)', operation):
+    if not re.fullmatch(r'(?:m4-contention-[a-zA-Z0-9_-]+|m4-scalar-open-(?:rehearsal|latency-diagnostic)-[a-zA-Z0-9_-]+|m4-shared-collection-pair-[a-zA-Z0-9_-]+|m4-lock-contention-microbench-[a-zA-Z0-9_-]+|m4-write-amplification-pair-[a-zA-Z0-9_-]+|m4-rust-lifecycle-pair-[a-zA-Z0-9_-]+|m4-qgroup-diagnostic-[a-zA-Z0-9_-]+|m4-observer-diagnostic-[a-zA-Z0-9_-]+)', operation):
         raise ValueError('invalid contention operation_id')
     for key in ('operation_root', 'resource_root'):
         if str(pathlib.Path(context[key]).resolve()) != context[key]:
@@ -450,6 +585,59 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
                 context.get('binary_sha256') != hashlib.sha256(binary_path.read_bytes()).hexdigest() or
                 context.get('approved_binary_sha256') != context.get('binary_sha256')):
             raise ValueError('M4 scalar-open mode requires exact 84-open workload and pinned binary identity')
+    elif context.get('purpose') == M4_OBSERVER_DIAGNOSTIC_PURPOSE:
+        contracts = (BENCHMARK_POLICY['observer_overhead_diagnostic'],
+                     BENCHMARK_POLICY['observer_overhead_reduced_diagnostic'])
+        matching = [candidate for candidate in contracts if candidate['operation_id'] == operation]
+        if len(matching) != 1:
+            raise ValueError('observer diagnostic operation is not explicitly registered')
+        contract = matching[0]
+        root = pathlib.Path(contract['resource_root'])
+        repo = pathlib.Path(__file__).resolve().parents[3]
+        script = repo / contract['fixture_script']
+        binary = repo / contract['sample_binary']
+        library = repo / contract['sample_library']
+        workspace = root / contract['operation_id'] / 'diagnostic' / 'workspace'
+        if (operation != contract['operation_id'] or
+                context.get('operation_root') != str(root / operation) or
+                context.get('resource_root') != str(root) or context.get('workspace_root') != str(workspace) or
+                context.get('binary_path') != str(script) or not script.is_file() or script.resolve() != script or
+                context.get('binary_sha256') != file_sha256(script) or
+                context.get('approved_binary_sha256') != context.get('binary_sha256') or
+                context.get('sample_binary_path') != str(binary) or not binary.is_file() or binary.resolve() != binary or
+                context.get('sample_binary_sha256') != file_sha256(binary) or
+                ('sample_binary_sha256' in contract and context.get('sample_binary_sha256') != contract['sample_binary_sha256']) or
+                context.get('sample_library_path') != str(library) or not library.is_file() or library.resolve() != library or
+                context.get('sample_library_sha256') != file_sha256(library) or
+                ('sample_library_sha256' in contract and context.get('sample_library_sha256') != contract['sample_library_sha256']) or
+                any(context.get(k) != contract[k] for k in
+                    ('approval_reference', 'execution_authorization_reference', 'risk_acceptance_reference')) or
+                any(context.get(k) != v for k, v in contract['resource_controls'].items()) or
+                workspace_quota_bound_bytes(contention_budget_unvalidated(context)) is None):
+            raise ValueError('observer diagnostic context differs from the explicit contract')
+        quota = verify_workspace_quota(root, BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']['workspace_quota'])
+        proof = context.get('workspace_quota_proof') or {}
+        for key in ('status', 'attestation_path', 'workspace_root', 'filesystem_uuid', 'subvolume_id',
+                    'qgroup_id', 'max_referenced_bytes', 'accounting_mode', 'attestation_sha256'):
+            if quota.get(key) != proof.get(key):
+                raise ValueError('observer diagnostic quota identity changed')
+    elif context.get('purpose') == M4_QGROUP_DIAGNOSTIC_PURPOSE:
+        contract = BENCHMARK_POLICY['qgroup_reclaim_diagnostic']
+        root = pathlib.Path(contract['resource_root'])
+        script = pathlib.Path(__file__).resolve().parents[3] / contract['fixture_script']
+        workspace = root / contract['operation_id'] / 'diagnostic' / 'workspace'
+        if (operation != contract['operation_id'] or
+                context.get('operation_root') != str(root / operation) or
+                context.get('resource_root') != str(root) or
+                context.get('workspace_root') != str(workspace) or
+                context.get('binary_path') != str(script) or not script.is_file() or
+                context.get('binary_sha256') != hashlib.sha256(script.read_bytes()).hexdigest() or
+                context.get('approved_binary_sha256') != context.get('binary_sha256') or
+                any(context.get(k) != contract[k] for k in
+                    ('approval_reference', 'execution_authorization_reference', 'risk_acceptance_reference')) or
+                any(context.get(k) != v for k, v in contract['resource_controls'].items()) or
+                workspace_quota_bound_bytes(contention_budget_unvalidated(context)) is None):
+            raise ValueError('qgroup diagnostic context differs from the explicit contract')
     elif context.get('purpose') == M4_RUST_LIFECYCLE_PURPOSE:
         validate_rust_lifecycle_context(context)
     elif context.get('purpose') == M4_SHARED_COLLECTION_PAIR_PURPOSE:
@@ -476,15 +664,57 @@ def validate_contention_context(context: dict[str, Any]) -> dict[str, Any]:
     elif context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE:
         contract = BENCHMARK_POLICY['lock_contention_microbench']
         expected_workload = lock_contention_workload(context)
+        profile_name = context.get('workload_profile', 'contention')
+        profile_contract = (contract if profile_name == 'contention'
+                            else contract[profile_name])
+        expected_execution_authorization = profile_contract.get(
+            'execution_authorization_reference',
+            contract['execution_authorization_reference'])
+        expected_risk_acceptance = profile_contract.get(
+            'risk_acceptance_reference', contract['risk_acceptance_reference'])
+        runtime_library_ok = True
+        runtime_relative = profile_contract.get('runtime_library_relative_path')
+        native_cache_ok = True
+        if expected_workload.get('mode') == '--m4-background-compaction-pair':
+            expected_cache_root = (
+                pathlib.Path(contract['resource_root']) / operation /
+                'workspace' / 'native-cache').resolve()
+            native_cache_ok = (
+                context.get('native_cache_root') == str(expected_cache_root) and
+                expected_cache_root.is_relative_to(
+                    pathlib.Path(contract['resource_root']) / operation / 'workspace'))
+        if runtime_relative is not None:
+            repo_root = pathlib.Path(__file__).resolve().parents[3]
+            try:
+                runtime_path = (repo_root / runtime_relative).resolve(strict=True)
+                runtime_path.relative_to(repo_root)
+                runtime_sha = profile_contract.get('runtime_library_sha256')
+                runtime_deps = subprocess.run(
+                    ['ldd', str(context.get('binary_path', ''))], check=False,
+                    capture_output=True, text=True)
+                runtime_match = re.search(
+                    r'^\s*libzvec_c_api\.so\s+=>\s+(\S+)',
+                    runtime_deps.stdout, re.MULTILINE)
+                runtime_library_ok = (
+                    runtime_deps.returncode == 0 and
+                    context.get('runtime_library_path') == str(runtime_path) and
+                    context.get('runtime_library_sha256') == runtime_sha and
+                    context.get('approved_runtime_library_sha256') == runtime_sha and
+                    file_sha256(runtime_path) == runtime_sha and
+                    runtime_match is not None and
+                    pathlib.Path(runtime_match.group(1)).resolve() == runtime_path)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                runtime_library_ok = False
         binary_path = pathlib.Path(context.get('binary_path', '')).resolve()
         dictionary_path = pathlib.Path(context.get('dictionary_path', '')).resolve()
         if (not operation.startswith('m4-lock-contention-microbench-') or
                 context.get('approval_reference') != contract['approval_reference'] or
-                context.get('execution_authorization_reference') != contract['execution_authorization_reference'] or
-                context.get('risk_acceptance_reference') != contract['risk_acceptance_reference'] or
+                context.get('execution_authorization_reference') != expected_execution_authorization or
+                context.get('risk_acceptance_reference') != expected_risk_acceptance or
                 context.get('workload') != expected_workload or
                 context.get('arm_role') != 'microbench' or
                 context.get('resource_root') != contract['resource_root'] or
+                not native_cache_ok or not runtime_library_ok or
                 binary_path.name != contract['binary_name'] or not binary_path.is_file() or
                 context.get('binary_sha256') != hashlib.sha256(binary_path.read_bytes()).hexdigest() or
                 context.get('approved_binary_sha256') != context.get('binary_sha256') or
@@ -704,7 +934,7 @@ def write_amplification_phase_role(context: dict[str, Any], arm_name: str) -> st
 
 
 def rust_lifecycle_expected_environment(context: dict[str, Any]) -> dict[str, str]:
-    return {
+    environment = {
         'M4_GATE_B_ARM': context['arm_role'],
         'M4_GATE_B_WORKSPACE': str(pathlib.Path(context['source_root']).resolve()),
         'M4_GATE_B_INDEX_ROOT': str(pathlib.Path(context['index_root']).resolve()),
@@ -715,11 +945,16 @@ def rust_lifecycle_expected_environment(context: dict[str, Any]) -> dict[str, st
         'M4_GATE_B_READER_QUERY_MAX_SAMPLES': str(context['reader_query_max_samples_per_pass']),
         'M4_GATE_B_READER_QUERY_QUEUE_CAPACITY': str(context['reader_query_queue_capacity']),
         'ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES': str(context['zvec_native_memory_limit_bytes']),
+        'M4_NATIVE_FLUSH_TIMELINE': BENCHMARK_POLICY[
+            'rust_pipeline_lifecycle_pair']['native_flush_timeline']['value'],
     }
+    if context.get('operation_mode') == 'native_query_stage_diagnostic':
+        environment['M4_NATIVE_PROFILE_LOG_PATH'] = str(
+            pathlib.Path(context['native_profile_trace_path']).resolve())
+    return environment
 
 
-def contention_budget(context: dict[str, Any]) -> dict[str, Any]:
-    validate_contention_context(context)
+def contention_budget_unvalidated(context: dict[str, Any]) -> dict[str, Any]:
     budget = {key: context[key] for key in ('approval_reference', 'memory_max_bytes',
               'memory_swap_max_bytes', 'cpu_max', 'pids_max', 'workspace_max_allocated_bytes',
               'workspace_max_apparent_bytes')}
@@ -727,16 +962,22 @@ def contention_budget(context: dict[str, Any]) -> dict[str, Any]:
         budget['purpose'] = context['purpose']
     if context.get('purpose') in (M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
                                    M4_WRITE_AMPLIFICATION_PURPOSE,
-                                   M4_RUST_LIFECYCLE_PURPOSE):
-        budget['workspace_quota_proof'] = context['workspace_quota_proof']
+                                   M4_RUST_LIFECYCLE_PURPOSE, M4_QGROUP_DIAGNOSTIC_PURPOSE,
+                                   M4_OBSERVER_DIAGNOSTIC_PURPOSE):
+        budget['workspace_quota_proof'] = context.get('workspace_quota_proof')
     return budget
+
+
+def contention_budget(context: dict[str, Any]) -> dict[str, Any]:
+    validate_contention_context(context)
+    return contention_budget_unvalidated(context)
 
 
 def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: str,
                         workspace_bytes: int = 0, owned_swap_bytes: int = 0) -> dict[str, Any]:
     """Retain raw envelope FAILs; enforce capacity based on the approved workload plan."""
     validate_contention_context(context)
-    if phase not in ('baseline', 'recovery', 'aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench', 'runtime-first', 'runtime-second'):
+    if phase not in ('baseline', 'recovery', 'aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench', 'diagnostic', 'runtime-first', 'runtime-second'):
         raise ValueError('invalid contention phase')
     def number(value, name, maximum=None):
         if (isinstance(value, bool) or not isinstance(value, (int, float)) or
@@ -841,6 +1082,17 @@ def contention_decision(state: dict[str, Any], context: dict[str, Any], phase: s
             } if context.get('purpose') in (M4_SHARED_COLLECTION_PAIR_PURPOSE,
                                                 M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
                                                 M4_RUST_LIFECYCLE_PURPOSE) else None)}
+
+
+def timed_lifecycle_contention_decision(state: dict[str, Any], context: dict[str, Any],
+                                        phase: str, workspace_bytes: int,
+                                        owned_swap_bytes: int) -> tuple[dict[str, Any], dict[str, int]]:
+    """Attribute observer cost without skipping or caching any safety validation."""
+    wall_start = time.monotonic_ns()
+    cpu_start = time.process_time_ns()
+    decision = contention_decision(state, context, phase, workspace_bytes, owned_swap_bytes)
+    return decision, {'wall_ns': time.monotonic_ns() - wall_start,
+                      'cpu_ns': time.process_time_ns() - cpu_start}
 
 
 def m4_scalar_rehearsal_host_observation(state: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
@@ -1195,9 +1447,10 @@ def workspace_usage(root: pathlib.Path) -> dict[str, Any]:
 
 def registered_workspace_quota_contract(budget: dict[str, Any] | None) -> dict[str, Any] | None:
     purpose = (budget or {}).get('purpose')
-    if purpose == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE:
+    if purpose in (M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
+                   M4_WRITE_AMPLIFICATION_PURPOSE):
         return BENCHMARK_POLICY['lock_contention_microbench'].get('workspace_quota')
-    if purpose == M4_RUST_LIFECYCLE_PURPOSE:
+    if purpose in (M4_RUST_LIFECYCLE_PURPOSE, M4_QGROUP_DIAGNOSTIC_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE):
         return BENCHMARK_POLICY['rust_pipeline_lifecycle_pair'].get('workspace_quota')
     return None
 
@@ -1327,7 +1580,8 @@ def workspace_capacity_decision(observation: dict[str, Any], budget: dict[str, A
                     and available >= required
                 )
         quota_required = quota_bound is not None
-        rust_quota_fallback = purpose == M4_RUST_LIFECYCLE_PURPOSE and quota_required
+        rust_quota_fallback = purpose in (M4_RUST_LIFECYCLE_PURPOSE, M4_QGROUP_DIAGNOSTIC_PURPOSE,
+                                           M4_OBSERVER_DIAGNOSTIC_PURPOSE) and quota_required
         if quota_required and not quota_valid:
             return {'state': 'CAPACITY_UNVERIFIABLE', 'continuation_allowed': False,
                     'reason': 'workspace_quota_telemetry_unverified',
@@ -1628,6 +1882,43 @@ def watchdog_observer_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def workspace_accounting_summary(samples: list[dict[str, Any]],
+                                 budget: dict[str, Any] | None) -> dict[str, Any]:
+    """Keep sampled qgroup capacity distinct from unsampled workspace inventory."""
+    workspace_samples_complete = bool(samples) and all(
+        row.get('workspace', {}).get('scan_complete') is True for row in samples
+    )
+    workspace_quota_bound = workspace_quota_bound_bytes(budget)
+    quota_rows = [row.get('workspace_quota') for row in samples]
+    quota_samples_complete = (
+        workspace_quota_bound is None
+        or bool(quota_rows and all(
+            isinstance(row, dict) and row.get('status') == 'PASS' for row in quota_rows))
+    )
+    passed_quota_rows = [row for row in quota_rows
+                         if isinstance(row, dict) and row.get('status') == 'PASS']
+    return {
+        'workspace_samples_complete': workspace_samples_complete,
+        'workspace_accounting_status': ('SAMPLED_NOT_PROOF' if workspace_samples_complete else
+                                        'UNKNOWN_INVENTORY_KERNEL_QUOTA_BOUND'
+                                        if quota_samples_complete and workspace_quota_bound is not None else
+                                        'UNKNOWN'),
+        'workspace_capacity_upper_bound_bytes': workspace_quota_bound,
+        'workspace_quota_samples_complete': quota_samples_complete,
+        'workspace_quota_referenced_peak_bytes': max(
+            (row['referenced_bytes'] for row in passed_quota_rows), default=None),
+        'workspace_quota_minimum_headroom_bytes': min(
+            (row['available_bytes'] for row in passed_quota_rows), default=None),
+        'workspace_capacity_bound_semantics': (
+            'root-attested Btrfs squota max referenced bytes; excludes host/global metadata/chunk overhead'
+            if workspace_quota_bound is not None else None),
+        'workspace_snapshot_semantics': (
+            'sampled traversal, NOT atomic snapshot or verified lifetime peak'
+            if workspace_samples_complete else
+            'workspace inventory NOT sampled; live qgroup capacity samples only; soft-budget peaks UNKNOWN'),
+    }
+
+
 def read_watchdog_config(path: pathlib.Path) -> dict[str, Any]:
     config = strict_json_file(path)
     for key in ('cgroup_path', 'cgroup_rel', 'workspace_root', 'resource_root', 'sample_interval_ms',
@@ -1714,6 +2005,7 @@ def validate_watchdog_operation_binding(config: dict[str, Any]) -> dict[str, Any
                     if context.get('purpose') in (M4_SHARED_COLLECTION_PAIR_PURPOSE,
                                                    M4_WRITE_AMPLIFICATION_PURPOSE,
                                                    M4_RUST_LIFECYCLE_PURPOSE)
+                    else ('diagnostic',) if context.get('purpose') in (M4_QGROUP_DIAGNOSTIC_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE)
                     else ('microbench',) if context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
                     else ('aa-first', 'aa-second'))
     if (arm not in allowed_arms or
@@ -1722,17 +2014,30 @@ def validate_watchdog_operation_binding(config: dict[str, Any]) -> dict[str, Any
             not config.get('enforce_host_gates', True) or
             config.get('budget') != contention_budget(context) or
             config['runtime_limit_seconds'] != context['runtime_limit_seconds'] or
+            (context.get('purpose') == M4_QGROUP_DIAGNOSTIC_PURPOSE and
+             (config.get('sample_interval_ms') != 1000 or
+              str(pathlib.Path(config.get('workspace_root', '')).resolve()) != context['workspace_root'])) or
+            (context.get('purpose') == M4_OBSERVER_DIAGNOSTIC_PURPOSE and
+             (config.get('sample_interval_ms') != 500 or
+              str(pathlib.Path(config.get('workspace_root', '')).resolve()) != context['workspace_root'])) or
             config.get('policy_context_digest') != contention_context_digest(context)):
         raise ValueError('watchdog contention context/budget/operation binding mismatch')
     return config
 
 
 def watchdog_phase(arm_name: str, started: bool) -> str:
-    if arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench'):
+    if arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench', 'diagnostic'):
         raise ValueError(f'invalid contention arm name: {arm_name}')
     if not started:
         return arm_name
     return 'runtime-second' if arm_name in ('aa-second', 'pair-second') else 'runtime-first'
+
+
+def qgroup_diagnostic_next_deadline(origin_ns: int, previous_sample_ns: int, now_ns: int) -> int:
+    """Next fixed one-second slot without catch-up bursts or subsecond samples."""
+    period_ns = 1_000_000_000
+    slot = max(1, (now_ns - origin_ns) // period_ns + 1)
+    return max(origin_ns + slot * period_ns, previous_sample_ns + period_ns)
 
 
 def watchdog_main(config_path: pathlib.Path) -> int:
@@ -1763,6 +2068,9 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     ready_marker = pathlib.Path(config['watchdog_ready_path'])
     socket_dir = pathlib.Path(config['socket_dir'])
     operator_stop_path = pathlib.Path(config['watchdog_output']) / 'operator-stop-request.json'
+    diagnostic = (config.get('policy_context') or {}).get('purpose') == M4_QGROUP_DIAGNOSTIC_PURPOSE
+    sample_origin_ns = time.monotonic_ns()
+    quota_sample_ns = None
     while abort is None:
         if operator_stop_path.exists() and not command_done_marker.exists():
             try:
@@ -1811,10 +2119,11 @@ def watchdog_main(config_path: pathlib.Path) -> int:
             cgroup_row = read_cgroup_metric(cg)
             host_row = host_snapshot(resource_root)
             budget = config.get('budget')
+            quota_sample_ns = time.monotonic_ns()
             quota_sample = workspace_quota_live_sample(budget)
             policy_context = config.get('policy_context')
             if (policy_context is not None
-                    and policy_context.get('purpose') == M4_RUST_LIFECYCLE_PURPOSE
+                    and policy_context.get('purpose') in (M4_RUST_LIFECYCLE_PURPOSE, M4_QGROUP_DIAGNOSTIC_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE)
                     and workspace_quota_bound_bytes(budget) is not None):
                 work_row = workspace_quota_bounded_observation(workspace)
             else:
@@ -1827,6 +2136,7 @@ def watchdog_main(config_path: pathlib.Path) -> int:
                 'elapsed_ns': None if started_ns is None else time.monotonic_ns() - started_ns,
                 'cgroup': cgroup_row, 'host': host_row, 'workspace': work_row,
                 'workspace_quota': quota_sample,
+                'workspace_quota_sample_monotonic_ns': quota_sample_ns,
                 'workspace_capacity_decision': workspace_decision,
             }
             if config.get('policy_context') is not None:
@@ -1854,10 +2164,19 @@ def watchdog_main(config_path: pathlib.Path) -> int:
             context = config.get('policy_context')
             context_failures = []
             if context is not None:
+                if context.get('purpose') in (M4_RUST_LIFECYCLE_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE):
+                    row['watchdog_process'] = process_resource_sample(os.getpid())
+                    row['watchdog_process_cpu_ns'] = time.process_time_ns()
                 verify_contention_caps(cg, context)
                 phase = watchdog_phase(config['arm_name'], started_ns is not None)
-                decision = contention_decision(host_row, context, phase, workspace_reservation_credit(work_row),
-                                                cgroup_row['memory_swap_current_bytes'])
+                if context.get('purpose') in (M4_RUST_LIFECYCLE_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE):
+                    decision, decision_cost = timed_lifecycle_contention_decision(
+                        host_row, context, phase, workspace_reservation_credit(work_row),
+                        cgroup_row['memory_swap_current_bytes'])
+                    row['policy_decision_cost'] = decision_cost
+                else:
+                    decision = contention_decision(host_row, context, phase, workspace_reservation_credit(work_row),
+                                                    cgroup_row['memory_swap_current_bytes'])
                 row['diagnostic_decision'] = decision
                 previous = samples[-2] if len(samples) > 1 else None
                 distress = contention_runtime_failures(cgroup_row, None if previous is None else previous['cgroup'])
@@ -1925,7 +2244,15 @@ def watchdog_main(config_path: pathlib.Path) -> int:
             row['watchdog_loop_cpu_ns'] = time.process_time_ns() - loop_cpu_started_ns
         if abort is not None or loop_done:
             break
-        time.sleep(interval)
+        if diagnostic:
+            # Follow fixed one-second slots, skip missed slots, and never sample
+            # quota less than one second after the prior actual sample.
+            assert quota_sample_ns is not None  # successful watchdog iteration always sampled quota
+            now_ns = time.monotonic_ns()
+            deadline_ns = qgroup_diagnostic_next_deadline(sample_origin_ns, quota_sample_ns, now_ns)
+            time.sleep(max(0, deadline_ns - now_ns) / 1e9)
+        else:
+            time.sleep(interval)
     if abort is not None and cg.exists():
         kill_result = kill_owned_cgroup(cg, expected, preserve_pids={bootstrap_pid})
         abort['termination'] = kill_result
@@ -1956,14 +2283,10 @@ def watchdog_main(config_path: pathlib.Path) -> int:
         row['cgroup'].get('process_io_sample_complete') and
         row['cgroup'].get('process_memory_sample_complete') for row in samples
     )
-    workspace_samples_complete = bool(samples) and all(r['workspace']['scan_complete'] for r in samples)
-    workspace_quota_bound = workspace_quota_bound_bytes(config.get('budget'))
-    workspace_quota_rows = [r.get('workspace_quota') for r in samples]
-    workspace_quota_samples_complete = (
-        workspace_quota_bound is None
-        or bool(workspace_quota_rows and all(
-            isinstance(row, dict) and row.get('status') == 'PASS' for row in workspace_quota_rows))
-    )
+    workspace_accounting = workspace_accounting_summary(samples, config.get('budget'))
+    workspace_samples_complete = workspace_accounting['workspace_samples_complete']
+    workspace_quota_bound = workspace_accounting['workspace_capacity_upper_bound_bytes']
+    workspace_quota_samples_complete = workspace_accounting['workspace_quota_samples_complete']
     complete_workspace_rows = [r['workspace'] for r in samples if r['workspace']['scan_complete']]
     memory_stat_rows = [r['cgroup']['memory_stat_bytes'] for r in samples
                         if isinstance(r['cgroup'].get('memory_stat_bytes'), dict)]
@@ -1971,28 +2294,12 @@ def watchdog_main(config_path: pathlib.Path) -> int:
     summary = {
         'schema_version': SCHEMA_VERSION, 'samples': len(samples),
         'observer': watchdog_observer_summary(samples),
-        'workspace_samples_complete': workspace_samples_complete,
-        'workspace_accounting_status': ('SAMPLED_NOT_PROOF' if workspace_samples_complete else
-                                        'UNKNOWN_INVENTORY_KERNEL_QUOTA_BOUND' if workspace_quota_samples_complete and workspace_quota_bound is not None else
-                                        'UNKNOWN'),
-        'workspace_capacity_upper_bound_bytes': workspace_quota_bound,
-        'workspace_quota_samples_complete': workspace_quota_samples_complete,
-        'workspace_quota_referenced_peak_bytes': max(
-            (row['referenced_bytes'] for row in workspace_quota_rows
-             if isinstance(row, dict) and row.get('status') == 'PASS'), default=None),
-        'workspace_quota_minimum_headroom_bytes': min(
-            (row['available_bytes'] for row in workspace_quota_rows
-             if isinstance(row, dict) and row.get('status') == 'PASS'), default=None),
-        'workspace_capacity_bound_semantics': ('root-attested Btrfs squota max referenced bytes; excludes host/global metadata/chunk overhead'
-                                               if workspace_quota_bound is not None else None),
+        **workspace_accounting,
         'workspace_soft_budget_warning_samples': sum(bool(r['workspace_capacity_decision'].get('warnings')) for r in samples),
         'workspace_soft_budget_indeterminate_samples': sum(bool(r['workspace_capacity_decision'].get('indeterminate_overages')) for r in samples),
         'hard_safety_telemetry_complete': bool(
             samples and process_samples_complete and isinstance(final_cgroup, dict) and not final_cgroup.get('error')
             and workspace_quota_samples_complete),
-        'workspace_snapshot_semantics': ('sampled traversal, NOT atomic snapshot or verified lifetime peak'
-                                         if workspace_samples_complete else
-                                         'workspace inventory NOT sampled; live qgroup capacity samples only; soft-budget peaks UNKNOWN'),
         'workspace_verified_peak': None,
         'max_observed_complete_traversal_apparent_bytes': max((w['apparent_bytes'] for w in complete_workspace_rows), default=None),
         'max_observed_complete_traversal_allocated_bytes': max((w['allocated_st_blocks_bytes_gross'] for w in complete_workspace_rows), default=None),
@@ -2193,6 +2500,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
         m4_lock_microbench = policy_context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
         m4_write_amplification = policy_context.get('purpose') == M4_WRITE_AMPLIFICATION_PURPOSE
         m4_rust_lifecycle = policy_context.get('purpose') == M4_RUST_LIFECYCLE_PURPOSE
+        qgroup_diagnostic = policy_context.get('purpose') == M4_QGROUP_DIAGNOSTIC_PURPOSE
+        observer_diagnostic = policy_context.get('purpose') == M4_OBSERVER_DIAGNOSTIC_PURPOSE
         expected_flag = ('--m4-scalar-open-latency-diagnostic' if m4_latency
                          else '--m4-scalar-open-resource-rehearsal')
         binary_path = pathlib.Path(policy_context.get('binary_path', '')).resolve()
@@ -2215,15 +2524,20 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 not pathlib.Path(command[1]).exists() and
                 hashlib.sha256(binary_path.read_bytes()).hexdigest() == policy_context['binary_sha256'])
         elif m4_lock_microbench:
-            contract_workload = lock_contention_workload(policy_context)
-            command_bound = (
-                len(command) == 6 and command[1] == str(workspace_root.resolve() / 'root') and
-                binary_path == pathlib.Path(command[0]).resolve() and
-                pathlib.Path(command[2]).resolve() == pathlib.Path(policy_context['dictionary_path']).resolve() and
-                command[3:] == [contract_workload['mode'], str(contract_workload['documents']),
-                                str(contract_workload['rounds'])] and
-                not pathlib.Path(command[1]).exists() and
-                hashlib.sha256(binary_path.read_bytes()).hexdigest() == policy_context['binary_sha256'])
+            command_bound = lock_contention_command_bound(
+                command, binary_path, workspace_root, policy_context, env)
+        elif observer_diagnostic:
+            command_bound = (command == [sys.executable, '-I', str(binary_path), str(workspace_root.resolve())] and
+                             str(workspace_root.resolve()) == policy_context['workspace_root'] and
+                             workspace_root.is_dir() and not any(workspace_root.iterdir()) and
+                             cwd.resolve() == workspace_root.resolve() and not env and
+                             sample_interval_ms == 500)
+        elif qgroup_diagnostic:
+            command_bound = (command == [sys.executable, '-I', str(binary_path), str(workspace_root.resolve())] and
+                             str(workspace_root.resolve()) == policy_context['workspace_root'] and
+                             workspace_root.is_dir() and not any(workspace_root.iterdir()) and
+                             cwd.resolve() == workspace_root.resolve() and not env and
+                             sample_interval_ms == 1000)
         elif m4_rust_lifecycle:
             expected_workspace = pathlib.Path(policy_context['workspace_root']).resolve()
             expected_binary = pathlib.Path(policy_context['binary_path']).resolve()
@@ -2237,7 +2551,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 not pathlib.Path(policy_context['report_path']).exists() and
                 pathlib.Path(policy_context['temporary_directory']).is_dir() and
                 pathlib.Path(policy_context['binary_path']).is_file() and
-                hashlib.sha256(expected_binary.read_bytes()).hexdigest() == policy_context['binary_sha256'])
+                file_sha256(expected_binary) == policy_context['binary_sha256'])
         elif m4_write_amplification:
             workload = policy_context['workload']
             role = policy_context['arm_role']
@@ -2292,13 +2606,13 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
                 pathlib.Path(command[1]).resolve() == workspace_root.resolve() / 'root' and
                 not pathlib.Path(command[1]).exists() and
                 hashlib.sha256(pathlib.Path(command[0]).read_bytes()).hexdigest() == policy_context['binary_sha256'])
-        if (arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench') or
+        if (arm_name not in ('aa-first', 'aa-second', 'pair-first', 'pair-second', 'microbench', 'diagnostic') or
                 receipt_dir.resolve() != pathlib.Path(policy_context['operation_root']) / arm_name / 'containment' or
                 str(resource_root.resolve()) != policy_context['resource_root'] or
                 not enforce_host_gates or budget != contention_budget(policy_context) or
                 runtime_seconds != policy_context['runtime_limit_seconds'] or
                 not command_bound or
-                ((rehearsal or m4_scalar_open or m4_shared_pair or m4_lock_microbench or m4_write_amplification or m4_rust_lifecycle) and cwd.resolve() != workspace_root.resolve()) or
+                ((rehearsal or m4_scalar_open or m4_shared_pair or m4_lock_microbench or m4_write_amplification or m4_rust_lifecycle or qgroup_diagnostic or observer_diagnostic) and cwd.resolve() != workspace_root.resolve()) or
                 (env or {}).get('LD_PRELOAD') or any(k.startswith('M4_FAULT') for k in (env or {}))):
             raise ValueError('contained arm contention operation/command/budget binding mismatch')
     if not command:
@@ -2311,7 +2625,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
     cwd = cwd.resolve(strict=True)
     if (policy_context is not None and
             policy_context.get('purpose') in (M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
-                                               M4_RUST_LIFECYCLE_PURPOSE)):
+                                               M4_RUST_LIFECYCLE_PURPOSE, M4_QGROUP_DIAGNOSTIC_PURPOSE,
+                                               M4_OBSERVER_DIAGNOSTIC_PURPOSE)):
         quota_contract = (BENCHMARK_POLICY['lock_contention_microbench']['workspace_quota']
                           if policy_context.get('purpose') == M4_LOCK_CONTENTION_MICROBENCH_PURPOSE
                           else BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']['workspace_quota'])
@@ -2381,6 +2696,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
     diagnostic_decision = None
     try:
         start_state = host_snapshot(resource_root)
+        if policy_context and policy_context.get('purpose') in (M4_RUST_LIFECYCLE_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE):
+            write_json(receipt_dir / 'host-process-before.json', host_process_snapshot())
         if policy_context is not None:
             diagnostic_decision = contention_decision(start_state, policy_context, arm_name)
     except Exception as exc:
@@ -2514,7 +2831,8 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             applied['workspace_limits'] = ('monitored soft inventory budgets; exact registered kernel qgroup is an independent hard capacity bound'
                                            if policy_context.get('purpose') in (
                                                M4_LOCK_CONTENTION_MICROBENCH_PURPOSE,
-                                               M4_RUST_LIFECYCLE_PURPOSE)
+                                               M4_RUST_LIFECYCLE_PURPOSE, M4_QGROUP_DIAGNOSTIC_PURPOSE,
+                                               M4_OBSERVER_DIAGNOSTIC_PURPOSE)
                                            else 'monitored-soft-budgets; warnings only; no kernel/filesystem quota')
         wconfig = {
             'cgroup_path': str(cg), 'cgroup_rel': expected_path,
@@ -2701,7 +3019,7 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'policy_id': BENCHMARK_POLICY['policy_id'],
             'source_of_authority': BENCHMARK_POLICY['authority']['historical_envelope_source'],
             'gate_decisions': gate_decisions, 'test_fixture_mode': not enforce_host_gates,
-            'performance_eligible': bool(status == 'PASS' and enforce_host_gates and policy_context is None),
+            'performance_eligible': is_performance_eligible(status, enforce_host_gates, policy_context),
             'policy_context': policy_context,
             'diagnostic_decision': diagnostic_decision,
             'evidence_class': contention_evidence_class(policy_context) if policy_context is not None else None,
@@ -2731,10 +3049,16 @@ def run_arm(command: list[str], receipt_dir: pathlib.Path, resource_root: pathli
             'final_process_status': 'exit=0 and complete hard safety telemetry may complete exploratory operation with workspace caveats; INCOMPLETE is never PASS',
         }
         post_state = host_snapshot(resource_root)
+        if policy_context and policy_context.get('purpose') in (M4_RUST_LIFECYCLE_PURPOSE, M4_OBSERVER_DIAGNOSTIC_PURPOSE):
+            write_json(receipt_dir / 'host-process-after.json', host_process_snapshot())
         if policy_context is not None:
             phase = 'runtime-first' if arm_name in ('aa-first', 'pair-first') else 'runtime-second'
             post_workspace = workspace_usage(workspace_root)
-            post_quota_sample = workspace_quota_live_sample(budget)
+            if policy_context.get('purpose') == M4_QGROUP_DIAGNOSTIC_PURPOSE:
+                rows = (receipt_dir / 'runtime.jsonl').read_text().splitlines()
+                post_quota_sample = json.loads(rows[-1]).get('workspace_quota') if rows else None
+            else:
+                post_quota_sample = workspace_quota_live_sample(budget)
             post_workspace_decision = workspace_capacity_decision(
                 post_workspace, budget, CONTENTION_MODE, post_quota_sample)
             post_decision = contention_decision(post_state, policy_context, phase,
