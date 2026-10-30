@@ -1,2 +1,5 @@
 # Re-creatable local build/temp/scratch artifacts; retained evidence belongs in results/.
 .work/
+
+# Standalone Cargo output; controlled research builds use .work/build instead.
+/rust-bridge/target/
