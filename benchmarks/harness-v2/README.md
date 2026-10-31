@@ -22,10 +22,32 @@ candidate is not changed by this tree.
 P1 does not move containment code, change thresholds, change the policy,
 re-run a benchmark, or modify the frozen RC.
 
+**P2 — containment and measurement primitives: extracted, adoption partial.**
+
+- `measurement/primitives.py` owns strict JSON, UTC/boottime clocks, bounded
+  file/tree hashes, and receipt JSON writing.
+- `host/primitives.py` owns host probes, pressure/meminfo/diskstats parsing,
+  cgroup membership and populated checks, verified process termination,
+  systemd service properties, receipt-directory creation, quota-attestation
+  validation, and watchdog cadence/observer helpers.
+- `m4_containment_runner.py` now uses the extracted identity, host-probe,
+  service-property, quota, and watchdog helpers. Launch, cgroup path/cleanup,
+  and the watchdog loop remain local because their legacy tests monkeypatch
+  those module-level symbols; moving them is a P3 test-port task.
+- `run_shared_collection_pair.py` now uses the measurement hash/receipt helpers.
+- `benchmarks/native-lifecycle/` and the P3 `run_native_query_lock_split*`
+  runners remain archive candidates; they are not V2 entrypoints.
+
+The implementation adds no benchmark workload, production launch, threshold,
+policy, cgroup-limit, or RC change. Synthetic containment verification launches
+its own transient user units and cleans them up; it runs no production workload.
+
 ## Run
 
 ```bash
 python3 -m unittest discover -s benchmarks/harness-v2/contracts/tests -v
+python3 -m unittest discover -s benchmarks/harness-v2/host/tests -v
+python3 -m unittest discover -s benchmarks/harness-v2/measurement/tests -v
 ```
 
 Legacy gate tests remain in `research/m4-native/tools/`:

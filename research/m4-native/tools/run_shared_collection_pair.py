@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.util
 import json
 import math
@@ -34,13 +33,12 @@ def load_module(name: str, path: pathlib.Path):
     return module
 
 
-def sha256(path: pathlib.Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def write_json(path: pathlib.Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+MEASUREMENT = load_module(
+    "harness_v2_measurement_primitives",
+    BASE.parent.parent / "benchmarks/harness-v2/measurement/primitives.py",
+)
+sha256 = MEASUREMENT.file_sha256
+write_json = MEASUREMENT.write_json
 
 
 def context_for(runner, contract, operation_id, operation_root, arm_role, binary_sha, dictionary_sha):

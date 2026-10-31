@@ -183,8 +183,12 @@ Invariants:
   `test_m4_harness_scenarios.py` to the new contract layer.
 - Gate: old receipt reader tests and policy/hash tests pass.
 
-### P2 — Containment primitives
+### P2 — Containment primitives (primitives extracted 2026-10-31; adoption partial)
 
+- Implemented primitives under `benchmarks/harness-v2/host/` and
+  `benchmarks/harness-v2/measurement/`; see `benchmarks/harness-v2/README.md`.
+- Launch, cgroup path/cleanup, and the watchdog loop remain local until their
+  monkeypatch-based legacy tests are ported in P3.
 - Move host snapshot, cgroup discovery/validation, systemd launch, watchdog,
   quota attestation, and owned-cgroup cleanup into `host/`.
 - Move `create_measurement_artifact` and clock/sampling/receipt helpers into
