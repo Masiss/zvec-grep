@@ -191,10 +191,18 @@ pub(crate) async fn index_workspace(
         },
     );
     let finalize_started = Instant::now();
-    context.storage.finalize_writes().map_err(|error| {
-        EngineError::storage_failure(format!("failed to finalize index storage: {error}"))
-    })?;
+    let optimize_stages = context
+        .storage
+        .finalize_writes_detailed()
+        .map_err(|error| {
+            EngineError::storage_failure(format!("failed to finalize index storage: {error}"))
+        })?;
     timings.record("index_optimize", finalize_started.elapsed(), 1);
+    // Fragment and scalar stages run concurrently; these are wall durations,
+    // not additive shares of `index_optimize`.
+    for (name, duration) in optimize_stages {
+        timings.record(&name, duration, 1);
+    }
 
     let result = build_index_result(&passes, started.elapsed(), timings);
     if result.files_failed > 0 {

@@ -2311,6 +2311,47 @@ fn dirty_optimize_overlaps_fragment_optimize() {
 }
 
 #[test]
+fn finalize_reports_per_stage_optimize_telemetry() {
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "stage-telemetry",
+        "stage telemetry",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    let stages = storage
+        .finalize_writes_detailed()
+        .expect("finalize with telemetry");
+    let names = stages
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<Vec<_>>();
+    for expected in [
+        "index_optimize_fragments",
+        "index_optimize_directories",
+        "index_optimize_entities",
+        "index_optimize_files",
+    ] {
+        assert!(names.contains(&expected), "missing {expected} in {names:?}");
+    }
+    assert!(
+        storage
+            .finalize_writes_detailed()
+            .expect("no-op")
+            .is_empty(),
+        "no pending work must report no stages"
+    );
+    storage.close().expect("close");
+}
+
+#[test]
 fn dirty_optimize_failure_preserves_marker_and_retries_after_reopen() {
     let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
 

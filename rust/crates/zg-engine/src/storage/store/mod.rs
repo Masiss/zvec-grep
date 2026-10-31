@@ -5,11 +5,11 @@ use std::{
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, OnceLock, Weak},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(test)]
-use std::{cell::Cell, time::Instant};
+use std::cell::Cell;
 
 #[cfg(test)]
 thread_local! {
@@ -90,6 +90,10 @@ struct SharedStore {
     // The native handles must close before the operating-system lock is released.
     _lock: File,
 }
+
+// Stage wall durations from one finalization. Fragments and scalar collections
+// run concurrently, so these durations are not additive.
+pub(crate) type OptimizeStageTimings = Vec<(String, Duration)>;
 
 const DIRTY_DIRECTORIES: u8 = 1 << 0;
 const DIRTY_ENTITIES: u8 = 1 << 1;
@@ -546,8 +550,15 @@ impl IndexStore {
     /// tables on a scoped worker lets it start immediately instead of waiting
     /// for the (larger) fragment stage to finish.
     pub(crate) fn finalize_writes(&self) -> EngineResult<()> {
+        self.finalize_writes_detailed().map(|_| ())
+    }
+
+    /// Same as [`Self::finalize_writes`], also returning each maintenance
+    /// stage's wall duration. Fragment and scalar stages run concurrently, so
+    /// the per-stage durations are not additive.
+    pub(crate) fn finalize_writes_detailed(&self) -> EngineResult<OptimizeStageTimings> {
         if self.read_only {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let work = self.write(|state| {
             if state.optimizing {
@@ -568,7 +579,7 @@ impl IndexStore {
             Ok(None)
         })?;
         let Some((fragments, dirty, generation)) = work else {
-            return Ok(());
+            return Ok(Vec::new());
         };
         // Fragment maintenance and scalar collection maintenance touch disjoint
         // native state: fragments are `&self` with their own native locks, while
@@ -576,18 +587,38 @@ impl IndexStore {
         // stage on a scoped worker while the fragment stage proceeds on this
         // thread, then join both before publishing the outcome. A worker that
         // panics is treated as a failed stage so retry intent is retained.
-        let (fragment_result, dirty_result) = std::thread::scope(|scope| {
-            let dirty_worker = scope.spawn(|| self.write(|state| optimize_dirty(state, dirty)));
-            let fragment_result = fragments
-                .as_ref()
-                .map_or(Ok(()), |fragments| fragments.optimize());
-            let dirty_result = dirty_worker.join().unwrap_or_else(|_| {
-                Err(EngineError::internal(
-                    "dirty collection optimize worker panicked",
-                ))
+        let mut stage_timings = Vec::new();
+        let (fragment_result, fragment_elapsed, dirty_result, dirty_timings) =
+            std::thread::scope(|scope| {
+                let dirty_worker = scope.spawn(|| {
+                    let mut timings = Vec::new();
+                    let result = self.write(|state| optimize_dirty(state, dirty, &mut timings));
+                    (result, timings)
+                });
+                let fragment_started = Instant::now();
+                let fragment_result = fragments
+                    .as_ref()
+                    .map_or(Ok(()), |fragments| fragments.optimize());
+                let fragment_elapsed = fragment_started.elapsed();
+                let (dirty_result, dirty_timings) = dirty_worker.join().unwrap_or_else(|_| {
+                    (
+                        Err(EngineError::internal(
+                            "dirty collection optimize worker panicked",
+                        )),
+                        Vec::new(),
+                    )
+                });
+                (
+                    fragment_result,
+                    fragment_elapsed,
+                    dirty_result,
+                    dirty_timings,
+                )
             });
-            (fragment_result, dirty_result)
-        });
+        if fragments.is_some() {
+            stage_timings.push(("index_optimize_fragments".to_owned(), fragment_elapsed));
+        }
+        stage_timings.extend(dirty_timings);
         self.write(|state| {
             let result = fragment_result.and(dirty_result);
             state.optimizing = false;
@@ -601,7 +632,7 @@ impl IndexStore {
                         state.needs_optimize = false;
                         state.dirty = 0;
                     }
-                    Ok(())
+                    Ok(stage_timings)
                 }
                 Err(error) => Err(error),
             }
@@ -686,7 +717,11 @@ impl IndexStore {
     }
 }
 
-fn optimize_dirty(state: &StoreState, dirty: u8) -> EngineResult<()> {
+fn optimize_dirty(
+    state: &StoreState,
+    dirty: u8,
+    timings: &mut Vec<(String, Duration)>,
+) -> EngineResult<()> {
     #[cfg(test)]
     {
         use std::sync::atomic::Ordering;
@@ -706,19 +741,44 @@ fn optimize_dirty(state: &StoreState, dirty: u8) -> EngineResult<()> {
     std::thread::scope(|scope| {
         let mut workers = Vec::new();
         if dirty & DIRTY_DIRECTORIES != 0 {
-            workers.push(scope.spawn(move || directories.optimize()));
+            workers.push((
+                "index_optimize_directories",
+                scope.spawn(move || {
+                    let started = Instant::now();
+                    let result = directories.optimize();
+                    (result, started.elapsed())
+                }),
+            ));
         }
         if dirty & DIRTY_ENTITIES != 0 {
-            workers.push(scope.spawn(move || entities.optimize()));
+            workers.push((
+                "index_optimize_entities",
+                scope.spawn(move || {
+                    let started = Instant::now();
+                    let result = entities.optimize();
+                    (result, started.elapsed())
+                }),
+            ));
         }
         if dirty & DIRTY_FILES != 0 {
-            workers.push(scope.spawn(move || files.optimize()));
+            workers.push((
+                "index_optimize_files",
+                scope.spawn(move || {
+                    let started = Instant::now();
+                    let result = files.optimize();
+                    (result, started.elapsed())
+                }),
+            ));
         }
         let mut result = Ok(());
-        for worker in workers {
-            let next = worker.join().unwrap_or_else(|_| {
-                Err(EngineError::internal("collection optimize worker panicked"))
+        for (name, worker) in workers {
+            let (next, elapsed) = worker.join().unwrap_or_else(|_| {
+                (
+                    Err(EngineError::internal("collection optimize worker panicked")),
+                    Duration::ZERO,
+                )
             });
+            timings.push((name.to_owned(), elapsed));
             result = result.and(next);
         }
         result

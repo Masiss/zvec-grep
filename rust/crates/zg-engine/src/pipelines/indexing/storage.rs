@@ -23,6 +23,11 @@ pub(crate) trait IndexStorage: Send + Sync {
     fn mark_file_failed(&self, file: &FileRecord, error: &str) -> EngineResult<()>;
     fn delete_file(&self, file_id: FileId) -> EngineResult<()>;
     fn finalize_writes(&self) -> EngineResult<()>;
+    /// Per-stage maintenance wall durations for the last finalization. The
+    /// default keeps lightweight test storages from implementing telemetry.
+    fn finalize_writes_detailed(&self) -> EngineResult<Vec<(String, std::time::Duration)>> {
+        self.finalize_writes().map(|()| Vec::new())
+    }
     /// Return stored vectors whose fragment identity and model still match.
     /// The default keeps lightweight test storages from implementing M2.
     fn load_reusable_vectors(
@@ -84,6 +89,10 @@ impl IndexStorage for IndexStore {
 
     fn finalize_writes(&self) -> EngineResult<()> {
         self.finalize_writes()
+    }
+
+    fn finalize_writes_detailed(&self) -> EngineResult<Vec<(String, std::time::Duration)>> {
+        self.finalize_writes_detailed()
     }
 
     fn load_reusable_vectors(
