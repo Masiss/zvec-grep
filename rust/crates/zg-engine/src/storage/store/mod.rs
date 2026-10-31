@@ -17,19 +17,15 @@ thread_local! {
 }
 
 #[cfg(test)]
-static DIRTY_OPTIMIZE_TEST_DELAY_MS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
-#[cfg(test)]
 static DIRTY_OPTIMIZE_TEST_FAIL: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-/// Arm the dirty-collection optimize stage from tests. The hook is global
-/// because the stage runs on a scoped worker thread. Callers must hold the M3
-/// test lock and reset it when done.
+/// Arm the dirty-collection optimize failure path from tests. The hook is
+/// global because the stage runs on scoped worker threads. Callers must hold
+/// the M3 test lock and reset it when done.
 #[cfg(test)]
-pub(crate) fn set_dirty_optimize_test_hook(delay_ms: u64, fail: bool) {
+pub(crate) fn set_dirty_optimize_test_failure(fail: bool) {
     use std::sync::atomic::Ordering;
-    DIRTY_OPTIMIZE_TEST_DELAY_MS.store(delay_ms, Ordering::SeqCst);
     DIRTY_OPTIMIZE_TEST_FAIL.store(fail, Ordering::SeqCst);
 }
 
@@ -541,21 +537,19 @@ impl IndexStore {
 
     /// Build indexes and compact accepted writes when needed.
     ///
-    /// Native fragment maintenance runs outside the store state lock and is
-    /// overlapped with directory/entity/file maintenance. The persistent marker
-    /// remains the crash-retry barrier, and the generation check preserves
-    /// optimization debt from writes that arrive while native work is in
-    /// flight. Directory/entity/file maintenance still runs under the store
-    /// lock because those tables require mutable handles; producing those
-    /// tables on a scoped worker lets it start immediately instead of waiting
-    /// for the (larger) fragment stage to finish.
+    /// Native fragment maintenance runs outside the store state lock. The
+    /// persistent marker remains the crash-retry barrier, and the generation
+    /// check preserves optimization debt from writes that arrive while native
+    /// work is in flight. Directory/entity/file maintenance stays under the
+    /// store lock because those tables still require mutable handles. The
+    /// stages run sequentially: the M3-B overlap candidate was rejected after
+    /// it increased concurrent-reader latency (see BENCHMARK-RESULTS.md).
     pub(crate) fn finalize_writes(&self) -> EngineResult<()> {
         self.finalize_writes_detailed().map(|_| ())
     }
 
     /// Same as [`Self::finalize_writes`], also returning each maintenance
-    /// stage's wall duration. Fragment and scalar stages run concurrently, so
-    /// the per-stage durations are not additive.
+    /// stage's wall duration.
     pub(crate) fn finalize_writes_detailed(&self) -> EngineResult<OptimizeStageTimings> {
         if self.read_only {
             return Ok(Vec::new());
@@ -581,46 +575,20 @@ impl IndexStore {
         let Some((fragments, dirty, generation)) = work else {
             return Ok(Vec::new());
         };
-        // Fragment maintenance and scalar collection maintenance touch disjoint
-        // native state: fragments are `&self` with their own native locks, while
-        // directories/entities/files need the store state lock. Run the scalar
-        // stage on a scoped worker while the fragment stage proceeds on this
-        // thread, then join both before publishing the outcome. A worker that
-        // panics is treated as a failed stage so retry intent is retained.
+        let fragment_started = Instant::now();
+        let fragment_result = fragments
+            .as_ref()
+            .map_or(Ok(()), |fragments| fragments.optimize());
+        let fragment_elapsed = fragment_started.elapsed();
         let mut stage_timings = Vec::new();
-        let (fragment_result, fragment_elapsed, dirty_result, dirty_timings) =
-            std::thread::scope(|scope| {
-                let dirty_worker = scope.spawn(|| {
-                    let mut timings = Vec::new();
-                    let result = self.write(|state| optimize_dirty(state, dirty, &mut timings));
-                    (result, timings)
-                });
-                let fragment_started = Instant::now();
-                let fragment_result = fragments
-                    .as_ref()
-                    .map_or(Ok(()), |fragments| fragments.optimize());
-                let fragment_elapsed = fragment_started.elapsed();
-                let (dirty_result, dirty_timings) = dirty_worker.join().unwrap_or_else(|_| {
-                    (
-                        Err(EngineError::internal(
-                            "dirty collection optimize worker panicked",
-                        )),
-                        Vec::new(),
-                    )
-                });
-                (
-                    fragment_result,
-                    fragment_elapsed,
-                    dirty_result,
-                    dirty_timings,
-                )
-            });
         if fragments.is_some() {
             stage_timings.push(("index_optimize_fragments".to_owned(), fragment_elapsed));
         }
-        stage_timings.extend(dirty_timings);
         self.write(|state| {
-            let result = fragment_result.and(dirty_result);
+            let mut dirty_timings = Vec::new();
+            let result =
+                fragment_result.and_then(|()| optimize_dirty(state, dirty, &mut dirty_timings));
+            stage_timings.extend(dirty_timings);
             state.optimizing = false;
             match result {
                 Ok(()) => {
@@ -723,17 +691,10 @@ fn optimize_dirty(
     timings: &mut Vec<(String, Duration)>,
 ) -> EngineResult<()> {
     #[cfg(test)]
-    {
-        use std::sync::atomic::Ordering;
-        let delay = DIRTY_OPTIMIZE_TEST_DELAY_MS.load(Ordering::SeqCst);
-        if delay > 0 {
-            std::thread::sleep(std::time::Duration::from_millis(delay));
-        }
-        if DIRTY_OPTIMIZE_TEST_FAIL.load(Ordering::SeqCst) {
-            return Err(EngineError::storage_failure(
-                "injected dirty collection optimize failure",
-            ));
-        }
+    if DIRTY_OPTIMIZE_TEST_FAIL.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err(EngineError::storage_failure(
+            "injected dirty collection optimize failure",
+        ));
     }
     let directories = &state.directories;
     let entities = &state.entities;
