@@ -16,6 +16,75 @@ use crate::{
     },
 };
 
+const REBUILD_FREE_SPACE_MULTIPLIER: u64 = 2;
+const REBUILD_HEADROOM_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+
+/// Conservative preflight for an atomic rebuild. The active generation is
+/// retained for rollback, so the new generation plus native temporary files
+/// need roughly twice its size and fixed headroom. This is a preflight only;
+/// concurrent writes can still return ordinary I/O errors.
+pub(crate) fn preflight_rebuild(
+    storage_dir: &Path,
+    active_index: &Path,
+) -> Result<(), EngineError> {
+    if !active_index.is_dir() {
+        return Ok(());
+    }
+    let active_bytes = directory_size(active_index)?;
+    if active_bytes == 0 {
+        return Ok(());
+    }
+    let Some(available_bytes) = available_space(storage_dir)? else {
+        tracing::debug!(path = %storage_dir.display(), "rebuild disk preflight unavailable");
+        return Ok(());
+    };
+    let required_bytes = active_bytes
+        .saturating_mul(REBUILD_FREE_SPACE_MULTIPLIER)
+        .saturating_add(REBUILD_HEADROOM_BYTES);
+    if available_bytes < required_bytes {
+        return Err(EngineError::storage_failure(format!(
+            "insufficient disk space for atomic rebuild: active index={active_bytes} bytes, available={available_bytes} bytes, required at least {required_bytes} bytes"
+        )));
+    }
+    tracing::info!(
+        active_index_bytes = active_bytes,
+        available_bytes,
+        required_bytes,
+        "rebuild disk preflight passed"
+    );
+    Ok(())
+}
+
+fn directory_size(path: &Path) -> Result<u64, EngineError> {
+    let mut total = 0_u64;
+    for entry in fs::read_dir(path).map_err(build_io)? {
+        let entry = entry.map_err(build_io)?;
+        let file_type = entry.file_type().map_err(build_io)?;
+        if file_type.is_dir() {
+            total = total.saturating_add(directory_size(&entry.path())?);
+        } else if file_type.is_file() {
+            total = total.saturating_add(entry.metadata().map_err(build_io)?.len());
+        }
+    }
+    Ok(total)
+}
+
+#[cfg(unix)]
+fn available_space(path: &Path) -> Result<Option<u64>, EngineError> {
+    let stats = rustix::fs::statvfs(path).map_err(|error| {
+        EngineError::storage_failure(format!(
+            "inspect free disk space at {}: {error}",
+            path.display()
+        ))
+    })?;
+    Ok(Some(stats.f_bavail.saturating_mul(stats.f_frsize.max(1))))
+}
+
+#[cfg(not(unix))]
+fn available_space(_path: &Path) -> Result<Option<u64>, EngineError> {
+    Ok(None)
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct BuildRecord {

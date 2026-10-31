@@ -38,8 +38,8 @@ use crate::{
         credentials::{decrypt_api_key, delete_credentials_key, encrypt_api_key},
         find_nearest_workspace,
         index::{
-            discard_build, drop_index_storage, prepare_build, publish_build, recover_build,
-            recover_build_for_rebuild,
+            discard_build, drop_index_storage, preflight_rebuild, prepare_build, publish_build,
+            recover_build, recover_build_for_rebuild,
         },
         lock::{LockGuard, LockMode, LockWait},
         manifest::{
@@ -151,6 +151,9 @@ impl WorkspaceIndexService {
         )?;
         if rebuilding {
             options.changes.clear();
+            if let Some(active) = existing.as_ref() {
+                preflight_rebuild(layout.storage_dir(), active.layout().index_dir())?;
+            }
             prepare_build(&workspace)?;
         }
         let result = self
