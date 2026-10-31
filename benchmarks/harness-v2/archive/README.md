@@ -39,3 +39,11 @@ the archive without reviewing those paths.
 diagnostic, quota-attestation refresh, and their tests remain tracked under
 `research/m4-native/tools/`. They are policy-referenced or lifecycle
 dependencies; they are not archived.
+
+## legacy-diagnostic-tests
+
+- Former untracked tests for observer, qgroup-fixture, quota-refresh, and
+  pair-start headroom.
+- Status: frozen; they assert pre-change policy caps or historical result
+  paths and are not run by V2 CI. They are preserved as evidence, not as
+  runnable entrypoints.
