@@ -38,19 +38,20 @@ re-run a benchmark, or modify the frozen RC.
 - `benchmarks/native-lifecycle/` and the P3 `run_native_query_lock_split*`
   runners remain archive candidates; they are not V2 entrypoints.
 
-**P3 — Rust lifecycle split: first slice implemented.**
+**P3 — Rust lifecycle split: implemented.**
 
-- `operations/m4/rust_lifecycle/` holds pure context/artifact identity,
-  preflight headroom predicates, executor continuation rules, query-latency
-  verification, and failure/pair/diagnostic receipt construction.
-- `run_rust_lifecycle_pair.py` remains the CLI compatibility shim and imports
-  those helpers; command line, operation IDs, receipt names, and refusal paths
+- `operations/m4/rust_lifecycle/` owns the operation: `config.py` (injected
+  policy/containment dependencies), `context.py` (corpus, artifact identity,
+  binary discovery, arm context), `preflight.py` (full authorization/resource
+  preflight), `executor.py` (arm execution and finalization), `verify.py`
+  (query-latency gate), and `receipt.py` (failure, pair, and diagnostic
+  receipts).
+- `run_rust_lifecycle_pair.py` is now only the CLI compatibility shim; command
+  line, operation IDs, receipt names, refusal paths, and public helper names
   are unchanged.
-- `make_context`, full `preflight`, `run_pair`, and `_run_pair_arms` still live
-  in the shim; moving them requires porting their monkeypatch-heavy tests.
-- Equivalence tests compare the new helpers against the legacy shim for clean
-  and refusal paths; a synthetic pair freezes the semantic receipt fields. No
-  benchmark workload was run.
+- Legacy monkeypatch-heavy tests were ported to the split modules. They still
+  exercise the same refusal ordering and synthetic receipts.
+- No benchmark workload was run.
 
 The implementation adds no benchmark workload, production launch, threshold,
 policy, cgroup-limit, or RC change. Synthetic containment verification launches
@@ -68,6 +69,7 @@ python3 -m unittest discover -s benchmarks/harness-v2/operations/m4/rust_lifecyc
 Legacy gate tests remain in `research/m4-native/tools/`:
 
 ```bash
+python3 research/m4-native/tools/test_run_rust_lifecycle_pair.py
 python3 research/m4-native/tools/test_m4_benchmark_policy.py
 python3 research/m4-native/tools/test_m4_contention_policy.py
 python3 research/m4-native/tools/test_m4_harness_scenarios.py

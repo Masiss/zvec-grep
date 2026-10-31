@@ -12,12 +12,13 @@ MODULES = HERE.parent
 REPO = MODULES.parents[4]
 TOOLS = REPO / "research" / "m4-native" / "tools"
 sys.path.insert(0, str(TOOLS))
-sys.path.insert(0, str(MODULES))
+sys.path.insert(0, str(REPO / "benchmarks" / "harness-v2"))
 
-executor = importlib.import_module("executor")
-preflight = importlib.import_module("preflight")
-receipt = importlib.import_module("receipt")
-verify = importlib.import_module("verify")
+PACKAGE = "operations.m4.rust_lifecycle"
+executor = importlib.import_module(f"{PACKAGE}.executor")
+preflight = importlib.import_module(f"{PACKAGE}.preflight")
+receipt = importlib.import_module(f"{PACKAGE}.receipt")
+verify = importlib.import_module(f"{PACKAGE}.verify")
 
 
 def load_legacy():

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Regression tests for Gate B lifecycle pair failure classification."""
+import hashlib
 import importlib.util
 import json
 import pathlib
@@ -15,6 +16,14 @@ spec = importlib.util.spec_from_file_location("m4_rust_lifecycle_pair", SCRIPT)
 assert spec and spec.loader
 lifecycle = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(lifecycle)
+
+REPO = HERE.parents[2]
+sys.path.insert(0, str(REPO / 'benchmarks' / 'harness-v2'))
+import importlib as _importlib
+config = _importlib.import_module('operations.m4.rust_lifecycle.config')
+context = _importlib.import_module('operations.m4.rust_lifecycle.context')
+executor = _importlib.import_module('operations.m4.rust_lifecycle.executor')
+preflight = _importlib.import_module('operations.m4.rust_lifecycle.preflight')
 
 
 class LifecyclePairFailureClassificationTests(unittest.TestCase):
@@ -92,8 +101,8 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             with mock.patch.object(pathlib.Path, 'read_bytes', side_effect=AssertionError('whole-file read forbidden')):
                 artifacts = lifecycle.capture_pair_artifacts(binary, root)
                 lifecycle.verify_pair_artifacts(artifacts)
-            self.assertEqual(artifacts['binary_sha256'], lifecycle.hashlib.sha256(binary_bytes).hexdigest())
-            self.assertEqual(artifacts['library_sha256'], lifecycle.hashlib.sha256(library_bytes).hexdigest())
+            self.assertEqual(artifacts['binary_sha256'], hashlib.sha256(binary_bytes).hexdigest())
+            self.assertEqual(artifacts['library_sha256'], hashlib.sha256(library_bytes).hexdigest())
 
     def test_pair_artifacts_detect_binary_and_library_changes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -127,10 +136,10 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             binary.chmod(0o755)
             library.write_bytes(b"fixture")
             listing = mock.Mock(returncode=0, stdout=f"{lifecycle.TEST_NAME}: test\\n")
-            with mock.patch.object(lifecycle, "RUST_TARGET_DIR", target), mock.patch.object(
-                lifecycle.subprocess, "run", return_value=listing
+            with mock.patch.object(config, "RUST_TARGET_DIR", target), mock.patch.object(
+                context.subprocess, "run", return_value=listing
             ):
-                self.assertEqual(lifecycle.find_test_binary(), (binary.resolve(), library.parent.resolve()))
+                self.assertEqual(context.find_test_binary(), (binary.resolve(), library.parent.resolve()))
 
     def test_library_override_is_exact_and_confined_to_target_build_root(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -143,17 +152,17 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
                 path.write_bytes(b'fixture')
             binary.chmod(0o755)
             listing = mock.Mock(returncode=0, stdout=f'{lifecycle.TEST_NAME}: test\\n')
-            with mock.patch.object(lifecycle, 'RUST_TARGET_DIR', target), mock.patch.object(
-                lifecycle.subprocess, 'run', return_value=listing
+            with mock.patch.object(config, 'RUST_TARGET_DIR', target), mock.patch.object(
+                context.subprocess, 'run', return_value=listing
             ):
-                self.assertEqual(lifecycle.find_test_binary(None, library_dir),
+                self.assertEqual(context.find_test_binary(None, library_dir),
                                  (binary.resolve(), library_dir.resolve()))
                 with self.assertRaisesRegex(ValueError, 'exact artifact under debug/build'):
-                    lifecycle.find_test_binary(None, target)
+                    context.find_test_binary(None, target)
                 symlink = target / 'debug/build/library-link'
                 symlink.symlink_to(library_dir, target_is_directory=True)
                 with self.assertRaisesRegex(ValueError, 'must not be a symlink'):
-                    lifecycle.find_test_binary(None, symlink)
+                    context.find_test_binary(None, symlink)
 
     def test_measurement_binary_is_opt_in_and_must_remain_under_allowed_root(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -167,18 +176,18 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             default.chmod(0o755)
             candidate.chmod(0o755)
             listing = mock.Mock(returncode=0, stdout=f'{lifecycle.TEST_NAME}: test\n')
-            with mock.patch.object(lifecycle, 'RUST_TARGET_DIR', target), \
-                 mock.patch.object(lifecycle.subprocess, 'run', return_value=listing) as launch, \
-                 mock.patch.object(lifecycle.measurement_artifact, 'load_segments', return_value=('same', [])):
-                self.assertEqual(lifecycle.find_test_binary()[0], default.resolve())
-                self.assertEqual(lifecycle.find_test_binary(candidate)[0], candidate.resolve())
+            with mock.patch.object(config, 'RUST_TARGET_DIR', target), \
+                 mock.patch.object(context.subprocess, 'run', return_value=listing) as launch, \
+                 mock.patch.object(config.measurement_artifact, 'load_segments', return_value=('same', [])):
+                self.assertEqual(context.find_test_binary()[0], default.resolve())
+                self.assertEqual(context.find_test_binary(candidate)[0], candidate.resolve())
                 before = launch.call_count
                 with self.assertRaises(ValueError):
-                    lifecycle.find_test_binary(default)
-                with mock.patch.object(lifecycle.measurement_artifact, 'load_segments',
+                    context.find_test_binary(default)
+                with mock.patch.object(config.measurement_artifact, 'load_segments',
                                        side_effect=[('original', []), ('changed', [])]):
                     with self.assertRaisesRegex(ValueError, 'load image'):
-                        lifecycle.find_test_binary(candidate)
+                        context.find_test_binary(candidate)
                 self.assertEqual(launch.call_count, before)
 
     def test_preflight_refuses_reuse_of_an_existing_authorized_operation_root(self):
@@ -192,11 +201,11 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             library.write_bytes(b'library')
             quota = {'live_headroom': {'required_free_bytes': 67108864, 'available_bytes': 120000000}}
             with (
-                mock.patch.dict(lifecycle.CONTRACT, {'resource_root': str(root)}),
-                mock.patch.object(lifecycle, 'frozen_manifest', return_value=([], 'fixture')),
-                mock.patch.object(lifecycle, 'find_test_binary', return_value=(binary, root)),
+                mock.patch.dict(config.CONTRACT, {'resource_root': str(root)}),
+                mock.patch.object(context, 'frozen_manifest', return_value=([], 'fixture')),
+                mock.patch.object(context, 'find_test_binary', return_value=(binary, root)),
                 mock.patch.object(lifecycle.containment, 'verify_workspace_quota', return_value=quota),
-                mock.patch.object(lifecycle.shutil, 'disk_usage', return_value=mock.Mock(free=10**12)),
+                mock.patch.object(preflight.shutil, 'disk_usage', return_value=mock.Mock(free=10**12)),
                 self.assertRaisesRegex(ValueError, 'operation ID already has a workspace'),
             ):
                 lifecycle.preflight(operation_id, binary)
@@ -210,10 +219,10 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             library.write_bytes(b'library')
             quota = {'live_headroom': {'required_free_bytes': 67108864, 'available_bytes': 120000000}}
             containment = lifecycle.containment
-            with mock.patch.object(lifecycle, 'frozen_manifest', return_value=([], 'fixture')), \
-                 mock.patch.object(lifecycle, 'find_test_binary', return_value=(binary, root)) as find, \
+            with mock.patch.object(context, 'frozen_manifest', return_value=([], 'fixture')), \
+                 mock.patch.object(context, 'find_test_binary', return_value=(binary, root)) as find, \
                  mock.patch.object(containment, 'verify_workspace_quota', return_value=quota), \
-                 mock.patch.object(lifecycle.shutil, 'disk_usage', return_value=mock.Mock(free=10**12)), \
+                 mock.patch.object(preflight.shutil, 'disk_usage', return_value=mock.Mock(free=10**12)), \
                  mock.patch.object(containment, 'validate_contention_context') as validate, \
                  mock.patch.object(containment, 'contention_budget', return_value={}), \
                  mock.patch.object(containment, 'validate_watchdog_operation_binding'):
@@ -221,16 +230,30 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             find.assert_called_once_with(binary, None)
             contexts = [call.args[0] for call in validate.call_args_list]
             self.assertEqual(len(contexts), 2)
-            for context in contexts:
-                self.assertEqual(context['binary_path'], plan['artifacts']['binary_path'])
-                self.assertEqual(context['binary_sha256'], plan['artifacts']['binary_sha256'])
-                self.assertEqual(context['library_file'], plan['artifacts']['library_file'])
-                self.assertEqual(context['library_sha256'], plan['artifacts']['library_sha256'])
+            for arm_context in contexts:
+                self.assertEqual(arm_context['binary_path'], plan['artifacts']['binary_path'])
+                self.assertEqual(arm_context['binary_sha256'], plan['artifacts']['binary_sha256'])
+                self.assertEqual(arm_context['library_file'], plan['artifacts']['library_file'])
+                self.assertEqual(arm_context['library_sha256'], plan['artifacts']['library_sha256'])
             self.assertFalse(plan['benchmark_started'])
+
+    def test_native_diagnostic_authorization_is_sequential_and_capped_at_three(self):
+        diagnostic = config.CONTRACT['native_query_stage_diagnostic']
+        operation_ids = diagnostic['authorized_operation_ids']
+        limit = diagnostic['max_authorized_operations']
+        self.assertIsInstance(operation_ids, list)
+        self.assertEqual(len(operation_ids), limit)
+        self.assertLessEqual(limit, 3)
+        self.assertEqual(len(set(operation_ids)), len(operation_ids))
+        self.assertEqual(diagnostic['arm_roles'], ['native'])
+        self.assertEqual(diagnostic['execution_order'], ['native'])
+        self.assertTrue(diagnostic['stop_on_gate_refusal'])
+        self.assertTrue(diagnostic['review_after_each_operation'])
+        self.assertFalse(diagnostic['performance_eligible'])
 
     def test_native_only_diagnostic_preflight_binds_exactly_one_native_arm(self):
         operation_id = 'm4-rust-lifecycle-pair-fixture-native-stage-preflight'
-        diagnostic = dict(lifecycle.CONTRACT['native_query_stage_diagnostic'])
+        diagnostic = dict(config.CONTRACT['native_query_stage_diagnostic'])
         diagnostic.update(approval_status='approved', max_authorized_operations=1,
                           authorized_operation_ids=[operation_id])
         with tempfile.TemporaryDirectory() as directory:
@@ -244,12 +267,12 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             quota = {'live_headroom': {
                 'required_free_bytes': 67108864, 'available_bytes': 120000000}}
             with (
-                mock.patch.dict(lifecycle.CONTRACT, {
+                mock.patch.dict(config.CONTRACT, {
                     'resource_root': str(root), 'native_query_stage_diagnostic': diagnostic}),
-                mock.patch.object(lifecycle, 'frozen_manifest', return_value=([], 'fixture')),
-                mock.patch.object(lifecycle, 'find_test_binary', return_value=(binary, library_dir)),
+                mock.patch.object(context, 'frozen_manifest', return_value=([], 'fixture')),
+                mock.patch.object(context, 'find_test_binary', return_value=(binary, library_dir)),
                 mock.patch.object(lifecycle.containment, 'verify_workspace_quota', return_value=quota),
-                mock.patch.object(lifecycle.shutil, 'disk_usage', return_value=mock.Mock(free=10**12)),
+                mock.patch.object(preflight.shutil, 'disk_usage', return_value=mock.Mock(free=10**12)),
                 mock.patch.object(lifecycle.containment, 'validate_contention_context') as validate,
                 mock.patch.object(lifecycle.containment, 'contention_budget', return_value={}),
                 mock.patch.object(lifecycle.containment, 'validate_watchdog_operation_binding'),
@@ -271,11 +294,11 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
 
     def test_native_diagnostic_authorization_cannot_be_used_for_a_pair(self):
         operation_id = 'm4-rust-lifecycle-pair-fixture-native-stage-pair-refusal'
-        diagnostic = dict(lifecycle.CONTRACT['native_query_stage_diagnostic'])
+        diagnostic = dict(config.CONTRACT['native_query_stage_diagnostic'])
         diagnostic.update(approval_status='approved', max_authorized_operations=1,
                           authorized_operation_ids=[operation_id])
-        with mock.patch.dict(lifecycle.CONTRACT, {'native_query_stage_diagnostic': diagnostic}), \
-             mock.patch.object(lifecycle, 'frozen_manifest') as corpus, \
+        with mock.patch.dict(config.CONTRACT, {'native_query_stage_diagnostic': diagnostic}), \
+             mock.patch.object(context, 'frozen_manifest') as corpus, \
              mock.patch.object(lifecycle.containment, 'verify_workspace_quota') as quota, \
              self.assertRaisesRegex(ValueError, 'cannot launch a matched pair'):
             lifecycle.preflight(operation_id)
@@ -284,7 +307,7 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
 
     def test_consumed_native_diagnostic_authorization_refuses_before_preflight(self):
         operation_id = 'm4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00'
-        with mock.patch.object(lifecycle, 'frozen_manifest') as corpus, \
+        with mock.patch.object(context, 'frozen_manifest') as corpus, \
              mock.patch.object(lifecycle.containment, 'verify_workspace_quota') as quota, \
              self.assertRaisesRegex(ValueError, 'outside the native-only diagnostic authorization'):
             lifecycle.preflight(operation_id, native_only_diagnostic=True)
@@ -292,7 +315,7 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
         quota.assert_not_called()
 
     def test_unapproved_native_diagnostic_id_refuses_before_preflight(self):
-        with mock.patch.object(lifecycle, 'frozen_manifest') as corpus, \
+        with mock.patch.object(context, 'frozen_manifest') as corpus, \
              mock.patch.object(lifecycle.containment, 'verify_workspace_quota') as quota, \
              self.assertRaisesRegex(ValueError, 'outside the native-only diagnostic authorization'):
             lifecycle.preflight(
@@ -309,8 +332,8 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             binary.write_bytes(b'binary')
             library.write_bytes(b'library')
             with (
-                mock.patch.object(lifecycle, 'frozen_manifest', return_value=([], 'fixture')),
-                mock.patch.object(lifecycle, 'find_test_binary', return_value=(binary, root)) as find,
+                mock.patch.object(context, 'frozen_manifest', return_value=([], 'fixture')),
+                mock.patch.object(context, 'find_test_binary', return_value=(binary, root)) as find,
                 mock.patch.object(lifecycle.containment, 'verify_workspace_quota') as quota,
                 self.assertRaisesRegex(ValueError, 'native library SHA-256 differs'),
             ):
@@ -319,7 +342,7 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             quota.assert_not_called()
 
     def test_closed_owner_authorization_rejects_refused_operation_id(self):
-        contract = lifecycle.CONTRACT
+        contract = config.CONTRACT
         self.assertEqual(contract['authorized_operation_ids'], [])
         self.assertEqual(contract['max_authorized_pair_operations'], 0)
         with self.assertRaisesRegex(ValueError, 'outside the current owner authorization'):
@@ -334,8 +357,8 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             library = root / 'libzvec_c_api.so'
             binary.write_bytes(b'binary')
             library.write_bytes(b'library')
-            with mock.patch.object(lifecycle, 'frozen_manifest', return_value=([], 'fixture')), \
-                 mock.patch.object(lifecycle, 'find_test_binary', return_value=(binary, root)) as find, \
+            with mock.patch.object(context, 'frozen_manifest', return_value=([], 'fixture')), \
+                 mock.patch.object(context, 'find_test_binary', return_value=(binary, root)) as find, \
                  mock.patch.object(lifecycle.containment, 'verify_workspace_quota') as quota, \
                  self.assertRaisesRegex(ValueError, 'explicitly expected artifact'):
                 lifecycle.preflight('m4-rust-lifecycle-pair-fixture-test', None, '0' * 64)
@@ -368,7 +391,7 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             library = target / 'debug/build/sys/out/libzvec_c_api.so'
             library.parent.mkdir(parents=True)
             library.write_bytes(b'synthetic library')
-            contract = lifecycle.CONTRACT.copy()
+            contract = config.CONTRACT.copy()
             operation_id = 'm4-rust-lifecycle-pair-fixture-authorized'
             contract['authorized_operation_ids'] = [operation_id]
             contract['max_authorized_pair_operations'] = 1
@@ -384,7 +407,7 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             with (
                 mock.patch.object(containment, 'M4_RUST_LIFECYCLE_TARGET', target),
                 mock.patch.object(containment, 'verify_workspace_quota', return_value=quota),
-                mock.patch.object(lifecycle, 'CONTRACT', contract),
+                mock.patch.object(config, 'CONTRACT', contract),
                 mock.patch.dict(containment.BENCHMARK_POLICY,
                                 {'rust_pipeline_lifecycle_pair': contract}),
             ):
@@ -439,7 +462,7 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             operation_id = 'm4-rust-lifecycle-pair-fixture-native-stage-result'
             operation_root = root / operation_id
             operation_root.mkdir()
-            contract = dict(lifecycle.CONTRACT)
+            contract = dict(config.CONTRACT)
             contract['resource_root'] = str(root)
             quota = {'live_headroom': {
                 'available_bytes': 120000000, 'required_free_bytes': 67108864}}
@@ -476,17 +499,17 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
                     'unit_cleanup': {'verified': True, 'unit_collected': True},
                     'postflight_decision': {'continuation_allowed': True},
                 }
-            with mock.patch.object(lifecycle, 'CONTRACT', contract), \
-                 mock.patch.object(lifecycle, 'extract_corpus',
+            with mock.patch.object(config, 'CONTRACT', contract), \
+                 mock.patch.object(executor, 'extract_corpus',
                                    side_effect=lambda destination, _entries: destination.mkdir(parents=True)), \
-                 mock.patch.object(lifecycle, 'verify_pair_artifacts'), \
-                 mock.patch.object(lifecycle, 'build_environment', return_value={}), \
-                 mock.patch.object(lifecycle, 'test_command', return_value=['/fixture']), \
+                 mock.patch.object(context, 'verify_pair_artifacts'), \
+                 mock.patch.object(context, 'build_environment', return_value={}), \
+                 mock.patch.object(context, 'test_command', return_value=['/fixture']), \
                  mock.patch.object(lifecycle.containment, 'verify_workspace_quota', return_value=quota), \
                  mock.patch.object(lifecycle.containment, 'validate_contention_context'), \
                  mock.patch.object(lifecycle.containment, 'contention_budget', return_value={}), \
                  mock.patch.object(lifecycle.containment, 'run_arm', side_effect=run_arm):
-                result = lifecycle._run_pair_arms(operation_id, plan, [], operation_root, [])
+                result = executor._run_pair_arms(operation_id, plan, [], operation_root, [])
             self.assertEqual(result['status'], 'DIAGNOSTIC_COMPLETED')
             self.assertEqual(result['native_profile_trace']['status'], 'PRESENT')
             self.assertEqual(result['native_profile_trace']['valid_event_lines'], 1)
@@ -513,11 +536,11 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
                     'arms': [{'arm_name': 'pair-first', 'role': 'native'},
                              {'arm_name': 'pair-second', 'role': 'm4'}],
                     'execution_order': ['native', 'm4'], 'artifacts': artifacts}
-            reserve = lifecycle.CONTRACT['workspace_quota']['minimum_free_bytes']
-            allowance = lifecycle.CONTRACT['resource_controls']['workspace_max_allocated_bytes']
+            reserve = config.CONTRACT['workspace_quota']['minimum_free_bytes']
+            allowance = config.CONTRACT['resource_controls']['workspace_max_allocated_bytes']
             quota = {'live_headroom': {'available_bytes': reserve + allowance + 1000,
                                        'required_free_bytes': reserve}}
-            def context(_id, _root, _role, _order, identity, workspace, _source, _quota, _mode):
+            def make_arm_context(_id, _root, _role, _order, identity, workspace, _source, _quota, _mode, _interval=None):
                 self.assertEqual(identity, artifacts)
                 return {'report_path': str(workspace / 'gate-b-report.json'),
                         'index_root': str(workspace / 'index'), 'binary_path': str(binary)}
@@ -526,16 +549,16 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
                 return {'status': 'PASS'}
             containment = lifecycle.containment
             with mock.patch.object(containment, 'verify_workspace_quota', return_value=quota), \
-                 mock.patch.object(lifecycle, 'extract_corpus'), \
-                 mock.patch.object(lifecycle, 'find_test_binary') as discover, \
-                 mock.patch.object(lifecycle, 'make_context', side_effect=context), \
+                 mock.patch.object(executor, 'extract_corpus'), \
+                 mock.patch.object(context, 'find_test_binary') as discover, \
+                 mock.patch.object(context, 'make_context', side_effect=make_arm_context), \
                  mock.patch.object(containment, 'validate_contention_context'), \
-                 mock.patch.object(lifecycle, 'build_environment', return_value={}), \
+                 mock.patch.object(context, 'build_environment', return_value={}), \
                  mock.patch.object(containment, 'contention_budget', return_value={}), \
                  mock.patch.object(containment, 'run_arm', side_effect=start_arm) as run_arm, \
-                 mock.patch.object(lifecycle, 'arm_result_allows_pair_continuation', return_value=True), \
+                 mock.patch.object(executor, 'arm_result_allows_pair_continuation', return_value=True), \
                  self.assertRaisesRegex(ValueError, 'identity changed'):
-                lifecycle._run_pair_arms('fixture', plan, [], operation_root, [])
+                executor._run_pair_arms('fixture', plan, [], operation_root, [])
             discover.assert_not_called()
             self.assertEqual(run_arm.call_count, 1)
             self.assertFalse((operation_root / 'pair-second').exists())
@@ -548,8 +571,8 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             second = {'arm_name': 'pair-second', 'role': 'm4'}
             plan = {'operation_mode': 'pair', 'arms': [first, second],
                     'execution_order': ['native', 'm4'], 'artifacts': {}}
-            reserve = lifecycle.CONTRACT['workspace_quota']['minimum_free_bytes']
-            allowance = lifecycle.CONTRACT['resource_controls']['workspace_max_allocated_bytes']
+            reserve = config.CONTRACT['workspace_quota']['minimum_free_bytes']
+            allowance = config.CONTRACT['resource_controls']['workspace_max_allocated_bytes']
             def quota(available):
                 return {'live_headroom': {'available_bytes': available, 'required_free_bytes': reserve}}
             observations = [quota(reserve + allowance + 1000), quota(reserve + allowance + 1000),
@@ -557,21 +580,21 @@ class LifecyclePairFailureClassificationTests(unittest.TestCase):
             def start_arm(_command, _receipt, _resource, workspace, *_args, **_kwargs):
                 (workspace / 'gate-b-report.json').write_text('{}')
                 return {'status': 'PASS'}
-            def context(_id, _root, _role, _order, _artifacts, workspace, _source, _quota, _mode):
+            def make_arm_context(_id, _root, _role, _order, _artifacts, workspace, _source, _quota, _mode, _interval=None):
                 return {'report_path': str(workspace / 'gate-b-report.json'),
                         'index_root': str(workspace / 'index'), 'binary_path': '/fixture'}
             containment = lifecycle.containment
             with mock.patch.object(containment, 'verify_workspace_quota', side_effect=observations) as verify, \
-                 mock.patch.object(lifecycle, 'extract_corpus'), \
-                 mock.patch.object(lifecycle, 'verify_pair_artifacts'), \
-                 mock.patch.object(lifecycle, 'make_context', side_effect=context), \
+                 mock.patch.object(executor, 'extract_corpus'), \
+                 mock.patch.object(context, 'verify_pair_artifacts'), \
+                 mock.patch.object(context, 'make_context', side_effect=make_arm_context), \
                  mock.patch.object(containment, 'validate_contention_context'), \
-                 mock.patch.object(lifecycle, 'build_environment', return_value={}), \
+                 mock.patch.object(context, 'build_environment', return_value={}), \
                  mock.patch.object(containment, 'contention_budget', return_value={}), \
                  mock.patch.object(containment, 'run_arm', side_effect=start_arm) as run_arm, \
-                 mock.patch.object(lifecycle, 'arm_result_allows_pair_continuation', return_value=True), \
+                 mock.patch.object(executor, 'arm_result_allows_pair_continuation', return_value=True), \
                  self.assertRaisesRegex(RuntimeError, 'insufficient qgroup headroom'):
-                lifecycle._run_pair_arms('fixture', plan, [], operation_root, [])
+                executor._run_pair_arms('fixture', plan, [], operation_root, [])
             self.assertEqual(verify.call_count, 3)
             self.assertEqual(run_arm.call_count, 1)
             self.assertFalse((operation_root / 'pair-first/workspace').exists())
