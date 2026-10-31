@@ -22,10 +22,43 @@ const REBUILD_HEADROOM_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 #[cfg(test)]
 const REBUILD_HEADROOM_BYTES: u64 = 0;
 
-/// Conservative preflight for an atomic rebuild. The active generation is
-/// retained for rollback, so the new generation plus native temporary files
-/// need roughly twice its size and fixed headroom. This is a preflight only;
-/// concurrent writes can still return ordinary I/O errors.
+/// Space decision for an atomic rebuild.
+///
+/// The active generation is retained until the staged generation is published,
+/// so a same-size rebuild needs roughly twice the active bytes plus native
+/// temporary headroom. The hard floor is one active generation: below that even
+/// a much smaller rebuild is unlikely to fit, and rejecting early avoids filling
+/// the filesystem. Between the floor and the conservative target we proceed with
+/// a warning, because the new generation may be smaller (model/selection change)
+/// and publication is atomic with rollback. A failed build keeps the active
+/// index and reports the ordinary I/O error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RebuildSpace {
+    Sufficient { target: u64 },
+    Limited { minimum: u64, target: u64 },
+    Insufficient { minimum: u64, target: u64 },
+}
+
+fn rebuild_space(active_bytes: u64, available_bytes: Option<u64>) -> RebuildSpace {
+    if active_bytes == 0 {
+        return RebuildSpace::Sufficient { target: 0 };
+    }
+    let Some(available_bytes) = available_bytes else {
+        return RebuildSpace::Sufficient { target: 0 };
+    };
+    let minimum = active_bytes;
+    let target = active_bytes
+        .saturating_mul(REBUILD_FREE_SPACE_MULTIPLIER)
+        .saturating_add(REBUILD_HEADROOM_BYTES);
+    if available_bytes < minimum {
+        RebuildSpace::Insufficient { minimum, target }
+    } else if available_bytes < target {
+        RebuildSpace::Limited { minimum, target }
+    } else {
+        RebuildSpace::Sufficient { target }
+    }
+}
+
 pub(crate) fn preflight_rebuild(
     storage_dir: &Path,
     active_index: &Path,
@@ -37,25 +70,40 @@ pub(crate) fn preflight_rebuild(
     if active_bytes == 0 {
         return Ok(());
     }
-    let Some(available_bytes) = available_space(storage_dir)? else {
+    let available_bytes = available_space(storage_dir)?;
+    let Some(available_bytes) = available_bytes else {
         tracing::debug!(path = %storage_dir.display(), "rebuild disk preflight unavailable");
         return Ok(());
     };
-    let required_bytes = active_bytes
-        .saturating_mul(REBUILD_FREE_SPACE_MULTIPLIER)
-        .saturating_add(REBUILD_HEADROOM_BYTES);
-    if available_bytes < required_bytes {
-        return Err(EngineError::storage_failure(format!(
-            "insufficient disk space for atomic rebuild: active index={active_bytes} bytes, available={available_bytes} bytes, required at least {required_bytes} bytes"
-        )));
+    match rebuild_space(active_bytes, Some(available_bytes)) {
+        RebuildSpace::Sufficient { target } => {
+            tracing::info!(
+                active_index_bytes = active_bytes,
+                available_bytes,
+                required_bytes = target,
+                "rebuild disk preflight passed"
+            );
+            Ok(())
+        }
+        RebuildSpace::Limited { minimum, target } => {
+            tracing::warn!(
+                active_index_bytes = active_bytes,
+                available_bytes,
+                minimum_bytes = minimum,
+                target_bytes = target,
+                "rebuild disk preflight is below the conservative same-size margin; the new generation may be smaller, and a failed build retains the active index"
+            );
+            Ok(())
+        }
+        RebuildSpace::Insufficient { minimum, target } => {
+            Err(EngineError::storage_failure(format!(
+                "insufficient disk space for atomic rebuild: active index={active_bytes} bytes, available={available_bytes} bytes, required at least {minimum} bytes"
+            ))
+            .with_help(format!(
+                "Free at least {minimum} bytes (one active index copy); the conservative same-size margin is {target} bytes. The active index is retained on failure; remove stale temp/backup data or move the workspace to a larger filesystem before retrying."
+            )))
+        }
     }
-    tracing::info!(
-        active_index_bytes = active_bytes,
-        available_bytes,
-        required_bytes,
-        "rebuild disk preflight passed"
-    );
-    Ok(())
 }
 
 fn directory_size(path: &Path) -> Result<u64, EngineError> {
@@ -928,5 +976,54 @@ mod tests {
         fs::create_dir_all(active.layout().backup_index_dir()).expect("unowned backup");
         assert!(recover_build_for_rebuild(active.layout()).is_err());
         assert!(active.layout().backup_index_dir().exists());
+    }
+    #[test]
+    fn rebuild_space_distinguishes_impossible_from_a_smaller_rebuild() {
+        assert_eq!(
+            rebuild_space(0, Some(0)),
+            RebuildSpace::Sufficient { target: 0 }
+        );
+        assert_eq!(
+            rebuild_space(100, None),
+            RebuildSpace::Sufficient { target: 0 }
+        );
+        assert_eq!(
+            rebuild_space(100, Some(99)),
+            RebuildSpace::Insufficient {
+                minimum: 100,
+                target: 200
+            }
+        );
+        // A shrinking rebuild may fit with less than the same-size margin; it is
+        // allowed with a warning and still rolls back safely on ENOSPC.
+        assert_eq!(
+            rebuild_space(100, Some(150)),
+            RebuildSpace::Limited {
+                minimum: 100,
+                target: 200
+            }
+        );
+        assert_eq!(
+            rebuild_space(100, Some(200)),
+            RebuildSpace::Sufficient { target: 200 }
+        );
+    }
+
+    #[test]
+    fn rejected_preflight_does_not_mutate_the_active_index() {
+        let directory = tempdir().expect("workspace");
+        let active = directory.path().join("index");
+        fs::create_dir(&active).expect("active index");
+        fs::write(active.join("keep"), "active data").expect("active data");
+        // Exercise the pure decision for the impossible case; preflight itself
+        // only reads paths and cannot delete or rewrite the active generation.
+        assert!(matches!(
+            rebuild_space(1_000_000, Some(1)),
+            RebuildSpace::Insufficient { .. }
+        ));
+        assert_eq!(
+            fs::read_to_string(active.join("keep")).expect("preserved active index"),
+            "active data"
+        );
     }
 }

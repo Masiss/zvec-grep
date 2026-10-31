@@ -2,6 +2,7 @@ mod support;
 
 use std::{
     collections::BTreeSet,
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     sync::atomic::Ordering,
@@ -1551,6 +1552,145 @@ fn copy_workspace(source: &Path, destination: &Path) -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[tokio::test]
+async fn sidecar_torn_recovery_and_rebuild_preserve_retrieval_parity() -> TestResult {
+    let temporary = tempdir()?;
+    let reuse_root = temporary.path().join("reuse");
+    let fresh_root = temporary.path().join("fresh");
+    fs::create_dir_all(&reuse_root)?;
+    fs::create_dir_all(&fresh_root)?;
+    let server = EmbeddingServer::start()?;
+    configure_remote_model(&reuse_root, server.address)?;
+    configure_remote_model(&fresh_root, server.address)?;
+
+    let mut initial = String::new();
+    for index in 0..24 {
+        write!(
+            &mut initial,
+            "/// orchard documentation {index} uniqueword{index}\npub fn stable_{index}() -> u32 {{ {index} }}\n\n"
+        )
+        .expect("write fixture");
+    }
+    initial.push_str(
+        "/// stalemarker only before update\npub fn changing() -> &'static str { \"stalemarker\" }\n",
+    );
+    let final_content = initial.replace(
+        "/// stalemarker only before update\npub fn changing() -> &'static str { \"stalemarker\" }\n",
+        "/// omegamarker only after update\npub fn changing() -> &'static str { \"omegamarker\" }\n",
+    );
+    assert_ne!(initial, final_content);
+    fs::write(reuse_root.join("note.rs"), &initial)?;
+    fs::write(fresh_root.join("note.rs"), &final_content)?;
+
+    let engine = ZvecGrep::new();
+    engine.index(index_options(&reuse_root)).await?;
+    engine.index(index_options(&fresh_root)).await?;
+    fs::write(reuse_root.join("note.rs"), &final_content)?;
+    let updated = engine.index(index_options(&reuse_root)).await?;
+    assert_eq!((updated.files_modified, updated.files_failed), (1, 0));
+    // The mock Qwen runtime declares an unstable identity, so it deliberately
+    // disables reuse. Stable-model reuse is covered by the pipeline fingerprint
+    // unit tests and the local-model benchmark; this test proves that a present
+    // or torn sidecar never changes retrieval results.
+    assert!(
+        updated
+            .timings
+            .iter()
+            .any(|entry| entry.name == "index_reconcile_manifest_load"),
+        "the modified-file pass must consult the sidecar: {:?}",
+        updated.timings
+    );
+
+    for query in ["orchard", "omegamarker"] {
+        assert_eq!(
+            fts_paths(&engine, &reuse_root, query).await?,
+            fts_paths(&engine, &fresh_root, query).await?,
+            "FTS parity for {query}"
+        );
+    }
+    assert!(
+        fts_paths(&engine, &reuse_root, "stalemarker")
+            .await?
+            .is_empty()
+    );
+    for query in ["orchard", "omegamarker"] {
+        assert_eq!(
+            vector_paths(&engine, &reuse_root, query).await?,
+            vector_paths(&engine, &fresh_root, query).await?,
+            "vector parity for {query}"
+        );
+    }
+
+    let index_path = engine.info(info_options(&reuse_root)).await?.index_path;
+    let sidecar = fs::read_dir(index_path.join("reconciliation"))?
+        .filter_map(Result::ok)
+        .find(|entry| entry.file_name().to_string_lossy().starts_with("file-"))
+        .expect("published sidecar")
+        .path();
+    fs::write(&sidecar, b"{\"version\":2,\"file_id\":")?;
+    engine.close();
+
+    // A torn sidecar is only a cache miss; reopen and queries must still work.
+    let engine = ZvecGrep::new();
+    for query in ["orchard", "omegamarker"] {
+        assert_eq!(
+            fts_paths(&engine, &reuse_root, query).await?,
+            fts_paths(&engine, &fresh_root, query).await?
+        );
+    }
+    let rebuilt = engine
+        .index(IndexOptions {
+            rebuild: true,
+            ..index_options(&reuse_root)
+        })
+        .await?;
+    assert_eq!((rebuilt.files_added, rebuilt.files_failed), (1, 0));
+    for query in ["orchard", "omegamarker"] {
+        assert_eq!(
+            fts_paths(&engine, &reuse_root, query).await?,
+            fts_paths(&engine, &fresh_root, query).await?,
+            "FTS parity after rebuild for {query}"
+        );
+    }
+    assert!(
+        fts_paths(&engine, &reuse_root, "stalemarker")
+            .await?
+            .is_empty()
+    );
+    engine.drop_index(info_options(&reuse_root)).await?;
+    engine.drop_index(info_options(&fresh_root)).await?;
+    engine.close();
+    Ok(())
+}
+
+async fn vector_paths(
+    engine: &ZvecGrep,
+    root: &Path,
+    query: &str,
+) -> Result<Vec<PathBuf>, EngineError> {
+    let result = engine
+        .context(ContextOptions {
+            root: Some(root.to_path_buf()),
+            routes: vec![ContextRoute {
+                mode: ContextRouteMode::Vector,
+                query: query.to_owned(),
+            }],
+            auto_update: false,
+            allow_remote: true,
+            api_key: Some("local-test-key".into()),
+            ..ContextOptions::default()
+        })
+        .await?;
+    let mut paths = result
+        .items
+        .into_iter()
+        .map(|item| item.relative_path)
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths.dedup();
+    Ok(paths)
 }
 
 async fn fts_paths(

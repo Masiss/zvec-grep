@@ -198,7 +198,8 @@ pub(crate) async fn index_workspace(
             EngineError::storage_failure(format!("failed to finalize index storage: {error}"))
         })?;
     timings.record("index_optimize", finalize_started.elapsed(), 1);
-    // Fragment and scalar stages run concurrently; these are wall durations,
+    // Stages run sequentially. Fragment maintenance happens outside the store
+    // state lock; scalar maintenance holds it. Durations are wall durations,
     // not additive shares of `index_optimize`.
     for (name, duration) in optimize_stages {
         timings.record(&name, duration, 1);
@@ -1016,16 +1017,20 @@ fn commit_file(
     let publish_started = Instant::now();
     let publish_result = storage.publish_embedding_manifest(&mut manifest);
     reconcile.manifest_publish_micros = duration_micros(publish_started.elapsed());
-    if let Err(error) = publish_result {
-        tracing::warn!(file_id = file.file.id().get(), %error, "cannot publish reconciliation manifest");
-    }
+    let manifest_published = match publish_result {
+        Ok(published) => published,
+        Err(error) => {
+            tracing::warn!(file_id = file.file.id().get(), %error, "cannot publish reconciliation manifest");
+            false
+        }
+    };
     stats.reconcile_manifest_loads += usize::from(reconcile.manifest_loaded);
     stats.reconcile_manifest_hit_files += usize::from(reconcile.manifest_hit);
     stats.reconcile_manifest_miss_files +=
         usize::from(reconcile.manifest_loaded && !reconcile.manifest_hit);
     stats.reconcile_vectors_reused += reconcile.vectors_reused;
     stats.reconcile_embeddings_computed += reconcile.embeddings_computed;
-    stats.reconcile_manifest_publishes += 1;
+    stats.reconcile_manifest_publishes += usize::from(manifest_published);
     stats.reconcile_manifest_load_micros = stats
         .reconcile_manifest_load_micros
         .saturating_add(reconcile.manifest_load_micros);
@@ -3175,12 +3180,12 @@ mod tests {
             Ok(None)
         }
 
-        fn publish_embedding_manifest(&self, manifest: &mut FileManifest) -> EngineResult<()> {
+        fn publish_embedding_manifest(&self, manifest: &mut FileManifest) -> EngineResult<bool> {
             self.published_manifests
                 .lock()
                 .expect("published manifests")
                 .push(manifest.file_id());
-            Ok(())
+            Ok(true)
         }
 
         fn delete_embedding_manifest(&self, _file_id: FileId) -> EngineResult<()> {

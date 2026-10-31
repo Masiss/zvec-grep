@@ -1330,6 +1330,69 @@ fn vector_index_completeness(storage: &IndexStore, model: &str) -> f32 {
 }
 
 #[test]
+fn committed_rows_are_searchable_before_optimize_and_optimize_preserves_results() {
+    let directory = tempfile::tempdir().expect("workspace");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "unoptimized",
+        "orchard unoptimized",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    let model = entry.model.clone();
+    let fts_before = storage
+        .search_fts("orchard", 10, None)
+        .expect("FTS before optimize");
+    assert_eq!(fts_before.len(), 1);
+    assert_eq!(fts_before[0].entity_id, entry.entity.id().clone());
+    let vector_before = storage
+        .search_vector(&model, &[1.0, 0.0, 0.0], 10, None)
+        .expect("vector before optimize");
+    assert_eq!(vector_before.len(), 1);
+    assert_eq!(vector_before[0].entity_id, entry.entity.id().clone());
+    let completeness_before = vector_index_completeness(&storage, &model);
+
+    storage.finalize_writes().expect("optimize");
+    let fts_after = storage
+        .search_fts("orchard", 10, None)
+        .expect("FTS after optimize");
+    let vector_after = storage
+        .search_vector(&model, &[1.0, 0.0, 0.0], 10, None)
+        .expect("vector after optimize");
+    let completeness_after = vector_index_completeness(&storage, &model);
+    assert_eq!(
+        fts_after
+            .iter()
+            .map(|hit| &hit.entity_id)
+            .collect::<Vec<_>>(),
+        fts_before
+            .iter()
+            .map(|hit| &hit.entity_id)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        vector_after
+            .iter()
+            .map(|hit| &hit.entity_id)
+            .collect::<Vec<_>>(),
+        vector_before
+            .iter()
+            .map(|hit| &hit.entity_id)
+            .collect::<Vec<_>>()
+    );
+    // This test records native visibility, not a promise that every future
+    // native version reaches full ANN completeness before optimize.
+    assert!(
+        completeness_after >= completeness_before,
+        "optimize must not reduce ANN completeness ({completeness_before} -> {completeness_after})"
+    );
+    storage.close().expect("close");
+}
+
+#[test]
 fn parallel_optimization_joins_every_collection_after_success_or_failure() {
     use std::sync::{
         Barrier,

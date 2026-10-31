@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     EngineError, EngineResult,
     domain::FileId,
-    utils::{atomic_write, sync_directory},
+    utils::{atomic_write, directory_exists, sync_directory},
 };
 
 const MANIFEST_VERSION: u32 = 2;
@@ -131,21 +131,26 @@ pub(crate) struct ManifestStore {
 impl ManifestStore {
     pub(crate) fn open(storage_root: &Path, read_only: bool) -> EngineResult<Self> {
         let directory = storage_root.join(MANIFEST_DIRECTORY);
+        // Sidecars are auxiliary, but their directory must not be a symlink:
+        // following it would read or write outside the index generation.
+        let exists = directory_exists(&directory)?;
         if read_only {
             return Ok(Self {
                 writable: false,
                 directory,
             });
         }
-        fs::create_dir_all(&directory).map_err(|error| {
-            EngineError::from_io(
-                format!(
-                    "cannot create reconciliation manifest directory {}: {error}",
-                    directory.display()
-                ),
-                &error,
-            )
-        })?;
+        if !exists {
+            fs::create_dir_all(&directory).map_err(|error| {
+                EngineError::from_io(
+                    format!(
+                        "cannot create reconciliation manifest directory {}: {error}",
+                        directory.display()
+                    ),
+                    &error,
+                )
+            })?;
+        }
         Ok(Self {
             writable: true,
             directory,
@@ -154,7 +159,13 @@ impl ManifestStore {
 
     pub(crate) fn load(&self, file_id: FileId) -> EngineResult<Option<FileManifest>> {
         let path = self.path(file_id);
-        let metadata = match fs::metadata(&path) {
+        // Do not follow symlinks or read special files: a malicious or damaged
+        // workspace must not turn a cache lookup into a blocking read.
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                tracing::warn!(file_id = file_id.get(), path = %path.display(), "ignoring non-regular reconciliation manifest");
+                return Ok(None);
+            }
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => {
@@ -284,6 +295,79 @@ mod tests {
         assert_eq!(vector_fingerprint(&near), vector_fingerprint(&perturbed));
         let different = [0.1_f32, 0.2, 0.4];
         assert_ne!(vector_fingerprint(&near), vector_fingerprint(&different));
+    }
+
+    #[test]
+    fn torn_or_incompatible_sidecar_is_ignored_and_can_be_republished() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let store = ManifestStore::open(directory.path(), false).expect("manifest store");
+        let file_id = FileId::new(11);
+        let path = store.path(file_id);
+        let mut manifest = FileManifest::new(file_id);
+        manifest
+            .fragments
+            .push(entry("c".repeat(40).as_str(), "m", &"d".repeat(64)));
+        assert!(store.publish(&mut manifest).expect("publish"));
+
+        // Simulate a torn write from an older/non-atomic writer and a future
+        // schema version. Both are hints only: load must ignore them.
+        fs::write(&path, b"{\"version\":2,\"file_id\":11").expect("torn sidecar");
+        assert!(store.load(file_id).expect("torn load").is_none());
+        let incompatible = serde_json::json!({
+            "version": 1,
+            "file_id": 11,
+            "fragments": []
+        });
+        fs::write(&path, serde_json::to_vec(&incompatible).expect("json")).expect("old sidecar");
+        assert!(store.load(file_id).expect("old load").is_none());
+
+        // A subsequent successful publish replaces the unusable sidecar.
+        assert!(store.publish(&mut manifest).expect("republish"));
+        assert_eq!(
+            store
+                .load(file_id)
+                .expect("reload")
+                .expect("replacement manifest")
+                .fragments
+                .len(),
+            1
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sidecar_directory_and_file_symlinks_are_not_followed() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let external = tempfile::tempdir().expect("external directory");
+        let mut manifest = FileManifest::new(FileId::new(13));
+        manifest
+            .fragments
+            .push(entry("c".repeat(40).as_str(), "m", &"d".repeat(64)));
+        let bytes = manifest.encode_bounded().expect("encode").expect("bounded");
+        let external_file = external.path().join("manifest.json");
+        fs::write(&external_file, &bytes).expect("external manifest");
+
+        let linked_directory = directory.path().join(MANIFEST_DIRECTORY);
+        std::os::unix::fs::symlink(external.path(), &linked_directory).expect("directory symlink");
+        assert!(ManifestStore::open(directory.path(), false).is_err());
+        assert!(ManifestStore::open(directory.path(), true).is_err());
+
+        fs::remove_file(&linked_directory).expect("remove directory symlink");
+        fs::create_dir(&linked_directory).expect("manifest directory");
+        let linked_file = linked_directory.join(format!("file-{:08x}.json", 13));
+        std::os::unix::fs::symlink(&external_file, &linked_file).expect("file symlink");
+        let store = ManifestStore::open(directory.path(), false).expect("manifest store");
+        assert!(store.load(FileId::new(13)).expect("symlink load").is_none());
+    }
+
+    #[test]
+    fn oversized_sidecar_is_ignored_without_blocking_reopen() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let store = ManifestStore::open(directory.path(), false).expect("manifest store");
+        let path = store.path(FileId::new(12));
+        let oversized = vec![b' '; MAX_FILE_MANIFEST_BYTES + 1];
+        fs::write(&path, oversized).expect("oversized sidecar");
+        assert!(store.load(FileId::new(12)).expect("load").is_none());
     }
 
     #[test]

@@ -43,8 +43,8 @@ pub(crate) trait IndexStorage: Send + Sync {
         Ok(None)
     }
 
-    fn publish_embedding_manifest(&self, _manifest: &mut FileManifest) -> EngineResult<()> {
-        Ok(())
+    fn publish_embedding_manifest(&self, _manifest: &mut FileManifest) -> EngineResult<bool> {
+        Ok(true)
     }
 
     fn delete_embedding_manifest(&self, _file_id: FileId) -> EngineResult<()> {
@@ -108,8 +108,8 @@ impl IndexStorage for IndexStore {
         self.load_embedding_manifest(file_id)
     }
 
-    fn publish_embedding_manifest(&self, manifest: &mut FileManifest) -> EngineResult<()> {
-        self.publish_embedding_manifest(manifest).map(|_| ())
+    fn publish_embedding_manifest(&self, manifest: &mut FileManifest) -> EngineResult<bool> {
+        self.publish_embedding_manifest(manifest)
     }
 
     fn delete_embedding_manifest(&self, file_id: FileId) -> EngineResult<()> {
