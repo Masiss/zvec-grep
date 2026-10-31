@@ -242,16 +242,25 @@ impl WorkspaceRuntimeManager {
         Self::native_with_idle_ttl(engine, Some(Self::DEFAULT_IDLE_TTL))
     }
 
+    #[cfg(test)]
     pub(crate) fn native_with_idle_ttl(
         engine: Arc<ZvecGrep>,
         idle_ttl: Option<std::time::Duration>,
+    ) -> Self {
+        Self::native_with_idle_ttl_and_scheduler(engine, idle_ttl, SchedulerConfig::default())
+    }
+
+    pub(crate) fn native_with_idle_ttl_and_scheduler(
+        engine: Arc<ZvecGrep>,
+        idle_ttl: Option<std::time::Duration>,
+        scheduler_config: SchedulerConfig,
     ) -> Self {
         Self::new_with_idle_ttl(
             Arc::new(ZvecGrepIndexExecutor {
                 engine: Arc::clone(&engine),
             }),
             Arc::new(EngineWatcherFactory { engine }),
-            SchedulerConfig::default(),
+            scheduler_config,
             idle_ttl,
         )
     }

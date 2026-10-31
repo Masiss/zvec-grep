@@ -495,7 +495,8 @@ async fn rejected_watcher_batches_require_full_repair_after_queue_pressure_ends(
             closes: Arc::new(AtomicUsize::new(0)),
         }),
         SchedulerConfig {
-            concurrency: 1,
+            manual_concurrency: 1,
+            watch_concurrency: 1,
             queue_capacity: 0,
         },
     );

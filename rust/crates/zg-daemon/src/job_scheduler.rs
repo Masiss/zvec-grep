@@ -89,7 +89,8 @@ pub(crate) struct IndexJobCompletion {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SchedulerConfig {
-    pub concurrency: usize,
+    pub manual_concurrency: usize,
+    pub watch_concurrency: usize,
     pub queue_capacity: usize,
 }
 
@@ -102,7 +103,8 @@ pub(crate) struct SchedulerSnapshot {
 impl Default for SchedulerConfig {
     fn default() -> Self {
         Self {
-            concurrency: 2,
+            manual_concurrency: 1,
+            watch_concurrency: 1,
             queue_capacity: 64,
         }
     }
@@ -125,7 +127,8 @@ pub(crate) struct IndexJobScheduler {
 
 struct SchedulerInner {
     executor: Arc<dyn IndexExecutor>,
-    permits: Arc<Semaphore>,
+    manual_permits: Arc<Semaphore>,
+    watch_permits: Arc<Semaphore>,
     state: Mutex<SchedulerState>,
     outstanding: AtomicUsize,
     closed: AtomicBool,
@@ -208,17 +211,20 @@ impl WatchCoalescing {
 
 impl IndexJobScheduler {
     pub(crate) fn new(executor: Arc<dyn IndexExecutor>, config: SchedulerConfig) -> Self {
-        let concurrency = config.concurrency.max(1);
+        let manual_concurrency = config.manual_concurrency;
+        let watch_concurrency = config.watch_concurrency;
         Self {
             inner: Arc::new(SchedulerInner {
                 executor,
-                permits: Arc::new(Semaphore::new(concurrency)),
+                manual_permits: Arc::new(Semaphore::new(manual_concurrency)),
+                watch_permits: Arc::new(Semaphore::new(watch_concurrency)),
                 state: Mutex::new(SchedulerState::default()),
                 outstanding: AtomicUsize::new(0),
                 closed: AtomicBool::new(false),
                 drained: Notify::new(),
                 config: SchedulerConfig {
-                    concurrency,
+                    manual_concurrency,
+                    watch_concurrency,
                     queue_capacity: config.queue_capacity,
                 },
                 #[cfg(test)]
@@ -515,7 +521,8 @@ impl IndexJobScheduler {
             for job in active {
                 job.cancellation.cancel();
             }
-            self.inner.permits.close();
+            self.inner.manual_permits.close();
+            self.inner.watch_permits.close();
         }
         loop {
             let notified = self.inner.drained.notified();
@@ -539,7 +546,8 @@ impl IndexJobScheduler {
         let maximum_outstanding = self
             .inner
             .config
-            .concurrency
+            .manual_concurrency
+            .saturating_add(self.inner.config.watch_concurrency)
             .saturating_add(self.inner.config.queue_capacity);
         let previous = self.inner.outstanding.fetch_add(1, Ordering::AcqRel);
         if previous >= maximum_outstanding {
@@ -658,13 +666,18 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
         });
     }
     tokio::spawn(async move {
+        let lane = if lock(&job.snapshot).reason == JobReason::Manual {
+            Arc::clone(&inner.manual_permits)
+        } else {
+            Arc::clone(&inner.watch_permits)
+        };
         let permit = tokio::select! {
             () = job.cancellation.cancelled() => {
                 finish_cancelled(&job, "indexing was cancelled");
                 finish_job(&inner, &job);
                 return;
             }
-            permit = Arc::clone(&inner.permits).acquire_owned() => permit,
+            permit = lane.acquire_owned() => permit,
         };
         let Ok(_permit) = permit else {
             finish_cancelled(&job, "the daemon job scheduler closed");
@@ -1594,20 +1607,20 @@ mod tests {
         let scheduler =
             IndexJobScheduler::new(Arc::new(ImmediateExecutor), SchedulerConfig::default());
         let root = std::env::temp_dir().join("claim-serialization");
-        let permits = scheduler
+        let permit = scheduler
             .inner
-            .permits
+            .watch_permits
             .clone()
-            .acquire_many_owned(2)
+            .acquire_owned()
             .await
-            .expect("permits");
+            .expect("watch permit");
         let submitted = scheduler
             .submit(root, IndexOptions::default(), JobReason::Watch)
             .expect("submit");
         {
             let state = super::lock(&scheduler.inner.state);
             let job = state.jobs.get(&submitted.job.id).expect("job");
-            drop(permits);
+            drop(permit);
             std::thread::sleep(std::time::Duration::from_millis(50));
             assert_eq!(
                 super::lock(&job.snapshot).state,
@@ -1629,7 +1642,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
                 queue_capacity: 8,
             },
         );
@@ -1711,17 +1725,18 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
                 queue_capacity: 8,
             },
         );
         let held = scheduler
             .inner
-            .permits
+            .manual_permits
             .clone()
-            .acquire_many_owned(1)
+            .acquire_owned()
             .await
-            .expect("held permit");
+            .expect("held manual permit");
         let root = PathBuf::from("/workspace/observed");
         let submitted = scheduler
             .submit(root, IndexOptions::default(), JobReason::Manual)
@@ -1822,7 +1837,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
                 queue_capacity: 8,
             },
         );
@@ -2110,7 +2126,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
                 queue_capacity: 8,
             },
         );
@@ -2157,7 +2174,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 2,
+                manual_concurrency: 2,
+                watch_concurrency: 2,
                 queue_capacity: 8,
             },
         );
@@ -2224,7 +2242,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 2,
+                manual_concurrency: 2,
+                watch_concurrency: 2,
                 queue_capacity: 8,
             },
         );
@@ -2360,7 +2379,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
                 queue_capacity: 128,
             },
         );
@@ -2460,7 +2480,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 2,
+                manual_concurrency: 2,
+                watch_concurrency: 2,
                 queue_capacity: 8,
             },
         );
@@ -2525,7 +2546,8 @@ mod tests {
             let scheduler = IndexJobScheduler::new(
                 executor.clone(),
                 SchedulerConfig {
-                    concurrency: 1,
+                    manual_concurrency: 1,
+                    watch_concurrency: 1,
                     queue_capacity: 8,
                 },
             );
@@ -2917,7 +2939,8 @@ mod tests {
             let scheduler = IndexJobScheduler::new(
                 executor.clone(),
                 SchedulerConfig {
-                    concurrency: 1,
+                    manual_concurrency: 1,
+                    watch_concurrency: 1,
                     queue_capacity: 8,
                 },
             );
@@ -2998,7 +3021,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
                 queue_capacity: 8,
             },
         );
@@ -3054,8 +3078,9 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
-                queue_capacity: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
+                queue_capacity: 0,
             },
         );
         let first = scheduler
@@ -3107,7 +3132,8 @@ mod tests {
         let scheduler = IndexJobScheduler::new(
             executor.clone(),
             SchedulerConfig {
-                concurrency: 1,
+                manual_concurrency: 1,
+                watch_concurrency: 1,
                 queue_capacity: 4,
             },
         );

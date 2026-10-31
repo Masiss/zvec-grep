@@ -24,7 +24,7 @@ use zg_transport_mcp::{
 use crate::{
     DaemonError, ServerConfig,
     controller::InstanceLock,
-    job_scheduler::{JobState, JobViewObserver},
+    job_scheduler::{JobState, JobViewObserver, SchedulerConfig},
     workspace_runtime::{RuntimeIndexSubmission, WorkspaceRuntimeError, WorkspaceRuntimeManager},
 };
 
@@ -101,7 +101,17 @@ pub(crate) async fn run_server(
         }
     };
     let shutdown = CancellationToken::new();
-    let runtimes = WorkspaceRuntimeManager::native_with_idle_ttl(Arc::clone(&engine), idle_ttl);
+    let scheduler = zg_engine::config::daemon_scheduler_options()?;
+    let scheduler_config = SchedulerConfig {
+        manual_concurrency: scheduler.manual_concurrency,
+        watch_concurrency: scheduler.watch_concurrency,
+        queue_capacity: scheduler.queue_capacity,
+    };
+    let runtimes = WorkspaceRuntimeManager::native_with_idle_ttl_and_scheduler(
+        Arc::clone(&engine),
+        idle_ttl,
+        scheduler_config,
+    );
     let status: Arc<dyn ServerStatusProvider> = Arc::new(RuntimeStatusProvider {
         started: Instant::now(),
         shutdown: shutdown.clone(),

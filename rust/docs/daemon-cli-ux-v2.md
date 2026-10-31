@@ -1,6 +1,6 @@
 # Daemon/CLI UX V2 — manual index priority and queue visibility
 
-Status: **UX0 implemented; UX1–UX4 proposed**. This is a post-RC track. Do not
+Status: **UX0 implemented; scheduler config/lanes implemented; UX1–UX4 partial**. This is a post-RC track. Do not
 change the frozen `0.3.0-rc.2` branch for this work.
 
 ## UX0 implementation (2026-10-31)
@@ -21,6 +21,33 @@ Read-only job visibility is implemented on the post-RC branch:
 
 Remaining UX1–UX4 items (routing defaults, manual priority/supersede,
 resource budget, watcher scope) are unchanged.
+
+## Scheduler configuration (implemented 2026-10-31)
+
+Daemon scheduler limits are configurable; they are no longer fixed at two
+global slots. The per-user global config accepts:
+
+```json
+{
+  "version": 1,
+  "daemon": {
+    "scheduler": {
+      "manual_concurrency": 1,
+      "watch_concurrency": 1,
+      "queue_capacity": 64
+    }
+  }
+}
+```
+
+- Defaults preserve the previous total capacity: one manual lane plus one
+  watcher lane.
+- `queue_capacity` is shared by both lanes.
+- Values are bounded (`0..64` per lane, total at least one; queue `1..65536`).
+- The scheduler now uses separate manual/watch permits, so a queued watcher
+  cannot consume the manual slot.
+- Per-root single-writer exclusion is unchanged.
+- Same-root watcher pause/coalesce/resume remains UX2 work.
 
 ## Problem
 
