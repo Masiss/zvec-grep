@@ -234,7 +234,8 @@ impl IndexJobScheduler {
             // Once another caller relies on a job, request cancellation must not stop it.
             active.shared.store(true, Ordering::Release);
             let active_snapshot = lock(&active.snapshot).clone();
-            let needs_followup = reason == JobReason::Watch
+            let needs_followup = state.followup_by_root.contains_key(&canonical_root)
+                || reason == JobReason::Watch
                 || active_snapshot.reason == JobReason::Watch
                 || options.rebuild
                 || has_selection_update(&options);
@@ -677,8 +678,10 @@ fn spawn_job_after(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>, delay: Du
             }
             tokio::select! {
                 () = job.cancellation.cancelled() => {
-                    finish_cancelled(&job, "indexing was cancelled");
-                    finish_job(&inner, &job);
+                    if !job.finished.load(Ordering::Acquire) {
+                        finish_cancelled(&job, "indexing was cancelled");
+                        finish_job(&inner, &job);
+                    }
                     return;
                 }
                 () = notified => {}
@@ -1213,7 +1216,8 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 mod tests {
     use std::{
         path::PathBuf,
-        sync::{Arc, Mutex},
+        sync::{Arc, Mutex, atomic::Ordering},
+        time::{Duration, Instant},
     };
 
     use async_trait::async_trait;
@@ -1231,7 +1235,7 @@ mod tests {
 
     use super::{
         IndexExecutor, IndexJobScheduler, JobReason, JobState, SchedulerConfig, SchedulerError,
-        redact_job_error_text,
+        WATCH_COALESCE_DEBOUNCE, WATCH_COALESCE_MAX_WAIT, WatchCoalescing, redact_job_error_text,
     };
 
     struct GatedExecutor {
@@ -1822,12 +1826,197 @@ mod tests {
         assert_eq!(completed.job.state, JobState::Succeeded);
         let calls = executor.calls.lock().expect("calls should be readable");
         assert_eq!(calls.len(), 2);
+        assert!(calls[1].require_existing_index);
         assert_eq!(
             calls[1].changes,
             [zg_engine::api::index::options::WorkspaceChange::Delete(
                 PathBuf::from("src/lib.rs")
             )]
         );
+    }
+
+    #[test]
+    fn watch_coalescing_window_is_trailing_and_bounded() {
+        let started = Instant::now();
+        let window = WatchCoalescing {
+            started_at: started,
+            last_event_at: started + Duration::from_millis(100),
+        };
+        assert_eq!(
+            window.delay_until_ready(started + Duration::from_millis(100)),
+            WATCH_COALESCE_DEBOUNCE
+        );
+        let trailing = WatchCoalescing {
+            started_at: started,
+            last_event_at: started + Duration::from_millis(4_900),
+        };
+        assert_eq!(
+            trailing.delay_until_ready(started + Duration::from_millis(4_900)),
+            Duration::from_millis(100)
+        );
+        assert_eq!(
+            trailing.delay_until_ready(started + WATCH_COALESCE_MAX_WAIT),
+            Duration::ZERO
+        );
+    }
+
+    #[tokio::test]
+    async fn watch_coalescing_manual_priority_bypasses_trailing_wait() {
+        let executor = Arc::new(RecordingExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            releases: tokio::sync::Semaphore::new(0),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 2,
+                queue_capacity: 8,
+            },
+        );
+        scheduler.set_watch_coalescing_for_benchmark(true);
+        let root = PathBuf::from("/workspace");
+        scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    ..IndexOptions::default()
+                },
+                JobReason::Manual,
+            )
+            .expect("manual job");
+        executor.started.notified().await;
+        let watch = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    changes: vec![zg_engine::api::index::options::WorkspaceChange::Upsert(
+                        PathBuf::from("src/lib.rs"),
+                    )],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("watch followup");
+        let manual = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    ..IndexOptions::default()
+                },
+                JobReason::Manual,
+            )
+            .expect("manual followup");
+        assert_eq!(watch.job.id, manual.job.id);
+
+        executor.releases.add_permits(1);
+        let followup_started = Instant::now();
+        executor.started.notified().await;
+        assert!(
+            followup_started.elapsed() < Duration::from_millis(500),
+            "manual followup waited for the watch debounce"
+        );
+        executor.releases.add_permits(1);
+        scheduler
+            .wait(manual.job.id)
+            .await
+            .expect("manual followup completes");
+        let calls = executor.calls.lock().expect("calls");
+        assert_eq!(calls.len(), 2);
+        assert!(!calls[1].require_existing_index);
+    }
+
+    #[tokio::test]
+    async fn watch_coalescing_cancellation_during_debounce_finishes_once() {
+        let executor = Arc::new(CancellationAwareExecutor {
+            started: Notify::new(),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 1,
+                queue_capacity: 8,
+            },
+        );
+        scheduler.set_watch_coalescing_for_benchmark(true);
+        let root = PathBuf::from("/workspace");
+        scheduler
+            .submit(root.clone(), IndexOptions::default(), JobReason::Manual)
+            .expect("manual job");
+        executor.started.notified().await;
+        let followup = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    changes: vec![zg_engine::api::index::options::WorkspaceChange::Upsert(
+                        PathBuf::from("src/lib.rs"),
+                    )],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("watch followup");
+        assert!(scheduler.cancel_root(&root));
+        let completed =
+            tokio::time::timeout(Duration::from_secs(2), scheduler.wait(followup.job.id))
+                .await
+                .expect("cancellation must finish")
+                .expect("followup remains queryable");
+        assert_eq!(completed.job.state, JobState::Cancelled);
+        tokio::time::timeout(Duration::from_secs(2), scheduler.shutdown())
+            .await
+            .expect("shutdown must finish");
+        assert_eq!(scheduler.inner.outstanding.load(Ordering::Acquire), 0);
+    }
+
+    #[tokio::test]
+    async fn watch_coalescing_shutdown_during_debounce_finishes_once() {
+        let executor = Arc::new(CancellationAwareExecutor {
+            started: Notify::new(),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 1,
+                queue_capacity: 8,
+            },
+        );
+        scheduler.set_watch_coalescing_for_benchmark(true);
+        let root = PathBuf::from("/workspace");
+        scheduler
+            .submit(root.clone(), IndexOptions::default(), JobReason::Manual)
+            .expect("manual job");
+        executor.started.notified().await;
+        let followup = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    changes: vec![zg_engine::api::index::options::WorkspaceChange::Upsert(
+                        PathBuf::from("src/lib.rs"),
+                    )],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("watch followup");
+        tokio::time::timeout(Duration::from_secs(2), scheduler.shutdown())
+            .await
+            .expect("shutdown must finish");
+        assert_eq!(
+            scheduler
+                .wait(followup.job.id)
+                .await
+                .expect("followup remains queryable")
+                .job
+                .state,
+            JobState::Cancelled
+        );
+        assert_eq!(scheduler.inner.outstanding.load(Ordering::Acquire), 0);
     }
 
     #[tokio::test]
