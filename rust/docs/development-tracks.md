@@ -3,6 +3,8 @@
 Status index for active and planned work. This is intentionally under
 `rust/docs/` so it does not duplicate the upstream product docs under `docs/`.
 
+Current handoff: [`handoff-20261031.md`](handoff-20261031.md).
+
 Updated: 2026-10-31. Frozen RC: `integration/upstream-rust` at
 `c2347d5`, tag `rust-v0.3.0-rc.2` (code baseline `289674b`).
 
