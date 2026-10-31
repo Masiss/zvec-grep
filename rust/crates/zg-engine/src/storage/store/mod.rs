@@ -554,20 +554,7 @@ impl IndexStore {
             .as_ref()
             .map_or(Ok(()), |fragments| fragments.optimize());
         self.write(|state| {
-            let mut result = fragment_result;
-            // M3-A: only collections with actual mutation debt are finalized.
-            // The three remaining native collections are cheap relative to
-            // fragment maintenance; keep their existing serialized path until
-            // they also expose lock-free handles.
-            if result.is_ok() && dirty & DIRTY_DIRECTORIES != 0 {
-                result = state.directories.optimize();
-            }
-            if result.is_ok() && dirty & DIRTY_ENTITIES != 0 {
-                result = state.entities.optimize();
-            }
-            if result.is_ok() && dirty & DIRTY_FILES != 0 {
-                result = state.files.optimize();
-            }
+            let result = fragment_result.and_then(|()| optimize_dirty(state, dirty));
             state.optimizing = false;
             match result {
                 Ok(()) => {
@@ -662,6 +649,32 @@ impl IndexStore {
             .map_or(Ok(()), |graph| graph.close().map_err(graph_error));
         flush_result.and(graph_close)
     }
+}
+
+fn optimize_dirty(state: &StoreState, dirty: u8) -> EngineResult<()> {
+    let directories = &state.directories;
+    let entities = &state.entities;
+    let files = &state.files;
+    std::thread::scope(|scope| {
+        let mut workers = Vec::new();
+        if dirty & DIRTY_DIRECTORIES != 0 {
+            workers.push(scope.spawn(move || directories.optimize()));
+        }
+        if dirty & DIRTY_ENTITIES != 0 {
+            workers.push(scope.spawn(move || entities.optimize()));
+        }
+        if dirty & DIRTY_FILES != 0 {
+            workers.push(scope.spawn(move || files.optimize()));
+        }
+        let mut result = Ok(());
+        for worker in workers {
+            let next = worker.join().unwrap_or_else(|_| {
+                Err(EngineError::internal("collection optimize worker panicked"))
+            });
+            result = result.and(next);
+        }
+        result
+    })
 }
 
 #[cfg(test)]
