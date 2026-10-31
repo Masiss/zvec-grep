@@ -172,8 +172,10 @@ Invariants:
 - Record one representative receipt per purpose as a golden fixture; never
   rewrite the originals.
 
-### P1 — Contract layer and compatibility readers
+### P1 — Contract layer and compatibility readers (implemented 2026-10-31)
 
+- Implemented under `benchmarks/harness-v2/contracts/`; see
+  `benchmarks/harness-v2/README.md` and `contracts/golden/manifest.json`.
 - Extract policy v1 and receipt/protocol schemas into `contracts/`.
 - Add a v1 receipt reader that accepts every golden fixture and returns
   normalized fields without changing files.

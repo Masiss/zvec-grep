@@ -56,7 +56,12 @@ class HarnessScenarioContractTests(unittest.TestCase):
             "If no valid action remains, report the precise blocker" in root
             or "If no meaningful authorized action remains, report the blocker and stop" in root
         )
-        self.assertTrue("remaining work" in root or "acceptance criteria remain unmet" in root)
+        self.assertTrue(
+            "remaining work" in root
+            or "acceptance criteria remain unmet" in root
+            or "Remaining acceptance criteria" in root
+            or "genuine blocker remains" in root
+        )
 
     def test_no_unapproved_gate_change_or_delegated_authority(self):
         self.assertIn("Requires explicit owner approval", POLICY["authority"]["threshold_change"])

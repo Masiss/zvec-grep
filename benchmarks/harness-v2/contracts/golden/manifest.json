@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "contract": "m4-receipt-v1",
+  "policy": {
+    "path": "research/m4-native/docs/benchmark-policy.json",
+    "sha256": "712ddbbad7f95604a19da80a85ba267f4d3b87090a05bceb997de15b95fbf9b2",
+    "policy_id": "m4-benchmark-operation-policy-v1",
+    "schema_version": 1
+  },
+  "fixtures": [
+    {
+      "id": "immutable-write-amplification-pair",
+      "kind": "containment_receipt",
+      "purpose": "immutable-write-amplification-pair",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/immutable-write-amplification-pair.receipt.json",
+      "fixture_sha256": "4553872faeb5506375b65bf3ab3f0ceb35390b0fdd88d69d5944349d5950bc5c",
+      "source_path": "research/m4-native/results/immutable-write-amplification/m4-write-amplification-pair-20261024-lz4-batch128-full1200-candidate-first-01/pair-first/containment/receipt.json",
+      "source_sha256": "4553872faeb5506375b65bf3ab3f0ceb35390b0fdd88d69d5944349d5950bc5c",
+      "expected": {
+        "schema_version": 1,
+        "kind": "containment_receipt",
+        "purpose": "immutable-write-amplification-pair",
+        "operation_id": "m4-write-amplification-pair-20261024-lz4-batch128-full1200-candidate-first-01",
+        "status": "PASS",
+        "policy_id": "m4-benchmark-operation-policy-v1",
+        "policy_sha256": "83cae713763fed47b28cfe3fb079097155bfa3e6ca59d19a0cd606cfc5118134",
+        "benchmark_started": true,
+        "performance_eligible": false,
+        "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+        "failure_class": "NORMAL_EXIT"
+      }
+    },
+    {
+      "id": "m4-lock-contention-microbench",
+      "kind": "containment_receipt",
+      "purpose": "m4-lock-contention-microbench",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/m4-lock-contention-microbench.receipt.json",
+      "fixture_sha256": "65ad07280fa35ac253ec18c38d43c9fb07b53932006811e3432534d9baabf900",
+      "source_path": "research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-20261022-042046-fb1a75/microbench/containment/receipt.json",
+      "source_sha256": "65ad07280fa35ac253ec18c38d43c9fb07b53932006811e3432534d9baabf900",
+      "expected": {
+        "schema_version": 1,
+        "kind": "containment_receipt",
+        "purpose": "m4-lock-contention-microbench",
+        "operation_id": "m4-lock-contention-microbench-20261022-042046-fb1a75",
+        "status": "WATCHDOG_ABORT",
+        "policy_id": "m4-benchmark-operation-policy-v1",
+        "policy_sha256": "c260ae72886fb98d3be38fd6321d0073f76ffcdd57bc0da4d336c0c9ce896932",
+        "benchmark_started": true,
+        "performance_eligible": false,
+        "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+        "failure_class": "SIGNAL_EXIT"
+      }
+    },
+    {
+      "id": "m4-rust-full-lifecycle-pair",
+      "kind": "containment_receipt",
+      "purpose": "m4-rust-full-lifecycle-pair",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/m4-rust-full-lifecycle-pair.receipt.json",
+      "fixture_sha256": "d67b32b562b8ddb470e035537d1a41f6d462bd60a4dcfe1b7530dcb934ac0bf2",
+      "source_path": "research/m4-native/results/M4-P3-STAGE-A-20261030/pair-m4-first/pair-first/containment/receipt.json",
+      "source_sha256": "d67b32b562b8ddb470e035537d1a41f6d462bd60a4dcfe1b7530dcb934ac0bf2",
+      "expected": {
+        "schema_version": 1,
+        "kind": "containment_receipt",
+        "purpose": "m4-rust-full-lifecycle-pair",
+        "operation_id": "m4-rust-lifecycle-pair-20261030t220200z-stagea-r100c",
+        "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        "policy_id": "m4-benchmark-operation-policy-v1",
+        "policy_sha256": "cc4efe2de1d4b7a8e2cbb0c60e1ccf16bd8018e5ea9def3e541f452e057d6a7f",
+        "benchmark_started": true,
+        "performance_eligible": false,
+        "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+        "failure_class": "NORMAL_EXIT_WITH_WORKSPACE_CAVEATS"
+      }
+    },
+    {
+      "id": "m4-shared-collection-pair",
+      "kind": "containment_receipt",
+      "purpose": "m4-shared-collection-pair",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/m4-shared-collection-pair.receipt.json",
+      "fixture_sha256": "8270243508d36d99c3e1546e1bf007bb708df8f8244742041bf04dc6e335e9a0",
+      "source_path": "research/m4-native/results/shared-collection-pair-20261021/m4-shared-collection-pair-20261021-164043-cb286c/pair-first/containment/receipt.json",
+      "source_sha256": "8270243508d36d99c3e1546e1bf007bb708df8f8244742041bf04dc6e335e9a0",
+      "expected": {
+        "schema_version": 1,
+        "kind": "containment_receipt",
+        "purpose": "m4-shared-collection-pair",
+        "operation_id": "m4-shared-collection-pair-20261021-164043-cb286c",
+        "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        "policy_id": "m4-benchmark-operation-policy-v1",
+        "policy_sha256": "10c25b15a8ac3ec4e9554a28b70f6fbbc696c73db5afd6629680261c577d7418",
+        "benchmark_started": true,
+        "performance_eligible": false,
+        "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+        "failure_class": "NORMAL_EXIT_WITH_WORKSPACE_CAVEATS"
+      }
+    },
+    {
+      "id": "synthetic-containment-rehearsal",
+      "kind": "containment_receipt",
+      "purpose": "synthetic-containment-rehearsal",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/synthetic-containment-rehearsal.receipt.json",
+      "fixture_sha256": "48144ef60b9dde4f6043be44c7c498f75529d640c0839a7bdab5bcc691277bb6",
+      "source_path": "research/m4-native/results/autonomous-campaign-20261020/m4-contention-rehearsal-e2e-1/aa-first/containment/receipt.json",
+      "source_sha256": "48144ef60b9dde4f6043be44c7c498f75529d640c0839a7bdab5bcc691277bb6",
+      "expected": {
+        "schema_version": 1,
+        "kind": "containment_receipt",
+        "purpose": "synthetic-containment-rehearsal",
+        "operation_id": "m4-contention-rehearsal-e2e-1",
+        "status": "PASS",
+        "policy_id": "m4-benchmark-operation-policy-v1",
+        "policy_sha256": "be7eca5603ae4e29d9f8b42203fdf4b3b0be3beaf376fdc6ab613392810ef6bb",
+        "benchmark_started": true,
+        "performance_eligible": false,
+        "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+        "failure_class": "NORMAL_EXIT"
+      }
+    },
+    {
+      "id": "m4-scalar-open-latency-diagnostic",
+      "kind": "containment_receipt",
+      "purpose": "m4-scalar-open-latency-diagnostic",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/m4-scalar-open-latency-diagnostic.receipt.json",
+      "fixture_sha256": "df477f7b7f512add021521e98f6963ffb9135a8e377cc181f91be0a6074e5fae",
+      "source_path": "research/m4-native/results/scalar-open-latency-diagnostic-20261021/m4-scalar-open-latency-diagnostic-20261021-r1/aa-first/containment/receipt.json",
+      "source_sha256": "df477f7b7f512add021521e98f6963ffb9135a8e377cc181f91be0a6074e5fae",
+      "expected": {
+        "schema_version": 1,
+        "kind": "containment_receipt",
+        "purpose": "m4-scalar-open-latency-diagnostic",
+        "operation_id": "m4-scalar-open-latency-diagnostic-20261021-r1",
+        "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        "policy_id": "m4-benchmark-operation-policy-v1",
+        "policy_sha256": "47070d0143d14ddf64253ff8bbd71ea6a77c4abb2d44eb14fa68499ce8ab7f18",
+        "benchmark_started": true,
+        "performance_eligible": false,
+        "evidence_class": "EXPLORATORY / NON-QUALIFYING",
+        "failure_class": "NORMAL_EXIT_WITH_WORKSPACE_CAVEATS"
+      }
+    },
+    {
+      "id": "m4-scalar-open-resource-rehearsal",
+      "kind": "containment_receipt",
+      "purpose": "m4-scalar-open-resource-rehearsal",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/m4-scalar-open-resource-rehearsal.receipt.json",
+      "fixture_sha256": "3f571298e5149e005c393e230ee840b82810d370e67f09c73332eafbbbe11931",
+      "source_path": "research/m4-native/results/open-probe-resource-plan-20261021/m4-scalar-open-rehearsal-20261021/aa-first/containment/receipt.json",
+      "source_sha256": "3f571298e5149e005c393e230ee840b82810d370e67f09c73332eafbbbe11931",
+      "expected": {
+        "schema_version": 1,
+        "kind": "containment_receipt",
+        "purpose": "m4-scalar-open-resource-rehearsal",
+        "operation_id": "m4-scalar-open-rehearsal-20261021",
+        "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        "policy_id": "m4-benchmark-operation-policy-v1",
+        "policy_sha256": "38278043b417f6f84bad62d1c36fbf09936423df3a5b913ff1e43f3311b456e3",
+        "benchmark_started": true,
+        "performance_eligible": false,
+        "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+        "failure_class": "NORMAL_EXIT_WITH_WORKSPACE_CAVEATS"
+      }
+    },
+    {
+      "id": "m4-lock-contention-microbench-operation-plan",
+      "kind": "operation_plan",
+      "purpose": "m4-lock-contention-microbench",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/m4-lock-contention-microbench.operation-plan.json",
+      "fixture_sha256": "dd98af0abf765bd157da35f7a462cb4be0634c0f3d7cf040f96748ef49477fd5",
+      "source_path": "research/m4-native/results/lock-contention-microbench/20261022/m4-lock-contention-microbench-20261022-042046-fb1a75/operation-plan.json",
+      "source_sha256": "dd98af0abf765bd157da35f7a462cb4be0634c0f3d7cf040f96748ef49477fd5",
+      "expected": {
+        "schema_version": 1,
+        "kind": "operation_plan",
+        "purpose": "m4-lock-contention-microbench",
+        "operation_id": "m4-lock-contention-microbench-20261022-042046-fb1a75",
+        "status": "WATCHDOG_ABORT",
+        "policy_id": null,
+        "policy_sha256": "c260ae72886fb98d3be38fd6321d0073f76ffcdd57bc0da4d336c0c9ce896932",
+        "benchmark_started": true,
+        "performance_eligible": null,
+        "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+        "failure_class": null
+      }
+    },
+    {
+      "id": "synthetic-containment-rehearsal-operation-plan",
+      "kind": "operation_plan",
+      "purpose": "synthetic-containment-rehearsal",
+      "fixture_path": "benchmarks/harness-v2/contracts/golden/fixtures/synthetic-containment-rehearsal.operation-plan.json",
+      "fixture_sha256": "d7854e20341cb74bee2a714bf01ff2cf8efe74dad545ad077c7f72657160cd84",
+      "source_path": "research/m4-native/results/containment-probes/20261022/m4-contention-rehearsal-20261022T113503Z-clock-gap-probe-01/operation-plan.json",
+      "source_sha256": "d7854e20341cb74bee2a714bf01ff2cf8efe74dad545ad077c7f72657160cd84",
+      "expected": {
+        "schema_version": 1,
+        "kind": "operation_plan",
+        "purpose": "synthetic-containment-rehearsal",
+        "operation_id": "m4-contention-rehearsal-20261022T113503Z-clock-gap-probe-01",
+        "status": "PASS",
+        "policy_id": null,
+        "policy_sha256": "59fb1f98ba25d2ec3975967f97b9772fdae97dde336e07f35ebf5738c98dacd1",
+        "benchmark_started": null,
+        "performance_eligible": null,
+        "evidence_class": null,
+        "failure_class": null
+      }
+    }
+  ]
+}
