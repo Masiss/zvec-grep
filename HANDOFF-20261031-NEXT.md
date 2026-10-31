@@ -9,7 +9,7 @@ for the current worktree. Historical detail remains in `HANDOFF.md`,
 - Worktree: `/home/masis/src/zvec-grep-integration`
 - Branch: `integration/upstream-rust`
 - Exact upstream base: `e1f93d2` (`upstream/main`)
-- State: **clean**, **24 commits ahead** of `e1f93d2`
+- State: **clean**, **25 commits ahead** of `e1f93d2`
 - Old worktree `work/zg-optimization` at `/home/masis/src/zvec-grep` is
   **dirty and untouched**. Do not reset, clean, or rebase it.
 - No push, PR, merge, production-default change, resource-limit change, or
@@ -91,6 +91,31 @@ Decision: **REJECT / ROLLBACK**; the provisional 300 ms query target is not
 negotiable in this comparison. Details and raw evidence are in
 `BENCHMARK-RESULTS.md`.
 
+## Handle-based maintenance feasibility — assessed
+
+Full assessment: [`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](M3B-HANDLE-MAINTENANCE-FEASIBILITY.md).
+
+Verdict: **GO for the Rust-side design**, with mandatory native gates before
+implementation is accepted. Stable handles cannot be raw pointers: `Collection`
+owns a raw FFI handle, closes on `Drop`, and is not `Clone` (`zvec-rust-0.8.0
+collection.rs:117,680`), though it is `Send + Sync`. Each scalar table must hold
+`Arc<Collection>` and expose `handle()`, as the fork already does. Fragments are
+already behind `Arc<Fragments>`.
+
+Minimal lifecycle: Phase A snapshots debt/generation and checks out handles under
+the state lock; Phase B runs native optimize under a new `maintenance: Mutex<()>`
+lease with no state lock; Phase C re-locks and acknowledges only if the
+generation is unchanged and all stages succeeded. `close()` must take the
+maintenance lease before setting `closed`/flushing. The current close wait loop
+is insufficient: it releases the state lock before taking the store lease, so a
+finalize can start in that window.
+
+Two gates are unresolved: the pinned **zvec 0.8.0** concurrency guarantee
+(Gate H/I evidence is 0.7.2), and the native seal window identified by the
+Phase 3 research (research-only; the prebuilt library may still block readers
+inside native optimize). Do not claim the 300 ms query target until both are
+verified on this branch.
+
 ## Current bottleneck: finalization / optimize
 
 The integration is slower than upstream mainly because of `index_optimize`
@@ -142,10 +167,13 @@ The overlap approach is **closed**. The remaining ~0.12 s gap to upstream is
 still finalization, but it must be closed without extending the state-lock
 window that readers block on.
 
-The next candidate to evaluate is the fork’s **handle-based maintenance**:
-take only the handles needed for directory/entity/file maintenance, release
-the state lock, and run all four collections under a maintenance lease (with
-the persistent marker and generation/debt check preserved). Do not:
+Implement the handle-based maintenance described in
+[`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](M3B-HANDLE-MAINTENANCE-FEASIBILITY.md):
+`Arc<Collection>` handles, a `maintenance` lease, and Phase A/B/C
+snapshot–optimize–ack. Before accepting it, run the pinned-zvec-0.8.0
+concurrency gate and the native seal-latency check; if either fails, stop and
+treat it as **REWORK** (native dependency decision), not as a reason to retry
+the rejected overlap. Do not:
 - increase optimizer threads (the 4-thread experiment is already rejected);
 - overlap native maintenance with the scalar stage while holding the lock;
 - cherry-pick `b4b8686` wholesale.
