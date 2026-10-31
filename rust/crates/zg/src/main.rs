@@ -603,7 +603,16 @@ async fn execute_index(
             let reporter = progress.reporter();
             let result = if server {
                 let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
-                zg_daemon::index_with_progress(&home, *request, &reporter).await?
+                let job_reporter = |job: zg_daemon_protocol::JobView| {
+                    let _ = zg_cli::write_job_transition(io::stderr(), &job);
+                };
+                zg_daemon::index_with_progress_and_jobs(
+                    &home,
+                    *request,
+                    &reporter,
+                    Some(&job_reporter),
+                )
+                .await?
             } else {
                 let engine = ZvecGrep::new();
                 request.on_progress = Some(reporter.prioritize_model_progress());
@@ -818,6 +827,25 @@ async fn execute_server_plan(plan: ServerPlan) -> Result<(), Box<dyn Error>> {
             write_server_status(&status);
             if args.check_ready && !status.ready {
                 return Err(io::Error::other("server is not ready").into());
+            }
+        }
+        ServerPlan::Jobs(args) => {
+            let home = zg_daemon::resolve_home(args.home)?;
+            let reply = zg_daemon::execute_command(&home, DaemonCommand::Jobs).await?;
+            let DaemonReply::Jobs(jobs) = reply else {
+                return Err(protocol_mismatch("jobs"));
+            };
+            let stdout = io::stdout();
+            if args.json {
+                zg_cli::write_jobs_json(stdout.lock(), &jobs, args.all)?;
+            } else {
+                zg_cli::write_jobs(
+                    stdout.lock(),
+                    &jobs,
+                    args.all,
+                    zg_cli::ColorMode::Auto,
+                    stdout.is_terminal(),
+                )?;
             }
         }
         ServerPlan::Run(args) => {

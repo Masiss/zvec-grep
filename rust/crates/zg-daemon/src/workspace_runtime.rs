@@ -34,8 +34,9 @@ use zg_host_native::{
 
 use crate::job_scheduler::{
     IndexExecutor, IndexJobCompletion, IndexJobScheduler, IndexJobSnapshot, JobReason, JobState,
-    SchedulerConfig, SchedulerError, SchedulerSnapshot, SubmitIndexJobResult,
+    JobViewObserver, SchedulerConfig, SchedulerError, SchedulerSnapshot, SubmitIndexJobResult,
 };
+use zg_daemon_protocol::JobView;
 mod lifecycle;
 use lifecycle::{RuntimeActivity, RuntimeLifecycle};
 use zg_transport_mcp::{
@@ -291,8 +292,17 @@ impl WorkspaceRuntimeManager {
 
     pub(crate) async fn submit_index(
         &self,
+        options: IndexOptions,
+        wait: bool,
+    ) -> Result<RuntimeIndexSubmission, WorkspaceRuntimeError> {
+        self.submit_index_observing(options, wait, None).await
+    }
+
+    pub(crate) async fn submit_index_observing(
+        &self,
         mut options: IndexOptions,
         wait: bool,
+        observer: Option<JobViewObserver>,
     ) -> Result<RuntimeIndexSubmission, WorkspaceRuntimeError> {
         if self.inner.closed.load(Ordering::Acquire) {
             return Err(WorkspaceRuntimeError::Scheduler(SchedulerError::Closed));
@@ -320,6 +330,11 @@ impl WorkspaceRuntimeManager {
         let target_revision = runtime.dirty_revision.load(Ordering::Acquire);
         let submitted =
             runtime.submit_tracked(&self.inner.scheduler, options, JobReason::Manual)?;
+        if let Some(observer) = observer.as_ref()
+            && let Some(view) = self.inner.scheduler.job_view(submitted.job.id)
+        {
+            observer(view);
+        }
         {
             let manager = self.clone();
             let job_id = submitted.job.id;
@@ -355,7 +370,7 @@ impl WorkspaceRuntimeManager {
         let completed = self
             .inner
             .scheduler
-            .wait_with_progress(submitted.job.id, reporter)
+            .wait_with_progress_and_observer(submitted.job.id, reporter, observer)
             .await?;
         runtime.complete_job(&completed);
         if completed.job.state == JobState::Succeeded
@@ -582,6 +597,10 @@ impl WorkspaceRuntimeManager {
             active_runtimes: lock(&self.inner.runtimes).len(),
             jobs: self.inner.scheduler.snapshot(),
         }
+    }
+
+    pub(crate) fn jobs(&self) -> Vec<JobView> {
+        self.inner.scheduler.jobs()
     }
 
     pub(crate) fn runtime_snapshot(&self, canonical_root: &Path) -> WorkspaceRuntimeSnapshot {

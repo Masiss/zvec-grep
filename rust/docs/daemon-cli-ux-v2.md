@@ -1,7 +1,26 @@
 # Daemon/CLI UX V2 — manual index priority and queue visibility
 
-Status: **proposed / not implemented**. This is a post-RC track. Do not change
-the frozen `0.3.0-rc.2` branch for this work.
+Status: **UX0 implemented; UX1–UX4 proposed**. This is a post-RC track. Do not
+change the frozen `0.3.0-rc.2` branch for this work.
+
+## UX0 implementation (2026-10-31)
+
+Read-only job visibility is implemented on the post-RC branch:
+
+- `DaemonCommand::Jobs` / `DaemonReply::Jobs(Vec<JobView>)` (protocol 16).
+- `zg --server jobs` renders running/queued jobs plus optional retained history
+  (`--all`), with `--json` for machine-readable output.
+- `JobView` exposes only observed state: id, root, reason, state, phase from the
+  last engine progress event, progress counters, waited time, and
+  `blocking_job_id` when one same-root job is determinable.
+- `zg --index` routed through the daemon streams `IndexStreamEvent::Job` events
+  before index progress, so the CLI prints whether the job is queued or running.
+  The previous synthetic "Waiting for index job" indexing phase was removed.
+- No queue position is published, because the scheduler does not track a
+  stable ordered position; no phase is invented before engine progress arrives.
+
+Remaining UX1–UX4 items (routing defaults, manual priority/supersede,
+resource budget, watcher scope) are unchanged.
 
 ## Problem
 
@@ -88,7 +107,7 @@ phase changes.
 
 | Phase | Work | Acceptance |
 |---|---|---|
-| UX0 | JobView + `--server jobs` + phase/queue rendering | An operator can see running/queued jobs and why a client waits |
+| UX0 | JobView + `--server jobs` + phase/status rendering | **Implemented**; `cargo test -p zg-daemon-protocol`, `cargo test -p zg-cli jobs`, and `cargo test -p zg-daemon --lib job_view` |
 | UX1 | Explicit routing + job id output + `--no-wait` | No silent daemon routing for management commands |
 | UX2 | Manual priority + same-root watcher supersede at safe checkpoint | Manual rebuild starts promptly or reports the exact blocking job |
 | UX3 | Per-root queue + global resource budget + cancellation/timeout | Third project queues explicitly; no orphan/stale running job |

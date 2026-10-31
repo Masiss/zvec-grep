@@ -22,8 +22,10 @@ use zg_transport_mcp::{
 };
 
 use crate::{
-    DaemonError, ServerConfig, controller::InstanceLock, job_scheduler::JobState,
-    workspace_runtime::WorkspaceRuntimeManager,
+    DaemonError, ServerConfig,
+    controller::InstanceLock,
+    job_scheduler::{JobState, JobViewObserver},
+    workspace_runtime::{RuntimeIndexSubmission, WorkspaceRuntimeError, WorkspaceRuntimeManager},
 };
 
 #[derive(Clone)]
@@ -221,18 +223,17 @@ async fn stream_index(
             let _ = progress_sender.try_send(IndexStreamEvent::Progress(progress));
         },
     ));
+    let job_sender = sender.clone();
+    let observer: JobViewObserver = Arc::new(move |job| {
+        let _ = job_sender.try_send(IndexStreamEvent::Job(job));
+    });
     tokio::spawn(async move {
-        let initial = zg_engine::api::index::progress::IndexProgress {
-            phase: zg_engine::api::index::progress::IndexProgressPhase::Indexing,
-            files_total: None,
-            files_indexed: None,
-            files_failed: None,
-            detail: Some("Waiting for index job".into()),
-            embedding: None,
-        };
-        let _ = sender.send(IndexStreamEvent::Progress(initial)).await;
-        let (_, Json(result)) =
-            execute_command(State(state), headers, Json(DaemonCommand::Index(options))).await;
+        let result = index_execution(
+            state
+                .runtimes
+                .submit_index_observing(options, true, Some(observer))
+                .await,
+        );
         let _ = sender.send(IndexStreamEvent::Finished(result)).await;
     });
     let stream = futures::stream::unfold(receiver, |mut receiver| async {
@@ -295,26 +296,9 @@ async fn execute_command(
                     .map(|reply| DaemonReply::Context(Box::new(reply))),
             )
         }
-        DaemonCommand::Index(request) => match state.runtimes.submit_index(request, true).await {
-            Ok(submitted) if submitted.job.state == JobState::Succeeded => {
-                submitted.result.map_or_else(
-                    || internal_failure("successful daemon index job had no result"),
-                    |reply| ExecutionResult::Success(DaemonReply::Index(Box::new(reply))),
-                )
-            }
-            Ok(submitted) => ExecutionResult::Failure(submitted.job.error.map_or_else(
-                || {
-                    error_reply(zg_engine::EngineError::internal(
-                        "daemon index job ended without an error",
-                    ))
-                },
-                |error| ErrorReply {
-                    report: error.report,
-                    retryable: error.retryable,
-                },
-            )),
-            Err(error) => engine_execution::<DaemonReply>(Err(error.into_engine_error())),
-        },
+        DaemonCommand::Index(request) => {
+            index_execution(state.runtimes.submit_index(request, true).await)
+        }
         DaemonCommand::DropIndex(request) => engine_execution(
             state
                 .runtimes
@@ -330,8 +314,34 @@ async fn execute_command(
                 .await
                 .map(|reply| DaemonReply::Info(Box::new(reply))),
         ),
+        DaemonCommand::Jobs => ExecutionResult::Success(DaemonReply::Jobs(state.runtimes.jobs())),
     };
     (StatusCode::OK, Json(result))
+}
+
+fn index_execution(
+    result: Result<RuntimeIndexSubmission, WorkspaceRuntimeError>,
+) -> ExecutionResult {
+    match result {
+        Ok(submitted) if submitted.job.state == JobState::Succeeded => {
+            submitted.result.map_or_else(
+                || internal_failure("successful daemon index job had no result"),
+                |reply| ExecutionResult::Success(DaemonReply::Index(Box::new(reply))),
+            )
+        }
+        Ok(submitted) => ExecutionResult::Failure(submitted.job.error.map_or_else(
+            || {
+                error_reply(zg_engine::EngineError::internal(
+                    "daemon index job ended without an error",
+                ))
+            },
+            |error| ErrorReply {
+                report: error.report,
+                retryable: error.retryable,
+            },
+        )),
+        Err(error) => engine_execution::<DaemonReply>(Err(error.into_engine_error())),
+    }
 }
 
 fn engine_execution<T>(result: Result<T, zg_engine::EngineError>) -> ExecutionResult

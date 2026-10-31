@@ -59,10 +59,11 @@ async fn post_response(uri: &str, body: Vec<u8>) -> Result<http::Response<Incomi
     Ok(response)
 }
 
-pub(crate) async fn post_index_stream(
+pub(crate) async fn post_index_stream_reported(
     uri: &str,
     body: Vec<u8>,
     reporter: &zg_engine::api::index::progress::IndexProgressReporter,
+    job_reporter: Option<&(dyn Fn(zg_daemon_protocol::JobView) + Send + Sync)>,
 ) -> Result<zg_daemon_protocol::ExecutionResult, DaemonError> {
     use zg_daemon_protocol::IndexStreamEvent;
     let mut response = post_response(uri, body).await?.into_body();
@@ -73,6 +74,11 @@ pub(crate) async fn post_index_stream(
             for byte in data {
                 if byte == b'\n' {
                     match serde_json::from_slice::<IndexStreamEvent>(&pending)? {
+                        IndexStreamEvent::Job(job) => {
+                            if let Some(job_reporter) = job_reporter {
+                                job_reporter(job);
+                            }
+                        }
                         IndexStreamEvent::Progress(progress) => reporter.report(progress),
                         IndexStreamEvent::Finished(result) => return Ok(result),
                     }
@@ -418,6 +424,7 @@ async fn unexpected_response(
 
 #[cfg(test)]
 mod tests {
+    // These tests exercise the loopback HTTP transport directly.
     use std::collections::HashMap;
 
     use http::{HeaderName, HeaderValue, Request};
@@ -427,8 +434,13 @@ mod tests {
 
     #[tokio::test]
     async fn index_stream_delivers_fragmented_progress_before_the_result() {
+        use std::path::PathBuf;
+
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        use zg_daemon_protocol::{DaemonReply, ExecutionResult, IndexStreamEvent};
+        use uuid::Uuid;
+        use zg_daemon_protocol::{
+            DaemonReply, ExecutionResult, IndexStreamEvent, JobView, JobViewReason, JobViewState,
+        };
         use zg_engine::api::index::progress::{
             IndexProgress, IndexProgressPhase, IndexProgressReporter,
         };
@@ -446,6 +458,24 @@ mod tests {
             let mut body = [0; 2];
             stream.read_exact(&mut body).await.expect("request body");
             stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n").await.expect("response headers");
+            let job_id = Uuid::new_v4();
+            for state in [JobViewState::Queued, JobViewState::Running] {
+                let job = IndexStreamEvent::Job(JobView {
+                    id: job_id,
+                    root: PathBuf::from("/workspace"),
+                    reason: JobViewReason::Manual,
+                    state,
+                    phase: None,
+                    progress: None,
+                    waited_millis: 0,
+                    blocking_job_id: None,
+                });
+                let line = serde_json::to_string(&job).expect("job") + "\n";
+                stream
+                    .write_all(format!("{:x}\r\n{line}\r\n", line.len()).as_bytes())
+                    .await
+                    .expect("job chunk");
+            }
             let progress = IndexStreamEvent::Progress(IndexProgress {
                 phase: IndexProgressPhase::Indexing,
                 files_total: Some(9),
@@ -477,11 +507,16 @@ mod tests {
         let reporter = IndexProgressReporter::new(move |progress| {
             let _ = sender.send(progress);
         });
+        let (job_sender, mut job_receiver) = tokio::sync::mpsc::unbounded_channel();
+        let job_reporter = move |job| {
+            let _ = job_sender.send(job);
+        };
         let client = tokio::spawn(async move {
-            super::post_index_stream(
+            super::post_index_stream_reported(
                 &format!("http://{address}/admin/index"),
                 b"{}".to_vec(),
                 &reporter,
+                Some(&job_reporter),
             )
             .await
         });
@@ -490,6 +525,11 @@ mod tests {
             .expect("live progress timeout")
             .expect("progress");
         assert_eq!(progress.files_indexed, Some(2));
+        let mut states = Vec::new();
+        while let Ok(job) = job_receiver.try_recv() {
+            states.push(job.state);
+        }
+        assert_eq!(states, [JobViewState::Queued, JobViewState::Running]);
         assert!(!client.is_finished());
         release.send(()).expect("release server");
         assert!(matches!(
@@ -520,10 +560,12 @@ mod tests {
                 .expect("truncated event");
         });
         let reporter = zg_engine::api::index::progress::IndexProgressReporter::new(|_| {});
-        let error = super::post_index_stream(
+        let no_job_reporter = None;
+        let error = super::post_index_stream_reported(
             &format!("http://{address}/admin/index"),
             b"{}".to_vec(),
             &reporter,
+            no_job_reporter,
         )
         .await
         .expect_err("missing final result");

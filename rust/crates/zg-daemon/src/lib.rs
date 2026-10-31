@@ -229,6 +229,22 @@ pub async fn index_with_progress(
     request: zg_engine::api::index::IndexOptions,
     reporter: &zg_engine::api::index::progress::IndexProgressReporter,
 ) -> Result<zg_engine::api::index::IndexResult, DaemonError> {
+    index_with_progress_and_jobs(home, request, reporter, None).await
+}
+
+/// Executes an index operation while forwarding job-state and progress events.
+///
+/// The job reporter observes scheduler state only; it is never invoked with an
+/// inferred queue position or phase.
+///
+/// # Errors
+/// Returns connection, protocol, or indexing errors, including a truncated stream.
+pub async fn index_with_progress_and_jobs(
+    home: &std::path::Path,
+    request: zg_engine::api::index::IndexOptions,
+    reporter: &zg_engine::api::index::progress::IndexProgressReporter,
+    job_reporter: Option<&(dyn Fn(zg_daemon_protocol::JobView) + Send + Sync)>,
+) -> Result<zg_engine::api::index::IndexResult, DaemonError> {
     let status = server_status(home).await?;
     if !status.ready {
         return Err(DaemonError::NotReady);
@@ -237,10 +253,11 @@ pub async fn index_with_progress(
     let prefix = url
         .strip_suffix("/mcp")
         .ok_or_else(|| DaemonError::McpBridge("daemon published an invalid server URL".into()))?;
-    let result = http_client::post_index_stream(
+    let result = http_client::post_index_stream_reported(
         &format!("{prefix}/admin/index"),
         serde_json::to_vec(&request)?,
         reporter,
+        job_reporter,
     )
     .await?;
     match result {

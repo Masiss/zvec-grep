@@ -2,6 +2,7 @@
 
 mod authorization;
 mod install;
+mod jobs;
 mod jsonc;
 mod managed_rg;
 mod management;
@@ -50,6 +51,7 @@ pub use install::{
     InstallError, InstallOutcome, execute_install, execute_uninstall, resolve_server_listen,
     resolve_server_url,
 };
+pub use jobs::{write_job_transition, write_jobs, write_jobs_json, write_jobs_result};
 pub use managed_rg::{ManagedRgArgumentError, parse_managed_rg_args};
 pub use render::{
     HelpTopicError, help_text, print_help, write_context_result, write_context_with_options,
@@ -606,6 +608,8 @@ pub enum ServerAction {
     On(ServerStartArgs),
     Off(ServerStopArgs),
     Status(ServerStatusArgs),
+    /// List resident index jobs without changing daemon state.
+    Jobs(ServerJobsArgs),
     #[command(hide = true)]
     Run(ServerStartArgs),
 }
@@ -636,6 +640,18 @@ pub struct ServerStatusArgs {
     pub home: Option<PathBuf>,
     #[arg(long = "check-ready")]
     pub check_ready: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct ServerJobsArgs {
+    #[arg(long, env = "ZVEC_GREP_HOME")]
+    pub home: Option<PathBuf>,
+    /// Emit the job views as JSON.
+    #[arg(long)]
+    pub json: bool,
+    /// Include retained completed, failed, and cancelled jobs.
+    #[arg(long)]
+    pub all: bool,
 }
 
 #[derive(Debug)]
@@ -689,6 +705,7 @@ pub enum ServerPlan {
     On(ServerStartArgs),
     Off(ServerStopArgs),
     Status(ServerStatusArgs),
+    Jobs(ServerJobsArgs),
     Run(ServerStartArgs),
 }
 
@@ -1528,6 +1545,17 @@ fn server_plan(args: ServerArgs) -> Result<ServerPlan, CliError> {
             child.home = child.home.or(args.home);
             Ok(ServerPlan::Status(child))
         }
+        ServerAction::Jobs(mut child) => {
+            if args.listen.is_some()
+                || args.mcp_toolset.is_some()
+                || args.token_file.is_some()
+                || args.stdio
+            {
+                return Err(CliError::MissingServerAction);
+            }
+            child.home = child.home.or(args.home);
+            Ok(ServerPlan::Jobs(child))
+        }
     }
 }
 
@@ -1920,6 +1948,30 @@ mod tests {
         ] {
             assert!(Cli::try_parse_from(arguments).is_err());
         }
+    }
+
+    #[test]
+    fn server_jobs_parse_json_and_all_flags() {
+        let plan = Cli::try_parse_from(["zg", "--server", "jobs", "--json", "--all"])
+            .expect("jobs syntax")
+            .into_plan(std::env::temp_dir())
+            .expect("jobs plan");
+        let CliPlan::Server(super::ServerPlan::Jobs(args)) = plan else {
+            panic!("expected server jobs plan");
+        };
+        assert!(args.json);
+        assert!(args.all);
+        assert!(args.home.is_none());
+
+        let plan = Cli::try_parse_from(["zg", "--server", "jobs", "--home", "state"])
+            .expect("jobs home syntax")
+            .into_plan(std::env::temp_dir())
+            .expect("jobs plan");
+        let CliPlan::Server(super::ServerPlan::Jobs(args)) = plan else {
+            panic!("expected server jobs plan");
+        };
+        assert!(!args.json && !args.all);
+        assert_eq!(args.home, Some(PathBuf::from("state")));
     }
 
     #[test]

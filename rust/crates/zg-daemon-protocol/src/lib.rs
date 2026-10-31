@@ -3,6 +3,8 @@
 //! These transport-only DTOs are intentionally separate from the in-process
 //! `ZvecGrep` API.
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use zg_engine::ErrorReport;
@@ -12,7 +14,7 @@ use zg_engine::api::{
     info::{InfoOptions, InfoResult},
 };
 
-pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 15;
+pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 16;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DaemonRequest {
@@ -82,6 +84,8 @@ pub enum DaemonCommand {
     GrantIndexAuthorization(zg_engine::authorization::IndexAuthorization),
     DropIndex(InfoOptions),
     Info(InfoOptions),
+    /// Read-only snapshot of resident index jobs, including retained history.
+    Jobs,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -179,6 +183,8 @@ pub enum ExecutionResult {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "value")]
 pub enum IndexStreamEvent {
+    /// Initial submission and state changes before the terminal result.
+    Job(JobView),
     Progress(IndexProgress),
     Finished(ExecutionResult),
 }
@@ -193,6 +199,60 @@ pub enum DaemonReply {
     GrantIndexAuthorization,
     DropIndex(bool),
     Info(Box<InfoResult>),
+    Jobs(Vec<JobView>),
+}
+
+/// One resident index job as observed by the daemon scheduler.
+///
+/// Fields are intentionally observational: `phase` is present only when the
+/// engine has reported an index progress phase, and `blocking_job_id` is set
+/// only when the scheduler can identify a single job ahead of this one for the
+/// same workspace.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct JobView {
+    pub id: Uuid,
+    pub root: PathBuf,
+    pub reason: JobViewReason,
+    pub state: JobViewState,
+    pub phase: Option<JobViewPhase>,
+    pub progress: Option<JobViewProgress>,
+    /// Time between submission and the start of execution (or the current
+    /// observation time while still queued).
+    pub waited_millis: u64,
+    pub blocking_job_id: Option<Uuid>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobViewReason {
+    Manual,
+    Watch,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobViewState {
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobViewPhase {
+    Scanning,
+    Indexing,
+    Done,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct JobViewProgress {
+    pub files_indexed: Option<usize>,
+    pub files_total: Option<usize>,
+    pub files_failed: Option<usize>,
+    pub detail: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -204,6 +264,8 @@ pub struct ErrorReply {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use zg_engine::EngineError;
     use zg_engine::api::{
         context::ContextOptions,
@@ -215,7 +277,8 @@ mod tests {
     use super::{
         CURRENT_DAEMON_PROTOCOL_VERSION, DaemonCommand, DaemonRequest, DaemonRequestKind,
         DaemonResponse, DaemonResponseKind, ErrorReply, ExecuteRequest, ExecutionResult,
-        HelloRequest, Principal, RequestEvent, RequestEventKind, RequestId, TraceContext,
+        HelloRequest, IndexStreamEvent, JobView, JobViewPhase, JobViewProgress, JobViewReason,
+        JobViewState, Principal, RequestEvent, RequestEventKind, RequestId, TraceContext,
     };
 
     #[test]
@@ -340,6 +403,60 @@ mod tests {
         let decoded: super::DaemonReply =
             serde_json::from_value(encoded).expect("info reply should deserialize");
         assert_eq!(decoded, reply);
+    }
+
+    #[test]
+    fn jobs_command_round_trips_without_a_payload() {
+        let encoded = serde_json::to_value(DaemonCommand::Jobs).expect("jobs command");
+        assert_eq!(encoded, serde_json::json!({"kind": "jobs"}));
+        let decoded: DaemonCommand =
+            serde_json::from_value(encoded).expect("jobs command should deserialize");
+        assert_eq!(decoded, DaemonCommand::Jobs);
+    }
+
+    #[test]
+    fn job_view_round_trips_and_reports_waiting_and_blocker() {
+        let job = JobView {
+            id: uuid::Uuid::new_v4(),
+            root: PathBuf::from("/workspace"),
+            reason: JobViewReason::Manual,
+            state: JobViewState::Queued,
+            phase: None,
+            progress: None,
+            waited_millis: 1_250,
+            blocking_job_id: Some(uuid::Uuid::new_v4()),
+        };
+        let reply = super::DaemonReply::Jobs(vec![job.clone()]);
+        let encoded = serde_json::to_value(&reply).expect("jobs reply should serialize");
+        assert_eq!(encoded["reply"][0]["state"], "queued");
+        assert_eq!(encoded["reply"][0]["reason"], "manual");
+        assert_eq!(encoded["reply"][0]["waited_millis"], 1_250);
+        let decoded: super::DaemonReply =
+            serde_json::from_value(encoded).expect("jobs reply should deserialize");
+        assert_eq!(decoded, reply);
+    }
+
+    #[test]
+    fn index_stream_job_event_round_trips() {
+        let event = IndexStreamEvent::Job(JobView {
+            id: uuid::Uuid::new_v4(),
+            root: PathBuf::from("/workspace"),
+            reason: JobViewReason::Watch,
+            state: JobViewState::Running,
+            phase: Some(JobViewPhase::Indexing),
+            progress: Some(JobViewProgress {
+                files_indexed: Some(2),
+                files_total: Some(5),
+                files_failed: Some(0),
+                detail: Some("indexing files".to_owned()),
+            }),
+            waited_millis: 30,
+            blocking_job_id: None,
+        });
+        let encoded = serde_json::to_string(&event).expect("job event should serialize");
+        let decoded: IndexStreamEvent =
+            serde_json::from_str(&encoded).expect("job event should deserialize");
+        assert_eq!(decoded, event);
     }
 
     #[test]

@@ -11,11 +11,12 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tracing::Instrument;
 use thiserror::Error;
 use tokio::sync::{Notify, Semaphore};
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 use uuid::Uuid;
+use zg_daemon_protocol::{JobView, JobViewPhase, JobViewProgress, JobViewReason, JobViewState};
 use zg_engine::{
     EngineError, ErrorReport,
     api::index::{IndexOptions, IndexResult, options::ScanRulesUpdate},
@@ -65,7 +66,14 @@ pub(crate) struct IndexJobSnapshot {
     pub state: JobState,
     pub progress: Option<zg_engine::api::index::progress::IndexProgress>,
     pub error: Option<JobError>,
+    pub created_at: Instant,
+    pub started_at: Option<Instant>,
+    pub finished_at: Option<Instant>,
 }
+
+/// Observer invoked once for each observed job state, including the initial
+/// queued/running state. It never reports an inferred queue position or phase.
+pub(crate) type JobViewObserver = Arc<dyn Fn(JobView) + Send + Sync>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SubmitIndexJobResult {
@@ -342,12 +350,54 @@ impl IndexJobScheduler {
         id: Uuid,
         reporter: Option<zg_engine::api::index::progress::IndexProgressReporter>,
     ) -> Result<IndexJobCompletion, SchedulerError> {
+        self.wait_with_progress_and_observer(id, reporter, None)
+            .await
+    }
+
+    pub(crate) async fn wait_with_progress_and_observer(
+        &self,
+        id: Uuid,
+        reporter: Option<zg_engine::api::index::progress::IndexProgressReporter>,
+        observer: Option<JobViewObserver>,
+    ) -> Result<IndexJobCompletion, SchedulerError> {
         let job = lock(&self.inner.state)
             .jobs
             .get(&id)
             .cloned()
             .ok_or(SchedulerError::UnknownJob(id))?;
-        Ok(wait_for_job(&job, reporter).await)
+        let notifier: Option<Box<dyn Fn(JobState) + Send + Sync>> = observer.map(|observer| {
+            let scheduler = self.clone();
+            Box::new(move |_state| {
+                if let Some(view) = scheduler.job_view(id) {
+                    observer(view);
+                }
+            }) as Box<dyn Fn(JobState) + Send + Sync>
+        });
+        Ok(wait_for_job(&job, reporter, notifier.as_deref()).await)
+    }
+
+    /// Read-only job views ordered running, queued, then retained history.
+    pub(crate) fn jobs(&self) -> Vec<JobView> {
+        let state = lock(&self.inner.state);
+        let now = Instant::now();
+        let mut views = state
+            .jobs
+            .values()
+            .map(|job| job_view(&state, job, now))
+            .collect::<Vec<_>>();
+        views.sort_by(|left, right| {
+            job_state_rank(left.state)
+                .cmp(&job_state_rank(right.state))
+                .then_with(|| left.root.cmp(&right.root))
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        views
+    }
+
+    pub(crate) fn job_view(&self, id: Uuid) -> Option<JobView> {
+        let state = lock(&self.inner.state);
+        let job = state.jobs.get(&id)?;
+        Some(job_view(&state, job, Instant::now()))
     }
 
     pub(crate) fn snapshot(&self) -> SchedulerSnapshot {
@@ -438,7 +488,7 @@ impl IndexJobScheduler {
             let Some(active) = active else {
                 return;
             };
-            wait_for_job(&active, reporter.clone()).await;
+            wait_for_job(&active, reporter.clone(), None).await;
         }
     }
 
@@ -516,6 +566,9 @@ fn create_job(
             state: JobState::Queued,
             progress: None,
             error: None,
+            created_at: Instant::now(),
+            started_at: None,
+            finished_at: None,
         }),
         options: Mutex::new(Some(options)),
         cancellation: CancellationToken::new(),
@@ -627,7 +680,10 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
             // submit inspects state and merges options under this same lock.
             // Claiming must be atomic with that decision or a queued grant can be lost.
             let _state = lock(&inner.state);
-            lock(&job.snapshot).state = JobState::Running;
+            let mut snapshot = lock(&job.snapshot);
+            snapshot.state = JobState::Running;
+            snapshot.started_at = Some(Instant::now());
+            drop(snapshot);
             lock(&job.options)
                 .take()
                 .expect("a queued daemon job must retain its index options")
@@ -644,6 +700,7 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
         );
         let started = std::time::Instant::now();
         log_job_started(&job, &options);
+        let wa0 = wa_enabled().then(wa_probe);
         let span = tracing::info_span!(
             "index_job",
             job_id = %job.id,
@@ -652,9 +709,11 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
         let outcome = inner.executor.index(options).instrument(span).await;
         match outcome {
             Ok(result) => {
-                log_job_completed(&job, started, &result);
+                log_job_completed(&job, started, &result, wa0);
                 *lock(&job.result) = Some(result);
-                lock(&job.snapshot).state = JobState::Succeeded;
+                let mut snapshot = lock(&job.snapshot);
+                snapshot.state = JobState::Succeeded;
+                snapshot.finished_at = Some(Instant::now());
             }
             Err(error) => {
                 log_job_stopped(&job, started, &error);
@@ -666,14 +725,77 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
                 let mut snapshot = lock(&job.snapshot);
                 snapshot.state = state;
                 snapshot.error = Some(job_error(error));
+                snapshot.finished_at = Some(Instant::now());
             }
         }
         finish_job(&inner, &job);
     });
 }
 
+#[cfg(test)]
+fn wa_enabled() -> bool {
+    std::env::var("ZVEC_GREP_NATIVE_PROFILE").is_ok_and(|value| value == "1")
+}
+
+#[cfg(not(test))]
+fn wa_enabled() -> bool {
+    false
+}
+
+#[derive(Clone, Copy)]
+struct WaProbe {
+    write_bytes: u64,
+    cpu_ticks: u64,
+    rss_kb: u64,
+    pss_kb: u64,
+}
+
+fn wa_probe() -> WaProbe {
+    let read = |path: &str| std::fs::read_to_string(path).unwrap_or_default();
+    let io = read("/proc/self/io");
+    let stat = read("/proc/self/stat");
+    let status = read("/proc/self/status");
+    let rollup = read("/proc/self/smaps_rollup");
+    let kv = |text: &str, key: &str| {
+        text.lines()
+            .find_map(|line| line.strip_prefix(key))
+            .and_then(|rest| rest.trim_start_matches(':').split_whitespace().next())
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(0)
+    };
+    let rest = stat.rsplit_once(')').map_or("", |(_, rest)| rest);
+    let fields: Vec<&str> = rest.split_whitespace().collect();
+    let at = |index: usize| {
+        fields
+            .get(index)
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(0)
+    };
+    WaProbe {
+        write_bytes: kv(&io, "write_bytes"),
+        cpu_ticks: at(11).saturating_add(at(12)),
+        rss_kb: kv(&status, "VmRSS"),
+        pss_kb: kv(&rollup, "Pss"),
+    }
+}
+
 fn log_job_started(job: &ScheduledJob, options: &IndexOptions) {
     let (watch_submissions, coalesced_watch_submissions) = watch_submission_counts(job);
+    if wa_enabled() {
+        eprintln!(
+            "NATIVE_PROFILE event=job_start job_id={} reason={:?} watch_submissions={} coalesced_watch_submissions={} changed_paths={} full_rescan={} changes={:?}",
+            job.id,
+            lock(&job.snapshot).reason,
+            watch_submissions,
+            coalesced_watch_submissions,
+            options.changes.len(),
+            options.changes.is_empty()
+                || options
+                    .changes
+                    .contains(&zg_engine::api::index::options::WorkspaceChange::Rescan),
+            options.changes
+        );
+    }
     tracing::info!(
         job_id = %job.id,
         root = %job.canonical_root.display(),
@@ -684,15 +806,55 @@ fn log_job_started(job: &ScheduledJob, options: &IndexOptions) {
         rebuild = options.rebuild,
         full_rescan = options.changes.is_empty()
             || options.changes.contains(&zg_engine::api::index::options::WorkspaceChange::Rescan),
+        wa_changed_paths = ?if wa_enabled() {
+            Some(options.changes.iter().take(20).map(|change| format!("{change:?}")).collect::<Vec<_>>())
+        } else {
+            None
+        },
         "index job started"
     );
 }
 
-fn log_job_completed(job: &ScheduledJob, started: std::time::Instant, result: &IndexResult) {
+fn log_job_completed(
+    job: &ScheduledJob,
+    started: std::time::Instant,
+    result: &IndexResult,
+    wa0: Option<WaProbe>,
+) {
     let (watch_submissions, coalesced_watch_submissions) = watch_submission_counts(job);
+    let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let wa = wa0.map(|before| {
+        let now = wa_probe();
+        (
+            now.write_bytes.saturating_sub(before.write_bytes),
+            now.cpu_ticks.saturating_sub(before.cpu_ticks),
+            now.rss_kb,
+            now.pss_kb,
+        )
+    });
+    if wa_enabled() {
+        eprintln!(
+            "NATIVE_PROFILE event=job_complete job_id={} elapsed_ms={} watch_submissions={} coalesced_watch_submissions={} duration_micros={} files_scanned={} files_added={} files_modified={} files_pending={} files_deleted={} files_unchanged={} files_failed={} entities_created={} timings={:?} process_delta={:?}",
+            job.id,
+            elapsed_ms,
+            watch_submissions,
+            coalesced_watch_submissions,
+            result.duration_micros,
+            result.files_scanned,
+            result.files_added,
+            result.files_modified,
+            result.files_pending,
+            result.files_deleted,
+            result.files_unchanged,
+            result.files_failed,
+            result.entities_created,
+            result.timings,
+            wa
+        );
+    }
     tracing::info!(
         job_id = %job.id,
-        elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        elapsed_ms,
         watch_submissions,
         coalesced_watch_submissions,
         files_scanned = result.files_scanned,
@@ -705,12 +867,24 @@ fn log_job_completed(job: &ScheduledJob, started: std::time::Instant, result: &I
         entities_created = result.entities_created,
         duration_micros = result.duration_micros,
         timings = ?result.timings,
+        wa = ?wa,
         "index job completed"
     );
 }
 
 fn log_job_stopped(job: &ScheduledJob, started: std::time::Instant, error: &EngineError) {
     let (watch_submissions, coalesced_watch_submissions) = watch_submission_counts(job);
+    if wa_enabled() {
+        eprintln!(
+            "NATIVE_PROFILE event=job_stopped job_id={} elapsed_ms={} watch_submissions={} coalesced_watch_submissions={} error_code={} error={}",
+            job.id,
+            u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            watch_submissions,
+            coalesced_watch_submissions,
+            error.code(),
+            error
+        );
+    }
     tracing::info!(
         job_id = %job.id,
         elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
@@ -941,6 +1115,69 @@ fn finish_cancelled(job: &ScheduledJob, message: &str) {
     let mut snapshot = lock(&job.snapshot);
     snapshot.state = JobState::Cancelled;
     snapshot.error = Some(job_error(EngineError::cancelled(message)));
+    snapshot.finished_at = Some(Instant::now());
+}
+
+fn job_view(state: &SchedulerState, job: &ScheduledJob, now: Instant) -> JobView {
+    let snapshot = lock(&job.snapshot);
+    let waited_until = snapshot.started_at.or(snapshot.finished_at).unwrap_or(now);
+    let blocking_job_id = if snapshot.state == JobState::Queued {
+        state
+            .active_by_root
+            .get(&snapshot.canonical_root)
+            .filter(|active| active.id != snapshot.id)
+            .map(|active| active.id)
+    } else {
+        None
+    };
+    JobView {
+        id: snapshot.id,
+        root: snapshot.canonical_root.clone(),
+        reason: match snapshot.reason {
+            JobReason::Manual => JobViewReason::Manual,
+            JobReason::Watch => JobViewReason::Watch,
+        },
+        state: match snapshot.state {
+            JobState::Queued => JobViewState::Queued,
+            JobState::Running => JobViewState::Running,
+            JobState::Succeeded => JobViewState::Succeeded,
+            JobState::Failed => JobViewState::Failed,
+            JobState::Cancelled => JobViewState::Cancelled,
+        },
+        phase: snapshot
+            .progress
+            .as_ref()
+            .map(|progress| match progress.phase {
+                zg_engine::api::index::progress::IndexProgressPhase::Scanning => {
+                    JobViewPhase::Scanning
+                }
+                zg_engine::api::index::progress::IndexProgressPhase::Indexing => {
+                    JobViewPhase::Indexing
+                }
+                zg_engine::api::index::progress::IndexProgressPhase::Done => JobViewPhase::Done,
+            }),
+        progress: snapshot.progress.as_ref().map(|progress| JobViewProgress {
+            files_indexed: progress.files_indexed,
+            files_total: progress.files_total,
+            files_failed: progress.files_failed,
+            detail: progress.detail.clone(),
+        }),
+        waited_millis: u64::try_from(
+            waited_until
+                .saturating_duration_since(snapshot.created_at)
+                .as_millis(),
+        )
+        .unwrap_or(u64::MAX),
+        blocking_job_id,
+    }
+}
+
+const fn job_state_rank(state: JobViewState) -> u8 {
+    match state {
+        JobViewState::Running => 0,
+        JobViewState::Queued => 1,
+        JobViewState::Succeeded | JobViewState::Failed | JobViewState::Cancelled => 2,
+    }
 }
 
 fn job_error(error: EngineError) -> JobError {
@@ -1213,8 +1450,10 @@ fn is_identifier_byte(byte: u8) -> bool {
 async fn wait_for_job(
     job: &ScheduledJob,
     reporter: Option<zg_engine::api::index::progress::IndexProgressReporter>,
+    observer: Option<&(dyn Fn(JobState) + Send + Sync)>,
 ) -> IndexJobCompletion {
     let mut previous = None;
+    let mut previous_state = None;
     loop {
         let notified = job.completed.notified();
         tokio::pin!(notified);
@@ -1223,6 +1462,12 @@ async fn wait_for_job(
         // never be returned with an earlier queued/running snapshot.
         let finished = job.finished.load(Ordering::Acquire);
         let snapshot = lock(&job.snapshot).clone();
+        if let Some(observer) = observer
+            && previous_state != Some(snapshot.state)
+        {
+            observer(snapshot.state);
+            previous_state = Some(snapshot.state);
+        }
         if let Some(reporter) = &reporter
             && snapshot.progress != previous
         {
@@ -1239,7 +1484,7 @@ async fn wait_for_job(
         }
         tokio::select! {
             () = notified => {},
-            () = tokio::time::sleep(std::time::Duration::from_millis(100)), if reporter.is_some() => {},
+            () = tokio::time::sleep(std::time::Duration::from_millis(100)), if reporter.is_some() || observer.is_some() => {},
         }
     }
 }
@@ -1286,9 +1531,11 @@ mod tests {
     };
 
     use super::{
-        IndexExecutor, IndexJobScheduler, JobReason, JobState, SchedulerConfig, SchedulerError,
-        WATCH_COALESCE_DEBOUNCE, WATCH_COALESCE_MAX_WAIT, WatchCoalescing, redact_job_error_text,
+        IndexExecutor, IndexJobScheduler, JobReason, JobState, JobViewObserver, SchedulerConfig,
+        SchedulerError, WATCH_COALESCE_DEBOUNCE, WATCH_COALESCE_MAX_WAIT, WatchCoalescing,
+        redact_job_error_text,
     };
+    use zg_daemon_protocol::JobViewState;
 
     struct GatedExecutor {
         started: Notify,
@@ -1369,6 +1616,147 @@ mod tests {
             );
         }
         scheduler.wait(submitted.job.id).await.expect("completion");
+        scheduler.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn job_views_expose_queued_running_blocker_and_completion() {
+        let executor = Arc::new(RecordingExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            releases: tokio::sync::Semaphore::new(0),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 1,
+                queue_capacity: 8,
+            },
+        );
+        let root = PathBuf::from("/workspace/main");
+        let other_root = PathBuf::from("/workspace/other");
+        let first = scheduler
+            .submit(root.clone(), IndexOptions::default(), JobReason::Manual)
+            .expect("first job");
+        executor.started.notified().await;
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let other = scheduler
+            .submit(
+                other_root.clone(),
+                IndexOptions::default(),
+                JobReason::Manual,
+            )
+            .expect("other root");
+        let followup = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    rebuild: true,
+                    ..IndexOptions::default()
+                },
+                JobReason::Manual,
+            )
+            .expect("followup");
+
+        let views = scheduler.jobs();
+        let first_view = views
+            .iter()
+            .find(|view| view.id == first.job.id)
+            .expect("running view");
+        assert_eq!(first_view.state, JobViewState::Running);
+        assert!(first_view.phase.is_none());
+        assert!(first_view.progress.is_none());
+        assert!(first_view.waited_millis < 5_000);
+        assert!(first_view.blocking_job_id.is_none());
+
+        let other_view = views
+            .iter()
+            .find(|view| view.id == other.job.id)
+            .expect("other queued view");
+        assert_eq!(other_view.state, JobViewState::Queued);
+        assert!(
+            other_view.blocking_job_id.is_none(),
+            "a different root waiting for capacity has no single blocking job"
+        );
+
+        let followup_view = views
+            .iter()
+            .find(|view| view.id == followup.job.id)
+            .expect("followup view");
+        assert_eq!(followup_view.state, JobViewState::Queued);
+        assert_eq!(followup_view.blocking_job_id, Some(first.job.id));
+        assert!(followup_view.phase.is_none());
+        assert!(followup_view.progress.is_none());
+
+        executor.releases.add_permits(1);
+        let completed = scheduler.wait(first.job.id).await.expect("completion");
+        assert_eq!(completed.job.state, JobState::Succeeded);
+        let completed_view = scheduler.job_view(first.job.id).expect("completed view");
+        assert_eq!(completed_view.state, JobViewState::Succeeded);
+
+        executor.releases.add_permits(8);
+        scheduler.cancel_root(&root);
+        scheduler.cancel_root(&other_root);
+        scheduler.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn job_view_observer_reports_queued_running_and_terminal_states() {
+        let executor = Arc::new(RecordingExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            releases: tokio::sync::Semaphore::new(0),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 1,
+                queue_capacity: 8,
+            },
+        );
+        let held = scheduler
+            .inner
+            .permits
+            .clone()
+            .acquire_many_owned(1)
+            .await
+            .expect("held permit");
+        let root = PathBuf::from("/workspace/observed");
+        let submitted = scheduler
+            .submit(root, IndexOptions::default(), JobReason::Manual)
+            .expect("submitted");
+        let states = Arc::new(Mutex::new(Vec::new()));
+        let state_log = Arc::clone(&states);
+        let observer: JobViewObserver = Arc::new(move |view| {
+            state_log.lock().expect("states lock").push(view.state);
+        });
+        let waiting = scheduler.clone();
+        let id = submitted.job.id;
+        let waiter = tokio::spawn(async move {
+            waiting
+                .wait_with_progress_and_observer(id, None, Some(observer))
+                .await
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        drop(held);
+        executor.started.notified().await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert_eq!(
+            *states.lock().expect("states lock"),
+            [JobViewState::Queued, JobViewState::Running]
+        );
+        executor.releases.add_permits(1);
+        let completed = waiter.await.expect("waiter").expect("completion");
+        assert_eq!(completed.job.state, JobState::Succeeded);
+        assert_eq!(
+            *states.lock().expect("states lock"),
+            [
+                JobViewState::Queued,
+                JobViewState::Running,
+                JobViewState::Succeeded
+            ]
+        );
         scheduler.shutdown().await;
     }
 

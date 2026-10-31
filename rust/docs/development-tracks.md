@@ -12,7 +12,7 @@ Updated: 2026-10-31. Frozen RC: `integration/upstream-rust` at
 
 | Track | Status | Scope | Next action | Evidence / plan |
 |---|---|---|---|---|
-| **Daemon/CLI UX V2** | **Proposed** | Manual index priority, queue/phase visibility, explicit routing, cancellation, watcher scope | Review and sequence UX0–UX4 | [`daemon-cli-ux-v2.md`](daemon-cli-ux-v2.md) |
+| **Daemon/CLI UX V2** | **UX0 implemented / UX1–UX4 proposed** | Read-only job visibility, manual index priority, explicit routing, cancellation, watcher scope | UX0: `--server jobs`, queued/running index display, protocol 16 JobView. Next: UX1 explicit routing/`--no-wait` | [`daemon-cli-ux-v2.md`](daemon-cli-ux-v2.md) |
 | **Harness V2** | **Audit complete / implementation not started** | M4 containment/lifecycle refactor, upstream retrieval as canonical | Start P0 provenance freeze; track/archive untracked harness modules | [`harness-v2-refactor-plan.md`](harness-v2-refactor-plan.md) |
 | **Production qualification** | **Not ready** | 421-file/production benchmark, release gates beyond RC | Owner authorization + benchmark policy | `/home/masis/src/zvec-grep-integration/docs/release/RELEASE-READINESS.md` |
 | **M3-B scalar outside-lock** | **Blocked** | zvec 0.8.0 rejects readers/writers during optimize | Reopen only with a native version/API that passes the gate | `/home/masis/src/zvec-grep-integration/docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md` |
