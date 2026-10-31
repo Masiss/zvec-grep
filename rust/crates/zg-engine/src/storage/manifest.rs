@@ -274,6 +274,16 @@ mod tests {
             .map(|value| half::f16::from_f32(*value).to_f32())
             .collect::<Vec<_>>();
         assert_eq!(vector_fingerprint(&original), vector_fingerprint(&decoded));
+
+        // f32 values in the same FP16 bucket must hash identically; values in
+        // different buckets must not. This is the invariant that lets reuse
+        // compare a decoded stored vector with the original embedding.
+        let near = [0.1_f32, 0.2, 0.3];
+        let perturbed = [0.1_f32 + 1e-7, 0.2, 0.3];
+        assert_ne!(near[0].to_bits(), perturbed[0].to_bits());
+        assert_eq!(vector_fingerprint(&near), vector_fingerprint(&perturbed));
+        let different = [0.1_f32, 0.2, 0.4];
+        assert_ne!(vector_fingerprint(&near), vector_fingerprint(&different));
     }
 
     #[test]

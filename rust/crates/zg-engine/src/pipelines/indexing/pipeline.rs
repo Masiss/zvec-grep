@@ -317,6 +317,15 @@ struct IndexWriteStats {
     entities_created: usize,
     failed_files: Vec<PathBuf>,
     failed_reasons: Vec<String>,
+    reconcile_manifest_loads: usize,
+    reconcile_manifest_hit_files: usize,
+    reconcile_manifest_miss_files: usize,
+    reconcile_vectors_reused: usize,
+    reconcile_embeddings_computed: usize,
+    reconcile_manifest_publishes: usize,
+    reconcile_manifest_load_micros: u64,
+    reconcile_vector_fetch_micros: u64,
+    reconcile_manifest_publish_micros: u64,
 }
 
 #[derive(Default)]
@@ -630,11 +639,23 @@ impl PreparedFile {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+struct ReconcileStats {
+    manifest_loaded: bool,
+    manifest_hit: bool,
+    vectors_reused: usize,
+    embeddings_computed: usize,
+    manifest_load_micros: u64,
+    vector_fetch_micros: u64,
+    manifest_publish_micros: u64,
+}
+
 struct PreparedFile {
     file: FileRecord,
     entities: Vec<Entity>,
     fragments: Vec<PreparedFragment>,
     graph: FileGraphResult,
+    reconcile: ReconcileStats,
 }
 
 enum PreparedCandidate {
@@ -939,6 +960,7 @@ fn commit_file(
         )));
     }
     let public_entities = file.entities.len();
+    let mut reconcile = file.reconcile;
     let mut manifest = FileManifest::new(file.file.id());
     let mut vectors = vectors.into_iter();
     let mut entries = Vec::with_capacity(file.fragments.len());
@@ -983,12 +1005,53 @@ fn commit_file(
             file.file.relative_path().display()
         )));
     }
-    if let Err(error) = storage.publish_embedding_manifest(&mut manifest) {
+    let publish_started = Instant::now();
+    let publish_result = storage.publish_embedding_manifest(&mut manifest);
+    reconcile.manifest_publish_micros = duration_micros(publish_started.elapsed());
+    if let Err(error) = publish_result {
         tracing::warn!(file_id = file.file.id().get(), %error, "cannot publish reconciliation manifest");
     }
+    stats.reconcile_manifest_loads += usize::from(reconcile.manifest_loaded);
+    stats.reconcile_manifest_hit_files += usize::from(reconcile.manifest_hit);
+    stats.reconcile_manifest_miss_files +=
+        usize::from(reconcile.manifest_loaded && !reconcile.manifest_hit);
+    stats.reconcile_vectors_reused += reconcile.vectors_reused;
+    stats.reconcile_embeddings_computed += reconcile.embeddings_computed;
+    stats.reconcile_manifest_publishes += 1;
+    stats.reconcile_manifest_load_micros = stats
+        .reconcile_manifest_load_micros
+        .saturating_add(reconcile.manifest_load_micros);
+    stats.reconcile_vector_fetch_micros = stats
+        .reconcile_vector_fetch_micros
+        .saturating_add(reconcile.vector_fetch_micros);
+    stats.reconcile_manifest_publish_micros = stats
+        .reconcile_manifest_publish_micros
+        .saturating_add(reconcile.manifest_publish_micros);
     stats.files_indexed += 1;
     stats.entities_created += public_entities;
     Ok(format!("indexed {}", file.file.relative_path().display()))
+}
+
+fn reconcile_prepared_fragments(
+    storage: &dyn IndexStorage,
+    file_id: FileId,
+    fragments: &mut [PreparedFragment],
+) -> Result<ReconcileStats, EngineError> {
+    if !embedding_reuse_enabled() {
+        return Ok(ReconcileStats::default());
+    }
+    let load_started = Instant::now();
+    let manifest = storage.load_embedding_manifest(file_id)?;
+    let mut reconcile = ReconcileStats {
+        manifest_loaded: manifest.is_some(),
+        manifest_load_micros: duration_micros(load_started.elapsed()),
+        ..ReconcileStats::default()
+    };
+    let reuse = reuse_existing_vectors(storage, file_id, manifest.as_ref(), fragments)?;
+    reconcile.manifest_hit = reuse.manifest_hits > 0;
+    reconcile.vectors_reused = reuse.vectors_reused;
+    reconcile.vector_fetch_micros = reuse.vector_fetch_micros;
+    Ok(reconcile)
 }
 
 async fn prepare_candidate(
@@ -1075,36 +1138,45 @@ async fn prepare_candidate(
         };
         fragment.model = model;
     }
-    if candidate.kind == CandidateKind::Modified
+    let mut reconcile = if candidate.kind == CandidateKind::Modified
         && let Some(existing) = candidate.existing.as_ref()
     {
-        let manifest = context.storage.load_embedding_manifest(existing.id())?;
-        reuse_existing_vectors(
-            context.storage,
-            existing.id(),
-            manifest.as_ref(),
-            &mut fragments,
-        )?;
-    }
+        reconcile_prepared_fragments(context.storage, existing.id(), &mut fragments)?
+    } else {
+        ReconcileStats::default()
+    };
+    reconcile.embeddings_computed = fragments
+        .iter()
+        .filter(|fragment| fragment.reusable_vector.is_none())
+        .count();
     Ok(PreparedCandidate::File(Box::new(PreparedFile {
         file,
         entities,
         fragments,
         graph: extracted.graph.unwrap_or_default(),
+        reconcile,
     })))
 }
 
 /// Reuse vectors only when the manifest records the same fragment identity,
 /// model, and embedding-input fingerprint. Missing or invalid evidence simply
 /// falls back to embedding again.
+#[derive(Default)]
+struct ReconcileReuse {
+    manifest_hits: usize,
+    vectors_reused: usize,
+    vector_fetch_micros: u64,
+}
+
 fn reuse_existing_vectors(
     storage: &dyn IndexStorage,
     file_id: FileId,
     manifest: Option<&FileManifest>,
     fragments: &mut [PreparedFragment],
-) -> Result<(), EngineError> {
+) -> Result<ReconcileReuse, EngineError> {
+    let mut reuse = ReconcileReuse::default();
     let Some(manifest) = manifest else {
-        return Ok(());
+        return Ok(reuse);
     };
     let mut by_model: HashMap<String, Vec<String>> = HashMap::new();
     for fragment in fragments.iter() {
@@ -1117,6 +1189,7 @@ fn reuse_existing_vectors(
                 )
                 .is_some()
         {
+            reuse.manifest_hits += 1;
             by_model
                 .entry(fragment.model.clone())
                 .or_default()
@@ -1124,7 +1197,11 @@ fn reuse_existing_vectors(
         }
     }
     for (model, ids) in by_model {
+        let fetch_started = Instant::now();
         let vectors = storage.load_reusable_vectors(file_id, &model, &ids)?;
+        reuse.vector_fetch_micros = reuse
+            .vector_fetch_micros
+            .saturating_add(duration_micros(fetch_started.elapsed()));
         if vectors.is_empty() {
             continue;
         }
@@ -1144,10 +1221,24 @@ fn reuse_existing_vectors(
             };
             if entry.vector_fingerprint == crate::storage::manifest::vector_fingerprint(vector) {
                 fragment.reusable_vector = Some(vector.clone());
+                reuse.vectors_reused += 1;
             }
         }
     }
-    Ok(())
+    Ok(reuse)
+}
+
+fn embedding_reuse_enabled() -> bool {
+    !std::env::var("ZVEC_GREP_DISABLE_EMBEDDING_REUSE").is_ok_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes"
+        )
+    })
+}
+
+fn duration_micros(duration: Duration) -> u64 {
+    duration.as_micros().try_into().unwrap_or(u64::MAX)
 }
 
 fn embedding_input_fingerprint(
@@ -2402,10 +2493,11 @@ fn host_engine_error(code: &'static str, message: String, origin: HostErrorSite)
 fn build_index_result(
     passes: &[IndexPassResult],
     duration: Duration,
-    timings: TimingCollector,
+    mut timings: TimingCollector,
 ) -> IndexResult {
     let first = &passes[0];
     let final_pass = passes.last().expect("an index pass is always present");
+    record_reconcile_timings(&mut timings, passes);
     IndexResult {
         files_scanned: first.files_scanned,
         files_added: passes.iter().map(|pass| pass.diff.added).sum(),
@@ -2430,6 +2522,52 @@ fn build_index_result(
         skipped: first.skipped.clone(),
         skipped_counts: first.skipped_counts.clone(),
     }
+}
+
+fn record_reconcile_timings(timings: &mut TimingCollector, passes: &[IndexPassResult]) {
+    let mut loads = 0;
+    let mut hit_files = 0;
+    let mut miss_files = 0;
+    let mut reused = 0;
+    let mut embeddings = 0;
+    let mut publishes = 0;
+    let mut load_micros = 0_u64;
+    let mut fetch_micros = 0_u64;
+    let mut publish_micros = 0_u64;
+    for pass in passes {
+        let stats = &pass.stats;
+        loads += stats.reconcile_manifest_loads;
+        hit_files += stats.reconcile_manifest_hit_files;
+        miss_files += stats.reconcile_manifest_miss_files;
+        reused += stats.reconcile_vectors_reused;
+        embeddings += stats.reconcile_embeddings_computed;
+        publishes += stats.reconcile_manifest_publishes;
+        load_micros = load_micros.saturating_add(stats.reconcile_manifest_load_micros);
+        fetch_micros = fetch_micros.saturating_add(stats.reconcile_vector_fetch_micros);
+        publish_micros = publish_micros.saturating_add(stats.reconcile_manifest_publish_micros);
+    }
+    timings.record(
+        "index_reconcile_manifest_load",
+        Duration::from_micros(load_micros),
+        loads,
+    );
+    timings.record("index_reconcile_manifest_hit", Duration::ZERO, hit_files);
+    timings.record("index_reconcile_manifest_miss", Duration::ZERO, miss_files);
+    timings.record(
+        "index_reconcile_vector_fetch",
+        Duration::from_micros(fetch_micros),
+        reused,
+    );
+    timings.record(
+        "index_reconcile_embeddings_computed",
+        Duration::ZERO,
+        embeddings,
+    );
+    timings.record(
+        "index_reconcile_manifest_publish",
+        Duration::from_micros(publish_micros),
+        publishes,
+    );
 }
 
 #[derive(Default)]
@@ -2635,7 +2773,10 @@ mod tests {
                 vector_fingerprint: crate::storage::manifest::vector_fingerprint(&[1.0, 2.0]),
             })
             .collect();
-        reuse_existing_vectors(&storage, file_id, Some(&manifest), &mut fragments).expect("reuse");
+        let reuse = reuse_existing_vectors(&storage, file_id, Some(&manifest), &mut fragments)
+            .expect("reuse");
+        assert_eq!(reuse.manifest_hits, 2);
+        assert_eq!(reuse.vectors_reused, 1);
         assert_eq!(fragments[0].reusable_vector, Some(vec![1.0, 2.0]));
         assert_eq!(fragments[1].reusable_vector, None);
     }
@@ -2681,6 +2822,7 @@ mod tests {
             entities: vec![entity],
             fragments: vec![fragment],
             graph: FileGraphResult::default(),
+            reconcile: ReconcileStats::default(),
         };
         assert!(
             commit_file(
@@ -2845,6 +2987,7 @@ mod tests {
             entities,
             fragments,
             graph: graph.clone(),
+            reconcile: ReconcileStats::default(),
         };
         let vectors = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
         commit_file(
