@@ -31,6 +31,7 @@ import sys
 import tempfile
 import time
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 HARNESS_V2 = pathlib.Path(__file__).resolve().parents[3] / 'benchmarks/harness-v2'
@@ -65,6 +66,15 @@ parse_pressure = _HOST.parse_pressure
 read_meminfo = _HOST.read_meminfo
 read_vmstat = _HOST.read_vmstat
 read_diskstats = _HOST.read_diskstats
+host_snapshot = _HOST.host_snapshot
+process_resource_sample = _HOST.process_resource_sample
+host_process_snapshot = _HOST.host_process_snapshot
+cgroup_relative = _HOST.cgroup_relative
+cgroup_populated = _HOST.cgroup_populated
+
+
+def cgroup_path_from_unit(unit: str) -> pathlib.Path:
+    return _HOST.cgroup_path_from_unit(unit, CGROOT)
 
 
 def strict_json_text(text: str | bytes) -> Any:
@@ -127,71 +137,10 @@ def read_text(path: pathlib.Path) -> str:
 
 
 
-def host_snapshot(resource_root: pathlib.Path) -> dict[str, Any]:
-    mem = read_meminfo()
-    try:
-        load = [float(x) for x in pathlib.Path('/proc/loadavg').read_text().split()[:3]]
-    except (OSError, ValueError):
-        load = []
-    st = os.statvfs(resource_root)
-    # These host context metrics are optional observations, never an admission,
-    # runtime-abort, or recovery prerequisite.
-    io_pressure = parse_pressure(pathlib.Path('/proc/pressure/io'))
-    mem_pressure = parse_pressure(pathlib.Path('/proc/pressure/memory'))
-    return {
-        'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
-        'meminfo_kib': mem, 'loadavg': load,
-        'io_pressure': io_pressure, 'memory_pressure': mem_pressure,
-        'resource_root_free_bytes': st.f_bavail * st.f_frsize,
-        'vmstat': read_vmstat(), 'diskstats': read_diskstats(),
-        'cpu_pressure': parse_pressure(pathlib.Path('/proc/pressure/cpu')),
-    }
 
 
-def process_resource_sample(pid: int) -> dict[str, Any]:
-    root = pathlib.Path('/proc') / str(pid)
-    status = {}
-    for line in (root / 'status').read_text().splitlines():
-        if ':' in line:
-            key, value = line.split(':', 1)
-            if key in ('Name', 'VmRSS', 'VmSwap', 'Cpus_allowed_list'):
-                status[key] = value.strip()
-    smaps = {}
-    try:
-        for line in (root / 'smaps_rollup').read_text().splitlines():
-            if ':' in line:
-                key, value = line.split(':', 1)
-                if key in ('Pss', 'Swap', 'SwapPss'):
-                    smaps[key] = value.strip()
-    except OSError as exc:
-        smaps['unavailable'] = f'{type(exc).__name__}: {exc}'
-    raw = (root / 'stat').read_text()
-    tail = raw[raw.rfind(')') + 2:].split()
-    if len(tail) < 20:
-        raise ValueError('incomplete process stat')
-    return {'pid': pid, 'status': status, 'smaps_rollup': smaps,
-            'utime_ticks': int(tail[11]), 'stime_ticks': int(tail[12]), 'start_ticks': int(tail[19]),
-            'clock_ticks_per_second': os.sysconf('SC_CLK_TCK')}
 
 
-def host_process_snapshot() -> dict[str, Any]:
-    result = subprocess.run(['ps', '-eo', 'pid,ppid,pcpu,rss,etimes,comm', '--sort=-pcpu'],
-                            check=True, capture_output=True, text=True, timeout=10)
-    top = []
-    for line in result.stdout.splitlines()[1:16]:
-        fields = line.split(None, 5)
-        if len(fields) != 6:
-            raise ValueError('incomplete top-process listing')
-        pid = int(fields[0])
-        item: dict[str, Any] = {'pid': pid, 'ppid': int(fields[1]), 'cpu_percent': float(fields[2]),
-                                'rss_kib': int(fields[3]), 'elapsed_seconds': int(fields[4]), 'command': fields[5]}
-        try:
-            item['proc'] = process_resource_sample(pid)
-        except (OSError, ValueError) as exc:
-            item['proc_unavailable'] = f'{type(exc).__name__}: {exc}'
-        top.append(item)
-    return {'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
-            'controller_affinity': sorted(os.sched_getaffinity(0)), 'top_processes': top}
 
 
 def failure_class(status: str | None = None, reason: str | None = None,
@@ -307,7 +256,43 @@ def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
     contract = BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
     operation_id = context.get('operation_id')
     operation_mode = context.get('operation_mode', 'pair')
-    if operation_mode == 'native_query_stage_diagnostic':
+    expected_intervals = None
+    if operation_mode == 'stage_a_rate_ladder':
+        authorization = contract.get('stage_a_rate_ladder')
+        authorized_ids = authorization.get('authorized_operation_ids') if isinstance(authorization, dict) else None
+        authorized_limit = authorization.get('max_authorized_operations') if isinstance(authorization, dict) else None
+        expected_roles = authorization.get('arm_roles') if isinstance(authorization, dict) else None
+        expected_orders = authorization.get('arm_orders') if isinstance(authorization, dict) else None
+        expected_intervals = authorization.get('reader_query_intervals_ms') if isinstance(authorization, dict) else None
+    elif operation_mode == 'stage_c_capacity_attribution':
+        authorization = contract.get('stage_c_capacity_attribution')
+        authorized_ids = authorization.get('authorized_operation_ids') if isinstance(authorization, dict) else None
+        authorized_limit = authorization.get('max_authorized_operations') if isinstance(authorization, dict) else None
+        expected_roles = authorization.get('arm_roles') if isinstance(authorization, dict) else None
+        expected_orders = authorization.get('arm_orders') if isinstance(authorization, dict) else None
+        expected_intervals = authorization.get('reader_query_intervals_ms') if isinstance(authorization, dict) else None
+    elif operation_mode == 'stage_e2_larger_corpus':
+        authorization = contract.get('stage_e2_larger_corpus')
+        authorized_ids = authorization.get('authorized_operation_ids') if isinstance(authorization, dict) else None
+        authorized_limit = authorization.get('max_authorized_operations') if isinstance(authorization, dict) else None
+        expected_roles = authorization.get('arm_roles') if isinstance(authorization, dict) else None
+        expected_orders = authorization.get('arm_orders') if isinstance(authorization, dict) else None
+        expected_intervals = authorization.get('reader_query_intervals_ms') if isinstance(authorization, dict) else None
+    elif operation_mode == 'stage_e3_camera_421':
+        authorization = contract.get('stage_e3_camera_421')
+        authorized_ids = authorization.get('authorized_operation_ids') if isinstance(authorization, dict) else None
+        authorized_limit = authorization.get('max_authorized_operations') if isinstance(authorization, dict) else None
+        expected_roles = authorization.get('arm_roles') if isinstance(authorization, dict) else None
+        expected_orders = authorization.get('arm_orders') if isinstance(authorization, dict) else None
+        expected_intervals = authorization.get('reader_query_intervals_ms') if isinstance(authorization, dict) else None
+    elif operation_mode == 'stage_e4_camera_300':
+        authorization = contract.get('stage_e4_camera_300')
+        authorized_ids = authorization.get('authorized_operation_ids') if isinstance(authorization, dict) else None
+        authorized_limit = authorization.get('max_authorized_operations') if isinstance(authorization, dict) else None
+        expected_roles = authorization.get('arm_roles') if isinstance(authorization, dict) else None
+        expected_orders = authorization.get('arm_orders') if isinstance(authorization, dict) else None
+        expected_intervals = authorization.get('reader_query_intervals_ms') if isinstance(authorization, dict) else None
+    elif operation_mode == 'native_query_stage_diagnostic':
         authorization = contract.get('native_query_stage_diagnostic')
         authorized_ids = authorization.get('authorized_operation_ids') if isinstance(authorization, dict) else None
         authorized_limit = authorization.get('max_authorized_operations') if isinstance(authorization, dict) else None
@@ -321,6 +306,9 @@ def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
         expected_orders = contract.get('arm_orders')
     else:
         raise ValueError('unknown Rust lifecycle operation mode')
+    expected_workload = (authorization.get('workload')
+                        if operation_mode in ('stage_e2_larger_corpus', 'stage_e3_camera_421', 'stage_e4_camera_300') and isinstance(authorization, dict)
+                        else contract['workload'])
     if (not isinstance(authorization, dict) or authorization.get('approval_status') != 'approved' or
             not isinstance(expected_roles, list) or
             not isinstance(expected_orders, list)):
@@ -362,8 +350,10 @@ def validate_rust_lifecycle_context(context: dict[str, Any]) -> None:
             context.get('approval_reference') != authorization['approval_reference'] or
             context.get('execution_authorization_reference') != authorization['execution_authorization_reference'] or
             context.get('risk_acceptance_reference') != authorization['risk_acceptance_reference'] or
-            context.get('workload') != contract['workload'] or
-            context.get('reader_query_interval_ms') != contract['workload']['reader_query_interval_ms'] or
+            context.get('workload') != expected_workload or
+            (context.get('reader_query_interval_ms') not in (expected_intervals or [])
+             if operation_mode in ('stage_a_rate_ladder', 'stage_c_capacity_attribution', 'stage_e2_larger_corpus', 'stage_e3_camera_421', 'stage_e4_camera_300') else
+             context.get('reader_query_interval_ms') != contract['workload']['reader_query_interval_ms']) or
             context.get('reader_query_max_samples_per_pass') != contract['workload']['reader_query_max_samples_per_pass'] or
             context.get('reader_query_queue_capacity') != contract['workload']['reader_query_queue_capacity'] or
             context.get('zvec_native_memory_limit_bytes') != zvec_memory_limit or
@@ -852,6 +842,8 @@ def rust_lifecycle_expected_environment(context: dict[str, Any]) -> dict[str, st
         'M4_GATE_B_READER_QUERY_INTERVAL_MS': str(context['reader_query_interval_ms']),
         'M4_GATE_B_READER_QUERY_MAX_SAMPLES': str(context['reader_query_max_samples_per_pass']),
         'M4_GATE_B_READER_QUERY_QUEUE_CAPACITY': str(context['reader_query_queue_capacity']),
+        'M4_GATE_B_QUERY_FILTER': context.get('query_filter', '**/*.rs'),
+        'M4_GATE_B_CORPUS_EXTENSION': context.get('corpus_extension', '.rs'),
         'ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES': str(context['zvec_native_memory_limit_bytes']),
         'M4_NATIVE_FLUSH_TIMELINE': BENCHMARK_POLICY[
             'rust_pipeline_lifecycle_pair']['native_flush_timeline']['value'],
@@ -1087,26 +1079,8 @@ def hard_gate_failures(state: dict[str, Any]) -> list[str]:
             for gate in resource_guard_decisions(state) if gate['gate_id'] == 'M4-RG-DISK' and gate['status'] == 'FAIL']
 
 
-def cgroup_relative(pid: int | None = None) -> str:
-    path = pathlib.Path(f'/proc/{pid}/cgroup' if pid else '/proc/self/cgroup')
-    for line in path.read_text().splitlines():
-        if line.startswith('0::'):
-            return line[3:].lstrip('/')
-    raise RuntimeError(f'no unified cgroup membership in {path}')
 
 
-def cgroup_path_from_unit(unit: str) -> pathlib.Path:
-    result = subprocess.run(
-        ['systemctl', '--user', 'show', unit, '-p', 'ControlGroup', '--value'],
-        check=True, capture_output=True, text=True, timeout=5,
-    )
-    rel = result.stdout.strip().lstrip('/')
-    if not rel or '..' in pathlib.PurePosixPath(rel).parts:
-        raise RuntimeError(f'systemd returned unsafe/empty ControlGroup for {unit}: {rel!r}')
-    path = (CGROOT / rel).resolve(strict=True)
-    if path != CGROOT and CGROOT not in path.parents:
-        raise RuntimeError(f'ControlGroup escaped cgroup2 mount: {path}')
-    return path
 
 
 def validate_required_cgroup_metrics(cg: pathlib.Path) -> None:
@@ -1608,8 +1582,13 @@ def load_approved_budget(path: pathlib.Path | None) -> dict[str, Any] | None:
         raise ValueError('cgroup io.max is unavailable on this delegated user slice; refusing an unenforceable I/O ceiling')
     for key in ('memory_max_bytes', 'memory_swap_max_bytes', 'workspace_max_allocated_bytes', 'workspace_max_apparent_bytes'):
         value = budget.get(key)
-        if value is not None and (not isinstance(value, int) or value <= 0):
-            raise ValueError(f'{key} must be a positive integer or null')
+        # memory.swap.max=0 is the cgroup-v2 way to disable swap, so zero is a
+        # valid budget for that key. The other ceilings require a positive value.
+        minimum = 0 if key == 'memory_swap_max_bytes' else 1
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)
+                                  or value < minimum):
+            label = 'non-negative' if minimum == 0 else 'positive'
+            raise ValueError(f'{key} must be a {label} integer or null')
     tasks = budget.get('pids_max')
     if tasks is not None and (isinstance(tasks, bool) or not isinstance(tasks, int) or tasks <= 0):
         raise ValueError('pids_max must be a positive integer or null')
@@ -1756,8 +1735,6 @@ def _bootstrap(sock_path: str, command: list[str]) -> int:
         return 128 - child_rc if child_rc < 0 else child_rc
 
 
-def cgroup_populated(cg: pathlib.Path) -> int:
-    return parse_kv(read_text(cg / 'cgroup.events')).get('populated', -1)
 
 
 

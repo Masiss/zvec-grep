@@ -61,8 +61,8 @@ DESCRIPTORS: tuple[OperationDescriptor, ...] = (
         "m4-shared-collection-pair",
         "research_only",
         False,
-        "research/m4-native/tools/run_shared_collection_pair.py",
-        "Hardcoded build/dictionary paths; archive or refactor separately.",
+        "benchmarks/harness-v2/archive/shared-collection/run_shared_collection_pair.py",
+        "Archived research-only family; hardcoded paths, never a V2 entrypoint.",
     ),
     OperationDescriptor(
         "native_query_lock_split",

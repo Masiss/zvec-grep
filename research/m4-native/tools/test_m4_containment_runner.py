@@ -417,13 +417,13 @@ class ContainmentRunnerTests(unittest.TestCase):
     def test_missing_host_pressure_and_memavailable_are_optional_observations(self) -> None:
         statvfs = type('StatVfs', (), {'f_bavail': 50_000_000, 'f_frsize': 4096})()
         with (
-            mock.patch.object(runner, 'read_meminfo', return_value={'SwapFree_kib': 1024, 'SwapTotal_kib': 2048}),
-            mock.patch.object(runner, 'parse_pressure', return_value=None),
-            mock.patch.object(runner, 'read_vmstat', return_value={'pswpin_pages': 0, 'pswpout_pages': 0,
+            mock.patch.object(runner._HOST, 'read_meminfo', return_value={'SwapFree_kib': 1024, 'SwapTotal_kib': 2048}),
+            mock.patch.object(runner._HOST, 'parse_pressure', return_value=None),
+            mock.patch.object(runner._HOST, 'read_vmstat', return_value={'pswpin_pages': 0, 'pswpout_pages': 0,
                                                                     'oom_kill': 0, 'pgscan_direct': 0}),
-            mock.patch.object(runner, 'read_diskstats', return_value={'testdev': {'sectors_read': 0,
+            mock.patch.object(runner._HOST, 'read_diskstats', return_value={'testdev': {'sectors_read': 0,
                 'sectors_written': 0, 'io_ms': 0}}),
-            mock.patch.object(runner.os, 'statvfs', return_value=statvfs),
+            mock.patch.object(runner._HOST.os, 'statvfs', return_value=statvfs),
         ):
             snapshot = runner.host_snapshot(self.fixture_root)
         self.assertIsNone(snapshot['io_pressure'])
@@ -527,7 +527,7 @@ class ContainmentRunnerTests(unittest.TestCase):
                 mock.patch.object(runner, 'CGROOT', cgroup_root),
                 mock.patch.object(runner, 'read_text', side_effect=read_cgroup_file),
                 mock.patch.object(runner, 'proc_cgroup_contains', return_value=True),
-                mock.patch.object(runner, 'parse_pressure', return_value=None),
+                mock.patch.object(runner._HOST, 'parse_pressure', return_value=None),
                 mock.patch.object(pathlib.Path, 'read_text', read_proc_file),
             ):
                 metrics = runner.read_cgroup_metric(cg)
@@ -559,7 +559,7 @@ class ContainmentRunnerTests(unittest.TestCase):
             with (
                 mock.patch.object(runner, 'CGROOT', cgroup_root),
                 mock.patch.object(runner, 'proc_cgroup_contains', return_value=True),
-                mock.patch.object(runner, 'parse_pressure', return_value=None),
+                mock.patch.object(runner._HOST, 'parse_pressure', return_value=None),
                 mock.patch.object(pathlib.Path, 'read_text', read_proc_file),
             ):
                 metrics = runner.read_cgroup_metric(cg)

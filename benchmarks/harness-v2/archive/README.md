@@ -40,6 +40,15 @@ diagnostic, quota-attestation refresh, and their tests remain tracked under
 `research/m4-native/tools/`. They are policy-referenced or lifecycle
 dependencies; they are not archived.
 
+## shared-collection
+
+- Former `research/m4-native/tools/run_shared_collection_pair.py` and its test.
+- Status: research-only historical pair (49 receipts). Hardcoded build,
+  dictionary, and results paths; no V2 execution authorization.
+- Last evidence: `research/m4-native/results/shared-collection-pair-20261021/`.
+- Preserved because the shared-collection family was explored, but not promoted
+  to a V2 operation.
+
 ## legacy-diagnostic-tests
 
 - Former untracked tests for observer, qgroup-fixture, quota-refresh, and

@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "contract": "harness-v2-runtime-provenance-v1",
+  "files": [
+    {
+      "path": "benchmarks/harness-v2/contracts/policy_v1.py",
+      "sha256": "751793369792183f6fb061acfadb43ff076752a8030bcee9d2dcf4d185eb204a",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/contracts/receipt_v1.py",
+      "sha256": "97b2061e90d813087eaaee0383114798a0b56efc79c43f00c5358fdd75f35af2",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/contracts/provenance.py",
+      "sha256": "2eae0892faee3b0c8d1017762f3e4c38e69326c2fe43677638d6ad5cefc95d7e",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/host/primitives.py",
+      "sha256": "e760c86b3a8898272b1e2369480a5a50555c52e62b81ba552789970e35265196",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/measurement/primitives.py",
+      "sha256": "0d4d2c9ee0b661c2d4c9b8a9f4cdef84449d5f2cffd501700aa4c506ff7a722a",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/measurement/artifact.py",
+      "sha256": "44a8375a326e387480bd21f483c6f1b975215fdce18a2ca01129ed12cf8acde6",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/registry.py",
+      "sha256": "598e0294204e9bc4f91b2da74e93b33671b91c93598efaa0e9f05ff851d3ae1c",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/execution.py",
+      "sha256": "3a4cd3960ef9ef5e64d6c1763990556ff1c37fadfe950ac6e44890a12da4be52",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/lock_contention.py",
+      "sha256": "056882c56ee658f3fc17273088937ecdf90b5fdd4438255622a2ce65a84ad6fa",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/write_amplification.py",
+      "sha256": "93c5c40d65c00e1bc36c4807df2889e91aefaa58f3c5ca97c18697292687779a",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/diagnostics.py",
+      "sha256": "263ed7361263ba3ec384cb6e02bd44b7c22370514c488748411b72711c0a1add",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "research/m4-native/tools/run_rust_lifecycle_pair.py",
+      "sha256": "538ba47dc94bc402511217a7bc8d262b71dcc713d7d1ea475fbffc3f6cb37ae8",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "research/m4-native/tools/create_measurement_artifact.py",
+      "sha256": "933b1edc7974528aaae9b7bf4de6ef460ab17669855537006bcc027cd26e6722",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "research/m4-native/tools/m4_containment_runner.py",
+      "sha256": "51531075a83f8e80229386992c3324adf7b28ca7c4bac4537fac0361bc37242a",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "research/m4-native/tools/run_lock_contention_microbench.py",
+      "sha256": "362866f0e3fe12f2eb1bbc09afb1ea4e8bc17168ba9218627f8d055f9412ed86",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "research/m4-native/docs/benchmark-policy.json",
+      "sha256": "712ddbbad7f95604a19da80a85ba267f4d3b87090a05bceb997de15b95fbf9b2",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/rust_lifecycle/verify.py",
+      "sha256": "5743df2e956fc02e1f6e2f8aeb8e80acd901d335ba5ccaba74d83dbafb189bc9",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/rust_lifecycle/executor.py",
+      "sha256": "a86f7a1dab91e5952103bdbf02888fd22b8f6f7953c6dbd5394e4c5e5c4cd506",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/rust_lifecycle/preflight.py",
+      "sha256": "86fd4781cf1c10a2bb76bafcf352b000634028a080ed01b4e4861194a4a27714",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/rust_lifecycle/context.py",
+      "sha256": "ca1a108665df9bde27b467abcb7001f3d8e3ddc64d96d30f70130d71ed3b26fe",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/rust_lifecycle/receipt.py",
+      "sha256": "bf62f17170f2670a2fecce8c809d3b295d35f28b7c4c83325898ad1d89ad2bea",
+      "role": "runtime-or-contract"
+    },
+    {
+      "path": "benchmarks/harness-v2/operations/m4/rust_lifecycle/config.py",
+      "sha256": "16970459266a0f7446be73fa851539f8c94d11e76597dddf9f3ec28d8236908f",
+      "role": "runtime-or-contract"
+    }
+  ]
+}

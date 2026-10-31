@@ -101,39 +101,63 @@ def workload_json(stdout_path: pathlib.Path) -> dict[str, Any]:
     raise RuntimeError(f"no sustained-workload receipt in {stdout_path}")
 
 
-def verify_arm(result: dict[str, Any], data: dict[str, Any], role: str) -> None:
+def verify_arm(result: dict[str, Any], data: dict[str, Any], role: str,
+               workload: dict[str, Any]) -> None:
     allowed = {"PASS", "COMPLETED_WITH_WORKSPACE_UNCERTAINTY", "COMPLETED_WITH_WORKSPACE_WARNINGS"}
     if result.get("status") not in allowed or result.get("workload_returncode") != 0:
         raise RuntimeError(f"{role} arm did not complete safely: {result.get('status')} / {result.get('reason')}")
     cleanup = result.get("controller_cleanup") or result.get("unit_cleanup") or {}
     if cleanup.get("verified") is not True:
         raise RuntimeError(f"{role} arm cleanup is unverified")
-    if data.get("docs", data.get("documents")) != 500 or data.get("rounds") != 5:
-        raise RuntimeError(f"{role} output does not match 500x5 contract")
+    if data.get("docs", data.get("documents")) != workload["documents"] or data.get("rounds") != workload["rounds"]:
+        raise RuntimeError(f"{role} output does not match the approved document/round contract")
+    if data.get("reader_mode") != workload["reader_mode"]:
+        raise RuntimeError(f"{role} output does not match reader mode {workload['reader_mode']!r}")
     if data.get("coherence_errors") != 0:
         raise RuntimeError(f"{role} correctness/coherence failure: {data.get('coherence_errors')}")
+    minimum_queries = workload["minimum_reader_queries_per_arm"]
+    per_cycle_minimum = workload["queries_per_reader_per_round"]
+    expected_cycles = workload["rounds"] * workload["readers"]
+    sample_counts = data.get("reader_samples_by_cycle")
+    reported_queries = data.get("reader_queries", data.get("queries"))
+    if (not isinstance(sample_counts, list) or len(sample_counts) != expected_cycles or
+            any(isinstance(value, bool) or not isinstance(value, int) or value < per_cycle_minimum
+                for value in sample_counts) or
+            isinstance(reported_queries, bool) or not isinstance(reported_queries, int) or
+            sum(sample_counts) != reported_queries or reported_queries < minimum_queries):
+        raise RuntimeError(
+            f"{role} arm did not meet {per_cycle_minimum} reader samples for every reader-cycle "
+            f"and {minimum_queries} total queries")
     if role == "shared-collection":
-        if data.get("completed_rounds") != 5 or data.get("failures") != 0:
+        if data.get("completed_rounds") != workload["rounds"] or data.get("failures") != 0:
             raise RuntimeError("shared-collection arm incomplete or failed")
-        if data.get("native_live_docs") != 500 or data.get("m4_live_docs") != 500:
+        if data.get("native_live_docs") != workload["documents"] or data.get("m4_live_docs") != workload["documents"]:
             raise RuntimeError("shared-collection final live counts mismatch")
         for field in ("writer_commit_ms", "writer_gc_ms", "writer_cycle_ms"):
             values = data.get(field)
-            if not isinstance(values, list) or len(values) != 5:
-                raise RuntimeError(f"shared-collection arm missing five {field} samples")
-        for field in ("reader_total_ms", "reader_thread_cpu_ms", "reader_pin_wall_ms",
+            if not isinstance(values, list) or len(values) != workload["rounds"]:
+                raise RuntimeError(f"shared-collection arm missing {workload['rounds']} {field} samples")
+        reader_samples = data.get("reader_total_ms")
+        if (not isinstance(reader_samples, list) or len(reader_samples) < minimum_queries or
+                data.get("reader_queries") != len(reader_samples)):
+            raise RuntimeError("shared-collection arm did not meet minimum concurrent-reader sample count")
+        for field in ("reader_thread_cpu_ms", "reader_pin_wall_ms",
                       "reader_snapshot_lock_wait_ms", "reader_m4_query_lock_wait_ms",
                       "reader_vector_stage_ms", "reader_fts_stage_ms", "reader_merge_stage_ms"):
             values = data.get(field)
-            if (not isinstance(values, list) or len(values) != 20 or
+            if (not isinstance(values, list) or len(values) != len(reader_samples) or
                     any(isinstance(value, bool) or not isinstance(value, (int, float)) or
                         not math.isfinite(value) or value < 0 for value in values)):
-                raise RuntimeError(f"shared-collection arm missing valid 20-sample {field} series")
+                raise RuntimeError(f"shared-collection arm missing valid aligned {field} samples")
     else:
-        if data.get("queries") != 20 or len(data.get("commit_samples_ms", [])) != 5:
-            raise RuntimeError("immutable-shard arm missing required writer/reader samples")
-        if len(data.get("reader_samples_ms", [])) != 20:
-            raise RuntimeError("immutable-shard arm missing concurrent-reader samples")
+        queries = data.get("queries")
+        samples = data.get("reader_samples_ms")
+        if (isinstance(queries, bool) or not isinstance(queries, int) or queries < minimum_queries or
+                len(data.get("commit_samples_ms", [])) != workload["rounds"] or
+                not isinstance(samples, list) or len(samples) != queries or
+                any(isinstance(value, bool) or not isinstance(value, (int, float)) or
+                    not math.isfinite(value) or value < 0 for value in samples)):
+            raise RuntimeError("immutable-shard arm did not meet writer and concurrent-reader sample requirements")
 
 
 def recovery_capture(runner, context, out_path, resource_root):
@@ -212,7 +236,7 @@ def main() -> int:
         raise SystemExit(f"cannot load approved operation contract: {exc}") from exc
     contract = policy["shared_collection_pair"]
     resource_root = pathlib.Path(contract["resource_root"]).resolve(strict=True)
-    operation_id = f"m4-shared-collection-pair-{UTC_DATE}-{time.strftime('%H%M%S', time.gmtime())}-{secrets.token_hex(3)}"
+    operation_id = f"m4-shared-collection-pair-continuous-readers-{UTC_DATE}-{time.strftime('%H%M%S', time.gmtime())}-{secrets.token_hex(3)}"
     operation_root = (RESULTS / operation_id).resolve()
     workspace_base = (resource_root / operation_id).resolve()
     binary_sha, dictionary_sha = sha256(BINARY), runner.directory_sha256(DICTIONARY)
@@ -221,16 +245,19 @@ def main() -> int:
         order.reverse()
     for role in order:
         ctx = context_for(runner, contract, operation_id, operation_root, role, binary_sha, dictionary_sha)
-        mode = contract["workload"]["baseline_mode"] if role == "immutable-shard" else contract["workload"]["candidate_mode"]
-        command = [str(BINARY.resolve()), str((workspace_base / ("pair-first" if role == order[0] else "pair-second") / "root").resolve()), str(DICTIONARY.resolve()), mode, "500", "5"]
-        if (len(command) != 6 or command[-3:] != [mode, "500", "5"] or
+        workload = contract["workload"]
+        mode = workload["baseline_mode"] if role == "immutable-shard" else workload["candidate_mode"]
+        command = [str(BINARY.resolve()), str((workspace_base / ("pair-first" if role == order[0] else "pair-second") / "root").resolve()), str(DICTIONARY.resolve()), mode, str(workload["documents"]), str(workload["rounds"]), "--continuous-readers"]
+        if (len(command) != 7 or command[-4:] != [mode, str(workload["documents"]), str(workload["rounds"]), "--continuous-readers"] or
                 ctx["binary_sha256"] != sha256(pathlib.Path(command[0]))):
             raise RuntimeError(f"invalid {role} command binding")
     if args.validate_only:
         print(json.dumps({"status": "VALIDATED_NO_LAUNCH", "policy_sha256": sha256(POLICY_PATH),
                           "binary_sha256": binary_sha, "dictionary_tree_sha256": dictionary_sha,
                           "order_sample": order, "modes": [contract["workload"]["baseline_mode"],
-                          contract["workload"]["candidate_mode"]]}, sort_keys=True))
+                          contract["workload"]["candidate_mode"]],
+                          "reader_mode": contract["workload"]["reader_mode"],
+                          "minimum_reader_queries_per_arm": contract["workload"]["minimum_reader_queries_per_arm"]}, sort_keys=True))
         return 0
     operation_root.mkdir(parents=True, exist_ok=False)
     workspace_base.mkdir(parents=True, exist_ok=False)
@@ -277,8 +304,9 @@ def main() -> int:
             arm_context = context_for(runner, contract, operation_id, operation_root, role, binary_sha, dictionary_sha)
             arm_workspace = workspace_base / arm_name
             arm_workspace.mkdir(parents=True, exist_ok=False)
-            mode = contract["workload"]["baseline_mode"] if role == "immutable-shard" else contract["workload"]["candidate_mode"]
-            command = [str(BINARY.resolve()), str(arm_workspace / "root"), str(DICTIONARY.resolve()), mode, "500", "5"]
+            workload = contract["workload"]
+            mode = workload["baseline_mode"] if role == "immutable-shard" else workload["candidate_mode"]
+            command = [str(BINARY.resolve()), str(arm_workspace / "root"), str(DICTIONARY.resolve()), mode, str(workload["documents"]), str(workload["rounds"]), "--continuous-readers"]
             receipt_dir = operation_root / arm_name / "containment"
             arm_env = os.environ.copy()
             arm_env.pop("M4_BRIDGE_TRACE", None)
@@ -293,7 +321,7 @@ def main() -> int:
             write_json(operation_root / f"{arm_name}-summary.json", arm)
             if result.get("status") == "PREFLIGHT_BLOCKED":
                 raise RuntimeError(f"{arm_name} blocked before workload launch")
-            verify_arm(result, data, role)
+            verify_arm(result, data, role, contract["workload"])
             if index == 0:
                 recovery_context = context_for(runner, contract, operation_id, operation_root,
                                                order[1], binary_sha, dictionary_sha)

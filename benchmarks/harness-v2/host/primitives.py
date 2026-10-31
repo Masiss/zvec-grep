@@ -387,3 +387,49 @@ def watchdog_observer_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
         "watchdog_loop_cpu_ns_max": max(loop_cpu_ns, default=None),
         "watchdog_loop_work_ns_max": max(loop_work_ns, default=None),
     }
+
+
+def process_resource_sample(pid: int) -> dict[str, Any]:
+    root = pathlib.Path('/proc') / str(pid)
+    status = {}
+    for line in (root / 'status').read_text().splitlines():
+        if ':' in line:
+            key, value = line.split(':', 1)
+            if key in ('Name', 'VmRSS', 'VmSwap', 'Cpus_allowed_list'):
+                status[key] = value.strip()
+    smaps = {}
+    try:
+        for line in (root / 'smaps_rollup').read_text().splitlines():
+            if ':' in line:
+                key, value = line.split(':', 1)
+                if key in ('Pss', 'Swap', 'SwapPss'):
+                    smaps[key] = value.strip()
+    except OSError as exc:
+        smaps['unavailable'] = f'{type(exc).__name__}: {exc}'
+    raw = (root / 'stat').read_text()
+    tail = raw[raw.rfind(')') + 2:].split()
+    if len(tail) < 20:
+        raise ValueError('incomplete process stat')
+    return {'pid': pid, 'status': status, 'smaps_rollup': smaps,
+            'utime_ticks': int(tail[11]), 'stime_ticks': int(tail[12]), 'start_ticks': int(tail[19]),
+            'clock_ticks_per_second': os.sysconf('SC_CLK_TCK')}
+
+
+def host_process_snapshot() -> dict[str, Any]:
+    result = subprocess.run(['ps', '-eo', 'pid,ppid,pcpu,rss,etimes,comm', '--sort=-pcpu'],
+                            check=True, capture_output=True, text=True, timeout=10)
+    top = []
+    for line in result.stdout.splitlines()[1:16]:
+        fields = line.split(None, 5)
+        if len(fields) != 6:
+            raise ValueError('incomplete top-process listing')
+        pid = int(fields[0])
+        item: dict[str, Any] = {'pid': pid, 'ppid': int(fields[1]), 'cpu_percent': float(fields[2]),
+                                'rss_kib': int(fields[3]), 'elapsed_seconds': int(fields[4]), 'command': fields[5]}
+        try:
+            item['proc'] = process_resource_sample(pid)
+        except (OSError, ValueError) as exc:
+            item['proc_unavailable'] = f'{type(exc).__name__}: {exc}'
+        top.append(item)
+    return {'timestamp_utc': utc_now(), 'monotonic_ns': time.monotonic_ns(),
+            'controller_affinity': sorted(os.sched_getaffinity(0)), 'top_processes': top}

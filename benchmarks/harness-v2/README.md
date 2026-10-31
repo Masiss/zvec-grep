@@ -22,21 +22,25 @@ candidate is not changed by this tree.
 P1 does not move containment code, change thresholds, change the policy,
 re-run a benchmark, or modify the frozen RC.
 
-**P2 — containment and measurement primitives: extracted, adoption partial.**
+**P0 — Runtime provenance: implemented.**
 
-- `measurement/primitives.py` owns strict JSON, UTC/boottime clocks, bounded
-  file/tree hashes, and receipt JSON writing.
-- `host/primitives.py` owns host probes, pressure/meminfo/diskstats parsing,
-  cgroup membership and populated checks, verified process termination,
-  systemd service properties, receipt-directory creation, quota-attestation
-  validation, and watchdog cadence/observer helpers.
-- `m4_containment_runner.py` now uses the extracted identity, host-probe,
-  service-property, quota, and watchdog helpers. Launch, cgroup path/cleanup,
-  and the watchdog loop remain local because their legacy tests monkeypatch
-  those module-level symbols; moving them is a P3 test-port task.
-- `run_shared_collection_pair.py` now uses the measurement hash/receipt helpers.
-- `benchmarks/native-lifecycle/` and the P3 `run_native_query_lock_split*`
-  runners remain archive candidates; they are not V2 entrypoints.
+- `contracts/golden/runtime-provenance.json` pins every active V2 runtime
+  module plus the policy, containment runner, and lifecycle shim by SHA-256.
+- `contracts/provenance.py` validates schema, duplicates, file presence, hashes,
+  and tracked paths. `test_runtime_provenance.py` fails closed on drift.
+- Closed research runners and stale tests are archived; historical receipts are
+  unchanged.
+
+**P2 — Host/measurement primitives: implemented.**
+
+- Host probes (`host_snapshot`, process snapshots, cgroup lookup/populated) and
+  the measurement artifact helper are owned by `host/` and `measurement/`.
+- `m4_containment_runner.py` delegates to those primitives; duplicate active
+  implementations were removed. `run_arm`/watchdog remain in the containment
+  core as the single launch/watchdog owner by design.
+- Measurement artifact tests moved to the V2 module; containment tests were
+  ported to patch the V2 host module.
+- No threshold, policy, cgroup limit, or RC change.
 
 **P3 — Rust lifecycle split: implemented.**
 
