@@ -74,6 +74,24 @@ fn file_at(storage: &IndexStore, path: &str) -> (FileRecord, FixtureEntity) {
 }
 
 #[test]
+fn store_state_lock_wait_telemetry_is_thread_local_and_resettable() {
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    let _ = IndexStore::take_state_lock_wait_telemetry_for_test();
+
+    storage.list_files().expect("read file catalog");
+    let (count, total_ns, max_ns) = IndexStore::take_state_lock_wait_telemetry_for_test();
+    assert!(count >= 1);
+    assert!(total_ns >= max_ns);
+
+    assert_eq!(
+        IndexStore::take_state_lock_wait_telemetry_for_test(),
+        (0, 0, 0)
+    );
+    storage.close().expect("close storage");
+}
+
+#[test]
 #[expect(
     clippy::too_many_lines,
     reason = "Compare FTS and ANN across the same complete metadata fixture"

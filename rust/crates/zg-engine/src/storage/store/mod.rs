@@ -8,6 +8,31 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(test)]
+use std::{cell::Cell, time::Instant};
+
+#[cfg(test)]
+thread_local! {
+    static STATE_LOCK_WAIT_TELEMETRY: Cell<(u64, u64, u64)> = const { Cell::new((0, 0, 0)) };
+}
+
+#[cfg(test)]
+fn record_state_lock_wait_for_test(wait_ns: u64) {
+    STATE_LOCK_WAIT_TELEMETRY.with(|telemetry| {
+        let (count, total_ns, max_ns) = telemetry.get();
+        telemetry.set((
+            count.saturating_add(1),
+            total_ns.saturating_add(wait_ns),
+            max_ns.max(wait_ns),
+        ));
+    });
+}
+
+#[cfg(test)]
+fn take_state_lock_wait_for_test() -> (u64, u64, u64) {
+    STATE_LOCK_WAIT_TELEMETRY.with(|telemetry| telemetry.replace((0, 0, 0)))
+}
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -254,7 +279,13 @@ impl IndexStore {
 
     fn read<T>(&self, operation: impl FnOnce(&StoreState) -> EngineResult<T>) -> EngineResult<T> {
         let shared = self.shared()?;
+        #[cfg(test)]
+        let lock_started = Instant::now();
         let state = lock_state(&shared)?;
+        #[cfg(test)]
+        record_state_lock_wait_for_test(
+            u64::try_from(lock_started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+        );
         assert_usable(&state)?;
         operation(&state)
     }
@@ -269,9 +300,20 @@ impl IndexStore {
             ));
         }
         let shared = self.shared()?;
+        #[cfg(test)]
+        let lock_started = Instant::now();
         let mut state = lock_state(&shared)?;
+        #[cfg(test)]
+        record_state_lock_wait_for_test(
+            u64::try_from(lock_started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+        );
         assert_usable(&state)?;
         operation(&mut state)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_state_lock_wait_telemetry_for_test() -> (u64, u64, u64) {
+        take_state_lock_wait_for_test()
     }
 
     pub(crate) fn is_read_only(&self) -> bool {
