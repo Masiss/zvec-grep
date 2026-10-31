@@ -6,7 +6,7 @@
 - Local branch: `integration/upstream-rust`, created in an isolated worktree at `/home/masis/src/zvec-grep-integration`.
 - Source comparison: `origin/work/zg-optimization` (`abaf7bf`) vs `upstream/main`.
 - The old worktree/branch `work/zg-optimization` was not modified.
-- No push, PR, merge, production-default change, or storage-format change was made.
+- No push, PR, merge, production-default change, or existing zvec table/schema change was made. M2 adds an additive `reconciliation/file-*.json` sidecar; if that sidecar is treated as a storage-format change, stop for an owner decision before shipping.
 
 ## Ported commits
 
@@ -24,9 +24,9 @@
 | State-lock wait telemetry | `f62a7ee` | **PORTED** | Generic observability; applies directly to upstream `IndexStore`; test-only. |
 | Streaming token-density detector | `b4b8686` | **PORTED** | Self-contained memory reduction; semantics verified against old algorithm. |
 | Watcher burst coalescing | `b4b8686` | **PORTED** | Upstream scheduler merged options but had no trailing debounce; bounded debounce reduces writer churn without delaying manual jobs. |
-| M2 per-file manifests / selective reconciliation | `b4b8686` | **REWORK** | Upstream now has its own workspace manifest, graph storage, and `IndexStore`; fork design must be re-expressed, not cherry-picked. |
-| M3-A mutation-aware finalization | `b4b8686` | **REWORK** | Upstream finalization/optimization pipeline changed substantially; needs mapping to current stages. |
-| M3-B lock isolation / maintenance | `b4b8686` | **PARTIAL** | Upstream separates read sessions and parallelizes collection optimize, but `finalize_writes_with` still holds `IndexStore` state mutex across `optimize(state)`; parallel optimize is not lock isolation. See audit evidence below. |
+| M2 per-file manifests / selective reconciliation | `b4b8686` | **INTEGRATED (core) / PARTIAL** | Upstream architecture re-expressed: additive manifest sidecar, exact fingerprint match, stored-vector fetch, unstable-model guard. Streaming/staged indexing remains REWORK. |
+| M3-A mutation-aware finalization | `b4b8686` | **INTEGRATED** | Per-collection dirty mask; only mutated collections are finalized. |
+| M3-B lock isolation / maintenance | `b4b8686` | **PARTIAL / INTEGRATED** | Fragment native optimize now runs outside `Mutex<StoreState>`; directories/entities/files remain under the lock. Deferred age/threshold maintenance remains REWORK. |
 | M4 lock-split / reader concurrency | `f9af33e`, `d2658b6`, `72af408`, `3809b29`, `5c60ad0`, `6c2d487`, `430ef82`, `aaafdb4` | **SKIP** | M4 experimental; upstream architecture differs; must not enter production. |
 | M4 base/delta hybrid scoring | `3dc1e72`, `5b49769` | **SKIP** | M4 prototype only; no upstream base/delta surface. |
 | M4 outer FTS WAL sync | `7c88272` | **SKIP** | M4 native test evidence, not a production Rust change. |
@@ -73,7 +73,83 @@ Controlled reproduction from the repo root with `TMPDIR="$PWD/.tmp"` and `cargo 
 
 The two config failures are **not reproducible on clean upstream** under equivalent controlled settings; they were a `/tmp` resource-exhaustion artifact, not a pre-existing config-lock defect and not caused by the ports.
 
-## Verification
+## 2026-10-31 integration pass 2 — M2/M3
+
+Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
+[`BENCHMARK-PLAN.md`](BENCHMARK-PLAN.md).
+
+### M2 — selective reconciliation / embedding reuse
+
+- Added additive `reconciliation/file-*.json` manifests. They are published only
+  after native rows commit; a missing, invalid, oversized, or stale manifest
+  disables reuse instead of failing indexing.
+- Reuse requires exact `(fragment_id, model, embedding fingerprint)` equality.
+  The fingerprint covers the version tag, full model metadata, and exact
+  embedding input, so chunk/config changes and model changes cannot reuse an old
+  vector.
+- Stored vectors are fetched by fragment key from the model collection and
+  decoded through `zg_zvec_fp16`.
+- `EmbeddingModel::identity_is_stable` is false for Qwen hosted aliases; those
+  fragments never publish a fingerprint and never reuse.
+- Delete/failed-replace paths remove stale manifests best-effort.
+- Tests: manifest round-trip/bounded/delete, vector fetch by identity/model,
+  exact-fingerprint reuse guard, and full engine suite.
+
+### M3 — mutation-aware finalization and lock isolation
+
+- `StoreState` now carries a per-collection dirty mask. `finalize_writes` only
+  optimizes collections with mutation debt; a pending marker still forces a safe
+  full retry after reopening.
+- `Fragments` is held in `Arc`; native fragment optimize runs after the store
+  state lock is released. `write_generation` preserves debt from concurrent
+  writes, and `close` waits for in-flight optimize before flushing/releasing.
+- `directories`, `entities`, and `files` still optimize under the store lock
+  because they expose mutable handles. This is explicitly **PARTIAL**, not a
+  full M3-B port.
+- Deferred maintenance (opt-in threshold, age deadline, epoch/ack) is not
+  integrated; it needs a policy decision and a paired benchmark.
+
+### Additional production-relevant ports
+
+- Rebuild disk preflight: 2x active index + 4 GiB headroom before staging a
+  rebuild; refuses instead of risking rollback loss.
+- Model compute thread default capped at 8, with positive
+  `ZVEC_GREP_MODEL_COMPUTE_THREADS` override.
+- Model cache idle timeout/capacity overrides:
+  `ZVEC_GREP_MODEL_IDLE_TIMEOUT_SECONDS` (<= 86400) and
+  `ZVEC_GREP_MODEL_CACHE_CAPACITY` (<= 16); defaults unchanged.
+
+### Integration commits (pass 2)
+
+- `ff4f4ac` — `feat(engine): integrate selective embedding reuse and maintenance isolation`
+- `ae7bfe6` — `perf(engine): bound model runtime and preflight rebuild space`
+
+### Verification (pass 2)
+
+- `cargo test -p zg-engine --lib` — **675 passed, 0 failed, 10 ignored**.
+- `cargo test -p zg-daemon` — **124 passed, 0 failed**.
+- `cargo clippy -p zg-engine -p zg-daemon --all-targets -- -D warnings` — **PASS**.
+- `cargo fmt --all -- --check` — **PASS**.
+- `git diff --check` — **PASS**.
+- All commands use `TMPDIR="$PWD/.tmp"`; `/tmp` is not used for build/test temp.
+
+### Remaining blockers / next steps
+
+1. **M2 streaming/staged indexing**: upstream scanner has no `read_stream` and
+   no disk-staging lifecycle. Next: capability-gate the scanner API, then port
+   staged batches and measure peak RSS on the 421-file corpus.
+2. **M3-B deferred maintenance**: needs an opt-in policy (threshold/age) and a
+   paired idle/loaded benchmark; do not silently change production defaults.
+3. **M3-B full lock isolation**: directories/entities/files still require the
+   state lock. Next: make their handles cloneable or move their native
+   maintenance behind a read-session boundary.
+4. **Three-way benchmark**: prepared in `BENCHMARK-PLAN.md`, not executed.
+   `benchmark-policy.json` still has zero authorized pair operations.
+5. **Storage sidecar decision**: the reconciliation directory is additive and
+   does not alter existing zvec tables. If the owner considers any new on-disk
+   sidecar a storage-format change, decide before release.
+
+## Verification (pass 1)
 
 - `cargo test -p zg-engine storage::store::tests --lib` — **31 passed**.
 - `cargo test -p zg-engine --lib pipelines::indexing::input_budget` — **3 passed**.
@@ -85,11 +161,15 @@ The two config failures are **not reproducible on clean upstream** under equival
 
 ## Current state
 
-- Integration worktree is clean; branch is **5 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **10 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
-- No production defaults, storage format, migration, or release configuration changed.
+- No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No production default, migration, or release configuration changed.
+- M2 core and M3-A/M3-B fragment isolation are integrated; streaming staging and deferred maintenance remain open.
 
 ## Next action
 
-Review the three ports and run the full integration suite in CI-like conditions (single-thread config tests or isolated config dirs). If accepted, the next safe porting candidate is M2/M3 maintenance behavior, but only after mapping it onto upstream's current `IndexStore`/read-session architecture; do not cherry-pick `b4b8686` wholesale.
+1. Review the three-way benchmark plan and issue operation IDs only if measurement is authorized.
+2. If M2 memory is the next bottleneck, capability-gate scanner `read_stream` and port staged batches behind it.
+3. If finalization latency is the next bottleneck, make directory/entity/file handles cloneable or move their maintenance behind the read-session boundary before adding deferred age/threshold policy.
+4. Do not cherry-pick `b4b8686` wholesale; use `FEATURE-MATRIX.md` as the coverage ledger.
