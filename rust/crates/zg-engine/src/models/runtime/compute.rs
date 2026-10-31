@@ -78,14 +78,45 @@ impl Default for ModelComputeRuntime {
 
 const DEFAULT_MAX_CAPACITY: usize = 8;
 
-fn default_capacity() -> usize {
-    std::env::var("ZVEC_GREP_MODEL_COMPUTE_THREADS")
-        .ok()
+fn resolve_capacity(override_value: Option<&str>, available: usize) -> usize {
+    override_value
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|&value| value > 0)
-        .unwrap_or_else(|| {
-            std::thread::available_parallelism()
-                .map_or(1, NonZeroUsize::get)
-                .min(DEFAULT_MAX_CAPACITY)
-        })
+        .unwrap_or_else(|| available.min(DEFAULT_MAX_CAPACITY))
+}
+
+fn default_capacity() -> usize {
+    resolve_capacity(
+        std::env::var("ZVEC_GREP_MODEL_COMPUTE_THREADS")
+            .ok()
+            .as_deref(),
+        std::thread::available_parallelism().map_or(1, NonZeroUsize::get),
+    )
+}
+
+#[cfg(test)]
+mod capacity_tests {
+    use super::{DEFAULT_MAX_CAPACITY, resolve_capacity};
+
+    #[test]
+    fn unset_capacity_is_bounded_by_the_default_cap() {
+        assert_eq!(resolve_capacity(None, 2), 2);
+        assert_eq!(
+            resolve_capacity(None, DEFAULT_MAX_CAPACITY + 4),
+            DEFAULT_MAX_CAPACITY
+        );
+    }
+
+    #[test]
+    fn positive_override_wins_over_the_default_cap() {
+        assert_eq!(resolve_capacity(Some("4"), 32), 4);
+        assert_eq!(resolve_capacity(Some("16"), 32), 16);
+    }
+
+    #[test]
+    fn invalid_or_zero_override_falls_back_to_the_default_cap() {
+        assert_eq!(resolve_capacity(Some("0"), 32), DEFAULT_MAX_CAPACITY);
+        assert_eq!(resolve_capacity(Some("-1"), 32), DEFAULT_MAX_CAPACITY);
+        assert_eq!(resolve_capacity(Some("many"), 3), 3);
+    }
 }

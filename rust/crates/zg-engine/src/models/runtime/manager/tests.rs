@@ -1039,3 +1039,22 @@ fn runtime_key_separates_resource_affecting_options_without_storing_api_keys() {
     assert_eq!(base.api_key_fingerprint, same.api_key_fingerprint);
     assert_ne!(base.api_key_fingerprint, different.api_key_fingerprint);
 }
+
+#[test]
+fn cache_policy_overrides_are_bounded_and_default_to_fifteen_minutes_and_one() {
+    let default = CachePolicy::from_overrides(None, None);
+    assert_eq!(default.idle_timeout, Duration::from_mins(15));
+    assert_eq!(default.capacity, 1);
+
+    let overridden = CachePolicy::from_overrides(Some("30"), Some("4"));
+    assert_eq!(overridden.idle_timeout, Duration::from_secs(30));
+    assert_eq!(overridden.capacity, 4);
+
+    let bounded = CachePolicy::from_overrides(Some("999999"), Some("99"));
+    assert_eq!(bounded.idle_timeout, Duration::from_mins(15));
+    assert_eq!(bounded.capacity, 1);
+
+    let invalid = CachePolicy::from_overrides(Some("soon"), Some("many"));
+    assert_eq!(invalid.idle_timeout, Duration::from_mins(15));
+    assert_eq!(invalid.capacity, 1);
+}
