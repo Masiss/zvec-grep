@@ -1,7 +1,10 @@
 """Receipt adapters for diagnostic-only operation families."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
+
+from . import execution, registry  # ty: ignore[unresolved-import]
 
 
 class DiagnosticAdapterError(ValueError):
@@ -24,3 +27,17 @@ def summarize(receipt: Any, expected_purpose: str) -> dict[str, Any]:
         "failure_class": normalized.get("failure_class"),
         "receipt": normalized,
     }
+
+
+def execute(
+    name: str, launch: Callable[[], Any], load_receipt: Callable[[Any], Any]
+) -> dict[str, Any]:
+    descriptor = registry.get(name)
+    if descriptor.purpose is None:
+        raise execution.ExecutionRefused(f"{name}: no diagnostic purpose")
+    return execution.execute(
+        descriptor,
+        launch,
+        load_receipt,
+        lambda receipt: summarize(receipt, descriptor.purpose),
+    )

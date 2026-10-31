@@ -53,7 +53,7 @@ re-run a benchmark, or modify the frozen RC.
   exercise the same refusal ordering and synthetic receipts.
 - No benchmark workload was run.
 
-**P4 — Operation families: registry/adapter slice implemented.**
+**P4 — Operation families: implemented at the V2 boundary.**
 
 - `operations/m4/registry.py` declares every policy-owned operation and its V2
   disposition. `validate()` fails closed when policy sections or purposes
@@ -66,8 +66,11 @@ re-run a benchmark, or modify the frozen RC.
 - Scalar-open diagnostics are `unregistered`: receipts exist but no top-level
   policy purpose exists, so they cannot launch as V2.
 - Receipt adapters normalize lock, write-amplification, and diagnostic receipts
-  without ever promoting them to performance evidence. The legacy runners still
-  own execution; full executor migration remains open.
+  without ever promoting them to performance evidence.
+- `operations/m4/execution.py` is the shared gate: it refuses historical or
+  unregistered operations before launch, requires the receipt purpose to match
+  the descriptor, and lets adapters own launch/receipt loading. The legacy
+  runners remain the CLI execution owners until P6 archiving.
 
 **P5 — Retrieval disposition: upstream canonical adopted.**
 

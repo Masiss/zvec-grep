@@ -1,7 +1,10 @@
 """Receipt adapter for the lock-contention microbench family."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
+
+from . import execution, registry  # ty: ignore[unresolved-import]
 
 EXPECTED_PURPOSE = "m4-lock-contention-microbench"
 
@@ -29,3 +32,12 @@ def summarize(receipt: Any) -> dict[str, Any]:
         "failure_class": normalized.get("failure_class"),
         "receipt": normalized,
     }
+
+
+def execute(launch: Callable[[], Any], load_receipt: Callable[[Any], Any]) -> dict[str, Any]:
+    return execution.execute(
+        registry.get("lock_contention_microbench"),
+        launch,
+        load_receipt,
+        summarize,
+    )

@@ -215,7 +215,7 @@ Invariants:
   legacy and split paths agree on clean and refusal decisions; no benchmark
   run was needed.
 
-### P4 — Operation families (registry/adapter slice 2026-10-31; execution partial)
+### P4 — Operation families (registry, adapters, execution gate 2026-10-31)
 
 - Implemented `operations/m4/registry.py` with a descriptor for every
   policy-owned section plus explicit `historical_only`/`unregistered`
@@ -223,14 +223,17 @@ Invariants:
 - Implemented receipt adapters for lock contention, write amplification, and
   diagnostics. They normalize status/evidence but never promote a receipt to
   performance evidence.
-- `lock_contention_microbench` remains active with the legacy runner as
-  execution owner; full executor reuse is still open.
+- `operations/m4/execution.py` is the reusable execution gate. It refuses
+  historical/unregistered operations before launch and validates the receipt
+  purpose against the descriptor.
+- `lock_contention_microbench` remains active; the legacy runner stays the CLI
+  execution owner until P6 archive, while V2 owns descriptor/receipt/gate.
 - `immutable_write_amplification_pair` is `historical_only` and refuses
   execution until a tracked runner/provenance exists.
 - Scalar-open receipts are `unregistered` because no top-level policy purpose
   exists; they cannot launch as V2.
-- Remaining: migrate legacy execution paths behind the shared containment
-  boundary and archive closed prototypes.
+- Remaining: P6 archive/retirement of legacy CLI entrypoints; containment
+  execution remains owned by the legacy runner.
 
 ### P5 — Retrieval disposition (implemented 2026-10-31)
 

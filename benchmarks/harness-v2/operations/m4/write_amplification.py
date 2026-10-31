@@ -1,7 +1,10 @@
 """Historical-only policy boundary for write-amplification receipts."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
+
+from . import execution, registry  # ty: ignore[unresolved-import]
 
 EXPECTED_PURPOSE = "immutable-write-amplification-pair"
 
@@ -32,3 +35,12 @@ def summarize_historical(receipt: Any) -> dict[str, Any]:
         "failure_class": normalized.get("failure_class"),
         "receipt": normalized,
     }
+
+
+def execute(launch: Callable[[], Any], load_receipt: Callable[[Any], Any]) -> dict[str, Any]:
+    return execution.execute(
+        registry.get("write_amplification"),
+        launch,
+        load_receipt,
+        summarize_historical,
+    )
