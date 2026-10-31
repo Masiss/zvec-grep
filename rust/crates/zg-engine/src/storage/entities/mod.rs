@@ -1,5 +1,5 @@
 //! Canonical entities, content, metadata, and fragment selectors.
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
@@ -16,7 +16,7 @@ use super::zvec::{
 mod codec;
 
 pub(super) struct Entities {
-    collection: Collection,
+    collection: Arc<Collection>,
 }
 
 impl Entities {
@@ -27,7 +27,11 @@ impl Entities {
 
     pub(super) fn open(path: &Path, read_only: bool) -> EngineResult<Self> {
         Ok(Self {
-            collection: open_collection(&path.join("entities"), &schema()?, read_only)?,
+            collection: Arc::new(open_collection(
+                &path.join("entities"),
+                &schema()?,
+                read_only,
+            )?),
         })
     }
 

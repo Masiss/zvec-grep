@@ -2,7 +2,7 @@
 
 use std::{
     path::Path,
-    sync::{Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard},
 };
 use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
@@ -21,7 +21,7 @@ mod ids;
 use ids::DirectoryIds;
 
 pub(super) struct Directories {
-    collection: Collection,
+    collection: Arc<Collection>,
     ids: Mutex<Option<DirectoryIds>>,
     read_only: bool,
 }
@@ -29,11 +29,11 @@ pub(super) struct Directories {
 impl Directories {
     pub(super) fn open(root: &Path, read_only: bool) -> EngineResult<Self> {
         Ok(Self {
-            collection: open_collection(
+            collection: Arc::new(open_collection(
                 &root.join("directories"),
                 &directories_schema()?,
                 read_only,
-            )?,
+            )?),
             ids: Mutex::new(None),
             read_only,
         })

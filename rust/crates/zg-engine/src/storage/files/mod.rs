@@ -3,6 +3,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use zvec_rust::{Collection, CollectionSchema, DataType, Doc, SearchQuery};
 
@@ -26,7 +27,7 @@ mod ids;
 use ids::FileIds;
 
 pub(super) struct Files {
-    collection: Collection,
+    collection: Arc<Collection>,
     ids: Option<FileIds>,
 }
 
@@ -43,7 +44,11 @@ impl Files {
             Some(FileIds::open(root)?)
         };
         let mut files = Self {
-            collection: open_collection(&root.join("files"), &files_schema()?, read_only)?,
+            collection: Arc::new(open_collection(
+                &root.join("files"),
+                &files_schema()?,
+                read_only,
+            )?),
             ids,
         };
         if !read_only {
