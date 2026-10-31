@@ -59,12 +59,30 @@ struct CachePolicy {
     capacity: usize,
 }
 
+impl CachePolicy {
+    /// Resident daemons can trade model warm-start latency for a smaller idle
+    /// anonymous-RSS footprint. Invalid or out-of-range values keep defaults.
+    fn from_overrides(idle_seconds: Option<&str>, capacity: Option<&str>) -> Self {
+        let idle_seconds = idle_seconds
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .filter(|seconds| *seconds <= 86_400)
+            .unwrap_or(15 * 60);
+        let capacity = capacity
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .filter(|capacity| *capacity <= 16)
+            .unwrap_or(1);
+        Self {
+            idle_timeout: Duration::from_secs(idle_seconds),
+            capacity,
+        }
+    }
+}
+
 impl Default for CachePolicy {
     fn default() -> Self {
-        Self {
-            idle_timeout: Duration::from_mins(15),
-            capacity: 1,
-        }
+        let timeout = std::env::var("ZVEC_GREP_MODEL_IDLE_TIMEOUT_SECONDS").ok();
+        let capacity = std::env::var("ZVEC_GREP_MODEL_CACHE_CAPACITY").ok();
+        Self::from_overrides(timeout.as_deref(), capacity.as_deref())
     }
 }
 
@@ -429,6 +447,10 @@ impl ModelRuntimeLease {
 
     pub(crate) fn info(&self) -> &EmbeddingModelInfo {
         self.entry.runtime.model.info()
+    }
+
+    pub(crate) fn identity_is_stable(&self) -> bool {
+        self.entry.runtime.model.identity_is_stable()
     }
 
     pub(crate) async fn prepare(

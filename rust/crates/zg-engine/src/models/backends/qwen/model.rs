@@ -244,6 +244,10 @@ impl EmbeddingModel for QwenEmbeddingModel {
         &self.info
     }
 
+    fn identity_is_stable(&self) -> bool {
+        false
+    }
+
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults {
         if self.entry.kind == "multimodal" {
             EmbeddingConcurrencyDefaults {

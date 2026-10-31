@@ -1524,11 +1524,12 @@ fn model_tables_partition_fragments_and_failed_files_clear_every_partition() {
         "entities".to_owned(),
         "fragments_438e".to_owned(),
         "fragments_d020".to_owned(),
+        "reconciliation".to_owned(),
     ];
     expected.sort();
     assert_eq!(
         collections, expected,
-        "three canonical collections and one per model, without a graph directory"
+        "three canonical collections, one per model, and the additive reconciliation sidecar"
     );
 
     let reader = open(home.path(), true);

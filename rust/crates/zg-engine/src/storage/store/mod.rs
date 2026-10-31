@@ -50,6 +50,7 @@ use super::{
     files::Files,
     fragments::{self, Fragments},
     graph::{self, OpenMode, SqliteGraphStorage},
+    manifest::{FileManifest, ManifestStore},
     types::{
         IndexedFragment, StorageSearchFilter, StorageSearchHit, StoredEntity, StoredFileAttributes,
         StoredSearchData, WorkspaceIndexStorageOptions,
@@ -67,19 +68,31 @@ static STORES: OnceLock<StoreRegistry> = OnceLock::new();
 struct SharedStore {
     state: Mutex<StoreState>,
     schema: Vec<EmbeddingModelInfo>,
+    manifest: ManifestStore,
     read_only: bool,
     // The native handles must close before the operating-system lock is released.
     _lock: File,
 }
 
+const DIRTY_DIRECTORIES: u8 = 1 << 0;
+const DIRTY_ENTITIES: u8 = 1 << 1;
+const DIRTY_FILES: u8 = 1 << 2;
+const DIRTY_FRAGMENTS: u8 = 1 << 3;
+const DIRTY_ALL: u8 = DIRTY_DIRECTORIES | DIRTY_ENTITIES | DIRTY_FILES | DIRTY_FRAGMENTS;
+
 struct StoreState {
     files: Files,
     directories: Directories,
     entities: Entities,
-    fragments: Fragments,
+    // Fragments are cloned out of the state lock for native maintenance. All
+    // fragment methods are &self; the store lock still serializes table writes.
+    fragments: Arc<Fragments>,
     graph: Option<SqliteGraphStorage>,
     optimize_marker: PathBuf,
     needs_optimize: bool,
+    dirty: u8,
+    write_generation: u64,
+    optimizing: bool,
     closed: bool,
 }
 
@@ -194,12 +207,13 @@ impl IndexStore {
             ));
         }
         let (lock, schema) = prepare_storage(&path, options)?;
+        let manifest = ManifestStore::open(&path, read_only)?;
         let optimize_marker = path.join("optimize.pending");
         let needs_optimize = file_exists(&optimize_marker)?;
         let files = Files::open(&path, read_only)?;
         let directories = Directories::open(&path, read_only)?;
         let entities = Entities::open(&path, read_only)?;
-        let fragments = Fragments::open(&path, &schema, read_only)?;
+        let fragments = Arc::new(Fragments::open(&path, &schema, read_only)?);
         // Ordinary readers do not depend on the graph's availability.
         let graph = if read_only || !graph_enabled {
             None
@@ -231,9 +245,13 @@ impl IndexStore {
                 graph,
                 optimize_marker,
                 needs_optimize,
+                dirty: if needs_optimize { DIRTY_ALL } else { 0 },
+                write_generation: 0,
+                optimizing: false,
                 closed: false,
             }),
             schema,
+            manifest,
             read_only,
             _lock: lock,
         });
@@ -392,6 +410,32 @@ impl IndexStore {
         self.replace_file_with_graph(file, entities, entries, &FileGraphResult::default())
     }
 
+    pub(crate) fn load_embedding_manifest(
+        &self,
+        file_id: FileId,
+    ) -> EngineResult<Option<FileManifest>> {
+        self.shared()?.manifest.load(file_id)
+    }
+
+    pub(crate) fn publish_embedding_manifest(
+        &self,
+        manifest: &mut FileManifest,
+    ) -> EngineResult<bool> {
+        self.shared()?.manifest.publish(manifest)
+    }
+
+    pub(crate) fn delete_embedding_manifest(&self, file_id: FileId) -> EngineResult<()> {
+        self.shared()?.manifest.delete(file_id)
+    }
+
+    pub(crate) fn load_reusable_vectors(
+        &self,
+        model: &str,
+        fragment_ids: &[String],
+    ) -> EngineResult<HashMap<String, Vec<f32>>> {
+        self.read(|state| state.fragments.load_vectors(model, fragment_ids))
+    }
+
     /// Replace canonical content and relationships under the same store lock.
     pub(crate) fn replace_file_with_graph(
         &self,
@@ -452,7 +496,9 @@ impl IndexStore {
 
     pub(crate) fn delete_file(&self, file_id: FileId) -> EngineResult<()> {
         self.write(|state| {
+            state.write_generation = state.write_generation.wrapping_add(1);
             state.needs_optimize = true;
+            state.dirty = DIRTY_ALL;
             let old_ids = invalidation_entity_ids(state, file_id)?;
             state.files.mark_deleting(file_id)?;
             if let Some(graph) = state.graph.as_mut() {
@@ -463,21 +509,84 @@ impl IndexStore {
             state.fragments.delete_file(file_id)?;
             state.entities.delete_file(file_id)?;
             state.files.delete(file_id)
-        })
+        })?;
+        // A stale manifest only disables reuse; deleting it is best-effort and
+        // must not turn a committed deletion into a failed pass.
+        if let Err(error) = self.delete_embedding_manifest(file_id) {
+            tracing::warn!(file_id = file_id.get(), %error, "cannot delete reconciliation manifest");
+        }
+        Ok(())
     }
 
     /// Build indexes and compact accepted writes when needed.
+    ///
+    /// Native fragment maintenance runs outside the store state lock. The
+    /// persistent marker remains the crash-retry barrier, and the generation
+    /// check preserves optimization debt from writes that arrive while native
+    /// work is in flight. Directory/entity/file maintenance stays under the
+    /// store lock because those tables still require mutable handles.
     pub(crate) fn finalize_writes(&self) -> EngineResult<()> {
-        self.finalize_writes_with(|state| {
-            optimize_collections([
-                &|| state.directories.optimize(),
-                &|| state.entities.optimize(),
-                &|| state.files.optimize(),
-                &|| state.fragments.optimize(),
-            ])
+        if self.read_only {
+            return Ok(());
+        }
+        let work = self.write(|state| {
+            if state.optimizing {
+                return Ok(None);
+            }
+            let fragments_pending = state.fragments.needs_optimize()?;
+            if state.needs_optimize || fragments_pending || state.dirty != 0 {
+                state.needs_optimize = true;
+                state.optimizing = true;
+                if fragments_pending {
+                    state.dirty |= DIRTY_FRAGMENTS;
+                }
+                write_record(&state.optimize_marker, b"")?;
+                let fragments =
+                    (state.dirty & DIRTY_FRAGMENTS != 0).then(|| Arc::clone(&state.fragments));
+                return Ok(Some((fragments, state.dirty, state.write_generation)));
+            }
+            Ok(None)
+        })?;
+        let Some((fragments, dirty, generation)) = work else {
+            return Ok(());
+        };
+        let fragment_result = fragments
+            .as_ref()
+            .map_or(Ok(()), |fragments| fragments.optimize());
+        self.write(|state| {
+            let mut result = fragment_result;
+            // M3-A: only collections with actual mutation debt are finalized.
+            // The three remaining native collections are cheap relative to
+            // fragment maintenance; keep their existing serialized path until
+            // they also expose lock-free handles.
+            if result.is_ok() && dirty & DIRTY_DIRECTORIES != 0 {
+                result = state.directories.optimize();
+            }
+            if result.is_ok() && dirty & DIRTY_ENTITIES != 0 {
+                result = state.entities.optimize();
+            }
+            if result.is_ok() && dirty & DIRTY_FILES != 0 {
+                result = state.files.optimize();
+            }
+            state.optimizing = false;
+            match result {
+                Ok(()) => {
+                    // A concurrent write after the snapshot keeps the debt.
+                    if state.write_generation == generation {
+                        fs::remove_file(&state.optimize_marker).map_err(|error| {
+                            io_error("clear pending optimization", &state.optimize_marker, &error)
+                        })?;
+                        state.needs_optimize = false;
+                        state.dirty = 0;
+                    }
+                    Ok(())
+                }
+                Err(error) => Err(error),
+            }
         })
     }
 
+    #[cfg(test)]
     fn finalize_writes_with(
         &self,
         optimize: impl FnOnce(&mut StoreState) -> EngineResult<()>,
@@ -517,6 +626,13 @@ impl IndexStore {
             return Ok(());
         }
         let mut state = lock_state(&shared)?;
+        // Native fragment maintenance may be outside the state lock. Wait for it
+        // before flushing or releasing the storage lease.
+        while state.optimizing {
+            drop(state);
+            std::thread::yield_now();
+            state = lock_state(&shared)?;
+        }
         // Reject a write that acquired its Arc before close but is still waiting
         // for this lock. A successful close commits every accepted write.
         state.closed = true;
@@ -529,6 +645,7 @@ impl IndexStore {
     }
 }
 
+#[cfg(test)]
 fn optimize_collections(
     operations: [&(dyn Fn() -> EngineResult<()> + Sync); 4],
 ) -> EngineResult<()> {
@@ -559,10 +676,12 @@ fn replace_file(
     {
         return Err(graph_disabled());
     }
+    state.write_generation = state.write_generation.wrapping_add(1);
     state.files.validate(file)?;
     state.entities.validate_ownership(entities, file.id())?;
     state.fragments.validate_ownership(entries, file.id())?;
     state.needs_optimize = true;
+    state.dirty = DIRTY_ALL;
     let directories = state.directories.ensure(file.relative_path())?;
     // Encode every projection before removing any of the previous file's data.
     let entity_docs = Entities::prepare(entities)?;

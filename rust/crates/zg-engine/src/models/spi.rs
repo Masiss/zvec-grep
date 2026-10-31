@@ -106,6 +106,12 @@ impl Default for EmbeddingConcurrencyDefaults {
 pub trait EmbeddingModel: Send + Sync {
     fn info(&self) -> &EmbeddingModelInfo;
 
+    /// Whether the same model reference is guaranteed to produce the same
+    /// vectors across runs. Hosted aliases without a pinned revision are not.
+    fn identity_is_stable(&self) -> bool {
+        true
+    }
+
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults {
         EmbeddingConcurrencyDefaults::default()
     }

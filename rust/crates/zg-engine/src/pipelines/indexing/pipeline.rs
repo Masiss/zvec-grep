@@ -48,7 +48,7 @@ use crate::{
         EmbeddingConcurrencyDefaults, EmbeddingOptions, EmbeddingPrepareOptions, ModelError,
         ModelRuntimeLease,
     },
-    storage::types::IndexedFragment,
+    storage::{manifest::FileManifest, types::IndexedFragment},
     utils::{collapse_whitespace, decode_index_text, sha256_hex},
 };
 
@@ -70,6 +70,10 @@ const EMBEDDING_SUCCESS_STREAK_MIN: usize = 4;
 pub(crate) trait IndexEmbeddingRuntime: Send + Sync {
     fn info(&self) -> &EmbeddingModelInfo;
 
+    fn identity_is_stable(&self) -> bool {
+        true
+    }
+
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults;
 
     async fn prepare(
@@ -90,6 +94,10 @@ pub(crate) trait IndexEmbeddingRuntime: Send + Sync {
 impl IndexEmbeddingRuntime for ModelRuntimeLease {
     fn info(&self) -> &EmbeddingModelInfo {
         self.info()
+    }
+
+    fn identity_is_stable(&self) -> bool {
+        self.identity_is_stable()
     }
 
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults {
@@ -479,6 +487,9 @@ fn delete_stale_files(
                 file.relative_path().display()
             ))
         })?;
+        if let Err(error) = context.storage.delete_embedding_manifest(file.id()) {
+            tracing::warn!(file_id = file.id().get(), %error, "cannot delete reconciliation manifest");
+        }
     }
     Ok(())
 }
@@ -603,7 +614,20 @@ struct PreparedFragment {
     entity_id: EntityId,
     fragment_id: FragmentId,
     embedding_content: Vec<Content>,
+    embedding_fingerprint: String,
     fts_text: String,
+    /// A stored vector whose manifest fingerprint proves the same embedding
+    /// input, model identity, and fragment ordinal.
+    reusable_vector: Option<Vec<f32>>,
+}
+
+impl PreparedFile {
+    fn pending_embedding_count(&self) -> usize {
+        self.fragments
+            .iter()
+            .filter(|fragment| fragment.reusable_vector.is_none())
+            .count()
+    }
 }
 
 struct PreparedFile {
@@ -727,7 +751,8 @@ async fn index_candidates_inner<'context>(
             }
         };
 
-        if prepared.fragments.is_empty() {
+        let pending_embeddings = prepared.pending_embedding_count();
+        if prepared.fragments.is_empty() || pending_embeddings == 0 {
             let commit_started = Instant::now();
             let detail = commit_file(context.storage, prepared, Vec::new(), &mut stats)?;
             timings.record("index_commit", commit_started.elapsed(), 1);
@@ -735,7 +760,7 @@ async fn index_candidates_inner<'context>(
             continue;
         }
 
-        if prepared.fragments.len() > max_batch_size {
+        if pending_embeddings > max_batch_size {
             if !current_batch.is_empty() {
                 ensure_model_prepared(context, model_prepared).await?;
                 push_embedding(
@@ -749,9 +774,7 @@ async fn index_candidates_inner<'context>(
             ensure_model_prepared(context, model_prepared).await?;
             push_embedding(running, vec![prepared], context, Arc::clone(&scheduler));
         } else {
-            if current_fragments > 0
-                && current_fragments + prepared.fragments.len() > max_batch_size
-            {
+            if current_fragments > 0 && current_fragments + pending_embeddings > max_batch_size {
                 ensure_model_prepared(context, model_prepared).await?;
                 push_embedding(
                     running,
@@ -761,7 +784,7 @@ async fn index_candidates_inner<'context>(
                 );
                 current_fragments = 0;
             }
-            current_fragments += prepared.fragments.len();
+            current_fragments += pending_embeddings;
             current_batch.push(prepared);
             if current_fragments == max_batch_size {
                 ensure_model_prepared(context, model_prepared).await?;
@@ -908,31 +931,50 @@ fn commit_file(
     vectors: Vec<Vec<f32>>,
     stats: &mut IndexWriteStats,
 ) -> Result<String, EngineError> {
-    if file.fragments.len() != vectors.len() {
+    let pending = file.pending_embedding_count();
+    if pending != vectors.len() {
         return Err(EngineError::internal(format!(
-            "entity/vector count mismatch: fragments={} vectors={}",
-            file.fragments.len(),
+            "entity/vector count mismatch: pending={pending} vectors={}",
             vectors.len()
         )));
     }
     let public_entities = file.entities.len();
-    let entries = file
+    let mut manifest = FileManifest::new(file.file.id());
+    manifest.fragments = file
         .fragments
-        .into_iter()
-        .zip(vectors)
-        .map(|(fragment, vector)| IndexedFragment {
+        .iter()
+        .filter(|fragment| !fragment.embedding_fingerprint.is_empty())
+        .map(|fragment| crate::storage::manifest::FragmentManifestEntry {
+            fragment_id: fragment.fragment_id.as_str().to_owned(),
+            model: fragment.model.clone(),
+            embedding_fingerprint: fragment.embedding_fingerprint.clone(),
+        })
+        .collect();
+    let mut vectors = vectors.into_iter();
+    let mut entries = Vec::with_capacity(file.fragments.len());
+    for fragment in file.fragments {
+        let vector = match fragment.reusable_vector {
+            Some(vector) => vector,
+            None => vectors
+                .next()
+                .ok_or_else(|| EngineError::internal("missing embedding for a pending fragment"))?,
+        };
+        entries.push(IndexedFragment {
             model: fragment.model,
             entity_id: fragment.entity_id,
             fragment_id: fragment.fragment_id,
             fts_text: fragment.fts_text,
             vector,
-        })
-        .collect::<Vec<_>>();
+        });
+    }
     if let Err(error) = storage.replace_file(&file.file, &file.entities, &entries, &file.graph) {
         // Invalid file content or graph data is local to this file. Native write
         // failures must still abort the pass, including failure to record Failed.
         if error.code() == EngineError::INVALID_ARGUMENT {
             let reason = mark_file_failed(storage, &file.file, "validate", &error)?;
+            if let Err(error) = storage.delete_embedding_manifest(file.file.id()) {
+                tracing::warn!(file_id = file.file.id().get(), %error, "cannot delete stale reconciliation manifest");
+            }
             record_file_failed(stats, &file.file, &reason);
             return Ok(format!("failed {}", file.file.relative_path().display()));
         }
@@ -940,6 +982,9 @@ fn commit_file(
             "replace file {}: {error}",
             file.file.relative_path().display()
         )));
+    }
+    if let Err(error) = storage.publish_embedding_manifest(&mut manifest) {
+        tracing::warn!(file_id = file.file.id().get(), %error, "cannot publish reconciliation manifest");
     }
     stats.files_indexed += 1;
     stats.entities_created += public_entities;
@@ -1017,7 +1062,29 @@ async fn prepare_candidate(
         .collect::<Result<HashMap<_, _>, EngineError>>()?;
     let mut fragments = prepare_fragments(&entities, chunk_options.max_chunk_chars)?;
     for fragment in &mut fragments {
-        fragment.model = owners[&fragment.entity_id].clone();
+        let model = owners[&fragment.entity_id].clone();
+        let runtime = context
+            .embedding_models
+            .iter()
+            .find(|runtime| runtime.info().model().reference() == model)
+            .ok_or_else(|| EngineError::internal("embedding runtime disappeared"))?;
+        fragment.embedding_fingerprint = if runtime.identity_is_stable() {
+            embedding_input_fingerprint(runtime.info(), &fragment.embedding_content)?
+        } else {
+            String::new()
+        };
+        fragment.model = model;
+    }
+    if candidate.kind == CandidateKind::Modified
+        && let Some(existing) = candidate.existing.as_ref()
+    {
+        let manifest = context.storage.load_embedding_manifest(existing.id())?;
+        reuse_existing_vectors(
+            context.storage,
+            existing.id(),
+            manifest.as_ref(),
+            &mut fragments,
+        )?;
     }
     Ok(PreparedCandidate::File(Box::new(PreparedFile {
         file,
@@ -1025,6 +1092,68 @@ async fn prepare_candidate(
         fragments,
         graph: extracted.graph.unwrap_or_default(),
     })))
+}
+
+/// Reuse vectors only when the manifest records the same fragment identity,
+/// model, and embedding-input fingerprint. Missing or invalid evidence simply
+/// falls back to embedding again.
+fn reuse_existing_vectors(
+    storage: &dyn IndexStorage,
+    file_id: FileId,
+    manifest: Option<&FileManifest>,
+    fragments: &mut [PreparedFragment],
+) -> Result<(), EngineError> {
+    let Some(manifest) = manifest else {
+        return Ok(());
+    };
+    let mut by_model: HashMap<String, Vec<String>> = HashMap::new();
+    for fragment in fragments.iter() {
+        if !fragment.embedding_fingerprint.is_empty()
+            && manifest
+                .find_embedding(
+                    fragment.fragment_id.as_str(),
+                    &fragment.model,
+                    &fragment.embedding_fingerprint,
+                )
+                .is_some()
+        {
+            by_model
+                .entry(fragment.model.clone())
+                .or_default()
+                .push(fragment.fragment_id.as_str().to_owned());
+        }
+    }
+    for (model, ids) in by_model {
+        let vectors = storage.load_reusable_vectors(file_id, &model, &ids)?;
+        if vectors.is_empty() {
+            continue;
+        }
+        for fragment in fragments.iter_mut() {
+            if fragment.model == model
+                && !fragment.embedding_fingerprint.is_empty()
+                && manifest
+                    .find_embedding(
+                        fragment.fragment_id.as_str(),
+                        &fragment.model,
+                        &fragment.embedding_fingerprint,
+                    )
+                    .is_some()
+                && let Some(vector) = vectors.get(fragment.fragment_id.as_str())
+            {
+                fragment.reusable_vector = Some(vector.clone());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn embedding_input_fingerprint(
+    model: &crate::domain::model::EmbeddingModelInfo,
+    input: &[Content],
+) -> Result<String, EngineError> {
+    let encoded = serde_json::to_vec(&(1_u32, model, input))
+        .map_err(|error| EngineError::internal(format!("encode embedding fingerprint: {error}")))?;
+    Ok(crate::utils::sha256_hex(&encoded))
 }
 
 fn model_for_content<'a>(
@@ -1097,6 +1226,8 @@ fn prepare_fragments(
                         entity.metadata(),
                         max_chars,
                     ),
+                    embedding_fingerprint: String::new(),
+                    reusable_vector: None,
                 })
             })
         })
@@ -1229,7 +1360,9 @@ async fn embed_prepared_files(
     progress: Option<IndexProgressReporter>,
 ) -> Result<EmbeddingBatchOutcome, ModelError> {
     let started = Instant::now();
-    if files.len() == 1 && files[0].fragments.len() > model.info().model().max_batch_size() {
+    if files.len() == 1
+        && files[0].pending_embedding_count() > model.info().model().max_batch_size()
+    {
         let file = files.into_iter().next().expect("one prepared file");
         let outcome = match embed_file(
             &file.fragments,
@@ -1260,6 +1393,7 @@ async fn embed_prepared_files(
         .flat_map(|file| {
             file.fragments
                 .iter()
+                .filter(|fragment| fragment.reusable_vector.is_none())
                 .map(|fragment| fragment.embedding_content.clone())
         })
         .collect::<Vec<_>>();
@@ -1311,11 +1445,19 @@ fn split_embedding(
     files: Vec<PreparedFile>,
     embedding: EmbeddingResult,
 ) -> Vec<EmbeddedFileOutcome> {
-    if embedding.vectors.len() != files.iter().map(|file| file.fragments.len()).sum::<usize>() {
+    if embedding.vectors.len()
+        != files
+            .iter()
+            .map(PreparedFile::pending_embedding_count)
+            .sum::<usize>()
+    {
         let reason = format!(
-            "embedding returned {} vectors for {} fragments",
+            "embedding returned {} vectors for {} pending fragments",
             embedding.vectors.len(),
-            files.iter().map(|file| file.fragments.len()).sum::<usize>()
+            files
+                .iter()
+                .map(PreparedFile::pending_embedding_count)
+                .sum::<usize>()
         );
         return files
             .into_iter()
@@ -1330,7 +1472,7 @@ fn split_embedding(
     files
         .into_iter()
         .map(|file| {
-            let count = file.fragments.len();
+            let count = file.pending_embedding_count();
             let file_vectors = vectors.by_ref().take(count).collect::<Vec<_>>();
             EmbeddedFileOutcome::Success {
                 file,
@@ -1349,8 +1491,12 @@ async fn embed_file(
 ) -> Result<EmbeddingResult, ModelError> {
     let maximum = model.info().model().max_batch_size();
     let batch_signal = signal.map_or_else(CancellationToken::new, CancellationToken::child_token);
+    let pending = fragments
+        .iter()
+        .filter(|fragment| fragment.reusable_vector.is_none())
+        .collect::<Vec<_>>();
     let mut running = FuturesUnordered::new();
-    for (batch_index, fragments) in fragments.chunks(maximum).enumerate() {
+    for (batch_index, fragments) in pending.chunks(maximum).enumerate() {
         running.push(embed_fragment_batch(
             batch_index * maximum,
             fragments,
@@ -1382,7 +1528,7 @@ async fn embed_file(
         return Err(error);
     }
     batches.sort_by_key(|batch| batch.start);
-    let mut vectors = Vec::with_capacity(fragments.len());
+    let mut vectors = Vec::with_capacity(pending.len());
     let mut truncated = Vec::new();
     for batch in batches {
         vectors.extend(batch.embedding.vectors);
@@ -1404,7 +1550,7 @@ struct FragmentBatchResult {
 
 async fn embed_fragment_batch(
     start: usize,
-    fragments: &[PreparedFragment],
+    fragments: &[&PreparedFragment],
     model: &dyn IndexEmbeddingRuntime,
     scheduler: &EmbeddingScheduler,
     signal: Option<&CancellationToken>,
@@ -2462,6 +2608,34 @@ mod tests {
         }
     }
 
+    #[test]
+    fn m2_reuse_requires_matching_fragment_identity_and_model() {
+        let file_id = FileId::new(91);
+        let mut first = prepared_fragment("alpha", 0);
+        let mut second = prepared_fragment("beta", 1);
+        first.model = "local/test".to_owned();
+        second.model = "local/other".to_owned();
+        let mut fragments = vec![first, second];
+        let storage = MemoryStorage::default();
+        storage
+            .reusable_vectors
+            .lock()
+            .expect("reusable vectors")
+            .insert(fragments[0].fragment_id.as_str().to_owned(), vec![1.0, 2.0]);
+        let mut manifest = FileManifest::new(file_id);
+        manifest.fragments = fragments
+            .iter()
+            .map(|fragment| crate::storage::manifest::FragmentManifestEntry {
+                fragment_id: fragment.fragment_id.as_str().to_owned(),
+                model: fragment.model.clone(),
+                embedding_fingerprint: fragment.embedding_fingerprint.clone(),
+            })
+            .collect();
+        reuse_existing_vectors(&storage, file_id, Some(&manifest), &mut fragments).expect("reuse");
+        assert_eq!(fragments[0].reusable_vector, Some(vec![1.0, 2.0]));
+        assert_eq!(fragments[1].reusable_vector, None);
+    }
+
     #[derive(Default)]
     struct MemoryStorage {
         files: Mutex<Vec<FileRecord>>,
@@ -2474,6 +2648,7 @@ mod tests {
         fail_replacements_once: Mutex<HashSet<FileId>>,
         fail_snapshot_updates: AtomicBool,
         snapshot_update_failed: Notify,
+        reusable_vectors: Mutex<HashMap<String, Vec<f32>>>,
     }
 
     #[test]
@@ -2706,6 +2881,31 @@ mod tests {
 
         fn finalize_writes(&self) -> EngineResult<()> {
             self.finalized.fetch_add(1, Ordering::AcqRel);
+            Ok(())
+        }
+
+        fn load_reusable_vectors(
+            &self,
+            _file_id: FileId,
+            _model: &str,
+            fragment_ids: &[String],
+        ) -> EngineResult<HashMap<String, Vec<f32>>> {
+            let vectors = self.reusable_vectors.lock().expect("reusable vectors");
+            Ok(fragment_ids
+                .iter()
+                .filter_map(|id| vectors.get(id).map(|vector| (id.clone(), vector.clone())))
+                .collect())
+        }
+
+        fn load_embedding_manifest(&self, _file_id: FileId) -> EngineResult<Option<FileManifest>> {
+            Ok(None)
+        }
+
+        fn publish_embedding_manifest(&self, _manifest: &mut FileManifest) -> EngineResult<()> {
+            Ok(())
+        }
+
+        fn delete_embedding_manifest(&self, _file_id: FileId) -> EngineResult<()> {
             Ok(())
         }
     }
@@ -3054,7 +3254,9 @@ mod tests {
             fragment_id: FragmentId::new(&entity_id, ordinal),
             entity_id,
             embedding_content: vec![content],
+            embedding_fingerprint: "a".repeat(64),
             fts_text: text.to_owned(),
+            reusable_vector: None,
         }
     }
 

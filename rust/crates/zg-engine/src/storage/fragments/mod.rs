@@ -157,6 +157,31 @@ impl Fragments {
         Ok(())
     }
 
+    /// Fetch stored vectors for fragment keys in one model collection. Callers
+    /// must only reuse a vector when the fragment identity and model match; the
+    /// vector is then the same deterministic projection of the same input.
+    pub(super) fn load_vectors(
+        &self,
+        model: &str,
+        keys: &[String],
+    ) -> EngineResult<HashMap<String, Vec<f32>>> {
+        let index = self.index(model)?;
+        let mut vectors = HashMap::with_capacity(keys.len());
+        for batch in keys.chunks(super::zvec::WRITE_BATCH) {
+            let refs = batch.iter().map(String::as_str).collect::<Vec<_>>();
+            for doc in native(index.fetch(&refs), "fetch reusable embeddings")? {
+                let key = doc_key(&doc)?.to_owned();
+                let Some(vector) = zg_zvec_fp16::decode_embedding(&doc, "embedding")
+                    .map_err(|error| corrupt(format!("decode reusable embedding: {error}")))?
+                else {
+                    continue;
+                };
+                vectors.insert(key, vector);
+            }
+        }
+        Ok(vectors)
+    }
+
     pub(super) fn flush(&self) -> EngineResult<()> {
         for index in self.indexes.values() {
             native(index.flush(), "flush fragment collection")?;

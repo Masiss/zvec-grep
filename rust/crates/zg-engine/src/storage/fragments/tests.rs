@@ -731,3 +731,38 @@ fn query_limits_and_nul_text_preserve_native_boundaries() {
     assert_eq!(index_text("before\0after"), "before after");
     assert!(matches!(index_text("plain"), Cow::Borrowed(_)));
 }
+
+#[test]
+fn reusable_vectors_are_loaded_by_fragment_identity_and_model() {
+    let home = tempfile::tempdir().expect("storage");
+    let store = metadata_store(home.path());
+    let (source, entities, entries) = metadata_fragments(1, "reuse");
+    let mut entries = entries;
+    entries[1].vector = vec![0.25, -0.5, 1.0];
+    write_fixture(&store, &source, &entities, &entries);
+    store.flush().expect("flush storage");
+
+    let ids = entries
+        .iter()
+        .map(|entry| entry.fragment_id.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let vectors = store
+        .load_vectors("fixture/fixture", &ids)
+        .expect("load reusable vectors");
+    assert_eq!(vectors.len(), entries.len());
+    let decoded = &vectors[entries[1].fragment_id.as_str()];
+    assert_eq!(decoded.len(), entries[1].vector.len());
+    for (decoded, original) in decoded.iter().zip(&entries[1].vector) {
+        assert_eq!(
+            decoded.to_bits(),
+            half::f16::from_f32(*original).to_f32().to_bits()
+        );
+    }
+    assert_eq!(
+        store
+            .load_vectors("fixture/other", &ids)
+            .expect_err("unknown model")
+            .code(),
+        crate::EngineError::INVALID_ARGUMENT
+    );
+}

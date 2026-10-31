@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::{
     EngineResult,
     domain::{Entity, FileGraphResult, FileId, FileRecord},
-    storage::{IndexStore, types::IndexedFragment},
+    storage::{IndexStore, manifest::FileManifest, types::IndexedFragment},
 };
 
 pub(crate) trait IndexStorage: Send + Sync {
@@ -23,6 +23,28 @@ pub(crate) trait IndexStorage: Send + Sync {
     fn mark_file_failed(&self, file: &FileRecord, error: &str) -> EngineResult<()>;
     fn delete_file(&self, file_id: FileId) -> EngineResult<()>;
     fn finalize_writes(&self) -> EngineResult<()>;
+    /// Return stored vectors whose fragment identity and model still match.
+    /// The default keeps lightweight test storages from implementing M2.
+    fn load_reusable_vectors(
+        &self,
+        _file_id: FileId,
+        _model: &str,
+        _fragment_ids: &[String],
+    ) -> EngineResult<std::collections::HashMap<String, Vec<f32>>> {
+        Ok(std::collections::HashMap::new())
+    }
+
+    fn load_embedding_manifest(&self, _file_id: FileId) -> EngineResult<Option<FileManifest>> {
+        Ok(None)
+    }
+
+    fn publish_embedding_manifest(&self, _manifest: &mut FileManifest) -> EngineResult<()> {
+        Ok(())
+    }
+
+    fn delete_embedding_manifest(&self, _file_id: FileId) -> EngineResult<()> {
+        Ok(())
+    }
 }
 
 impl IndexStorage for IndexStore {
@@ -62,5 +84,26 @@ impl IndexStorage for IndexStore {
 
     fn finalize_writes(&self) -> EngineResult<()> {
         self.finalize_writes()
+    }
+
+    fn load_reusable_vectors(
+        &self,
+        _file_id: FileId,
+        model: &str,
+        fragment_ids: &[String],
+    ) -> EngineResult<std::collections::HashMap<String, Vec<f32>>> {
+        self.load_reusable_vectors(model, fragment_ids)
+    }
+
+    fn load_embedding_manifest(&self, file_id: FileId) -> EngineResult<Option<FileManifest>> {
+        self.load_embedding_manifest(file_id)
+    }
+
+    fn publish_embedding_manifest(&self, manifest: &mut FileManifest) -> EngineResult<()> {
+        self.publish_embedding_manifest(manifest).map(|_| ())
+    }
+
+    fn delete_embedding_manifest(&self, file_id: FileId) -> EngineResult<()> {
+        self.delete_embedding_manifest(file_id)
     }
 }
