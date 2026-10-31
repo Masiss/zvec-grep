@@ -106,9 +106,12 @@ impl FileManifest {
 }
 
 pub(crate) fn vector_fingerprint(vector: &[f32]) -> String {
-    let mut bytes = Vec::with_capacity(vector.len().saturating_mul(4));
+    // The native collection stores FP16. Hash the exact FP16 representation so
+    // the published manifest matches the vector decoded from storage; hashing
+    // the original f32 would reject every non-representable embedding on reuse.
+    let mut bytes = Vec::with_capacity(vector.len().saturating_mul(2));
     for value in vector {
-        bytes.extend_from_slice(&value.to_bits().to_le_bytes());
+        bytes.extend_from_slice(&half::f16::from_f32(*value).to_bits().to_le_bytes());
     }
     crate::utils::sha256_hex(&bytes)
 }
@@ -261,6 +264,16 @@ mod tests {
                 .find_embedding(&"a".repeat(40), "m", &"c".repeat(64))
                 .is_none()
         );
+    }
+
+    #[test]
+    fn vector_fingerprint_matches_the_fp16_representation() {
+        let original = [0.1_f32, -0.2, 1.25, 0.333_333];
+        let decoded = original
+            .iter()
+            .map(|value| half::f16::from_f32(*value).to_f32())
+            .collect::<Vec<_>>();
+        assert_eq!(vector_fingerprint(&original), vector_fingerprint(&decoded));
     }
 
     #[test]
