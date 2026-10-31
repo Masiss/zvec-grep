@@ -126,7 +126,8 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
   ID, model, and input fingerprint match. Version-1 sidecars are ignored, not
   reused.
 - Added regressions for fingerprint/model/stale-vector mismatch, failed
-  replacement, real-store reopen, missing/corrupt sidecar, and delete.
+  replacement, real-store reopen, missing/corrupt sidecar, delete, and
+  rename-as-delete-plus-new-identity.
 - **Found and fixed a close deadlock**: `close()` held the storage lease while
   waiting for `optimizing`; `finalize_writes()` needs the same lease to clear it.
   `close()` now waits without the lease and re-takes it for the final flush.
@@ -147,10 +148,12 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 - `ae7bfe6` — `perf(engine): bound model runtime and preflight rebuild space`
 - `0098a6f` — `fix(engine): harden M2 sidecar and M3 finalization correctness`
 - `79eba5c` — `docs: record M2/M3 correctness audit and benchmark gates`
+- `f5e7208` — `test(engine): cover reconciliation sidecar rename removal`
+- `acdf8d1` — `docs: record reconciliation rename and final correctness counts`
 
 ### Verification (pass 2)
 
-- `cargo test -p zg-engine --lib` — **683 passed, 0 failed, 10 ignored**.
+- `cargo test -p zg-engine --lib` — **684 passed, 0 failed, 10 ignored**.
 - `cargo test -p zg-daemon` — **124 passed, 0 failed**.
 - `cargo clippy -p zg-engine -p zg-daemon --all-targets -- -D warnings` — **PASS**.
 - `cargo fmt --all -- --check` — **PASS**.
@@ -185,7 +188,7 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 ## Current state
 
-- Integration worktree is clean; branch is **12 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **14 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
 - No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No production default, migration, or release configuration changed.

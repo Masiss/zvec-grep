@@ -69,8 +69,9 @@ A fork item is not marked COVERED merely because a similarly named upstream feat
   and the real-store lifecycle test.
 - **Delete**: `IndexStore::delete_file` removes the sidecar; regression
   `reconciliation_manifest_survives_reopen_and_is_removed_with_the_file`.
-- **Rename**: sidecar is keyed by `FileId`, not path; the existing file-record
-  replacement path retains it. Upstream rename/replace regressions remain green.
+- **Rename**: upstream rename is delete + new file identity. The old sidecar is
+  removed and the new identity has none, so no old vector is reused. Regression:
+  `reconciliation_manifest_is_removed_when_rename_replaces_file_identity`.
 - **Failed replacement**: a storage failure does not publish a manifest;
   regression `failed_replacement_does_not_publish_a_reconciliation_manifest`.
 - **Crash/reopen**: manifest survives a clean reopen; corrupt or missing sidecar
