@@ -53,6 +53,33 @@ re-run a benchmark, or modify the frozen RC.
   exercise the same refusal ordering and synthetic receipts.
 - No benchmark workload was run.
 
+**P4 — Operation families: registry/adapter slice implemented.**
+
+- `operations/m4/registry.py` declares every policy-owned operation and its V2
+  disposition. `validate()` fails closed when policy sections or purposes
+  drift.
+- Active: Rust lifecycle and lock-contention microbench. Research-only:
+  shared collection, native query-lock split, observer overhead, qgroup
+  reclaim, and synthetic containment.
+- Write amplification is `historical_only` with execution refused: no tracked
+  runner references its purpose.
+- Scalar-open diagnostics are `unregistered`: receipts exist but no top-level
+  policy purpose exists, so they cannot launch as V2.
+- Receipt adapters normalize lock, write-amplification, and diagnostic receipts
+  without ever promoting them to performance evidence. The legacy runners still
+  own execution; full executor migration remains open.
+
+**P5 — Retrieval disposition: upstream canonical adopted.**
+
+- `benchmarks/zg-retrieval` was replaced with the upstream retrieval harness,
+  including compact-response parsing, snapshot/report changes, and the
+  retrieval-only/PR/comment workflows and actions.
+- Retrieval tests: **185 pass / 0 fail**.
+- The copied workflow tests now normalize YAML line continuations introduced by
+  this repository's line-length constraints; the asserted behavior is unchanged.
+- Retrieval has no M4 imports and remains an independent `core/metrics/engines/
+  reports` tree.
+
 The implementation adds no benchmark workload, production launch, threshold,
 policy, cgroup-limit, or RC change. Synthetic containment verification launches
 its own transient user units and cleans them up; it runs no production workload.

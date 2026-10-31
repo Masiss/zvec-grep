@@ -215,22 +215,32 @@ Invariants:
   legacy and split paths agree on clean and refusal decisions; no benchmark
   run was needed.
 
-### P4 — Migrate operation families
+### P4 — Operation families (registry/adapter slice 2026-10-31; execution partial)
 
-- `lock_contention_microbench`: declarative operation descriptor + reused
-  executor.
-- `write_amplification`: establish provenance first; then adapter. Until then
-  mark its receipts as historical-only.
-- Diagnostic adapters (`observer`, `qgroup`, scalar open): keep behind the same
-  containment/measurement boundary; archive one-off prototypes.
+- Implemented `operations/m4/registry.py` with a descriptor for every
+  policy-owned section plus explicit `historical_only`/`unregistered`
+  dispositions. Coverage validation fails closed on policy drift.
+- Implemented receipt adapters for lock contention, write amplification, and
+  diagnostics. They normalize status/evidence but never promote a receipt to
+  performance evidence.
+- `lock_contention_microbench` remains active with the legacy runner as
+  execution owner; full executor reuse is still open.
+- `immutable_write_amplification_pair` is `historical_only` and refuses
+  execution until a tracked runner/provenance exists.
+- Scalar-open receipts are `unregistered` because no top-level policy purpose
+  exists; they cannot launch as V2.
+- Remaining: migrate legacy execution paths behind the shared containment
+  boundary and archive closed prototypes.
 
-### P5 — Retrieval disposition
+### P5 — Retrieval disposition (implemented 2026-10-31)
 
-- Adopt upstream `benchmarks/zg-retrieval` as the single canonical copy; do not
-  merge the fork's stale copy (missing compact-response/parser changes).
-- Keep `core/metrics/engines/reports` boundaries; no M4 imports.
-- Gate: existing retrieval golden tests pass unchanged; report/compare/CI
-  entrypoints produce byte-stable summaries for frozen fixtures.
+- Replaced `benchmarks/zg-retrieval` with the upstream copy, including
+  compact-response parsing and the retrieval-only/PR/comment workflows and
+  actions.
+- Kept the `core/metrics/engines/reports` boundaries; no M4 imports.
+- Gate: **185 retrieval tests pass / 0 fail**. Workflow tests normalize YAML
+  line continuations introduced by repository formatting; semantic assertions
+  are unchanged. Report/compare/CI entrypoints remain on frozen fixtures.
 
 ### P6 — Archive and document
 
