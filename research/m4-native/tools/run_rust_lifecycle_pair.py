@@ -14,31 +14,47 @@ import uuid
 from io import BytesIO
 from typing import Any
 
-import m4_containment_runner as containment
 import create_measurement_artifact as measurement_artifact
+import m4_containment_runner as containment
 
 REPO = pathlib.Path(__file__).resolve().parents[3]
 CONTRACT = containment.BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
+WORKLOAD = CONTRACT['workload']
 RUST_TARGET_DIR = containment.M4_RUST_LIFECYCLE_TARGET
-CODE_EXTENSIONS = {'.rs', '.cc', '.cpp', '.h', '.hpp', '.c', '.py'}
-TEST_NAME = CONTRACT['workload']['test_name']
+CODE_EXTENSIONS = {'.rs', '.cc', '.cpp', '.h', '.hpp', '.c', '.py', '.cs'}
+TEST_NAME = WORKLOAD['test_name']
 SAMPLE_INTERVAL_MS = 500
 
 
 def git(*args: str) -> bytes:
-    return subprocess.run(['git', *args], cwd=REPO, check=True, stdout=subprocess.PIPE).stdout
+    source_repo = WORKLOAD.get('source_repo', str(REPO))
+    return subprocess.run(['git', *args], cwd=source_repo, check=True, stdout=subprocess.PIPE).stdout
+
+
+def validate_full_corpus_reference(workload: dict[str, Any]) -> None:
+    """Reject an unprovenanced full-corpus reference unless it is explicitly blocked."""
+    reference = workload.get('full_corpus_reference')
+    if not reference:
+        return
+    if reference.get('provenance_status') == 'blocked_missing_source':
+        return
+    missing = [key for key in ('source_repo', 'source_commit', 'source_selection')
+               if not reference.get(key)]
+    if missing:
+        raise ValueError('full corpus reference lacks provenance: ' + ', '.join(missing))
 
 
 def frozen_manifest() -> tuple[list[tuple[str, str, int]], str]:
-    commit = CONTRACT['workload']['source_commit']
+    validate_full_corpus_reference(WORKLOAD)
+    commit = WORKLOAD['source_commit']
     tree = git('ls-tree', '-rlz', commit)
     entries: list[tuple[str, str, int]] = []
-    selection = CONTRACT['workload'].get('source_selection')
+    selection = WORKLOAD.get('source_selection')
     for item in tree.split(b'\0'):
         if not item:
             continue
         meta, raw_path = item.split(b'\t', 1)
-        mode, kind, blob, size = meta.decode('ascii').split()
+        _mode, kind, blob, size = meta.decode('ascii').split()
         path = raw_path.decode('utf-8')
         suffix = pathlib.PurePosixPath(path).suffix
         if selection is None:
@@ -55,11 +71,18 @@ def frozen_manifest() -> tuple[list[tuple[str, str, int]], str]:
         entries = entries[:selection['max_files']]
     encoded = ''.join(f'{path}\t{blob}\t{size}\n' for path, blob, size in entries).encode()
     digest = hashlib.sha256(encoded).hexdigest()
-    if (len(entries) != CONTRACT['workload']['source_file_count'] or
-            sum(entry[2] for entry in entries) != CONTRACT['workload']['source_bytes'] or
-            digest != CONTRACT['workload']['source_manifest_sha256']):
+    if (len(entries) != WORKLOAD['source_file_count'] or
+            sum(entry[2] for entry in entries) != WORKLOAD['source_bytes'] or
+            digest != WORKLOAD['source_manifest_sha256']):
         raise ValueError('committed source corpus differs from the frozen Gate B manifest')
     return entries, digest
+
+
+def is_executable(path: pathlib.Path) -> bool:
+    try:
+        return os.access(path, os.X_OK)
+    except OSError:
+        return False
 
 
 def find_test_binary(binary_override: pathlib.Path | None = None,
@@ -73,7 +96,7 @@ def find_test_binary(binary_override: pathlib.Path | None = None,
         allowed = measurement_dir.resolve(strict=True)
         if (measurement_dir.is_symlink() or allowed.parent != deps or
                 not binary.is_relative_to(allowed) or not binary.name.startswith('zg_engine-') or
-                not binary.name.endswith('-nodebug') or not binary.is_file() or not os.access(binary, os.X_OK)):
+                not binary.name.endswith('-nodebug') or not binary.is_file() or not is_executable(binary)):
             raise ValueError('opt-in binary must be a nodebug executable in the measurement artifact directory')
         original = deps / binary.name.removesuffix('-nodebug')
         if (not original.is_file() or original.is_symlink() or original.resolve().parent != deps or
@@ -98,7 +121,7 @@ def find_test_binary(binary_override: pathlib.Path | None = None,
             raise ValueError('native library override must be an exact artifact under debug/build')
         library_dirs = [library_dir]
     for binary in candidates:
-        if not binary.is_file() or not os.access(binary, os.X_OK):
+        if not binary.is_file() or not is_executable(binary):
             continue
         lib = library_dirs[0]
         env = {**os.environ, 'LD_LIBRARY_PATH': str(lib)}
@@ -136,19 +159,62 @@ def verify_pair_artifacts(expected: dict[str, str]) -> None:
 def make_context(operation_id: str, operation_root: pathlib.Path, arm_role: str,
                  execution_order: list[str], artifacts: dict[str, str],
                  workspace_root: pathlib.Path, source_root: pathlib.Path,
-                 quota_proof: dict[str, Any], operation_mode: str = 'pair') -> dict[str, Any]:
+                 quota_proof: dict[str, Any], operation_mode: str = 'pair',
+                 query_interval_ms: int | None = None) -> dict[str, Any]:
     arm_name = 'pair-first' if arm_role == execution_order[0] else 'pair-second'
-    authorization = (CONTRACT['native_query_stage_diagnostic']
-                     if operation_mode == 'native_query_stage_diagnostic' else CONTRACT)
+    if operation_mode == 'stage_a_rate_ladder':
+        authorization = CONTRACT['stage_a_rate_ladder']
+    elif operation_mode == 'stage_c_capacity_attribution':
+        authorization = CONTRACT['stage_c_capacity_attribution']
+    elif operation_mode == 'stage_e2_larger_corpus':
+        authorization = CONTRACT['stage_e2_larger_corpus']
+    elif operation_mode == 'stage_e3_camera_421':
+        authorization = CONTRACT['stage_e3_camera_421']
+    elif operation_mode == 'stage_e4_camera_300':
+        authorization = CONTRACT['stage_e4_camera_300']
+    elif operation_mode == 'native_query_stage_diagnostic':
+        authorization = CONTRACT['native_query_stage_diagnostic']
+    else:
+        authorization = CONTRACT
     arm_roles = authorization.get('arm_roles', CONTRACT['arm_roles'])
     index_root = workspace_root / 'index'
     report_path = workspace_root / 'gate-b-report.json'
     temporary_directory = workspace_root / 'tmp'
-    resource_basis = (
-        'one quota-contained native-only Gate B query-stage diagnostic; no M4 arm or pair comparison'
-        if operation_mode == 'native_query_stage_diagnostic' else
-        'one quota-contained matched Gate B pair with preserved 18.219 GB disk reserve and enforced cgroup memory/swap/cpu/pids ceilings'
-    )
+    if operation_mode == 'stage_a_rate_ladder':
+        resource_basis = (
+            'one quota-contained Stage A rate-ladder pair on the 64-file pilot; '
+            'no full corpus, no production, unchanged cgroup/qgroup caps'
+        )
+    elif operation_mode == 'stage_c_capacity_attribution':
+        resource_basis = (
+            'one quota-contained Stage C capacity-attribution pair on the 64-file pilot; '
+            'no full corpus, no production, unchanged cgroup/qgroup caps'
+        )
+    elif operation_mode == 'stage_e2_larger_corpus':
+        resource_basis = (
+            'one quota-contained larger-corpus diagnostic on the 219-file Rust tree; '
+            'not full-corpus Gate B, no production, unchanged cgroup/qgroup caps'
+        )
+    elif operation_mode == 'stage_e3_camera_421':
+        resource_basis = (
+            'one quota-contained 421-file camera/AttendanceSafetyCamera diagnostic; '
+            'not full-corpus Gate B, no production, unchanged cgroup/qgroup caps'
+        )
+    elif operation_mode == 'stage_e4_camera_300':
+        resource_basis = (
+            'one quota-contained 300-file camera/AttendanceSafetyCamera diagnostic; '
+            'not full-corpus Gate B, no production, unchanged 512 MiB envelope'
+        )
+    elif operation_mode == 'native_query_stage_diagnostic':
+        resource_basis = (
+            'one quota-contained native-only Gate B query-stage diagnostic; '
+            'no M4 arm or pair comparison'
+        )
+    else:
+        resource_basis = (
+            'one quota-contained matched Gate B pair with preserved 18.219 GB disk '
+            'reserve and enforced cgroup memory/swap/cpu/pids ceilings'
+        )
     context: dict[str, Any] = {
         'schema_version': 1,
         'approval_status': 'approved',
@@ -162,11 +228,15 @@ def make_context(operation_id: str, operation_root: pathlib.Path, arm_role: str,
         'approval_reference': authorization['approval_reference'],
         'execution_authorization_reference': authorization['execution_authorization_reference'],
         'risk_acceptance_reference': authorization['risk_acceptance_reference'],
-        'workload': CONTRACT['workload'],
-        'reader_query_interval_ms': CONTRACT['workload']['reader_query_interval_ms'],
-        'reader_query_max_samples_per_pass': CONTRACT['workload']['reader_query_max_samples_per_pass'],
-        'reader_query_queue_capacity': CONTRACT['workload']['reader_query_queue_capacity'],
-        'zvec_native_memory_limit_bytes': CONTRACT['workload']['zvec_native_memory_limit_bytes'],
+        'workload': WORKLOAD,
+        'query_filter': WORKLOAD['query_filter'],
+        'corpus_extension': WORKLOAD.get('corpus_extension', '.rs'),
+        'reader_query_interval_ms': (
+            query_interval_ms if query_interval_ms is not None
+            else WORKLOAD['reader_query_interval_ms']),
+        'reader_query_max_samples_per_pass': WORKLOAD['reader_query_max_samples_per_pass'],
+        'reader_query_queue_capacity': WORKLOAD['reader_query_queue_capacity'],
+        'zvec_native_memory_limit_bytes': WORKLOAD['zvec_native_memory_limit_bytes'],
         'arm_roles': arm_roles,
         'arm_role': arm_role,
         'execution_order': execution_order,
@@ -221,8 +291,30 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
               expected_binary_sha256: str | None = None,
               library_override: pathlib.Path | None = None,
               expected_library_sha256: str | None = None,
-              native_only_diagnostic: bool = False) -> dict[str, Any]:
-    operation_mode = ('native_query_stage_diagnostic' if native_only_diagnostic else 'pair')
+              native_only_diagnostic: bool = False,
+              stage_a_interval_ms: int | None = None,
+              stage_c_interval_ms: int | None = None,
+              stage_e2_interval_ms: int | None = None,
+              stage_e3_interval_ms: int | None = None,
+              stage_e4_interval_ms: int | None = None) -> dict[str, Any]:
+    if stage_a_interval_ms is not None and native_only_diagnostic:
+        raise ValueError('Stage A rate ladder cannot run as a native-only diagnostic')
+    if stage_c_interval_ms is not None and native_only_diagnostic:
+        raise ValueError('Stage C capacity attribution cannot run as a native-only diagnostic')
+    if stage_e2_interval_ms is not None and native_only_diagnostic:
+        raise ValueError('larger-corpus diagnostic cannot run as a native-only diagnostic')
+    if stage_e3_interval_ms is not None and native_only_diagnostic:
+        raise ValueError('camera 421 diagnostic cannot run as a native-only diagnostic')
+    if stage_e4_interval_ms is not None and native_only_diagnostic:
+        raise ValueError('camera 300 diagnostic cannot run as a native-only diagnostic')
+    if len(list(filter(None, (stage_a_interval_ms, stage_c_interval_ms, stage_e2_interval_ms, stage_e3_interval_ms, stage_e4_interval_ms)))) > 1:
+        raise ValueError('Stage A, Stage C, and larger-corpus intervals are mutually exclusive')
+    operation_mode = ('stage_a_rate_ladder' if stage_a_interval_ms is not None else
+                      'stage_c_capacity_attribution' if stage_c_interval_ms is not None else
+                      'stage_e2_larger_corpus' if stage_e2_interval_ms is not None else
+                      'stage_e3_camera_421' if stage_e3_interval_ms is not None else
+                      'stage_e4_camera_300' if stage_e4_interval_ms is not None else
+                      'native_query_stage_diagnostic' if native_only_diagnostic else 'pair')
     diagnostic = CONTRACT.get('native_query_stage_diagnostic')
     diagnostic_ids = (diagnostic.get('authorized_operation_ids')
                       if isinstance(diagnostic, dict) else [])
@@ -230,6 +322,71 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
         diagnostic_ids = []
     if not native_only_diagnostic and operation_id in diagnostic_ids:
         raise ValueError('native-only diagnostic operation ID cannot launch a matched pair')
+    if stage_a_interval_ms is not None:
+        stage_a = CONTRACT.get('stage_a_rate_ladder')
+        authorized_ids = stage_a.get('authorized_operation_ids') if isinstance(stage_a, dict) else None
+        authorized_limit = stage_a.get('max_authorized_operations') if isinstance(stage_a, dict) else None
+        intervals = stage_a.get('reader_query_intervals_ms') if isinstance(stage_a, dict) else None
+        if (not isinstance(stage_a, dict) or stage_a.get('approval_status') != 'approved' or
+                not isinstance(authorized_limit, int) or isinstance(authorized_limit, bool) or
+                not isinstance(authorized_ids, list) or len(authorized_ids) != authorized_limit or
+                len(set(authorized_ids)) != authorized_limit or operation_id not in authorized_ids or
+                not isinstance(intervals, list) or stage_a_interval_ms not in intervals or
+                stage_a.get('arm_roles') != CONTRACT['arm_roles'] or
+                stage_a.get('arm_orders') != CONTRACT['arm_orders']):
+            raise ValueError('operation ID or interval is outside the Stage A rate-ladder authorization')
+    if stage_c_interval_ms is not None:
+        stage_c = CONTRACT.get('stage_c_capacity_attribution')
+        authorized_ids = stage_c.get('authorized_operation_ids') if isinstance(stage_c, dict) else None
+        authorized_limit = stage_c.get('max_authorized_operations') if isinstance(stage_c, dict) else None
+        intervals = stage_c.get('reader_query_intervals_ms') if isinstance(stage_c, dict) else None
+        if (not isinstance(stage_c, dict) or stage_c.get('approval_status') != 'approved' or
+                not isinstance(authorized_limit, int) or isinstance(authorized_limit, bool) or
+                not isinstance(authorized_ids, list) or len(authorized_ids) != authorized_limit or
+                len(set(authorized_ids)) != authorized_limit or operation_id not in authorized_ids or
+                not isinstance(intervals, list) or stage_c_interval_ms not in intervals or
+                stage_c.get('arm_roles') != CONTRACT['arm_roles'] or
+                stage_c.get('arm_orders') != [['m4', 'native'], ['native', 'm4']]):
+            raise ValueError('operation ID or interval is outside the Stage C capacity-attribution authorization')
+    if stage_e2_interval_ms is not None:
+        stage_e2 = CONTRACT.get('stage_e2_larger_corpus')
+        authorized_ids = stage_e2.get('authorized_operation_ids') if isinstance(stage_e2, dict) else None
+        authorized_limit = stage_e2.get('max_authorized_operations') if isinstance(stage_e2, dict) else None
+        intervals = stage_e2.get('reader_query_intervals_ms') if isinstance(stage_e2, dict) else None
+        if (not isinstance(stage_e2, dict) or stage_e2.get('approval_status') != 'approved' or
+                not isinstance(authorized_limit, int) or isinstance(authorized_limit, bool) or
+                not isinstance(authorized_ids, list) or len(authorized_ids) != authorized_limit or
+                len(set(authorized_ids)) != authorized_limit or operation_id not in authorized_ids or
+                not isinstance(intervals, list) or stage_e2_interval_ms not in intervals or
+                stage_e2.get('arm_roles') != CONTRACT['arm_roles'] or
+                stage_e2.get('arm_orders') != [['m4', 'native']]):
+            raise ValueError('operation ID or interval is outside the larger-corpus diagnostic authorization')
+    if stage_e3_interval_ms is not None:
+        stage_e3 = CONTRACT.get('stage_e3_camera_421')
+        authorized_ids = stage_e3.get('authorized_operation_ids') if isinstance(stage_e3, dict) else None
+        authorized_limit = stage_e3.get('max_authorized_operations') if isinstance(stage_e3, dict) else None
+        intervals = stage_e3.get('reader_query_intervals_ms') if isinstance(stage_e3, dict) else None
+        if (not isinstance(stage_e3, dict) or stage_e3.get('approval_status') != 'approved' or
+                not isinstance(authorized_limit, int) or isinstance(authorized_limit, bool) or
+                not isinstance(authorized_ids, list) or len(authorized_ids) != authorized_limit or
+                len(set(authorized_ids)) != authorized_limit or operation_id not in authorized_ids or
+                not isinstance(intervals, list) or stage_e3_interval_ms not in intervals or
+                stage_e3.get('arm_roles') != CONTRACT['arm_roles'] or
+                stage_e3.get('arm_orders') != [['m4', 'native']]):
+            raise ValueError('operation ID or interval is outside the camera 421 diagnostic authorization')
+    if stage_e4_interval_ms is not None:
+        stage_e4 = CONTRACT.get('stage_e4_camera_300')
+        authorized_ids = stage_e4.get('authorized_operation_ids') if isinstance(stage_e4, dict) else None
+        authorized_limit = stage_e4.get('max_authorized_operations') if isinstance(stage_e4, dict) else None
+        intervals = stage_e4.get('reader_query_intervals_ms') if isinstance(stage_e4, dict) else None
+        if (not isinstance(stage_e4, dict) or stage_e4.get('approval_status') != 'approved' or
+                not isinstance(authorized_limit, int) or isinstance(authorized_limit, bool) or
+                not isinstance(authorized_ids, list) or len(authorized_ids) != authorized_limit or
+                len(set(authorized_ids)) != authorized_limit or operation_id not in authorized_ids or
+                not isinstance(intervals, list) or stage_e4_interval_ms not in intervals or
+                stage_e4.get('arm_roles') != CONTRACT['arm_roles'] or
+                stage_e4.get('arm_orders') != [['m4', 'native']]):
+            raise ValueError('operation ID or interval is outside the camera 300 diagnostic authorization')
     if native_only_diagnostic:
         authorized_ids = diagnostic.get('authorized_operation_ids') if isinstance(diagnostic, dict) else None
         authorized_limit = diagnostic.get('max_authorized_operations') if isinstance(diagnostic, dict) else None
@@ -240,6 +397,13 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
                 diagnostic.get('arm_roles') != ['native'] or
                 diagnostic.get('execution_order') != ['native']):
             raise ValueError('operation ID is outside the native-only diagnostic authorization')
+    global WORKLOAD
+    WORKLOAD = (CONTRACT['stage_e4_camera_300']['workload']
+                if stage_e4_interval_ms is not None else
+                CONTRACT['stage_e3_camera_421']['workload']
+                if stage_e3_interval_ms is not None else
+                CONTRACT['stage_e2_larger_corpus']['workload']
+                if stage_e2_interval_ms is not None else CONTRACT['workload'])
     entries, digest = frozen_manifest()
     binary, library = find_test_binary(binary_override, library_override)
     artifacts = capture_pair_artifacts(binary, library)
@@ -251,7 +415,7 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
     controls = CONTRACT['resource_controls']
     quota = containment.verify_workspace_quota(resource_root, CONTRACT['workspace_quota'])
     require_pair_workspace_headroom(quota, controls['workspace_max_allocated_bytes'])
-    if SAMPLE_INTERVAL_MS * 2 > controls['max_monitor_gap_seconds'] * 1000:
+    if controls['max_monitor_gap_seconds'] * 1000 < SAMPLE_INTERVAL_MS * 2:
         raise ValueError('observer sample interval leaves insufficient margin under max monitor gap')
     disk_free = shutil.disk_usage(resource_root).free
     required_free = controls['disk_reserve_bytes'] + 2 * controls['workspace_max_allocated_bytes']
@@ -260,7 +424,20 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
     operation_root = resource_root / operation_id
     if operation_root.exists():
         raise ValueError('operation ID already has a workspace; reuse is refused')
+    stage_c_orders = (CONTRACT['stage_c_capacity_attribution'].get('arm_orders')
+                      if stage_c_interval_ms is not None else None)
+    stage_e2_orders = (CONTRACT['stage_e2_larger_corpus'].get('arm_orders')
+                       if stage_e2_interval_ms is not None else None)
+    stage_e3_orders = (CONTRACT['stage_e3_camera_421'].get('arm_orders')
+                       if stage_e3_interval_ms is not None else None)
+    stage_e4_orders = (CONTRACT['stage_e4_camera_300'].get('arm_orders')
+                       if stage_e4_interval_ms is not None else None)
     order = (['native'] if native_only_diagnostic else
+             stage_e4_orders[0] if stage_e4_orders else
+             stage_e3_orders[0] if stage_e3_orders else
+             stage_e2_orders[0] if stage_e2_orders else
+             stage_c_orders[hashlib.sha256(operation_id.encode()).digest()[0] & 1]
+             if stage_c_orders else
              ['native', 'm4'] if hashlib.sha256(operation_id.encode()).digest()[0] & 1
              else ['m4', 'native'])
     contexts = []
@@ -269,7 +446,12 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
         arm_root = operation_root / arm_name / 'workspace'
         source_root = arm_root / 'source'
         context = make_context(operation_id, operation_root, role, order, artifacts,
-                               arm_root, source_root, quota, operation_mode)
+                               arm_root, source_root, quota, operation_mode,
+                               stage_e4_interval_ms if stage_e4_interval_ms is not None else
+                               stage_e4_interval_ms if stage_e4_interval_ms is not None else
+            stage_e3_interval_ms if stage_e3_interval_ms is not None else
+                               stage_e2_interval_ms if stage_e2_interval_ms is not None else
+                               stage_c_interval_ms if stage_c_interval_ms is not None else stage_a_interval_ms)
         containment.validate_contention_context(context)
         env = build_environment(context)
         receipt_dir = operation_root / arm_name / 'containment'
@@ -288,13 +470,15 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
         if (command != [str(binary), '--exact', TEST_NAME, '--ignored', '--nocapture'] or
                 env['M4_GATE_B_ARM'] != role or
                 env['M4_GATE_B_READER_QUERY_INTERVAL_MS'] != str(
-                    CONTRACT['workload']['reader_query_interval_ms']) or
+                    context['reader_query_interval_ms']) or
                 env['M4_GATE_B_READER_QUERY_MAX_SAMPLES'] != str(
-                    CONTRACT['workload']['reader_query_max_samples_per_pass']) or
+                    WORKLOAD['reader_query_max_samples_per_pass']) or
                 env['M4_GATE_B_READER_QUERY_QUEUE_CAPACITY'] != str(
-                    CONTRACT['workload']['reader_query_queue_capacity']) or
+                    WORKLOAD['reader_query_queue_capacity']) or
+                env['M4_GATE_B_QUERY_FILTER'] != WORKLOAD['query_filter'] or
+                env['M4_GATE_B_CORPUS_EXTENSION'] != WORKLOAD.get('corpus_extension', '.rs') or
                 env['ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES'] != str(
-                    CONTRACT['workload']['zvec_native_memory_limit_bytes']) or
+                    WORKLOAD['zvec_native_memory_limit_bytes']) or
                 pathlib.Path(env['M4_GATE_B_WORKSPACE']) != source_root or
                 (native_only_diagnostic and pathlib.Path(
                     env.get('M4_NATIVE_PROFILE_LOG_PATH', '')).resolve() !=
@@ -310,8 +494,15 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
     return {
         'operation_id': operation_id,
         'operation_mode': operation_mode,
+        'reader_query_interval_ms': (
+            stage_e4_interval_ms if stage_e4_interval_ms is not None else
+            stage_e3_interval_ms if stage_e3_interval_ms is not None else
+            stage_e2_interval_ms if stage_e2_interval_ms is not None else
+            stage_c_interval_ms if stage_c_interval_ms is not None else
+            stage_a_interval_ms if stage_a_interval_ms is not None
+            else WORKLOAD['reader_query_interval_ms']),
         'operation_root': str(operation_root),
-        'corpus_commit': CONTRACT['workload']['source_commit'],
+        'corpus_commit': WORKLOAD['source_commit'],
         'corpus_file_count': len(entries), 'corpus_bytes': sum(item[2] for item in entries),
         'corpus_manifest_sha256': digest,
         'execution_order': order,
@@ -329,7 +520,7 @@ def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
 
 def extract_corpus(destination: pathlib.Path, entries: list[tuple[str, str, int]]) -> None:
     destination.mkdir(parents=True, exist_ok=False)
-    commit = CONTRACT['workload']['source_commit']
+    commit = WORKLOAD['source_commit']
     paths = [entry[0] for entry in entries]
     archive = git('archive', '--format=tar', commit, '--', *paths)
     total = 0
@@ -353,7 +544,7 @@ def extract_corpus(destination: pathlib.Path, entries: list[tuple[str, str, int]
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             total += len(data)
-    if total != CONTRACT['workload']['source_bytes']:
+    if total != WORKLOAD['source_bytes']:
         raise ValueError(f'materialized corpus byte count mismatch: {total}')
 
 
@@ -383,9 +574,16 @@ def run_pair(operation_id: str, binary_override: pathlib.Path | None = None,
              expected_binary_sha256: str | None = None,
              library_override: pathlib.Path | None = None,
              expected_library_sha256: str | None = None,
-             native_only_diagnostic: bool = False) -> dict[str, Any]:
+             native_only_diagnostic: bool = False,
+             stage_a_interval_ms: int | None = None,
+             stage_c_interval_ms: int | None = None,
+             stage_e2_interval_ms: int | None = None,
+             stage_e3_interval_ms: int | None = None,
+             stage_e4_interval_ms: int | None = None) -> dict[str, Any]:
     plan = preflight(operation_id, binary_override, expected_binary_sha256,
-                      library_override, expected_library_sha256, native_only_diagnostic)
+                      library_override, expected_library_sha256, native_only_diagnostic,
+                      stage_a_interval_ms, stage_c_interval_ms, stage_e2_interval_ms,
+                      stage_e3_interval_ms, stage_e4_interval_ms)
     operation_root = pathlib.Path(plan['operation_root'])
     if operation_root.exists():
         raise FileExistsError(f'fresh operation root already exists: {operation_root}')
@@ -537,7 +735,8 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
         verify_pair_artifacts(plan['artifacts'])
         context = make_context(operation_id, operation_root, role, plan['execution_order'],
                                plan['artifacts'], workspace_root, source_root, quota,
-                               plan['operation_mode'])
+                               plan['operation_mode'],
+                               plan.get('reader_query_interval_ms'))
         containment.validate_contention_context(context)
         receipt_dir = operation_root / arm_name / 'containment'
         result = containment.run_arm(
@@ -600,8 +799,11 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
             return stopped
         verify_pair_artifacts(plan['artifacts'])
         report_path = pathlib.Path(context['report_path'])
-        report = json.loads(report_path.read_text())
-        report['query_filter'] = CONTRACT['workload']['query_filter']
+        try:
+            report = json.loads(report_path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(f'workload report is unreadable: {report_path}') from error
+        report['query_filter'] = WORKLOAD['query_filter']
         report['query_route'] = 'FTS'
         arm_results[-1]['workload_report'] = report
         # Capture index footprint, then release the entire generated workspace so the
@@ -609,7 +811,10 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
         index_root = pathlib.Path(context['index_root'])
         arm_results[-1]['index_apparent_bytes_before_cleanup'] = sum(
             p.stat().st_size for p in index_root.rglob('*') if p.is_file())
-        shutil.rmtree(workspace_root)
+        try:
+            shutil.rmtree(workspace_root)
+        except OSError as error:
+            raise RuntimeError(f'operation-owned workspace cleanup failed: {workspace_root}') from error
         if workspace_root.exists():
             raise RuntimeError('operation-owned workspace cleanup failed')
 
@@ -630,7 +835,7 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
             'pair_comparison_performed': False,
             'query_latency_comparison': 'NOT_RUN_NATIVE_ONLY_DIAGNOSTIC',
             'performance_eligible': False,
-            'corpus': {'commit': CONTRACT['workload']['source_commit'],
+            'corpus': {'commit': WORKLOAD['source_commit'],
                        'manifest_sha256': plan['corpus_manifest_sha256'],
                        'file_count': plan['corpus_file_count'], 'bytes': plan['corpus_bytes']},
             'execution_order': ['native'],
@@ -674,7 +879,7 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
         'query_latency_gate': query_latency_gate,
         'performance_eligible': False,
         'performance_interpretation': 'one descriptive exploratory pair; not qualification or a causal/architecture-win claim',
-        'corpus': {'commit': CONTRACT['workload']['source_commit'],
+        'corpus': {'commit': WORKLOAD['source_commit'],
                    'manifest_sha256': plan['corpus_manifest_sha256'],
                    'file_count': plan['corpus_file_count'], 'bytes': plan['corpus_bytes']},
         'execution_order': plan['execution_order'], 'artifacts': plan['artifacts'],
@@ -690,6 +895,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--validate-only', action='store_true',
                         help='validate corpus, binary, quota, policy bindings and commands without creating files or launching')
+    parser.add_argument('--stage-a-interval-ms', type=int,
+                        help='Stage A rate-ladder interval in milliseconds; requires the Stage A operation ID')
+    parser.add_argument('--stage-c-interval-ms', type=int,
+                        help='Stage C capacity-attribution interval in milliseconds; requires the Stage C operation ID')
+    parser.add_argument('--stage-e2-interval-ms', type=int,
+                        help='larger-corpus diagnostic interval in milliseconds; requires its operation ID')
+    parser.add_argument('--stage-e3-interval-ms', type=int,
+                        help='camera 421 diagnostic interval in milliseconds; requires its operation ID')
+    parser.add_argument('--stage-e4-interval-ms', type=int,
+                        help='camera 300 diagnostic interval in milliseconds; requires its operation ID')
     parser.add_argument('--native-only-diagnostic', action='store_true',
                         help='use only the exactly authorized native arm for FTS stage attribution; never run the M4 arm or a pair comparison')
     parser.add_argument('--operation-id', help='fresh unique operation ID; required for launch')
@@ -702,6 +917,11 @@ def main() -> int:
     parser.add_argument('--expected-library-sha256',
                         help='require this exact lowercase SHA-256 before the native library is used')
     args = parser.parse_args()
+    stage_a_interval_ms = getattr(args, 'stage_a_interval_ms', None)
+    stage_c_interval_ms = getattr(args, 'stage_c_interval_ms', None)
+    stage_e2_interval_ms = getattr(args, 'stage_e2_interval_ms', None)
+    stage_e3_interval_ms = getattr(args, 'stage_e3_interval_ms', None)
+    stage_e4_interval_ms = getattr(args, 'stage_e4_interval_ms', None)
     if args.expected_binary_sha256 is not None and (
             len(args.expected_binary_sha256) != 64 or
             any(c not in '0123456789abcdef' for c in args.expected_binary_sha256)):
@@ -721,14 +941,24 @@ def main() -> int:
             parser.error('operation ID must use the m4-rust-lifecycle-pair- prefix')
         plan = preflight(operation_id, args.binary_path, args.expected_binary_sha256,
                          args.library_path, args.expected_library_sha256,
-                         native_only_diagnostic=args.native_only_diagnostic)
+                         native_only_diagnostic=args.native_only_diagnostic,
+                         stage_a_interval_ms=stage_a_interval_ms,
+                         stage_c_interval_ms=stage_c_interval_ms,
+                         stage_e2_interval_ms=stage_e2_interval_ms,
+                         stage_e3_interval_ms=stage_e3_interval_ms,
+                         stage_e4_interval_ms=stage_e4_interval_ms)
         print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
     if not args.operation_id:
         parser.error('--operation-id is required for launch')
     result = run_pair(args.operation_id, args.binary_path, args.expected_binary_sha256,
                       args.library_path, args.expected_library_sha256,
-                      native_only_diagnostic=args.native_only_diagnostic)
+                      native_only_diagnostic=args.native_only_diagnostic,
+                      stage_a_interval_ms=stage_a_interval_ms,
+                      stage_c_interval_ms=stage_c_interval_ms,
+                      stage_e2_interval_ms=stage_e2_interval_ms,
+                      stage_e3_interval_ms=stage_e3_interval_ms,
+                      stage_e4_interval_ms=stage_e4_interval_ms)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result['status'] in {
         'PASS', 'DIAGNOSTIC_COMPLETED', 'DIAGNOSTIC_COMPLETED_WITH_CAVEATS'

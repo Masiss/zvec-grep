@@ -35,20 +35,40 @@ pair_spec.loader.exec_module(pair_runner)
 
 
 class ContainmentRunnerTests(unittest.TestCase):
+    def test_approved_budget_accepts_zero_swap_and_rejects_negative_swap(self) -> None:
+        base = {
+            'schema_version': 1,
+            'approval_status': 'approved',
+            'approval_reference': 'unit-test',
+            'memory_max_bytes': 1073741824,
+            'memory_swap_max_bytes': 0,
+            'pids_max': 128,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'budget.json'
+            path.write_text(json.dumps(base), encoding='utf-8')
+            loaded = runner.load_approved_budget(path)
+            self.assertEqual(loaded['memory_swap_max_bytes'], 0)
+            for invalid in (-1, True):
+                path.write_text(json.dumps({**base, 'memory_swap_max_bytes': invalid}),
+                                encoding='utf-8')
+                with self.subTest(value=invalid), self.assertRaisesRegex(ValueError, 'non-negative'):
+                    runner.load_approved_budget(path)
+
     def test_rust_lifecycle_native_diagnostic_authorization_is_consumed(self) -> None:
         contract = runner.BENCHMARK_POLICY['rust_pipeline_lifecycle_pair']
         self.assertTrue(contract['single_pair_only'])
         self.assertEqual(contract['max_authorized_pair_operations'], 0)
         self.assertEqual(contract['authorized_operation_ids'], [])
         diagnostic = contract['native_query_stage_diagnostic']
-        self.assertEqual(diagnostic['approval_status'], 'approved')
+        self.assertEqual(diagnostic['approval_status'], 'consumed')
         self.assertEqual(diagnostic['max_authorized_operations'], 0)
         self.assertEqual(diagnostic['authorized_operation_ids'], [])
         self.assertEqual(diagnostic['max_concurrent_operations'], 1)
         self.assertTrue(diagnostic['review_after_each_operation'])
         self.assertTrue(diagnostic['stop_on_gate_refusal'])
         self.assertEqual(diagnostic['previous_attempts'][-1]['operation_id'],
-                         'm4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1')
+                         'm4-rust-lifecycle-pair-20261030t034751z-nquery-sealstage-r2')
         self.assertEqual(diagnostic['previous_attempts'][-1]['outcome'],
                          'DIAGNOSTIC_COMPLETED_WITH_CAVEATS')
         self.assertEqual(diagnostic['arm_roles'], ['native'])
@@ -71,15 +91,27 @@ class ContainmentRunnerTests(unittest.TestCase):
         self.assertEqual(contract['workload']['profile_label'],
                          '64-file Rust engine pilot; not full-corpus Gate B')
         self.assertEqual(contract['workload']['full_corpus_reference']['source_file_count'], 421)
+        self.assertEqual(
+            contract['workload']['full_corpus_reference']['provenance_status'],
+            'blocked_missing_source')
         self.assertEqual(contract['workload']['reader_query_queue_capacity'], 8)
         self.assertEqual(contract['workload']['zvec_native_memory_limit_bytes'], 134_217_728)
         self.assertEqual(contract['arm_roles'], ['native', 'm4'])
-        self.assertEqual(contract['resource_controls']['memory_max_bytes'], 536_870_912)
+        self.assertEqual(contract['resource_controls']['memory_max_bytes'], 1_073_741_824)
         self.assertEqual(contract['resource_controls']['memory_swap_max_bytes'], 0)
         self.assertEqual(contract['resource_controls']['cpu_max'], '200000 100000')
         self.assertEqual(contract['resource_controls']['workspace_max_allocated_bytes'], 33_554_432)
-        self.assertEqual(contract['workspace_quota']['max_referenced_bytes'], 167_772_160)
+        self.assertEqual(contract['workspace_quota']['max_referenced_bytes'], 402_653_184)
         self.assertIn('io.max unavailable', contract['io_pressure_mode'])
+
+    def test_full_corpus_reference_requires_provenance_or_explicit_block(self) -> None:
+        pair_runner.validate_full_corpus_reference({
+            'full_corpus_reference': {'provenance_status': 'blocked_missing_source'}})
+        with self.assertRaisesRegex(ValueError, 'lacks provenance'):
+            pair_runner.validate_full_corpus_reference({
+                'full_corpus_reference': {'source_file_count': 421, 'source_bytes': 7_070_189}})
+        pair_runner.validate_full_corpus_reference({'full_corpus_reference': {
+            'source_repo': '/repo', 'source_commit': 'abc', 'source_selection': {'max_files': 421}}})
 
     def test_background_compaction_profiles_are_registered_with_containment_runner(self) -> None:
         contract = runner.BENCHMARK_POLICY['lock_contention_microbench']
