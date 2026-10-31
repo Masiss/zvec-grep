@@ -10,8 +10,8 @@
 - Local branch: `integration/upstream-rust`, created in an isolated worktree at `/home/masis/src/zvec-grep-integration`.
 - Source comparison: `origin/work/zg-optimization` (`abaf7bf`) vs `upstream/main`.
 - The old worktree/branch `work/zg-optimization` was not modified.
-- No push, PR, merge, existing zvec table/schema change, or new storage format was made. M2 adds an additive `reconciliation/file-*.json` sidecar; if that sidecar is treated as a storage-format change, stop for an owner decision before shipping.
-- Production-relevant behavior changes requiring owner acceptance: model compute default cap 8, watcher 750 ms trailing debounce, and rebuild disk preflight. See `MERGE-READINESS.md` §4.
+- No push, PR, merge, existing zvec table/schema change, or new storage format was made. M2 adds an additive `reconciliation/file-*.json` sidecar, accepted by the owner as auxiliary persisted state with recovery/compatibility coverage.
+- Owner-accepted behavior changes: model compute default cap 8, watcher 750 ms trailing debounce / 5 s cap, M2 sidecar, and rebuild preflight (one-active-copy hard floor, conservative target, warning band). See `RELEASE-READINESS.md` and `MERGE-READINESS.md` §4.
 
 ## Ported commits
 
@@ -197,13 +197,15 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 Full evidence and commands: [`MERGE-READINESS.md`](MERGE-READINESS.md).
 
-- `cargo test -p zg-engine --lib` — **696 passed, 0 failed, 15 ignored**.
-- `cargo test -p zg-engine` integration targets — **39 passed** (`concurrent_queries`, `engine_storage`, `file_selection`, `index_version`, `scan_failures`, `storage_crash`).
+- `cargo test -p zg-engine --lib` — **702 passed, 0 failed, 15 ignored**.
+- `cargo test -p zg-engine` integration targets — **40 passed** (`concurrent_queries` 8, `engine_storage` 17, `file_selection` 8, `index_version` 2, `scan_failures` 3, `storage_crash` 2).
 - `cargo test -p zg-daemon` — **124 passed**.
 - `cargo test -p zg-cli` — **180 passed**; `zg-transport-mcp` — **60 passed**; `zg-daemon-protocol` — **5**; `zg-zvec-fp16` — **2**; `zg-host-native` — **44**.
 - clippy (engine/daemon/cli/transport-mcp, all targets, `-D warnings`) — **PASS**; `cargo fmt --check` — **PASS**; `cargo build -p zg-cli --release` — **PASS**.
 - Use an absolute TMPDIR without `..` (e.g. `/home/masis/src/zvec-grep-integration/.tmp`); a `..` in TMPDIR makes MCP path fixtures fail for environmental reasons.
 - Authorized 64-file confirmation: 6/6 runs valid at the run level, formal result **INCONCLUSIVE/exploratory** (upstream 9–11 query samples and one 2.8 s outlier). See `BENCHMARK-RESULTS.md`.
+- Release gates, upgrade/downgrade, sidecar crash recovery, #10 audit, and rollback: [`RELEASE-READINESS.md`](RELEASE-READINESS.md). Verdict: **release candidate READY; production rollout NOT READY** (no 421-file/production benchmark, M3-B native blocker, #10 not implemented).
+- CLI/MCP release smoke: `zg 0.3.0-rc.2`, MCP protocol `2024-11-05`, agent 1 tool, full 6 tools, no protocol error; artifacts `/home/masis/bench/release-readiness-20261031/`.
 
 ### Remaining blockers / next steps
 
@@ -220,9 +222,9 @@ Full evidence and commands: [`MERGE-READINESS.md`](MERGE-READINESS.md).
    result **INCONCLUSIVE / exploratory**; mutation wall is at parity within the
    pre-registered bar, query p95/freshness direction favors integration. Do not
    run 421 files or claim a qualified win.
-5. **Storage sidecar decision**: the reconciliation directory is additive and
-   does not alter existing zvec tables. If the owner considers any new on-disk
-   sidecar a storage-format change, decide before release.
+5. **Docs placement**: decide whether the branch evidence docs remain at repo
+   root or move to an internal location before merge. The sidecar and behavior
+   changes are owner-accepted; release notes must call them out.
 
 ## Verification (pass 1)
 
@@ -236,10 +238,10 @@ Full evidence and commands: [`MERGE-READINESS.md`](MERGE-READINESS.md).
 
 ## Current state
 
-- Integration worktree is clean; branch is **30 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **32 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
-- No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No migration or release configuration changed. Behavior changes: compute cap 8, watcher debounce, rebuild preflight (see `MERGE-READINESS.md`).
+- No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No migration or release configuration changed. Owner-accepted behavior changes: compute cap 8, watcher debounce, rebuild preflight warning band (see `RELEASE-READINESS.md`).
 - M2 core and M3-A/M3-B fragment isolation are integrated; streaming staging and deferred maintenance remain open.
 - M3-B fragment/dirty overlap candidate (`5ac1b01`) was rejected after a concurrent-query p95 regression and reverted in `0981a78`. Per-stage optimize telemetry (`5741e1d`) is kept as diagnostic-only. See `BENCHMARK-RESULTS.md`.
 - Handle-based scalar maintenance was implemented, but the pinned **zvec 0.8.0** native gate failed (iterators/writes rejected during optimize; SIGABRT). The outside-lock path was rolled back; finalization remains under the state lock. `Arc<Collection>` handles and the lifecycle regressions remain, with five outside-lock tests ignored. See `M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`. No benchmark was run.

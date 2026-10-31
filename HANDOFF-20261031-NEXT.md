@@ -9,7 +9,7 @@ for the current worktree. Historical detail remains in `HANDOFF.md`,
 - Worktree: `/home/masis/src/zvec-grep-integration`
 - Branch: `integration/upstream-rust`
 - Exact upstream base: `e1f93d2` (`upstream/main`)
-- State: **clean**, **30 commits ahead** of `e1f93d2`
+- State: **clean**, **32 commits ahead** of `e1f93d2`
 - Old worktree `work/zg-optimization` at `/home/masis/src/zvec-grep` is
   **dirty and untouched**. Do not reset, clean, or rebase it.
 - No push, PR, merge, production-default change, resource-limit change, or
@@ -110,14 +110,19 @@ failure/retry, close-wait and deadlock stress remain active.
 
 No 64-file A/B was run and no candidate was promoted.
 
-## Consolidation and merge-readiness — complete
+## Consolidation and release-readiness — complete
 
-Full report: [`MERGE-READINESS.md`](MERGE-READINESS.md). Verdict:
-**merge-readiness READY for review; production-readiness NOT READY** pending
-owner decisions (compute cap 8, watcher debounce, rebuild preflight, sidecar
-storage-format acceptance) and the blocked native finalization optimization.
+Reports: [`MERGE-READINESS.md`](MERGE-READINESS.md),
+[`RELEASE-READINESS.md`](RELEASE-READINESS.md). Verdict:
+**merge/release-candidate READY for review; production rollout NOT READY**
+(no 421-file/production benchmark, M3-B native blocker, #10 not implemented).
 
-Verification: 1,150 tests passed / 0 failed / 15 ignored across engine (lib +
+Owner decisions accepted: compute cap 8, watcher debounce 750 ms/5 s, M2 sidecar
+as auxiliary persisted state, and rebuild preflight with a one-active-copy hard
+floor + warning band. Upgrade/downgrade refusal, sidecar crash recovery,
+rebuild/rollback, retrieval parity, clean CI, and CLI/MCP release smoke pass.
+
+Verification: **1,157 tests passed / 0 failed / 15 ignored** across engine (lib +
 integration), daemon, CLI, transport-MCP, daemon-protocol, FP16, and host-native;
 clippy/fmt PASS; release CLI build PASS. Fork disposition is complete; #19 was
 semantically diffed (streaming chunker and table projection are REWORK, signature
@@ -130,7 +135,7 @@ query p95 during mutation 244 vs 873 ms, freshness lag 401 vs 1,601 ms. Upstream
 had 9–11 query samples (pre-registered gate 20) and one 2.8 s outlier, so the
 formal result is **INCONCLUSIVE / exploratory**, not a win. No 421-file run.
 
-## Current bottleneck: finalization / optimize
+## Current bottleneck: finalization / optimize (historical; do not reopen)
 
 The integration is slower than upstream mainly because of `index_optimize`
 (≈0.68 s vs ≈0.56 s), not M2.
@@ -177,15 +182,15 @@ Relevant code:
 
 ## Recommended next action
 
-Do not start another optimization track. The remaining work is owner review of
-the merge package:
+Do not start another optimization track. The release package is complete; only
+integration decisions remain:
 
-1. Accept or reject the three behavior changes and the additive sidecar in
-   `MERGE-READINESS.md` §4/§9.
-2. Decide whether the branch evidence docs stay at repo root or move to an
+1. Decide whether the branch evidence docs stay at repo root or move to an
    internal location.
+2. Put the accepted behavior changes in release notes.
 3. Re-run CI with an absolute TMPDIR without `..`.
-4. Merge only after those decisions; the blocked handle-based path stays out.
+4. Merge the safe sequential implementation; the blocked handle-based path stays
+   out. Do not claim production qualification.
 
 Reopen finalization only if a zvec version/API explicitly allows query/write
 during `optimize()` and passes the ignored native gate plus the five ignored

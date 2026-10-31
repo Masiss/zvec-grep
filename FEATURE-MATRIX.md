@@ -28,10 +28,10 @@
 | 7 | M2 unstable hosted-model reuse guard | `QwenEmbeddingModel::identity_is_stable = false`; `b4b8686` | no identity contract | **INTEGRATED** `EmbeddingModel::identity_is_stable` default true; Qwen false; empty fingerprint is never published or reused. |
 | 8 | M3-A mutation-aware finalization | per-collection mutation debt; `b4b8686` | one `needs_optimize` bool; all collections optimized | **INTEGRATED** dirty mask (`directories/entities/files/fragments`); only dirty collections are finalized; marker remains crash barrier; store tests pass. |
 | 9 | M3-B native fragment optimize outside `Mutex<StoreState>` | native optimize outside store lock; `b4b8686` | `finalize_writes_with` holds state mutex through all four optimizers | **PARTIAL / BLOCKED** `Fragments` is `Arc`; fragment optimize runs outside the state lock. Scalar collections still optimize under the lock. The fragment/dirty overlap candidate (`5ac1b01`) was rejected after query p95 rose 275→360 ms and reverted (`0981a78`). Handle-based outside-lock scalar maintenance was implemented and then **BLOCKED by zvec 0.8.0**: `optimize()` rejects iterators/writes (`FailedPrecondition`, WAL failure) and can SIGABRT. 0.7.2 Gate H/I is not evidence for 0.8.0. See `M3B-HANDLE-MAINTENANCE-FEASIBILITY.md` and `BENCHMARK-RESULTS.md`. |
-| 10 | M3-B deferred maintenance (threshold, age deadline, durable marker, epoch/ack) | `b4b8686`; `rust/docs/m3b-handoff.md` | durable `optimize.pending` marker only | **NOT INTEGRATED** — needs a policy/config decision and benchmark; current marker + generation is the safe subset. Next: add opt-in threshold/age under benchmark policy, then paired idle/loaded test. |
+| 10 | M3-B deferred maintenance (threshold, age deadline, durable marker, epoch/ack) | `b4b8686`; `rust/docs/m3b-handoff.md` | durable `optimize.pending` marker only | **NOT INTEGRATED (deliberate)** — current marker + generation is the safe subset. Audit evidence: committed rows are searchable before optimize (`committed_rows_are_searchable_before_optimize_and_optimize_preserves_results`), so optimize is a deferrable-maintenance candidate, but recall/latency at scale, storage growth, close policy, and crash/retry semantics are unproven. Needs owner policy + benchmark; risks in `RELEASE-READINESS.md` §8. |
 | 11 | M3-B read-session separation | `read_session.rs` changes + `zg_memory::reclaim` | read sessions + write eviction already exist | **COVERED** upstream; fork's `zg_memory` reclamation is **SKIP** (would add a parallel memory abstraction). |
-| 12 | Rebuild disk-space preflight | `workspace/build.rs`; 2x active + 4 GiB | no preflight | **INTEGRATED** in `workspace/index.rs`; called before `prepare_build` when an active index exists; conservative refusal, no cap change. |
-| 13 | Model compute thread cap / override | `models/runtime/compute.rs`; `ZVEC_GREP_MODEL_COMPUTE_THREADS` | all available cores | **INTEGRATED (BEHAVIOR CHANGE)** default cap 8 when the env var is unset; a positive override wins. On >8-core hosts this changes upstream's all-cores default. Bounds are pinned by tests; owner acceptance required before production. |
+| 12 | Rebuild disk-space preflight | `workspace/build.rs`; 2x active + 4 GiB | no preflight | **INTEGRATED (conditionally accepted)** in `workspace/index.rs`; one-active-copy hard floor, `2x + 4 GiB` conservative target, warning band for a potentially smaller rebuild. A failed build retains the active index. Error help includes exact bytes/remediation; false-rejection tests added. |
+| 13 | Model compute thread cap / override | `models/runtime/compute.rs`; `ZVEC_GREP_MODEL_COMPUTE_THREADS` | all available cores | **INTEGRATED (OWNER-ACCEPTED BEHAVIOR CHANGE)** default cap 8 when the env var is unset; a positive override wins. On >8-core hosts this changes upstream's all-cores default. Bounds are pinned by tests. |
 | 14 | Model cache idle/capacity overrides | `models/runtime/manager.rs`; `ZVEC_GREP_MODEL_IDLE_TIMEOUT_SECONDS`, `ZVEC_GREP_MODEL_CACHE_CAPACITY` | fixed 15 min / 1 | **INTEGRATED** bounded overrides (idle <= 86400 s, capacity <= 16); defaults unchanged. |
 | 15 | Graph persistence / IndexStore coordination | fork changes around `storage/store` and graph | newer upstream SQLite graph + `IndexStore` graph coordination | **COVERED** upstream; do not regress with fork layout. |
 | 16 | FP16 embedding storage | fork changed fragments/zvec | upstream has FP16 projection | **COVERED** upstream; integration reuses `zg_zvec_fp16::decode_embedding` for M2 vectors. |
@@ -109,9 +109,17 @@ A fork item is not marked COVERED merely because a similarly named upstream feat
   `reconciliation_manifest_is_removed_when_rename_replaces_file_identity`.
 - **Failed replacement**: a storage failure does not publish a manifest;
   regression `failed_replacement_does_not_publish_a_reconciliation_manifest`.
-- **Crash/reopen**: manifest survives a clean reopen; corrupt or missing sidecar
-  is ignored and queries still work:
-  `missing_or_invalid_reconciliation_sidecar_never_blocks_reopen_or_queries`.
+- **Crash/reopen**: manifest survives a clean reopen; corrupt, torn, oversized,
+  version-1, symlinked, or non-regular sidecars are ignored and queries still
+  work: `missing_or_invalid_reconciliation_sidecar_never_blocks_reopen_or_queries`,
+  `torn_or_incompatible_sidecar_is_ignored_and_can_be_republished`,
+  `oversized_sidecar_is_ignored_without_blocking_reopen`,
+  `sidecar_directory_and_file_symlinks_are_not_followed`.
+- **Retrieval parity**: a sidecar-present/torn update and a rebuild return the
+  same FTS/vector paths as a fresh index of the final content:
+  `sidecar_torn_recovery_and_rebuild_preserve_retrieval_parity`.
+- **Telemetry**: publish counts only successful manifest writes; an oversized
+  manifest is skipped rather than reported as published.
 - **Rollback**: deleting the sidecar disables reuse but never blocks reads. The
   data path is unchanged; only optimization is lost.
 
@@ -134,6 +142,10 @@ A fork item is not marked COVERED merely because a similarly named upstream feat
 - **Lock ordering**: `finalize_writes` takes state → releases → native optimize
   → re-takes state; `close` takes state → releases → waits → re-takes lease and
   state. No path holds the lease while waiting for the state lock.
+- **Visibility before optimize**: newly committed rows are returned by both FTS
+  and vector search before `finalize_writes`; optimize preserves the result set:
+  `committed_rows_are_searchable_before_optimize_and_optimize_preserves_results`.
+  This is evidence for the #10 audit, not a deferred-maintenance implementation.
 
 ### Sidecar on-disk compatibility / migration
 
@@ -148,6 +160,8 @@ A fork item is not marked COVERED merely because a similarly named upstream feat
 - **Residual risk (reduced)**: the sidecar is still not transactional with the
   zvec generation, but the vector fingerprint binds it to the exact stored
   bytes. A rollback that restores a different vector is rejected; a rollback
-  that restores an identical vector is harmless. The remaining release hardening
-  is to bind the sidecar directory to the workspace storage generation so a
-  stale sidecar is ignored wholesale, rather than entry-by-entry.
+  that restores an identical vector is harmless. Sidecars live inside the index
+  generation, so rebuild/rollback moves or discards them with that generation.
+  The remaining hardening is to bind each sidecar to the workspace
+  storage-generation id explicitly; current entry-by-entry binding is safe but
+  can cause unnecessary re-embedding after a generation change.

@@ -33,7 +33,12 @@ cached separately.
   storage closes. Interrupted publication can be recovered; a failed rebuild
   before the manifest commits preserves the previous index.
 - **Compatibility.** `indexVersion` determines index compatibility.
-  Incompatible indexes must be rebuilt.
+  Incompatible indexes must be rebuilt; there is no in-place migration.
+- **Rebuild preflight.** A rebuild requires at least one active-index copy of
+  free space; the conservative same-size target is `2 × active + 4 GiB`. Between
+  the floor and the target the build proceeds with a warning because a shrinking
+  rebuild may fit. A failed build preserves the active index. The error help
+  reports exact bytes and remediation.
 
 - **Maintenance.** `index/…/optimize.pending` records retry intent for native
   collection optimization. Fragment optimization runs outside the store state
@@ -41,5 +46,6 @@ cached separately.
   only after a successful, generation-unchanged finalization.
 - **Embedding reuse.** `index/…/reconciliation/file-*.json` is an optional,
   additive sidecar (version 2, ≤4 MiB). Missing, corrupt, oversized, or older
-  sidecars are ignored; deleting the directory disables reuse without affecting
+  sidecars are ignored; the directory and entries must not be symlinks or
+  special files. Deleting the directory disables reuse without affecting
   canonical data or queries.
