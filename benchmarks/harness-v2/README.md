@@ -83,6 +83,19 @@ re-run a benchmark, or modify the frozen RC.
 - Retrieval has no M4 imports and remains an independent `core/metrics/engines/
   reports` tree.
 
+**P6 — Archive/provenance: implemented.**
+
+- `benchmarks/harness-v2/archive/` now holds the frozen native-lifecycle
+  baseline, closed native query-lock split runners, and synthetic prototypes.
+  Its README records status and last evidence.
+- Policy-referenced diagnostic fixtures/runners and the lifecycle's
+  `create_measurement_artifact.py` dependency are tracked under
+  `research/m4-native/tools/`; a clean checkout no longer depends on untracked
+  runtime modules.
+- Historical receipt directories were not moved or rewritten.
+- The registry points at the archived native query-lock runner and refuses it
+  for execution.
+
 The implementation adds no benchmark workload, production launch, threshold,
 policy, cgroup-limit, or RC change. Synthetic containment verification launches
 its own transient user units and cleans them up; it runs no production workload.

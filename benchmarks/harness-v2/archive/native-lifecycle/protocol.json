@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "protocol_id": "p1-native-lifecycle-baseline-v7",
+  "authorization": {
+    "user_message": 1710,
+    "supersedes_user_message": 1670,
+    "replacement_for_operation": "p1-native-lifecycle-20261027t112116z-ecf82762",
+    "scope": "owner approved one additional fresh native baseline operation via structured decision #1710 after diagnosing the v6 missed query slot; preserve the frozen workload and 250 ms query schedule. If v7 is blocked or query acceptance is still inconclusive, stop and report; no automatic retry or further run under this authorization. No SWE-QA20 or P2 performance work"
+  },
+  "code_candidate": {
+    "base_head": "d3b2a95bb238bce47e2dcb87034e5600d9de56e0",
+    "package_artifact_sha256": "767725ceeb1b4722508c16984806caeed5b613d0b5ad8ca6211c320f313acc23",
+    "package_source_snapshot_sha256": "cbda2fc67efc63e7e1dd30f8e75d77cd9910fa75ce86c6da177c1c2b2aa0cf4c",
+    "tracked_worktree_diff_sha256": "f90c13c0436cddc003c8336675917837b322827dcf243b96dd7fb21dfd115db5",
+    "note": "The lifecycle harness runs the native IndexStore code compiled into the current zg-daemon unit-test binary, bound to the tracked worktree diff hash above. It includes the post-v4 test-only fix that records successful watcher-job completion revisions, the v6 test-only close/flush-before-reopen fix, and a focused regression proving the indexed fixture survives that reopen. It does not execute or import the npm package or use production transport. The package hashes remain a validated provenance reference to the earlier local WIP package; the actual test binary and native shared-library identities are recorded in the operation manifest."
+  },
+  "corpus": {
+    "source_commit": "34d75aa14c760d302e497831c7501e1a31400f2b",
+    "path_prefix": "rust/crates/zg-engine/src/",
+    "extensions": [".rs"],
+    "selection": "first 64 paths in lexicographic order at source_commit",
+    "file_count": 64,
+    "source_bytes": 694421,
+    "manifest_sha256": "7fbc9f951a9b1f75388150a891c984f23dd72717a6ce59070f89fd9f3ad832a3"
+  },
+  "workload": {
+    "trace": ["initial_index", "single_file_update", "burst_upsert_4_files", "rename", "delete", "idle_2s", "close_and_reopen", "repeat_rescan_1", "repeat_rescan_2"],
+    "fixture_mutations": "append a unique synthetic FTS marker to selected frozen Rust files; rename one marked file, then delete it",
+    "embedding": "deterministic fixed 2D test embedding; no model inference or network access",
+    "native_store": "native IndexStore, fresh operation-owned index root, one writer and concurrent readers; close/flush the existing lease after readers quiesce before reopening the same path",
+    "watcher": {
+      "implementation": "NativeWatcherFactory",
+      "debounce_ms": 30,
+      "max_wait_ms": 100,
+      "poll_interval_ms": 15
+    },
+    "idle_seconds": 2
+  },
+  "query": {
+    "route": "FTS",
+    "filter": "**/*.rs",
+    "query": "p1nativebaseline",
+    "schedule": "one serial query offered every 250 ms; no overlap or queue; missed starts are counted and not backfilled",
+    "interval_ms": 250,
+    "max_samples": 4096,
+    "p95": "nearest-rank p95 of successful end-to-end search_workspace_index wall time",
+    "included_work": ["native store lock wait", "retrieval", "result hydration"],
+    "excluded_work": ["daemon transport", "serialization", "client rendering"],
+    "slo_max_us": 300000,
+    "minimum_valid_samples": 20,
+    "validity": "p95 acceptance is inconclusive if fewer than 20 queries complete, any scheduled slot is missed, any query fails, the sample cap is reached, or maximum schedule lag exceeds one interval"
+  },
+  "freshness": {
+    "start": "test-only monotonic timestamp when WorkspaceRuntime watch_loop receives a normalized non-empty batch",
+    "end": "completion of the first successful scheduled FTS query that reflects the mutation",
+    "slo_max_us": 5000000,
+    "events": ["single_file_update", "burst_upsert_4_files", "rename", "delete"],
+    "cadence_resolution_ms": 250,
+    "per_event_deadline_seconds": 30
+  },
+  "resource_envelope": {
+    "execution": "systemd-run --user --scope",
+    "pre_exec_guard": "exec_guard.py verifies effective memory, swap, CPU, PID, the 1 GiB launch-only disk cushion, the 16 GB operational disk floor, and host-memory reserve before running the test binary",
+    "cpu_quota_percent": 200,
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 128,
+    "runtime_limit_seconds": 900,
+    "runtime_timeout_grace_seconds": 10,
+    "filesystem_root": ".tmp/native-lifecycle-baseline-20261027",
+    "minimum_free_bytes_at_launch": 17073741824,
+    "minimum_free_bytes_before_and_during_run": 16000000000,
+    "minimum_memavailable_bytes_before_and_during_run": 3221225472,
+    "disk_guard_action": "stop the operation scope and preserve partial evidence if available bytes fall below the reserve",
+    "scratch_policy": "all generated files and TMPDIR stay under operation root; no per-workspace quota is claimed",
+    "telemetry_interval_ms": 500,
+    "host_snapshots": ["immediately_before_launch", "immediately_after_exit"],
+    "process_telemetry": ["cgroup cpu/memory/pids/io counters", "per-process CPU time", "RSS", "PSS when readable", "swap"]
+  },
+  "stop_conditions": {
+    "watcher_event_observation_deadline_seconds": 10,
+    "writer_idle_deadline_seconds": 30,
+    "query_visibility_deadline_seconds": 30,
+    "initial_index_and_watcher_activation_deadline_seconds": 30,
+    "disk_and_host_memory_checks_ms": 500,
+    "on_guard_breach": "stop the scoped workload, retain partial evidence, classify the run as blocked/partial, and do not retry"
+  },
+  "decision_policy": {
+    "runs_authorized": 1,
+    "no_automatic_retry": true,
+    "single_run_is_not_statistical_qualification": true,
+    "if_sampling_is_incomplete": "report exploratory/inconclusive; do not repeat under this authorization. This is the one additional attempt approved after v6 diagnosis; if v7 is still inconclusive or blocked, stop and require a fresh owner authorization/protocol before any further run",
+    "production_runtime_or_defaults_may_change": false
+  }
+}

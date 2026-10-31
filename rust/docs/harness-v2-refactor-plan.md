@@ -245,13 +245,17 @@ Invariants:
   line continuations introduced by repository formatting; semantic assertions
   are unchanged. Report/compare/CI entrypoints remain on frozen fixtures.
 
-### P6 — Archive and document
+### P6 — Archive and document (implemented 2026-10-31)
 
-- Move superseded prototypes and closed-research runners to
-  `benchmarks/harness-v2/archive/` or a research archive, with a `README`
-  stating status and last receipt.
-- Update `research/m4-native/docs/benchmark-policy.md` to point to V2 modules;
-  leave historical receipt directories untouched.
+- Moved the frozen native-lifecycle baseline, closed native query-lock split
+  runners, and synthetic prototypes to `benchmarks/harness-v2/archive/`.
+  `archive/README.md` records status and last evidence.
+- Tracked the previously untracked lifecycle/measurement dependency and the
+  policy-referenced diagnostic fixtures/runners/tests under
+  `research/m4-native/tools/`. A clean checkout now contains imported runtime
+  modules.
+- Updated `research/m4-native/docs/benchmark-policy.md` to point at the V2
+  entrypoints; historical receipt directories were left untouched.
 - No production defaults, thresholds, or authorization changes.
 
 ## 6. Acceptance criteria

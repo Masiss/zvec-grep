@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "protocol_id": "p2-watch-coalescing-scheduler-diagnostic-v1",
+  "purpose": "Bounded paired scheduler diagnostic for P2-B: determine whether watch coalescing reduces writer submissions while preserving all synthetic changes.",
+  "classification": "EXPLORATORY_SINGLE_PAIRED_RUN",
+  "not_a_claim": [
+    "This mock-executor diagnostic does not measure native indexing CPU or complete native lifecycle wall time.",
+    "Its event-to-writer-start lag is not the P1 event-to-visible freshness metric.",
+    "It does not independently qualify query p95 or production performance."
+  ],
+  "command": "cd rust && cargo test --locked -p zg-daemon --lib watch_burst_benchmark -- --ignored --nocapture",
+  "workload": {
+    "executor": "TimedBenchmarkExecutor with fixed 80 ms async duration per writer call",
+    "scheduler_concurrency": 1,
+    "queue_capacity": 128,
+    "initial_watch_changes": 1,
+    "burst_watch_changes": 40,
+    "inter_event_interval_ms": 25,
+    "paired_order": ["coalescing_off_control", "coalescing_on"],
+    "same_process_pair": true
+  },
+  "metrics": {
+    "primary_diagnostic": "watch_jobs / optimize_calls per 41 submitted changes",
+    "integrity": "observed_changes must equal 41 in each arm",
+    "secondary": "last writer-call start minus final event submission time; scheduler start lag only"
+  },
+  "screening_rule": "Coalesced arm must submit fewer writer jobs than control and preserve all 41 changes. No CPU or lifecycle-wall threshold is inferred from this mock benchmark.",
+  "environment": {
+    "cpu_quota": "200%",
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "tasks_max": 128,
+    "timeout_seconds": 900,
+    "host_memavailable_floor_bytes": 3221225472,
+    "host_free_disk_floor_bytes": 17179869184,
+    "scratch_root": ".tmp"
+  }
+}

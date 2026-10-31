@@ -70,8 +70,8 @@ DESCRIPTORS: tuple[OperationDescriptor, ...] = (
         "m4-native-query-lock-split-pair",
         "research_only",
         False,
-        "research/m4-native/tools/run_native_query_lock_split_pair.py",
-        "Closed/partial investigation; P6 archive candidate.",
+        "benchmarks/harness-v2/archive/native-query-lock-split/run_native_query_lock_split_pair.py",
+        "Archived closed/partial investigation; never a V2 entrypoint.",
     ),
     OperationDescriptor(
         "observer_overhead",
