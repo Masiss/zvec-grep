@@ -59,6 +59,16 @@ and recoverable index publication under `.zvec-grep/`. See the
 [workspace internals](crates/zg-engine/src/workspace/README.md) for storage,
 relocation, and authorization behavior.
 
+Index storage keeps a per-collection mutation-debt mask. Native fragment
+maintenance runs after the store state lock is released; directory, entity, and
+file maintenance still runs under that lock because the native library does not
+permit readers or writers during `optimize()`. A durable `optimize.pending`
+marker and a writer-generation check make finalization retry-safe. Modified-file
+embedding reuse is an optional additive `reconciliation/` sidecar bound to the
+stored FP16 vector; it never changes canonical rows or query semantics. See
+[`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](../M3B-HANDLE-MAINTENANCE-FEASIBILITY.md)
+for the native concurrency limit.
+
 ## Resource ownership
 
 The engine owns a private model runtime manager. Matching model configuration

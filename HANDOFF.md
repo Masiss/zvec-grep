@@ -10,7 +10,8 @@
 - Local branch: `integration/upstream-rust`, created in an isolated worktree at `/home/masis/src/zvec-grep-integration`.
 - Source comparison: `origin/work/zg-optimization` (`abaf7bf`) vs `upstream/main`.
 - The old worktree/branch `work/zg-optimization` was not modified.
-- No push, PR, merge, production-default change, or existing zvec table/schema change was made. M2 adds an additive `reconciliation/file-*.json` sidecar; if that sidecar is treated as a storage-format change, stop for an owner decision before shipping.
+- No push, PR, merge, existing zvec table/schema change, or new storage format was made. M2 adds an additive `reconciliation/file-*.json` sidecar; if that sidecar is treated as a storage-format change, stop for an owner decision before shipping.
+- Production-relevant behavior changes requiring owner acceptance: model compute default cap 8, watcher 750 ms trailing debounce, and rebuild disk preflight. See `MERGE-READINESS.md` §4.
 
 ## Ported commits
 
@@ -192,14 +193,17 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
   wall-time bottleneck.** No batching change is justified by this evidence.
 - Evidence: `BENCHMARK-RESULTS.md`, `/home/masis/bench/reuse-diag/diag-raw.json`.
 
-### Verification (pass 2)
+### Final consolidation verification — 2026-10-31
 
-- `cargo test -p zg-engine --lib` — **685 passed, 0 failed, 10 ignored** (after FP16 fix).
-- `cargo test -p zg-daemon` — **124 passed, 0 failed** (after final code).
-- `cargo clippy -p zg-engine -p zg-daemon --all-targets -- -D warnings` — **PASS**.
-- `cargo fmt --all -- --check` — **PASS**.
-- `git diff --check` — **PASS**.
-- All commands use `TMPDIR="$PWD/.tmp"`; `/tmp` is not used for build/test temp.
+Full evidence and commands: [`MERGE-READINESS.md`](MERGE-READINESS.md).
+
+- `cargo test -p zg-engine --lib` — **696 passed, 0 failed, 15 ignored**.
+- `cargo test -p zg-engine` integration targets — **39 passed** (`concurrent_queries`, `engine_storage`, `file_selection`, `index_version`, `scan_failures`, `storage_crash`).
+- `cargo test -p zg-daemon` — **124 passed**.
+- `cargo test -p zg-cli` — **180 passed**; `zg-transport-mcp` — **60 passed**; `zg-daemon-protocol` — **5**; `zg-zvec-fp16` — **2**; `zg-host-native` — **44**.
+- clippy (engine/daemon/cli/transport-mcp, all targets, `-D warnings`) — **PASS**; `cargo fmt --check` — **PASS**; `cargo build -p zg-cli --release` — **PASS**.
+- Use an absolute TMPDIR without `..` (e.g. `/home/masis/src/zvec-grep-integration/.tmp`); a `..` in TMPDIR makes MCP path fixtures fail for environmental reasons.
+- Authorized 64-file confirmation: 6/6 runs valid at the run level, formal result **INCONCLUSIVE/exploratory** (upstream 9–11 query samples and one 2.8 s outlier). See `BENCHMARK-RESULTS.md`.
 
 ### Remaining blockers / next steps
 
@@ -208,14 +212,14 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
    staged batches and measure peak RSS on the 421-file corpus.
 2. **M3-B deferred maintenance**: needs an opt-in policy (threshold/age) and a
    paired idle/loaded benchmark; do not silently change production defaults.
-3. **M3-B full lock isolation**: directories/entities/files still require the
-   state lock. Next: make their handles cloneable or move their native
-   maintenance behind a read-session boundary.
-4. **Three-way benchmark**: 64-file pilot executed (3 repeats, 2-CPU affinity,
-   no memory cgroup). Result: **INCONCLUSIVE / NOT A WIN** — initial equals
-   upstream, mutation 13.5% slower, RSS lower. See `BENCHMARK-RESULTS.md`.
-   Do not run 421 files until reuse telemetry and manifest I/O overhead are
-   understood.
+3. **M3-B full lock isolation — BLOCKED**: `Arc<Collection>` handles were
+   implemented, but zvec 0.8.0 rejects iterators/writes during `optimize()` and
+   can SIGABRT. Outside-lock scalar maintenance is not retained. Reopen only
+   with a native version that passes the gate.
+4. **Confirmation benchmark**: the authorized 64-file run is complete. Formal
+   result **INCONCLUSIVE / exploratory**; mutation wall is at parity within the
+   pre-registered bar, query p95/freshness direction favors integration. Do not
+   run 421 files or claim a qualified win.
 5. **Storage sidecar decision**: the reconciliation directory is additive and
    does not alter existing zvec tables. If the owner considers any new on-disk
    sidecar a storage-format change, decide before release.
@@ -232,10 +236,10 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 ## Current state
 
-- Integration worktree is clean; branch is **28 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **30 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
-- No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No production default, migration, or release configuration changed.
+- No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No migration or release configuration changed. Behavior changes: compute cap 8, watcher debounce, rebuild preflight (see `MERGE-READINESS.md`).
 - M2 core and M3-A/M3-B fragment isolation are integrated; streaming staging and deferred maintenance remain open.
 - M3-B fragment/dirty overlap candidate (`5ac1b01`) was rejected after a concurrent-query p95 regression and reverted in `0981a78`. Per-stage optimize telemetry (`5741e1d`) is kept as diagnostic-only. See `BENCHMARK-RESULTS.md`.
 - Handle-based scalar maintenance was implemented, but the pinned **zvec 0.8.0** native gate failed (iterators/writes rejected during optimize; SIGABRT). The outside-lock path was rolled back; finalization remains under the state lock. `Arc<Collection>` handles and the lifecycle regressions remain, with five outside-lock tests ignored. See `M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`. No benchmark was run.

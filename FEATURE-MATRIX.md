@@ -27,17 +27,17 @@
 | 6 | M2 entity/fragment fingerprint invalidation | `FileManifest` entity + fragment entries; `b4b8686` | no per-file embedding manifest | **INTEGRATED (simplified)** fragment fingerprint includes model metadata + exact embedding input; entity entry is unnecessary because `fragment_id` already encodes entity content/range + ordinal. |
 | 7 | M2 unstable hosted-model reuse guard | `QwenEmbeddingModel::identity_is_stable = false`; `b4b8686` | no identity contract | **INTEGRATED** `EmbeddingModel::identity_is_stable` default true; Qwen false; empty fingerprint is never published or reused. |
 | 8 | M3-A mutation-aware finalization | per-collection mutation debt; `b4b8686` | one `needs_optimize` bool; all collections optimized | **INTEGRATED** dirty mask (`directories/entities/files/fragments`); only dirty collections are finalized; marker remains crash barrier; store tests pass. |
-| 9 | M3-B native fragment optimize outside `Mutex<StoreState>` | native optimize outside store lock; `b4b8686` | `finalize_writes_with` holds state mutex through all four optimizers | **PARTIAL / INTEGRATED** `Fragments` is `Arc`; `fragments.optimize()` runs after releasing the state lock. `directories/entities/files` still optimize under the lock because their handles are mutable. `write_generation` preserves debt from concurrent writes; `close` waits for in-flight optimize. **BENCHMARKED (64-file pilot)**: fragment isolation kept; wall/RSS did not show a lock win at this size. See `BENCHMARK-RESULTS.md`. |
+| 9 | M3-B native fragment optimize outside `Mutex<StoreState>` | native optimize outside store lock; `b4b8686` | `finalize_writes_with` holds state mutex through all four optimizers | **PARTIAL / BLOCKED** `Fragments` is `Arc`; fragment optimize runs outside the state lock. Scalar collections still optimize under the lock. The fragment/dirty overlap candidate (`5ac1b01`) was rejected after query p95 rose 275→360 ms and reverted (`0981a78`). Handle-based outside-lock scalar maintenance was implemented and then **BLOCKED by zvec 0.8.0**: `optimize()` rejects iterators/writes (`FailedPrecondition`, WAL failure) and can SIGABRT. 0.7.2 Gate H/I is not evidence for 0.8.0. See `M3B-HANDLE-MAINTENANCE-FEASIBILITY.md` and `BENCHMARK-RESULTS.md`. |
 | 10 | M3-B deferred maintenance (threshold, age deadline, durable marker, epoch/ack) | `b4b8686`; `rust/docs/m3b-handoff.md` | durable `optimize.pending` marker only | **NOT INTEGRATED** — needs a policy/config decision and benchmark; current marker + generation is the safe subset. Next: add opt-in threshold/age under benchmark policy, then paired idle/loaded test. |
 | 11 | M3-B read-session separation | `read_session.rs` changes + `zg_memory::reclaim` | read sessions + write eviction already exist | **COVERED** upstream; fork's `zg_memory` reclamation is **SKIP** (would add a parallel memory abstraction). |
 | 12 | Rebuild disk-space preflight | `workspace/build.rs`; 2x active + 4 GiB | no preflight | **INTEGRATED** in `workspace/index.rs`; called before `prepare_build` when an active index exists; conservative refusal, no cap change. |
-| 13 | Model compute thread cap / override | `models/runtime/compute.rs`; `ZVEC_GREP_MODEL_COMPUTE_THREADS` | all available cores | **INTEGRATED** default cap 8 + positive integer override; no behavior change when unset. |
+| 13 | Model compute thread cap / override | `models/runtime/compute.rs`; `ZVEC_GREP_MODEL_COMPUTE_THREADS` | all available cores | **INTEGRATED (BEHAVIOR CHANGE)** default cap 8 when the env var is unset; a positive override wins. On >8-core hosts this changes upstream's all-cores default. Bounds are pinned by tests; owner acceptance required before production. |
 | 14 | Model cache idle/capacity overrides | `models/runtime/manager.rs`; `ZVEC_GREP_MODEL_IDLE_TIMEOUT_SECONDS`, `ZVEC_GREP_MODEL_CACHE_CAPACITY` | fixed 15 min / 1 | **INTEGRATED** bounded overrides (idle <= 86400 s, capacity <= 16); defaults unchanged. |
 | 15 | Graph persistence / IndexStore coordination | fork changes around `storage/store` and graph | newer upstream SQLite graph + `IndexStore` graph coordination | **COVERED** upstream; do not regress with fork layout. |
 | 16 | FP16 embedding storage | fork changed fragments/zvec | upstream has FP16 projection | **COVERED** upstream; integration reuses `zg_zvec_fp16::decode_embedding` for M2 vectors. |
 | 17 | Host-native scanner/watcher surface | `scanner.rs`, `watcher.rs`, `api.rs`; `b4b8686` | different host API; watcher tests exist | **PARTIAL** watcher coalescing integrated; scanner streaming (`read_stream`) not. Next: capability-gate the scanner API before staging. |
 | 18 | Workspace manifest/build recovery | fork `workspace/build.rs` (new architecture) | upstream `workspace/index.rs` + manifest recovery is newer | **COVERED** upstream, except preflight (#12); fork build record design is not portable. |
-| 19 | Extraction/text changes | `extraction/mod.rs`, `extraction/text.rs`; `b4b8686` | upstream extraction evolved | **PARTIAL** token-density detector ported (#2); other extraction deltas need a semantic diff before porting. |
+| 19 | Extraction/text changes | `extraction/*` | upstream extraction evolved | **DISPOSITIONED** token-density detector integrated (#2). `TextStreamChunker` = REWORK (needs #17 scanner stream). Table-cell embedding projection = REWORK/behavior decision (changes table embedding input, no upstream evaluation). Python decorator / Rust attribute signatures = SKIP (upstream intentionally excludes them; tests assert the contract). `extract_doc` simplification and `ExtractionOutput`/graph removal = SKIP (fork-M4 architecture; upstream keeps richer docs/graph). |
 | 20 | CLI/install/render/product surface | `zg-cli`, `zg/src/main.rs`, README | upstream CLI/product features are newer | **COVERED / SKIP** — upstream behavior is the product baseline; no fork replacement without a separate product decision. |
 | 21 | M4 lock-split, base/delta, WAL sync, containment, M4 bridge tests | `indexed_search/*`, `tests/native_*`, research artifacts | no production M4 surface | **SKIP** — experimental; preserved in research artifacts, not integrated. |
 | 22 | `zg-memory` crate | `rust/crates/zg-memory` | absent | **SKIP** — avoid a parallel memory abstraction; upstream reclamation behavior remains. |
@@ -46,8 +46,8 @@
 
 | Area | Fork choice | Upstream choice | Current integration | Needed evidence |
 |---|---|---|---|---|
-| Modified-file embedding | persistent per-file manifest + streaming staging | re-embed all fragments of a modified file | manifest reuse without streaming | **64-file pilot: no wall win** (mutation 1.38 s vs upstream 1.21 s); reuse telemetry still missing. See `BENCHMARK-RESULTS.md`. |
-| Finalization | per-collection debt + deferred age/threshold | all collections under one store lock | dirty mask + fragment optimize outside lock | lock-wait/p95 under concurrent queries and writes |
+| Modified-file embedding | persistent per-file manifest + streaming staging | re-embed all fragments of a modified file | manifest reuse without streaming | **64-file pilot: reuse active, no wall win**; confirmation mutation at parity (981 vs 941 ms median), query p95/freshness favor integration but formal result INCONCLUSIVE (upstream sample/outlier limits). See `BENCHMARK-RESULTS.md`. |
+| Finalization | per-collection debt + deferred age/threshold | all collections under one store lock | dirty mask + fragment outside lock; scalar under lock | Overlap rejected; handle-based blocked by zvec 0.8.0 native maintenance exclusion. Needs a native version that allows query/write during optimize. |
 | Read path | M4 lock-split/base-delta | read sessions + parallel optimize | upstream | M4 remains research-only |
 | Scanner | streaming `read_stream` + disk staging | whole-file read | whole-file read | memory peak vs corpus size before staging |
 
@@ -77,9 +77,18 @@ Three repeats per arm, 2-CPU affinity, release builds, no memory cgroup:
   finalization dominates. No batching justified at this size.
 - Full evidence: [`BENCHMARK-RESULTS.md`](BENCHMARK-RESULTS.md).
 
+### Authorized 64-file confirmation (integration vs upstream)
+
+3 counterbalanced repeats, 2 CPU, 512 MiB user cgroup, concurrent query load.
+Mutation wall 981 vs 941 ms (integration +4.2%, inside bar); query p95 during
+mutation 244 vs 873 ms; freshness lag 401 vs 1,601 ms. Upstream had 9–11 query
+samples (pre-registered gate was 20) and one 2.8 s outlier, so the formal result
+is **INCONCLUSIVE / exploratory**. Artifacts:
+`/home/masis/bench/m3b-confirm/results-20261031T100004Z/`.
+
 ## Coverage rule
 
-A fork item is not marked COVERED merely because a similarly named upstream feature exists. Each COVERED row above names the upstream invariant that subsumes it. Items #5, #10, #17, and #19 remain open with a concrete next step; they are not silently dropped.
+A fork item is not marked COVERED merely because a similarly named upstream feature exists. Each COVERED row above names the upstream invariant that subsumes it. Items #5, #10, and #17 remain open with a concrete next step. #9 is blocked by the pinned native library; #19 is fully dispositioned above. None are silently dropped.
 
 ## Correctness audit — 2026-10-31 (post-integration)
 

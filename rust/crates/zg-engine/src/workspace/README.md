@@ -12,6 +12,7 @@ source/
 └── .zvec-grep/
     ├── manifest.json       saved settings and active index generation
     ├── index/              active index data
+    │   └── reconciliation/ optional per-file embedding-reuse manifests
     ├── temp/               build and recovery data
     ├── locks/              workspace access coordination
     ├── credentials.key     optional key for saved encrypted API credentials
@@ -33,3 +34,12 @@ cached separately.
   before the manifest commits preserves the previous index.
 - **Compatibility.** `indexVersion` determines index compatibility.
   Incompatible indexes must be rebuilt.
+
+- **Maintenance.** `index/…/optimize.pending` records retry intent for native
+  collection optimization. Fragment optimization runs outside the store state
+  lock; scalar collection optimization remains under it. The marker is removed
+  only after a successful, generation-unchanged finalization.
+- **Embedding reuse.** `index/…/reconciliation/file-*.json` is an optional,
+  additive sidecar (version 2, ≤4 MiB). Missing, corrupt, oversized, or older
+  sidecars are ignored; deleting the directory disables reuse without affecting
+  canonical data or queries.

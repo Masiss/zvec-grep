@@ -1,8 +1,13 @@
 # Three-way benchmark plan — fork / upstream / integration
 
-Status: **PREPARED, NOT EXECUTED.** No benchmark operation ID has been issued and
-`docs/benchmark-policy.json` still authorizes zero pair operations. This plan
-does not change safety gates, cgroup/qgroup limits, or production defaults.
+Status: **SUPERSEDED FOR THE 64-FILE CONFIRMATION; THREE-WAY PLAN NOT EXECUTED.**
+The owner separately authorized exactly one 64-file confirmation
+(integration vs upstream `e1f93d2`). Its receipt is
+`/home/masis/bench/m3b-confirm/authorization.json`; the policy file still
+authorizes zero pair operations and was not edited. The 421-file/three-way plan
+below remains unexecuted. See `BENCHMARK-RESULTS.md` and `MERGE-READINESS.md`.
+This plan does not change safety gates, cgroup/qgroup limits, or production
+defaults.
 
 ## Versions
 
@@ -12,9 +17,10 @@ does not change safety gates, cgroup/qgroup limits, or production defaults.
 | Upstream | `e1f93d2` (`upstream/main`) | clean baseline worktree |
 | Integration | `integration/upstream-rust` HEAD | this worktree |
 
-Build all three with the same profile, feature flags, toolchain, and
-`TMPDIR="$PWD/.tmp"`. Record binary/library SHA-256 and `cargo metadata` lockfile
-hash per arm.
+Build all three with the same profile, feature flags, toolchain, and an
+**absolute** `TMPDIR` without `..` (e.g. `/home/masis/src/zvec-grep-integration/.tmp`;
+a `..` component makes MCP path fixtures fail for environmental reasons).
+Record binary/library SHA-256 per arm.
 
 ## Corpus and workload
 

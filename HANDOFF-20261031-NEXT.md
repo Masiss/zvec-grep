@@ -9,7 +9,7 @@ for the current worktree. Historical detail remains in `HANDOFF.md`,
 - Worktree: `/home/masis/src/zvec-grep-integration`
 - Branch: `integration/upstream-rust`
 - Exact upstream base: `e1f93d2` (`upstream/main`)
-- State: **clean**, **28 commits ahead** of `e1f93d2`
+- State: **clean**, **30 commits ahead** of `e1f93d2`
 - Old worktree `work/zg-optimization` at `/home/masis/src/zvec-grep` is
   **dirty and untouched**. Do not reset, clean, or rebase it.
 - No push, PR, merge, production-default change, resource-limit change, or
@@ -110,6 +110,26 @@ failure/retry, close-wait and deadlock stress remain active.
 
 No 64-file A/B was run and no candidate was promoted.
 
+## Consolidation and merge-readiness — complete
+
+Full report: [`MERGE-READINESS.md`](MERGE-READINESS.md). Verdict:
+**merge-readiness READY for review; production-readiness NOT READY** pending
+owner decisions (compute cap 8, watcher debounce, rebuild preflight, sidecar
+storage-format acceptance) and the blocked native finalization optimization.
+
+Verification: 1,150 tests passed / 0 failed / 15 ignored across engine (lib +
+integration), daemon, CLI, transport-MCP, daemon-protocol, FP16, and host-native;
+clippy/fmt PASS; release CLI build PASS. Fork disposition is complete; #19 was
+semantically diffed (streaming chunker and table projection are REWORK, signature
+decorator/attribute inclusion and doc simplification are SKIP, #5/#10/#17 remain
+open).
+
+Authorized 64-file confirmation (3 repeats/arm, 2 CPU, 512 MiB cgroup, concurrent
+query load): mutation wall 981 vs 941 ms (integration +4.2%, inside the 5% bar),
+query p95 during mutation 244 vs 873 ms, freshness lag 401 vs 1,601 ms. Upstream
+had 9–11 query samples (pre-registered gate 20) and one 2.8 s outlier, so the
+formal result is **INCONCLUSIVE / exploratory**, not a win. No 421-file run.
+
 ## Current bottleneck: finalization / optimize
 
 The integration is slower than upstream mainly because of `index_optimize`
@@ -157,24 +177,19 @@ Relevant code:
 
 ## Recommended next action
 
-**Do not re-implement outside-lock optimize on zvec 0.8.0.** The native
-maintenance exclusion is a hard blocker. Safe options, in order:
+Do not start another optimization track. The remaining work is owner review of
+the merge package:
 
-1. Keep the current sequential finalization and stop here unless a native
-   upgrade is authorized.
-2. If a newer zvec release explicitly allows query/write during optimize, pin
-   it and run the ignored native gate plus the five lifecycle regressions
-   before any benchmark. Do not treat 0.7.2 Gate H/I as evidence for a new
-   version.
-3. Only if native concurrency is proven: re-enable the handle-based Phase A/B/C
-   and run the 64-file paired A/B with query load under the existing benchmark
-   authorization.
+1. Accept or reject the three behavior changes and the additive sidecar in
+   `MERGE-READINESS.md` §4/§9.
+2. Decide whether the branch evidence docs stay at repo root or move to an
+   internal location.
+3. Re-run CI with an absolute TMPDIR without `..`.
+4. Merge only after those decisions; the blocked handle-based path stays out.
 
-Do not:
-- increase optimizer threads (the 4-thread experiment is already rejected);
-- overlap native maintenance with the scalar stage while holding the lock;
-- cherry-pick `b4b8686` wholesale;
-- benchmark or promote the blocked candidate.
+Reopen finalization only if a zvec version/API explicitly allows query/write
+during `optimize()` and passes the ignored native gate plus the five ignored
+lifecycle regressions. Do not retry the overlap or optimizer-thread experiments.
 
 ## Hard constraints
 
@@ -199,6 +214,8 @@ Do not:
 - `0981a78` — revert the overlap candidate
 - `9fac03c` — Arc<Collection> scalar handles (kept)
 - `df5618a` — handle-based regressions and safe hooks (outside-lock tests ignored)
+- `4929ffc` — model runtime override bound tests
+- `MERGE-READINESS.md` + this consolidation/benchmark update
 
 ## Verification at handoff
 

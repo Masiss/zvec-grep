@@ -210,3 +210,67 @@ diagnostic-only. No optimizer-thread change, no 421-file campaign, no
 production/default/resource change. A future attempt should avoid stretching
 the state-lock window (e.g. port the fork's handle-based maintenance outside
 the lock under a lease) rather than merely overlapping native work.
+
+## Authorized 64-file confirmation — integration vs upstream `e1f93d2`
+
+Status: **EXPLORATORY / INCONCLUSIVE.** One owner-authorized confirmation run
+(operation recorded in `/home/masis/bench/m3b-confirm/authorization.json`; the
+policy file still says `max_authorized_pair_operations: 0` and was not edited).
+No 421-file corpus, no default/algorithm change.
+
+### Protocol
+
+- 3 repeats/arm, counterbalanced (`integration,upstream` / `upstream,integration`
+  / `integration,upstream`), fresh corpus copy per run.
+- 64 `.cs` files, 429,535 bytes, model `local/potion-code-16m-v2`, CPU,
+  `--embedding-concurrency 2`, release builds.
+- `taskset -c 0,1`; user cgroup `MemoryMax=512M`; no swap configuration change.
+- Workload: initial index, then append one mutation block to the largest file
+  while 4 concurrent FTS query workers (`Camera`) and one freshness probe run.
+- Samplers continued for 2 s after the mutation; samples were partitioned at
+  mutation start/end so "during" excludes the post-index quiet period.
+- Pre-registered decision rule and validity gates:
+  `/home/masis/bench/m3b-confirm/protocol.json`.
+
+### Results (median of 3)
+
+| Metric | Integration | Upstream `e1f93d2` |
+|---|---:|---:|
+| Mutation wall | 981.2 ms | 941.2 ms |
+| `index_optimize` | 756.5 ms | 666.6 ms |
+| Fragment optimize (integration only) | 511.0 ms | — |
+| Entities optimize (integration only) | 158.1 ms | — |
+| Files optimize (integration only) | 242.0 ms | — |
+| Query p50 during mutation | 3.7 ms | 496.8 ms |
+| Query p95 during mutation | 244.0 ms | 872.8 ms |
+| Query p99 during mutation | 444.9 ms | 872.8 ms (n=10) |
+| Freshness lag | 400.7 ms | 1,600.7 ms |
+| CPU user / system | 740 / 230 ms | 500 / 330 ms |
+| Peak RSS | 560.6 MiB | 557.5 MiB |
+| I/O write / read | 64.7 / 0.23 MB | 60.8 / 8.0 MB |
+
+Paired mutation deltas by repeat: +67.6 ms, −1,854.7 ms (upstream repeat 2
+outlier: 2.8 s, heavy disk reads under the tight cgroup), +149.0 ms. Median
+delta: **+39.9 ms (+4.2%) for integration**, inside the pre-registered 5% bar.
+
+### Validity and conclusion
+
+All 6 runs exited 0, had zero query errors, parity 10/10, freshness found, and a
+cgroup peak at or below 512 MiB (all runs reported exactly 512 MiB: cap-bound,
+no OOM; per-process VmHWM was 557–561 MiB, so the envelope was tight). The
+pre-registered `during_samples >= 20` gate
+failed for the upstream arm (9–11 samples) because its state lock blocks queries
+for the whole optimize; the mutation wall also has one upstream outlier. Under
+the pre-registered rule the formal result is **INCONCLUSIVE**, not IMPROVED or
+REGRESSED.
+
+Descriptive reading: mutation wall is at parity within the bar; query p95/p99
+and freshness direction strongly favor the integration (consistent with M3-A
+fragment isolation: only the scalar stage blocks readers). CPU user time is
+higher on the integration in this run. Do not treat this as a qualified
+performance win.
+
+Artifacts: `/home/masis/bench/m3b-confirm/results-20261031T100004Z/`
+(`protocol.json`, `manifest.txt`, `preflight.json`, per-run `result.json`,
+`time.txt`, host snapshots, stderr). Binary SHA-256 values are in
+`manifest.txt`.
