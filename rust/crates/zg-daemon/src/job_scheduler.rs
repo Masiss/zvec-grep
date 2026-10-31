@@ -7,6 +7,7 @@ use std::{
         Arc, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -121,6 +122,8 @@ struct SchedulerInner {
     closed: AtomicBool,
     drained: Notify,
     config: SchedulerConfig,
+    #[cfg(test)]
+    watch_coalescing_enabled: AtomicBool,
 }
 
 #[derive(Default)]
@@ -156,6 +159,37 @@ struct ScheduledJob {
     result: Mutex<Option<IndexResult>>,
     finished: AtomicBool,
     completed: Notify,
+    coalescing_wakeup: Notify,
+    watch_coalescing: Mutex<Option<WatchCoalescing>>,
+}
+
+const WATCH_COALESCE_DEBOUNCE: Duration = Duration::from_millis(750);
+const WATCH_COALESCE_MAX_WAIT: Duration = Duration::from_secs(5);
+
+#[derive(Clone, Copy)]
+struct WatchCoalescing {
+    started_at: Instant,
+    last_event_at: Instant,
+}
+
+impl WatchCoalescing {
+    fn now() -> Self {
+        let now = Instant::now();
+        Self {
+            started_at: now,
+            last_event_at: now,
+        }
+    }
+
+    fn note_event(&mut self) {
+        self.last_event_at = Instant::now();
+    }
+
+    fn delay_until_ready(&self, now: Instant) -> Duration {
+        let debounce_at = self.last_event_at + WATCH_COALESCE_DEBOUNCE;
+        let max_wait_at = self.started_at + WATCH_COALESCE_MAX_WAIT;
+        debounce_at.min(max_wait_at).saturating_duration_since(now)
+    }
 }
 
 impl IndexJobScheduler {
@@ -173,6 +207,8 @@ impl IndexJobScheduler {
                     concurrency,
                     queue_capacity: config.queue_capacity,
                 },
+                #[cfg(test)]
+                watch_coalescing_enabled: AtomicBool::new(false),
             }),
         }
     }
@@ -211,8 +247,15 @@ impl IndexJobScheduler {
                 if !queued_full_manual {
                     merge_options(&mut lock(&active.options), options);
                 }
+                if reason == JobReason::Watch
+                    && let Some(window) = lock(&active.watch_coalescing).as_mut()
+                {
+                    window.note_event();
+                    active.coalescing_wakeup.notify_waiters();
+                }
                 if reason == JobReason::Manual {
                     lock(&active.snapshot).reason = JobReason::Manual;
+                    active.coalescing_wakeup.notify_waiters();
                 }
                 return Ok(SubmitIndexJobResult {
                     job: lock(&active.snapshot).clone(),
@@ -223,8 +266,15 @@ impl IndexJobScheduler {
                 if let Some(followup) = state.followup_by_root.get(&canonical_root) {
                     followup.shared.store(true, Ordering::Release);
                     merge_options(&mut lock(&followup.options), options);
+                    if reason == JobReason::Watch
+                        && let Some(window) = lock(&followup.watch_coalescing).as_mut()
+                    {
+                        window.note_event();
+                        followup.coalescing_wakeup.notify_waiters();
+                    }
                     if reason == JobReason::Manual {
                         lock(&followup.snapshot).reason = JobReason::Manual;
+                        followup.coalescing_wakeup.notify_waiters();
                     }
                     return Ok(SubmitIndexJobResult {
                         job: lock(&followup.snapshot).clone(),
@@ -426,6 +476,15 @@ impl IndexJobScheduler {
     }
 }
 
+#[cfg(test)]
+impl IndexJobScheduler {
+    fn set_watch_coalescing_for_benchmark(&self, enabled: bool) {
+        self.inner
+            .watch_coalescing_enabled
+            .store(enabled, Ordering::Release);
+    }
+}
+
 fn create_job(
     canonical_root: PathBuf,
     options: IndexOptions,
@@ -449,6 +508,8 @@ fn create_job(
         result: Mutex::new(None),
         finished: AtomicBool::new(false),
         completed: Notify::new(),
+        coalescing_wakeup: Notify::new(),
+        watch_coalescing: Mutex::new((reason == JobReason::Watch).then(WatchCoalescing::now)),
     })
 }
 
@@ -566,9 +627,68 @@ fn finish_job(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
             finish_cancelled(&followup, "the daemon job scheduler closed");
             finish_job(inner, &followup);
         } else {
-            spawn_job(Arc::clone(inner), followup);
+            let delay = watch_coalescing_delay(inner, &followup);
+            spawn_job_after(Arc::clone(inner), followup, delay);
         }
     }
+}
+
+fn watch_coalescing_enabled(inner: &SchedulerInner) -> bool {
+    #[cfg(test)]
+    {
+        inner.watch_coalescing_enabled.load(Ordering::Acquire)
+    }
+    #[cfg(not(test))]
+    {
+        let _ = inner;
+        true
+    }
+}
+
+fn watch_coalescing_delay(inner: &SchedulerInner, job: &ScheduledJob) -> Duration {
+    if !watch_coalescing_enabled(inner) || lock(&job.snapshot).reason != JobReason::Watch {
+        return Duration::ZERO;
+    }
+    lock(&job.watch_coalescing)
+        .as_ref()
+        .map_or(Duration::ZERO, |window| {
+            window.delay_until_ready(Instant::now())
+        })
+}
+
+fn spawn_job_after(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>, delay: Duration) {
+    if delay.is_zero() {
+        spawn_job(inner, job);
+        return;
+    }
+    tokio::spawn(async move {
+        loop {
+            let notified = job.coalescing_wakeup.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if lock(&job.snapshot).reason != JobReason::Watch {
+                spawn_job(Arc::clone(&inner), Arc::clone(&job));
+                return;
+            }
+            let delay = watch_coalescing_delay(&inner, &job);
+            if delay.is_zero() {
+                spawn_job(Arc::clone(&inner), Arc::clone(&job));
+                return;
+            }
+            tokio::select! {
+                () = job.cancellation.cancelled() => {
+                    finish_cancelled(&job, "indexing was cancelled");
+                    finish_job(&inner, &job);
+                    return;
+                }
+                () = notified => {}
+                () = tokio::time::sleep(delay) => {
+                    spawn_job(Arc::clone(&inner), Arc::clone(&job));
+                    return;
+                }
+            }
+        }
+    });
 }
 
 fn has_selection_update(options: &IndexOptions) -> bool {
@@ -1626,6 +1746,87 @@ mod tests {
                 .job
                 .state,
             JobState::Succeeded
+        );
+    }
+
+    #[tokio::test]
+    async fn watch_coalescing_waits_for_trailing_batch_before_followup_starts() {
+        let executor = Arc::new(RecordingExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            releases: tokio::sync::Semaphore::new(0),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 2,
+                queue_capacity: 8,
+            },
+        );
+        scheduler.set_watch_coalescing_for_benchmark(true);
+        let root = PathBuf::from("/workspace");
+        let first = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    ..IndexOptions::default()
+                },
+                JobReason::Manual,
+            )
+            .expect("manual job should be accepted");
+        executor.started.notified().await;
+
+        let followup = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    changes: vec![zg_engine::api::index::options::WorkspaceChange::Upsert(
+                        PathBuf::from("src/lib.rs"),
+                    )],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("watcher followup should be accepted");
+        let merged = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    root: Some(root.clone()),
+                    changes: vec![zg_engine::api::index::options::WorkspaceChange::Delete(
+                        PathBuf::from("src/lib.rs"),
+                    )],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("second watcher batch should merge");
+        assert!(followup.reused);
+        assert_ne!(followup.job.id, first.job.id);
+        assert_eq!(merged.job.id, followup.job.id);
+
+        executor.releases.add_permits(1);
+        let followup_started = std::time::Instant::now();
+        executor.started.notified().await;
+        assert!(
+            followup_started.elapsed() >= std::time::Duration::from_millis(700),
+            "followup started before the trailing debounce window closed"
+        );
+        executor.releases.add_permits(1);
+        let completed = scheduler
+            .wait(followup.job.id)
+            .await
+            .expect("followup should complete");
+        assert_eq!(completed.job.state, JobState::Succeeded);
+        let calls = executor.calls.lock().expect("calls should be readable");
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            calls[1].changes,
+            [zg_engine::api::index::options::WorkspaceChange::Delete(
+                PathBuf::from("src/lib.rs")
+            )]
         );
     }
 
