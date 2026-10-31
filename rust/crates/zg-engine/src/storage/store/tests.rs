@@ -2192,3 +2192,62 @@ fn fragment_optimize_failure_preserves_marker_and_retries_after_reopen() {
         1
     );
 }
+
+#[test]
+fn reconciliation_manifest_is_removed_when_rename_replaces_file_identity() {
+    use crate::storage::manifest::{FileManifest, FragmentManifestEntry};
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "manifest-before-rename",
+        "manifest rename",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    let mut manifest = FileManifest::new(file.id());
+    manifest.fragments.push(FragmentManifestEntry {
+        fragment_id: entry.entity.fragments()[0].id.as_str().to_owned(),
+        model: entry.model.clone(),
+        embedding_fingerprint: "a".repeat(64),
+        vector_fingerprint: crate::storage::manifest::vector_fingerprint(&entry.vector),
+    });
+    storage
+        .publish_embedding_manifest(&mut manifest)
+        .expect("publish manifest");
+
+    // Upstream treats a rename as delete + new identity; the old sidecar must
+    // not survive and the new file must not reuse the old vector.
+    storage.delete_file(file.id()).expect("delete old path");
+    let (renamed, renamed_entry) = fixture(
+        Some(&storage),
+        "manifest-after-rename",
+        "manifest renamed",
+        vec![0.0, 1.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&renamed, std::slice::from_ref(&renamed_entry))
+        .expect("index renamed path");
+    assert!(
+        storage
+            .load_embedding_manifest(file.id())
+            .expect("old manifest")
+            .is_none()
+    );
+    assert!(
+        storage
+            .load_embedding_manifest(renamed.id())
+            .expect("new manifest")
+            .is_none()
+    );
+    assert_eq!(
+        storage
+            .search_fts("manifest", 10, None)
+            .expect("query renamed file")
+            .len(),
+        1
+    );
+}
