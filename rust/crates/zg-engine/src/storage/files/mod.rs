@@ -37,6 +37,12 @@ impl Files {
         &self.collection
     }
 
+    /// Clone a stable native handle for handle-lifetime regression tests.
+    #[cfg(test)]
+    pub(super) fn handle(&self) -> Arc<Collection> {
+        Arc::clone(&self.collection)
+    }
+
     pub(super) fn open(root: &Path, read_only: bool) -> EngineResult<Self> {
         let ids = if read_only {
             None

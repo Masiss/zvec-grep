@@ -17,16 +17,60 @@ thread_local! {
 }
 
 #[cfg(test)]
-static DIRTY_OPTIMIZE_TEST_FAIL: std::sync::atomic::AtomicBool =
+thread_local! {
+    static DIRTY_OPTIMIZE_TEST_HOOK: Cell<(u64, bool)> = const { Cell::new((0, false)) };
+}
+#[cfg(test)]
+static DIRTY_OPTIMIZE_TEST_ACTIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+#[cfg(test)]
+static FINALIZE_TEST_PAUSE_AFTER_SNAPSHOT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+#[cfg(test)]
+static FINALIZE_TEST_SNAPSHOT_REACHED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+#[cfg(test)]
+static FINALIZE_TEST_SNAPSHOT_RELEASE: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-/// Arm the dirty-collection optimize failure path from tests. The hook is
-/// global because the stage runs on scoped worker threads. Callers must hold
-/// the M3 test lock and reset it when done.
+/// Arm the scalar optimize stage from tests. The hook is thread-local so tests
+/// running in parallel cannot inject delay/failure into another store.
+#[cfg(test)]
+pub(crate) fn set_dirty_optimize_test_hook(delay_ms: u64, fail: bool) {
+    DIRTY_OPTIMIZE_TEST_HOOK.with(|hook| hook.set((delay_ms, fail)));
+}
+
+#[cfg(test)]
+pub(crate) fn dirty_optimize_active_for_test() -> bool {
+    DIRTY_OPTIMIZE_TEST_ACTIVE.load(std::sync::atomic::Ordering::Acquire)
+}
+
 #[cfg(test)]
 pub(crate) fn set_dirty_optimize_test_failure(fail: bool) {
+    DIRTY_OPTIMIZE_TEST_HOOK.with(|hook| {
+        let (delay, _) = hook.get();
+        hook.set((delay, fail));
+    });
+}
+
+// These pause controls are retained for the blocked handle-based maintenance
+// regression; they have no production effect.
+#[cfg(test)]
+pub(crate) fn pause_finalize_after_snapshot_for_test() {
     use std::sync::atomic::Ordering;
-    DIRTY_OPTIMIZE_TEST_FAIL.store(fail, Ordering::SeqCst);
+    FINALIZE_TEST_SNAPSHOT_REACHED.store(false, Ordering::SeqCst);
+    FINALIZE_TEST_SNAPSHOT_RELEASE.store(false, Ordering::SeqCst);
+    FINALIZE_TEST_PAUSE_AFTER_SNAPSHOT.store(true, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+pub(crate) fn finalize_snapshot_reached_for_test() -> bool {
+    FINALIZE_TEST_SNAPSHOT_REACHED.load(std::sync::atomic::Ordering::Acquire)
+}
+
+#[cfg(test)]
+pub(crate) fn release_finalize_snapshot_for_test() {
+    FINALIZE_TEST_SNAPSHOT_RELEASE.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
 #[cfg(test)]
@@ -47,6 +91,8 @@ fn take_state_lock_wait_for_test() -> (u64, u64, u64) {
 }
 
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use zvec_rust::Collection;
 
 use crate::{
     EngineError, EngineResult,
@@ -349,6 +395,21 @@ impl IndexStore {
     #[cfg(test)]
     pub(crate) fn take_state_lock_wait_telemetry_for_test() -> (u64, u64, u64) {
         take_state_lock_wait_for_test()
+    }
+
+    /// Clone the scalar collection handles for handle-lifetime and native
+    /// concurrency regression tests.
+    #[cfg(test)]
+    pub(crate) fn scalar_handles_for_test(
+        &self,
+    ) -> EngineResult<(Arc<Collection>, Arc<Collection>, Arc<Collection>)> {
+        let shared = self.shared()?;
+        let state = lock_state(&shared)?;
+        Ok((
+            state.directories.handle(),
+            state.entities.handle(),
+            state.files.handle(),
+        ))
     }
 
     pub(crate) fn is_read_only(&self) -> bool {
@@ -691,10 +752,19 @@ fn optimize_dirty(
     timings: &mut Vec<(String, Duration)>,
 ) -> EngineResult<()> {
     #[cfg(test)]
-    if DIRTY_OPTIMIZE_TEST_FAIL.load(std::sync::atomic::Ordering::SeqCst) {
-        return Err(EngineError::storage_failure(
-            "injected dirty collection optimize failure",
-        ));
+    {
+        let (delay, fail) = DIRTY_OPTIMIZE_TEST_HOOK.with(Cell::get);
+        if fail {
+            return Err(EngineError::storage_failure(
+                "injected dirty collection optimize failure",
+            ));
+        }
+        if delay > 0 {
+            use std::sync::atomic::Ordering;
+            DIRTY_OPTIMIZE_TEST_ACTIVE.store(true, Ordering::Release);
+            std::thread::sleep(Duration::from_millis(delay));
+            DIRTY_OPTIMIZE_TEST_ACTIVE.store(false, Ordering::Release);
+        }
     }
     let directories = &state.directories;
     let entities = &state.entities;

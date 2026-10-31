@@ -44,6 +44,12 @@ impl Directories {
         &self.collection
     }
 
+    /// Clone a stable native handle for handle-lifetime regression tests.
+    #[cfg(test)]
+    pub(super) fn handle(&self) -> Arc<Collection> {
+        Arc::clone(&self.collection)
+    }
+
     pub(super) fn load(&self) -> EngineResult<()> {
         drop(self.loaded_ids()?);
         Ok(())

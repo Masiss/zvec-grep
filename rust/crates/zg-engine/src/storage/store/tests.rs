@@ -2337,3 +2337,536 @@ fn dirty_optimize_failure_preserves_marker_and_retries_after_reopen() {
     );
     storage.close().expect("close");
 }
+
+#[test]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+fn scalar_optimize_releases_the_store_state_lock_for_readers() {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(
+        Some(&storage),
+        "scalar-lock",
+        "scalar lock",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_dirty_optimize_test_hook(1_500, false);
+        finalizer.finalize_writes()
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !dirty_optimize_active_for_test() {
+        assert!(Instant::now() < deadline, "scalar optimize did not start");
+        std::thread::yield_now();
+    }
+    let started = Instant::now();
+    let files = storage.list_files().expect("reader while optimizing");
+    let hits = storage
+        .search_fts("scalar", 10, None)
+        .expect("query while optimizing");
+    let elapsed = started.elapsed();
+    assert_eq!(files.len(), 1);
+    assert_eq!(hits.len(), 1);
+    assert!(
+        elapsed < Duration::from_millis(700),
+        "state lock was held during scalar optimize: {elapsed:?}"
+    );
+    worker.join().expect("finalizer").expect("finalize");
+    storage.close().expect("close");
+}
+
+#[test]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+fn scalar_optimize_allows_concurrent_writes_and_queries() {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (first, first_entry) = fixture(
+        Some(&storage),
+        "scalar-concurrent-first",
+        "scalar concurrent first",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&first, std::slice::from_ref(&first_entry))
+        .expect("write first file");
+
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_dirty_optimize_test_hook(1_500, false);
+        finalizer.finalize_writes()
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !dirty_optimize_active_for_test() {
+        assert!(Instant::now() < deadline, "scalar optimize did not start");
+        std::thread::yield_now();
+    }
+    let (second, second_entry) = fixture(
+        Some(&storage),
+        "scalar-concurrent-second",
+        "scalar concurrent second",
+        vec![0.0, 1.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&second, std::slice::from_ref(&second_entry))
+        .expect("write while optimizing");
+    assert_eq!(
+        storage
+            .search_fts("scalar concurrent", 10, None)
+            .expect("query while optimizing")
+            .len(),
+        2
+    );
+    worker.join().expect("finalizer").expect("finalize");
+    let marker = directory.path().join("optimize.pending");
+    assert!(
+        marker.exists(),
+        "concurrent write must preserve optimization debt"
+    );
+    storage.finalize_writes().expect("retry preserved debt");
+    assert!(!marker.exists(), "successful retry must clear the marker");
+    storage.close().expect("close");
+}
+
+#[test]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+fn scalar_optimize_generation_change_preserves_marker() {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(
+        Some(&storage),
+        "scalar-generation",
+        "scalar generation",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_dirty_optimize_test_hook(1_500, false);
+        finalizer.finalize_writes()
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !dirty_optimize_active_for_test() {
+        assert!(Instant::now() < deadline, "scalar optimize did not start");
+        std::thread::yield_now();
+    }
+    let (new_file, new_entry) = fixture(
+        Some(&storage),
+        "scalar-generation-new",
+        "scalar generation new",
+        vec![0.0, 1.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&new_file, std::slice::from_ref(&new_entry))
+        .expect("write during optimize");
+    worker.join().expect("finalizer").expect("finalize");
+
+    let marker = directory.path().join("optimize.pending");
+    assert!(
+        marker.exists(),
+        "generation change must preserve the retry marker"
+    );
+    let stages = storage
+        .finalize_writes_detailed()
+        .expect("finalize after generation change");
+    assert!(
+        !stages.is_empty(),
+        "the retry must actually optimize the new debt"
+    );
+    assert!(!marker.exists(), "retry must clear the marker");
+    assert_eq!(
+        storage
+            .search_fts("scalar generation", 10, None)
+            .expect("query after retry")
+            .len(),
+        2
+    );
+    storage.close().expect("close");
+}
+
+#[test]
+fn close_waits_for_in_flight_scalar_optimization() {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(
+        Some(&storage),
+        "scalar-close",
+        "scalar close",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_dirty_optimize_test_hook(1_000, false);
+        finalizer.finalize_writes()
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !dirty_optimize_active_for_test() {
+        assert!(Instant::now() < deadline, "scalar optimize did not start");
+        std::thread::yield_now();
+    }
+    let started = Instant::now();
+    storage.close().expect("close waits for maintenance");
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= Duration::from_millis(500),
+        "close returned before maintenance completed: {elapsed:?}"
+    );
+    worker.join().expect("finalizer").expect("finalize");
+}
+
+#[test]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+fn close_race_before_maintenance_lease_preserves_recovery() {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(
+        Some(&storage),
+        "scalar-close-race",
+        "scalar close race",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        pause_finalize_after_snapshot_for_test();
+        finalizer.finalize_writes()
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !finalize_snapshot_reached_for_test() {
+        assert!(Instant::now() < deadline, "finalize did not snapshot");
+        std::thread::yield_now();
+    }
+    // close wins the store lease and the maintenance lease; finalize is paused
+    // between Phase A and Phase B.
+    storage.close().expect("close wins the race");
+    release_finalize_snapshot_for_test();
+    worker
+        .join()
+        .expect("finalizer")
+        .expect("finalize after close");
+
+    let marker = directory.path().join("optimize.pending");
+    assert!(
+        marker.exists(),
+        "close before the maintenance lease must preserve the marker"
+    );
+    drop(storage);
+
+    let storage = open(directory.path(), false);
+    let stages = storage
+        .finalize_writes_detailed()
+        .expect("retry after reopen");
+    assert!(!stages.is_empty(), "reopen must retry the preserved debt");
+    assert!(!marker.exists(), "retry must clear the marker");
+    assert_eq!(
+        storage
+            .search_fts("scalar close race", 10, None)
+            .expect("query after recovery")
+            .len(),
+        1
+    );
+    storage.close().expect("close");
+}
+
+#[test]
+fn scalar_optimize_failure_retries_after_reopen() {
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "scalar-failure",
+        "scalar failure",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    set_dirty_optimize_test_failure(true);
+    assert!(
+        storage.finalize_writes().is_err(),
+        "injected scalar failure must surface"
+    );
+    let marker = directory.path().join("optimize.pending");
+    assert!(marker.exists(), "failed scalar stage must keep the marker");
+    storage.close().expect("close after failure");
+    set_dirty_optimize_test_failure(false);
+
+    let storage = open(directory.path(), false);
+    assert!(marker.exists(), "reopen must retain the marker");
+    storage.finalize_writes().expect("retry after reopen");
+    assert!(!marker.exists(), "retry must clear the marker");
+    assert_eq!(
+        storage
+            .search_fts("scalar failure", 10, None)
+            .expect("query after recovery")
+            .len(),
+        1
+    );
+    storage.close().expect("close");
+}
+
+#[test]
+fn handle_keeps_collection_alive_across_close() {
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "handle-lifetime",
+        "handle lifetime",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    let (directories, entities, files) =
+        storage.scalar_handles_for_test().expect("checkout handles");
+
+    storage.close().expect("close storage");
+    drop(storage);
+
+    // Arc keeps the native collections alive after the store and its state drop.
+    directories.optimize().expect("optimize directories handle");
+    entities.optimize().expect("optimize entities handle");
+    files.optimize().expect("optimize files handle");
+}
+
+#[test]
+fn crash_marker_between_phase_a_and_c_reopens() {
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "crash-marker",
+        "crash marker",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    let marker = directory.path().join("optimize.pending");
+    std::fs::write(&marker, b"").expect("persist crash marker");
+    storage.close().expect("close with pending marker");
+
+    let storage = open(directory.path(), false);
+    let stages = storage
+        .finalize_writes_detailed()
+        .expect("recover pending maintenance");
+    assert!(!stages.is_empty(), "reopen must seed optimize debt");
+    assert!(!marker.exists(), "recovery must clear the marker");
+    assert_eq!(
+        storage
+            .search_fts("crash marker", 10, None)
+            .expect("query after recovery")
+            .len(),
+        1
+    );
+    storage.close().expect("close");
+}
+
+#[test]
+fn no_deadlock_finalize_reads_writes_close() {
+    use std::sync::Arc;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(
+        Some(&storage),
+        "deadlock-first",
+        "deadlock first",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    storage.finalize_writes().expect("build initial index");
+
+    let (done, finished) = mpsc::channel();
+    let finalizer = {
+        let storage = Arc::clone(&storage);
+        let done = done.clone();
+        std::thread::spawn(move || {
+            for _ in 0..10 {
+                let _ = storage.finalize_writes();
+            }
+            let _ = done.send(());
+        })
+    };
+    let reader = {
+        let storage = Arc::clone(&storage);
+        let done = done.clone();
+        std::thread::spawn(move || {
+            for _ in 0..30 {
+                let _ = storage.list_files();
+                let _ = storage.search_fts("deadlock", 10, None);
+            }
+            let _ = done.send(());
+        })
+    };
+    // Resolve identities before the stress starts: after close, resolve fails
+    // and a panic inside this worker would hang the completion channel.
+    let pending_writes = (0..10)
+        .map(|index| {
+            fixture(
+                Some(&storage),
+                &format!("deadlock-write-{index}"),
+                "deadlock write",
+                vec![0.0, 1.0, 0.0],
+            )
+        })
+        .collect::<Vec<_>>();
+    let writer = {
+        let storage = Arc::clone(&storage);
+        let done = done.clone();
+        std::thread::spawn(move || {
+            for (file, entry) in pending_writes {
+                let _ = storage.replace_fixture_file(&file, &[entry]);
+            }
+            let _ = done.send(());
+        })
+    };
+
+    std::thread::sleep(Duration::from_millis(20));
+    storage.close().expect("close during stress");
+
+    for _ in 0..3 {
+        finished
+            .recv_timeout(Duration::from_secs(30))
+            .expect("threads must finish without deadlock");
+    }
+    finalizer.join().expect("finalizer");
+    reader.join().expect("reader");
+    writer.join().expect("writer");
+}
+
+#[test]
+#[ignore = "zvec 0.8.0 native maintenance exclusion: concurrent iterator/write during optimize fails and can SIGABRT; evidence in /home/masis/bench/m3b-native-gate/run.log"]
+fn native_query_and_write_during_optimize_on_pinned_zvec() {
+    use std::sync::Arc;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    for index in 0..32 {
+        let (file, entry) = fixture(
+            Some(&storage),
+            &format!("native-gate-{index}"),
+            &format!("native gate {index}"),
+            vec![1.0, 0.0, 0.0],
+        );
+        storage
+            .replace_fixture_file(&file, std::slice::from_ref(&entry))
+            .expect("write fixture");
+    }
+    storage.finalize_writes().expect("build initial index");
+    let (directories, entities, files) =
+        storage.scalar_handles_for_test().expect("checkout handles");
+
+    let optimizer = std::thread::spawn(move || {
+        for _ in 0..8 {
+            directories.optimize().expect("optimize directories");
+            entities.optimize().expect("optimize entities");
+            files.optimize().expect("optimize files");
+        }
+    });
+    let reader = {
+        let storage = Arc::clone(&storage);
+        std::thread::spawn(move || {
+            for _ in 0..100 {
+                storage
+                    .search_fts("native gate", 10, None)
+                    .expect("query during optimize");
+                storage.list_files().expect("list during optimize");
+            }
+        })
+    };
+    let writer = {
+        let storage = Arc::clone(&storage);
+        std::thread::spawn(move || {
+            for index in 0..20 {
+                let (file, entry) = fixture(
+                    Some(&storage),
+                    &format!("native-gate-write-{index}"),
+                    "native gate write",
+                    vec![0.0, 1.0, 0.0],
+                );
+                storage
+                    .replace_fixture_file(&file, std::slice::from_ref(&entry))
+                    .expect("write during optimize");
+            }
+        })
+    };
+
+    optimizer.join().expect("optimizer");
+    reader.join().expect("reader");
+    writer.join().expect("writer");
+
+    storage.finalize_writes().expect("finalize after gate");
+    assert!(
+        !storage
+            .search_fts("native gate", 10, None)
+            .expect("query after gate")
+            .is_empty()
+    );
+    storage.close().expect("close");
+
+    let storage = open(directory.path(), false);
+    assert!(
+        !storage
+            .search_fts("native gate", 10, None)
+            .expect("query after reopen")
+            .is_empty()
+    );
+    storage.close().expect("close after reopen");
+}

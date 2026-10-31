@@ -25,6 +25,12 @@ impl Entities {
         &self.collection
     }
 
+    /// Clone a stable native handle for handle-lifetime regression tests.
+    #[cfg(test)]
+    pub(super) fn handle(&self) -> Arc<Collection> {
+        Arc::clone(&self.collection)
+    }
+
     pub(super) fn open(path: &Path, read_only: bool) -> EngineResult<Self> {
         Ok(Self {
             collection: Arc::new(open_collection(
