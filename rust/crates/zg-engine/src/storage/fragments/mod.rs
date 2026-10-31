@@ -6,6 +6,25 @@ use std::{
     path::Path,
 };
 
+#[cfg(test)]
+use std::{
+    cell::Cell,
+    sync::atomic::{AtomicBool, Ordering},
+};
+
+#[cfg(test)]
+thread_local! {
+    static OPTIMIZE_TEST_HOOK: Cell<(u64, bool)> = const { Cell::new((0, false)) };
+}
+
+#[cfg(test)]
+pub(super) static OPTIMIZE_TEST_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+#[cfg(test)]
+pub(super) fn set_optimize_test_hook(delay_ms: u64, fail: bool) {
+    OPTIMIZE_TEST_HOOK.with(|hook| hook.set((delay_ms, fail)));
+}
+
 use zvec_rust::{
     Collection, CollectionSchema, DataType, Doc, FieldSchema, Fts, IndexParams, MetricType,
     SearchQuery,
@@ -200,6 +219,21 @@ impl Fragments {
     }
 
     pub(super) fn optimize(&self) -> EngineResult<()> {
+        #[cfg(test)]
+        {
+            let (delay, fail) = OPTIMIZE_TEST_HOOK.with(Cell::get);
+            if delay > 0 {
+                OPTIMIZE_TEST_ACTIVE.store(true, Ordering::Release);
+                std::thread::sleep(std::time::Duration::from_millis(delay));
+                OPTIMIZE_TEST_ACTIVE.store(false, Ordering::Release);
+            }
+            if fail {
+                OPTIMIZE_TEST_HOOK.with(|hook| hook.set((0, false)));
+                return Err(crate::EngineError::storage_failure(
+                    "injected fragment optimize failure",
+                ));
+            }
+        }
         for index in self.indexes.values() {
             native(index.optimize(), "optimize fragment collection")?;
         }

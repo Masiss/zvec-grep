@@ -613,18 +613,26 @@ impl IndexStore {
     }
 
     pub(crate) fn close(&self) -> EngineResult<()> {
-        // Serialize concurrent closes through the final flush as well as
-        // taking the lease, so none can return while its writes are persisting.
-        let mut lease = self
-            .shared
-            .lock()
-            .map_err(|_| EngineError::internal("storage lease lock was poisoned"))?;
-        let Some(shared) = lease.take() else {
-            return Ok(());
-        };
         if self.read_only {
+            let mut lease = self
+                .shared
+                .lock()
+                .map_err(|_| EngineError::internal("storage lease lock was poisoned"))?;
+            let _ = lease.take();
             return Ok(());
         }
+        // Do not hold the lease lock while waiting: finalize_writes needs the
+        // same lock to reacquire the state mutex and clear `optimizing`.
+        let shared = {
+            let lease = self
+                .shared
+                .lock()
+                .map_err(|_| EngineError::internal("storage lease lock was poisoned"))?;
+            lease.as_ref().cloned()
+        };
+        let Some(shared) = shared else {
+            return Ok(());
+        };
         let mut state = lock_state(&shared)?;
         // Native fragment maintenance may be outside the state lock. Wait for it
         // before flushing or releasing the storage lease.
@@ -633,6 +641,17 @@ impl IndexStore {
             std::thread::yield_now();
             state = lock_state(&shared)?;
         }
+        drop(state);
+        // Serialize the final flush through the lease. A concurrent close may
+        // have won the race; in that case it owns the flush.
+        let mut lease = self
+            .shared
+            .lock()
+            .map_err(|_| EngineError::internal("storage lease lock was poisoned"))?;
+        let Some(shared) = lease.take() else {
+            return Ok(());
+        };
+        let mut state = lock_state(&shared)?;
         // Reject a write that acquired its Arc before close but is still waiting
         // for this lock. A successful close commits every accepted write.
         state.closed = true;

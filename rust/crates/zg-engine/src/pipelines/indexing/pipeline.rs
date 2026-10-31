@@ -940,16 +940,6 @@ fn commit_file(
     }
     let public_entities = file.entities.len();
     let mut manifest = FileManifest::new(file.file.id());
-    manifest.fragments = file
-        .fragments
-        .iter()
-        .filter(|fragment| !fragment.embedding_fingerprint.is_empty())
-        .map(|fragment| crate::storage::manifest::FragmentManifestEntry {
-            fragment_id: fragment.fragment_id.as_str().to_owned(),
-            model: fragment.model.clone(),
-            embedding_fingerprint: fragment.embedding_fingerprint.clone(),
-        })
-        .collect();
     let mut vectors = vectors.into_iter();
     let mut entries = Vec::with_capacity(file.fragments.len());
     for fragment in file.fragments {
@@ -959,6 +949,16 @@ fn commit_file(
                 .next()
                 .ok_or_else(|| EngineError::internal("missing embedding for a pending fragment"))?,
         };
+        if !fragment.embedding_fingerprint.is_empty() {
+            manifest
+                .fragments
+                .push(crate::storage::manifest::FragmentManifestEntry {
+                    fragment_id: fragment.fragment_id.as_str().to_owned(),
+                    model: fragment.model.clone(),
+                    embedding_fingerprint: fragment.embedding_fingerprint,
+                    vector_fingerprint: crate::storage::manifest::vector_fingerprint(&vector),
+                });
+        }
         entries.push(IndexedFragment {
             model: fragment.model,
             entity_id: fragment.entity_id,
@@ -1129,17 +1129,20 @@ fn reuse_existing_vectors(
             continue;
         }
         for fragment in fragments.iter_mut() {
-            if fragment.model == model
-                && !fragment.embedding_fingerprint.is_empty()
-                && manifest
-                    .find_embedding(
-                        fragment.fragment_id.as_str(),
-                        &fragment.model,
-                        &fragment.embedding_fingerprint,
-                    )
-                    .is_some()
-                && let Some(vector) = vectors.get(fragment.fragment_id.as_str())
-            {
+            if fragment.model != model || fragment.embedding_fingerprint.is_empty() {
+                continue;
+            }
+            let Some(entry) = manifest.find_embedding(
+                fragment.fragment_id.as_str(),
+                &fragment.model,
+                &fragment.embedding_fingerprint,
+            ) else {
+                continue;
+            };
+            let Some(vector) = vectors.get(fragment.fragment_id.as_str()) else {
+                continue;
+            };
+            if entry.vector_fingerprint == crate::storage::manifest::vector_fingerprint(vector) {
                 fragment.reusable_vector = Some(vector.clone());
             }
         }
@@ -2629,11 +2632,130 @@ mod tests {
                 fragment_id: fragment.fragment_id.as_str().to_owned(),
                 model: fragment.model.clone(),
                 embedding_fingerprint: fragment.embedding_fingerprint.clone(),
+                vector_fingerprint: crate::storage::manifest::vector_fingerprint(&[1.0, 2.0]),
             })
             .collect();
         reuse_existing_vectors(&storage, file_id, Some(&manifest), &mut fragments).expect("reuse");
         assert_eq!(fragments[0].reusable_vector, Some(vec![1.0, 2.0]));
         assert_eq!(fragments[1].reusable_vector, None);
+    }
+
+    #[test]
+    fn failed_replacement_does_not_publish_a_reconciliation_manifest() {
+        let file_id = FileId::new(91);
+        let storage = MemoryStorage::default();
+        storage
+            .fail_replacements_once
+            .lock()
+            .expect("failure injection")
+            .insert(file_id);
+        let content = Content::Text("failure".to_owned());
+        let entity_id = EntityId::new(file_id, &content, Range::Full).expect("entity id");
+        let entity = Entity::new(
+            entity_id.clone(),
+            file_id,
+            Range::Full,
+            content,
+            None,
+            vec![EntityFragment {
+                id: FragmentId::new(&entity_id, 0),
+                range: Range::Full,
+            }],
+        )
+        .expect("entity");
+        let mut fragment = prepared_fragment("failure", 0);
+        fragment.entity_id = entity_id;
+        fragment.model = "local/test".to_owned();
+        let prepared = PreparedFile {
+            file: FileRecord::new(
+                file_id,
+                SourcePath::new("failure.txt").expect("path"),
+                FileSnapshot {
+                    size_bytes: 7,
+                    modified_epoch_ms: None,
+                    content_hash: Some("failure".to_owned()),
+                },
+                FileIndexStatus::NotIndexed,
+            )
+            .expect("file"),
+            entities: vec![entity],
+            fragments: vec![fragment],
+            graph: FileGraphResult::default(),
+        };
+        assert!(
+            commit_file(
+                &storage,
+                prepared,
+                vec![vec![1.0, 0.0]],
+                &mut IndexWriteStats::default()
+            )
+            .is_err()
+        );
+        assert!(
+            storage
+                .published_manifests
+                .lock()
+                .expect("published manifests")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn m2_reuse_rejects_fingerprint_and_model_mismatch() {
+        let file_id = FileId::new(91);
+        let mut fragments = vec![prepared_fragment("alpha", 0)];
+        fragments[0].model = "local/test".to_owned();
+        let storage = MemoryStorage::default();
+        storage
+            .reusable_vectors
+            .lock()
+            .expect("reusable vectors")
+            .insert(fragments[0].fragment_id.as_str().to_owned(), vec![1.0, 2.0]);
+
+        let mut wrong_fingerprint = FileManifest::new(file_id);
+        wrong_fingerprint.fragments = vec![crate::storage::manifest::FragmentManifestEntry {
+            fragment_id: fragments[0].fragment_id.as_str().to_owned(),
+            model: fragments[0].model.clone(),
+            embedding_fingerprint: "b".repeat(64),
+            vector_fingerprint: crate::storage::manifest::vector_fingerprint(&[1.0, 2.0]),
+        }];
+        reuse_existing_vectors(&storage, file_id, Some(&wrong_fingerprint), &mut fragments)
+            .expect("fingerprint mismatch");
+        assert_eq!(fragments[0].reusable_vector, None);
+
+        let mut wrong_model = FileManifest::new(file_id);
+        wrong_model.fragments = vec![crate::storage::manifest::FragmentManifestEntry {
+            fragment_id: fragments[0].fragment_id.as_str().to_owned(),
+            model: "local/old".to_owned(),
+            embedding_fingerprint: fragments[0].embedding_fingerprint.clone(),
+            vector_fingerprint: crate::storage::manifest::vector_fingerprint(&[1.0, 2.0]),
+        }];
+        reuse_existing_vectors(&storage, file_id, Some(&wrong_model), &mut fragments)
+            .expect("model mismatch");
+        assert_eq!(fragments[0].reusable_vector, None);
+
+        let mut stale_vector = FileManifest::new(file_id);
+        stale_vector.fragments = vec![crate::storage::manifest::FragmentManifestEntry {
+            fragment_id: fragments[0].fragment_id.as_str().to_owned(),
+            model: fragments[0].model.clone(),
+            embedding_fingerprint: fragments[0].embedding_fingerprint.clone(),
+            vector_fingerprint: crate::storage::manifest::vector_fingerprint(&[9.0, 9.0]),
+        }];
+        reuse_existing_vectors(&storage, file_id, Some(&stale_vector), &mut fragments)
+            .expect("stale vector fingerprint");
+        assert_eq!(fragments[0].reusable_vector, None);
+
+        fragments[0].embedding_fingerprint.clear();
+        let mut unstable = FileManifest::new(file_id);
+        unstable.fragments = vec![crate::storage::manifest::FragmentManifestEntry {
+            fragment_id: fragments[0].fragment_id.as_str().to_owned(),
+            model: fragments[0].model.clone(),
+            embedding_fingerprint: "c".repeat(64),
+            vector_fingerprint: crate::storage::manifest::vector_fingerprint(&[1.0, 2.0]),
+        }];
+        reuse_existing_vectors(&storage, file_id, Some(&unstable), &mut fragments)
+            .expect("unstable identity");
+        assert_eq!(fragments[0].reusable_vector, None);
     }
 
     #[derive(Default)]
@@ -2649,6 +2771,7 @@ mod tests {
         fail_snapshot_updates: AtomicBool,
         snapshot_update_failed: Notify,
         reusable_vectors: Mutex<HashMap<String, Vec<f32>>>,
+        published_manifests: Mutex<Vec<FileId>>,
     }
 
     #[test]
@@ -2901,7 +3024,11 @@ mod tests {
             Ok(None)
         }
 
-        fn publish_embedding_manifest(&self, _manifest: &mut FileManifest) -> EngineResult<()> {
+        fn publish_embedding_manifest(&self, manifest: &mut FileManifest) -> EngineResult<()> {
+            self.published_manifests
+                .lock()
+                .expect("published manifests")
+                .push(manifest.file_id());
             Ok(())
         }
 

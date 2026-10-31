@@ -17,7 +17,7 @@ use crate::{
     utils::{atomic_write, sync_directory},
 };
 
-const MANIFEST_VERSION: u32 = 1;
+const MANIFEST_VERSION: u32 = 2;
 const MAX_FILE_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 const MANIFEST_DIRECTORY: &str = "reconciliation";
 
@@ -35,6 +35,10 @@ pub(crate) struct FragmentManifestEntry {
     pub(crate) fragment_id: String,
     pub(crate) model: String,
     pub(crate) embedding_fingerprint: String,
+    /// Hash of the stored FP16-decoded vector. This binds the manifest to the
+    /// exact bytes in the native collection, so a rolled-back vector cannot be
+    /// reused merely because its fragment ID and input fingerprint match.
+    pub(crate) vector_fingerprint: String,
 }
 
 impl FileManifest {
@@ -79,6 +83,7 @@ impl FileManifest {
         for entry in &self.fragments {
             if !is_lower_hex(&entry.fragment_id)
                 || !is_lower_hex(&entry.embedding_fingerprint)
+                || !is_lower_hex(&entry.vector_fingerprint)
                 || entry.model.is_empty()
                 || !fragments.insert(entry.fragment_id.as_str())
             {
@@ -98,6 +103,14 @@ impl FileManifest {
         })?;
         Ok((bytes.len() <= MAX_FILE_MANIFEST_BYTES).then_some(bytes))
     }
+}
+
+pub(crate) fn vector_fingerprint(vector: &[f32]) -> String {
+    let mut bytes = Vec::with_capacity(vector.len().saturating_mul(4));
+    for value in vector {
+        bytes.extend_from_slice(&value.to_bits().to_le_bytes());
+    }
+    crate::utils::sha256_hex(&bytes)
 }
 
 fn is_lower_hex(value: &str) -> bool {
@@ -224,6 +237,7 @@ mod tests {
             fragment_id: id.to_owned(),
             model: model.to_owned(),
             embedding_fingerprint: fingerprint.to_owned(),
+            vector_fingerprint: "e".repeat(64),
         }
     }
 

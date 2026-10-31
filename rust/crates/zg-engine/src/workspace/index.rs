@@ -17,7 +17,10 @@ use crate::{
 };
 
 const REBUILD_FREE_SPACE_MULTIPLIER: u64 = 2;
+#[cfg(not(test))]
 const REBUILD_HEADROOM_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+#[cfg(test)]
+const REBUILD_HEADROOM_BYTES: u64 = 0;
 
 /// Conservative preflight for an atomic rebuild. The active generation is
 /// retained for rollback, so the new generation plus native temporary files

@@ -7,6 +7,8 @@ use crate::domain::{
     FileSnapshot, FragmentId, Range, SymbolType,
 };
 
+static M3_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Test input keeps canonical entities and model outputs separate, as the writer does.
 #[derive(Clone)]
 struct FixtureEntity {
@@ -1890,4 +1892,303 @@ fn critical_storage_symlinks_are_rejected_before_opening_the_target() {
             "preserve"
         );
     }
+}
+
+#[test]
+fn reconciliation_manifest_survives_reopen_and_is_removed_with_the_file() {
+    use crate::storage::manifest::{FileManifest, FragmentManifestEntry};
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "manifest-lifecycle",
+        "manifest lifecycle",
+        vec![0.5, -0.25, 1.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    let mut manifest = FileManifest::new(file.id());
+    manifest.fragments.push(FragmentManifestEntry {
+        fragment_id: entry.entity.fragments()[0].id.as_str().to_owned(),
+        model: entry.model.clone(),
+        embedding_fingerprint: "a".repeat(64),
+        vector_fingerprint: crate::storage::manifest::vector_fingerprint(&entry.vector),
+    });
+    assert!(
+        storage
+            .publish_embedding_manifest(&mut manifest)
+            .expect("publish")
+    );
+    storage.close().expect("close storage");
+
+    let storage = open(directory.path(), false);
+    let loaded = storage
+        .load_embedding_manifest(file.id())
+        .expect("load manifest")
+        .expect("manifest survives reopen");
+    assert_eq!(loaded.fragments.len(), 1);
+    let vectors = storage
+        .load_reusable_vectors(
+            &entry.model,
+            &[entry.entity.fragments()[0].id.as_str().to_owned()],
+        )
+        .expect("load vector");
+    let vector = vectors
+        .get(entry.entity.fragments()[0].id.as_str())
+        .expect("stored vector");
+    assert_eq!(vector.len(), entry.vector.len());
+    assert_eq!(
+        vector[0].to_bits(),
+        half::f16::from_f32(entry.vector[0]).to_f32().to_bits()
+    );
+
+    storage.delete_file(file.id()).expect("delete file");
+    assert!(
+        storage
+            .load_embedding_manifest(file.id())
+            .expect("load deleted manifest")
+            .is_none()
+    );
+}
+
+#[test]
+fn missing_or_invalid_reconciliation_sidecar_never_blocks_reopen_or_queries() {
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "manifest-missing",
+        "manifest missing",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    storage.close().expect("close storage");
+
+    let manifest_path = directory
+        .path()
+        .join("reconciliation")
+        .join(format!("file-{:08x}.json", file.id().get()));
+    fs::create_dir_all(manifest_path.parent().expect("manifest parent"))
+        .expect("manifest directory");
+    fs::write(&manifest_path, b"not json").expect("corrupt sidecar");
+    let storage = open(directory.path(), false);
+    assert!(
+        storage
+            .load_embedding_manifest(file.id())
+            .expect("invalid sidecar is ignored")
+            .is_none()
+    );
+    assert_eq!(
+        storage
+            .search_fts("manifest", 10, None)
+            .expect("query after sidecar corruption")
+            .len(),
+        1
+    );
+    storage.close().expect("close storage");
+
+    fs::remove_dir_all(directory.path().join("reconciliation")).expect("rollback sidecar");
+    let storage = open(directory.path(), false);
+    assert!(
+        storage
+            .load_embedding_manifest(file.id())
+            .expect("missing sidecar is ignored")
+            .is_none()
+    );
+    assert_eq!(
+        storage
+            .search_fts("manifest", 10, None)
+            .expect("query after sidecar rollback")
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn fragment_optimize_releases_the_store_state_lock_for_readers() {
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    use crate::storage::fragments::{OPTIMIZE_TEST_ACTIVE, set_optimize_test_hook};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(
+        Some(&storage),
+        "lock-isolation",
+        "lock isolation",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_optimize_test_hook(1_500, false);
+        finalizer.finalize_writes()
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire) {
+        assert!(Instant::now() < deadline, "fragment optimize did not start");
+        std::thread::yield_now();
+    }
+    let started = Instant::now();
+    let files = storage.list_files().expect("reader while optimizing");
+    let elapsed = started.elapsed();
+    assert_eq!(files.len(), 1);
+    assert!(
+        elapsed < Duration::from_millis(700),
+        "store state lock was held during native optimize: {elapsed:?}"
+    );
+    worker.join().expect("finalizer").expect("finalize");
+    assert!(!OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire));
+    storage.close().expect("close");
+}
+
+#[test]
+fn fragment_optimize_allows_concurrent_writes_and_queries() {
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    use crate::storage::fragments::{OPTIMIZE_TEST_ACTIVE, set_optimize_test_hook};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (first, first_entry) = fixture(
+        Some(&storage),
+        "concurrent-first",
+        "concurrent first",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&first, std::slice::from_ref(&first_entry))
+        .expect("write first file");
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_optimize_test_hook(1_500, false);
+        finalizer.finalize_writes()
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire) {
+        assert!(Instant::now() < deadline, "fragment optimize did not start");
+        std::thread::yield_now();
+    }
+
+    let (second, second_entry) = fixture(
+        Some(&storage),
+        "concurrent-second",
+        "concurrent second",
+        vec![0.0, 1.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&second, std::slice::from_ref(&second_entry))
+        .expect("write while optimizing");
+    assert_eq!(
+        storage
+            .search_fts("concurrent", 10, None)
+            .expect("query while optimizing")
+            .len(),
+        2
+    );
+    worker.join().expect("finalizer").expect("finalize");
+    assert!(!OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire));
+    let marker = directory.path().join("optimize.pending");
+    assert!(
+        marker.exists(),
+        "concurrent write must preserve optimization debt"
+    );
+    storage.finalize_writes().expect("retry preserved debt");
+    assert!(!marker.exists(), "successful retry must clear the marker");
+    storage.close().expect("close");
+}
+
+#[test]
+fn close_waits_for_in_flight_fragment_optimization() {
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    use crate::storage::fragments::{OPTIMIZE_TEST_ACTIVE, set_optimize_test_hook};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(
+        Some(&storage),
+        "close-during-optimize",
+        "close during optimize",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_optimize_test_hook(1_000, false);
+        finalizer.finalize_writes()
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire) {
+        assert!(Instant::now() < deadline, "fragment optimize did not start");
+        std::thread::yield_now();
+    }
+    let started = Instant::now();
+    storage.close().expect("close waits for optimize");
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= Duration::from_millis(500),
+        "close returned before native optimize completed: {elapsed:?}"
+    );
+    worker.join().expect("finalizer").expect("finalize");
+    assert!(!OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire));
+}
+
+#[test]
+fn fragment_optimize_failure_preserves_marker_and_retries_after_reopen() {
+    use crate::storage::fragments::set_optimize_test_hook;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "optimize-failure",
+        "optimize failure",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    set_optimize_test_hook(0, true);
+    assert!(storage.finalize_writes().is_err());
+    let marker = directory.path().join("optimize.pending");
+    assert!(marker.exists(), "failed optimize must retain retry intent");
+    storage.close().expect("close after failure");
+
+    let storage = open(directory.path(), false);
+    assert!(marker.exists(), "reopen must retain retry intent");
+    storage.finalize_writes().expect("retry after reopen");
+    assert!(!marker.exists(), "retry must clear the marker");
+    assert_eq!(
+        storage
+            .search_fts("optimize", 10, None)
+            .expect("query after recovery")
+            .len(),
+        1
+    );
 }
