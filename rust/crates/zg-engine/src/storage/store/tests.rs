@@ -2251,3 +2251,106 @@ fn reconciliation_manifest_is_removed_when_rename_replaces_file_identity() {
         1
     );
 }
+
+#[test]
+fn dirty_optimize_overlaps_fragment_optimize() {
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    use crate::storage::fragments::{OPTIMIZE_TEST_ACTIVE, set_optimize_test_hook};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open(directory.path(), false));
+    let (file, entry) = fixture(Some(&storage), "overlap", "overlap", vec![1.0, 0.0, 0.0]);
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    // Fragment optimize sleeps 1.5 s on the finalizer thread; the dirty
+    // collection stage sleeps 1.2 s on its scoped worker. Sequential execution
+    // would take ~3.1 s (1.5 s + real fragment work + 1.2 s), while overlap
+    // stays at the fragment stage plus its own optimize work.
+    set_dirty_optimize_test_hook(1_200, false);
+    let finalizer = Arc::clone(&storage);
+    let started = Instant::now();
+    let worker = std::thread::spawn(move || {
+        set_optimize_test_hook(1_500, false);
+        finalizer.finalize_writes()
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire) {
+        assert!(Instant::now() < deadline, "fragment optimize did not start");
+        std::thread::yield_now();
+    }
+    worker.join().expect("finalizer").expect("finalize");
+    let elapsed = started.elapsed();
+    set_dirty_optimize_test_hook(0, false);
+
+    assert!(
+        elapsed >= Duration::from_millis(1_400),
+        "fragment optimize delay was skipped: {elapsed:?}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(2_400),
+        "dirty optimize did not overlap fragment optimize: {elapsed:?}"
+    );
+    let marker = directory.path().join("optimize.pending");
+    assert!(!marker.exists(), "successful overlap must clear the marker");
+    assert_eq!(
+        storage
+            .search_fts("overlap", 10, None)
+            .expect("query after overlap")
+            .len(),
+        1
+    );
+    storage.close().expect("close");
+}
+
+#[test]
+fn dirty_optimize_failure_preserves_marker_and_retries_after_reopen() {
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file, entry) = fixture(
+        Some(&storage),
+        "dirty-failure",
+        "dirty failure",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+
+    set_dirty_optimize_test_hook(0, true);
+    assert!(
+        storage.finalize_writes().is_err(),
+        "injected dirty failure must surface"
+    );
+    let marker = directory.path().join("optimize.pending");
+    assert!(
+        marker.exists(),
+        "failed dirty stage must retain retry intent"
+    );
+    storage.close().expect("close after failure");
+    set_dirty_optimize_test_hook(0, false);
+
+    let storage = open(directory.path(), false);
+    assert!(marker.exists(), "reopen must retain retry intent");
+    storage
+        .finalize_writes()
+        .expect("retry dirty stage after reopen");
+    assert!(!marker.exists(), "retry must clear the marker");
+    assert_eq!(
+        storage
+            .search_fts("dirty", 10, None)
+            .expect("query after recovery")
+            .len(),
+        1
+    );
+    storage.close().expect("close");
+}
