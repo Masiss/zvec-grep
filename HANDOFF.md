@@ -119,14 +119,38 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
   `ZVEC_GREP_MODEL_IDLE_TIMEOUT_SECONDS` (<= 86400) and
   `ZVEC_GREP_MODEL_CACHE_CAPACITY` (<= 16); defaults unchanged.
 
+### Correctness pass 3 — 2026-10-31
+
+- **M2 manifest now version 2** and binds each entry to the stored vector via a
+  vector fingerprint. A rolled-back/stale vector is rejected even when fragment
+  ID, model, and input fingerprint match. Version-1 sidecars are ignored, not
+  reused.
+- Added regressions for fingerprint/model/stale-vector mismatch, failed
+  replacement, real-store reopen, missing/corrupt sidecar, and delete.
+- **Found and fixed a close deadlock**: `close()` held the storage lease while
+  waiting for `optimizing`; `finalize_writes()` needs the same lease to clear it.
+  `close()` now waits without the lease and re-takes it for the final flush.
+- **Found and fixed read-only close**: the earlier early return skipped lease
+  removal, leaving a read-only `IndexStore` registered and causing false
+  `RESOURCE_BUSY` on reopen.
+- Added M3 tests for reader isolation, concurrent write/query during optimize,
+  close waiting, injected optimize failure, marker retention and reopen retry.
+- Test-only optimize hooks are thread-local, so parallel tests cannot inject
+  delay/failure into unrelated finalizers.
+- Rebuild preflight keeps the production `2x + 4 GiB` rule; tests use a
+  `cfg(test)` zero headroom so small temporary disks can exercise the rebuild
+  path. Production constant is unchanged.
+
 ### Integration commits (pass 2)
 
 - `ff4f4ac` — `feat(engine): integrate selective embedding reuse and maintenance isolation`
 - `ae7bfe6` — `perf(engine): bound model runtime and preflight rebuild space`
+- `0098a6f` — `fix(engine): harden M2 sidecar and M3 finalization correctness`
+- `79eba5c` — `docs: record M2/M3 correctness audit and benchmark gates`
 
 ### Verification (pass 2)
 
-- `cargo test -p zg-engine --lib` — **675 passed, 0 failed, 10 ignored**.
+- `cargo test -p zg-engine --lib` — **683 passed, 0 failed, 10 ignored**.
 - `cargo test -p zg-daemon` — **124 passed, 0 failed**.
 - `cargo clippy -p zg-engine -p zg-daemon --all-targets -- -D warnings` — **PASS**.
 - `cargo fmt --all -- --check` — **PASS**.
@@ -161,7 +185,7 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 ## Current state
 
-- Integration worktree is clean; branch is **10 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **12 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
 - No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No production default, migration, or release configuration changed.

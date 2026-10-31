@@ -77,6 +77,16 @@ Per repeat and arm:
 - One run per condition unless a repeat is needed to answer a decision; flag
   single-run uncertainty.
 
+## Pre-benchmark correctness gate (must pass first)
+
+- M2 fingerprint/model/stale-vector mismatch rejects reuse.
+- M2 real-store reopen, delete, missing/corrupt sidecar, and failed replacement
+  preserve query correctness.
+- M3 reader isolation, concurrent write/query during optimize, close waiting,
+  marker retention, and reopen retry pass.
+- Sidecar is version 2 and ignored if older/corrupt; no migration is required.
+- If any correctness gate fails, do not run timing measurements.
+
 ## Acceptance / interpretation
 
 Correctness gates before timing:

@@ -54,3 +54,64 @@
 ## Coverage rule
 
 A fork item is not marked COVERED merely because a similarly named upstream feature exists. Each COVERED row above names the upstream invariant that subsumes it. Items #5, #10, #17, and #19 remain open with a concrete next step; they are not silently dropped.
+
+## Correctness audit — 2026-10-31 (post-integration)
+
+### M2 sidecar and reuse
+
+- **Fingerprint mismatch / model mismatch / unstable model**: reuse is rejected.
+  Regression: `m2_reuse_rejects_fingerprint_and_model_mismatch`.
+- **Stale/rolled-back vector**: the manifest stores a hash of the stored vector;
+  a vector from another generation is rejected even if its fragment ID and input
+  fingerprint match. Same regression includes the stale-vector case.
+- **FP16**: stored vectors decode through `zg_zvec_fp16`; regression checks the
+  f16 round-trip bits in `reusable_vectors_are_loaded_by_fragment_identity_and_model`
+  and the real-store lifecycle test.
+- **Delete**: `IndexStore::delete_file` removes the sidecar; regression
+  `reconciliation_manifest_survives_reopen_and_is_removed_with_the_file`.
+- **Rename**: sidecar is keyed by `FileId`, not path; the existing file-record
+  replacement path retains it. Upstream rename/replace regressions remain green.
+- **Failed replacement**: a storage failure does not publish a manifest;
+  regression `failed_replacement_does_not_publish_a_reconciliation_manifest`.
+- **Crash/reopen**: manifest survives a clean reopen; corrupt or missing sidecar
+  is ignored and queries still work:
+  `missing_or_invalid_reconciliation_sidecar_never_blocks_reopen_or_queries`.
+- **Rollback**: deleting the sidecar disables reuse but never blocks reads. The
+  data path is unchanged; only optimization is lost.
+
+### M3 finalization / lock isolation
+
+- **Bug found and fixed**: `close()` held the storage lease mutex while waiting
+  for `optimizing`; `finalize_writes()` needs the same lease to reacquire the
+  state lock and clear the flag → deadlock. `close()` now waits without the lease,
+  then re-takes it for the final flush.
+  Regression: `close_waits_for_in_flight_fragment_optimization`.
+- **Reader isolation**: while fragment optimize is in flight, `list_files()`
+  returns without waiting for the state lock:
+  `fragment_optimize_releases_the_store_state_lock_for_readers`.
+- **Concurrent write/query/optimize**: a write and FTS query succeed during
+  native optimize; the concurrent write preserves debt and the marker:
+  `fragment_optimize_allows_concurrent_writes_and_queries`.
+- **Generation/recovery**: injected optimize failure keeps `optimize.pending`;
+  reopen retries and clears it only after success:
+  `fragment_optimize_failure_preserves_marker_and_retries_after_reopen`.
+- **Lock ordering**: `finalize_writes` takes state → releases → native optimize
+  → re-takes state; `close` takes state → releases → waits → re-takes lease and
+  state. No path holds the lease while waiting for the state lock.
+
+### Sidecar on-disk compatibility / migration
+
+- The sidecar is additive: no existing zvec table, schema, or row format changed.
+- `version: 2`, `deny_unknown_fields`, bounded at 4 MiB. Unknown/corrupt/oversized
+  manifests are ignored; absence is normal for older indexes. Version-1 sidecars
+  are ignored (no unsafe reuse) and are rewritten on the next modified file.
+- **No migration required** for read or write: an old index opens, and the first
+  modified file publishes a manifest. A downgrade ignores the extra directory.
+- **Rollback**: remove `reconciliation/` (or restore the previous index
+  generation). Reuse is disabled; canonical data and queries are unaffected.
+- **Residual risk (reduced)**: the sidecar is still not transactional with the
+  zvec generation, but the vector fingerprint binds it to the exact stored
+  bytes. A rollback that restores a different vector is rejected; a rollback
+  that restores an identical vector is harmless. The remaining release hardening
+  is to bind the sidecar directory to the workspace storage generation so a
+  stale sidecar is ignored wholesale, rather than entry-by-entry.
