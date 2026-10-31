@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -25,23 +26,43 @@ CODE_EXTENSIONS = {'.rs', '.cc', '.cpp', '.h', '.hpp', '.c', '.py', '.cs'}
 TEST_NAME = WORKLOAD['test_name']
 SAMPLE_INTERVAL_MS = 500
 
+_LIFECYCLE_V2 = REPO / 'benchmarks/harness-v2/operations/m4/rust_lifecycle'
+
+
+def _load_lifecycle_module(module_name: str, path: pathlib.Path):
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f'cannot load {path}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_CONTEXT = _load_lifecycle_module('rust_lifecycle_context', _LIFECYCLE_V2 / 'context.py')
+_PREFLIGHT = _load_lifecycle_module('rust_lifecycle_preflight', _LIFECYCLE_V2 / 'preflight.py')
+_EXECUTOR = _load_lifecycle_module('rust_lifecycle_executor', _LIFECYCLE_V2 / 'executor.py')
+_VERIFY = _load_lifecycle_module('rust_lifecycle_verify', _LIFECYCLE_V2 / 'verify.py')
+_RECEIPT = _load_lifecycle_module('rust_lifecycle_receipt', _LIFECYCLE_V2 / 'receipt.py')
+validate_full_corpus_reference = _CONTEXT.validate_full_corpus_reference
+is_qgroup_headroom_gate_failure = _PREFLIGHT.is_qgroup_headroom_gate_failure
+require_pair_workspace_headroom = _PREFLIGHT.require_pair_workspace_headroom
+arm_result_allows_pair_continuation = _EXECUTOR.arm_result_allows_pair_continuation
+query_latency_pair_gate = _VERIFY.query_latency_pair_gate
+
+
+def capture_pair_artifacts(binary: pathlib.Path, library_path: pathlib.Path) -> dict[str, str]:
+    return _CONTEXT.capture_pair_artifacts(binary, library_path, containment.file_sha256)
+
+
+def verify_pair_artifacts(expected: dict[str, str]) -> None:
+    _CONTEXT.verify_pair_artifacts(expected, containment.file_sha256)
+
 
 def git(*args: str) -> bytes:
     source_repo = WORKLOAD.get('source_repo', str(REPO))
     return subprocess.run(['git', *args], cwd=source_repo, check=True, stdout=subprocess.PIPE).stdout
 
 
-def validate_full_corpus_reference(workload: dict[str, Any]) -> None:
-    """Reject an unprovenanced full-corpus reference unless it is explicitly blocked."""
-    reference = workload.get('full_corpus_reference')
-    if not reference:
-        return
-    if reference.get('provenance_status') == 'blocked_missing_source':
-        return
-    missing = [key for key in ('source_repo', 'source_commit', 'source_selection')
-               if not reference.get(key)]
-    if missing:
-        raise ValueError('full corpus reference lacks provenance: ' + ', '.join(missing))
 
 
 def frozen_manifest() -> tuple[list[tuple[str, str, int]], str]:
@@ -139,21 +160,8 @@ def find_test_binary(binary_override: pathlib.Path | None = None,
     return matches[-1]
 
 
-def capture_pair_artifacts(binary: pathlib.Path, library_path: pathlib.Path) -> dict[str, str]:
-    binary = binary.resolve(strict=True)
-    library_path = library_path.resolve(strict=True)
-    library = (library_path / 'libzvec_c_api.so').resolve(strict=True)
-    if library.parent != library_path or not binary.is_file() or not library.is_file():
-        raise ValueError('binary or native library path is not an exact regular artifact')
-    return {'binary_path': str(binary), 'binary_sha256': containment.file_sha256(binary),
-            'library_path': str(library_path), 'library_file': str(library),
-            'library_sha256': containment.file_sha256(library)}
 
 
-def verify_pair_artifacts(expected: dict[str, str]) -> None:
-    actual = capture_pair_artifacts(pathlib.Path(expected['binary_path']), pathlib.Path(expected['library_path']))
-    if actual != expected:
-        raise ValueError('pair binary or native library identity changed; refusing continuation')
 
 
 def make_context(operation_id: str, operation_root: pathlib.Path, arm_role: str,
@@ -273,18 +281,8 @@ def test_command(context: dict[str, Any]) -> list[str]:
     return [context['binary_path'], '--exact', TEST_NAME, '--ignored', '--nocapture']
 
 
-def is_qgroup_headroom_gate_failure(error: BaseException) -> bool:
-    return 'insufficient qgroup headroom for the next workspace allocation' in str(error)
 
 
-def require_pair_workspace_headroom(quota: dict[str, Any], additional_bytes: int) -> None:
-    live = quota['live_headroom']
-    required = live['required_free_bytes'] + additional_bytes
-    if live['available_bytes'] < required:
-        raise RuntimeError(
-            f'insufficient qgroup headroom for the next workspace allocation: '
-            f'available={live["available_bytes"]}, additional={additional_bytes}, '
-            f'required_free={live["required_free_bytes"]}, total_required={required}')
 
 
 def preflight(operation_id: str, binary_override: pathlib.Path | None = None,
@@ -548,26 +546,6 @@ def extract_corpus(destination: pathlib.Path, entries: list[tuple[str, str, int]
         raise ValueError(f'materialized corpus byte count mismatch: {total}')
 
 
-def arm_result_allows_pair_continuation(result: dict[str, Any]) -> bool:
-    """Continue after clean workload completion with accounting caveats, never after a safety failure."""
-    if result.get('status') not in {
-        'PASS', 'COMPLETED_WITH_WORKSPACE_UNCERTAINTY', 'COMPLETED_WITH_WORKSPACE_WARNINGS'
-    }:
-        return False
-    cleanup = result.get('unit_cleanup') or result.get('controller_cleanup') or {}
-    summary = result.get('watchdog_summary') or {}
-    postflight = result.get('postflight_decision') or {}
-    return (
-        result.get('workload_returncode') == 0
-        and result.get('watchdog_abort') is None
-        and result.get('safety_outcome') in {
-            'SAFE_COMPLETE', 'NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED'
-        }
-        and summary.get('hard_safety_telemetry_complete') is True
-        and cleanup.get('verified') is True
-        and cleanup.get('unit_collected') is True
-        and postflight.get('continuation_allowed') is True
-    )
 
 
 def run_pair(operation_id: str, binary_override: pathlib.Path | None = None,
@@ -606,105 +584,16 @@ def run_pair(operation_id: str, binary_override: pathlib.Path | None = None,
                     'receipt_path': str(receipt_path.relative_to(REPO)),
                     'runner': json.loads(receipt_path.read_text()),
                 })
-        failure = {
-            'schema_version': 1, 'operation_id': operation_id,
-            'operation_mode': plan['operation_mode'],
-            'status': ('DIAGNOSTIC_BLOCKED' if quota_safety_stop else 'DIAGNOSTIC_ERROR')
-                      if plan['operation_mode'] == 'native_query_stage_diagnostic' else
-                      'OPERATION_BLOCKED' if quota_safety_stop else 'OPERATION_ERROR',
-            'failure_class': 'SAFETY_STOP' if quota_safety_stop else 'IMPLEMENTATION_OR_OPERATION_ERROR',
-            'operation_outcome': 'SAFETY_STOP' if quota_safety_stop else 'OPERATION_ERROR',
-            'benchmark_started': any(arm.get('runner', {}).get('benchmark_started') for arm in arm_results),
-            'error': error_text, 'arms': arm_results,
-            'retry': 'do not automatically retry after a refusal or safety stop; any future operation requires a fresh owner authorization and ID',
-        }
-        filename = ('native-query-stage-result.json'
-                    if plan['operation_mode'] == 'native_query_stage_diagnostic'
-                    else 'pair-result.json')
+        failure = _RECEIPT.failure_receipt(
+            operation_id, plan, arm_results, error_text, quota_safety_stop
+        )
+        filename = _RECEIPT.failure_receipt_filename(plan)
         (operation_root / filename).write_text(json.dumps(failure, indent=2) + '\n')
         raise
 
 
-def _query_latency_arm_reasons(role: str, report: dict[str, Any]) -> list[str]:
-    reasons = []
-    if report.get('arm') != role:
-        reasons.append('arm_role_mismatch')
-    if report.get('concurrent_query_latency_p95_comparable') is not True:
-        reasons.append('arm_report_marks_p95_non_comparable')
-    required_counts = (
-        'concurrent_query_total', 'concurrent_query_offered_slots',
-        'concurrent_query_accepted_slots', 'concurrent_query_started',
-        'concurrent_query_dropped_slots', 'concurrent_query_slots_not_offered_by_cap',
-        'concurrent_query_schedule_slots_missed', 'concurrent_query_failures',
-        'concurrent_query_sampling_capped_passes', 'concurrent_query_max_schedule_lag_us',
-        'reader_query_interval_ms',
-    )
-    values: dict[str, int] = {}
-    for key in required_counts:
-        value = report.get(key)
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            reasons.append('missing_or_invalid_offer_telemetry')
-            return reasons
-        values[key] = value
-    if values['reader_query_interval_ms'] == 0:
-        reasons.append('invalid_query_interval')
-    p95 = report.get('concurrent_query_p95_us')
-    if isinstance(p95, bool) or not isinstance(p95, int) or p95 < 0:
-        reasons.append('missing_or_invalid_p95')
-    if values['concurrent_query_total'] < 20:
-        reasons.append('fewer_than_20_successful_queries')
-    if not (values['concurrent_query_offered_slots'] == values['concurrent_query_accepted_slots'] ==
-            values['concurrent_query_started'] == values['concurrent_query_total']):
-        reasons.append('offers_not_all_accepted_started_and_completed')
-    if values['concurrent_query_dropped_slots'] or values['concurrent_query_slots_not_offered_by_cap']:
-        reasons.append('offers_dropped_or_capped')
-    if values['concurrent_query_schedule_slots_missed']:
-        reasons.append('scheduled_starts_missed')
-    if values['concurrent_query_failures']:
-        reasons.append('query_failures')
-    if values['concurrent_query_sampling_capped_passes']:
-        reasons.append('sampling_capped')
-    if values['concurrent_query_max_schedule_lag_us'] > values['reader_query_interval_ms'] * 1000:
-        reasons.append('scheduler_lag_exceeds_one_interval')
-    return reasons
 
 
-def query_latency_pair_gate(arm_results: list[dict[str, Any]]) -> dict[str, Any]:
-    by_role = {item.get('role'): item.get('workload_report') for item in arm_results}
-    native, m4 = by_role.get('native'), by_role.get('m4')
-    if not isinstance(native, dict) or not isinstance(m4, dict):
-        return {'comparable': False, 'reasons': ['missing_native_or_m4_report'], 'p95_us_by_role': {}}
-    protocol_fields = (
-        'reader_query_interval_ms', 'reader_query_max_samples_per_pass',
-        'reader_query_queue_capacity', 'query_filter', 'query_route',
-    )
-    def valid_protocol(report: dict[str, Any]) -> bool:
-        for key in ('reader_query_interval_ms', 'reader_query_max_samples_per_pass',
-                    'reader_query_queue_capacity'):
-            value = report.get(key)
-            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-                return False
-        return all(isinstance(report.get(key), str) and bool(report[key].strip())
-                   for key in ('query_filter', 'query_route'))
-
-    protocols_valid = valid_protocol(native) and valid_protocol(m4)
-    protocol_equal = protocols_valid and all(native[key] == m4[key] for key in protocol_fields)
-    reasons = [] if protocols_valid else ['missing_or_invalid_offered_load_protocol']
-    if protocols_valid and not protocol_equal:
-        reasons.append('offered_load_protocol_mismatch')
-    native_reasons = _query_latency_arm_reasons('native', native)
-    m4_reasons = _query_latency_arm_reasons('m4', m4)
-    reasons.extend(f'native:{reason}' for reason in native_reasons)
-    reasons.extend(f'm4:{reason}' for reason in m4_reasons)
-    return {
-        'comparable': protocol_equal and not native_reasons and not m4_reasons,
-        'offered_load_protocol_equal': protocol_equal,
-        'reasons': reasons,
-        'p95_us_by_role': {
-            'native': native.get('concurrent_query_p95_us'),
-            'm4': m4.get('concurrent_query_p95_us'),
-        },
-    }
 
 
 def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[str, str, int]],
@@ -822,71 +711,17 @@ def _run_pair_arms(operation_id: str, plan: dict[str, Any], entries: list[tuple[
         arm = arm_results[0]
         post_cleanup_quota = containment.verify_workspace_quota(
             pathlib.Path(CONTRACT['resource_root']), CONTRACT['workspace_quota'])
-        workload_report = arm['workload_report']
-        runner_status = arm['runner']['status']
-        result = {
-            'schema_version': 1,
-            'operation_id': operation_id,
-            'operation_mode': plan['operation_mode'],
-            'status': ('DIAGNOSTIC_COMPLETED' if runner_status == 'PASS'
-                       else 'DIAGNOSTIC_COMPLETED_WITH_CAVEATS'),
-            'measurement_status': runner_status,
-            'scope': 'single native Gate B lifecycle arm for FTS stage attribution only',
-            'pair_comparison_performed': False,
-            'query_latency_comparison': 'NOT_RUN_NATIVE_ONLY_DIAGNOSTIC',
-            'performance_eligible': False,
-            'corpus': {'commit': WORKLOAD['source_commit'],
-                       'manifest_sha256': plan['corpus_manifest_sha256'],
-                       'file_count': plan['corpus_file_count'], 'bytes': plan['corpus_bytes']},
-            'execution_order': ['native'],
-            'artifacts': plan['artifacts'],
-            'native_profile_trace': arm.get('native_profile_trace'),
-            'native_arm': arm,
-            'native_workload_report': workload_report,
-            'post_cleanup_workspace_quota': post_cleanup_quota,
-            'limitations': [
-                'single native-only diagnostic; no paired M4 comparison',
-                'no performance or architecture-win claim',
-                'if target stalls are not reproduced or stage spans are incomplete, attribution remains inconclusive',
-            ],
-        }
+        result = _RECEIPT.diagnostic_result(
+            operation_id, plan, arm, post_cleanup_quota, WORKLOAD['source_commit']
+        )
         (operation_root / 'native-query-stage-result.json').write_text(
             json.dumps(result, indent=2) + '\n')
         return result
 
-    by_role = {arm['role']: arm for arm in arm_results}
-    native = by_role['native']['workload_report']
-    m4 = by_role['m4']['workload_report']
-    parity = {
-        'mutations_equal': native['mutations'] == m4['mutations'],
-        'indexed_file_count_equal': native['indexed_file_count'] == m4['indexed_file_count'],
-        'final_marker_paths_equal': native['final_marker_paths'] == m4['final_marker_paths'],
-        'post_reopen_marker_paths_equal': native['post_reopen_marker_paths'] == m4['post_reopen_marker_paths'],
-        'same_pass_names': [p['name'] for p in native['passes']] == [p['name'] for p in m4['passes']],
-    }
-    parity['pass'] = all(parity.values())
-    arm_statuses = [arm['runner']['status'] for arm in arm_results]
-    all_arms_clean_pass = all(status == 'PASS' for status in arm_statuses)
     query_latency_gate = query_latency_pair_gate(arm_results)
-    query_p95_comparable = query_latency_gate['comparable']
-    result = {
-        'schema_version': 1, 'operation_id': operation_id,
-        'status': ('CORRECTNESS_MISMATCH' if not parity['pass'] else
-                   'PASS' if all_arms_clean_pass else 'PAIR_COMPLETED_WITH_WORKSPACE_CAVEATS'),
-        'measurement_status': 'PASS' if all_arms_clean_pass else 'COMPLETED_WITH_WORKSPACE_CAVEATS',
-        'query_latency_comparison': 'DESCRIPTIVE_ONLY' if query_p95_comparable else 'NOT_COMPARABLE_SAMPLING_INCOMPLETE',
-        'query_latency_p95_comparable_across_arms': query_p95_comparable,
-        'query_latency_gate': query_latency_gate,
-        'performance_eligible': False,
-        'performance_interpretation': 'one descriptive exploratory pair; not qualification or a causal/architecture-win claim',
-        'corpus': {'commit': WORKLOAD['source_commit'],
-                   'manifest_sha256': plan['corpus_manifest_sha256'],
-                   'file_count': plan['corpus_file_count'], 'bytes': plan['corpus_bytes']},
-        'execution_order': plan['execution_order'], 'artifacts': plan['artifacts'],
-        'parity': parity, 'arms': arm_results,
-        'limitations': ['one repository snapshot', 'one pair', 'no cgroup io.stat/io.max',
-                        'host I/O pressure is observational', 'fixed deterministic embedding model'],
-    }
+    result = _RECEIPT.pair_result(
+        operation_id, plan, arm_results, query_latency_gate, WORKLOAD['source_commit']
+    )
     (operation_root / 'pair-result.json').write_text(json.dumps(result, indent=2) + '\n')
     return result
 

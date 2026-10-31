@@ -38,6 +38,20 @@ re-run a benchmark, or modify the frozen RC.
 - `benchmarks/native-lifecycle/` and the P3 `run_native_query_lock_split*`
   runners remain archive candidates; they are not V2 entrypoints.
 
+**P3 — Rust lifecycle split: first slice implemented.**
+
+- `operations/m4/rust_lifecycle/` holds pure context/artifact identity,
+  preflight headroom predicates, executor continuation rules, query-latency
+  verification, and failure/pair/diagnostic receipt construction.
+- `run_rust_lifecycle_pair.py` remains the CLI compatibility shim and imports
+  those helpers; command line, operation IDs, receipt names, and refusal paths
+  are unchanged.
+- `make_context`, full `preflight`, `run_pair`, and `_run_pair_arms` still live
+  in the shim; moving them requires porting their monkeypatch-heavy tests.
+- Equivalence tests compare the new helpers against the legacy shim for clean
+  and refusal paths; a synthetic pair freezes the semantic receipt fields. No
+  benchmark workload was run.
+
 The implementation adds no benchmark workload, production launch, threshold,
 policy, cgroup-limit, or RC change. Synthetic containment verification launches
 its own transient user units and cleans them up; it runs no production workload.
@@ -48,6 +62,7 @@ its own transient user units and cleans them up; it runs no production workload.
 python3 -m unittest discover -s benchmarks/harness-v2/contracts/tests -v
 python3 -m unittest discover -s benchmarks/harness-v2/host/tests -v
 python3 -m unittest discover -s benchmarks/harness-v2/measurement/tests -v
+python3 -m unittest discover -s benchmarks/harness-v2/operations/m4/rust_lifecycle/tests -v
 ```
 
 Legacy gate tests remain in `research/m4-native/tools/`:

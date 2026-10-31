@@ -198,15 +198,23 @@ Invariants:
 - Gate: synthetic no-launch, guard-refusal, cleanup, watchdog, and
   telemetry-integrity tests pass; no orphan units; no limit changes.
 
-### P3 — Lifecycle operation adapter
+### P3 — Lifecycle operation adapter (first slice 2026-10-31; move incomplete)
 
-- Split `run_rust_lifecycle_pair.py` into:
-  `context.py` (plan/authorization), `preflight.py` (contract checks),
-  `executor.py` (pair order/arms), `verify.py` (quality/parity), `receipt.py`.
-- Keep the existing CLI as a compatibility shim; old command lines and output
-  names remain valid.
+- Implemented pure helpers under
+  `benchmarks/harness-v2/operations/m4/rust_lifecycle/`: `context.py`
+  (artifact identity/corpus reference), `preflight.py` (headroom predicates),
+  `executor.py` (continuation rules), `verify.py` (query-latency gate), and
+  `receipt.py` (failure, pair, and native-diagnostic receipts).
+- `run_rust_lifecycle_pair.py` remains the compatibility shim and imports these
+  helpers; old command lines, operation IDs, receipt names, and refusal paths
+  remain valid.
+- Still local because their tests monkeypatch module-level symbols:
+  `make_context`, full `preflight`, `run_pair`, `_run_pair_arms`, and the
+  launch/watchdog loop.
 - Gate: one synthetic pair produces the same semantic receipt fields as the
   legacy runner; both runners agree on refusal paths; no benchmark needed.
+  Equivalence tests cover the moved helpers and a synthetic pair freezes the
+  semantic receipt fields; full P3 remains open.
 
 ### P4 — Migrate operation families
 
