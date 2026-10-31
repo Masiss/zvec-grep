@@ -169,6 +169,25 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
   A WIN**; no 421-file run.
 - Full evidence: [`BENCHMARK-RESULTS.md`](BENCHMARK-RESULTS.md).
 
+### M2 reuse diagnostic — 2026-10-31
+
+- Added bounded telemetry to `IndexResult.timings` (visible with `--debug`):
+  manifest load/hit/miss, vector fetch/reuse, embeddings computed, manifest
+  publish, and their durations.
+- Added `ZVEC_GREP_DISABLE_EMBEDDING_REUSE=1` as a diagnostic-only toggle;
+  default remains ON.
+- Paired 64-file diagnostic, same binary, 3 counterbalanced repeats, 2-CPU
+  affinity, no memory cgroup:
+  - 22 of 24 fragments reused; exactly the changed and new fragments embedded.
+  - Embedding stage **0.88 ms vs 8.36 ms** (ON vs OFF).
+  - Manifest load + fetch + publish ≈ **3.3 ms**; net small win.
+  - Mutation wall **1.24 s vs 1.34 s** (ON vs OFF, OFF median 1.25 s);
+    upstream **1.11 s**. `index_optimize` ≈ 0.68 s dominates.
+  - Query output SHA-256 identical across ON/OFF/upstream.
+- Conclusion: **M2 reuse works and is net-positive at this size, but is not the
+  wall-time bottleneck.** No batching change is justified by this evidence.
+- Evidence: `BENCHMARK-RESULTS.md`, `/home/masis/bench/reuse-diag/diag-raw.json`.
+
 ### Verification (pass 2)
 
 - `cargo test -p zg-engine --lib` — **685 passed, 0 failed, 10 ignored** (after FP16 fix).
@@ -209,7 +228,7 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 ## Current state
 
-- Integration worktree is clean; branch is **14 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **19 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
 - No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No production default, migration, or release configuration changed.
@@ -217,7 +236,13 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 ## Next action
 
-1. Review the three-way benchmark plan and issue operation IDs only if measurement is authorized.
-2. If M2 memory is the next bottleneck, capability-gate scanner `read_stream` and port staged batches behind it.
-3. If finalization latency is the next bottleneck, make directory/entity/file handles cloneable or move their maintenance behind the read-session boundary before adding deferred age/threshold policy.
-4. Do not cherry-pick `b4b8686` wholesale; use `FEATURE-MATRIX.md` as the coverage ledger.
+1. Run the 421-file campaign only under the approved memory/CPU envelope; keep
+   upstream as the control. Do not claim an M2 wall-time win from the 64-file
+   pilot.
+2. If M2 memory is the next bottleneck, capability-gate scanner `read_stream`
+   and port staged batches behind it.
+3. If finalization latency is the next bottleneck, make directory/entity/file
+   handles cloneable or move their maintenance behind the read-session boundary
+   before adding deferred age/threshold policy.
+4. Do not cherry-pick `b4b8686` wholesale; use `FEATURE-MATRIX.md` as the
+   coverage ledger.

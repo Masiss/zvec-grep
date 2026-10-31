@@ -60,9 +60,9 @@ Raw data: `/home/masis/bench/results-cpu2-raw.json` and
 - **Initial index**: integration is effectively equal to upstream (1.71 vs
   1.72 s) and faster than fork (1.83 s).
 - **Mutation**: integration is **13.5% slower than upstream** (1.38 vs 1.21 s)
-  and faster than fork (1.50 s). M2 reuse is not producing a wall-time win on
-  this corpus/model; manifest publish/read/fetch overhead can exceed the saved
-  model2vec embedding work.
+  and faster than fork (1.50 s). The later paired diagnostic shows reuse is
+  active; the remaining gap is dominated by finalization, not the embedding
+  stage.
 - **Memory**: integration peaks lower than upstream in initial and mutation
   (382 vs 435 MiB; 447 vs 508 MiB). This is consistent with fewer live vectors,
   but not proof of reuse.
@@ -77,17 +77,59 @@ returns FP16 values, so the hash never matched. Fixed to hash the FP16
 representation (`half::f16::from_f32(...).to_bits()`), with a regression test.
 The final numbers above use the fixed binary.
 
+## Paired M2 ON/OFF diagnostic — 2026-10-31
+
+Same integration binary, same corpus/workload, 2-CPU affinity, 3 repeats,
+counterbalanced order (`off,on,upstream` / `on,off,upstream`). M2 was disabled
+only with the diagnostic env `ZVEC_GREP_DISABLE_EMBEDDING_REUSE=1`; the default
+remains ON. Upstream `e1f93d2` was the control. No memory cgroup.
+
+Mutation changes one existing fragment and appends one new entity, so the
+expected result is 22 reused + 2 computed fragments.
+
+| Metric (mean) | M2 ON | M2 OFF | Upstream |
+|---|---:|---:|---:|
+| Mutation wall | 1.243 s | 1.340 s (median 1.250) | 1.113 s |
+| Mutation CPU | 0.927 s | 0.923 s | 0.990 s |
+| Peak RSS | 458 MiB | 458 MiB | 518 MiB |
+| `index_embedding` | **0.88 ms** | **8.36 ms** | 8.20 ms |
+| `index_prepare` | 0.83 ms | 0.45 ms | 0.37 ms |
+| `index_commit` | 12.75 ms | 14.74 ms | 9.81 ms |
+| `index_optimize` | 680.7 ms | 773.9 ms (median 694.1) | 561.7 ms |
+| Manifest load | 0.030 ms | — | — |
+| Vector fetch | 0.317 ms | — | — |
+| Manifest publish | 2.99 ms | 4.79 ms | — |
+| Vectors reused | **22** | 0 | — |
+| Embeddings computed | **2** | 24 | 24 |
+
+Raw rows: `/home/masis/bench/reuse-diag/diag-raw.json`; per-run outputs under
+`/home/masis/bench/reuse-diag/<variant>-r{1,2,3}/`.
+
+### Reading
+
+- **Reuse is active.** Manifest hit file: 1/1; 22 of 24 fragments reused, and
+  exactly the changed + new fragments (2) were embedded.
+- **Manifest I/O is not the bottleneck.** Load + fetch + publish ≈ 3.3 ms,
+  while embedding drops by ≈ 7.5 ms. The net is a small win (single-digit ms).
+- **Total mutation is dominated by `index_optimize` (≈ 0.68 s).** M2 cannot
+  move wall time much at this corpus size. The integration's optimize is also
+  slower than upstream (0.68 s vs 0.56 s), which is an M3/finalization issue,
+  not M2.
+- **Correctness:** ON, OFF, and upstream query outputs have the same SHA-256;
+  all runs exited 0. The changed and new fragments were not reused.
+- **Batching is not justified yet.** Publish is ≈ 3 ms for one manifest; adding
+  batching would add complexity without evidence that it dominates. Revisit
+  only if a larger corpus shows manifest I/O growth.
+
 ## Decision
 
-**INCONCLUSIVE / NOT A WIN.** Do not run the 421-file qualification yet.
+**M2 reuse is functional and net-positive, but small.** It saves ~7.5 ms of
+embedding work per 64-file mutation and costs ~3.3 ms of manifest I/O; the
+remaining mutation time is finalization. This is **not** a 421-file
+qualification and does not justify changing defaults or batching.
 
-Before a larger run:
-
-1. Add end-to-end reuse telemetry (vectors reused / manifest hits) so we can
-   distinguish "reuse not happening" from "reuse happening but overhead wins".
-2. Re-run the 64-file mutation with telemetry and, if reuse is active, batch
-   manifest I/O or make M2 opt-in.
-3. Only then run 421 files under the approved memory/CPU envelope.
+Next: run the 421-file campaign only under the approved memory/CPU envelope,
+and keep upstream as the control. Do not claim a wall-time win from M2 alone.
 
 No benchmark authorization or safety gate was changed. The missing memory
 cgroup is a measurement-quality limitation, not a pass.

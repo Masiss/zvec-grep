@@ -71,8 +71,11 @@ Three repeats per arm, 2-CPU affinity, release builds, no memory cgroup:
 - Bug found: the manifest vector fingerprint hashed `f32`, while storage is
   FP16, so reuse never matched. Fixed to hash the FP16 representation; final
   numbers use the fixed binary.
-- Decision: **INCONCLUSIVE / NOT A WIN**. Add reuse telemetry and batch manifest
-  I/O before the 421-file run. Full evidence: [`BENCHMARK-RESULTS.md`](BENCHMARK-RESULTS.md).
+- Paired ON/OFF diagnostic (same binary): **22/24 fragments reused**, 2 embedded;
+  embedding stage 0.88 ms vs 8.36 ms; manifest load+fetch+publish ≈3.3 ms;
+  mutation wall 1.24 s vs 1.34 s. Reuse is active and net-positive but small;
+  finalization dominates. No batching justified at this size.
+- Full evidence: [`BENCHMARK-RESULTS.md`](BENCHMARK-RESULTS.md).
 
 ## Coverage rule
 
