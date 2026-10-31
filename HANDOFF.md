@@ -61,9 +61,9 @@ Conclusion: upstream has **partial** isolation (read-session separation + parall
 
 ### Config-test reproduction
 
-Default `/tmp` was 80% full (6.2 GB used, 1.6 GB available) and caused unrelated native storage failures (`Disk quota exceeded`, then SIGSEGV) in full-suite runs.
+Default `/tmp` was 80% full (6.2 GB used, 1.6 GB available) and caused unrelated native storage failures (`Disk quota exceeded`, then SIGSEGV) in full-suite runs. Session build/test artifacts were removed from `/tmp`; remaining large entries (`v40log`, `v41log`, `v42log`, `ce-smoke-*`) were left untouched because they are not owned by this integration.
 
-Controlled reproduction with `TMPDIR=/home/masis/src/zvec-grep-audit-tmp` and the same test command:
+Controlled reproduction from the repo root with `TMPDIR="$PWD/.tmp"` and `cargo test --manifest-path rust/Cargo.toml` (build/test temp files stay under the worktree, not `/tmp`):
 
 | Suite | Baseline `e1f93d2` | Integration |
 |---|---:|---:|
@@ -77,9 +77,9 @@ The two config failures are **not reproducible on clean upstream** under equival
 
 - `cargo test -p zg-engine storage::store::tests --lib` — **31 passed**.
 - `cargo test -p zg-engine --lib pipelines::indexing::input_budget` — **3 passed**.
-- `cargo test -p zg-daemon` with controlled `TMPDIR` — **124 passed**.
-- `cargo test -p zg-engine --lib` with controlled `TMPDIR` — **671 passed, 0 failed**.
-- Baseline `cargo test -p zg-engine --lib` with controlled `TMPDIR` — **669 passed, 0 failed**.
+- `cargo test --manifest-path rust/Cargo.toml -p zg-daemon` with `TMPDIR="$PWD/.tmp"` — **124 passed**.
+- `cargo test --manifest-path rust/Cargo.toml -p zg-engine --lib` with `TMPDIR="$PWD/.tmp"` — **671 passed, 0 failed**.
+- Baseline `cargo test --manifest-path rust/Cargo.toml -p zg-engine --lib` with `TMPDIR="$PWD/.tmp"` — **669 passed, 0 failed**.
 - `cargo clippy -p zg-daemon -p zg-engine --all-targets -- -D warnings` — **PASS**.
 - `cargo fmt --all -- --check` — **PASS**.
 
