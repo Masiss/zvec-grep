@@ -30,7 +30,7 @@
 | Watcher burst coalescing | `b4b8686` | **PORTED** | Upstream scheduler merged options but had no trailing debounce; bounded debounce reduces writer churn without delaying manual jobs. |
 | M2 per-file manifests / selective reconciliation | `b4b8686` | **INTEGRATED (core) / PARTIAL** | Upstream architecture re-expressed: additive manifest sidecar, exact fingerprint match, stored-vector fetch, unstable-model guard. Streaming/staged indexing remains REWORK. |
 | M3-A mutation-aware finalization | `b4b8686` | **INTEGRATED** | Per-collection dirty mask; only mutated collections are finalized. |
-| M3-B lock isolation / maintenance | `b4b8686` | **PARTIAL / INTEGRATED** | Fragment native optimize now runs outside `Mutex<StoreState>`; directories/entities/files remain under the lock. Deferred age/threshold maintenance remains REWORK. |
+| M3-B lock isolation / maintenance | `b4b8686` | **PARTIAL / INTEGRATED** | Fragment native optimize now runs outside `Mutex<StoreState>`; directories/entities/files remain under the lock. The fragment/dirty overlap candidate was measured and **rejected** (query p95 regression) and rolled back; deferred maintenance and handle-based maintenance remain REWORK. |
 | M4 lock-split / reader concurrency | `f9af33e`, `d2658b6`, `72af408`, `3809b29`, `5c60ad0`, `6c2d487`, `430ef82`, `aaafdb4` | **SKIP** | M4 experimental; upstream architecture differs; must not enter production. |
 | M4 base/delta hybrid scoring | `3dc1e72`, `5b49769` | **SKIP** | M4 prototype only; no upstream base/delta surface. |
 | M4 outer FTS WAL sync | `7c88272` | **SKIP** | M4 native test evidence, not a production Rust change. |
@@ -232,13 +232,15 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 ## Current state
 
-- Integration worktree is clean; branch is **20 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **24 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
 - No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No production default, migration, or release configuration changed.
 - M2 core and M3-A/M3-B fragment isolation are integrated; streaming staging and deferred maintenance remain open.
+- M3-B fragment/dirty overlap candidate (`5ac1b01`) was rejected after a concurrent-query p95 regression and reverted in `0981a78`. Per-stage optimize telemetry (`5741e1d`) is kept as diagnostic-only. See `BENCHMARK-RESULTS.md`.
 
 ## Next action
 
 See [`HANDOFF-20261031-NEXT.md`](HANDOFF-20261031-NEXT.md). Current priority is
-the finalization overlap fix; do not run 421 files until it is measured.
+the finalization bottleneck; the overlap approach is closed. Do not run 421
+files until a replacement is measured.

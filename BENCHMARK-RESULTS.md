@@ -133,3 +133,80 @@ and keep upstream as the control. Do not claim a wall-time win from M2 alone.
 
 No benchmark authorization or safety gate was changed. The missing memory
 cgroup is a measurement-quality limitation, not a pass.
+
+## M3-B overlap candidate — 64-file mutation with concurrent query load
+
+Status: **EXPLORATORY / NON-QUALIFYING. Candidate REJECTED and rolled back.**
+Same 64-file corpus, `taskset -c 0,1`, release builds, **no memory cgroup**.
+Three counterbalanced repeats per arm (`base`, `candidate`). The base arm is
+`d2344ed`; the candidate adds fragment/dirty-collection overlap
+(`5ac1b01`). Both arms were built with the identical diagnostic per-stage
+telemetry (`5741e1d`) so stage walls are comparable.
+
+### Protocol
+
+- Fresh corpus copy per run; initial index, then one append mutation to the
+  largest `.cs` file (24 entities) in the same process.
+- A concurrent in-process FTS query loop (`Camera`, limit 10,
+  `RefreshPolicy::Off`) issued a query every ~15 ms during the mutation, so
+  every reader had to contend with the finalization write window.
+- Per-run wall, process CPU (`/proc/self/stat`), `/proc/self/io` deltas,
+  `VmHWM`, query p50/p95/max, per-stage `index_optimize_*` timings, and query
+  parity (10 matches).
+- 3 repeats; order alternated `base,candidate` / `candidate,base`.
+- Harness: `/home/masis/bench/m3b_overlap_bench.rs`;
+  runner: `/home/masis/bench/run_m3b_overlap.sh`; raw rows:
+  `/home/masis/bench/m3b/out/<arm>-r{1,2,3}/result.json` (instrumented arms)
+  and `/home/masis/bench/m3b/out-uninstrumented-base/` (first base build).
+
+### Results (3 repeats)
+
+| Metric | Base (`d2344ed`) | Candidate (overlap) |
+|---|---:|---:|
+| Mutation wall (mean / median) | 1,082.8 / 1,111.9 ms | **894.3 / 912.1 ms** |
+| `index_optimize` (mean / median) | 815.9 / 846.7 ms | **638.2 / 658.1 ms** |
+| Fragment optimize | 485.5–580.1 ms | 591.8–660.7 ms |
+| Entities optimize (under lock) | 171.0–177.7 ms | 196.8–251.6 ms |
+| Files optimize (under lock) | 259.9–281.6 ms | 323.9–387.3 ms |
+| State-lock window = max(entities, files) | **259.9–281.6 ms** | 323.9–387.3 ms |
+| Query p50 (mean) | 4.98 ms | 3.53 ms |
+| Query p95 (mean / median) | **275.1 / 269.7 ms** | 360.1 / 375.8 ms |
+| Query p95, each repeat | 297.1 / 258.5 / 269.7 ms | 325.0 / 375.8 / 379.5 ms |
+| CPU user / system (mean) | 583.3 / 253.3 ms | 596.7 / 256.7 ms |
+| Peak RSS (mean) | 665.2 MiB | 578.0 MiB |
+| I/O write (mean) | 63.08 MB | 58.44 MB |
+| Query errors / parity | 0 / 10 matches | 0 / 10 matches |
+
+The first, uninstrumented-base run (base from `d2344ed`, candidate from
+`5ac1b01`) reproduced the same direction: mutation wall 1,013.5 → 919.6 ms
+and query p95 266.3 → 360.7 ms (mean).
+
+### Reading
+
+- **Correctness**: all runs exited 0, zero query errors, identical query parity
+  (10 matches), and marker/retry tests passed.
+- **Mutation wall improved**, by ~17% mean in the instrumented pair and ~9%
+  in the uninstrumented pair (host noise between runs; treat as direction,
+  not a qualified effect). `index_optimize` fell from ~816–847 ms to
+  ~638–658 ms.
+- **Query latency regressed.** Every candidate repeat exceeded every base
+  repeat. The mechanism is visible in the stages: in the base arm the dirty
+  collections run alone under the state lock for ~260–282 ms; under overlap
+  they run concurrently with native fragment maintenance and contend for the
+  same 2 CPUs, stretching the state-lock window to ~324–387 ms. Readers block
+  for that window, so p95 rose by ~31% (mean) and crossed the provisional
+  300 ms target.
+- Fragment optimize itself was slower under the overlap (591–661 ms vs
+  486–580 ms), so the overlap also failed to preserve the fragment stage's
+  standalone cost.
+- RSS and write I/O were lower in the candidate, but that does not offset the
+  reader-latency regression.
+
+### Decision
+
+**REJECT / ROLLBACK.** The candidate is reverted in `0981a78`; sequential
+finalization is restored. The per-stage telemetry from `5741e1d` is kept as
+diagnostic-only. No optimizer-thread change, no 421-file campaign, no
+production/default/resource change. A future attempt should avoid stretching
+the state-lock window (e.g. port the fork's handle-based maintenance outside
+the lock under a lease) rather than merely overlapping native work.
