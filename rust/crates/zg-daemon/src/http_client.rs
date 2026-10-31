@@ -59,6 +59,44 @@ async fn post_response(uri: &str, body: Vec<u8>) -> Result<http::Response<Incomi
     Ok(response)
 }
 
+pub(crate) async fn post_index_submit(
+    uri: &str,
+    body: Vec<u8>,
+) -> Result<zg_daemon_protocol::JobView, DaemonError> {
+    use zg_daemon_protocol::IndexStreamEvent;
+    let mut response = post_response(uri, body).await?.into_body();
+    let mut pending = Vec::new();
+    while let Some(frame) = response.frame().await {
+        let frame = frame.map_err(|error| DaemonError::McpBridge(error.to_string()))?;
+        if let Ok(data) = frame.into_data() {
+            for byte in data {
+                if byte == b'\n' {
+                    match serde_json::from_slice::<IndexStreamEvent>(&pending)? {
+                        IndexStreamEvent::Job(job) => return Ok(job),
+                        IndexStreamEvent::Progress(_) => {}
+                        IndexStreamEvent::Finished(_) => {
+                            return Err(DaemonError::McpBridge(
+                                "index stream finished before reporting a job".into(),
+                            ));
+                        }
+                    }
+                    pending.clear();
+                } else {
+                    pending.push(byte);
+                    if pending.len() > 16 * 1024 * 1024 {
+                        return Err(DaemonError::McpBridge(
+                            "Index progress event exceeds size limit".into(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Err(DaemonError::McpBridge(
+        "Index progress stream ended before reporting a job".into(),
+    ))
+}
+
 pub(crate) async fn post_index_stream_reported(
     uri: &str,
     body: Vec<u8>,
@@ -469,6 +507,9 @@ mod tests {
                     progress: None,
                     waited_millis: 0,
                     blocking_job_id: None,
+                    priority: 0,
+                    queue_position: Some(1),
+                    cancelable: true,
                 });
                 let line = serde_json::to_string(&job).expect("job") + "\n";
                 stream

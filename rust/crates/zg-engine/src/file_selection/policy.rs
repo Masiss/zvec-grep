@@ -441,7 +441,7 @@ fn control_paths(root: &Path, options: &ScanRules) -> Vec<PathBuf> {
 fn ignore_error(error: &ignore::Error) -> EngineError {
     EngineError::invalid_argument(format!("invalid default ignore pattern: {error}"))
 }
-const DEFAULT_IGNORED_DIRECTORY_NAMES: [&str; 36] = [
+const DEFAULT_IGNORED_DIRECTORY_NAMES: [&str; 37] = [
     "node_modules",
     "vendor",
     "thirdparty",
@@ -454,6 +454,7 @@ const DEFAULT_IGNORED_DIRECTORY_NAMES: [&str; 36] = [
     "target",
     "coverage",
     "generated",
+    "results",
     "__pycache__",
     "venv",
     ".venv",

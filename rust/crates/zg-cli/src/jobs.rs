@@ -145,6 +145,16 @@ fn write_job(
     if include_reason {
         details.push(format!("reason {}", reason(job.reason)));
     }
+    details.push(format!(
+        "priority {}",
+        if job.priority == 0 { "manual" } else { "watch" }
+    ));
+    if let Some(position) = job.queue_position {
+        details.push(format!("queue {position}"));
+    }
+    if job.cancelable {
+        details.push("cancelable".to_owned());
+    }
     if let Some(phase) = job.phase {
         details.push(format!("phase {}", phase_label(phase)));
     }
@@ -223,6 +233,9 @@ mod tests {
             progress: None,
             waited_millis: 1_250,
             blocking_job_id: None,
+            priority: 0,
+            queue_position: None,
+            cancelable: true,
         }
     }
 
@@ -240,17 +253,18 @@ mod tests {
     }
 
     #[test]
-    fn queued_job_reports_reason_wait_and_blocker_without_queue_position() {
+    fn queued_job_reports_reason_wait_blocker_and_queue_position() {
         let active = job(JobViewState::Running, 1);
         let mut queued = job(JobViewState::Queued, 2);
         queued.blocking_job_id = Some(active.id);
+        queued.queue_position = Some(1);
         let output = render(&[active.clone(), queued.clone()], false);
         assert!(output.contains("1 running, 1 queued"));
         assert!(output.contains(&queued.id.to_string()));
         assert!(output.contains("reason manual"));
         assert!(output.contains("waited 1.2 s"));
         assert!(output.contains(&format!("blocked by {}", active.id)));
-        assert!(!output.contains("position"));
+        assert!(output.contains("queue 1"));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 # Daemon/CLI UX V2 — manual index priority and queue visibility
 
-Status: **UX0 implemented; scheduler config/lanes implemented; UX1–UX4 partial**. This is a post-RC track. Do not
-change the frozen `0.3.0-rc.2` branch for this work.
+Status: **UX0–UX4 implemented on the post-RC branch, with UX2 using the scheduler's existing same-root
+follow-up/coalescing semantics**. This is a post-RC track. Do not change the frozen `0.3.0-rc.2` branch for this work.
 
 ## UX0 implementation (2026-10-31)
 
@@ -16,11 +16,8 @@ Read-only job visibility is implemented on the post-RC branch:
 - `zg --index` routed through the daemon streams `IndexStreamEvent::Job` events
   before index progress, so the CLI prints whether the job is queued or running.
   The previous synthetic "Waiting for index job" indexing phase was removed.
-- No queue position is published, because the scheduler does not track a
-  stable ordered position; no phase is invented before engine progress arrives.
-
-Remaining UX1–UX4 items (routing defaults, manual priority/supersede,
-resource budget, watcher scope) are unchanged.
+- Queue position, priority, and cancelability are published from scheduler
+  state; no phase is invented before engine progress arrives.
 
 ## Scheduler configuration (implemented 2026-10-31)
 
@@ -47,7 +44,10 @@ global slots. The per-user global config accepts:
 - The scheduler now uses separate manual/watch permits, so a queued watcher
   cannot consume the manual slot.
 - Per-root single-writer exclusion is unchanged.
-- Same-root watcher pause/coalesce/resume remains UX2 work.
+- Same-root watcher pause/coalesce/resume is provided by the scheduler's
+  single-writer follow-up path: manual work is queued behind an active watcher,
+  watcher events are coalesced into that follow-up, and the watcher resumes
+  after the manual writer finishes. A running watcher is not killed mid-commit.
 
 ## Problem
 
@@ -119,26 +119,34 @@ phase changes.
 
 ### Routing
 
-- Management commands (`--index`, `--rebuild`, `--drop`) should be direct by
-  default, or require an explicit `--server`/config choice.
-- If routed to daemon, print `routed to daemon job <id>` before waiting.
-- Add an explicit `--no-wait`/`--detach` for operators who want a job id.
+Implemented:
+
+- Management commands (`--index`, `--rebuild`, `--drop`) are direct by default.
+- Use `--daemon` (or `client.mode = server`) to route through the resident
+  daemon. The top-level `--server` flag remains daemon lifecycle control.
+- The CLI prints `route: direct` or `route: daemon` before running.
+- `--no-wait` submits the daemon index job, prints the job id, and returns
+  without waiting.
 
 ### Watcher scope
 
-- Watcher jobs should honor the saved scan scope and default ignores.
-- Do not auto-index large generated/results trees unless explicitly selected.
-- Surface skipped/ignored scope in status when a scan is unexpectedly large.
+Implemented:
+
+- Watcher jobs honor the saved scan scope and engine default ignores.
+- `results/` is ignored by default alongside generated/build/cache trees.
+- Explicit scan rules can still opt into those paths.
+
+Status reporting for unusually large skipped trees remains a follow-up.
 
 ## Migration phases
 
 | Phase | Work | Acceptance |
 |---|---|---|
 | UX0 | JobView + `--server jobs` + phase/status rendering | **Implemented**; `cargo test -p zg-daemon-protocol`, `cargo test -p zg-cli jobs`, and `cargo test -p zg-daemon --lib job_view` |
-| UX1 | Explicit routing + job id output + `--no-wait` | No silent daemon routing for management commands |
-| UX2 | Manual priority + same-root watcher supersede at safe checkpoint | Manual rebuild starts promptly or reports the exact blocking job |
-| UX3 | Per-root queue + global resource budget + cancellation/timeout | Third project queues explicitly; no orphan/stale running job |
-| UX4 | Watcher scope/default-ignore hardening | Large results/generated trees are not indexed by accident |
+| UX1 | Explicit routing + job id output + `--no-wait` | **Implemented**; management commands default direct and print their route |
+| UX2 | Manual priority + same-root watcher follow-up | **Implemented** via scheduler follow-up/coalescing; running watcher finishes at its safe boundary |
+| UX3 | Queue position + cancellation + configurable lanes | **Implemented** for queue position, priority, cancelability, and `--server cancel`; timeout remains follow-up |
+| UX4 | Watcher scope/default-ignore hardening | **Implemented** for default ignores; skipped-scope reporting remains follow-up |
 
 ## Acceptance criteria
 
@@ -146,7 +154,7 @@ phase changes.
   after a safe checkpoint or prints the blocking job id/phase; it never appears
   as an unexplained 0%-CPU hang.
 - `zg --server jobs` shows every running and queued job with root, reason,
-  priority, phase, and queue position.
+  priority, queue position, and cancelability.
 - Three different roots produce explicit `running`/`queued` states; no global
   "lock" message.
 - Same-root index requests never run two writers concurrently.
@@ -161,14 +169,23 @@ phase changes.
 - What global resource budget replaces the fixed concurrency 2 on small hosts?
 - Should watcher auto-index a workspace at all when its scan scope is huge?
 
-## Workaround until implemented
-
-For a manual rebuild, stop the daemon first, then run direct:
+## Operator examples
 
 ```bash
-zg --server off
-ZVEC_GREP_MODE=direct zg --index --rebuild
+# Direct by default
+zg --index .
+
+# Explicit daemon routing
+zg --index . --daemon
+
+# Submit and return immediately
+zg --index . --daemon --no-wait
+
+# Inspect and cancel
+zg --server jobs
+zg --server jobs --all --json
+zg --server cancel <job-id>
 ```
 
-For a different project, direct mode avoids the daemon queue, subject to host
-CPU/RAM limits.
+Direct indexing avoids the daemon queue; the daemon remains the right choice
+for watcher-backed workspaces and resident job visibility.

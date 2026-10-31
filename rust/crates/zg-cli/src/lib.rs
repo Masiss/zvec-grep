@@ -27,6 +27,7 @@ use std::{
 use chrono::{DateTime, Local, NaiveDate, TimeZone};
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 use thiserror::Error;
+use uuid::Uuid;
 use zg_engine::api::{
     context::{
         ContextOptions,
@@ -525,6 +526,12 @@ pub struct IndexArgs {
     pub name: Option<String>,
     #[arg(long)]
     pub mode: Option<ClientMode>,
+    /// Route this management operation through the resident daemon.
+    #[arg(long, conflicts_with = "mode")]
+    pub daemon: bool,
+    /// Submit the daemon index job and print its id without waiting for completion.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
     #[arg(long)]
     pub rebuild: bool,
     #[arg(long)]
@@ -610,6 +617,8 @@ pub enum ServerAction {
     Status(ServerStatusArgs),
     /// List resident index jobs without changing daemon state.
     Jobs(ServerJobsArgs),
+    /// Request cancellation of a resident index job.
+    Cancel(ServerCancelArgs),
     #[command(hide = true)]
     Run(ServerStartArgs),
 }
@@ -654,6 +663,14 @@ pub struct ServerJobsArgs {
     pub all: bool,
 }
 
+#[derive(Clone, Debug, Args)]
+pub struct ServerCancelArgs {
+    /// Daemon index job id.
+    pub job_id: Uuid,
+    #[arg(long, env = "ZVEC_GREP_HOME")]
+    pub home: Option<PathBuf>,
+}
+
 #[derive(Debug)]
 pub enum CliPlan {
     Query {
@@ -667,6 +684,7 @@ pub enum CliPlan {
         home: Option<PathBuf>,
         operation: IndexOperation,
         output: OutputOptions,
+        no_wait: bool,
     },
     Status {
         mode: ClientMode,
@@ -706,6 +724,7 @@ pub enum ServerPlan {
     Off(ServerStopArgs),
     Status(ServerStatusArgs),
     Jobs(ServerJobsArgs),
+    Cancel(ServerCancelArgs),
     Run(ServerStartArgs),
 }
 
@@ -1410,7 +1429,14 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
         .model_cache
         .map(|path| resolve_from(current_dir, Some(&path)));
     let root = resolve_from(current_dir, args.root.as_deref());
-    let mode = resolve_client_mode(args.mode)?;
+    let mode = if args.daemon {
+        ClientMode::Server
+    } else {
+        match resolve_client_mode(args.mode)? {
+            ClientMode::Auto => ClientMode::Direct,
+            mode => mode,
+        }
+    };
     let home = args.home.clone();
     let output = OutputOptions {
         debug: args.debug,
@@ -1450,6 +1476,7 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
                 include_status: false,
             }),
             output,
+            no_wait: args.no_wait,
         });
     }
     let mut scan = args.files.update();
@@ -1488,6 +1515,7 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
             ..IndexOptions::default()
         })),
         output,
+        no_wait: args.no_wait,
     })
 }
 
@@ -1555,6 +1583,17 @@ fn server_plan(args: ServerArgs) -> Result<ServerPlan, CliError> {
             }
             child.home = child.home.or(args.home);
             Ok(ServerPlan::Jobs(child))
+        }
+        ServerAction::Cancel(mut child) => {
+            if args.listen.is_some()
+                || args.mcp_toolset.is_some()
+                || args.token_file.is_some()
+                || args.stdio
+            {
+                return Err(CliError::MissingServerAction);
+            }
+            child.home = child.home.or(args.home);
+            Ok(ServerPlan::Cancel(child))
         }
     }
 }
@@ -1658,7 +1697,9 @@ pub fn parse_modified_time(value: &str) -> Result<u64, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, CliPlan, IndexOperation, QueryFilter, parse_byte_size, parse_modified_time};
+    use super::{
+        Cli, CliPlan, ClientMode, IndexOperation, QueryFilter, parse_byte_size, parse_modified_time,
+    };
     use std::path::PathBuf;
 
     fn plan(arguments: &[&str], terminal: bool) -> CliPlan {
@@ -1972,6 +2013,20 @@ mod tests {
         };
         assert!(!args.json && !args.all);
         assert_eq!(args.home, Some(PathBuf::from("state")));
+    }
+
+    #[test]
+    fn server_cancel_requires_a_job_id_and_reaches_execution() {
+        let id = uuid::Uuid::from_u128(42);
+        let plan = Cli::try_parse_from(["zg", "--server", "cancel", &id.to_string()])
+            .expect("cancel syntax")
+            .into_plan(std::env::temp_dir())
+            .expect("cancel plan");
+        let CliPlan::Server(super::ServerPlan::Cancel(args)) = plan else {
+            panic!("expected server cancel plan");
+        };
+        assert_eq!(args.job_id, id);
+        assert!(Cli::try_parse_from(["zg", "--server", "cancel"]).is_err());
     }
 
     #[test]
@@ -2422,6 +2477,30 @@ mod tests {
         ] {
             assert!(Cli::try_parse_from(args.clone()).is_err(), "{args:?}");
         }
+    }
+
+    #[test]
+    fn index_management_defaults_to_direct_and_supports_explicit_daemon_submit() {
+        let CliPlan::Index {
+            mode,
+            operation,
+            no_wait,
+            ..
+        } = plan(&["zg", "--index", "repo"], false)
+        else {
+            panic!("index plan");
+        };
+        assert_eq!(mode, ClientMode::Direct);
+        assert!(matches!(operation, IndexOperation::Build(_)));
+        assert!(!no_wait);
+
+        let CliPlan::Index { mode, no_wait, .. } =
+            plan(&["zg", "--index", "repo", "--daemon", "--no-wait"], false)
+        else {
+            panic!("server index plan");
+        };
+        assert_eq!(mode, ClientMode::Server);
+        assert!(no_wait);
     }
 
     #[test]

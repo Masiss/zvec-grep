@@ -221,6 +221,32 @@ pub async fn execute_command(
     }
 }
 
+/// Submits a daemon index job and returns its first observed state without waiting.
+///
+/// The daemon owns the job after submission; dropping the response stream does
+/// not cancel it.
+///
+/// # Errors
+/// Returns connection, protocol, or readiness errors.
+pub async fn submit_index_job(
+    home: &std::path::Path,
+    request: zg_engine::api::index::IndexOptions,
+) -> Result<zg_daemon_protocol::JobView, DaemonError> {
+    let status = server_status(home).await?;
+    if !status.ready {
+        return Err(DaemonError::NotReady);
+    }
+    let url = status.server_url.ok_or(DaemonError::NotReady)?;
+    let prefix = url
+        .strip_suffix("/mcp")
+        .ok_or_else(|| DaemonError::McpBridge("daemon published an invalid server URL".into()))?;
+    http_client::post_index_submit(
+        &format!("{prefix}/admin/index"),
+        serde_json::to_vec(&request)?,
+    )
+    .await
+}
+
 /// Executes an index operation while forwarding live progress snapshots.
 /// # Errors
 /// Returns connection, protocol, or indexing errors, including a truncated stream.

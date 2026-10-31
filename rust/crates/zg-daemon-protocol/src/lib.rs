@@ -86,6 +86,8 @@ pub enum DaemonCommand {
     Info(InfoOptions),
     /// Read-only snapshot of resident index jobs, including retained history.
     Jobs,
+    /// Requests cancellation of a resident index job by id.
+    CancelJob(Uuid),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -200,6 +202,7 @@ pub enum DaemonReply {
     DropIndex(bool),
     Info(Box<InfoResult>),
     Jobs(Vec<JobView>),
+    CancelJob(bool),
 }
 
 /// One resident index job as observed by the daemon scheduler.
@@ -220,6 +223,15 @@ pub struct JobView {
     /// observation time while still queued).
     pub waited_millis: u64,
     pub blocking_job_id: Option<Uuid>,
+    /// Lower values run first: manual work is 0, watcher work is 1.
+    #[serde(default)]
+    pub priority: u8,
+    /// One-based position among queued jobs, or `None` when not queued.
+    #[serde(default)]
+    pub queue_position: Option<usize>,
+    /// Whether the scheduler can currently cancel this job.
+    #[serde(default)]
+    pub cancelable: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -425,6 +437,9 @@ mod tests {
             progress: None,
             waited_millis: 1_250,
             blocking_job_id: Some(uuid::Uuid::new_v4()),
+            priority: 0,
+            queue_position: Some(1),
+            cancelable: true,
         };
         let reply = super::DaemonReply::Jobs(vec![job.clone()]);
         let encoded = serde_json::to_value(&reply).expect("jobs reply should serialize");
@@ -452,6 +467,9 @@ mod tests {
             }),
             waited_millis: 30,
             blocking_job_id: None,
+            priority: 1,
+            queue_position: None,
+            cancelable: true,
         });
         let encoded = serde_json::to_string(&event).expect("job event should serialize");
         let decoded: IndexStreamEvent =

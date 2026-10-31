@@ -325,6 +325,9 @@ async fn execute_command(
                 .map(|reply| DaemonReply::Info(Box::new(reply))),
         ),
         DaemonCommand::Jobs => ExecutionResult::Success(DaemonReply::Jobs(state.runtimes.jobs())),
+        DaemonCommand::CancelJob(id) => {
+            ExecutionResult::Success(DaemonReply::CancelJob(state.runtimes.cancel_job(id)))
+        }
     };
     (StatusCode::OK, Json(result))
 }

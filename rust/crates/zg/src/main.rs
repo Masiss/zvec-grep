@@ -154,7 +154,8 @@ async fn execute_plan(plan: CliPlan) -> Result<(), Box<dyn Error>> {
             home,
             operation,
             output,
-        } => execute_index(mode, home.as_deref(), operation, output).await,
+            no_wait,
+        } => execute_index(mode, home.as_deref(), operation, output, no_wait).await,
         CliPlan::Status {
             mode,
             home,
@@ -585,6 +586,7 @@ async fn execute_index(
     home: Option<&Path>,
     operation: IndexOperation,
     output: zg_cli::OutputOptions,
+    no_wait: bool,
 ) -> Result<(), Box<dyn Error>> {
     let root = match &operation {
         IndexOperation::Build(request) => request.root.clone(),
@@ -592,9 +594,30 @@ async fn execute_index(
     }
     .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "index root is required"))?;
     let server = use_server(mode, home).await?;
+    eprintln!("route: {}", if server { "daemon" } else { "direct" });
+    if no_wait && !server {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--no-wait requires the daemon (--daemon or client.mode = server)",
+        )
+        .into());
+    }
+    if no_wait && matches!(operation, IndexOperation::Drop(_)) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--no-wait is only supported for index builds",
+        )
+        .into());
+    }
     match operation {
         IndexOperation::Build(mut request) => {
             authorize_index(&mut request, server, home).await?;
+            if no_wait {
+                let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
+                let job = zg_daemon::submit_index_job(&home, *request).await?;
+                zg_cli::write_job_transition(io::stdout().lock(), &job)?;
+                return Ok(());
+            }
             let progress = zg_cli::IndexProgressDisplay::new(
                 io::stderr(),
                 io::stderr().is_terminal(),
@@ -846,6 +869,23 @@ async fn execute_server_plan(plan: ServerPlan) -> Result<(), Box<dyn Error>> {
                     zg_cli::ColorMode::Auto,
                     stdout.is_terminal(),
                 )?;
+            }
+        }
+        ServerPlan::Cancel(args) => {
+            let home = zg_daemon::resolve_home(args.home)?;
+            let reply =
+                zg_daemon::execute_command(&home, DaemonCommand::CancelJob(args.job_id)).await?;
+            let DaemonReply::CancelJob(cancelled) = reply else {
+                return Err(protocol_mismatch("cancel_job"));
+            };
+            if cancelled {
+                println!("Cancelled daemon index job {}", args.job_id);
+            } else {
+                return Err(io::Error::other(format!(
+                    "daemon index job {} is unknown or already finished",
+                    args.job_id
+                ))
+                .into());
             }
         }
         ServerPlan::Run(args) => {

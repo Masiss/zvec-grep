@@ -164,6 +164,7 @@ impl SchedulerState {
 struct ScheduledJob {
     id: Uuid,
     canonical_root: PathBuf,
+    created_at: Instant,
     snapshot: Mutex<IndexJobSnapshot>,
     options: Mutex<Option<IndexOptions>>,
     cancellation: CancellationToken,
@@ -452,6 +453,42 @@ impl IndexJobScheduler {
         }
     }
 
+    /// Requests cancellation of one observed job by id.
+    pub(crate) fn cancel(&self, id: Uuid) -> bool {
+        let (job, followup) = {
+            let mut state = lock(&self.inner.state);
+            let Some(job) = state.jobs.get(&id).cloned() else {
+                return false;
+            };
+            if !matches!(
+                lock(&job.snapshot).state,
+                JobState::Queued | JobState::Running
+            ) {
+                return false;
+            }
+            let is_followup = state
+                .followup_by_root
+                .get(&job.canonical_root)
+                .is_some_and(|followup| followup.id == id);
+            let followup = if is_followup {
+                state.followup_by_root.remove(&job.canonical_root)
+            } else {
+                None
+            };
+            if let Some(followup) = &followup {
+                followup.cancellation.cancel();
+                finish_cancelled(followup, "indexing was cancelled");
+                mark_finished(&self.inner, &mut state, followup);
+            }
+            (job, followup)
+        };
+        if followup.is_some() {
+            return true;
+        }
+        job.cancellation.cancel();
+        true
+    }
+
     /// Cancel remaining work and release a root's retained history. Call after
     /// draining the root; otherwise active jobs enter retention when they finish.
     pub(crate) fn forget_root(&self, canonical_root: &PathBuf) {
@@ -567,6 +604,7 @@ fn create_job(
     Arc::new(ScheduledJob {
         id,
         canonical_root: canonical_root.clone(),
+        created_at: Instant::now(),
         snapshot: Mutex::new(IndexJobSnapshot {
             id,
             canonical_root,
@@ -1143,6 +1181,31 @@ fn job_view(state: &SchedulerState, job: &ScheduledJob, now: Instant) -> JobView
     } else {
         None
     };
+    let queue_position = if snapshot.state == JobState::Queued {
+        let mut queued = state
+            .jobs
+            .values()
+            .filter(|candidate| {
+                candidate.id == snapshot.id
+                    || candidate
+                        .snapshot
+                        .try_lock()
+                        .is_ok_and(|candidate| candidate.state == JobState::Queued)
+            })
+            .collect::<Vec<_>>();
+        queued.sort_by_key(|candidate| (candidate.created_at, candidate.id));
+        queued
+            .iter()
+            .position(|candidate| candidate.id == snapshot.id)
+            .map(|position| position + 1)
+    } else {
+        None
+    };
+    let priority = match snapshot.reason {
+        JobReason::Manual => 0,
+        JobReason::Watch => 1,
+    };
+    let cancelable = matches!(snapshot.state, JobState::Queued | JobState::Running);
     JobView {
         id: snapshot.id,
         root: snapshot.canonical_root.clone(),
@@ -1182,6 +1245,9 @@ fn job_view(state: &SchedulerState, job: &ScheduledJob, now: Instant) -> JobView
         )
         .unwrap_or(u64::MAX),
         blocking_job_id,
+        priority,
+        queue_position,
+        cancelable,
     }
 }
 
@@ -1683,6 +1749,9 @@ mod tests {
         assert!(first_view.progress.is_none());
         assert!(first_view.waited_millis < 5_000);
         assert!(first_view.blocking_job_id.is_none());
+        assert_eq!(first_view.priority, 0);
+        assert_eq!(first_view.queue_position, None);
+        assert!(first_view.cancelable);
 
         let other_view = views
             .iter()
@@ -1700,6 +1769,8 @@ mod tests {
             .expect("followup view");
         assert_eq!(followup_view.state, JobViewState::Queued);
         assert_eq!(followup_view.blocking_job_id, Some(first.job.id));
+        assert!(followup_view.queue_position.is_some());
+        assert!(followup_view.cancelable);
         assert!(followup_view.phase.is_none());
         assert!(followup_view.progress.is_none());
 

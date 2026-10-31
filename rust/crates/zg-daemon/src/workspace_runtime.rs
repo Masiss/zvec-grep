@@ -608,6 +608,10 @@ impl WorkspaceRuntimeManager {
         }
     }
 
+    pub(crate) fn cancel_job(&self, id: uuid::Uuid) -> bool {
+        self.inner.scheduler.cancel(id)
+    }
+
     pub(crate) fn jobs(&self) -> Vec<JobView> {
         self.inner.scheduler.jobs()
     }
