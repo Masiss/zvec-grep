@@ -9,7 +9,7 @@ for the current worktree. Historical detail remains in `HANDOFF.md`,
 - Worktree: `/home/masis/src/zvec-grep-integration`
 - Branch: `integration/upstream-rust`
 - Exact upstream base: `e1f93d2` (`upstream/main`)
-- State: **clean**, **25 commits ahead** of `e1f93d2`
+- State: **clean**, **28 commits ahead** of `e1f93d2`
 - Old worktree `work/zg-optimization` at `/home/masis/src/zvec-grep` is
   **dirty and untouched**. Do not reset, clean, or rebase it.
 - No push, PR, merge, production-default change, resource-limit change, or
@@ -91,30 +91,24 @@ Decision: **REJECT / ROLLBACK**; the provisional 300 ms query target is not
 negotiable in this comparison. Details and raw evidence are in
 `BENCHMARK-RESULTS.md`.
 
-## Handle-based maintenance feasibility — assessed
+## Handle-based maintenance — implemented, native gate FAILED, rolled back
 
-Full assessment: [`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](M3B-HANDLE-MAINTENANCE-FEASIBILITY.md).
+Full assessment and evidence: [`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](M3B-HANDLE-MAINTENANCE-FEASIBILITY.md).
 
-Verdict: **GO for the Rust-side design**, with mandatory native gates before
-implementation is accepted. Stable handles cannot be raw pointers: `Collection`
-owns a raw FFI handle, closes on `Drop`, and is not `Clone` (`zvec-rust-0.8.0
-collection.rs:117,680`), though it is `Send + Sync`. Each scalar table must hold
-`Arc<Collection>` and expose `handle()`, as the fork already does. Fragments are
-already behind `Arc<Fragments>`.
+The `Arc<Collection>` + maintenance-lease Phase A/B/C candidate was implemented
+and exercised. The pinned **zvec 0.8.0** native gate failed: `optimize()` rejects
+iterators (`create_iterator is not allowed while a maintenance operation ... is
+running`) and writes (`Failed to open wal file`), and the process can abort
+(`pthread lock: Invalid argument`, SIGABRT). The 0.7.2 Gate H/I evidence does
+not cover 0.8.0. Evidence: `/home/masis/bench/m3b-native-gate/run.log`.
 
-Minimal lifecycle: Phase A snapshots debt/generation and checks out handles under
-the state lock; Phase B runs native optimize under a new `maintenance: Mutex<()>`
-lease with no state lock; Phase C re-locks and acknowledges only if the
-generation is unchanged and all stages succeeded. `close()` must take the
-maintenance lease before setting `closed`/flushing. The current close wait loop
-is insufficient: it releases the state lock before taking the store lease, so a
-finalize can start in that window.
+Final state: outside-lock scalar maintenance is **NOT retained**; finalization
+is sequential under the state lock as before. The safe `Arc<Collection>` handle
+refactor and the lifecycle regressions remain. Five outside-lock tests are
+`#[ignore]`d with the blocker; handle lifetime, crash-marker recovery, scalar
+failure/retry, close-wait and deadlock stress remain active.
 
-Two gates are unresolved: the pinned **zvec 0.8.0** concurrency guarantee
-(Gate H/I evidence is 0.7.2), and the native seal window identified by the
-Phase 3 research (research-only; the prebuilt library may still block readers
-inside native optimize). Do not claim the 300 ms query target until both are
-verified on this branch.
+No 64-file A/B was run and no candidate was promoted.
 
 ## Current bottleneck: finalization / optimize
 
@@ -161,34 +155,26 @@ Relevant code:
   `git -C /home/masis/src/zvec-grep show abaf7bf:rust/crates/zg-engine/src/storage/store/mod.rs`
   (handle-based optimize outside the state lock, sequential).
 
-## Recommended next action (not implemented)
+## Recommended next action
 
-The overlap approach is **closed**. The remaining ~0.12 s gap to upstream is
-still finalization, but it must be closed without extending the state-lock
-window that readers block on.
+**Do not re-implement outside-lock optimize on zvec 0.8.0.** The native
+maintenance exclusion is a hard blocker. Safe options, in order:
 
-Implement the handle-based maintenance described in
-[`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](M3B-HANDLE-MAINTENANCE-FEASIBILITY.md):
-`Arc<Collection>` handles, a `maintenance` lease, and Phase A/B/C
-snapshot–optimize–ack. Before accepting it, run the pinned-zvec-0.8.0
-concurrency gate and the native seal-latency check; if either fails, stop and
-treat it as **REWORK** (native dependency decision), not as a reason to retry
-the rejected overlap. Do not:
+1. Keep the current sequential finalization and stop here unless a native
+   upgrade is authorized.
+2. If a newer zvec release explicitly allows query/write during optimize, pin
+   it and run the ignored native gate plus the five lifecycle regressions
+   before any benchmark. Do not treat 0.7.2 Gate H/I as evidence for a new
+   version.
+3. Only if native concurrency is proven: re-enable the handle-based Phase A/B/C
+   and run the 64-file paired A/B with query load under the existing benchmark
+   authorization.
+
+Do not:
 - increase optimizer threads (the 4-thread experiment is already rejected);
 - overlap native maintenance with the scalar stage while holding the lock;
-- cherry-pick `b4b8686` wholesale.
-
-A candidate must be measured with the same protocol used for the overlap:
-64-file mutation, concurrent in-process query load, paired repeats, recording
-mutation wall, per-stage optimize, query p50/p95, CPU, RSS, and I/O. Roll it
-back if query latency regresses.
-
-Tests to keep/extend before benchmarking:
-- reader `list_files()` and concurrent write/query while maintenance is in flight;
-- close/reopen during/after maintenance;
-- injected optimize failure keeps the marker and retries after reopen;
-- generation check preserves debt from a concurrent write;
-- no deadlock between state lock, maintenance lease, and close.
+- cherry-pick `b4b8686` wholesale;
+- benchmark or promote the blocked candidate.
 
 ## Hard constraints
 
@@ -211,6 +197,8 @@ Tests to keep/extend before benchmarking:
 - `5ac1b01` — M3-B fragment/dirty overlap candidate (rejected)
 - `5741e1d` — per-stage optimize telemetry (kept)
 - `0981a78` — revert the overlap candidate
+- `9fac03c` — Arc<Collection> scalar handles (kept)
+- `df5618a` — handle-based regressions and safe hooks (outside-lock tests ignored)
 
 ## Verification at handoff
 

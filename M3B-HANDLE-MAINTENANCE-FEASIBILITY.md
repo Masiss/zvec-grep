@@ -1,10 +1,12 @@
 # M3-B handle-based maintenance — feasibility assessment
 
-Status: **GO for the Rust-side design, with mandatory native gates.** Not an
-implementation, not a benchmark, not a production/default change. This document
-decides whether directories/entities/files `optimize()` can run outside
-`IndexStore`'s state lock using stable collection handles, and lists the focused
-regression needed before implementing it.
+Status: **NO-GO / BLOCKED on pinned zvec 0.8.0.** The Rust-side design is
+feasible and was implemented and exercised, but the required native
+concurrency gate failed: zvec 0.8.0 rejects iterators and writes while
+`optimize()` is running and can abort the process. The outside-lock execution
+was **not retained**; finalization remains under the state lock. No benchmark
+was run and no production/default change was made. This document keeps the
+design analysis, the focused regressions, and the blocker evidence.
 
 Evidence reused (no bottleneck re-research):
 
@@ -157,7 +159,8 @@ lock before taking the store lease, so a finalize can start in that window
    alone is insufficient; do not claim the 300 ms target.
 3. **Focused Rust regressions** (below) pass.
 
-This is why the verdict is GO for the design, not GO to ship without those gates.
+The Rust-side design is feasible, but adoption depends on those gates. The
+pinned 0.8.0 gate failed, so the implementation outcome is NO-GO (§8).
 
 ## 7. Focused regression required
 
@@ -192,16 +195,45 @@ scoped workers):
 10. Ignored native gate (not a normal unit test): concurrent query/write during
     optimize on the pinned library, with close/reopen and crash-marker checks.
 
-## 8. Verdict
+## 8. Implementation outcome and verdict
 
-**GO** for implementing handle-based maintenance with `Arc<Collection>` plus a
-maintenance lease, using the Phase A/B/C design above.
+**Implemented and exercised (then rolled back):** Phase A/B/C with
+`Arc<Collection>` handles, a `maintenance` lease, and the handle-lifetime /
+crash-marker / failure / deadlock regressions. The focused Rust behavior passed
+when the store was not under a native gate.
 
-**Not** GO to merge or benchmark-claim until the pinned zvec 0.8.0 concurrency
-and native seal window are verified. If those fail, the fallback is **REWORK**
-(a native dependency/lock-split decision), not returning to the rejected
-fragment/scalar overlap.
+**Native gate FAILED on the pinned zvec 0.8.0.** The gate ran real
+`Collection::optimize()` on the checked-out scalar handles while another thread
+queried and wrote the same store. It failed intermittently (about once in 7–12
+runs) with:
 
-Do not: increase optimizer threads, overlap native maintenance with scalar
-optimize under the state lock, cherry-pick `b4b8686` wholesale, change
-production defaults, or run the 421-file campaign from this assessment.
+- read/iterator: `FailedPrecondition: create_iterator is not allowed while a
+  maintenance operation (optimize, schema DDL, close or destroy) is running;
+  retry later`;
+- write: `InternalError: Failed to open wal file: .../files/1/0.wal`;
+- process abort: `pthread lock: Invalid argument`, then `SIGABRT`.
+
+So on zvec 0.8.0 the native maintenance exclusion is real and is **not**
+covered by the 0.7.2 Gate H/I evidence. Running scalar optimize outside the
+state lock while readers/writers proceed is unsafe. Evidence:
+`/home/masis/bench/m3b-native-gate/run.log`.
+
+**Final state:** the outside-lock path was not committed as the production
+behavior. Finalization stays sequential under the state lock (the same behavior
+as before the candidate). What remains in the tree:
+
+- `Arc<Collection>` handles for directories/entities/files (safe, no behavior
+  change);
+- thread-local test hooks and `scalar_handles_for_test`;
+- the lifecycle regressions. Five outside-lock tests are `#[ignore]`d with the
+  blocker reason; handle lifetime, crash-marker recovery, scalar failure/retry,
+  close-wait and deadlock stress remain active.
+
+**Verdict: NO-GO for handle-based outside-lock maintenance on zvec 0.8.0.**
+Reopen only with (a) a native zvec version/API that explicitly allows
+query/write during optimize and a passing native gate on the pinned version, or
+(b) a native read/write maintenance gate that intentionally preserves the
+latency trade-off. Do not benchmark or promote the blocked candidate.
+
+**Not done, by rule:** no 64-file A/B, no 421-file campaign, no optimizer-thread
+change, no default/storage-format change, no push/merge/deploy.

@@ -232,13 +232,13 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 
 ## Current state
 
-- Integration worktree is clean; branch is **25 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **28 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
 - No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No production default, migration, or release configuration changed.
 - M2 core and M3-A/M3-B fragment isolation are integrated; streaming staging and deferred maintenance remain open.
 - M3-B fragment/dirty overlap candidate (`5ac1b01`) was rejected after a concurrent-query p95 regression and reverted in `0981a78`. Per-stage optimize telemetry (`5741e1d`) is kept as diagnostic-only. See `BENCHMARK-RESULTS.md`.
-- Handle-based scalar maintenance feasibility is assessed as **GO with mandatory native gates** in `M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`; no implementation or benchmark was performed.
+- Handle-based scalar maintenance was implemented, but the pinned **zvec 0.8.0** native gate failed (iterators/writes rejected during optimize; SIGABRT). The outside-lock path was rolled back; finalization remains under the state lock. `Arc<Collection>` handles and the lifecycle regressions remain, with five outside-lock tests ignored. See `M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`. No benchmark was run.
 
 ## Next action
 
