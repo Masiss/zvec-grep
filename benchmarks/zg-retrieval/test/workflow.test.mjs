@@ -7,10 +7,12 @@ const workflow = await readFile(
   new URL(".github/workflows/retrieval-only.yml", repository),
   "utf8",
 );
-const prWorkflow = await readFile(
-  new URL(".github/workflows/retrieval-pr.yml", repository),
-  "utf8",
-);
+const prWorkflow = (
+  await readFile(
+    new URL(".github/workflows/retrieval-pr.yml", repository),
+    "utf8",
+  )
+).replace(/\\\n\s*/g, "");
 const action = await readFile(
   new URL(".github/actions/retrieval-authorize/action.yml", repository),
   "utf8",
@@ -19,10 +21,12 @@ const comparisonWorkflow = await readFile(
   new URL(".github/workflows/retrieval-comparison.yml", repository),
   "utf8",
 );
-const rustAction = await readFile(
-  new URL(".github/actions/rust-candidate-package/action.yml", repository),
-  "utf8",
-);
+const rustAction = (
+  await readFile(
+    new URL(".github/actions/rust-candidate-package/action.yml", repository),
+    "utf8",
+  )
+).replace(/\\\n\s*/g, "");
 
 // These bounded layout readers check our checked-in workflow contract. They are
 // not YAML parsers; actionlint validates the complete workflow/action syntax.
@@ -73,7 +77,12 @@ test("Retrieval-only retains its reusable and manual candidate/embedding inputs"
   const files = await readdir(new URL(".github/workflows/", repository));
   assert.deepEqual(
     files.filter((file) => /^retrieval.*\.ya?ml$/.test(file)).sort(),
-    ["retrieval-comparison.yml", "retrieval-only.yml", "retrieval-pr.yml"],
+    [
+      "retrieval-comparison.yml",
+      "retrieval-only.yml",
+      "retrieval-pr-comment.yml",
+      "retrieval-pr.yml",
+    ],
   );
   assert.deepEqual(Object.keys(jobs), [
     "authorize",
@@ -103,25 +112,25 @@ test("PR updates run Retrieval-only at the fork head SHA with local embedding an
   const job = block(prWorkflow, "retrieval", 2);
   assert.equal(
     [...block(prWorkflow, "jobs", 0).matchAll(/^ {2}([\w-]+):$/gm)].length,
-    1,
+    2,
   );
   assert.match(job, /uses: \.\/\.github\/workflows\/retrieval-comparison\.yml/);
   assert.equal(block(prWorkflow, "permissions", 4).trim(), "contents: read");
   assert.match(
     job,
-    /candidate_ref: \$\{\{ inputs\.candidate_sha \|\| github\.event\.pull_request\.head\.sha \}\}/,
+    /candidate_ref: "?\$\{\{ inputs\.candidate_sha \|\| github\.event\.pull_request\.head\.sha \}\}"?/,
   );
   assert.match(
     job,
-    /candidate_repository: \$\{\{ inputs\.candidate_repository \|\| github\.event\.pull_request\.head\.repo\.full_name \}\}/,
+    /candidate_repository: "?\$\{\{ inputs\.candidate_repository \|\| github\.event\.pull_request\.head\.repo\.full_name \}\}"?/,
   );
   assert.match(
     job,
-    /baseline_ref: \$\{\{ inputs\.baseline_sha \|\| github\.event\.pull_request\.base\.sha \}\}/,
+    /baseline_ref: "?\$\{\{ inputs\.baseline_sha \|\| github\.event\.pull_request\.base\.sha \}\}"?/,
   );
   assert.match(
     job,
-    /baseline_repository: \$\{\{ inputs\.baseline_repository \|\| github\.event\.pull_request\.base\.repo\.full_name \}\}/,
+    /baseline_repository: "?\$\{\{ inputs\.baseline_repository \|\| github\.event\.pull_request\.base\.repo\.full_name \}\}"?/,
   );
   assert.doesNotMatch(
     prWorkflow,
@@ -271,9 +280,9 @@ test("the selected source is built from rust/ and exact-commit package caching b
   assert.match(job, /uses: \.\/\.github\/actions\/rust-candidate-package/);
   assert.match(
     job,
-    /candidate_repository: \$\{\{ inputs\.candidate_repository \|\| \(inputs\.candidate_ref == 'main' && 'zvec-ai\/zvec-grep' \|\| github\.repository\) \}\}/,
+    /candidate_repository: "?\$\{\{ inputs\.candidate_repository \|\| \(inputs\.candidate_ref == 'main' && 'zvec-ai\/zvec-grep' \|\| github\.repository\) \}\}/,
   );
-  assert.match(job, /candidate_ref: \$\{\{ inputs\.candidate_ref \}\}/);
+  assert.match(job, /candidate_ref: "?\$\{\{ inputs\.candidate_ref \}\}/);
   assert.match(job, /cache_namespace: retrieval-rust/);
   assert.match(
     job,
@@ -286,8 +295,9 @@ test("the selected source is built from rust/ and exact-commit package caching b
   assert.match(rustAction, /ref: \$\{\{ inputs\.candidate_ref \}\}/);
   assert.match(rustAction, /path: candidate/);
   assert.match(rustAction, /working-directory: candidate\/rust/);
-  assert.match(rustAction, /candidate\/rust\/target\//);
-  assert.match(rustAction, /candidate\/rust\/Cargo\.lock/);
+  // PR-scoped Cargo caches are never restored by other PRs, so only the
+  // commit-bound package is cached.
+  assert.doesNotMatch(rustAction, /candidate\/rust\/target\//);
   assert.match(
     rustAction,
     /\$\{\{ inputs\.cache_namespace \}\}-package-v1-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.source\.outputs\.commit \}\}/,

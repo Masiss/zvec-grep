@@ -1,5 +1,5 @@
 name: Build Rust candidate package
-description: Pack a selected Rust source ref and verify the commit-bound tarball.
+description: Pack selected Rust source and verify its commit-bound tarball.
 inputs:
   candidate_repository:
     description: Repository containing the selected Rust source ref.
@@ -40,20 +40,11 @@ runs:
       uses: actions/cache@v5
       with:
         path: ${{ runner.temp }}/rust-package-cache
-        key: ${{ inputs.cache_namespace }}-package-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.commit }}
-    - name: Restore Cargo build state after a package cache miss
-      if: steps.rust-package-cache.outputs.cache-hit != 'true'
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          candidate/rust/target/
-        key: ${{ inputs.cache_namespace }}-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('candidate/rust/Cargo.lock', 'candidate/rust/rust-toolchain.toml') }}-${{ steps.source.outputs.commit }}
-        restore-keys: |
-          ${{ inputs.cache_namespace }}-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('candidate/rust/Cargo.lock', 'candidate/rust/rust-toolchain.toml') }}-
-          ${{ inputs.cache_namespace }}-cargo-v1-${{ runner.os }}-${{ runner.arch }}-
+        key: "${{ inputs.cache_namespace }}-package-v1-${{ runner.os }}-\
+          ${{ runner.arch }}-${{ steps.source.outputs.commit }}"
+    # No Cargo build cache: callers run on pull_request events, so saved entries
+    # stay in PR-scoped caches that other PRs never restore while each one
+    # still costs about 400 MB of the repository cache quota.
     - name: Install the candidate's pinned Rust toolchain
       if: steps.rust-package-cache.outputs.cache-hit != 'true'
       shell: bash
@@ -66,12 +57,14 @@ runs:
       run: |
         npm ci
         npm run pack:local
-        mapfile -t packages < <(find dist/npm -maxdepth 1 -type f -name '*.tgz' -print)
+        mapfile -t packages < <(find dist/npm -maxdepth 1 \
+          -type f -name '*.tgz' -print)
         if [ "${#packages[@]}" -ne 1 ]; then
           echo "Expected one local Rust npm package, found ${#packages[@]}" >&2
           exit 1
         fi
-        node "$GITHUB_WORKSPACE/benchmarks/shared/rust-package-cache.mjs" create \
+        node "$GITHUB_WORKSPACE/benchmarks/shared/rust-package-cache.mjs" \
+          create \
           --source .. \
           --package "${packages[0]}" \
           --output "$RUNNER_TEMP/rust-package-cache"
