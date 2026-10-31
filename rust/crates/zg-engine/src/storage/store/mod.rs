@@ -604,7 +604,7 @@ impl IndexStore {
     /// work is in flight. Directory/entity/file maintenance stays under the
     /// store lock because those tables still require mutable handles. The
     /// stages run sequentially: the M3-B overlap candidate was rejected after
-    /// it increased concurrent-reader latency (see BENCHMARK-RESULTS.md).
+    /// it increased concurrent-reader latency (see docs/release/BENCHMARK-RESULTS.md).
     pub(crate) fn finalize_writes(&self) -> EngineResult<()> {
         self.finalize_writes_detailed().map(|_| ())
     }

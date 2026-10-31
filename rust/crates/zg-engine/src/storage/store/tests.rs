@@ -2402,7 +2402,7 @@ fn dirty_optimize_failure_preserves_marker_and_retries_after_reopen() {
 }
 
 #[test]
-#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
 fn scalar_optimize_releases_the_store_state_lock_for_readers() {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
@@ -2449,7 +2449,7 @@ fn scalar_optimize_releases_the_store_state_lock_for_readers() {
 }
 
 #[test]
-#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
 fn scalar_optimize_allows_concurrent_writes_and_queries() {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
@@ -2507,7 +2507,7 @@ fn scalar_optimize_allows_concurrent_writes_and_queries() {
 }
 
 #[test]
-#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
 fn scalar_optimize_generation_change_preserves_marker() {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
@@ -2610,7 +2610,7 @@ fn close_waits_for_in_flight_scalar_optimization() {
 }
 
 #[test]
-#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
+#[ignore = "handle-based maintenance blocked: zvec 0.8.0 rejects readers/writers during optimize; see docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md"]
 fn close_race_before_maintenance_lease_preserves_recovery() {
     use std::sync::Arc;
     use std::time::{Duration, Instant};

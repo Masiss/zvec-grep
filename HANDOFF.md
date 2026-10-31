@@ -11,7 +11,7 @@
 - Source comparison: `origin/work/zg-optimization` (`abaf7bf`) vs `upstream/main`.
 - The old worktree/branch `work/zg-optimization` was not modified.
 - No push, PR, merge, existing zvec table/schema change, or new storage format was made. M2 adds an additive `reconciliation/file-*.json` sidecar, accepted by the owner as auxiliary persisted state with recovery/compatibility coverage.
-- Owner-accepted behavior changes: model compute default cap 8, watcher 750 ms trailing debounce / 5 s cap, M2 sidecar, and rebuild preflight (one-active-copy hard floor, conservative target, warning band). See `RELEASE-READINESS.md` and `MERGE-READINESS.md` §4.
+- Owner-accepted behavior changes: model compute default cap 8, watcher 750 ms trailing debounce / 5 s cap, M2 sidecar, and rebuild preflight (one-active-copy hard floor, conservative target, warning band). See `docs/release/RELEASE-READINESS.md` and `docs/release/MERGE-READINESS.md` §4.
 
 ## Ported commits
 
@@ -80,8 +80,8 @@ The two config failures are **not reproducible on clean upstream** under equival
 
 ## 2026-10-31 integration pass 2 — M2/M3
 
-Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
-[`BENCHMARK-PLAN.md`](BENCHMARK-PLAN.md).
+Full feature matrix: [`docs/release/FEATURE-MATRIX.md`](docs/release/FEATURE-MATRIX.md). Benchmark plan:
+[`docs/release/BENCHMARK-PLAN.md`](docs/release/BENCHMARK-PLAN.md).
 
 ### M2 — selective reconciliation / embedding reuse
 
@@ -172,7 +172,7 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 - Result: initial 1.71 s vs upstream 1.72 s; mutation 1.38 s vs upstream 1.21 s;
   peak RSS 382/447 MiB vs upstream 435/508 MiB. Decision: **INCONCLUSIVE / NOT
   A WIN**; no 421-file run.
-- Full evidence: [`BENCHMARK-RESULTS.md`](BENCHMARK-RESULTS.md).
+- Full evidence: [`docs/release/BENCHMARK-RESULTS.md`](docs/release/BENCHMARK-RESULTS.md).
 
 ### M2 reuse diagnostic — 2026-10-31
 
@@ -191,11 +191,11 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
   - Query output SHA-256 identical across ON/OFF/upstream.
 - Conclusion: **M2 reuse works and is net-positive at this size, but is not the
   wall-time bottleneck.** No batching change is justified by this evidence.
-- Evidence: `BENCHMARK-RESULTS.md`, `/home/masis/bench/reuse-diag/diag-raw.json`.
+- Evidence: `docs/release/BENCHMARK-RESULTS.md`, `/home/masis/bench/reuse-diag/diag-raw.json`.
 
 ### Final consolidation verification — 2026-10-31
 
-Full evidence and commands: [`MERGE-READINESS.md`](MERGE-READINESS.md).
+Release package and full evidence: [`docs/release/README.md`](docs/release/README.md).
 
 - `cargo test -p zg-engine --lib` — **702 passed, 0 failed, 15 ignored**.
 - `cargo test -p zg-engine` integration targets — **40 passed** (`concurrent_queries` 8, `engine_storage` 17, `file_selection` 8, `index_version` 2, `scan_failures` 3, `storage_crash` 2).
@@ -203,8 +203,8 @@ Full evidence and commands: [`MERGE-READINESS.md`](MERGE-READINESS.md).
 - `cargo test -p zg-cli` — **180 passed**; `zg-transport-mcp` — **60 passed**; `zg-daemon-protocol` — **5**; `zg-zvec-fp16` — **2**; `zg-host-native` — **44**.
 - clippy (engine/daemon/cli/transport-mcp, all targets, `-D warnings`) — **PASS**; `cargo fmt --check` — **PASS**; `cargo build -p zg-cli --release` — **PASS**.
 - Use an absolute TMPDIR without `..` (e.g. `/home/masis/src/zvec-grep-integration/.tmp`); a `..` in TMPDIR makes MCP path fixtures fail for environmental reasons.
-- Authorized 64-file confirmation: 6/6 runs valid at the run level, formal result **INCONCLUSIVE/exploratory** (upstream 9–11 query samples and one 2.8 s outlier). See `BENCHMARK-RESULTS.md`.
-- Release gates, upgrade/downgrade, sidecar crash recovery, #10 audit, and rollback: [`RELEASE-READINESS.md`](RELEASE-READINESS.md). Verdict: **release candidate READY; production rollout NOT READY** (no 421-file/production benchmark, M3-B native blocker, #10 not implemented).
+- Authorized 64-file confirmation: 6/6 runs valid at the run level, formal result **INCONCLUSIVE/exploratory** (upstream 9–11 query samples and one 2.8 s outlier). See `docs/release/BENCHMARK-RESULTS.md`.
+- Release gates, upgrade/downgrade, sidecar crash recovery, #10 audit, and rollback: [`docs/release/RELEASE-READINESS.md`](docs/release/RELEASE-READINESS.md). Verdict: **release candidate READY; production rollout NOT READY** (no 421-file/production benchmark, M3-B native blocker, #10 not implemented).
 - CLI/MCP release smoke: `zg 0.3.0-rc.2`, MCP protocol `2024-11-05`, agent 1 tool, full 6 tools, no protocol error; artifacts `/home/masis/bench/release-readiness-20261031/`.
 
 ### Remaining blockers / next steps
@@ -238,13 +238,13 @@ Full evidence and commands: [`MERGE-READINESS.md`](MERGE-READINESS.md).
 
 ## Current state
 
-- Integration worktree is clean; branch is **32 commits ahead** of `upstream/main`.
+- Integration worktree is clean; branch is **33 commits ahead** of `upstream/main`.
 - Old `work/zg-optimization` and its dirty working tree are untouched.
 - No M4 experimental code was ported.
-- No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No migration or release configuration changed. Owner-accepted behavior changes: compute cap 8, watcher debounce, rebuild preflight warning band (see `RELEASE-READINESS.md`).
+- No existing zvec table/schema/format change; M2 adds an additive reconciliation sidecar. No migration or release configuration changed. Owner-accepted behavior changes: compute cap 8, watcher debounce, rebuild preflight warning band (see `docs/release/RELEASE-READINESS.md`).
 - M2 core and M3-A/M3-B fragment isolation are integrated; streaming staging and deferred maintenance remain open.
-- M3-B fragment/dirty overlap candidate (`5ac1b01`) was rejected after a concurrent-query p95 regression and reverted in `0981a78`. Per-stage optimize telemetry (`5741e1d`) is kept as diagnostic-only. See `BENCHMARK-RESULTS.md`.
-- Handle-based scalar maintenance was implemented, but the pinned **zvec 0.8.0** native gate failed (iterators/writes rejected during optimize; SIGABRT). The outside-lock path was rolled back; finalization remains under the state lock. `Arc<Collection>` handles and the lifecycle regressions remain, with five outside-lock tests ignored. See `M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`. No benchmark was run.
+- M3-B fragment/dirty overlap candidate (`5ac1b01`) was rejected after a concurrent-query p95 regression and reverted in `0981a78`. Per-stage optimize telemetry (`5741e1d`) is kept as diagnostic-only. See `docs/release/BENCHMARK-RESULTS.md`.
+- Handle-based scalar maintenance was implemented, but the pinned **zvec 0.8.0** native gate failed (iterators/writes rejected during optimize; SIGABRT). The outside-lock path was rolled back; finalization remains under the state lock. `Arc<Collection>` handles and the lifecycle regressions remain, with five outside-lock tests ignored. See `docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`. No benchmark was run.
 
 ## Next action
 

@@ -37,7 +37,7 @@ benchmark was performed.
 | G5 Write → finalize → optimize → query audit | **PASS (audit only)** | Committed rows are searchable before optimize; marker/generation/debt behavior inspected. #10 remains unimplemented by instruction. |
 | G6 Clean CI | **PASS** | 1,157 tests passed, 0 failed, 15 ignored; clippy `-D warnings`, fmt, release build. |
 | G7 CLI/MCP release smoke | **PASS** | Release `zg --version`/`--help`; MCP initialize + `tools/list` for agent (1 tool) and full (6 tools), no protocol error. |
-| G8 Merge package, release gates, rollback | **PASS** | This report + `MERGE-READINESS.md` + updated handoffs; rollback below. |
+| G8 Merge package, release gates, rollback | **PASS** | `docs/release/` package (notes, manifest, PR description, gates, evidence, rollback); handoffs at repo root. |
 | G9 Production qualification | **NOT READY** | 64-file confirmation INCONCLUSIVE; no 421-file/production benchmark; M3-B native blocker; #10 not implemented. |
 
 ## 4. Upgrade / downgrade compatibility

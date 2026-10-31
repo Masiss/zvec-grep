@@ -2,14 +2,14 @@
 
 Read this first. It supersedes the “Next action” at the bottom of `HANDOFF.md`
 for the current worktree. Historical detail remains in `HANDOFF.md`,
-`FEATURE-MATRIX.md`, and `BENCHMARK-RESULTS.md`.
+`docs/release/FEATURE-MATRIX.md`, and `docs/release/BENCHMARK-RESULTS.md`.
 
 ## Branch / worktree
 
 - Worktree: `/home/masis/src/zvec-grep-integration`
 - Branch: `integration/upstream-rust`
 - Exact upstream base: `e1f93d2` (`upstream/main`)
-- State: **clean**, **32 commits ahead** of `e1f93d2`
+- State: **clean**, **33 commits ahead** of `e1f93d2`
 - Old worktree `work/zg-optimization` at `/home/masis/src/zvec-grep` is
   **dirty and untouched**. Do not reset, clean, or rebase it.
 - No push, PR, merge, production-default change, resource-limit change, or
@@ -58,7 +58,7 @@ this evidence.
 
 Evidence:
 
-- `BENCHMARK-RESULTS.md`
+- `docs/release/BENCHMARK-RESULTS.md`
 - `/home/masis/bench/reuse-diag/diag-raw.json`
 - `/home/masis/bench/reuse-diag/<variant>-r{1,2,3}/`
 - `/home/masis/bench/reuse-final-check-diag.txt`
@@ -89,11 +89,11 @@ for that window. Fragment optimize itself also slowed (486–580 ms → 592–66
 
 Decision: **REJECT / ROLLBACK**; the provisional 300 ms query target is not
 negotiable in this comparison. Details and raw evidence are in
-`BENCHMARK-RESULTS.md`.
+`docs/release/BENCHMARK-RESULTS.md`.
 
 ## Handle-based maintenance — implemented, native gate FAILED, rolled back
 
-Full assessment and evidence: [`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](M3B-HANDLE-MAINTENANCE-FEASIBILITY.md).
+Full assessment and evidence: [`docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md).
 
 The `Arc<Collection>` + maintenance-lease Phase A/B/C candidate was implemented
 and exercised. The pinned **zvec 0.8.0** native gate failed: `optimize()` rejects
@@ -112,8 +112,8 @@ No 64-file A/B was run and no candidate was promoted.
 
 ## Consolidation and release-readiness — complete
 
-Reports: [`MERGE-READINESS.md`](MERGE-READINESS.md),
-[`RELEASE-READINESS.md`](RELEASE-READINESS.md). Verdict:
+Release package: [`docs/release/README.md`](docs/release/README.md) (notes,
+manifest, PR description, gates, evidence, rollback). Verdict:
 **merge/release-candidate READY for review; production rollout NOT READY**
 (no 421-file/production benchmark, M3-B native blocker, #10 not implemented).
 
@@ -220,7 +220,7 @@ lifecycle regressions. Do not retry the overlap or optimizer-thread experiments.
 - `9fac03c` — Arc<Collection> scalar handles (kept)
 - `df5618a` — handle-based regressions and safe hooks (outside-lock tests ignored)
 - `4929ffc` — model runtime override bound tests
-- `MERGE-READINESS.md` + this consolidation/benchmark update
+- `docs/release/MERGE-READINESS.md` + this consolidation/benchmark update
 
 ## Verification at handoff
 

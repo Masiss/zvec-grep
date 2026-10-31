@@ -66,7 +66,7 @@ permit readers or writers during `optimize()`. A durable `optimize.pending`
 marker and a writer-generation check make finalization retry-safe. Modified-file
 embedding reuse is an optional additive `reconciliation/` sidecar bound to the
 stored FP16 vector; it never changes canonical rows or query semantics. See
-[`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](../M3B-HANDLE-MAINTENANCE-FEASIBILITY.md)
+[`M3B-HANDLE-MAINTENANCE-FEASIBILITY.md`](../docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md)
 for the native concurrency limit.
 
 ## Resource ownership

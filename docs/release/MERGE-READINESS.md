@@ -199,15 +199,14 @@ write-up: `BENCHMARK-RESULTS.md`.
    intentional.
 5. **Sidecar:** accepted as auxiliary persisted state; it adds a directory and
    I/O. Stale hints are safe but may cause unnecessary re-embedding.
-6. **Docs placement:** `HANDOFF*.md`, `BENCHMARK-*.md`, `FEATURE-MATRIX.md`,
-   `M3B-*.md`, `MERGE-READINESS.md`, and `RELEASE-READINESS.md` are branch
-   artifacts at repo root; decide whether they stay or move to an internal
-   evidence location before merge.
+6. **Docs placement:** resolved — release/evidence documents live in
+   `docs/release/`; operational handoffs remain at the repository root.
 
 ## 10. Recommended merge steps
 
-1. Decide the placement of the branch evidence docs.
-2. Add the accepted behavior changes to release notes.
-3. Re-run the summary suites/CI with the absolute TMPDIR convention.
+1. Review `docs/release/README.md`, release notes, manifest, and PR description.
+2. Confirm the accepted behavior changes are in the release notes.
+3. Re-run the summary suites/CI with the absolute TMPDIR convention if the merge
+   target differs.
 4. Merge the safe sequential implementation; do not enable the blocked M3-B
    path or claim production qualification.
