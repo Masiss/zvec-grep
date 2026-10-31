@@ -151,10 +151,28 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 - `f5e7208` — `test(engine): cover reconciliation sidecar rename removal`
 - `acdf8d1` — `docs: record reconciliation rename and final correctness counts`
 
+### Benchmark pass — 2026-10-31
+
+- Corpus: 64 camera `.cs` files, 429,535 bytes, manifest `f5fc630a…`.
+- Arms: fork `abaf7bf`, upstream `e1f93d2`, integration branch.
+- Three repeats each, `taskset -c 0,1`, release builds. No memory cgroup, so
+  results are exploratory, not qualification-grade.
+- **Bug found and fixed**: manifest vector fingerprint hashed the original f32
+  vector, but storage is FP16; decoded vectors never matched, so M2 reuse was
+  rejected. Fingerprint now hashes `half::f16::from_f32(...).to_bits()`; added
+  `vector_fingerprint_matches_the_fp16_representation`.
+- Also restored parallel finalization for the dirty
+  `directories/entities/files` collections (`optimize_dirty`), preserving M3-A
+  dirty selection while avoiding a serial regression.
+- Result: initial 1.71 s vs upstream 1.72 s; mutation 1.38 s vs upstream 1.21 s;
+  peak RSS 382/447 MiB vs upstream 435/508 MiB. Decision: **INCONCLUSIVE / NOT
+  A WIN**; no 421-file run.
+- Full evidence: [`BENCHMARK-RESULTS.md`](BENCHMARK-RESULTS.md).
+
 ### Verification (pass 2)
 
-- `cargo test -p zg-engine --lib` — **684 passed, 0 failed, 10 ignored**.
-- `cargo test -p zg-daemon` — **124 passed, 0 failed**.
+- `cargo test -p zg-engine --lib` — **685 passed, 0 failed, 10 ignored** (after FP16 fix).
+- `cargo test -p zg-daemon` — **124 passed, 0 failed** (after final code).
 - `cargo clippy -p zg-engine -p zg-daemon --all-targets -- -D warnings` — **PASS**.
 - `cargo fmt --all -- --check` — **PASS**.
 - `git diff --check` — **PASS**.
@@ -170,8 +188,11 @@ Full feature matrix: [`FEATURE-MATRIX.md`](FEATURE-MATRIX.md). Benchmark plan:
 3. **M3-B full lock isolation**: directories/entities/files still require the
    state lock. Next: make their handles cloneable or move their native
    maintenance behind a read-session boundary.
-4. **Three-way benchmark**: prepared in `BENCHMARK-PLAN.md`, not executed.
-   `benchmark-policy.json` still has zero authorized pair operations.
+4. **Three-way benchmark**: 64-file pilot executed (3 repeats, 2-CPU affinity,
+   no memory cgroup). Result: **INCONCLUSIVE / NOT A WIN** — initial equals
+   upstream, mutation 13.5% slower, RSS lower. See `BENCHMARK-RESULTS.md`.
+   Do not run 421 files until reuse telemetry and manifest I/O overhead are
+   understood.
 5. **Storage sidecar decision**: the reconciliation directory is additive and
    does not alter existing zvec tables. If the owner considers any new on-disk
    sidecar a storage-format change, decide before release.

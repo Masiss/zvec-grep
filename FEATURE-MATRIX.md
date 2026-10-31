@@ -27,7 +27,7 @@
 | 6 | M2 entity/fragment fingerprint invalidation | `FileManifest` entity + fragment entries; `b4b8686` | no per-file embedding manifest | **INTEGRATED (simplified)** fragment fingerprint includes model metadata + exact embedding input; entity entry is unnecessary because `fragment_id` already encodes entity content/range + ordinal. |
 | 7 | M2 unstable hosted-model reuse guard | `QwenEmbeddingModel::identity_is_stable = false`; `b4b8686` | no identity contract | **INTEGRATED** `EmbeddingModel::identity_is_stable` default true; Qwen false; empty fingerprint is never published or reused. |
 | 8 | M3-A mutation-aware finalization | per-collection mutation debt; `b4b8686` | one `needs_optimize` bool; all collections optimized | **INTEGRATED** dirty mask (`directories/entities/files/fragments`); only dirty collections are finalized; marker remains crash barrier; store tests pass. |
-| 9 | M3-B native fragment optimize outside `Mutex<StoreState>` | native optimize outside store lock; `b4b8686` | `finalize_writes_with` holds state mutex through all four optimizers | **PARTIAL / INTEGRATED** `Fragments` is `Arc`; `fragments.optimize()` runs after releasing the state lock. `directories/entities/files` still optimize under the lock because their handles are mutable. `write_generation` preserves debt from concurrent writes; `close` waits for in-flight optimize. **BENCHMARK** for lock-wait/p95. |
+| 9 | M3-B native fragment optimize outside `Mutex<StoreState>` | native optimize outside store lock; `b4b8686` | `finalize_writes_with` holds state mutex through all four optimizers | **PARTIAL / INTEGRATED** `Fragments` is `Arc`; `fragments.optimize()` runs after releasing the state lock. `directories/entities/files` still optimize under the lock because their handles are mutable. `write_generation` preserves debt from concurrent writes; `close` waits for in-flight optimize. **BENCHMARKED (64-file pilot)**: fragment isolation kept; wall/RSS did not show a lock win at this size. See `BENCHMARK-RESULTS.md`. |
 | 10 | M3-B deferred maintenance (threshold, age deadline, durable marker, epoch/ack) | `b4b8686`; `rust/docs/m3b-handoff.md` | durable `optimize.pending` marker only | **NOT INTEGRATED** — needs a policy/config decision and benchmark; current marker + generation is the safe subset. Next: add opt-in threshold/age under benchmark policy, then paired idle/loaded test. |
 | 11 | M3-B read-session separation | `read_session.rs` changes + `zg_memory::reclaim` | read sessions + write eviction already exist | **COVERED** upstream; fork's `zg_memory` reclamation is **SKIP** (would add a parallel memory abstraction). |
 | 12 | Rebuild disk-space preflight | `workspace/build.rs`; 2x active + 4 GiB | no preflight | **INTEGRATED** in `workspace/index.rs`; called before `prepare_build` when an active index exists; conservative refusal, no cap change. |
@@ -46,10 +46,33 @@
 
 | Area | Fork choice | Upstream choice | Current integration | Needed evidence |
 |---|---|---|---|---|
-| Modified-file embedding | persistent per-file manifest + streaming staging | re-embed all fragments of a modified file | manifest reuse without streaming | paired index benchmark: embedding calls/vector count, wall, RSS; crash/reopen manifest behavior |
+| Modified-file embedding | persistent per-file manifest + streaming staging | re-embed all fragments of a modified file | manifest reuse without streaming | **64-file pilot: no wall win** (mutation 1.38 s vs upstream 1.21 s); reuse telemetry still missing. See `BENCHMARK-RESULTS.md`. |
 | Finalization | per-collection debt + deferred age/threshold | all collections under one store lock | dirty mask + fragment optimize outside lock | lock-wait/p95 under concurrent queries and writes |
 | Read path | M4 lock-split/base-delta | read sessions + parallel optimize | upstream | M4 remains research-only |
 | Scanner | streaming `read_stream` + disk staging | whole-file read | whole-file read | memory peak vs corpus size before staging |
+
+## Benchmark result — 2026-10-31 (64-file pilot)
+
+Three repeats per arm, 2-CPU affinity, release builds, no memory cgroup:
+**exploratory, not qualification-grade**.
+
+| Phase | Fork | Upstream | Integration |
+|---|---:|---:|---:|
+| Initial index | 1.83 s / 380 MiB | 1.72 s / 435 MiB | 1.71 s / 382 MiB |
+| Mutation (24 entities) | 1.50 s / 450 MiB | **1.21 s / 508 MiB** | 1.38 s / 447 MiB |
+| FTS query | **0.42 s / 280 MiB** | 0.56 s / 284 MiB | 0.56 s / 284 MiB |
+| Reopen query | **0.41 s / 280 MiB** | 0.56 s / 284 MiB | 0.56 s / 284 MiB |
+
+- Initial index: integration equals upstream, faster than fork.
+- Mutation: integration is **13.5% slower than upstream**; M2 reuse is not a
+  demonstrated wall-time win at this corpus/model size.
+- Integration peak RSS is lower in initial/mutation, consistent with fewer live
+  vectors but not proof of reuse.
+- Bug found: the manifest vector fingerprint hashed `f32`, while storage is
+  FP16, so reuse never matched. Fixed to hash the FP16 representation; final
+  numbers use the fixed binary.
+- Decision: **INCONCLUSIVE / NOT A WIN**. Add reuse telemetry and batch manifest
+  I/O before the 421-file run. Full evidence: [`BENCHMARK-RESULTS.md`](BENCHMARK-RESULTS.md).
 
 ## Coverage rule
 
