@@ -2,7 +2,7 @@
 
 Status: **PASS for W2c acceptance; W3 gated on verifier surface.**
 
-Baseline: `50d53ea` (W2b). Full design and results:
+Baseline: `50d53ea` (W2b). Implementation: `d366692`. Full design and results:
 [`rust/docs/deep-storage-integrity-w2c.md`](../../../../../rust/docs/deep-storage-integrity-w2c.md).
 
 ## Evidence

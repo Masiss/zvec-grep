@@ -2,7 +2,7 @@
 
 Status: **PASS for W2c acceptance; W3 remains gated on the verifier surface.**
 
-Baseline: `50d53ea` (W2b). Date: 2026-11-01.
+Baseline: `50d53ea` (W2b). Implementation: `d366692`. Date: 2026-11-01.
 
 Scope: `zg-engine` incremental publication only. Native zvec remains pinned to
 0.7.2; ZGM2, searchable index format, scheduler, UX V2, policy and thresholds
