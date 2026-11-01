@@ -122,12 +122,16 @@ phase changes.
 
 Implemented:
 
-- Management commands (`--index`, `--rebuild`, `--drop`) are direct by default.
-- Use `--daemon` (or `client.mode = server`) to route through the resident
-  daemon. The top-level `--server` flag remains daemon lifecycle control.
-- The CLI prints `route: direct` or `route: daemon` before running.
+- Management commands (`--index`, `--rebuild`, `--drop`) default to **auto**:
+  route to a ready resident daemon, otherwise run direct.
+- The CLI always prints `route: direct` or `route: daemon` before running.
+- `--daemon` forces daemon routing; `--mode direct` forces direct routing.
+  The top-level `--server` flag remains daemon lifecycle control.
 - `--no-wait` submits the daemon index job, prints the job id, and returns
   without waiting.
+- Default auto routing is what lets UX2 run in the normal operator flow: a
+  default `zg --index` with a live watcher reaches the daemon scheduler and can
+  supersede that watcher.
 
 ### Watcher scope
 
@@ -144,7 +148,7 @@ Status reporting for unusually large skipped trees remains a follow-up.
 | Phase | Work | Acceptance |
 |---|---|---|
 | UX0 | JobView + `--server jobs` + phase/status rendering | **Implemented**; `cargo test -p zg-daemon-protocol`, `cargo test -p zg-cli jobs`, and `cargo test -p zg-daemon --lib job_view` |
-| UX1 | Explicit routing + job id output + `--no-wait` | **Implemented**; management commands default direct and print their route |
+| UX1 | Explicit routing + job id output + `--no-wait` | **Implemented**; default auto routes to a ready daemon or direct, always printing the route |
 | UX2 | Manual priority + same-root watcher supersede | **Implemented**; active watcher is cancelled at its next safe checkpoint and resumes through a coalesced follow-up |
 | UX3 | Queue position + cancellation + configurable lanes | **Implemented** for queue position, priority, cancelability, and `--server cancel`; timeout remains follow-up |
 | UX4 | Watcher scope/default-ignore hardening | **Implemented** for default ignores; skipped-scope reporting remains follow-up |

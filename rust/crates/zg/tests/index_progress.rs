@@ -100,6 +100,40 @@ fn direct_and_server_report_index_progress_on_stderr() {
     assert!(!String::from_utf8_lossy(&failed.stdout).contains("Workspace index\n"));
 }
 
+#[test]
+fn default_index_routes_to_ready_daemon_and_falls_back_direct() {
+    let fixture = Fixture {
+        root: TempDir::new().expect("workspace"),
+        state: TempDir::new().expect("state"),
+    };
+
+    let direct = fixture.run(&["--index", "--no-color"]);
+    assert!(
+        direct.status.success(),
+        "{}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&direct.stderr).contains("route: direct"),
+        "{}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+
+    fixture.start_server();
+    let daemon = fixture.run(&["--index", "--no-color"]);
+    assert!(
+        daemon.status.success(),
+        "{}",
+        String::from_utf8_lossy(&daemon.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&daemon.stderr);
+    assert!(stderr.contains("route: daemon"), "{stderr}");
+    assert!(
+        stderr.contains("Daemon index job"),
+        "default routing must expose the daemon job: {stderr}"
+    );
+}
+
 fn roots_line(output: &str) -> &str {
     output
         .lines()

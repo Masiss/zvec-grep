@@ -1432,10 +1432,7 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
     let mode = if args.daemon {
         ClientMode::Server
     } else {
-        match resolve_client_mode(args.mode)? {
-            ClientMode::Auto => ClientMode::Direct,
-            mode => mode,
-        }
+        resolve_client_mode(args.mode)?
     };
     let home = args.home.clone();
     let output = OutputOptions {
@@ -2480,7 +2477,7 @@ mod tests {
     }
 
     #[test]
-    fn index_management_defaults_to_direct_and_supports_explicit_daemon_submit() {
+    fn index_management_defaults_to_auto_and_supports_explicit_daemon_submit() {
         let CliPlan::Index {
             mode,
             operation,
@@ -2490,7 +2487,7 @@ mod tests {
         else {
             panic!("index plan");
         };
-        assert_eq!(mode, ClientMode::Direct);
+        assert_eq!(mode, ClientMode::Auto);
         assert!(matches!(operation, IndexOperation::Build(_)));
         assert!(!no_wait);
 
