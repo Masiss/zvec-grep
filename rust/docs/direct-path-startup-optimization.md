@@ -1,6 +1,7 @@
 # Direct-path Startup Optimization
 
-Status: **implemented and verified; keep the clean-scan fast path.**
+Status: **implemented and verified; keep the clean-scan fast path. V6 adds
+metadata-trusted no-op for large workspaces.**
 Baseline commit: `3be680b`. Searchable index format and reconciliation `ZGM2`
 manifests are unchanged.
 
@@ -37,7 +38,10 @@ startup fast path:
 - Metadata fingerprint covers every scanner-discovered path, size, mtime,
   ctime/inode identity and source fingerprint, plus the serialized scan rules.
 - Content fingerprint reads the discovered files (bounded to 256 MiB) and
-  hashes their bytes. The sidecar stores both fingerprints.
+  hashes their bytes. The sidecar stores both fingerprints when available.
+- From v6, a trusted ctime/inode identity can skip the content read and publish
+  a `null` content fingerprint. This also removes the permanent 256 MiB
+  exclusion for large workspaces; untrusted metadata still requires content.
 - A cheap storage metadata seal hashes generation storage paths, sizes and
   ctime/inode identity; a changed/missing storage file invalidates the fast
   path without opening zvec.
@@ -51,18 +55,20 @@ startup fast path:
   when metadata is unchanged the normal pipeline is asked to recheck content.
 - On a hit, it writes the workspace manifest update and returns a no-op
   `IndexResult` without acquiring a model or opening the zvec store.
-- The sidecar is v4 and is written only after a successful index when the
-  pre-index and post-index metadata/content fingerprints are equal and a storage
-  seal can be produced. It is
+- The sidecar is v6 and is written only after a successful index when the
+  pre-index and post-index metadata/content fingerprints are equal, the
+  metadata trust predicate holds, and a storage seal can be produced. It is
   removed before any normal index attempt and refreshed after a successful
   incremental change or rebuild.
 - The sidecar is a startup hint, not searchable index state. Legacy `ZGM2`
   sidecars and existing index layouts are untouched.
 
 The content check closes the same-size/same-mtime false-no-op gap for a
-workspace with a usable sidecar. It is deliberately bounded: above 256 MiB, or
-when any file changes while being read, no sidecar is written and the normal
-path is used.
+workspace with untrusted metadata. When ctime/inode identity is trusted, the
+content read is skipped. Content hashing remains bounded to 256 MiB; if it is
+unavailable but metadata is trusted, the sidecar stores a `null` content
+fingerprint and the next run still requires a matching metadata identity and
+storage seal.
 
 ## Before/after
 
@@ -74,7 +80,10 @@ Single host, one fixture, repeated direct runs:
 | Warm no-op p95 | 577.63 ms | **72.49 ms** | ~7.6× faster |
 | Peak PSS | 316,864 KiB | **33,076 KiB** | ~89.6% lower |
 | Peak RSS / process | ~320 MB | ~36 MB | lower |
-| Fast no-op CPU | — | ~0.05 s user+sys | no model/storage open; reads fixture content |
+| V6 warm no-op p50 | — | **49.98 ms** | trusted metadata; no content read |
+| V6 warm no-op p95 | — | **53.91 ms** | 15 runs, 2,000 files |
+| V6 peak RSS | — | **36,860 KiB** | direct CLI |
+| Fast no-op CPU | — | ~0.05 s user+sys | no model/storage open |
 
 Incremental one-file change: 29.87 s, peak RSS 1.11 GB; next no-op 0.03 s.
 Rebuild: 170.73 s, peak RSS 2.06 GB; post-rebuild no-op 0.04 s.
@@ -87,7 +96,12 @@ Rebuild: 170.73 s, peak RSS 2.06 GB; post-rebuild no-op 0.04 s.
 - ctime/inode identity changes force normal content recheck instead of no-op.
 - Same-size/same-mtime content test: forced recheck updates FTS and vector;
   the old token is absent and the new token is present.
-- Indexing service tests: **30 passed** (after freeing disk for rebuild tests).
+- Concurrent direct + watcher-style explicit-change test: FTS/vector stay
+  fresh; a watcher job drops the full-workspace sidecar and the next direct run
+  restores it.
+- Publication-failure test: a failed index leaves no sidecar; the next success
+  republishes it and the following run is a fast no-op.
+- Indexing service tests: **34 passed** (after freeing disk for rebuild tests).
 - Compact manifest tests: **5 passed**; ZGM2 compatibility retained.
 - Existing fixture: FTS and vector both return `file_0000.rs`; 2,000 `.bin`
   manifests, zero legacy `.json` manifests.
@@ -112,5 +126,7 @@ corrupted data page; full deep verification still requires opening storage and
 is not enabled in the default fast path. TOCTOU is reduced by ctime/inode and read-time stat
 checks plus pre/post fingerprints, but a source that changes and reverts
 entirely within one index attempt cannot be ruled out.
+
+W0/W1 details: `rust/docs/clean-scan-freshness-v5.md`.
 
 Evidence: `benchmarks/harness-v2/operations/startup-direct/results/`.

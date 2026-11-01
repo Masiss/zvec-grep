@@ -10,8 +10,10 @@
 
 ## Implemented
 
-- `clean-scan.json` v4 sidecar and direct no-op fast path in
-  `pipelines/indexing/service.rs`, with metadata + content fingerprints.
+- `clean-scan.json` v6 sidecar and direct no-op fast path in
+  `pipelines/indexing/service.rs`, with metadata + optional content
+  fingerprints. V6 trusts ctime/inode metadata strictly and skips the content
+  read; large workspaces can publish a null content fingerprint.
 - Fast path skips model lease and zvec storage open when the indexed workspace,
   storage generation/version, scan rules, metadata and content fingerprints
   match.
@@ -23,8 +25,9 @@
 
 ## Measured
 
-- Warm no-op: 554.67 ms p50 / 577.63 ms p95 → **69.48 ms / 72.49 ms**.
-- Peak PSS: 316,864 KiB → **33,076 KiB**.
+- V4 warm no-op: 554.67 ms p50 / 577.63 ms p95 → 69.48 ms / 72.49 ms.
+- V6 warm no-op: **49.98 ms p50 / 53.91 ms p95**, peak RSS **36,860 KiB**
+  (15 runs, 2,000 files).
 - Incremental one file: 29.87 s; next no-op 0.03 s.
 - Rebuild: 170.73 s; post-rebuild no-op 0.04 s.
 - Daemon steady client no-op: ~0.04 s, daemon PSS ~115 MB (separate scope).
@@ -38,8 +41,9 @@ loading. Remaining cold/no-sidecar startup still takes the normal path.
 
 The storage metadata seal detects missing/truncated/replaced generation files,
 but not every deep data-page corruption. A source change that fully reverts
-during one index attempt is a residual TOCTOU window. Cold page-cache behavior and multi-workspace startup
-were not measured.
+during one index attempt is a residual TOCTOU window. Content above 256 MiB is
+supported only when ctime/inode metadata is trusted; otherwise it falls back.
+Cold page-cache and multi-workspace startup were not measured.
 
 ## Verification opt-in
 

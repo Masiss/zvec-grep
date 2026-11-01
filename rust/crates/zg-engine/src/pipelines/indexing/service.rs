@@ -59,7 +59,7 @@ use super::pipeline::{
 };
 
 const DEFAULT_LOCAL_EMBEDDING: &str = "local/potion-code-16m-v2";
-const CLEAN_SCAN_VERSION: u32 = 4;
+const CLEAN_SCAN_VERSION: u32 = 6;
 const CLEAN_SCAN_CONTENT_LIMIT_BYTES: u64 = 256 * 1024 * 1024;
 const CLEAN_SCAN_FILE: &str = "clean-scan.json";
 
@@ -67,10 +67,11 @@ const CLEAN_SCAN_FILE: &str = "clean-scan.json";
 struct CleanScanSnapshot {
     version: u32,
     metadata_fingerprint: String,
-    content_fingerprint: String,
+    content_fingerprint: Option<String>,
     storage_seal: String,
     storage_generation: Option<String>,
     index_version: Option<u32>,
+    created_epoch_ms: u64,
 }
 
 fn clean_scan_path(home: &Path) -> PathBuf {
@@ -116,6 +117,16 @@ fn remove_clean_scan(home: &Path) -> EngineResult<()> {
     }
 }
 
+fn metadata_fast_path_trusted(
+    identity_supported: bool,
+    file_count: usize,
+    newest_ctime_ms: Option<u64>,
+    created_epoch_ms: u64,
+) -> bool {
+    identity_supported
+        && (file_count == 0 || newest_ctime_ms.is_some_and(|ctime| ctime < created_epoch_ms))
+}
+
 fn modified_epoch_ms(metadata: &std::fs::Metadata) -> Option<u64> {
     metadata
         .modified()
@@ -123,6 +134,15 @@ fn modified_epoch_ms(metadata: &std::fs::Metadata) -> Option<u64> {
         .duration_since(UNIX_EPOCH)
         .ok()
         .and_then(|duration| u64::try_from(duration.as_millis()).ok())
+}
+
+fn ctime_millis(seconds: i64, nanos: i64) -> Option<u64> {
+    if seconds <= 0 {
+        return None;
+    }
+    let seconds = u64::try_from(seconds).ok()?;
+    let nanos = u64::try_from(nanos.max(0)).ok()?;
+    seconds.checked_mul(1000)?.checked_add(nanos / 1_000_000)
 }
 
 fn file_identity(metadata: &std::fs::Metadata) -> (u64, i64, i64) {
@@ -229,7 +249,7 @@ impl WorkspaceIndexService {
         &self,
         workspace: &crate::domain::Workspace,
         signal: Option<&tokio_util::sync::CancellationToken>,
-    ) -> Result<(String, usize, usize), EngineError> {
+    ) -> Result<(String, usize, usize, bool, Option<u64>), EngineError> {
         let control = TaskControl::new(signal.cloned().unwrap_or_default());
         let request = ScanRequest {
             roots: vec![crate::file_selection::ScanPolicy::root_spec(
@@ -249,6 +269,8 @@ impl WorkspaceIndexService {
         files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
         let mut hasher = Sha256::new();
         hasher.update(b"zg-clean-scan-v1");
+        let mut identity_supported = true;
+        let mut newest_ctime_ms: Option<u64> = None;
         let scan_rules = serde_json::to_vec(&workspace.scan).map_err(|error| {
             EngineError::internal(format!("cannot encode startup scan rules: {error}"))
         })?;
@@ -274,6 +296,12 @@ impl WorkspaceIndexService {
             )
             .map(|metadata| file_identity(&metadata))
             .unwrap_or((0, 0, 0));
+            if identity.0 == 0 || identity.1 == 0 {
+                identity_supported = false;
+            }
+            if let Some(ctime_ms) = ctime_millis(identity.1, identity.2) {
+                newest_ctime_ms = Some(newest_ctime_ms.map_or(ctime_ms, |old| old.max(ctime_ms)));
+            }
             hasher.update(identity.0.to_le_bytes());
             hasher.update(identity.1.to_le_bytes());
             hasher.update(identity.2.to_le_bytes());
@@ -282,6 +310,8 @@ impl WorkspaceIndexService {
             hex::encode(hasher.finalize()),
             files.len(),
             snapshot.diagnostics.skipped_files,
+            identity_supported,
+            newest_ctime_ms,
         ))
     }
 
@@ -366,16 +396,44 @@ impl WorkspaceIndexService {
         .map_err(|error| EngineError::internal(format!("startup content worker failed: {error}")))?
     }
 
+    fn fast_noop_result(
+        location: &WorkspaceIndexLocation,
+        active: &WorkspaceManifest,
+        file_count: usize,
+    ) -> EngineResult<IndexResult> {
+        let started = Instant::now();
+        let mut updated = active.clone();
+        updated.record_update(epoch_millis());
+        write_workspace_manifest(&updated.path, &updated)?;
+        let elapsed = started.elapsed();
+        let mut result = IndexResult::default();
+        result.files_scanned = file_count;
+        result.files_unchanged = file_count;
+        result.duration_micros = u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
+        result.timings.push(crate::api::index::result::TimingEntry {
+            name: "startup_noop".to_owned(),
+            duration_micros: result.duration_micros,
+            count: None,
+        });
+        tracing::info!(
+            root = %location.root.display(),
+            files = file_count,
+            elapsed_micros = result.duration_micros,
+            "direct index startup fast path"
+        );
+        Ok(result)
+    }
+
     fn clean_scan_matches(
         manifest: &WorkspaceManifest,
         snapshot: &CleanScanSnapshot,
         metadata_fingerprint: &str,
-        content_fingerprint: &str,
+        content_fingerprint: Option<&str>,
         storage_seal: &str,
     ) -> bool {
         snapshot.version == CLEAN_SCAN_VERSION
             && snapshot.metadata_fingerprint == metadata_fingerprint
-            && snapshot.content_fingerprint == content_fingerprint
+            && snapshot.content_fingerprint.as_deref() == content_fingerprint
             && snapshot.storage_seal == storage_seal
             && snapshot.storage_generation == manifest.storage_generation
             && snapshot.index_version == manifest.index_version
@@ -532,9 +590,9 @@ impl WorkspaceIndexService {
         let mut force_content_recheck = false;
         if Self::fast_noop_eligible(existing.as_ref(), &options, rebuilding) {
             let active = existing.as_ref().expect("fast-path manifest");
-            let (fingerprint, file_count, skipped_files) = self
-                .clean_scan_fingerprint(&active.workspace, options.signal.as_ref())
-                .await?;
+            let (fingerprint, file_count, skipped_files, identity_supported, newest_ctime_ms) =
+                self.clean_scan_fingerprint(&active.workspace, options.signal.as_ref())
+                    .await?;
             let snapshot = if skipped_files == 0 {
                 read_clean_scan(&location.home)?
             } else {
@@ -546,43 +604,43 @@ impl WorkspaceIndexService {
                     && snapshot.storage_generation == active.storage_generation
                     && snapshot.index_version == active.index_version
                 {
-                    let content = self
-                        .clean_scan_content_fingerprint(&active.workspace, options.signal.as_ref())
-                        .await?;
-                    if let Some(content) = content {
-                        let storage_seal = storage_metadata_seal(&active.storage_home())?;
-                        if let Some(storage_seal) = storage_seal
+                    let storage_seal = storage_metadata_seal(&active.storage_home())?;
+                    let metadata_trusted = metadata_fast_path_trusted(
+                        identity_supported,
+                        file_count,
+                        newest_ctime_ms,
+                        snapshot.created_epoch_ms,
+                    );
+                    let content_for_pre = if metadata_trusted {
+                        if storage_seal
+                            .as_deref()
+                            .is_some_and(|seal| snapshot.storage_seal == seal)
+                        {
+                            return Self::fast_noop_result(&location, active, file_count);
+                        }
+                        None
+                    } else {
+                        let content = self
+                            .clean_scan_content_fingerprint(
+                                &active.workspace,
+                                options.signal.as_ref(),
+                            )
+                            .await?;
+                        if let (Some(content), Some(seal)) =
+                            (content.as_deref(), storage_seal.as_deref())
                             && Self::clean_scan_matches(
                                 active,
                                 &snapshot,
                                 &fingerprint,
-                                &content,
-                                &storage_seal,
+                                Some(content),
+                                seal,
                             )
                         {
-                            let started = Instant::now();
-                            let mut updated = active.clone();
-                            updated.record_update(epoch_millis());
-                            write_workspace_manifest(&updated.path, &updated)?;
-                            let elapsed = started.elapsed();
-                            let mut result = IndexResult::default();
-                            result.files_scanned = file_count;
-                            result.files_unchanged = file_count;
-                            result.duration_micros =
-                                u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
-                            result.timings.push(crate::api::index::result::TimingEntry {
-                                name: "startup_noop".to_owned(),
-                                duration_micros: result.duration_micros,
-                                count: None,
-                            });
-                            tracing::info!(
-                                root = %location.root.display(),
-                                files = file_count,
-                                elapsed_micros = result.duration_micros,
-                                "direct index startup fast path"
-                            );
-                            return Ok(result);
+                            return Self::fast_noop_result(&location, active, file_count);
                         }
+                        content
+                    };
+                    if let Some(content) = content_for_pre {
                         clean_content_pre = Some(content);
                     }
                 }
@@ -633,7 +691,7 @@ impl WorkspaceIndexService {
             None
         };
         if clean_pre.is_none() && options.changes.is_empty() {
-            let (fingerprint, _, _) = self
+            let (fingerprint, _, _, _, _) = self
                 .clean_scan_fingerprint(&manifest.workspace, options.signal.as_ref())
                 .await?;
             clean_pre = Some(fingerprint);
@@ -662,11 +720,14 @@ impl WorkspaceIndexService {
             // cleanup also fails; its build record lets the next writer retry.
             let _ = discard_build(&build);
         }
-        if result.is_ok()
+        if result.as_ref().is_ok_and(|result| result.files_failed == 0)
             && let Some(pre) = clean_pre
-            && let Some(pre_content) = clean_content_pre
         {
-            let (post, _, _) = self
+            // Mark the trust boundary before the post-index scan. Any source
+            // change from here on must have ctime >= this timestamp and is
+            // therefore rechecked on the next run.
+            let created_epoch_ms = epoch_millis();
+            let (post, post_file_count, _, identity_supported, newest_ctime_ms) = self
                 .clean_scan_fingerprint(&clean_manifest.workspace, None)
                 .await?;
             let post_content = self
@@ -674,7 +735,13 @@ impl WorkspaceIndexService {
                 .await?;
             let storage_seal = storage_metadata_seal(&clean_manifest.storage_home())?;
             if post == pre
-                && post_content.as_deref() == Some(pre_content.as_str())
+                && post_content == clean_content_pre
+                && metadata_fast_path_trusted(
+                    identity_supported,
+                    post_file_count,
+                    newest_ctime_ms,
+                    created_epoch_ms,
+                )
                 && let Some(storage_seal) = storage_seal
             {
                 write_clean_scan(
@@ -682,10 +749,11 @@ impl WorkspaceIndexService {
                     &CleanScanSnapshot {
                         version: CLEAN_SCAN_VERSION,
                         metadata_fingerprint: post,
-                        content_fingerprint: pre_content,
+                        content_fingerprint: post_content,
                         storage_seal,
                         storage_generation: clean_manifest.storage_generation.clone(),
                         index_version: clean_manifest.index_version,
+                        created_epoch_ms,
                     },
                 )?;
             }
@@ -2756,6 +2824,271 @@ mod tests {
         assert!(sidecar.exists(), "corrupt sidecar must be replaced");
         third_models.close();
         second_models.close();
+    }
+
+    #[test]
+    fn metadata_trust_requires_strictly_older_ctime() {
+        assert!(super::metadata_fast_path_trusted(true, 1, Some(99), 100));
+        assert!(!super::metadata_fast_path_trusted(true, 1, Some(100), 100));
+        assert!(!super::metadata_fast_path_trusted(true, 1, Some(101), 100));
+        assert!(!super::metadata_fast_path_trusted(false, 1, Some(99), 100));
+        assert!(!super::metadata_fast_path_trusted(true, 1, None, 100));
+        assert!(super::metadata_fast_path_trusted(true, 0, None, 100));
+    }
+
+    #[tokio::test]
+    async fn trusted_metadata_fast_path_skips_content_fingerprint() {
+        let directory = tempdir().expect("temporary directory");
+        std::fs::write(directory.path().join("sample.rs"), "pub fn sample() {}\n")
+            .expect("source file");
+        let service = WorkspaceIndexService::with_test_registry();
+        let first_models = ModelRuntimeManager::new();
+        service
+            .index(&first_models, empty_index_options(directory.path()))
+            .await
+            .expect("initial index");
+        first_models.close();
+
+        let sidecar = directory.path().join(".zvec-grep/clean-scan.json");
+        let mut snapshot: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&sidecar).expect("sidecar")).expect("json");
+        snapshot["content_fingerprint"] = serde_json::Value::Null;
+        std::fs::write(&sidecar, serde_json::to_vec(&snapshot).expect("json"))
+            .expect("content-unavailable sidecar");
+
+        let trusted_models = ModelRuntimeManager::new();
+        let trusted = service
+            .index(
+                &trusted_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("trusted metadata fast path");
+        assert!(
+            trusted
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop"),
+            "trusted metadata must not require a content fingerprint"
+        );
+        assert_eq!(trusted_models.snapshot().cached_runtimes, 0);
+        trusted_models.close();
+
+        snapshot["created_epoch_ms"] = serde_json::Value::from(0);
+        std::fs::write(&sidecar, serde_json::to_vec(&snapshot).expect("json"))
+            .expect("untrusted sidecar");
+        let untrusted_models = ModelRuntimeManager::new();
+        let untrusted = service
+            .index(
+                &untrusted_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("untrusted metadata fallback");
+        assert!(
+            !untrusted
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop"),
+            "stale content must force normal indexing when metadata is not trusted"
+        );
+        untrusted_models.close();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn direct_and_explicit_watcher_index_share_writer_and_freshness() {
+        let directory = tempdir().expect("temporary directory");
+        std::fs::write(directory.path().join("sample.rs"), "pub fn sample() {}\n")
+            .expect("source file");
+        let watched = directory.path().join("watched.rs");
+        std::fs::write(&watched, "pub const TOKEN: &str = \"oldtoken\";\n").expect("watched");
+        let service = WorkspaceIndexService::with_test_registry();
+        let models = ModelRuntimeManager::new();
+        service
+            .index(&models, empty_index_options(directory.path()))
+            .await
+            .expect("initial index");
+
+        std::fs::write(&watched, "pub const TOKEN: &str = \"newtoken\";\n")
+            .expect("watcher source change");
+        let direct = IndexOptions {
+            root: Some(directory.path().to_path_buf()),
+            ..IndexOptions::default()
+        };
+        let watcher = IndexOptions {
+            root: Some(directory.path().to_path_buf()),
+            changes: vec![crate::api::index::options::WorkspaceChange::Upsert(
+                std::path::PathBuf::from("watched.rs"),
+            )],
+            ..IndexOptions::default()
+        };
+        let (direct_result, watcher_result) = tokio::join!(
+            service.index(&models, direct),
+            service.index(&models, watcher)
+        );
+        let direct_result = direct_result.expect("direct index");
+        let watcher_result = watcher_result.expect("watcher index");
+        assert_eq!(direct_result.files_failed, 0);
+        assert_eq!(watcher_result.files_failed, 0);
+        assert!(
+            !watcher_result
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop"),
+            "explicit watcher changes must bypass the fast path"
+        );
+
+        let engine = crate::ZvecGrep::new();
+        let query = |mode, text: &str| crate::api::context::ContextOptions {
+            root: Some(directory.path().to_path_buf()),
+            auto_update: false,
+            routes: vec![crate::api::context::options::ContextRoute {
+                mode,
+                query: text.to_owned(),
+            }],
+            ..crate::api::context::ContextOptions::default()
+        };
+        let old = engine
+            .context(query(
+                crate::api::context::options::ContextRouteMode::Fts,
+                "oldtoken",
+            ))
+            .await
+            .expect("old FTS query");
+        assert!(
+            !old.items
+                .iter()
+                .any(|item| item.relative_path == Path::new("watched.rs")),
+            "old FTS context: {old:#?}"
+        );
+        let fresh = engine
+            .context(query(
+                crate::api::context::options::ContextRouteMode::Fts,
+                "newtoken",
+            ))
+            .await
+            .expect("new FTS query");
+        assert!(
+            fresh
+                .items
+                .iter()
+                .any(|item| item.relative_path == Path::new("watched.rs")),
+            "new FTS context: {fresh:#?}"
+        );
+        let vector = engine
+            .context(query(
+                crate::api::context::options::ContextRouteMode::Vector,
+                "newtoken",
+            ))
+            .await
+            .expect("new vector query");
+        assert!(
+            vector
+                .items
+                .iter()
+                .any(|item| item.relative_path == Path::new("watched.rs"))
+        );
+        // A watcher job carries explicit changes and intentionally does not
+        // publish a full-workspace sidecar. The next direct run must rebuild the
+        // sidecar, and the run after that must be a fast no-op.
+        service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("direct refresh after watcher");
+        let sidecar = directory.path().join(".zvec-grep/clean-scan.json");
+        assert!(sidecar.exists(), "direct refresh publishes the sidecar");
+        let recovered = service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("direct no-op after watcher");
+        assert!(
+            recovered
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop"),
+            "the direct path recovers the fast no-op after a watcher job"
+        );
+        models.close();
+    }
+
+    #[tokio::test]
+    async fn failed_index_drops_clean_scan_and_recovers() {
+        let directory = tempdir().expect("temporary directory");
+        let source = directory.path().join("sample.rs");
+        std::fs::write(&source, "pub const TOKEN: &str = \"oldtoken\";\n").expect("source");
+        let mut service = WorkspaceIndexService::with_test_registry();
+        let models = ModelRuntimeManager::new();
+        service
+            .index(&models, empty_index_options(directory.path()))
+            .await
+            .expect("initial index");
+        let sidecar = directory.path().join(".zvec-grep/clean-scan.json");
+        assert!(sidecar.exists(), "successful index publishes the sidecar");
+
+        std::fs::write(&source, "pub const TOKEN: &str = \"newtoken\";\n").expect("change");
+        service.fail_index_completion = true;
+        let error = service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect_err("injected index failure");
+        assert!(error.message().contains("checkpoint"));
+        assert!(
+            !sidecar.exists(),
+            "a failed index must not leave the old or a new sidecar"
+        );
+
+        service.fail_index_completion = false;
+        service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("recovery index");
+        assert!(sidecar.exists(), "recovery republishes the sidecar");
+        let fast = service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("post-recovery fast path");
+        assert!(
+            fast.timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop")
+        );
+        models.close();
     }
 
     #[tokio::test]
