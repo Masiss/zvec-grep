@@ -1,0 +1,66 @@
+{
+  "cell": "1_dirty_delete",
+  "correctness": [
+    {
+      "check": "fts_present_0",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    }
+  ],
+  "peaks": {
+    "memory_peak": 2113765376,
+    "process_pss_kib": 524481,
+    "process_rss_kib": 538200,
+    "swap_current": 0
+  },
+  "phases": {
+    "correctness": 1793504366.6191254,
+    "jobs_done": 1793504366.4106796,
+    "start": 1793504365.8796475,
+    "submitted": 1793504365.890268
+  },
+  "queue_samples": [
+    {
+      "active": 2,
+      "jobs": [
+        {
+          "id": "82fefdc3-9132-41c0-bfda-a7c5a745afa7",
+          "queue_position": null,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/1_dirty_delete/ws_1",
+          "state": "running",
+          "waited_millis": 0
+        },
+        {
+          "id": "86c2c183-8974-4f14-9d84-ce0e083849b9",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/1_dirty_delete/ws_1",
+          "state": "queued",
+          "waited_millis": 11
+        }
+      ],
+      "queued": 1,
+      "running": 1,
+      "t": 1793504365.9019828
+    },
+    {
+      "active": 0,
+      "jobs": [],
+      "queued": 0,
+      "running": 0,
+      "t": 1793504366.410674
+    }
+  ],
+  "rep": 2,
+  "roots": [
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/1_dirty_delete/ws_1"
+  ],
+  "status": "pass",
+  "storage_bytes": {
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/1_dirty_delete/ws_1": 980312597
+  },
+  "submit_tails": [
+    "Daemon index job 86c2c183-8974-4f14-9d84-ce0e083849b9 queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/1_dirty_delete/ws_1 behind job 82fefdc3-9132-41c0-bfda-a7c5a745afa7"
+  ]
+}

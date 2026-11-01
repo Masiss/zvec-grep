@@ -1,0 +1,202 @@
+{
+  "cell": "4_restart_delete",
+  "correctness": [
+    {
+      "check": "fts_present_0",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_1",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_2",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_3",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    }
+  ],
+  "peaks": {
+    "memory_peak": 4571398144,
+    "process_pss_kib": 977772,
+    "process_rss_kib": 1017456,
+    "swap_current": 74350592
+  },
+  "phases": {
+    "correctness": 1793507162.0619502,
+    "jobs_done": 1793507160.963076,
+    "start": 1793507158.8596377,
+    "submitted": 1793507158.901327
+  },
+  "queue_samples": [
+    {
+      "active": 4,
+      "jobs": [
+        {
+          "id": "dfea1435-271a-4550-bfb7-3635e607371a",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_1",
+          "state": "running",
+          "waited_millis": 0
+        },
+        {
+          "id": "f59adb89-3996-420c-bb66-e59a44bd94a9",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_2",
+          "state": "queued",
+          "waited_millis": 31
+        },
+        {
+          "id": "bc7f3745-797d-42a2-81d9-ca2fe1f2d4dc",
+          "queue_position": 2,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_3",
+          "state": "queued",
+          "waited_millis": 20
+        },
+        {
+          "id": "1165ff36-523b-44db-9589-852cc13b29a6",
+          "queue_position": 3,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_4",
+          "state": "queued",
+          "waited_millis": 10
+        }
+      ],
+      "queued": 3,
+      "running": 1,
+      "t": 1793507158.9130228
+    },
+    {
+      "active": 3,
+      "jobs": [
+        {
+          "id": "f59adb89-3996-420c-bb66-e59a44bd94a9",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_2",
+          "state": "running",
+          "waited_millis": 367
+        },
+        {
+          "id": "bc7f3745-797d-42a2-81d9-ca2fe1f2d4dc",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_3",
+          "state": "queued",
+          "waited_millis": 533
+        },
+        {
+          "id": "1165ff36-523b-44db-9589-852cc13b29a6",
+          "queue_position": 2,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_4",
+          "state": "queued",
+          "waited_millis": 523
+        }
+      ],
+      "queued": 2,
+      "running": 1,
+      "t": 1793507159.426958
+    },
+    {
+      "active": 4,
+      "jobs": [
+        {
+          "id": "eedb2349-9728-4af9-86dd-53e28977a79a",
+          "queue_position": null,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_1",
+          "state": "running",
+          "waited_millis": 0
+        },
+        {
+          "id": "bc7f3745-797d-42a2-81d9-ca2fe1f2d4dc",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_3",
+          "state": "running",
+          "waited_millis": 764
+        },
+        {
+          "id": "610ebb6a-f56f-418b-888f-2fe8e2e7ff2e",
+          "queue_position": 2,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_2",
+          "state": "queued",
+          "waited_millis": 324
+        },
+        {
+          "id": "1165ff36-523b-44db-9589-852cc13b29a6",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_4",
+          "state": "queued",
+          "waited_millis": 1035
+        }
+      ],
+      "queued": 2,
+      "running": 2,
+      "t": 1793507159.9387674
+    },
+    {
+      "active": 2,
+      "jobs": [
+        {
+          "id": "610ebb6a-f56f-418b-888f-2fe8e2e7ff2e",
+          "queue_position": null,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_2",
+          "state": "running",
+          "waited_millis": 750
+        },
+        {
+          "id": "1165ff36-523b-44db-9589-852cc13b29a6",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_4",
+          "state": "running",
+          "waited_millis": 1294
+        }
+      ],
+      "queued": 0,
+      "running": 2,
+      "t": 1793507160.4495168
+    },
+    {
+      "active": 0,
+      "jobs": [],
+      "queued": 0,
+      "running": 0,
+      "t": 1793507160.9630735
+    }
+  ],
+  "rep": 3,
+  "roots": [
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_1",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_2",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_3",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_4"
+  ],
+  "status": "pass",
+  "storage_bytes": {
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_1": 980312044,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_2": 980311420,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_3": 980312642,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_4": 980312091
+  },
+  "submit_tails": [
+    "Daemon index job dfea1435-271a-4550-bfb7-3635e607371a queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_1",
+    "Daemon index job f59adb89-3996-420c-bb66-e59a44bd94a9 queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_2",
+    "Daemon index job bc7f3745-797d-42a2-81d9-ca2fe1f2d4dc queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_3",
+    "Daemon index job 1165ff36-523b-44db-9589-852cc13b29a6 queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/4_restart_delete/ws_4"
+  ]
+}

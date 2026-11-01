@@ -1,6 +1,6 @@
 # Index/Finalize Qualification V1 — progress checkpoint
 
-Status: **RUNNING / partial**, not a verdict.
+Status: **COMPLETE (45/45); formal verdict INCONCLUSIVE due vector guard gap.**
 
 - Protocol: `671b106`, unchanged.
 - Preflight gaps closed: `smaps_rollup`, model-cache SHA-256, cgroup scope,
