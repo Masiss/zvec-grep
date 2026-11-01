@@ -1,6 +1,9 @@
 use std::{
+    fs,
     net::TcpListener,
     process::{Command, Output},
+    thread,
+    time::Duration,
 };
 use tempfile::TempDir;
 
@@ -132,6 +135,67 @@ fn default_index_routes_to_ready_daemon_and_falls_back_direct() {
         stderr.contains("Daemon index job"),
         "default routing must expose the daemon job: {stderr}"
     );
+}
+
+#[test]
+fn daemon_stopped_before_default_index_falls_back_direct_without_hanging() {
+    let fixture = Fixture {
+        root: TempDir::new().expect("workspace"),
+        state: TempDir::new().expect("state"),
+    };
+    fixture.start_server();
+    let stopped = fixture.run(&["--server", "off"]);
+    assert!(
+        stopped.status.success(),
+        "{}",
+        String::from_utf8_lossy(&stopped.stderr)
+    );
+    let output = fixture.run(&["--index", "--no-color"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("route: direct"), "{stderr}");
+}
+
+fn wait_for_fts(fixture: &Fixture, query: &str, expected: &str) {
+    for _ in 0..100 {
+        let output = fixture.run(&["--fts", query, "--no-color"]);
+        if output.status.success() && String::from_utf8_lossy(&output.stdout).contains(expected) {
+            return;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    panic!("timed out waiting for FTS query {query:?} to contain {expected:?}");
+}
+
+#[test]
+fn real_watcher_and_default_manual_rebuild_resume() {
+    let fixture = Fixture {
+        root: TempDir::new().expect("workspace"),
+        state: TempDir::new().expect("state"),
+    };
+    fixture.start_server();
+    fixture.success(&["--index", "--no-color"]);
+
+    fs::write(
+        fixture.root.path().join("before-manual.rs"),
+        "fn watcherbeforemanual() {}\n",
+    )
+    .expect("before file");
+    // The default CLI path auto-routes to the ready daemon and can supersede
+    // the watcher for this root.
+    fixture.success(&["--index", "--rebuild", "--no-color"]);
+    wait_for_fts(&fixture, "watcherbeforemanual", "before-manual.rs");
+
+    fs::write(
+        fixture.root.path().join("after-manual.rs"),
+        "fn watcheraftermanual() {}\n",
+    )
+    .expect("after file");
+    wait_for_fts(&fixture, "watcheraftermanual", "after-manual.rs");
 }
 
 fn roots_line(output: &str) -> &str {

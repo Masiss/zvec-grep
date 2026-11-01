@@ -168,6 +168,47 @@ async fn a_new_recovery_epoch_cannot_be_cleared_by_an_older_full_refresh() {
 }
 
 #[tokio::test]
+async fn watcher_jobs_do_not_override_the_saved_scan_scope() {
+    let workspace = tempdir().expect("workspace");
+    let root = workspace.path().canonicalize().expect("root");
+    let executor = Arc::new(RecordingExecutor::default());
+    let (manager, sender) = fixture(executor.clone());
+    let options = IndexOptions {
+        root: Some(root.clone()),
+        scan: zg_engine::api::index::options::ScanRulesUpdate {
+            max_depth: Some(Some(1)),
+            ..Default::default()
+        },
+        ..IndexOptions::default()
+    };
+    manager
+        .refresh_index(options.clone(), true)
+        .await
+        .expect("initial scoped refresh");
+    deliver(
+        &manager,
+        &sender,
+        &root,
+        WorkspaceChange::Upsert("src/changed.rs".into()),
+    )
+    .await;
+    let calls = executor.calls.lock().expect("calls");
+    assert_eq!(calls.len(), 2);
+    // The native watcher resolves the saved manifest policy; watcher jobs must
+    // not replay one-operation scan overrides from the initial request.
+    assert_eq!(
+        calls[1].scan,
+        zg_engine::api::index::options::ScanRulesUpdate::default()
+    );
+    assert_eq!(
+        calls[1].changes,
+        [IndexChange::Upsert("src/changed.rs".into())]
+    );
+    drop(calls);
+    manager.shutdown_all().await.expect("shutdown");
+}
+
+#[tokio::test]
 async fn a_successful_narrow_job_does_not_cover_an_earlier_failed_batch() {
     let workspace = tempdir().expect("workspace");
     let root = workspace.path().canonicalize().expect("root");

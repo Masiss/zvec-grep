@@ -155,7 +155,18 @@ async fn execute_plan(plan: CliPlan) -> Result<(), Box<dyn Error>> {
             operation,
             output,
             no_wait,
-        } => execute_index(mode, home.as_deref(), operation, output, no_wait).await,
+            wait_timeout_ms,
+        } => {
+            execute_index(
+                mode,
+                home.as_deref(),
+                operation,
+                output,
+                no_wait,
+                wait_timeout_ms,
+            )
+            .await
+        }
         CliPlan::Status {
             mode,
             home,
@@ -587,6 +598,7 @@ async fn execute_index(
     operation: IndexOperation,
     output: zg_cli::OutputOptions,
     no_wait: bool,
+    wait_timeout_ms: Option<u64>,
 ) -> Result<(), Box<dyn Error>> {
     let root = match &operation {
         IndexOperation::Build(request) => request.root.clone(),
@@ -599,6 +611,13 @@ async fn execute_index(
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "--no-wait requires the daemon (--daemon or client.mode = server)",
+        )
+        .into());
+    }
+    if wait_timeout_ms.is_some() && !server {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--wait-timeout-ms requires the daemon",
         )
         .into());
     }
@@ -626,16 +645,41 @@ async fn execute_index(
             let reporter = progress.reporter();
             let result = if server {
                 let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
-                let job_reporter = |job: zg_daemon_protocol::JobView| {
+                let observed_job = std::sync::Arc::new(std::sync::Mutex::new(None));
+                let reported_job = std::sync::Arc::clone(&observed_job);
+                let job_reporter = move |job: zg_daemon_protocol::JobView| {
                     let _ = zg_cli::write_job_transition(io::stderr(), &job);
+                    *reported_job.lock().expect("job id mutex") = Some(job.id);
                 };
-                zg_daemon::index_with_progress_and_jobs(
+                let wait = zg_daemon::index_with_progress_and_jobs(
                     &home,
                     *request,
                     &reporter,
                     Some(&job_reporter),
-                )
-                .await?
+                );
+                let wait = async {
+                    match wait_timeout_ms {
+                        Some(milliseconds) => tokio::time::timeout(
+                            std::time::Duration::from_millis(milliseconds),
+                            wait,
+                        )
+                        .await
+                        .map_err(|_| {
+                            let job = observed_job.lock().expect("job id mutex").to_owned();
+                            io::Error::new(
+                                io::ErrorKind::TimedOut,
+                                job.map_or_else(
+                                    || "timed out waiting for daemon index job".to_owned(),
+                                    |id| format!(
+                                        "timed out waiting for daemon index job {id}; it is still running (inspect with `zg --server jobs`, cancel with `zg --server cancel {id}`)"
+                                    ),
+                                ),
+                            )
+                        })?,
+                        None => wait.await,
+                    }
+                };
+                wait.await?
             } else {
                 let engine = ZvecGrep::new();
                 request.on_progress = Some(reporter.prioritize_model_progress());

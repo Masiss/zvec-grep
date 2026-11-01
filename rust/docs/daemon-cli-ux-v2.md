@@ -129,6 +129,11 @@ Implemented:
   The top-level `--server` flag remains daemon lifecycle control.
 - `--no-wait` submits the daemon index job, prints the job id, and returns
   without waiting.
+- `--wait-timeout-ms` bounds the client wait. On expiry the CLI prints the job
+  id and exits; the daemon job keeps running and is never cancelled by a wait
+  timeout.
+- Queue-full is a normal `resource_busy` failure before submission; it never
+  leaves a queued job behind or retries into a second writer.
 - Default auto routing is what lets UX2 run in the normal operator flow: a
   default `zg --index` with a live watcher reaches the daemon scheduler and can
   supersede that watcher.
@@ -151,7 +156,7 @@ Status reporting for unusually large skipped trees remains a follow-up.
 | UX1 | Explicit routing + job id output + `--no-wait` | **Implemented**; default auto routes to a ready daemon or direct, always printing the route |
 | UX2 | Manual priority + same-root watcher supersede | **Implemented**; active watcher is cancelled at its next safe checkpoint and resumes through a coalesced follow-up |
 | UX3 | Queue position + cancellation + configurable lanes | **Implemented** for queue position, priority, cancelability, and `--server cancel`; timeout remains follow-up |
-| UX4 | Watcher scope/default-ignore hardening | **Implemented** for default ignores; skipped-scope reporting remains follow-up |
+| UX4 | Watcher scope/default-ignore hardening | **Implemented**: saved scan policy is not replayed from one-operation overrides; skipped counts/samples are reported in the index summary |
 
 ## Acceptance criteria
 

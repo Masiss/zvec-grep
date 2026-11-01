@@ -530,8 +530,11 @@ pub struct IndexArgs {
     #[arg(long, conflicts_with = "mode")]
     pub daemon: bool,
     /// Submit the daemon index job and print its id without waiting for completion.
-    #[arg(long = "no-wait")]
+    #[arg(long = "no-wait", conflicts_with = "wait_timeout_ms")]
     pub no_wait: bool,
+    /// Maximum time to wait for a daemon index job; the job keeps running after timeout.
+    #[arg(long = "wait-timeout-ms", value_parser = parse_positive_u64, conflicts_with = "no_wait")]
+    pub wait_timeout_ms: Option<u64>,
     #[arg(long)]
     pub rebuild: bool,
     #[arg(long)]
@@ -685,6 +688,7 @@ pub enum CliPlan {
         operation: IndexOperation,
         output: OutputOptions,
         no_wait: bool,
+        wait_timeout_ms: Option<u64>,
     },
     Status {
         mode: ClientMode,
@@ -1474,6 +1478,7 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
             }),
             output,
             no_wait: args.no_wait,
+            wait_timeout_ms: args.wait_timeout_ms,
         });
     }
     let mut scan = args.files.update();
@@ -1513,6 +1518,7 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
         })),
         output,
         no_wait: args.no_wait,
+        wait_timeout_ms: args.wait_timeout_ms,
     })
 }
 

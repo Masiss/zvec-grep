@@ -2830,6 +2830,35 @@ mod tests {
         scheduler.shutdown().await;
     }
 
+    #[tokio::test]
+    async fn a_timed_out_waiter_does_not_cancel_the_running_job() {
+        let executor = Arc::new(RecordingExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            releases: tokio::sync::Semaphore::new(0),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                manual_concurrency: 1,
+                watch_concurrency: 1,
+                queue_capacity: 8,
+            },
+        );
+        let root = PathBuf::from("/workspace/timeout");
+        let job = scheduler
+            .submit(root, IndexOptions::default(), JobReason::Manual)
+            .expect("job");
+        executor.started.notified().await;
+        let timed_out =
+            tokio::time::timeout(Duration::from_millis(10), scheduler.wait(job.job.id)).await;
+        assert!(timed_out.is_err(), "waiter should time out");
+        executor.releases.add_permits(1);
+        let completed = scheduler.wait(job.job.id).await.expect("job completion");
+        assert_eq!(completed.job.state, JobState::Succeeded);
+        scheduler.shutdown().await;
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn watcher_changes_survive_manual_success_failure_and_cancellation() {
         for outcome in ["manual", "failed", "cancelled"] {

@@ -59,6 +59,27 @@ pub fn write_index_with_options(
             },
         ),
     )?;
+    if !result.skipped_counts.is_empty() {
+        let counts = result
+            .skipped_counts
+            .iter()
+            .map(|(reason, count)| format!("{reason} {count}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        index_field(&mut writer, theme, "skipped", &counts)?;
+    }
+    for skipped in result.skipped.iter().take(5) {
+        index_field(
+            &mut writer,
+            theme,
+            "skipped file",
+            &format!(
+                "{}: {:?}",
+                theme.path(&skipped.path.display().to_string()),
+                skipped.reason
+            ),
+        )?;
+    }
     index_field(
         &mut writer,
         theme,
@@ -284,6 +305,32 @@ mod tests {
         assert_eq!(
             String::from_utf8(bytes).expect("render output"),
             "Workspace index\nfiles\t9 scanned, 2 added, 1 modified, 1 retried, 4 unchanged, 3 deleted, 1 failed\nentities\t24\nduration\t1m 2s (61500ms)\nroots\t/workspace\n",
+        );
+    }
+
+    #[test]
+    fn index_summary_reports_skipped_counts_and_samples() {
+        let mut skipped_counts = std::collections::BTreeMap::new();
+        skipped_counts.insert("too_large".to_owned(), 3);
+        skipped_counts.insert("binary".to_owned(), 1);
+        let result = IndexResult {
+            files_scanned: 4,
+            skipped: vec![zg_engine::api::index::result::SkippedFile {
+                path: "/workspace/huge.bin".into(),
+                reason: zg_engine::api::index::result::SkippedFileReason::TooLarge,
+                size_bytes: Some(10),
+                limit_bytes: Some(5),
+            }],
+            skipped_counts,
+            ..IndexResult::default()
+        };
+        let mut bytes = Vec::new();
+        write_index_result(&mut bytes, Path::new("/workspace"), &result).expect("render output");
+        let output = String::from_utf8(bytes).expect("render output");
+        assert!(output.contains("skipped	binary 1, too_large 3"), "{output}");
+        assert!(
+            output.contains("skipped file	/workspace/huge.bin: TooLarge"),
+            "{output}"
         );
     }
 
