@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use zg_host_native::{NativeScanner, ScanRequest, TaskControl, WorkspaceScannerPort};
 
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+
 use crate::{
     EngineError, EngineResult,
     api::{
@@ -56,7 +59,7 @@ use super::pipeline::{
 };
 
 const DEFAULT_LOCAL_EMBEDDING: &str = "local/potion-code-16m-v2";
-const CLEAN_SCAN_VERSION: u32 = 2;
+const CLEAN_SCAN_VERSION: u32 = 4;
 const CLEAN_SCAN_CONTENT_LIMIT_BYTES: u64 = 256 * 1024 * 1024;
 const CLEAN_SCAN_FILE: &str = "clean-scan.json";
 
@@ -65,6 +68,7 @@ struct CleanScanSnapshot {
     version: u32,
     metadata_fingerprint: String,
     content_fingerprint: String,
+    storage_seal: String,
     storage_generation: Option<String>,
     index_version: Option<u32>,
 }
@@ -119,6 +123,67 @@ fn modified_epoch_ms(metadata: &std::fs::Metadata) -> Option<u64> {
         .duration_since(UNIX_EPOCH)
         .ok()
         .and_then(|duration| u64::try_from(duration.as_millis()).ok())
+}
+
+fn file_identity(metadata: &std::fs::Metadata) -> (u64, i64, i64) {
+    #[cfg(unix)]
+    {
+        (metadata.ino(), metadata.ctime(), metadata.ctime_nsec())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        (0, 0, 0)
+    }
+}
+
+fn storage_metadata_seal(storage_home: &Path) -> EngineResult<Option<String>> {
+    let mut hasher = Sha256::new();
+    let mut visited = 0_usize;
+    let mut stack = vec![storage_home.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let entries = match std::fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => {
+                return Err(EngineError::from_io(
+                    format!(
+                        "cannot inspect storage seal directory {}: {error}",
+                        directory.display()
+                    ),
+                    &error,
+                ));
+            }
+        };
+        for entry in entries {
+            let entry = entry
+                .map_err(|error| EngineError::from_io("cannot read storage seal entry", &error))?;
+            let path = entry.path();
+            let metadata = entry.metadata().map_err(|error| {
+                EngineError::from_io(
+                    format!("cannot stat storage seal entry {}: {error}", path.display()),
+                    &error,
+                )
+            })?;
+            if metadata.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let relative = path.strip_prefix(storage_home).unwrap_or(&path);
+            let identity = file_identity(&metadata);
+            hasher.update((relative.as_os_str().len() as u64).to_le_bytes());
+            hasher.update(relative.as_os_str().as_encoded_bytes());
+            hasher.update(metadata.len().to_le_bytes());
+            hasher.update(identity.0.to_le_bytes());
+            hasher.update(identity.1.to_le_bytes());
+            hasher.update(identity.2.to_le_bytes());
+            visited += 1;
+        }
+    }
+    if visited == 0 {
+        return Ok(None);
+    }
+    Ok(Some(hex::encode(hasher.finalize())))
 }
 
 #[derive(Clone)]
@@ -204,6 +269,14 @@ impl WorkspaceIndexService {
             let source = file.source_fingerprint.as_bytes();
             hasher.update((source.len() as u64).to_le_bytes());
             hasher.update(source);
+            let identity = std::fs::metadata(
+                workspace.source_path(&crate::domain::SourcePath::new(file.relative_path.clone())?),
+            )
+            .map(|metadata| file_identity(&metadata))
+            .unwrap_or((0, 0, 0));
+            hasher.update(identity.0.to_le_bytes());
+            hasher.update(identity.1.to_le_bytes());
+            hasher.update(identity.2.to_le_bytes());
         }
         Ok((
             hex::encode(hasher.finalize()),
@@ -259,6 +332,7 @@ impl WorkspaceIndexService {
                 {
                     return Ok(None);
                 }
+                let before_identity = file_identity(&before);
                 let bytes = std::fs::read(&path).map_err(|error| {
                     EngineError::from_io(
                         format!("cannot read startup source {}: {error}", path.display()),
@@ -276,6 +350,7 @@ impl WorkspaceIndexService {
                 })?;
                 if after.len() != before.len()
                     || modified_epoch_ms(&after) != file.modified_epoch_ms
+                    || file_identity(&after) != before_identity
                 {
                     return Ok(None);
                 }
@@ -296,10 +371,12 @@ impl WorkspaceIndexService {
         snapshot: &CleanScanSnapshot,
         metadata_fingerprint: &str,
         content_fingerprint: &str,
+        storage_seal: &str,
     ) -> bool {
         snapshot.version == CLEAN_SCAN_VERSION
             && snapshot.metadata_fingerprint == metadata_fingerprint
             && snapshot.content_fingerprint == content_fingerprint
+            && snapshot.storage_seal == storage_seal
             && snapshot.storage_generation == manifest.storage_generation
             && snapshot.index_version == manifest.index_version
     }
@@ -323,6 +400,7 @@ impl WorkspaceIndexService {
             && options.model_cache.is_none()
             && options.embedding_concurrency.is_none()
             && !options.allow_remote
+            && std::env::var_os("ZVEC_GREP_VERIFY_STORAGE").is_none()
     }
 
     fn registry(&self) -> Result<WorkspaceRegistry, EngineError> {
@@ -472,7 +550,16 @@ impl WorkspaceIndexService {
                         .clean_scan_content_fingerprint(&active.workspace, options.signal.as_ref())
                         .await?;
                     if let Some(content) = content {
-                        if Self::clean_scan_matches(active, &snapshot, &fingerprint, &content) {
+                        let storage_seal = storage_metadata_seal(&active.storage_home())?;
+                        if let Some(storage_seal) = storage_seal
+                            && Self::clean_scan_matches(
+                                active,
+                                &snapshot,
+                                &fingerprint,
+                                &content,
+                                &storage_seal,
+                            )
+                        {
                             let started = Instant::now();
                             let mut updated = active.clone();
                             updated.record_update(epoch_millis());
@@ -496,12 +583,12 @@ impl WorkspaceIndexService {
                             );
                             return Ok(result);
                         }
-                        force_content_recheck = true;
                         clean_content_pre = Some(content);
                     }
-                } else if snapshot.metadata_fingerprint == fingerprint {
-                    force_content_recheck = true;
                 }
+                // Any non-exact sidecar state (including ctime-only changes)
+                // requires a normal content recheck rather than a no-op.
+                force_content_recheck = true;
             } else if skipped_files == 0 {
                 // Missing or unreadable sidecar cannot prove freshness.
                 force_content_recheck = true;
@@ -585,13 +672,18 @@ impl WorkspaceIndexService {
             let post_content = self
                 .clean_scan_content_fingerprint(&clean_manifest.workspace, None)
                 .await?;
-            if post == pre && post_content.as_deref() == Some(pre_content.as_str()) {
+            let storage_seal = storage_metadata_seal(&clean_manifest.storage_home())?;
+            if post == pre
+                && post_content.as_deref() == Some(pre_content.as_str())
+                && let Some(storage_seal) = storage_seal
+            {
                 write_clean_scan(
                     &location.home,
                     &CleanScanSnapshot {
                         version: CLEAN_SCAN_VERSION,
                         metadata_fingerprint: post,
                         content_fingerprint: pre_content,
+                        storage_seal,
                         storage_generation: clean_manifest.storage_generation.clone(),
                         index_version: clean_manifest.index_version,
                     },
@@ -2772,6 +2864,73 @@ mod tests {
                 .iter()
                 .any(|item| item.relative_path == Path::new("sample.rs"))
         );
+        models.close();
+    }
+
+    #[tokio::test]
+    async fn rename_scan_rule_and_explicit_change_bypass_fast_path() {
+        let directory = tempdir().expect("temporary directory");
+        let first = directory.path().join("first.rs");
+        std::fs::write(&first, "pub fn first() {}\n").expect("source");
+        let service = WorkspaceIndexService::with_test_registry();
+        let models = ModelRuntimeManager::new();
+        let plain = IndexOptions {
+            root: Some(directory.path().to_path_buf()),
+            ..IndexOptions::default()
+        };
+        service
+            .index(&models, empty_index_options(directory.path()))
+            .await
+            .expect("initial index");
+        let second = directory.path().join("second.rs");
+        std::fs::rename(&first, &second).expect("rename source");
+        let renamed = service.index(&models, plain.clone()).await.expect("rename");
+        assert!(
+            !renamed
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop")
+        );
+        assert_eq!(renamed.files_added, 1);
+        assert_eq!(renamed.files_deleted, 1);
+
+        let explicit = IndexOptions {
+            root: Some(directory.path().to_path_buf()),
+            changes: vec![crate::api::index::options::WorkspaceChange::Upsert(
+                std::path::PathBuf::from("second.rs"),
+            )],
+            ..IndexOptions::default()
+        };
+        let changed = service
+            .index(&models, explicit)
+            .await
+            .expect("explicit change");
+        assert!(
+            !changed
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop")
+        );
+
+        let excluded = IndexOptions {
+            root: Some(directory.path().to_path_buf()),
+            scan: ScanRulesUpdate {
+                globs: Some(vec!["nothing/**".into()]),
+                ..ScanRulesUpdate::default()
+            },
+            ..IndexOptions::default()
+        };
+        let filtered = service
+            .index(&models, excluded)
+            .await
+            .expect("scan rule change");
+        assert!(
+            !filtered
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop")
+        );
+        assert_eq!(filtered.files_deleted, 1);
         models.close();
     }
 

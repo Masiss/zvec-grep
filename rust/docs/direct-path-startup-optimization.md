@@ -34,10 +34,13 @@ is not compared directly with the direct CLI's 32 MB.
 Added a small, optional `clean-scan.json` workspace sidecar plus a direct
 startup fast path:
 
-- Metadata fingerprint covers every scanner-discovered path, size, mtime and
-  source fingerprint, plus the serialized scan rules.
+- Metadata fingerprint covers every scanner-discovered path, size, mtime,
+  ctime/inode identity and source fingerprint, plus the serialized scan rules.
 - Content fingerprint reads the discovered files (bounded to 256 MiB) and
   hashes their bytes. The sidecar stores both fingerprints.
+- A cheap storage metadata seal hashes generation storage paths, sizes and
+  ctime/inode identity; a changed/missing storage file invalidates the fast
+  path without opening zvec.
 - If metadata matches but content changed with the same size/mtime, the fast
   path does not return no-op. It runs the normal index pipeline with a forced
   content recheck, then refreshes the sidecar.
@@ -48,8 +51,9 @@ startup fast path:
   when metadata is unchanged the normal pipeline is asked to recheck content.
 - On a hit, it writes the workspace manifest update and returns a no-op
   `IndexResult` without acquiring a model or opening the zvec store.
-- The sidecar is v2 and is written only after a successful index when the
-  pre-index and post-index metadata/content fingerprints are equal. It is
+- The sidecar is v4 and is written only after a successful index when the
+  pre-index and post-index metadata/content fingerprints are equal and a storage
+  seal can be produced. It is
   removed before any normal index attempt and refreshed after a successful
   incremental change or rebuild.
 - The sidecar is a startup hint, not searchable index state. Legacy `ZGM2`
@@ -66,9 +70,9 @@ Single host, one fixture, repeated direct runs:
 
 | Metric | Before | After | Change |
 |---|---:|---:|---:|
-| Warm no-op p50 | 554.67 ms | **60.57 ms** | ~9.2× faster |
-| Warm no-op p95 | 577.63 ms | **71.80 ms** | ~8.0× faster |
-| Peak PSS | 316,864 KiB | **33,628 KiB** | ~89.4% lower |
+| Warm no-op p50 | 554.67 ms | **69.48 ms** | ~8.0× faster |
+| Warm no-op p95 | 577.63 ms | **72.49 ms** | ~7.6× faster |
+| Peak PSS | 316,864 KiB | **33,076 KiB** | ~89.6% lower |
 | Peak RSS / process | ~320 MB | ~36 MB | lower |
 | Fast no-op CPU | — | ~0.05 s user+sys | no model/storage open; reads fixture content |
 
@@ -80,9 +84,10 @@ Rebuild: 170.73 s, peak RSS 2.06 GB; post-rebuild no-op 0.04 s.
 - Fast-path test: initial index, warm no-op with a fresh model manager (zero
   model runtimes acquired), delete, missing-sidecar fallback, corrupt-sidecar
   fallback, and recovered fast no-op.
+- ctime/inode identity changes force normal content recheck instead of no-op.
 - Same-size/same-mtime content test: forced recheck updates FTS and vector;
   the old token is absent and the new token is present.
-- Indexing service tests: **29 passed** (after freeing disk for rebuild tests).
+- Indexing service tests: **30 passed** (after freeing disk for rebuild tests).
 - Compact manifest tests: **5 passed**; ZGM2 compatibility retained.
 - Existing fixture: FTS and vector both return `file_0000.rs`; 2,000 `.bin`
   manifests, zero legacy `.json` manifests.
@@ -98,11 +103,14 @@ observed correctness regression. The first no-op after a sidecar is absent
 still takes the normal path (measured ~1.38 s in this run); subsequent warm
 runs are fast.
 
-Limits: single-run incremental/rebuild timings; no forced cold page-cache
-drop; no 45-run qualification rerun. A deeply corrupted storage tree is not
-fully verified by the fast path unless `IndexStore::exists` reports it missing;
-deep integrity still requires opening storage. TOCTOU is reduced by read-time
-stat checks and pre/post fingerprints, but a source that changes and reverts
+Set `ZVEC_GREP_VERIFY_STORAGE=1` to opt out of the fast path and force the
+normal storage-open path for a verification run. This is a storage open, not a
+full data-page scrub. Limits: single-run incremental/rebuild timings; no forced
+cold page-cache drop; no 45-run qualification rerun. The storage seal is
+metadata-derived: it detects missing/truncated/replaced key files, but not every
+corrupted data page; full deep verification still requires opening storage and
+is not enabled in the default fast path. TOCTOU is reduced by ctime/inode and read-time stat
+checks plus pre/post fingerprints, but a source that changes and reverts
 entirely within one index attempt cannot be ruled out.
 
 Evidence: `benchmarks/harness-v2/operations/startup-direct/results/`.

@@ -1,26 +1,27 @@
 {
-  "baseline_commit": "456d237",
+  "baseline_commit": "742cfda",
   "status": "PASS for audited cases; residual limits recorded",
   "cases": {
     "same_size_same_mtime_content": "PASS - content fingerprint mismatch -> forced content recheck; FTS/vector test",
-    "rename_delete": "PASS - path/set fingerprint changes; delete regression test",
+    "rename_delete": "PASS - rename/delete test; path fingerprint changes",
     "scan_rules_excluded": "PASS by construction - fast path requires default scan update; saved scan rules included in metadata fingerprint",
     "sidecar_missing_corrupt_stale": "PASS - normal indexing fallback; missing/corrupt tests; v1 ignored",
     "generation_change": "PASS by construction - sidecar generation/index version must match; rebuild test outside this audit",
     "storage_missing": "PASS by construction - IndexStore::exists required; deep corruption is a documented limit",
-    "watcher_direct": "PASS by construction - explicit changes bypass fast path; no watcher test rerun",
+    "watcher_direct": "PASS - explicit Upsert and scan-rule change bypass fast path; test",
     "failed_cancel_crash": "PASS by construction - sidecar removed before normal run and written only after success; existing cancellation/failure tests pass",
-    "toctou": "RESIDUAL - read-time stat checks + pre/post fingerprints; full revert during one attempt not excluded"
+    "toctou": "REDUCED - ctime/inode in metadata fingerprint and read-time identity checks; full revert during one attempt remains possible",
+    "storage_corruption": "PARTIAL - metadata seal detects missing/truncated/replaced storage files; deep data-page corruption needs full open/verify"
   },
   "tests": {
-    "indexing_service": "29 passed",
+    "indexing_service": "30 passed",
     "compact_manifest": "5 passed",
     "fast_path": "PASS",
     "same_metadata_content": "PASS"
   },
   "benchmark": {
-    "warm_noop_p50_ms": 60.57,
-    "warm_noop_p95_ms": 71.8,
-    "peak_pss_kib": 33628
+    "warm_noop_p50_ms": 69.48,
+    "warm_noop_p95_ms": 72.49,
+    "peak_pss_kib": 33076
   }
 }
