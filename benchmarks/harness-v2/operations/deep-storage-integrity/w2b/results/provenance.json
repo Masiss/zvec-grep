@@ -1,0 +1,18 @@
+{
+  "native_source_commit": "8f6d600db769dcabf92f7af11a8242453b7ae5bf",
+  "native_source_path": ".local/native/zvec-native-profile",
+  "local_build_dir": ".local/native/zvec-native-build",
+  "installed_native_so_sha256_before_after": "58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a",
+  "local_build_native_so_restored_sha256": "cbb596cadb910a691b4ee367283031cb3819efb4e919beefa62328e9d101e6d3",
+  "custom_native_so_sha256": "b8f35074571e555e704b07e8b90e952529f8e56c2bdbf5663917754cb5830cb2",
+  "seal_failure_hook_so_sha256": "ce2be9b9c784bf00570a7ddb95710812bbc256d43445ec752e59719c0614443c",
+  "patch_sha256": "f166516febb781434764b424fee9f0be46ed13b7f389423238e224dab6471dc3",
+  "verifier_source_sha256": "35ce4a6d47d106ac25711e5787fbb32dd8db0dfb3b54bf543772caf8fad0cc3b",
+  "runner_sha256": "bde40517037384bda2d17010155590706bfce314e34553687908e97eb7afeb2d",
+  "rocksdb_version": "8.1.1",
+  "compiler": "g++ (GCC) 16.2.1 20260810",
+  "custom_build_command": "cmake --build .local/native/zvec-native-build --target zvec_c_api -j 8",
+  "native_core_patch": "patches/w2b-checksums.patch",
+  "note": "Custom native .so was built in the local build tree, copied to .tmp/w2b, then the source files and local build .so were restored. The Rust binary and installed/prebuilt native .so were never replaced. The seal-failure hook .so is test-only and is not part of the patch.",
+  "checksum_layout": "MetaHeader.reserved3_[0]=0x5A564543484B5331; all segment data_crc and footer.content_crc populated at refresh/seal"
+}

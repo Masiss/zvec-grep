@@ -1,0 +1,31 @@
+{
+  "runs": [
+    {
+      "wall_ms": 88.97,
+      "peak_pss_kib": 15277,
+      "rc": 0
+    },
+    {
+      "wall_ms": 45.37,
+      "peak_pss_kib": 15289,
+      "rc": 0
+    },
+    {
+      "wall_ms": 46.2,
+      "peak_pss_kib": 15370,
+      "rc": 0
+    },
+    {
+      "wall_ms": 45.64,
+      "peak_pss_kib": 15228,
+      "rc": 0
+    },
+    {
+      "wall_ms": 44.48,
+      "peak_pss_kib": 15342,
+      "rc": 0
+    }
+  ],
+  "p50_ms": 45.64,
+  "max_pss_kib": 15370
+}

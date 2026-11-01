@@ -1,0 +1,1706 @@
+[
+  {
+    "pass": true,
+    "root": ".tmp/w2b/cases/clean/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "pass_complete",
+    "errors": [],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/clean/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/clean/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/clean/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "clean",
+    "rc": 0
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/proxima_hnsw_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "corrupt",
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": false,
+        "checksum_ok": false,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 0,
+        "total_size": 0,
+        "segments": 0,
+        "segments_with_crc": 0,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": "IndexUnpacker rejected header/footer/segment table/content CRC"
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_hnsw_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_hnsw_flip",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/proxima_indexmeta_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "corrupt",
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": false,
+        "checksum_ok": false,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 0,
+        "total_size": 0,
+        "segments": 0,
+        "segments_with_crc": 0,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": "IndexUnpacker rejected header/footer/segment table/content CRC"
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_indexmeta_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_indexmeta_flip",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/proxima_header_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "corrupt",
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": false,
+        "checksum_ok": false,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 0,
+        "total_size": 0,
+        "segments": 0,
+        "segments_with_crc": 0,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": "IndexUnpacker rejected header/footer/segment table/content CRC"
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_header_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_header_flip",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/proxima_footer_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "corrupt",
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": false,
+        "checksum_ok": false,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 0,
+        "total_size": 0,
+        "segments": 0,
+        "segments_with_crc": 0,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": "IndexUnpacker rejected header/footer/segment table/content CRC"
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_footer_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_footer_flip",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/proxima_truncate_tail/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "corrupt",
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": false,
+        "checksum_ok": false,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 0,
+        "total_size": 0,
+        "segments": 0,
+        "segments_with_crc": 0,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": "IndexUnpacker rejected header/footer/segment table/content CRC"
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_tail/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_truncate_tail",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/proxima_truncate_footer/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "corrupt",
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": false,
+        "checksum_ok": false,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 0,
+        "total_size": 0,
+        "segments": 0,
+        "segments_with_crc": 0,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": "IndexUnpacker rejected header/footer/segment table/content CRC"
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_truncate_footer/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_truncate_footer",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/proxima_replace_random/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "corrupt",
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": false,
+        "checksum_ok": false,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 0,
+        "total_size": 0,
+        "segments": 0,
+        "segments_with_crc": 0,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": "IndexUnpacker rejected header/footer/segment table/content CRC"
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_random/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_replace_random",
+    "rc": 1
+  },
+  {
+    "pass": true,
+    "root": ".tmp/w2b/cases/proxima_replace_valid/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 7200,
+    "zero_crc_segments": 3,
+    "content_crc_zero_files": 1,
+    "incomplete_proxima_files": 1,
+    "coverage_complete": false,
+    "legacy": true,
+    "status": "pass_incomplete",
+    "errors": [],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 0,
+        "capability_ok": false,
+        "complete": false,
+        "size_ok": true,
+        "content_crc": 0,
+        "content_size": 2981888,
+        "total_size": 4034560,
+        "segments": 5,
+        "segments_with_crc": 2,
+        "segments_without_crc": 3,
+        "unprotected_bytes": 7200,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/proxima_replace_valid/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "proxima_replace_valid",
+    "rc": 2
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "corrupt",
+    "errors": [
+      "VerifyChecksum: Corruption: block checksum mismatch: stored = 3192204799, computed = 943256620, type = 4  in .tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst offset 392554 size 4079"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": false,
+        "error": "VerifyChecksum: Corruption: block checksum mismatch: stored = 3192204799, computed = 943256620, type = 4  in .tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst offset 392554 size 4079"
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "rocksdb_fts_sst_flip",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "corrupt",
+    "errors": [
+      "VerifyChecksum: Corruption: block checksum mismatch: stored = 269519286, computed = 2766762125, type = 4  in .tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/files/idmap.0/000008.sst offset 20453 size 4083"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/files/idmap.0",
+        "ok": false,
+        "error": "VerifyChecksum: Corruption: block checksum mismatch: stored = 269519286, computed = 2766762125, type = 4  in .tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/files/idmap.0/000008.sst offset 20453 size 4083"
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "rocksdb_idmap_sst_flip",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "corrupt",
+    "errors": [
+      "OpenForReadOnly: Corruption: Sst file size mismatch: .tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst. Expected 787393, actual size 786369\n in file .tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/MANIFEST-000005"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": false,
+        "error": "OpenForReadOnly: Corruption: Sst file size mismatch: .tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst. Expected 787393, actual size 786369\n in file .tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/MANIFEST-000005"
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "rocksdb_fts_sst_truncate",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/rocksdb_current_corrupt/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "corrupt",
+    "errors": [
+      "ListColumnFamilies: IO error: No such file or directory: While opening a file for sequentially reading: .tmp/w2b/cases/rocksdb_current_corrupt/storage/files/idmap.0/MANIFEST-999999: No such file or directory"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/files/idmap.0",
+        "ok": false,
+        "error": "ListColumnFamilies: IO error: No such file or directory: While opening a file for sequentially reading: .tmp/w2b/cases/rocksdb_current_corrupt/storage/files/idmap.0/MANIFEST-999999: No such file or directory"
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_current_corrupt/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "rocksdb_current_corrupt",
+    "rc": 1
+  },
+  {
+    "pass": false,
+    "root": ".tmp/w2b/cases/rocksdb_manifest_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "corrupt",
+    "errors": [
+      "ListColumnFamilies: Corruption: checksum mismatch in file .tmp/w2b/cases/rocksdb_manifest_flip/storage/files/idmap.0/MANIFEST-000005"
+    ],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/files/idmap.0",
+        "ok": false,
+        "error": "ListColumnFamilies: Corruption: checksum mismatch in file .tmp/w2b/cases/rocksdb_manifest_flip/storage/files/idmap.0/MANIFEST-000005"
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/rocksdb_manifest_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "rocksdb_manifest_flip",
+    "rc": 1
+  },
+  {
+    "pass": true,
+    "root": ".tmp/w2b/cases/scalar_ipc_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "pass_complete",
+    "errors": [],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/scalar_ipc_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "scalar_ipc_flip",
+    "rc": 0
+  },
+  {
+    "pass": true,
+    "root": ".tmp/w2b/cases/reconciliation_bin_flip/storage",
+    "proxima_files": 1,
+    "rocksdb_dirs": 13,
+    "ignored_files": 2151,
+    "unprotected_bytes": 0,
+    "zero_crc_segments": 0,
+    "content_crc_zero_files": 0,
+    "incomplete_proxima_files": 0,
+    "coverage_complete": true,
+    "legacy": false,
+    "status": "pass_complete",
+    "errors": [],
+    "proxima": [
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+        "parsed": true,
+        "checksum_ok": true,
+        "per_segment_ok": true,
+        "capability": 6509466466688652081,
+        "capability_ok": true,
+        "complete": true,
+        "size_ok": true,
+        "content_crc": 1855626591,
+        "content_size": 3403776,
+        "total_size": 4456448,
+        "segments": 7,
+        "segments_with_crc": 7,
+        "segments_without_crc": 0,
+        "unprotected_bytes": 0,
+        "segment_crc_mismatches": 0,
+        "error": ""
+      }
+    ],
+    "rocksdb": [
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/directories/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/directories/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/entities/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/entities/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/entities/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/files/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/files/2/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/files/idmap.0",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "path": ".tmp/w2b/cases/reconciliation_bin_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "case": "reconciliation_bin_flip",
+    "rc": 0
+  }
+]

@@ -1,0 +1,110 @@
+{
+  "orig": {
+    "initial": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 2.86,
+        "sys_s": 1.41,
+        "wall": "0:06.79",
+        "max_rss_kib": 406852,
+        "fs_inputs": 146816,
+        "fs_outputs": 711240
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t2000\nduration\t6s (5630ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/orig/ws"
+    },
+    "incremental": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 0.91,
+        "sys_s": 0.5,
+        "wall": "0:02.11",
+        "max_rss_kib": 471024,
+        "fs_inputs": 224,
+        "fs_outputs": 119792
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t1\nduration\t2s (1544ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/orig/ws"
+    },
+    "rebuild": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 2.74,
+        "sys_s": 1.52,
+        "wall": "0:06.70",
+        "max_rss_kib": 408428,
+        "fs_inputs": 64,
+        "fs_outputs": 718920
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t2000\nduration\t6s (5802ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/orig/ws"
+    },
+    "post_rebuild_noop": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 0.34,
+        "sys_s": 0.2,
+        "wall": "0:00.57",
+        "max_rss_kib": 298160,
+        "fs_inputs": 0,
+        "fs_outputs": 6808
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t0\nduration\t16ms (16ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/orig/ws"
+    }
+  },
+  "custom": {
+    "initial": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 2.86,
+        "sys_s": 1.53,
+        "wall": "0:07.09",
+        "max_rss_kib": 423332,
+        "fs_inputs": 32032,
+        "fs_outputs": 711032
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t2000\nduration\t6s (5954ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/custom/ws"
+    },
+    "incremental": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 0.83,
+        "sys_s": 0.44,
+        "wall": "0:01.71",
+        "max_rss_kib": 473784,
+        "fs_inputs": 64,
+        "fs_outputs": 118480
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t1\nduration\t1s (1141ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/custom/ws"
+    },
+    "rebuild": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 3.09,
+        "sys_s": 1.66,
+        "wall": "0:08.26",
+        "max_rss_kib": 416948,
+        "fs_inputs": 0,
+        "fs_outputs": 707880
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t2000\nduration\t7s (7394ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/custom/ws"
+    },
+    "post_rebuild_noop": {
+      "rc": 0,
+      "metrics": {
+        "user_s": 0.37,
+        "sys_s": 0.19,
+        "wall": "0:00.60",
+        "max_rss_kib": 298740,
+        "fs_inputs": 0,
+        "fs_outputs": 6904
+      },
+      "stderr_tail": "\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0",
+      "stdout_tail": "entities\t0\nduration\t14ms (14ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w2b/bench/custom/ws"
+    }
+  }
+}

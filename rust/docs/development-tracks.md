@@ -3,7 +3,7 @@
 Status index for active and planned work. This is intentionally under
 `rust/docs/` so it does not duplicate the upstream product docs under `docs/`.
 
-Current handoff: [`handoff-20261101-deep-integrity-w2.md`](handoff-20261101-deep-integrity-w2.md).
+Current handoff: [`handoff-20261101-deep-integrity-w2b.md`](handoff-20261101-deep-integrity-w2b.md).
 
 Updated: 2026-11-01. Frozen RC: `integration/upstream-rust` at
 `c2347d5`, tag `rust-v0.3.0-rc.2` (code baseline `289674b`).
@@ -17,7 +17,7 @@ Updated: 2026-11-01. Frozen RC: `integration/upstream-rust` at
 | **Direct-path Startup Optimization** | **Implemented; keep** | Reduce warm direct no-op startup latency/memory without changing correctness or searchable state | Clean-scan sidecar fast path is in place; measure cold page-cache and multi-workspace next if authorized | [`direct-path-startup-optimization.md`](direct-path-startup-optimization.md) |
 | **Storage Footprint Optimization** | **Implemented; keep** | Reduce on-disk index size without changing correctness, quality, stability, or searchable index format | Compact reconciliation sidecars are in place; remaining 88% is zvec vector/entity storage. Further work needs a new authorization/format decision | [`storage-footprint-optimization.md`](storage-footprint-optimization.md) |
 | **Harness V2** | **P0–P6 implemented** | Policy v1 + receipt/protocol readers, golden fixtures, host/measurement primitives, complete Rust lifecycle split, operation registry/adapters, upstream retrieval as canonical | Next: none; Harness V2 closure complete | [`harness-v2-refactor-plan.md`](harness-v2-refactor-plan.md), [`../../benchmarks/harness-v2/README.md`](../../benchmarks/harness-v2/README.md) |
-| **Native deep integrity** | **PARTIAL (W2)** | Prove native checksum coverage before a verifier API | RocksDB checksums work; current Proxima HNSW has zero CRC. Patch writer CRC at seal and rerun W2 before W3 integration | [`deep-storage-integrity-w2.md`](deep-storage-integrity-w2.md), [`deep-storage-integrity-audit.md`](deep-storage-integrity-audit.md) |
+| **Native deep integrity** | **W2b checksum PASS; W3 gated** | Native checksum writer, legacy compatibility, and verifier surface | HNSW CRC/coverage fixed; seal failure rejected; legacy INCOMPLETE. Crash during in-place incremental can corrupt active generation; fix generation atomicity in W3 | [`deep-storage-integrity-w2b.md`](deep-storage-integrity-w2b.md), [`deep-storage-integrity-w2.md`](deep-storage-integrity-w2.md) |
 | **Production qualification** | **Not ready** | 421-file/production benchmark, release gates beyond RC | Owner authorization + benchmark policy | `/home/masis/src/zvec-grep-integration/docs/release/RELEASE-READINESS.md` |
 | **M3-B scalar outside-lock** | **Blocked** | zvec 0.8.0 rejects readers/writers during optimize | Reopen only with a native version/API that passes the gate | `/home/masis/src/zvec-grep-integration/docs/release/M3B-HANDLE-MAINTENANCE-FEASIBILITY.md` |
 | **#10 deferred maintenance** | **Not implemented** | Deferred optimize policy, storage growth, recall/latency | Owner policy + benchmark; visibility evidence exists | `/home/masis/src/zvec-grep-integration/docs/release/RELEASE-READINESS.md` §8 |

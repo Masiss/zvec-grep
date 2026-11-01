@@ -1,0 +1,250 @@
+[
+  {
+    "case": "clean",
+    "rc": 0,
+    "pass": true,
+    "status": "pass_complete",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": []
+  },
+  {
+    "case": "proxima_hnsw_flip",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": false,
+    "legacy": true,
+    "parsed": false,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ]
+  },
+  {
+    "case": "proxima_indexmeta_flip",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": false,
+    "legacy": true,
+    "parsed": false,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ]
+  },
+  {
+    "case": "proxima_header_flip",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": false,
+    "legacy": true,
+    "parsed": false,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ]
+  },
+  {
+    "case": "proxima_footer_flip",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": false,
+    "legacy": true,
+    "parsed": false,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ]
+  },
+  {
+    "case": "proxima_truncate_tail",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": false,
+    "legacy": true,
+    "parsed": false,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ]
+  },
+  {
+    "case": "proxima_truncate_footer",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": false,
+    "legacy": true,
+    "parsed": false,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ]
+  },
+  {
+    "case": "proxima_replace_random",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": false,
+    "legacy": true,
+    "parsed": false,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ]
+  },
+  {
+    "case": "proxima_replace_valid",
+    "rc": 2,
+    "pass": true,
+    "status": "pass_incomplete",
+    "complete": false,
+    "legacy": true,
+    "parsed": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 3,
+    "segment_crc_mismatches": 0,
+    "errors": []
+  },
+  {
+    "case": "rocksdb_fts_sst_flip",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "VerifyChecksum: Corruption: block checksum mismatch: stored = 3192204799, computed = 943256620, type = 4  in .tmp/w2b/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst offset 392554 size 4079"
+    ]
+  },
+  {
+    "case": "rocksdb_idmap_sst_flip",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "VerifyChecksum: Corruption: block checksum mismatch: stored = 269519286, computed = 2766762125, type = 4  in .tmp/w2b/cases/rocksdb_idmap_sst_flip/storage/files/idmap.0/000008.sst offset 20453 size 4083"
+    ]
+  },
+  {
+    "case": "rocksdb_fts_sst_truncate",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "OpenForReadOnly: Corruption: Sst file size mismatch: .tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst. Expected 787393, actual size 786369\n in file .tmp/w2b/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/MANIFEST-000005"
+    ]
+  },
+  {
+    "case": "rocksdb_current_corrupt",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "ListColumnFamilies: IO error: No such file or directory: While opening a file for sequentially reading: .tmp/w2b/cases/rocksdb_current_corrupt/storage/files/idmap.0/MANIFEST-999999: No such file or directory"
+    ]
+  },
+  {
+    "case": "rocksdb_manifest_flip",
+    "rc": 1,
+    "pass": false,
+    "status": "corrupt",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": [
+      "ListColumnFamilies: Corruption: checksum mismatch in file .tmp/w2b/cases/rocksdb_manifest_flip/storage/files/idmap.0/MANIFEST-000005"
+    ]
+  },
+  {
+    "case": "scalar_ipc_flip",
+    "rc": 0,
+    "pass": true,
+    "status": "pass_complete",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": []
+  },
+  {
+    "case": "reconciliation_bin_flip",
+    "rc": 0,
+    "pass": true,
+    "status": "pass_complete",
+    "complete": true,
+    "legacy": false,
+    "parsed": true,
+    "content_crc": 1855626591,
+    "segments_with_crc": 7,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "errors": []
+  }
+]
