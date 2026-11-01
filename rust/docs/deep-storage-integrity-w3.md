@@ -1,8 +1,10 @@
 # Deep Storage Integrity — W3 Native Verifier
 
-Status: **PASS for W3 acceptance.** W4 remains a draft scope pending the owner
-decisions listed in
-[`deep-storage-integrity-w3-w4-plan.md`](deep-storage-integrity-w3-w4-plan.md).
+Status: **PASS for W3 acceptance.** W4 is complete; see
+[`deep-storage-integrity-w4.md`](deep-storage-integrity-w4.md) for the
+operational surface, ABI/light flags, qualification and local rollout. The W4
+native patch supersedes the W3 patch and adds `zvec_integrity_abi_version`,
+`SKIP_STABILITY` and `LIGHT` without changing W3 coverage semantics.
 
 Baseline: `52394f3` (W3/W4 plan). Date: 2026-11-01.
 Native candidate source: local `zvec-native-profile` at `8f6d600` plus

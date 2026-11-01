@@ -1,0 +1,28 @@
+{
+  "workspace": ".tmp/w3/ws3",
+  "fts": {
+    "before_sha256": "77d8ef8a38f9ca70c97f1db0b241a4fbbc8cfb3d9eb2bc00d32b29f373c643ab",
+    "after_sha256": "77d8ef8a38f9ca70c97f1db0b241a4fbbc8cfb3d9eb2bc00d32b29f373c643ab",
+    "lines": 39,
+    "identical": true,
+    "return_codes": {
+      "before": 0,
+      "after": 0
+    }
+  },
+  "hybrid": {
+    "before_sha256": "9cebedd2c009ffaa926ee594f252eb54f49be9dd08d0976cdfd931f92f5029ed",
+    "after_sha256": "9cebedd2c009ffaa926ee594f252eb54f49be9dd08d0976cdfd931f92f5029ed",
+    "lines": 19,
+    "identical": true,
+    "return_codes": {
+      "before": 0,
+      "after": 0
+    }
+  },
+  "verify_between_runs": {
+    "code": 0,
+    "status": "PASS_COMPLETE"
+  },
+  "note": "Search outputs are byte-identical before and after a deep verification; the normal search/index/fast path is unchanged."
+}

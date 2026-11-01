@@ -1,0 +1,207 @@
+{
+  "method": "single run per condition; host state captured before/after; PSS sampled from /proc/<pid>/smaps_rollup; direct routing (ZVEC_GREP_MODE=direct)",
+  "deep_verify_clean_201_files": {
+    "exit_code": 0,
+    "wall_seconds": 0.169727,
+    "user_seconds": 0.026038,
+    "system_seconds": 0.120505,
+    "max_rss_kib": 36996,
+    "max_pss_kib": 30363,
+    "io": {
+      "rchar": 717470,
+      "wchar": 23,
+      "syscr": 858,
+      "syscw": 2,
+      "read_bytes": 101908480,
+      "write_bytes": 0,
+      "cancelled_write_bytes": 0
+    },
+    "host_before": {
+      "load1": 3.07,
+      "load5": 3.54,
+      "load15": 6.27,
+      "mem_available_kib": 10228888,
+      "swap_free_kib": 15547796,
+      "memory_pressure": {
+        "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824003",
+        "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939200"
+      }
+    },
+    "host_after": {
+      "load1": 3.07,
+      "load5": 3.54,
+      "load15": 6.27,
+      "mem_available_kib": 10203912,
+      "swap_free_kib": 15547800,
+      "memory_pressure": {
+        "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824018",
+        "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939215"
+      }
+    }
+  },
+  "deep_verify_legacy": {
+    "exit_code": 2,
+    "wall_seconds": 0.105536,
+    "user_seconds": 0.026627,
+    "system_seconds": 0.079475,
+    "max_rss_kib": 35528,
+    "max_pss_kib": 30605,
+    "io": {
+      "rchar": 705033,
+      "wchar": 158494,
+      "syscr": 849,
+      "syscw": 5,
+      "read_bytes": 2347008,
+      "write_bytes": 0,
+      "cancelled_write_bytes": 0
+    },
+    "host_before": {
+      "load1": 3.07,
+      "load5": 3.54,
+      "load15": 6.27,
+      "mem_available_kib": 10201668,
+      "swap_free_kib": 15547800,
+      "memory_pressure": {
+        "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824018",
+        "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939215"
+      }
+    },
+    "host_after": {
+      "load1": 3.07,
+      "load5": 3.54,
+      "load15": 6.27,
+      "mem_available_kib": 10180108,
+      "swap_free_kib": 15547800,
+      "memory_pressure": {
+        "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824018",
+        "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939215"
+      }
+    }
+  },
+  "light_seal_check_201_files": {
+    "exit_code": 0,
+    "wall_seconds": 0.041323,
+    "user_seconds": 0.024838,
+    "system_seconds": 0.01485,
+    "max_rss_kib": 27600,
+    "max_pss_kib": 8723,
+    "io": {
+      "rchar": 2003391,
+      "wchar": 0,
+      "syscr": 203,
+      "syscw": 0,
+      "read_bytes": 0,
+      "write_bytes": 0,
+      "cancelled_write_bytes": 0
+    },
+    "host_before": {
+      "load1": 1.42,
+      "load5": 2.36,
+      "load15": 5.1,
+      "mem_available_kib": 9653392,
+      "swap_free_kib": 15738592,
+      "memory_pressure": {
+        "some": "avg10=0.00 avg60=0.03 avg300=2.57 total=464841956",
+        "full": "avg10=0.00 avg60=0.03 avg300=2.55 total=435956021"
+      }
+    },
+    "host_after": {
+      "load1": 1.42,
+      "load5": 2.36,
+      "load15": 5.1,
+      "mem_available_kib": 9641728,
+      "swap_free_kib": 15738592,
+      "memory_pressure": {
+        "some": "avg10=0.00 avg60=0.03 avg300=2.57 total=464841956",
+        "full": "avg10=0.00 avg60=0.03 avg300=2.55 total=435956021"
+      }
+    }
+  },
+  "incremental_one_file_new_binary_direct": {
+    "exit_code": 0,
+    "wall_seconds": 7.71832,
+    "user_seconds": 0.738682,
+    "system_seconds": 0.65773,
+    "max_rss_kib": 380548,
+    "max_pss_kib": 374010,
+    "io": {
+      "rchar": 42352355,
+      "wchar": 2068017,
+      "syscr": 3155,
+      "syscw": 768,
+      "read_bytes": 144359424,
+      "write_bytes": 30748672,
+      "cancelled_write_bytes": 0
+    },
+    "host_before": {
+      "load1": 3.81,
+      "load5": 8.31,
+      "load15": 8.13,
+      "mem_available_kib": 749452,
+      "swap_free_kib": 4084348,
+      "memory_pressure": {
+        "some": "avg10=26.21 avg60=13.59 avg300=9.14 total=518382886",
+        "full": "avg10=25.37 avg60=13.22 avg300=8.76 total=486586980"
+      }
+    },
+    "host_after": {
+      "load1": 3.82,
+      "load5": 8.24,
+      "load15": 8.11,
+      "mem_available_kib": 4678968,
+      "swap_free_kib": 3567836,
+      "memory_pressure": {
+        "some": "avg10=24.67 avg60=15.18 avg300=9.62 total=519798709",
+        "full": "avg10=23.35 avg60=14.64 avg300=9.21 total=487882104"
+      }
+    }
+  },
+  "incremental_internal_duration_ms": 1110,
+  "clean_noop_new_binary_direct": {
+    "exit_code": 0,
+    "wall_seconds": 0.020888,
+    "user_seconds": 0.007049,
+    "system_seconds": 0.007096,
+    "max_rss_kib": 33108,
+    "max_pss_kib": 16,
+    "io": {
+      "rchar": 1692,
+      "wchar": 0,
+      "syscr": 5,
+      "syscw": 0,
+      "read_bytes": 0,
+      "write_bytes": 0,
+      "cancelled_write_bytes": 0
+    },
+    "host_before": {
+      "load1": 3.82,
+      "load5": 8.24,
+      "load15": 8.11,
+      "mem_available_kib": 4642344,
+      "swap_free_kib": 3600884,
+      "memory_pressure": {
+        "some": "avg10=24.67 avg60=15.18 avg300=9.62 total=519798939",
+        "full": "avg10=23.35 avg60=14.64 avg300=9.21 total=487882334"
+      }
+    },
+    "host_after": {
+      "load1": 3.82,
+      "load5": 8.24,
+      "load15": 8.11,
+      "mem_available_kib": 4639536,
+      "swap_free_kib": 3604824,
+      "memory_pressure": {
+        "some": "avg10=24.67 avg60=15.18 avg300=9.62 total=519798950",
+        "full": "avg10=23.35 avg60=14.64 avg300=9.21 total=487882345"
+      }
+    }
+  },
+  "clean_noop_internal_duration_ms": 6,
+  "notes": [
+    "Incremental wall includes process start, model load and one-file re-embedding; the CLI-reported indexing duration is 1.11 s.",
+    "Clean no-op is ~21 ms wall and 6 ms internal with the existing clean-scan fast path.",
+    "A same-workspace old-vs-new A/B is invalid: the old rc.2 binary writes a different workspace manifest schema. Mixed-binary A/B receipts are retained but are not used as a performance claim.",
+    "The light seal check is a separate 41 ms process-level probe with 8.7 MiB max PSS on a 201-file generation; it runs in-process during seal, so process overhead is not added twice.",
+    "true ENOSPC is OPERATION_BLOCKED (no isolated mount privilege); the RLIMIT_FSIZE write-failure proxy is recorded separately."
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-01",
+  "baseline_commit": "5b218aed144eb2dddf1dfd4b9ffaad080c5519d8",
+  "w3_commit": "5b218ae",
+  "native_source": {
+    "repo": "/home/masis/src/zvec-grep",
+    "commit": "8f6d600",
+    "patch": "benchmarks/harness-v2/operations/deep-storage-integrity/w4/patches/w4-integrity-verifier.patch",
+    "patch_sha256": "2516ef719904431243b4cc68341a3a83f62b34a89adc1179c92fe59e0fd9922a"
+  },
+  "built_artifacts": {
+    "binary": {
+      "path": "rust/target/release/zg",
+      "sha256": "6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4",
+      "bytes": 80917984
+    },
+    "library": {
+      "path": ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+      "sha256": "532f16dd91574cc692ba5f36f855dd187f04a40afe29dde48fa47a35f8c13c38",
+      "bytes": 42099504
+    }
+  },
+  "installed_artifacts": {
+    "binary": {
+      "path": "/home/masis/.local/bin/zg",
+      "sha256": "6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4"
+    },
+    "library": {
+      "path": "/home/masis/.local/lib/libzvec_c_api.so",
+      "sha256": "532f16dd91574cc692ba5f36f855dd187f04a40afe29dde48fa47a35f8c13c38"
+    }
+  },
+  "fixtures": {
+    "clean": {
+      ".tmp/w3/ws3": {
+        "files": 80,
+        "generation_sha256": null
+      }
+    },
+    "large": ".tmp/w3/large/src (2001 files, 80040 entities, 48 segments)",
+    "legacy": ".tmp/w2c/vec/ws (W2c zero-CRC legacy fixture)",
+    "crash": ".tmp/w4/crash",
+    "concurrency": ".tmp/w4/concurrency"
+  },
+  "kernel": "7.2.11-arch1-1",
+  "commands": {
+    "engine_tests": "cargo test -p zg-engine --lib",
+    "cli_tests": "cargo test -p zg-cli --lib",
+    "wrapper_tests": "cargo test -p zg-integrity-native",
+    "fault_matrix": "python3 .../w4/run_cli_cases.py ...",
+    "crash": "python3 .../w4/run_crash.py ...",
+    "concurrency": "python3 .../w4/run_concurrency.py ..."
+  },
+  "results": {
+    "engine_tests": "563 passed / 0 failed / 39 ignored",
+    "cli_tests": "95 passed",
+    "wrapper_tests": "4 passed",
+    "fault_matrix": "25/25 passed",
+    "crash": "5/5 passed"
+  },
+  "notes": [
+    "The verifier is read-only; the installed daemon uses the same W4 native library.",
+    "Mixed pre-W4 binary/library pairs are unsupported."
+  ]
+}

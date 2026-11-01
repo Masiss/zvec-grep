@@ -22,6 +22,7 @@ use crate::{
             InfoOptions, InfoResult,
             result::{IndexCompatibility, InfoSource, WorkspaceIndexInfo, WorkspaceIndexPolicy},
         },
+        verify::{VerifyOptions, VerifyOutcome, VerifyResult},
     },
     domain::{
         IndexDescriptor, IndexState, Workspace,
@@ -57,6 +58,7 @@ use super::pipeline::{
     IndexEmbeddingRuntime, IndexingContext, get_workspace_index_status, index_workspace,
     index_workspace_with_content_recheck,
 };
+use zg_integrity_native::{IntegrityCode, IntegrityError, VerifyFlags, verify_collection};
 
 const DEFAULT_LOCAL_EMBEDDING: &str = "local/potion-code-16m-v2";
 const CLEAN_SCAN_VERSION: u32 = 6;
@@ -838,6 +840,13 @@ impl WorkspaceIndexService {
         );
         let indexed = result?;
         close_result?;
+        let seal_started = Instant::now();
+        light_seal_check(&manifest.storage_home())?;
+        tracing::info!(
+            root = %manifest.workspace.root.display(),
+            seal_check_ms = u64::try_from(seal_started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            "sealed generation light integrity check completed"
+        );
         if options
             .signal
             .as_ref()
@@ -963,6 +972,160 @@ impl WorkspaceIndexService {
         })
     }
 
+    /// Verifies the active stable generation read-only. This never repairs,
+    /// deletes or rebuilds storage and never opens a writable collection.
+    #[allow(clippy::too_many_lines, clippy::unused_async)]
+    pub(crate) async fn verify(&self, options: VerifyOptions) -> Result<VerifyResult, EngineError> {
+        let location = workspace_index_location_from_option(options.root.as_deref())?;
+        let Some(location) = find_nearest_workspace(&location.root)? else {
+            return Ok(VerifyResult::unavailable(
+                location.root,
+                location.home,
+                location.index_path,
+                None,
+                "workspace index is not initialized",
+            ));
+        };
+        let manifest = match inspect_workspace_manifest(&location.home)? {
+            ManifestState::Current(manifest) => manifest,
+            ManifestState::Missing => {
+                return Ok(VerifyResult::unavailable(
+                    location.root,
+                    location.home,
+                    location.index_path,
+                    None,
+                    "workspace index manifest is missing",
+                ));
+            }
+            ManifestState::RebuildRequired {
+                actual_version,
+                reason,
+            } => {
+                return Ok(VerifyResult::unavailable(
+                    location.root,
+                    location.home,
+                    location.index_path,
+                    None,
+                    format!(
+                        "index format {} requires rebuild before verification: {reason}",
+                        actual_version
+                            .map_or_else(|| "unknown".to_owned(), |value| value.to_string())
+                    ),
+                ));
+            }
+        };
+        let expected_generation = manifest.storage_generation.clone();
+        let storage_home = manifest.storage_home();
+        let index_path = storage_home.join("storage");
+        if !is_indexed(&manifest) || manifest.workspace.index == IndexState::Disabled {
+            return Ok(VerifyResult::unavailable(
+                location.root,
+                location.home,
+                index_path,
+                expected_generation,
+                "workspace index is not enabled",
+            ));
+        }
+        if !storage_home.is_dir() {
+            // The manifest selects a generation that is not on disk. This is a
+            // fail-closed condition, not merely unverified coverage.
+            return Ok(VerifyResult::corrupt(
+                location.root,
+                location.home,
+                index_path,
+                expected_generation,
+                "selected storage generation is missing",
+            ));
+        }
+
+        let mut flags = VerifyFlags::all();
+        if options.require_complete {
+            flags = flags.union(VerifyFlags::REQUIRE_COMPLETE);
+        }
+        // The native verifier's layout check expects the collection directory,
+        // not the generation home that also contains storage.lock and build.json.
+        let verification = match verify_collection(&index_path, flags) {
+            Ok(verification) => verification,
+            Err(IntegrityError::Unavailable) => {
+                return Ok(VerifyResult::unavailable(
+                    location.root,
+                    location.home,
+                    index_path,
+                    expected_generation,
+                    "native integrity verifier is unavailable; the installed native library predates W4",
+                ));
+            }
+            Err(IntegrityError::IncompatibleAbi { actual, expected }) => {
+                return Ok(VerifyResult::unavailable(
+                    location.root,
+                    location.home,
+                    index_path,
+                    expected_generation,
+                    format!(
+                        "native integrity verifier ABI {actual} does not match supported ABI {expected}"
+                    ),
+                ));
+            }
+            Err(IntegrityError::InvalidArgument) => {
+                return Err(EngineError::invalid_argument(
+                    "native integrity verifier rejected the storage path",
+                ));
+            }
+            Err(IntegrityError::InvalidPath) => {
+                return Err(EngineError::invalid_argument(
+                    "storage path cannot be represented as a native path",
+                ));
+            }
+            Err(error) => {
+                return Err(EngineError::storage_failure(format!(
+                    "cannot run native integrity verification: {error}"
+                )));
+            }
+        };
+
+        let mut outcome = match verification.code {
+            IntegrityCode::PassComplete => VerifyOutcome::Pass,
+            IntegrityCode::Corrupt => VerifyOutcome::Corrupt,
+            IntegrityCode::Incomplete | IntegrityCode::InvalidArg => VerifyOutcome::Incomplete,
+        };
+        let mut message = None;
+        if let Some(expected) = expected_generation.as_deref() {
+            match verification.report.generation.as_deref() {
+                Some(actual) if actual == expected => {}
+                Some(actual) => {
+                    outcome = VerifyOutcome::Corrupt;
+                    message = Some(format!(
+                        "generation identity mismatch: manifest selects {expected}, storage reports {actual}"
+                    ));
+                }
+                None => {
+                    outcome = VerifyOutcome::Corrupt;
+                    message = Some(format!(
+                        "cannot confirm generation identity; manifest selects {expected}"
+                    ));
+                }
+            }
+        }
+        if outcome != VerifyOutcome::Corrupt && !verification.report.stable {
+            outcome = VerifyOutcome::Incomplete;
+            message = Some("generation is actively written or otherwise unstable".to_owned());
+        }
+        if outcome != VerifyOutcome::Corrupt && verification.report.legacy && message.is_none() {
+            message = Some("legacy generation has no content checksum".to_owned());
+        }
+        Ok(VerifyResult {
+            root: location.root,
+            home: location.home,
+            index_path,
+            expected_generation,
+            native_available: true,
+            native_abi: Some(verification.abi_version),
+            outcome,
+            report: Some(verification.report),
+            message,
+        })
+    }
+
     pub(crate) async fn drop_index(&self, options: &InfoOptions) -> Result<bool, EngineError> {
         let location = workspace_index_location_from_option(options.root.as_deref())?;
         let registry = self.registry()?;
@@ -1052,6 +1215,42 @@ fn index_manifest(
     )?;
     manifest.storage_generation = active.and_then(|value| value.storage_generation.clone());
     Ok(manifest)
+}
+
+fn light_seal_check(storage_home: &Path) -> EngineResult<()> {
+    let flags = VerifyFlags::PROXIMA_STRUCTURE
+        .union(VerifyFlags::SKIP_STABILITY)
+        .union(VerifyFlags::LIGHT);
+    match verify_collection(&storage_home.join("storage"), flags) {
+        Ok(verification) if verification.report.pass && !verification.report.legacy => Ok(()),
+        Ok(verification) => {
+            let detail = if verification.report.errors.is_empty() {
+                format!("{:?}", verification.report.status)
+            } else {
+                verification.report.errors.join("; ")
+            };
+            Err(EngineError::storage_failure(format!(
+                "sealed generation failed light integrity check: {detail}"
+            )))
+        }
+        Err(IntegrityError::Unavailable) => {
+            tracing::warn!(
+                "native integrity verifier unavailable; sealed generation was not light-checked"
+            );
+            Ok(())
+        }
+        Err(IntegrityError::IncompatibleAbi { actual, expected }) => {
+            tracing::warn!(
+                actual,
+                expected,
+                "native integrity verifier ABI mismatch; sealed generation was not light-checked"
+            );
+            Ok(())
+        }
+        Err(error) => Err(EngineError::storage_failure(format!(
+            "cannot light-check sealed generation: {error}"
+        ))),
+    }
 }
 
 impl Default for WorkspaceIndexService {

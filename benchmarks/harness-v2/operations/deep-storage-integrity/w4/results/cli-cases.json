@@ -1,0 +1,511 @@
+{
+  "binary": "/home/masis/.local/bin/zg",
+  "old_binary": ".tmp/w4/oldbin/zg",
+  "cases": [
+    {
+      "case": "clean",
+      "expect_code": 0,
+      "expect_outcome": "pass",
+      "code": 0,
+      "outcome": "pass",
+      "status": "PASS_COMPLETE",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "status": true,
+        "native_abi": true,
+        "native_available": true,
+        "coverage": true,
+        "limitations_explicit": true,
+        "generation_identity": true,
+        "read_only": true,
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "clean_require_complete",
+      "expect_code": 0,
+      "expect_outcome": "pass",
+      "code": 0,
+      "outcome": "pass",
+      "status": "PASS_COMPLETE",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "status": true,
+        "native_abi": true,
+        "native_available": true,
+        "coverage": true,
+        "limitations_explicit": true,
+        "generation_identity": true,
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_header_flip",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_content_flip",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_meta_flip",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_truncate",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "rocksdb_sst_flip",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "rocksdb_manifest_flip",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "rocksdb_current_corrupt",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "ipc_footer_flip",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "ipc_truncate",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_magic_flip",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_truncate",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_count_overflow",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_trailing",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "missing_collection",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": "CORRUPT",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "missing_selected_generation",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": null,
+      "native_abi": null,
+      "native_available": false,
+      "message": "selected storage generation is missing",
+      "limitations": null,
+      "missing_coverage": null,
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "identity_manifest_mismatch",
+      "expect_code": 1,
+      "expect_outcome": "corrupt",
+      "code": 1,
+      "outcome": "corrupt",
+      "status": null,
+      "native_abi": null,
+      "native_available": false,
+      "message": "selected storage generation is missing",
+      "limitations": null,
+      "missing_coverage": null,
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "active_writer_refused",
+      "expect_code": 2,
+      "expect_outcome": "incomplete",
+      "code": 2,
+      "outcome": "incomplete",
+      "status": "INCOMPLETE",
+      "native_abi": 1,
+      "native_available": true,
+      "message": "generation is actively written or otherwise unstable",
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "wal_non_empty",
+      "expect_code": 2,
+      "expect_outcome": "incomplete",
+      "code": 2,
+      "outcome": "incomplete",
+      "status": "INCOMPLETE",
+      "native_abi": 1,
+      "native_available": true,
+      "message": null,
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [
+        "wal"
+      ],
+      "checks": {
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "legacy_zero_crc",
+      "expect_code": 2,
+      "expect_outcome": "incomplete",
+      "code": 2,
+      "outcome": "incomplete",
+      "status": "INCOMPLETE_LEGACY",
+      "native_abi": 1,
+      "native_available": true,
+      "message": "legacy generation has no content checksum",
+      "limitations": [
+        "ipc.content_checksum",
+        "sidecars.content_checksum"
+      ],
+      "missing_coverage": [],
+      "checks": {
+        "read_only": true,
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "old_library_pairing_incompatible",
+      "expect_code": 127,
+      "code": 127,
+      "outcome": null,
+      "checks": {
+        "return_code": true,
+        "undefined_symbol": true
+      },
+      "ok": true
+    },
+    {
+      "case": "uninitialized",
+      "expect_code": 2,
+      "expect_outcome": "incomplete",
+      "code": 2,
+      "outcome": "incomplete",
+      "status": null,
+      "native_abi": null,
+      "native_available": false,
+      "message": "workspace index is not initialized",
+      "limitations": null,
+      "missing_coverage": null,
+      "checks": {
+        "message": true,
+        "return_code": true,
+        "outcome": true
+      },
+      "ok": true
+    },
+    {
+      "case": "help_verify",
+      "expect_code": 0,
+      "code": 0,
+      "outcome": null,
+      "checks": {
+        "return_code": true,
+        "exit_codes_documented": true
+      },
+      "ok": true
+    },
+    {
+      "case": "status_verify_compatibility",
+      "expect_code": 0,
+      "code": 0,
+      "outcome": null,
+      "checks": {
+        "return_code": true,
+        "status_output": true
+      },
+      "ok": true
+    }
+  ],
+  "passed": 25,
+  "failed": 0
+}

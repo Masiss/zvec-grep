@@ -10,7 +10,7 @@
 
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Selects which artifact categories the native verifier checks.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -25,6 +25,10 @@ impl VerifyFlags {
     pub const PROXIMA_CONTENT: Self = Self(0x4);
     /// Return `INCOMPLETE` when requested coverage is not complete.
     pub const REQUIRE_COMPLETE: Self = Self(0x8);
+    /// Internal: verify a staged generation without probing `storage.lock`.
+    pub const SKIP_STABILITY: Self = Self(0x10);
+    /// Light seal check: required layout plus `Proxima` structure only.
+    pub const LIGHT: Self = Self(0x20);
 
     /// Default: `RocksDB` plus `Proxima` structure and content.
     #[must_use]
@@ -51,8 +55,11 @@ impl VerifyFlags {
     }
 }
 
+/// Verifier C ABI implemented by this wrapper.
+pub const ABI_VERSION: u32 = 1;
+
 /// Native return code.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum IntegrityCode {
     /// No corruption and complete coverage.
@@ -66,6 +73,16 @@ pub enum IntegrityCode {
 }
 
 impl IntegrityCode {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PassComplete => "PASS_COMPLETE",
+            Self::Corrupt => "CORRUPT",
+            Self::Incomplete => "INCOMPLETE",
+            Self::InvalidArg => "INVALID_ARG",
+        }
+    }
+
     const fn from_status(status: IntegrityStatus) -> Self {
         match status {
             IntegrityStatus::PassComplete => Self::PassComplete,
@@ -76,7 +93,7 @@ impl IntegrityCode {
 }
 
 /// Detailed verification status reported by the native verifier.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum IntegrityStatus {
     /// Every present artifact category was verified and complete.
@@ -89,8 +106,20 @@ pub enum IntegrityStatus {
     Corrupt,
 }
 
+impl IntegrityStatus {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PassComplete => "PASS_COMPLETE",
+            Self::IncompleteLegacy => "INCOMPLETE_LEGACY",
+            Self::Incomplete => "INCOMPLETE",
+            Self::Corrupt => "CORRUPT",
+        }
+    }
+}
+
 /// Coverage of one artifact category.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct IntegrityCoverage {
     /// Category name (`proxima`, `rocksdb`, `ipc`, `sidecars`, `wal`).
     pub name: String,
@@ -103,7 +132,7 @@ pub struct IntegrityCoverage {
 }
 
 /// One verified file or `RocksDB` directory.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct IntegrityComponent {
     /// Artifact kind.
     pub kind: String,
@@ -154,7 +183,7 @@ pub struct IntegrityComponent {
 }
 
 /// Typed native integrity report.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct IntegrityReport {
     /// Overall status.
@@ -195,6 +224,8 @@ pub struct IntegrityReport {
 pub struct Verification {
     /// Native return code.
     pub code: IntegrityCode,
+    /// Verifier C ABI version resolved at call time.
+    pub abi_version: u32,
     /// Parsed report.
     pub report: IntegrityReport,
     /// Raw JSON exactly as returned by the native verifier.
@@ -221,6 +252,9 @@ pub enum IntegrityError {
     /// The loaded native library does not expose the verifier symbols.
     #[error("native integrity verifier is unavailable in the loaded library")]
     Unavailable,
+    /// The loaded verifier has a different C ABI version.
+    #[error("native integrity verifier ABI {actual} does not match supported ABI {expected}")]
+    IncompatibleAbi { actual: u32, expected: u32 },
     /// The verifier rejected the argument.
     #[error("native integrity verifier rejected the collection path")]
     InvalidArgument,
@@ -274,12 +308,14 @@ mod linux {
     }
 
     type VerifyFn = unsafe extern "C" fn(*const c_char, c_uint, *mut *mut NativeReport) -> c_int;
+    type AbiVersionFn = unsafe extern "C" fn() -> c_uint;
     type ReportOkFn = unsafe extern "C" fn(*const NativeReport) -> c_int;
     type ReportCompleteFn = unsafe extern "C" fn(*const NativeReport) -> c_int;
     type ReportJsonFn = unsafe extern "C" fn(*const NativeReport) -> *const c_char;
     type ReportFreeFn = unsafe extern "C" fn(*mut NativeReport);
 
     struct Symbols {
+        abi_version: u32,
         verify: VerifyFn,
         complete: ReportCompleteFn,
         json: ReportJsonFn,
@@ -297,6 +333,16 @@ mod linux {
         // declared signature. A symbol with the wrong ABI would be an upstream
         // contract violation; the wrapper only calls symbols exported by W3.
         unsafe {
+            let abi = library
+                .get::<AbiVersionFn>(b"zvec_integrity_abi_version\0")
+                .map_err(|_| IntegrityError::Unavailable)?;
+            let abi_version = abi();
+            if abi_version != super::ABI_VERSION {
+                return Err(IntegrityError::IncompatibleAbi {
+                    actual: abi_version,
+                    expected: super::ABI_VERSION,
+                });
+            }
             let verify = library
                 .get::<VerifyFn>(b"zvec_collection_verify_integrity\0")
                 .map_err(|_| IntegrityError::Unavailable)?;
@@ -313,6 +359,7 @@ mod linux {
                 .get::<ReportFreeFn>(b"zvec_integrity_report_free\0")
                 .map_err(|_| IntegrityError::Unavailable)?;
             Ok(Symbols {
+                abi_version,
                 verify: *verify,
                 complete: *complete,
                 json: *json,
@@ -375,6 +422,7 @@ mod linux {
         drop(guard);
         Ok(Verification {
             code,
+            abi_version: symbols.abi_version,
             report: parsed,
             raw_json,
         })

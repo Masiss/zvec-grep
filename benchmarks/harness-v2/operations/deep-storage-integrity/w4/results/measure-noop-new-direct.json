@@ -1,0 +1,45 @@
+{
+  "command": [
+    "/home/masis/src/zvec-grep/.tmp/w4/bin/zg",
+    "--index"
+  ],
+  "exit_code": 0,
+  "wall_seconds": 0.020888,
+  "user_seconds": 0.007049,
+  "system_seconds": 0.007096,
+  "max_rss_kib": 33108,
+  "max_pss_kib": 16,
+  "io": {
+    "rchar": 1692,
+    "wchar": 0,
+    "syscr": 5,
+    "syscw": 0,
+    "read_bytes": 0,
+    "write_bytes": 0,
+    "cancelled_write_bytes": 0
+  },
+  "host_before": {
+    "load1": 3.82,
+    "load5": 8.24,
+    "load15": 8.11,
+    "mem_available_kib": 4642344,
+    "swap_free_kib": 3600884,
+    "memory_pressure": {
+      "some": "avg10=24.67 avg60=15.18 avg300=9.62 total=519798939",
+      "full": "avg10=23.35 avg60=14.64 avg300=9.21 total=487882334"
+    }
+  },
+  "host_after": {
+    "load1": 3.82,
+    "load5": 8.24,
+    "load15": 8.11,
+    "mem_available_kib": 4639536,
+    "swap_free_kib": 3604824,
+    "memory_pressure": {
+      "some": "avg10=24.67 avg60=15.18 avg300=9.62 total=519798950",
+      "full": "avg10=23.35 avg60=14.64 avg300=9.21 total=487882345"
+    }
+  },
+  "stdout_tail": "Workspace index\nfiles\t80 scanned, 0 added, 0 modified, 0 retried, 80 unchanged, 0 deleted, 0 failed\nentities\t0\nduration\t6ms (6ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w4/measure/ws-new\n",
+  "stderr_tail": "route: direct\n"
+}

@@ -1,0 +1,47 @@
+{
+  "command": [
+    ".tmp/w4/bin/zg",
+    "--verify",
+    ".tmp/w3/ws3",
+    "--json"
+  ],
+  "exit_code": 0,
+  "wall_seconds": 0.169727,
+  "user_seconds": 0.026038,
+  "system_seconds": 0.120505,
+  "max_rss_kib": 36996,
+  "max_pss_kib": 30363,
+  "io": {
+    "rchar": 717470,
+    "wchar": 23,
+    "syscr": 858,
+    "syscw": 2,
+    "read_bytes": 101908480,
+    "write_bytes": 0,
+    "cancelled_write_bytes": 0
+  },
+  "host_before": {
+    "load1": 3.07,
+    "load5": 3.54,
+    "load15": 6.27,
+    "mem_available_kib": 10228888,
+    "swap_free_kib": 15547796,
+    "memory_pressure": {
+      "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824003",
+      "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939200"
+    }
+  },
+  "host_after": {
+    "load1": 3.07,
+    "load5": 3.54,
+    "load15": 6.27,
+    "mem_available_kib": 10203912,
+    "swap_free_kib": 15547800,
+    "memory_pressure": {
+      "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824018",
+      "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939215"
+    }
+  },
+  "stdout_tail": "ksdb\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/c35d80aa-0f49-4280-bbd1-8860d40a6a67/storage/files/10/scalar.index.1.rocksdb\",\n        \"status\": \"ok\",\n        \"complete\": true,\n        \"bytes\": 164378,\n        \"error\": \"\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": 1\n      },\n      {\n        \"kind\": \"ipc\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/c35d80aa-0f49-4280-bbd1-8860d40a6a67/storage/files/10/scalar.0.ipc\",\n        \"status\": \"partial\",\n        \"complete\": false,\n        \"bytes\": 97610,\n        \"error\": \"IPC structure verified; the format has no content checksum\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": null\n      },\n      {\n        \"kind\": \"rocksdb\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/c35d80aa-0f49-4280-bbd1-8860d40a6a67/storage/files/9/scalar.index.1.rocksdb\",\n        \"status\": \"ok\",\n        \"complete\": true,\n        \"bytes\": 112060,\n        \"error\": \"\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": 2\n      }\n    ]\n  },\n  \"message\": null\n}\n",
+  "stderr_tail": ""
+}

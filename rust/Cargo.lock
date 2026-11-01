@@ -4058,6 +4058,7 @@ dependencies = [
  "thiserror",
  "toml",
  "uuid",
+ "zg-daemon-protocol",
  "zg-engine",
 ]
 
@@ -4146,6 +4147,7 @@ dependencies = [
  "uuid",
  "zg-engine-macros",
  "zg-host-native",
+ "zg-integrity-native",
  "zg-memory",
  "zvec-rust",
 ]

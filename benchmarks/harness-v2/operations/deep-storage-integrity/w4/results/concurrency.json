@@ -1,0 +1,204 @@
+{
+  "binary": "/home/masis/src/zvec-grep/.tmp/w4/bin/zg",
+  "workspace": "/home/masis/src/zvec-grep/.tmp/w3/ws3",
+  "phase1_parallel_verify_and_fts": [
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0
+    },
+    {
+      "code": 0
+    },
+    {
+      "code": 0
+    },
+    {
+      "code": 0
+    },
+    {
+      "code": 0
+    },
+    {
+      "code": 0
+    },
+    {
+      "code": 0
+    },
+    {
+      "code": 0
+    }
+  ],
+  "phase1_ok": true,
+  "writer_exit": 0,
+  "verify_during_writer": [
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    },
+    {
+      "code": 0,
+      "status": "PASS_COMPLETE"
+    }
+  ],
+  "verify_during_writer_ok": true,
+  "verify_after_writer": {
+    "code": 0,
+    "status": "PASS_COMPLETE"
+  },
+  "fts_after_writer": {
+    "code": 0
+  },
+  "restore_index_exit": 0,
+  "verify_after_restore": {
+    "code": 0,
+    "status": "PASS_COMPLETE"
+  },
+  "ok": true
+}

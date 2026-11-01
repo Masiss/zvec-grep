@@ -9,6 +9,7 @@ use crate::{
         context::{ContextOptions, ContextResult},
         index::{IndexOptions, IndexResult},
         info::{InfoOptions, InfoResult},
+        verify::{VerifyOptions, VerifyResult},
     },
     models::ModelRuntimeManager,
     pipelines::{
@@ -115,6 +116,16 @@ impl EngineService {
             zg_memory::reclaim("verified info completion");
         }
         result
+    }
+
+    /// Verifies the active stable generation read-only.
+    ///
+    /// # Errors
+    ///
+    /// Returns an engine error when the storage path cannot be inspected.
+    pub(crate) async fn verify(&self, options: VerifyOptions) -> Result<VerifyResult, EngineError> {
+        self.ensure_open()?;
+        self.indexing.verify(options).await
     }
 
     /// Drops the persisted workspace index.

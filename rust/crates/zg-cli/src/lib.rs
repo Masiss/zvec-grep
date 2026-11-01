@@ -41,6 +41,7 @@ use zg_engine::api::{
         options::{Device, EmbeddingModelSpec, GlobRule, ScanRulesUpdate},
     },
     info::InfoOptions,
+    verify::VerifyOptions,
 };
 
 pub use authorization::{
@@ -79,6 +80,8 @@ pub enum CommandLine {
     Index(IndexArgs),
     /// Show workspace and index status.
     Status(StatusArgs),
+    /// Verify the active index generation read-only.
+    Verify(VerifyArgs),
     /// Manage the resident MCP daemon.
     Server(ServerArgs),
     /// Configure provider credentials and model defaults.
@@ -598,6 +601,24 @@ pub struct StatusArgs {
 }
 
 #[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct VerifyArgs {
+    pub root: Option<PathBuf>,
+    /// Emit the verification report as JSON.
+    #[arg(long)]
+    pub json: bool,
+    /// Fail unless every supported artifact category is complete.
+    #[arg(long = "require-complete")]
+    pub require_complete: bool,
+    #[arg(long)]
+    pub debug: bool,
+    #[arg(long, value_enum)]
+    pub color: Option<ColorMode>,
+    #[arg(long = "no-color", conflicts_with = "color")]
+    pub no_color: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct ServerArgs {
     #[arg(long)]
     pub stdio: bool,
@@ -695,6 +716,11 @@ pub enum CliPlan {
         home: Option<PathBuf>,
         request: InfoOptions,
         check_ready: bool,
+        output: OutputOptions,
+    },
+    Verify {
+        request: VerifyOptions,
+        json: bool,
         output: OutputOptions,
     },
     Auth(AuthArgs),
@@ -882,6 +908,22 @@ impl Cli {
                     ..OutputOptions::default()
                 },
             }),
+            CommandLine::Verify(args) => Ok(CliPlan::Verify {
+                request: VerifyOptions {
+                    root: Some(resolve_from(&current_dir, args.root.as_deref())),
+                    require_complete: args.require_complete,
+                },
+                json: args.json,
+                output: OutputOptions {
+                    debug: args.debug,
+                    color: if args.no_color {
+                        ColorMode::Never
+                    } else {
+                        args.color.unwrap_or_default()
+                    },
+                    ..OutputOptions::default()
+                },
+            }),
             CommandLine::Server(args) => server_plan(args).map(CliPlan::Server),
             CommandLine::Help(args) => Ok(CliPlan::Help(args.topic)),
             CommandLine::Version => Ok(CliPlan::Version),
@@ -906,6 +948,7 @@ fn action_for_flag(value: &OsStr) -> Option<&'static str> {
     match value.to_str()? {
         "--index" => Some("index"),
         "--status" => Some("status"),
+        "--verify" => Some("verify"),
         "--install" => Some("install"),
         "--uninstall" => Some("uninstall"),
         "--config" => Some("config"),
@@ -927,6 +970,7 @@ pub fn compatibility_warning_for_args(arguments: &[OsString]) -> Option<String> 
         first,
         "index"
             | "status"
+            | "verify"
             | "install"
             | "uninstall"
             | "config"
@@ -1032,13 +1076,17 @@ fn normalize_command(mut arguments: Vec<OsString>) -> Result<Vec<OsString>, clap
         if argument == OsStr::new("--") {
             break;
         }
-        if let Some(command) = action_for_flag(argument)
-            && action.replace((index, command)).is_some()
-        {
-            return Err(clap::Error::raw(
-                clap::error::ErrorKind::ArgumentConflict,
-                "Only one management action can be used at a time",
-            ));
+        if let Some(command) = action_for_flag(argument) {
+            // Preserve the existing `zg --status --verify` meaning: once
+            // status is the selected action, `--verify` is its include-status
+            // flag. A standalone `zg --verify` is the deep integrity action.
+            let status_flag = command == "verify" && matches!(action, Some((_, "status")));
+            if !status_flag && action.replace((index, command)).is_some() {
+                return Err(clap::Error::raw(
+                    clap::error::ErrorKind::ArgumentConflict,
+                    "Only one management action can be used at a time",
+                ));
+            }
         }
         help_requested |= matches!(argument.to_str(), Some("-h" | "--help"));
         let text = argument.to_string_lossy();
@@ -1701,7 +1749,8 @@ pub fn parse_modified_time(value: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Cli, CliPlan, ClientMode, IndexOperation, QueryFilter, parse_byte_size, parse_modified_time,
+        Cli, CliPlan, ClientMode, IndexOperation, QueryFilter, help_text, parse_byte_size,
+        parse_modified_time,
     };
     use std::path::PathBuf;
 
@@ -1755,6 +1804,34 @@ mod tests {
             panic!("ready status plan")
         };
         assert!(request.include_status);
+    }
+
+    #[test]
+    fn verify_plan_is_distinct_from_status_verification() {
+        let CliPlan::Verify { request, json, .. } =
+            plan(&["zg", "--verify", "--json", "--require-complete"], false)
+        else {
+            panic!("verify plan")
+        };
+        assert!(json);
+        assert!(request.require_complete);
+        assert!(request.root.is_some());
+
+        // Existing status behavior must not be reinterpreted as deep verification.
+        assert!(matches!(
+            plan(&["zg", "--status", "--verify"], false),
+            CliPlan::Status { .. }
+        ));
+        assert!(Cli::try_parse_from(["zg", "--verify", "--status"]).is_err());
+    }
+
+    #[test]
+    fn verify_help_is_available() {
+        assert!(
+            help_text(Some("verify"))
+                .expect("verify help")
+                .contains("--require-complete")
+        );
     }
 
     #[test]

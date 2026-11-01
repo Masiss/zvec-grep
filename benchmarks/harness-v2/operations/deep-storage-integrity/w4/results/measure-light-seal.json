@@ -1,0 +1,47 @@
+{
+  "command": [
+    "python3",
+    "benchmarks/harness-v2/operations/deep-storage-integrity/w4/light_probe.py",
+    ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+    ".tmp/w3/ws3/.zvec-grep/generations/c35d80aa-0f49-4280-bbd1-8860d40a6a67/storage"
+  ],
+  "exit_code": 0,
+  "wall_seconds": 0.041323,
+  "user_seconds": 0.024838,
+  "system_seconds": 0.01485,
+  "max_rss_kib": 27600,
+  "max_pss_kib": 8723,
+  "io": {
+    "rchar": 2003391,
+    "wchar": 0,
+    "syscr": 203,
+    "syscw": 0,
+    "read_bytes": 0,
+    "write_bytes": 0,
+    "cancelled_write_bytes": 0
+  },
+  "host_before": {
+    "load1": 1.42,
+    "load5": 2.36,
+    "load15": 5.1,
+    "mem_available_kib": 9653392,
+    "swap_free_kib": 15738592,
+    "memory_pressure": {
+      "some": "avg10=0.00 avg60=0.03 avg300=2.57 total=464841956",
+      "full": "avg10=0.00 avg60=0.03 avg300=2.55 total=435956021"
+    }
+  },
+  "host_after": {
+    "load1": 1.42,
+    "load5": 2.36,
+    "load15": 5.1,
+    "mem_available_kib": 9641728,
+    "swap_free_kib": 15738592,
+    "memory_pressure": {
+      "some": "avg10=0.00 avg60=0.03 avg300=2.57 total=464841956",
+      "full": "avg10=0.00 avg60=0.03 avg300=2.55 total=435956021"
+    }
+  },
+  "stdout_tail": "{\"code\": 0, \"status\": \"PASS_COMPLETE\", \"complete\": true}\n",
+  "stderr_tail": ""
+}

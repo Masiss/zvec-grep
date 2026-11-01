@@ -1,0 +1,45 @@
+{
+  "command": [
+    "/home/masis/src/zvec-grep/.tmp/w4/bin/zg",
+    "--index"
+  ],
+  "exit_code": 0,
+  "wall_seconds": 7.71832,
+  "user_seconds": 0.738682,
+  "system_seconds": 0.65773,
+  "max_rss_kib": 380548,
+  "max_pss_kib": 374010,
+  "io": {
+    "rchar": 42352355,
+    "wchar": 2068017,
+    "syscr": 3155,
+    "syscw": 768,
+    "read_bytes": 144359424,
+    "write_bytes": 30748672,
+    "cancelled_write_bytes": 0
+  },
+  "host_before": {
+    "load1": 3.81,
+    "load5": 8.31,
+    "load15": 8.13,
+    "mem_available_kib": 749452,
+    "swap_free_kib": 4084348,
+    "memory_pressure": {
+      "some": "avg10=26.21 avg60=13.59 avg300=9.14 total=518382886",
+      "full": "avg10=25.37 avg60=13.22 avg300=8.76 total=486586980"
+    }
+  },
+  "host_after": {
+    "load1": 3.82,
+    "load5": 8.24,
+    "load15": 8.11,
+    "mem_available_kib": 4678968,
+    "swap_free_kib": 3567836,
+    "memory_pressure": {
+      "some": "avg10=24.67 avg60=15.18 avg300=9.62 total=519798709",
+      "full": "avg10=23.35 avg60=14.64 avg300=9.21 total=487882104"
+    }
+  },
+  "stdout_tail": "Workspace index\nfiles\t80 scanned, 0 added, 1 modified, 0 retried, 79 unchanged, 0 deleted, 0 failed\nskipped\tbinary 0, empty 0, too_large 0, unsupported 0\nentities\t1\nduration\t1s (1110ms)\nroots\t/home/masis/src/zvec-grep/.tmp/w4/measure/ws-new\n",
+  "stderr_tail": "route: direct\nScanning \u2014 scanning files\nIndexing: 0/80 files\nPreparing model: local/potion-code-16m-v2\nIndexing: 0/2 files \u2014 reading m_079.rs\nIndex complete: 1/1 files \u2014 indexing complete\n"
+}

@@ -25,6 +25,7 @@ use api::{
     context::{ContextOptions, ContextResult},
     index::{IndexOptions, IndexResult},
     info::{InfoOptions, InfoResult},
+    verify::{VerifyOptions, VerifyResult},
 };
 
 pub use error::{EngineError, EngineResult, ErrorReport, ErrorSite};
@@ -69,6 +70,14 @@ impl ZvecGrep {
     ) -> EngineResult<ContextResult> {
         self.service
             .context_after_refresh(options)
+            .await
+            .map_err(|error| error.report_here())
+    }
+
+    #[allow(clippy::unused_async)]
+    pub async fn verify(&self, options: VerifyOptions) -> EngineResult<VerifyResult> {
+        self.service
+            .verify(options)
             .await
             .map_err(|error| error.report_here())
     }

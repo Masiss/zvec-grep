@@ -239,6 +239,7 @@ pub fn help_text(topic: Option<&str>) -> Result<String, HelpTopicError> {
         Some("search") => SEARCH_HELP,
         Some("index") => INDEX_HELP,
         Some("status") => STATUS_HELP,
+        Some("verify") => VERIFY_HELP,
         Some("config") => CONFIG_HELP,
         Some("auth") => AUTH_HELP,
         Some("server") => SERVER_HELP,
@@ -282,6 +283,7 @@ Search:
 Management:
   --index        Build, rebuild, or drop the workspace index
   --status       Show workspace and index status
+  --verify       Verify the active index generation read-only
   --config       Configure provider credentials and embedding model defaults
   --auth         Manage Workspace Remote Embedding authorization
   --server       Start, stop, inspect, or run the shared MCP server
@@ -300,6 +302,7 @@ Examples:
   zg --rg -F "AuthService" src
   zg --index --embedding local/potion-code-16m-v2
   zg --status
+  zg --verify
   zg --auth status
   zg --server on
   zg --config model set local/potion-code-16m-v2 --device metal
@@ -472,6 +475,35 @@ stored paths, refresh status, and suggested next action.
 
 --check-ready preserves the normal output and exits non-zero unless the
 Workspace index is ready.";
+
+const VERIFY_HELP: &str = r"Usage:
+  zg --verify [root] [--json] [--require-complete]
+
+Verifies the active index generation read-only. It never repairs, deletes,
+rebuilds or switches generations.
+
+Options:
+  --json                 Emit the full report as JSON
+  --require-complete     Fail unless every supported category is complete
+  --debug                Print diagnostics to stderr
+
+Exit codes:
+  0  PASS_COMPLETE
+  1  CORRUPT or generation-identity mismatch (fail closed)
+  2  INCOMPLETE, INCOMPLETE_LEGACY, unavailable or uninitialized
+
+Coverage:
+  proxima   header/footer/segment/content and per-segment CRCs
+  rocksdb   read-only open, paranoid checks and VerifyChecksum
+  ipc       Arrow footer, schema and every record batch (structure only)
+  sidecars  ZGM2 manifest structure only
+  wal       zero-length logs are covered; non-empty WAL is unsupported
+
+`ipc` and `sidecars` have no content checksum. Their payload limitations are
+reported explicitly; structural corruption is still detected.
+
+A generation held by an active writer is refused as INCOMPLETE. Deep
+verification is direct-only; no daemon protocol or scheduler lane is added.";
 
 const CONFIG_HELP: &str = r"Usage:
   zg --config provider set <provider> --api-key <key>

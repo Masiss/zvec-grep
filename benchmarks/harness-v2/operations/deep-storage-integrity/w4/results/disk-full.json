@@ -1,0 +1,17 @@
+{
+  "method": "RLIMIT_FSIZE write-failure proxy; true ENOSPC OPERATION_BLOCKED (no isolated mount privilege)",
+  "limit_bytes": 2097152,
+  "initial_index_code": 0,
+  "initial_verify_code": 0,
+  "initial_status": "PASS_COMPLETE",
+  "failing_index_code": -25,
+  "failing_index_stderr_tail": "route: direct\n",
+  "verify_after_failure_code": 0,
+  "verify_after_failure_status": "PASS_COMPLETE",
+  "verify_under_limit_code": 0,
+  "verify_under_limit_status": "PASS_COMPLETE",
+  "recovery_index_code": 0,
+  "verify_after_recovery_code": 0,
+  "verify_after_recovery_status": "PASS_COMPLETE",
+  "ok": true
+}
