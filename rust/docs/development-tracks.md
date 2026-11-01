@@ -3,7 +3,7 @@
 Status index for active and planned work. This is intentionally under
 `rust/docs/` so it does not duplicate the upstream product docs under `docs/`.
 
-Current handoff: [`handoff-20261101-storage-footprint.md`](handoff-20261101-storage-footprint.md).
+Current handoff: [`handoff-20261101-direct-startup.md`](handoff-20261101-direct-startup.md).
 
 Updated: 2026-11-01. Frozen RC: `integration/upstream-rust` at
 `c2347d5`, tag `rust-v0.3.0-rc.2` (code baseline `289674b`).
@@ -14,6 +14,7 @@ Updated: 2026-11-01. Frozen RC: `integration/upstream-rust` at
 |---|---|---|---|---|
 | **Daemon/CLI UX V2** | **Feature-complete; closed** | Read-only job visibility, auto routing, manual/watch lanes, queue position/cancel, bounded waits, watcher scope | UX0–UX4 implemented and baseline recorded. No UX-layer optimization justified. See closure limitations and performance baseline | [`ux-v2-closure.md`](ux-v2-closure.md), [`ux-v2-performance-baseline.md`](ux-v2-performance-baseline.md) |
 | **Index/Finalize Qualification** | **INCONCLUSIVE** | Decide whether M3 dirty finalize is good enough or #10 is warranted | Preflight passed with gaps; frozen fixture was too expensive to run full 45-cell matrix. Need new preregistration for snapshot reuse or smaller budget | [`index-finalize-qualification-v1-result.md`](index-finalize-qualification-v1-result.md), [`index-finalize-preregistration.md`](index-finalize-preregistration.md) |
+| **Direct-path Startup Optimization** | **Implemented; keep** | Reduce warm direct no-op startup latency/memory without changing correctness or searchable state | Clean-scan sidecar fast path is in place; measure cold page-cache and multi-workspace next if authorized | [`direct-path-startup-optimization.md`](direct-path-startup-optimization.md) |
 | **Storage Footprint Optimization** | **Implemented; keep** | Reduce on-disk index size without changing correctness, quality, stability, or searchable index format | Compact reconciliation sidecars are in place; remaining 88% is zvec vector/entity storage. Further work needs a new authorization/format decision | [`storage-footprint-optimization.md`](storage-footprint-optimization.md) |
 | **Harness V2** | **P0–P6 implemented** | Policy v1 + receipt/protocol readers, golden fixtures, host/measurement primitives, complete Rust lifecycle split, operation registry/adapters, upstream retrieval as canonical | Next: none; Harness V2 closure complete | [`harness-v2-refactor-plan.md`](harness-v2-refactor-plan.md), [`../../benchmarks/harness-v2/README.md`](../../benchmarks/harness-v2/README.md) |
 | **Production qualification** | **Not ready** | 421-file/production benchmark, release gates beyond RC | Owner authorization + benchmark policy | `/home/masis/src/zvec-grep-integration/docs/release/RELEASE-READINESS.md` |

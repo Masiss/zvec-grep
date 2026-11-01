@@ -7,10 +7,12 @@ use std::{
 
 use std::sync::Arc;
 
-use zg_host_native::NativeScanner;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use zg_host_native::{NativeScanner, ScanRequest, TaskControl, WorkspaceScannerPort};
 
 use crate::{
-    EngineError,
+    EngineError, EngineResult,
     api::{
         index::{IndexOptions, IndexResult, options::EmbeddingModelSpec},
         info::{
@@ -27,6 +29,7 @@ use crate::{
         ResolveEmbeddingReferenceOptions, resolve_embedding_reference, resolve_index_concurrency,
     },
     storage::{IndexStore, types::WorkspaceIndexStorageOptions},
+    utils::{atomic_write, sync_directory},
     workspace::{
         CURRENT_INDEX_VERSION,
         build::{
@@ -52,6 +55,59 @@ use super::pipeline::{
 };
 
 const DEFAULT_LOCAL_EMBEDDING: &str = "local/potion-code-16m-v2";
+const CLEAN_SCAN_VERSION: u32 = 1;
+const CLEAN_SCAN_FILE: &str = "clean-scan.json";
+
+#[derive(Debug, Deserialize, Serialize)]
+struct CleanScanSnapshot {
+    version: u32,
+    fingerprint: String,
+    storage_generation: Option<String>,
+    index_version: Option<u32>,
+}
+
+fn clean_scan_path(home: &Path) -> PathBuf {
+    home.join(CLEAN_SCAN_FILE)
+}
+
+fn read_clean_scan(home: &Path) -> EngineResult<Option<CleanScanSnapshot>> {
+    let path = clean_scan_path(home);
+    let bytes = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(EngineError::from_io(
+                format!(
+                    "cannot read startup scan snapshot {}: {error}",
+                    path.display()
+                ),
+                &error,
+            ));
+        }
+    };
+    Ok(serde_json::from_slice(&bytes).ok())
+}
+
+fn write_clean_scan(home: &Path, snapshot: &CleanScanSnapshot) -> EngineResult<()> {
+    let path = clean_scan_path(home);
+    let bytes = serde_json::to_vec(snapshot).map_err(|error| {
+        EngineError::internal(format!("cannot encode startup scan snapshot: {error}"))
+    })?;
+    atomic_write(&path, &bytes)?;
+    sync_directory(home)?;
+    Ok(())
+}
+
+fn remove_clean_scan(home: &Path) -> EngineResult<()> {
+    match std::fs::remove_file(clean_scan_path(home)) {
+        Ok(()) => sync_directory(home),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(EngineError::from_io(
+            format!("cannot remove startup scan snapshot: {error}"),
+            &error,
+        )),
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct WorkspaceIndexService {
@@ -90,6 +146,90 @@ impl WorkspaceIndexService {
             _registry_directory: Some(directory),
             fail_index_completion: false,
         }
+    }
+
+    async fn clean_scan_fingerprint(
+        &self,
+        workspace: &crate::domain::Workspace,
+        signal: Option<&tokio_util::sync::CancellationToken>,
+    ) -> Result<(String, usize, usize), EngineError> {
+        let control = TaskControl::new(signal.cloned().unwrap_or_default());
+        let request = ScanRequest {
+            roots: vec![crate::file_selection::ScanPolicy::root_spec(
+                &workspace.root,
+                &workspace.scan,
+            )?],
+            scope_paths: Vec::new(),
+        };
+        let snapshot = self
+            .scanner
+            .discover(&request, &control)
+            .await
+            .map_err(|error| {
+                EngineError::internal(format!("startup clean-scan discovery failed: {error}"))
+            })?;
+        let mut files = snapshot.files;
+        files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+        let mut hasher = Sha256::new();
+        hasher.update(b"zg-clean-scan-v1");
+        let scan_rules = serde_json::to_vec(&workspace.scan).map_err(|error| {
+            EngineError::internal(format!("cannot encode startup scan rules: {error}"))
+        })?;
+        hasher.update((scan_rules.len() as u64).to_le_bytes());
+        hasher.update(&scan_rules);
+        for file in &files {
+            let path = file.relative_path.as_os_str().as_encoded_bytes();
+            hasher.update((path.len() as u64).to_le_bytes());
+            hasher.update(path);
+            hasher.update(file.size_bytes.to_le_bytes());
+            match file.modified_epoch_ms {
+                Some(modified) => {
+                    hasher.update([1]);
+                    hasher.update(modified.to_le_bytes());
+                }
+                None => hasher.update([0]),
+            }
+            let source = file.source_fingerprint.as_bytes();
+            hasher.update((source.len() as u64).to_le_bytes());
+            hasher.update(source);
+        }
+        Ok((
+            hex::encode(hasher.finalize()),
+            files.len(),
+            snapshot.diagnostics.skipped_files,
+        ))
+    }
+
+    fn clean_scan_matches(
+        manifest: &WorkspaceManifest,
+        snapshot: &CleanScanSnapshot,
+        fingerprint: &str,
+    ) -> bool {
+        snapshot.version == CLEAN_SCAN_VERSION
+            && snapshot.fingerprint == fingerprint
+            && snapshot.storage_generation == manifest.storage_generation
+            && snapshot.index_version == manifest.index_version
+    }
+
+    fn fast_noop_eligible(
+        existing: Option<&WorkspaceManifest>,
+        options: &IndexOptions,
+        rebuilding: bool,
+    ) -> bool {
+        existing.is_some_and(|manifest| {
+            is_indexed(manifest) && IndexStore::exists(&manifest.storage_home()).unwrap_or(false)
+        }) && !rebuilding
+            && !options.rebuild
+            && options.changes.is_empty()
+            && !options.reset_paths
+            && options.scan == crate::api::index::options::ScanRulesUpdate::default()
+            && options.embedding.is_none()
+            && options.device.is_none()
+            && options.endpoint.is_none()
+            && options.api_key.is_none()
+            && options.model_cache.is_none()
+            && options.embedding_concurrency.is_none()
+            && !options.allow_remote
     }
 
     fn registry(&self) -> Result<WorkspaceRegistry, EngineError> {
@@ -216,6 +356,41 @@ impl WorkspaceIndexService {
             // A changed selection can admit files outside a watcher's narrow change scope.
             options.changes.clear();
         }
+        let mut clean_pre = None;
+        if Self::fast_noop_eligible(existing.as_ref(), &options, rebuilding) {
+            let active = existing.as_ref().expect("fast-path manifest");
+            let (fingerprint, file_count, skipped_files) = self
+                .clean_scan_fingerprint(&active.workspace, options.signal.as_ref())
+                .await?;
+            if skipped_files == 0
+                && let Some(snapshot) = read_clean_scan(&location.home)?
+                && Self::clean_scan_matches(active, &snapshot, &fingerprint)
+            {
+                let started = Instant::now();
+                let mut updated = active.clone();
+                updated.record_update(epoch_millis());
+                write_workspace_manifest(&updated.path, &updated)?;
+                let elapsed = started.elapsed();
+                let mut result = IndexResult::default();
+                result.files_scanned = file_count;
+                result.files_unchanged = file_count;
+                result.duration_micros = u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
+                result.timings.push(crate::api::index::result::TimingEntry {
+                    name: "startup_noop".to_owned(),
+                    duration_micros: result.duration_micros,
+                    count: None,
+                });
+                tracing::info!(
+                    root = %location.root.display(),
+                    files = file_count,
+                    elapsed_micros = result.duration_micros,
+                    "direct index startup fast path"
+                );
+                return Ok(result);
+            }
+            clean_pre = Some(fingerprint);
+        }
+        remove_clean_scan(&location.home)?;
         // Resolve only at the shared index boundary; query runtimes never read these overrides.
         options.embedding_concurrency = resolve_index_concurrency(
             &embedding_reference(existing.as_ref(), options.embedding.as_ref())?,
@@ -252,7 +427,14 @@ impl WorkspaceIndexService {
         } else {
             None
         };
+        if clean_pre.is_none() && options.changes.is_empty() {
+            let (fingerprint, _, _) = self
+                .clean_scan_fingerprint(&manifest.workspace, options.signal.as_ref())
+                .await?;
+            clean_pre = Some(fingerprint);
+        }
         let pending = build.clone();
+        let clean_manifest = manifest.clone();
         let result = self
             .run_index(manifest, build, acquired, options, Arc::clone(&home_lock))
             .await;
@@ -262,6 +444,24 @@ impl WorkspaceIndexService {
             // Storage handles have been released. Preserve the original error if
             // cleanup also fails; its build record lets the next writer retry.
             let _ = discard_build(&build);
+        }
+        if result.is_ok()
+            && let Some(pre) = clean_pre
+        {
+            let (post, _, _) = self
+                .clean_scan_fingerprint(&clean_manifest.workspace, None)
+                .await?;
+            if post == pre {
+                write_clean_scan(
+                    &location.home,
+                    &CleanScanSnapshot {
+                        version: CLEAN_SCAN_VERSION,
+                        fingerprint: post,
+                        storage_generation: clean_manifest.storage_generation.clone(),
+                        index_version: clean_manifest.index_version,
+                    },
+                )?;
+            }
         }
         result
     }
@@ -2188,6 +2388,82 @@ mod tests {
         drop(first);
         drop(second);
         models.close();
+    }
+
+    #[tokio::test]
+    async fn warm_clean_index_uses_startup_fast_path_without_model_lease() {
+        let directory = tempdir().expect("temporary directory");
+        std::fs::write(directory.path().join("sample.rs"), "pub fn sample() {}\n")
+            .expect("source file");
+        let service = WorkspaceIndexService::with_test_registry();
+        let models = ModelRuntimeManager::new();
+        let first = service
+            .index(&models, empty_index_options(directory.path()))
+            .await
+            .expect("initial index");
+        assert_eq!(first.files_added, 1);
+        models.close();
+
+        let second_models = ModelRuntimeManager::new();
+        let second = service
+            .index(
+                &second_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("warm clean index");
+        assert_eq!(second.files_unchanged, 1);
+        assert_eq!(second.files_added, 0);
+        assert_eq!(second.entities_created, 0);
+        assert!(
+            second
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop")
+        );
+        assert_eq!(
+            second_models.snapshot().cached_runtimes,
+            0,
+            "fast path must not acquire a model"
+        );
+
+        std::fs::remove_file(directory.path().join("sample.rs")).expect("remove source");
+        let deleted = service
+            .index(
+                &second_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("delete index");
+        assert_eq!(deleted.files_deleted, 1);
+
+        let third_models = ModelRuntimeManager::new();
+        let third = service
+            .index(
+                &third_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("warm clean index after delete");
+        assert!(
+            third
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop"),
+            "delete must refresh the clean-scan sidecar"
+        );
+        assert_eq!(third_models.snapshot().cached_runtimes, 0);
+        third_models.close();
+        second_models.close();
     }
 
     #[tokio::test]
