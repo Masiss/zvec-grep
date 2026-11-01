@@ -1,9 +1,11 @@
 # W2c — Crash-Atomic Incremental Generation
 
-Status: **PASS for W2c acceptance; W3 gated on verifier surface.**
+Status: **PASS for W2c acceptance. W3/W4 are queued; see the resume plan.**
 
 Baseline: `50d53ea` (W2b). Implementation: `d366692`. Full design and results:
 [`rust/docs/deep-storage-integrity-w2c.md`](../../../../../rust/docs/deep-storage-integrity-w2c.md).
+Next-session plan:
+[`rust/docs/deep-storage-integrity-w3-w4-plan.md`](../../../../../rust/docs/deep-storage-integrity-w3-w4-plan.md).
 
 ## Evidence
 

@@ -1,6 +1,6 @@
 # Crash-Atomic Incremental Generation — W2c
 
-Status: **PASS for W2c acceptance; W3 remains gated on the verifier surface.**
+Status: **PASS for W2c acceptance. W3/W4 are queued for the next session.**
 
 Baseline: `50d53ea` (W2b). Implementation: `d366692`. Date: 2026-11-01.
 
@@ -143,6 +143,8 @@ per-segment localization is required.
   scheduler, UX V2, policy or threshold was changed.
 
 ## 6. Limits / next gate
+
+Next-session scope: [`deep-storage-integrity-w3-w4-plan.md`](deep-storage-integrity-w3-w4-plan.md).
 
 - Reflink is filesystem-dependent; the fallback copies bytes and can double
   logical and physical peak disk while the stage exists.

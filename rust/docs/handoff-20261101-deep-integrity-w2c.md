@@ -40,15 +40,22 @@
 - No installed native library or production binary replaced.
 - No scheduler, UX V2, ZGM2, index format, policy or threshold change.
 
-## Next authorized work (W3 only, after owner approval)
+## Next session — W3 and W4
 
-1. Expose the native verifier through C/Rust FFI with
-   `PASS_COMPLETE` / `INCOMPLETE_LEGACY` / `CORRUPT`.
-2. Add `.ipc`, reconciliation `.bin`, WAL and semantic consistency coverage.
-3. Add generation identity to verifier output and a read-only verification
-   operation on a stable generation.
-4. Recompute per-segment CRCs in a final native flush if per-segment
-   localization is required; content CRC already covers the full content region.
-5. Do not claim power-loss durability; only SIGKILL consistency was tested.
-6. Do not reopen Deferred Maintenance #10 or native concurrent optimize under
-   this handoff.
+W3/W4 are queued for the next session. Full scope, acceptance and resume steps:
+[`deep-storage-integrity-w3-w4-plan.md`](deep-storage-integrity-w3-w4-plan.md).
+
+- **W3** is ready: expose the native verifier (C/Rust FFI), add explicit
+  `PASS_COMPLETE` / `INCOMPLETE_LEGACY` / `CORRUPT`, generation identity,
+  read-only stable-generation checks, and `.ipc`/`.bin`/WAL coverage.
+- **W4** is a draft: manual/daemon verification command and reporting. Its scope
+  and the owner decisions listed in the plan must be confirmed before
+  implementation.
+- Rebuild the scratch native candidate from
+  `benchmarks/harness-v2/operations/deep-storage-integrity/w2b/patches/`.
+  W2c scratch binaries/fixtures were cleaned up; committed receipts remain.
+- The local native profile is dirty at `8f6d600`; the W2b patch currently applies
+  cleanly. Do not overwrite the installed library or production binary.
+- Do not claim power-loss durability; W2c tested `SIGKILL` only.
+- Do not reopen Deferred Maintenance #10 or native concurrent optimize under
+  this handoff.

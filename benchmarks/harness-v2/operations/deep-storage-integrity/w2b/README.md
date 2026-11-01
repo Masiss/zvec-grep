@@ -1,7 +1,8 @@
 # W2b native checksum writer
 
-Status: checksum-writer acceptance **PASS**; generation crash atomicity remains a
-W3 blocker. See `rust/docs/deep-storage-integrity-w2b.md`.
+Status: checksum-writer acceptance **PASS**. Generation crash atomicity is
+resolved by W2c (`d366692`). See `rust/docs/deep-storage-integrity-w2b.md` and
+`rust/docs/deep-storage-integrity-w2c.md`.
 
 ## Patch/build
 
