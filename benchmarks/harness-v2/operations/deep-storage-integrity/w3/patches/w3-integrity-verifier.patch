@@ -1,0 +1,1463 @@
+diff --git a/src/binding/c/CMakeLists.txt b/src/binding/c/CMakeLists.txt
+index 91b1e23..34b7b09 100644
+--- a/src/binding/c/CMakeLists.txt
++++ b/src/binding/c/CMakeLists.txt
+@@ -39,6 +39,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
+ # C API library source files
+ set(ZVEC_C_API_SOURCES
+     c_api.cc
++    integrity_verify.cc
+ )
+ 
+ # C API library header files
+diff --git a/src/binding/c/exported_symbols.lds b/src/binding/c/exported_symbols.lds
+index 636f685..c9f177a 100644
+--- a/src/binding/c/exported_symbols.lds
++++ b/src/binding/c/exported_symbols.lds
+@@ -67,6 +67,7 @@
+     zvec_collection_update_with_results;
+     zvec_collection_upsert;
+     zvec_collection_upsert_with_results;
++    zvec_collection_verify_integrity;
+     zvec_config_data_create;
+     zvec_config_data_destroy;
+     zvec_config_data_get_brute_force_by_keys_ratio;
+@@ -235,6 +236,10 @@
+     zvec_initialize;
+     zvec_int64_array_create;
+     zvec_int64_array_destroy;
++    zvec_integrity_report_complete;
++    zvec_integrity_report_free;
++    zvec_integrity_report_json;
++    zvec_integrity_report_ok;
+     zvec_is_initialized;
+     zvec_iterator_options_create;
+     zvec_iterator_options_destroy;
+diff --git a/src/binding/c/exported_symbols.txt b/src/binding/c/exported_symbols.txt
+index 6481d97..7a266dd 100644
+--- a/src/binding/c/exported_symbols.txt
++++ b/src/binding/c/exported_symbols.txt
+@@ -66,6 +66,7 @@ _zvec_collection_update
+ _zvec_collection_update_with_results
+ _zvec_collection_upsert
+ _zvec_collection_upsert_with_results
++_zvec_collection_verify_integrity
+ _zvec_config_data_create
+ _zvec_config_data_destroy
+ _zvec_config_data_get_brute_force_by_keys_ratio
+@@ -234,6 +235,10 @@ _zvec_index_type_to_string
+ _zvec_initialize
+ _zvec_int64_array_create
+ _zvec_int64_array_destroy
++_zvec_integrity_report_complete
++_zvec_integrity_report_free
++_zvec_integrity_report_json
++_zvec_integrity_report_ok
+ _zvec_is_initialized
+ _zvec_iterator_options_create
+ _zvec_iterator_options_destroy
+diff --git a/src/core/framework/index_mapping.cc b/src/core/framework/index_mapping.cc
+index b5c793d..c5f461c 100644
+--- a/src/core/framework/index_mapping.cc
++++ b/src/core/framework/index_mapping.cc
+@@ -268,6 +268,105 @@ void IndexMapping::refresh(uint64_t check_point) {
+     auto segment_start = reinterpret_cast<IndexFormat::SegmentMeta *>(
+         reinterpret_cast<uint8_t *>(header) +
+         (header->meta_footer_offset - footer->segments_meta_size));
++
++    // Recompute checksums with this header's own content base. The active
++    // header is rewritten on every refresh. Sealed headers are only revisited
++    // when they lack a capability marker or still contain a zero segment CRC,
++    // which closes the late-segment CRC gap without rehashing every seal.
++    auto recompute_header_checksums = [&](
++                                          IndexFormat::MetaHeader *target_header,
++                                          uint64_t header_start_offset,
++                                          bool force) {
++      auto *target_footer = reinterpret_cast<IndexFormat::MetaFooter *>(
++          reinterpret_cast<uint8_t *>(target_header) +
++          target_header->meta_footer_offset);
++      auto *target_segments = reinterpret_cast<IndexFormat::SegmentMeta *>(
++          reinterpret_cast<uint8_t *>(target_header) +
++          (target_header->meta_footer_offset -
++           target_footer->segments_meta_size));
++
++      bool needs = force;
++      if (!needs && target_header->reserved3_[0] !=
++                        IndexFormat::CHECKSUM_CAPABILITY_V1) {
++        needs = true;
++      }
++      if (!needs && target_footer->content_size > 0 &&
++          target_footer->content_crc == 0) {
++        needs = true;
++      }
++      if (!needs) {
++        for (size_t i = 0; i < target_footer->segment_count; ++i) {
++          const auto *segment = target_segments + i;
++          if (segment->data_size > 0 && segment->data_crc == 0) {
++            needs = true;
++            break;
++          }
++        }
++      }
++      if (!needs) {
++        return;
++      }
++
++      bool content_ok = true;
++      const uint8_t *content = nullptr;
++      const size_t content_start =
++          header_start_offset + target_header->content_offset;
++      if (target_footer->content_size > 0 &&
++          (content_start > file_.size() ||
++           target_footer->content_size > file_.size() - content_start)) {
++        content_ok = false;
++      }
++      if (content_ok && target_footer->content_size > 0) {
++        int opts = ailego::File::MMAP_SHARED;
++        if (huge_page_) {
++          opts |= ailego::File::MMAP_HUGE_PAGE;
++        }
++        content = reinterpret_cast<const uint8_t *>(ailego::File::MemoryMap(
++            file_.native_handle(), content_start, target_footer->content_size,
++            opts));
++        if (content == nullptr) {
++          content_ok = false;
++        }
++      }
++      if (content_ok) {
++        for (size_t i = 0; i < target_footer->segment_count; ++i) {
++          auto *segment = target_segments + i;
++          if (segment->data_index > target_footer->content_size ||
++              segment->data_size >
++                  target_footer->content_size - segment->data_index) {
++            content_ok = false;
++            break;
++          }
++          segment->data_crc =
++              segment->data_size == 0
++                  ? 0
++                  : ailego::Crc32c::Hash(content + segment->data_index,
++                                          segment->data_size, 0);
++        }
++      }
++      if (content_ok) {
++        target_footer->content_crc =
++            target_footer->content_size == 0
++                ? 0
++                : ailego::Crc32c::Hash(content, target_footer->content_size, 0);
++        target_header->reserved3_[0] =
++            IndexFormat::CHECKSUM_CAPABILITY_V1;
++      } else {
++        // Never publish a partial seal as fully checksummed.
++        target_footer->content_crc = 0;
++        target_header->reserved3_[0] = 0;
++        checksum_valid_ = false;
++        LOG_ERROR("Failed to compute index checksums for %s", path_.c_str());
++      }
++      if (content != nullptr) {
++        ailego::File::MemoryUnmap(const_cast<uint8_t *>(content),
++                                  target_footer->content_size);
++      }
++      IndexFormat::UpdateMetaHeader(target_header);
++    };
++
++    recompute_header_checksums(header, item.first, header == header_);
++
+     footer->segments_meta_crc =
+         ailego::Crc32c::Hash(segment_start, footer->segments_meta_size, 0);
+     IndexFormat::UpdateMetaFooter(footer, check_point);
+diff --git a/src/core/utility/mmap_file_storage.cc b/src/core/utility/mmap_file_storage.cc
+index 7ebf4e4..8ff71f0 100644
+--- a/src/core/utility/mmap_file_storage.cc
++++ b/src/core/utility/mmap_file_storage.cc
+@@ -199,7 +199,8 @@ class MMapFileStorage : public IndexStorage {
+   //! Close storage
+   int close() override {
+     this->close_index();
+-    return 0;
++    checksum_valid_ = mapping_.checksum_valid();
++    return checksum_valid_ ? 0 : IndexError_InvalidChecksum;
+   }
+ 
+   //! Append a segment into storage
+@@ -298,6 +299,7 @@ class MMapFileStorage : public IndexStorage {
+   //! Refresh meta information (checksum, update time, etc.)
+   void refresh_index(uint64_t chkp) {
+     mapping_.refresh(chkp);
++    checksum_valid_ = mapping_.checksum_valid();
+     index_dirty_ = false;
+   }
+ 
+@@ -307,7 +309,12 @@ class MMapFileStorage : public IndexStorage {
+       this->refresh_index(0);
+     }
+     std::lock_guard<std::mutex> latch(mapping_mutex_);
+-    return mapping_.flush();
++    int ret = mapping_.flush();
++    if (ret != 0) {
++      return ret;
++    }
++    checksum_valid_ = mapping_.checksum_valid();
++    return checksum_valid_ ? 0 : IndexError_InvalidChecksum;
+   }
+ 
+   //! Close index storage
+@@ -339,6 +346,7 @@ class MMapFileStorage : public IndexStorage {
+ 
+  private:
+   uint32_t segment_meta_capacity_{1024 * 1024};
++  bool checksum_valid_{true};
+   bool copy_on_write_{false};
+   bool force_flush_{false};
+   bool memory_locked_{false};
+diff --git a/src/include/zvec/c_api.h b/src/include/zvec/c_api.h
+index 2998d2a..9b302b3 100644
+--- a/src/include/zvec/c_api.h
++++ b/src/include/zvec/c_api.h
+@@ -4495,6 +4495,71 @@ zvec_metric_type_to_string(zvec_metric_type_t metric_type);
+     .name = ZVEC_STRING(name_str), .data_type = type, .value = value_union \
+   }
+ 
++// =============================================================================
++// Read-only deep integrity verification
++// =============================================================================
++
++/**
++ * @brief Verification return codes.
++ */
++typedef enum {
++  ZVEC_INTEGRITY_PASS = 0,
++  ZVEC_INTEGRITY_CORRUPT = 1,
++  ZVEC_INTEGRITY_INCOMPLETE = 2,
++  ZVEC_INTEGRITY_INVALID_ARG = 3
++} zvec_integrity_code_t;
++
++/** Verify RocksDB column families (SST, MANIFEST, metadata). */
++#define ZVEC_INTEGRITY_ROCKSDB 0x1u
++/** Verify Proxima header/footer/segment-table structure. */
++#define ZVEC_INTEGRITY_PROXIMA_STRUCTURE 0x2u
++/** Verify Proxima content and per-segment CRCs. */
++#define ZVEC_INTEGRITY_PROXIMA_CONTENT 0x4u
++/** Return INCOMPLETE when requested coverage is not complete. */
++#define ZVEC_INTEGRITY_REQUIRE_COMPLETE 0x8u
++
++/**
++ * @brief Opaque integrity report.
++ *
++ * Released with zvec_integrity_report_free(). The JSON pointer returned by
++ * zvec_integrity_report_json() stays valid until then.
++ */
++typedef struct zvec_integrity_report zvec_integrity_report;
++
++/**
++ * @brief Verify a sealed collection read-only.
++ *
++ * Flags with value 0 select RocksDB, Proxima structure and Proxima content.
++ * The verifier takes a shared advisory lock on the owning storage generation
++ * when a storage.lock file is present and refuses a generation held by an
++ * active writer. It never creates, repairs or rewrites storage.
++ *
++ * @param collection_path Collection or generation storage directory.
++ * @param flags Bitwise combination of ZVEC_INTEGRITY_* flags.
++ * @param out Receives an owned report on PASS/CORRUPT/INCOMPLETE.
++ * @return ZVEC_INTEGRITY_PASS, ZVEC_INTEGRITY_CORRUPT,
++ *         ZVEC_INTEGRITY_INCOMPLETE or ZVEC_INTEGRITY_INVALID_ARG.
++ */
++ZVEC_EXPORT int ZVEC_CALL zvec_collection_verify_integrity(
++    const char *collection_path, unsigned int flags,
++    zvec_integrity_report **out);
++
++/** @brief 1 when no corruption was detected, otherwise 0. */
++ZVEC_EXPORT int ZVEC_CALL
++zvec_integrity_report_ok(const zvec_integrity_report *report);
++
++/** @brief 1 when every present artifact category was verified, else 0. */
++ZVEC_EXPORT int ZVEC_CALL
++zvec_integrity_report_complete(const zvec_integrity_report *report);
++
++/** @brief Borrowed JSON report; valid until the report is freed. */
++ZVEC_EXPORT const char *ZVEC_CALL
++zvec_integrity_report_json(const zvec_integrity_report *report);
++
++/** @brief Release a report returned by the verifier. */
++ZVEC_EXPORT void ZVEC_CALL
++zvec_integrity_report_free(zvec_integrity_report *report);
++
+ #ifdef __cplusplus
+ }  // extern "C"
+ #endif
+diff --git a/src/include/zvec/core/framework/index_format.h b/src/include/zvec/core/framework/index_format.h
+index c7213d0..1b7a446 100644
+--- a/src/include/zvec/core/framework/index_format.h
++++ b/src/include/zvec/core/framework/index_format.h
+@@ -29,6 +29,9 @@ struct IndexFormat {
+    */
+   enum { FORMAT_VERSION = 0x0002 };
+ 
++  //! W2b capability: all segment CRCs and content_crc are populated at seal.
++  static constexpr uint64_t CHECKSUM_CAPABILITY_V1 = 0x5A564543484B5331ULL;
++
+   /*! Index Format Meta Header
+    */
+   struct MetaHeader {
+diff --git a/src/include/zvec/core/framework/index_mapping.h b/src/include/zvec/core/framework/index_mapping.h
+index be564bc..f4bf90a 100644
+--- a/src/include/zvec/core/framework/index_mapping.h
++++ b/src/include/zvec/core/framework/index_mapping.h
+@@ -162,6 +162,11 @@ class IndexMapping {
+     return index_size_;
+   }
+ 
++  //! Retrieve whether the last seal produced complete checksums.
++  bool checksum_valid() const {
++    return checksum_valid_;
++  }
++
+   //! Retrieve magic number of index
+   uint32_t magic() const {
+     return (header_ ? header_->magic : 0);
+@@ -215,6 +220,7 @@ class IndexMapping {
+   bool full_mode_{false};
+   bool header_dirty_{false};
+   bool huge_page_{false};
++  bool checksum_valid_{true};
+   size_t seg_meta_capacity_{0u};
+   uint64_t current_header_start_offset_{0u};
+ };
+diff --git a/src/include/zvec/core/framework/index_unpacker.h b/src/include/zvec/core/framework/index_unpacker.h
+index 1320892..866f84d 100644
+--- a/src/include/zvec/core/framework/index_unpacker.h
++++ b/src/include/zvec/core/framework/index_unpacker.h
+@@ -286,7 +286,7 @@ class IndexUnpacker {
+     const void *data = nullptr;
+     uint32_t checksum = 0u;
+     size_t total = footer_.content_size;
+-    size_t offset = sizeof(header_);
++    size_t offset = header_.content_offset;
+ 
+     while (total >= block_size) {
+       if (read_data(current_header_start_offset_ + offset, &data, block_size) !=
+diff --git a/src/binding/c/integrity_verify.cc b/src/binding/c/integrity_verify.cc
+new file mode 100644
+index 0000000..68b0529
+--- /dev/null
++++ b/src/binding/c/integrity_verify.cc
+@@ -0,0 +1,1118 @@
++// Copyright 2025-present the zvec project
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++// Read-only deep integrity verification for a sealed zvec collection.
++//
++// The verifier never creates, repairs or rewrites storage. It takes a shared
++// advisory lock on the owning storage generation (when present), refuses an
++// actively written generation, and then walks the collection:
++//
++//   * Proxima files: header/footer/segment-table CRCs, declared sizes, content
++//     CRC (when requested) and per-segment CRCs when the writer supplied them.
++//   * RocksDB directories: read-only open with paranoid checks plus
++//     VerifyChecksum, covering SST, MANIFEST and column-family metadata.
++//   * Arrow IPC files: footer, schema and every record batch.
++//   * zg reconciliation sidecars (file-XXXXXXXX.bin): bounded structural
++//     validation of the ZGM2 compact manifest layout.
++//
++// WAL bytes are not verified. Any RocksDB log file makes WAL coverage
++// explicitly "unsupported" instead of being silently promoted to complete.
++
++#include <fcntl.h>
++#include <sys/file.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++#include <algorithm>
++#include <cerrno>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <filesystem>
++#include <map>
++#include <memory>
++#include <set>
++#include <sstream>
++#include <string>
++#include <vector>
++
++#include <arrow/api.h>
++#include <arrow/io/file.h>
++#include <arrow/ipc/reader.h>
++#include <rocksdb/db.h>
++#include <rocksdb/options.h>
++#include <zvec/ailego/hash/crc32c.h>
++#include <zvec/core/framework/index_format.h>
++#include <zvec/core/framework/index_unpacker.h>
++
++#include "zvec/c_api.h"
++
++namespace fs = std::filesystem;
++
++namespace {
++
++constexpr size_t kMaxSidecarBytes = 4u * 1024u * 1024u;
++constexpr uint64_t kChecksumCapabilityV1 = 0x5A564543484B5331ULL;
++constexpr const char kSidecarMagic[4] = {'Z', 'G', 'M', '2'};
++
++std::string json_escape(const std::string &value) {
++  std::ostringstream out;
++  for (unsigned char c : value) {
++    switch (c) {
++      case '"':
++        out << "\\\"";
++        break;
++      case '\\':
++        out << "\\\\";
++        break;
++      case '\n':
++        out << "\\n";
++        break;
++      case '\r':
++        out << "\\r";
++        break;
++      case '\t':
++        out << "\\t";
++        break;
++      default:
++        if (c < 0x20) {
++          char buf[7];
++          std::snprintf(buf, sizeof(buf), "\\u%04x", c);
++          out << buf;
++        } else {
++          out << c;
++        }
++    }
++  }
++  return out.str();
++}
++
++bool is_lower_hex(const std::string &value) {
++  if (value.empty()) return false;
++  for (unsigned char c : value) {
++    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
++  }
++  return true;
++}
++
++bool is_hex_uuid(const std::string &value) {
++  if (value.size() != 36) return false;
++  for (size_t i = 0; i < value.size(); ++i) {
++    const char c = value[i];
++    if (i == 8 || i == 13 || i == 18 || i == 23) {
++      if (c != '-') return false;
++      continue;
++    }
++    const bool digit = c >= '0' && c <= '9';
++    const bool lower = c >= 'a' && c <= 'f';
++    const bool upper = c >= 'A' && c <= 'F';
++    if (!digit && !lower && !upper) return false;
++  }
++  return true;
++}
++
++uint16_t read_u16(const uint8_t *data) {
++  return static_cast<uint16_t>(data[0]) |
++         (static_cast<uint16_t>(data[1]) << 8);
++}
++
++uint32_t read_u32(const uint8_t *data) {
++  return static_cast<uint32_t>(data[0]) |
++         (static_cast<uint32_t>(data[1]) << 8) |
++         (static_cast<uint32_t>(data[2]) << 16) |
++         (static_cast<uint32_t>(data[3]) << 24);
++}
++
++struct MappedFile {
++  explicit MappedFile(const fs::path &path) : path(path) {
++    fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
++    if (fd < 0) {
++      error = std::strerror(errno);
++      return;
++    }
++    struct stat st {};
++    if (::fstat(fd, &st) != 0) {
++      error = std::strerror(errno);
++      return;
++    }
++    size = static_cast<size_t>(st.st_size);
++    if (size == 0) {
++      error = "empty file";
++      return;
++    }
++    void *mapped = ::mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
++    if (mapped == MAP_FAILED) {
++      mapped_data = nullptr;
++      error = std::strerror(errno);
++      return;
++    }
++    mapped_data = static_cast<const uint8_t *>(mapped);
++  }
++
++  ~MappedFile() {
++    if (mapped_data != nullptr) ::munmap(const_cast<uint8_t *>(mapped_data), size);
++    if (fd >= 0) ::close(fd);
++  }
++
++  MappedFile(const MappedFile &) = delete;
++  MappedFile &operator=(const MappedFile &) = delete;
++
++  bool ok() const { return mapped_data != nullptr; }
++
++  fs::path path;
++  int fd = -1;
++  const uint8_t *mapped_data = nullptr;
++  size_t size = 0;
++  std::string error;
++};
++
++struct Component {
++  std::string kind;
++  std::string path;
++  std::string status;  // ok | corrupt | legacy | unsupported | not_present
++  std::string error;
++  uint64_t bytes = 0;
++  bool complete = true;
++  bool legacy = false;
++  bool limitation = false;
++
++  // Proxima details
++  uint64_t segments = 0;
++  uint64_t segments_with_crc = 0;
++  uint64_t segments_without_crc = 0;
++  uint64_t unprotected_bytes = 0;
++  uint64_t segment_crc_mismatches = 0;
++  uint64_t content_size = 0;
++  uint32_t content_crc = 0;
++  uint64_t capability = 0;
++  bool capability_ok = false;
++  bool content_crc_checked = false;
++
++  // RocksDB details
++  uint64_t wal_files = 0;
++  uint64_t wal_bytes = 0;
++};
++
++struct Coverage {
++  std::string name;
++  std::string status;  // covered | partial | unsupported | not_present
++  uint64_t files = 0;
++  uint64_t bytes = 0;
++};
++
++struct Report {
++  std::string status;
++  std::string collection_path;
++  std::string generation;
++  std::string stability = "stable";
++  std::string stability_detail;
++  bool pass = true;
++  bool complete = true;
++  bool legacy = false;
++  bool limitation = false;
++  bool stable = true;
++  unsigned int flags = 0;
++  std::vector<Coverage> coverage;
++  std::vector<std::string> missing_coverage;
++  std::vector<std::string> limitations;
++  std::vector<Component> components;
++  std::vector<std::string> errors;
++
++  void add_error(const std::string &message) {
++    pass = false;
++    errors.push_back(message);
++  }
++};
++
++struct StabilityGuard {
++  int fd = -1;
++  bool stable = true;
++  std::string detail;
++
++  ~StabilityGuard() {
++    if (fd >= 0) ::close(fd);
++  }
++
++  StabilityGuard() = default;
++  StabilityGuard(const StabilityGuard &) = delete;
++  StabilityGuard &operator=(const StabilityGuard &) = delete;
++  StabilityGuard(StabilityGuard &&other) noexcept
++      : fd(other.fd), stable(other.stable), detail(std::move(other.detail)) {
++    other.fd = -1;
++  }
++  StabilityGuard &operator=(StabilityGuard &&) = delete;
++};
++
++// Find the generation home (the directory holding storage.lock and the
++// `storage` collection directory) by walking a small number of ancestors.
++fs::path find_generation_home(const fs::path &root) {
++  fs::path current = root;
++  for (int depth = 0; depth < 4; ++depth) {
++    if (depth > 0) {
++      current = current.parent_path();
++      if (current.empty()) break;
++    }
++    std::error_code ec;
++    if (fs::exists(current / "storage.lock", ec)) return current;
++  }
++  return {};
++}
++
++std::string find_generation_uuid(const fs::path &root) {
++  fs::path current = root;
++  for (int depth = 0; depth < 5; ++depth) {
++    if (depth > 0) {
++      current = current.parent_path();
++      if (current.empty()) break;
++    }
++    const std::string name = current.filename().string();
++    if (is_hex_uuid(name)) return name;
++  }
++  return {};
++}
++
++StabilityGuard check_stability(const fs::path &root) {
++  StabilityGuard guard;
++  const fs::path home = find_generation_home(root);
++  if (home.empty()) {
++    guard.detail = "no storage.lock found; writer presence unknown";
++    return guard;
++  }
++  std::error_code ec;
++  if (fs::exists(home / "build.json", ec)) {
++    guard.stable = false;
++    guard.detail = "generation has an in-progress build record";
++    return guard;
++  }
++  const fs::path lock_path = home / "storage.lock";
++  guard.fd = ::open(lock_path.c_str(), O_RDONLY | O_CLOEXEC);
++  if (guard.fd < 0) {
++    guard.detail = "cannot open storage.lock for stability check";
++    return guard;
++  }
++  if (::flock(guard.fd, LOCK_SH | LOCK_NB) != 0) {
++    guard.stable = false;
++    guard.detail = (errno == EWOULDBLOCK || errno == EAGAIN)
++                       ? "generation is held by an active writer"
++                       : std::string("storage.lock probe failed: ") +
++                             std::strerror(errno);
++    ::close(guard.fd);
++    guard.fd = -1;
++    return guard;
++  }
++  guard.detail = "shared lock acquired; no active writer";
++  return guard;
++}
++
++bool verify_proxima(const fs::path &path, unsigned int flags,
++                    Component &result) {
++  result.kind = "proxima";
++  result.path = path.string();
++  MappedFile file(path);
++  if (!file.ok()) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "cannot map file: " + file.error;
++    return false;
++  }
++  const uint8_t *base = file.mapped_data;
++  const size_t total = file.size;
++  auto read_data = [&](size_t offset, const void **data, size_t len) -> size_t {
++    if (offset > total || len > total - offset) return 0;
++    *data = base + offset;
++    return len;
++  };
++
++  const bool check_content =
++      (flags & ZVEC_INTEGRITY_PROXIMA_CONTENT) != 0;
++  zvec::core::IndexUnpacker unpacker;
++  if (!unpacker.unpack(read_data, total, check_content)) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error =
++        check_content
++            ? "IndexUnpacker rejected header/footer/segment table/content CRC"
++            : "IndexUnpacker rejected header/footer/segment table";
++    return false;
++  }
++
++  result.bytes = total;
++  result.capability = unpacker.header().reserved3_[0];
++  result.capability_ok = result.capability == kChecksumCapabilityV1;
++  result.content_crc = unpacker.footer().content_crc;
++  result.content_size = unpacker.footer().content_size;
++  result.segments = unpacker.segments().size();
++  result.content_crc_checked = check_content;
++
++  if (total < unpacker.footer().total_size) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "file is smaller than footer total_size";
++    return false;
++  }
++
++  bool segment_ok = true;
++  for (const auto &[id, meta] : unpacker.segments()) {
++    (void)id;
++    if (meta.data_crc() == 0) {
++      ++result.segments_without_crc;
++      result.unprotected_bytes +=
++          static_cast<uint64_t>(meta.data_size()) + meta.padding_size();
++      continue;
++    }
++    ++result.segments_with_crc;
++    if (!check_content) continue;
++    const uint8_t *data = nullptr;
++    const size_t got =
++        read_data(meta.data_offset(), (const void **)&data, meta.data_size());
++    if (got != meta.data_size() ||
++        zvec::ailego::Crc32c::Hash(data, got, 0u) != meta.data_crc()) {
++      ++result.segment_crc_mismatches;
++      segment_ok = false;
++    }
++  }
++
++  if (!segment_ok) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "segment CRC mismatch";
++    return false;
++  }
++
++  if (check_content && result.content_size > 0 && result.content_crc == 0) {
++    result.status = "legacy";
++    result.legacy = true;
++    result.complete = false;
++    result.error = "content CRC absent (legacy writer)";
++    return true;
++  }
++
++  if (!result.capability_ok || (check_content && result.content_size > 0 &&
++                                result.content_crc == 0)) {
++    result.status = "legacy";
++    result.legacy = true;
++    result.complete = false;
++    result.error = "checksum capability marker absent (legacy writer)";
++    return true;
++  }
++
++  if (!check_content) {
++    result.status = "partial";
++    result.complete = false;
++    return true;
++  }
++
++  result.status = "ok";
++  return true;
++}
++
++bool is_rocksdb_dir(const fs::path &path) {
++  std::error_code ec;
++  if (!fs::is_directory(path, ec)) return false;
++  if (!fs::exists(path / "CURRENT", ec)) return false;
++  for (const auto &entry : fs::directory_iterator(path, ec)) {
++    if (!entry.is_regular_file()) continue;
++    const std::string name = entry.path().filename().string();
++    if (name.rfind("MANIFEST-", 0) == 0) return true;
++  }
++  return false;
++}
++
++bool verify_rocksdb(const fs::path &path, Component &result) {
++  result.kind = "rocksdb";
++  result.path = path.string();
++
++  std::error_code ec;
++  uint64_t wal_files = 0;
++  uint64_t wal_bytes = 0;
++  uint64_t bytes = 0;
++  for (const auto &entry : fs::directory_iterator(path, ec)) {
++    if (!entry.is_regular_file(ec)) continue;
++    const std::string name = entry.path().filename().string();
++    std::error_code size_ec;
++    const auto size = entry.file_size(size_ec);
++    if (!size_ec) bytes += size;
++    if (name.size() > 4 && name.compare(name.size() - 4, 4, ".log") == 0) {
++      ++wal_files;
++      if (!size_ec) wal_bytes += size;
++    }
++  }
++  result.wal_files = wal_files;
++  result.wal_bytes = wal_bytes;
++  result.bytes = bytes;
++
++  rocksdb::Options options;
++  options.create_if_missing = false;
++  options.paranoid_checks = true;
++  std::vector<std::string> names;
++  auto status = rocksdb::DB::ListColumnFamilies(options, path.string(), &names);
++  if (!status.ok()) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "ListColumnFamilies: " + status.ToString();
++    return false;
++  }
++  std::vector<rocksdb::ColumnFamilyDescriptor> descriptors;
++  descriptors.reserve(names.size());
++  for (const auto &name : names) {
++    descriptors.emplace_back(name, rocksdb::ColumnFamilyOptions(options));
++  }
++  if (descriptors.empty()) {
++    descriptors.emplace_back(rocksdb::kDefaultColumnFamilyName,
++                             rocksdb::ColumnFamilyOptions(options));
++  }
++  std::vector<rocksdb::ColumnFamilyHandle *> handles;
++  rocksdb::DB *db = nullptr;
++  status = rocksdb::DB::OpenForReadOnly(options, path.string(), descriptors,
++                                        &handles, &db);
++  if (!status.ok()) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "OpenForReadOnly: " + status.ToString();
++    return false;
++  }
++  rocksdb::ReadOptions read_options;
++  read_options.verify_checksums = true;
++  status = db->VerifyChecksum(read_options);
++  for (auto *handle : handles) db->DestroyColumnFamilyHandle(handle);
++  delete db;
++  if (!status.ok()) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "VerifyChecksum: " + status.ToString();
++    return false;
++  }
++
++  result.status = "ok";
++  if (wal_bytes > 0) {
++    result.complete = false;
++    result.error =
++        "non-empty RocksDB WAL files present; WAL coverage is unsupported";
++  }
++  return true;
++}
++
++bool verify_ipc(const fs::path &path, Component &result) {
++  result.kind = "ipc";
++  result.path = path.string();
++  std::error_code ec;
++  result.bytes = fs::file_size(path, ec);
++  if (ec) result.bytes = 0;
++
++  auto input = arrow::io::ReadableFile::Open(path.string());
++  if (!input.ok()) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "open IPC: " + input.status().ToString();
++    return false;
++  }
++  auto reader = arrow::ipc::RecordBatchFileReader::Open(*input);
++  if (!reader.ok()) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "read IPC footer: " + reader.status().ToString();
++    return false;
++  }
++  if ((*reader)->schema() == nullptr) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "read IPC schema: null schema";
++    return false;
++  }
++  const int batches = (*reader)->num_record_batches();
++  for (int i = 0; i < batches; ++i) {
++    auto batch = (*reader)->ReadRecordBatch(i);
++    if (!batch.ok()) {
++      result.status = "corrupt";
++      result.complete = false;
++      result.error = "read IPC record batch " + std::to_string(i) + ": " +
++                     batch.status().ToString();
++      return false;
++    }
++  }
++  result.status = "partial";
++  result.complete = false;
++  result.limitation = true;
++  result.error =
++      "IPC structure verified; the format has no content checksum";
++  return true;
++}
++
++bool verify_sidecar(const fs::path &path, Component &result) {
++  result.kind = "sidecar";
++  result.path = path.string();
++  MappedFile file(path);
++  if (!file.ok()) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "cannot read sidecar: " + file.error;
++    return false;
++  }
++  result.bytes = file.size;
++  if (file.size > kMaxSidecarBytes) {
++    // The Rust loader intentionally ignores an oversized sidecar. It is not a
++    // canonical prerequisite, so report it rather than failing verification.
++    result.status = "unsupported";
++    result.complete = false;
++    result.error = "sidecar exceeds the bounded manifest size";
++    return true;
++  }
++
++  const uint8_t *data = file.mapped_data;
++  const size_t size = file.size;
++  size_t position = 0;
++  auto take = [&](size_t length) -> const uint8_t * {
++    if (position > size || length > size - position) return nullptr;
++    const uint8_t *slice = data + position;
++    position += length;
++    return slice;
++  };
++
++  const uint8_t *magic = take(4);
++  if (magic == nullptr || std::memcmp(magic, kSidecarMagic, 4) != 0) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "invalid sidecar magic";
++    return false;
++  }
++  const uint8_t *version_bytes = take(4);
++  const uint8_t *file_id_bytes = take(4);
++  const uint8_t *entity_count_bytes = take(4);
++  if (version_bytes == nullptr || file_id_bytes == nullptr ||
++      entity_count_bytes == nullptr) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "sidecar is truncated";
++    return false;
++  }
++  const uint32_t version = read_u32(version_bytes);
++  if (version != 2) {
++    result.status = "unsupported";
++    result.complete = false;
++    result.error = "unsupported sidecar manifest version";
++    return true;
++  }
++
++  const std::string name = path.filename().string();
++  const std::string expected_prefix = "file-";
++  if (name.rfind(expected_prefix, 0) == 0) {
++    const std::string id_text = name.substr(
++        expected_prefix.size(), name.size() - expected_prefix.size() - 4);
++    if (id_text.size() == 8 && is_lower_hex(id_text)) {
++      char *end = nullptr;
++      const unsigned long path_id =
++          std::strtoul(id_text.c_str(), &end, 16);
++      if (end != nullptr && *end == '\0' &&
++          static_cast<uint32_t>(path_id) != read_u32(file_id_bytes)) {
++        result.status = "corrupt";
++        result.complete = false;
++        result.error = "sidecar file identity does not match its name";
++        return false;
++      }
++    }
++  }
++
++  const uint32_t entity_count = read_u32(entity_count_bytes);
++  if (entity_count > size / 48) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "sidecar entity count exceeds payload";
++    return false;
++  }
++  for (uint32_t i = 0; i < entity_count; ++i) {
++    if (take(16) == nullptr || take(32) == nullptr) {
++      result.status = "corrupt";
++      result.complete = false;
++      result.error = "sidecar entity table is truncated";
++      return false;
++    }
++  }
++  const uint8_t *fragment_count_bytes = take(4);
++  if (fragment_count_bytes == nullptr) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "sidecar fragment table is truncated";
++    return false;
++  }
++  const uint32_t fragment_count = read_u32(fragment_count_bytes);
++  if (fragment_count > size / 120) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "sidecar fragment count exceeds payload";
++    return false;
++  }
++  for (uint32_t i = 0; i < fragment_count; ++i) {
++    if (take(20) == nullptr || take(16) == nullptr) {
++      result.status = "corrupt";
++      result.complete = false;
++      result.error = "sidecar fragment table is truncated";
++      return false;
++    }
++    const uint8_t *model_len_bytes = take(2);
++    if (model_len_bytes == nullptr) {
++      result.status = "corrupt";
++      result.complete = false;
++      result.error = "sidecar fragment model length is truncated";
++      return false;
++    }
++    const size_t model_len = read_u16(model_len_bytes);
++    const uint8_t *model = take(model_len);
++    if (model == nullptr) {
++      result.status = "corrupt";
++      result.complete = false;
++      result.error = "sidecar fragment model is truncated";
++      return false;
++    }
++    if (std::find_if(model, model + model_len, [](uint8_t value) {
++          return value >= 0x80;
++        }) != model + model_len) {
++      // Full UTF-8 validation is not structural integrity. Report the
++      // limitation rather than rejecting a manifest the reader may accept.
++      result.status = "partial";
++      result.complete = false;
++      result.limitation = true;
++      result.error = "sidecar model is not ASCII; UTF-8 validity unchecked";
++    }
++    if (take(32) == nullptr || take(32) == nullptr) {
++      result.status = "corrupt";
++      result.complete = false;
++      result.error = "sidecar fragment fingerprints are truncated";
++      return false;
++    }
++  }
++  if (position != size) {
++    result.status = "corrupt";
++    result.complete = false;
++    result.error = "sidecar has trailing bytes";
++    return false;
++  }
++  if (result.status.empty()) {
++    result.status = "partial";
++    result.complete = false;
++    result.limitation = true;
++    result.error =
++        "sidecar structure verified; the format has no content checksum";
++  }
++  return true;
++}
++
++bool is_sidecar_path(const fs::path &path) {
++  const std::string name = path.filename().string();
++  if (name.size() < 17) return false;
++  if (name.rfind("file-", 0) != 0) return false;
++  if (name.compare(name.size() - 4, 4, ".bin") != 0) return false;
++  return path.parent_path().filename() == "reconciliation";
++}
++
++// A zg generation storage root has a fixed collection layout. Missing
++// collections are a truncated/replaced generation, not a clean subset.
++void verify_required_layout(const fs::path &root, Report &report) {
++  if (root.filename() != "storage") return;
++  std::error_code ec;
++  const bool looks_like_zg =
++      fs::exists(root / "schema.json", ec) ||
++      fs::is_directory(root / "files", ec) ||
++      fs::is_directory(root / "directories", ec) ||
++      fs::is_directory(root / "entities", ec);
++  if (!looks_like_zg) return;
++  for (const char *name : {"schema.json", "files", "directories", "entities"}) {
++    if (!fs::exists(root / name, ec)) {
++      report.add_error(std::string("missing required collection ") + name);
++    }
++  }
++  bool fragments_present = false;
++  for (const auto &entry : fs::directory_iterator(root, ec)) {
++    if (!entry.is_directory(ec)) continue;
++    if (entry.path().filename().string().rfind("fragments_", 0) == 0) {
++      fragments_present = true;
++      break;
++    }
++  }
++  if (!fragments_present) {
++    report.add_error("missing required fragments_* collection");
++  }
++}
++
++std::string status_string(const Report &report) {
++  if (!report.pass) return "CORRUPT";
++  if (report.legacy) return "INCOMPLETE_LEGACY";
++  if (!report.complete || !report.stable) return "INCOMPLETE";
++  return "PASS_COMPLETE";
++}
++
++Coverage *find_coverage(Report &report, const std::string &name) {
++  for (auto &entry : report.coverage) {
++    if (entry.name == name) return &entry;
++  }
++  return nullptr;
++}
++
++void mark_missing(Report &report, const std::string &name,
++                  const std::string &status) {
++  if (std::find(report.missing_coverage.begin(), report.missing_coverage.end(),
++                name) == report.missing_coverage.end()) {
++    report.missing_coverage.push_back(name);
++  }
++  Coverage *coverage = find_coverage(report, name);
++  if (coverage != nullptr) coverage->status = status;
++}
++
++std::string format_report(const Report &report) {
++  std::ostringstream out;
++  out << "{\"status\":\"" << report.status << "\""
++      << ",\"pass\":" << (report.pass ? "true" : "false")
++      << ",\"complete\":" << (report.complete ? "true" : "false")
++      << ",\"legacy\":" << (report.legacy ? "true" : "false")
++      << ",\"stable\":" << (report.stable ? "true" : "false")
++      << ",\"stability\":\"" << json_escape(report.stability) << "\""
++      << ",\"stability_detail\":\"" << json_escape(report.stability_detail)
++      << "\""
++      << ",\"flags\":" << report.flags << ",\"collection_path\":\""
++      << json_escape(report.collection_path) << "\""
++      << ",\"generation\":";
++  if (report.generation.empty()) {
++    out << "null";
++  } else {
++    out << '"' << json_escape(report.generation) << '"';
++  }
++  out << ",\"coverage\":[";
++  for (size_t i = 0; i < report.coverage.size(); ++i) {
++    const auto &coverage = report.coverage[i];
++    if (i) out << ',';
++    out << "{\"name\":\"" << json_escape(coverage.name) << "\""
++        << ",\"status\":\"" << json_escape(coverage.status) << "\""
++        << ",\"files\":" << coverage.files
++        << ",\"bytes\":" << coverage.bytes << "}";
++  }
++  out << "],\"missing_coverage\":[";
++  for (size_t i = 0; i < report.missing_coverage.size(); ++i) {
++    if (i) out << ',';
++    out << '"' << json_escape(report.missing_coverage[i]) << '"';
++  }
++  out << "],\"limitations\":[";
++  for (size_t i = 0; i < report.limitations.size(); ++i) {
++    if (i) out << ',';
++    out << '"' << json_escape(report.limitations[i]) << '"';
++  }
++  out << "],\"errors\":[";
++  for (size_t i = 0; i < report.errors.size(); ++i) {
++    if (i) out << ',';
++    out << '"' << json_escape(report.errors[i]) << '"';
++  }
++  out << "],\"components\":[";
++  for (size_t i = 0; i < report.components.size(); ++i) {
++    const auto &component = report.components[i];
++    if (i) out << ',';
++    out << "{\"kind\":\"" << json_escape(component.kind) << "\""
++        << ",\"path\":\"" << json_escape(component.path) << "\""
++        << ",\"status\":\"" << json_escape(component.status) << "\""
++        << ",\"complete\":" << (component.complete ? "true" : "false")
++        << ",\"bytes\":" << component.bytes
++        << ",\"error\":\"" << json_escape(component.error) << "\"";
++    if (component.kind == "proxima") {
++      out << ",\"segments\":" << component.segments
++          << ",\"segments_with_crc\":" << component.segments_with_crc
++          << ",\"segments_without_crc\":" << component.segments_without_crc
++          << ",\"unprotected_bytes\":" << component.unprotected_bytes
++          << ",\"segment_crc_mismatches\":"
++          << component.segment_crc_mismatches
++          << ",\"content_size\":" << component.content_size
++          << ",\"content_crc\":" << component.content_crc
++          << ",\"capability\":" << component.capability
++          << ",\"capability_ok\":"
++          << (component.capability_ok ? "true" : "false")
++          << ",\"content_crc_checked\":"
++          << (component.content_crc_checked ? "true" : "false");
++    }
++    if (component.kind == "rocksdb") {
++      out << ",\"wal_files\":" << component.wal_files
++          << ",\"wal_bytes\":" << component.wal_bytes;
++    }
++    out << "}";
++  }
++  out << "]}";
++  return out.str();
++}
++
++Report verify_collection(const fs::path &root, unsigned int requested_flags) {
++  Report report;
++  report.collection_path = root.string();
++  report.generation = find_generation_uuid(root);
++  report.flags = requested_flags == 0
++                     ? (ZVEC_INTEGRITY_ROCKSDB |
++                        ZVEC_INTEGRITY_PROXIMA_STRUCTURE |
++                        ZVEC_INTEGRITY_PROXIMA_CONTENT)
++                     : requested_flags;
++  const bool check_rocksdb =
++      (report.flags & ZVEC_INTEGRITY_ROCKSDB) != 0;
++  const bool check_proxima_structure =
++      (report.flags & ZVEC_INTEGRITY_PROXIMA_STRUCTURE) != 0;
++  const bool check_proxima_content =
++      (report.flags & ZVEC_INTEGRITY_PROXIMA_CONTENT) != 0;
++  const bool check_proxima = check_proxima_structure || check_proxima_content;
++
++  StabilityGuard guard = check_stability(root);
++  report.stable = guard.stable;
++  report.stability = guard.stable ? "stable" : "active_writer";
++  report.stability_detail = guard.detail;
++  if (!guard.stable) {
++    // Unstable is not corruption: no artifact was read. The report stays
++    // INCOMPLETE and the stability fields carry the reason.
++    report.complete = false;
++  }
++  verify_required_layout(root, report);
++
++  report.coverage.push_back({"proxima", "not_present", 0, 0});
++  report.coverage.push_back({"rocksdb", "not_present", 0, 0});
++  report.coverage.push_back({"ipc", "not_present", 0, 0});
++  report.coverage.push_back({"sidecars", "not_present", 0, 0});
++  report.coverage.push_back({"wal", "not_present", 0, 0});
++
++  uint64_t wal_files = 0;
++  uint64_t wal_bytes = 0;
++
++  std::vector<fs::path> pending{root};
++  while (!pending.empty()) {
++    const fs::path directory = pending.back();
++    pending.pop_back();
++    std::error_code ec;
++    fs::directory_iterator iterator(directory, ec);
++    if (ec) {
++      report.add_error("cannot read directory " + directory.string() + ": " +
++                       ec.message());
++      continue;
++    }
++    // Snapshot entries before opening RocksDB: a read-only open may create a
++    // LOCK file and mutating a directory during iteration is unspecified.
++    std::vector<fs::path> entries;
++    entries.reserve(256);
++    for (const auto &entry : iterator) entries.push_back(entry.path());
++    for (const auto &path : entries) {
++      std::error_code type_ec;
++      if (fs::is_directory(path, type_ec)) {
++        if (is_rocksdb_dir(path)) {
++          if (!check_rocksdb) {
++            report.complete = false;
++            mark_missing(report, "rocksdb", "skipped");
++            continue;
++          }
++          Component component;
++          if (!verify_rocksdb(path, component)) {
++            report.add_error(component.error);
++          }
++          if (component.wal_files > 0) {
++            wal_files += component.wal_files;
++            wal_bytes += component.wal_bytes;
++            if (component.wal_bytes > 0) component.complete = false;
++          }
++          if (component.status == "ok") component.complete = true;
++          report.components.push_back(component);
++        } else {
++          pending.push_back(path);
++        }
++        continue;
++      }
++      if (!fs::is_regular_file(path, type_ec)) continue;
++
++      const std::string extension = path.extension().string();
++      if (extension == ".proxima") {
++        if (!check_proxima) {
++          report.complete = false;
++          mark_missing(report, "proxima", "skipped");
++          continue;
++        }
++        Component component;
++        if (!verify_proxima(path, report.flags, component)) {
++          report.add_error(component.error);
++        }
++        report.components.push_back(component);
++      } else if (extension == ".ipc" || extension == ".arrow" ||
++                 extension == ".feather") {
++        if (!check_proxima) {
++          report.complete = false;
++          mark_missing(report, "ipc", "skipped");
++          continue;
++        }
++        Component component;
++        if (!verify_ipc(path, component)) {
++          report.add_error(component.error);
++        }
++        report.components.push_back(component);
++      } else if (is_sidecar_path(path)) {
++        Component component;
++        if (!verify_sidecar(path, component)) {
++          report.add_error(component.error);
++        }
++        report.components.push_back(component);
++      }
++    }
++  }
++
++  for (const auto &component : report.components) {
++    if (component.kind == "proxima") {
++      auto *coverage = find_coverage(report, "proxima");
++      ++coverage->files;
++      coverage->bytes += component.bytes;
++      if (component.status == "corrupt") {
++        coverage->status = "partial";
++      } else if (component.status == "legacy") {
++        report.legacy = true;
++        report.complete = false;
++        if (coverage->status != "partial") coverage->status = "partial";
++      } else if (!component.complete) {
++        report.complete = false;
++        if (coverage->status != "covered") coverage->status = "partial";
++      } else if (coverage->status != "partial") {
++        coverage->status = "covered";
++      }
++    } else if (component.kind == "rocksdb") {
++      auto *coverage = find_coverage(report, "rocksdb");
++      ++coverage->files;
++      coverage->bytes += component.bytes;
++      if (component.status == "corrupt") {
++        coverage->status = "partial";
++      } else if (coverage->status != "partial") {
++        coverage->status = "covered";
++      }
++      if (component.wal_bytes > 0) {
++        report.complete = false;
++      }
++    } else if (component.kind == "ipc") {
++      auto *coverage = find_coverage(report, "ipc");
++      ++coverage->files;
++      coverage->bytes += component.bytes;
++      if (component.status == "corrupt") {
++        coverage->status = "partial";
++      } else if (component.limitation) {
++        coverage->status = "partial";
++        if (std::find(report.limitations.begin(), report.limitations.end(),
++                      "ipc.content_checksum") == report.limitations.end()) {
++          report.limitations.push_back("ipc.content_checksum");
++        }
++      } else if (!component.complete) {
++        report.complete = false;
++        coverage->status = "partial";
++      } else if (coverage->status != "partial") {
++        coverage->status = "covered";
++      }
++    } else if (component.kind == "sidecar") {
++      auto *coverage = find_coverage(report, "sidecars");
++      ++coverage->files;
++      coverage->bytes += component.bytes;
++      if (component.status == "corrupt") {
++        coverage->status = "partial";
++      } else if (component.limitation) {
++        coverage->status = "partial";
++        if (std::find(report.limitations.begin(), report.limitations.end(),
++                      "sidecars.content_checksum") ==
++            report.limitations.end()) {
++          report.limitations.push_back("sidecars.content_checksum");
++        }
++      } else if (!component.complete) {
++        report.complete = false;
++        if (component.status == "unsupported") {
++          coverage->status = "unsupported";
++        } else if (coverage->status != "covered") {
++          coverage->status = "partial";
++        }
++      } else if (coverage->status != "partial" &&
++                 coverage->status != "unsupported") {
++        coverage->status = "covered";
++      }
++    }
++  }
++
++  // A category with no files is complete by absence; a category that exists but
++  // was not checked was already recorded in missing_coverage.
++  auto *wal_coverage = find_coverage(report, "wal");
++  wal_coverage->files = wal_files;
++  wal_coverage->bytes = wal_bytes;
++  if (wal_bytes > 0) {
++    mark_missing(report, "wal", "unsupported");
++    report.complete = false;
++  } else {
++    // A sealed RocksDB generation leaves only empty WAL files; there is no
++    // unverified payload. This is reported as covered rather than "missing".
++    wal_coverage->status = wal_files == 0 ? "not_present" : "covered";
++  }
++
++  if (!report.pass) {
++    report.legacy = false;
++  }
++  if (!report.stable) report.complete = false;
++  report.status = status_string(report);
++  return report;
++}
++
++}  // namespace
++
++struct zvec_integrity_report {
++  std::string json;
++  bool ok = true;
++  bool complete = false;
++  int code = 0;
++};
++
++extern "C" {
++
++int zvec_collection_verify_integrity(const char *collection_path,
++                                     unsigned int flags,
++                                     zvec_integrity_report **out) {
++  if (out == nullptr) return ZVEC_INTEGRITY_INVALID_ARG;
++  *out = nullptr;
++  if (collection_path == nullptr || collection_path[0] == '\0') {
++    return ZVEC_INTEGRITY_INVALID_ARG;
++  }
++  std::error_code ec;
++  const fs::path root(collection_path);
++  if (!fs::exists(root, ec) || !fs::is_directory(root, ec)) {
++    return ZVEC_INTEGRITY_INVALID_ARG;
++  }
++
++  Report report = verify_collection(root, flags);
++  auto result = std::make_unique<zvec_integrity_report>();
++  result->json = format_report(report);
++  result->ok = report.pass;
++  result->complete = report.complete && report.stable;
++  if (!report.pass) {
++    result->code = ZVEC_INTEGRITY_CORRUPT;
++  } else if (report.status == "PASS_COMPLETE" && result->complete) {
++    result->code = ZVEC_INTEGRITY_PASS;
++  } else {
++    result->code = ZVEC_INTEGRITY_INCOMPLETE;
++  }
++  const int code = result->code;
++  *out = result.release();
++  return code;
++}
++
++int zvec_integrity_report_ok(const zvec_integrity_report *report) {
++  return report != nullptr && report->ok ? 1 : 0;
++}
++
++int zvec_integrity_report_complete(const zvec_integrity_report *report) {
++  return report != nullptr && report->complete ? 1 : 0;
++}
++
++const char *zvec_integrity_report_json(const zvec_integrity_report *report) {
++  return report == nullptr ? nullptr : report->json.c_str();
++}
++
++void zvec_integrity_report_free(zvec_integrity_report *report) {
++  delete report;
++}
++
++}  // extern "C"

@@ -1,0 +1,25 @@
+[package]
+name = "zg-integrity-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libloading = "0.8.9"
+
+# The verifier surface is resolved from the already-loaded native library at
+# runtime. All unsafe code is confined to that symbol resolution and call.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

@@ -4174,6 +4174,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zg-integrity-native"
+version = "0.0.1"
+dependencies = [
+ "libloading",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "zg-memory"
 version = "0.0.1"
 dependencies = [

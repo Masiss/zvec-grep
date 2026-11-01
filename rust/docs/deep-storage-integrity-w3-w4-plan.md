@@ -1,8 +1,9 @@
 # W3/W4 Plan — Native Integrity Verification and Operation
 
-Status: **W3 ready to start; W4 is a draft scope pending owner confirmation.**
+Status: **W3 PASS (2026-11-01); W4 remains a draft scope pending owner confirmation.**
 
-Baseline: `6025b96` (W2c docs/handoff). Date: 2026-11-01.
+Baseline: `6025b96` (W2c docs/handoff). Date: 2026-11-01. W3 result:
+[`deep-storage-integrity-w3.md`](deep-storage-integrity-w3.md).
 
 ## 1. Current state
 
