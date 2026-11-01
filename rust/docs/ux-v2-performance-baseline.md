@@ -47,6 +47,9 @@ benchmark. No threshold, policy, RC, or production behavior was changed.
 
 ## Limitations
 
+- This baseline measured CLI wall time and CLI RSS only. It is **not** evidence
+  for M3 dirty-finalize or Deferred Maintenance #10; those decisions require
+  total daemon/engine RSS and multi-workspace contention.
 - One host, one fixture, high background load; no counterbalanced pair.
 - No production corpus, no 421-file benchmark, no end-to-end watcher latency
   series.

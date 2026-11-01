@@ -59,6 +59,7 @@ made because the evidence does not justify one.
 
 ## Next step
 
-Feature work is closed. Any further work must target the measured direct-path
-engine/model startup with its own authorization and benchmark. Reopen UX V2 only
-for a concrete regression or production qualification request.
+UX V2 is closed at `2478776`. The next track is Index/Finalize Qualification:
+`index-finalize-qualification.md`. It must measure total daemon/active-engine
+RSS and multi-workspace contention, not CLI RSS or single-job time. Any further
+UX V2 work requires a concrete regression or production qualification request.
