@@ -1,6 +1,6 @@
 # Index/Finalize Qualification
 
-Status: **planning / not started**. UX V2 remains closed at commit `2478776`.
+Status: **preregistered v1; not run**. UX V2 remains closed at commit `2478776`.
 This track is about deciding whether the current M3 dirty-finalize behavior is
 good enough, or whether Deferred Maintenance #10 is worth pursuing.
 
@@ -71,6 +71,13 @@ workspace/pair.
   correctness, delete visibility, and retrieval parity remain intact.
 - **NO-GO:** any case requires native concurrent optimize, scheduler/policy
   changes, or threshold changes prohibited above.
+
+## Preregistration
+
+The frozen v1 protocol is in `index-finalize-preregistration.md` and
+`benchmarks/harness-v2/operations/index-finalize/qualification-protocol.json`.
+It fixes the matrix, fixture, repetitions, envelope, measurement design,
+preflight, correctness guards, and decision rules before any run.
 
 ## Evidence to produce
 
