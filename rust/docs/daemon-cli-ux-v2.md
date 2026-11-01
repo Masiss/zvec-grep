@@ -44,10 +44,11 @@ global slots. The per-user global config accepts:
 - The scheduler now uses separate manual/watch permits, so a queued watcher
   cannot consume the manual slot.
 - Per-root single-writer exclusion is unchanged.
-- Same-root watcher pause/coalesce/resume is provided by the scheduler's
-  single-writer follow-up path: manual work is queued behind an active watcher,
-  watcher events are coalesced into that follow-up, and the watcher resumes
-  after the manual writer finishes. A running watcher is not killed mid-commit.
+- Same-root manual work supersedes an active watcher: the watcher receives a
+  cancellation signal and stops at the engine's next safe checkpoint; the
+  manual job is the single follow-up writer. Watcher events that arrive during
+  the manual job are coalesced and run after the manual job succeeds, fails, or
+  is cancelled. A watcher is never killed mid-commit.
 
 ## Problem
 
@@ -144,7 +145,7 @@ Status reporting for unusually large skipped trees remains a follow-up.
 |---|---|---|
 | UX0 | JobView + `--server jobs` + phase/status rendering | **Implemented**; `cargo test -p zg-daemon-protocol`, `cargo test -p zg-cli jobs`, and `cargo test -p zg-daemon --lib job_view` |
 | UX1 | Explicit routing + job id output + `--no-wait` | **Implemented**; management commands default direct and print their route |
-| UX2 | Manual priority + same-root watcher follow-up | **Implemented** via scheduler follow-up/coalescing; running watcher finishes at its safe boundary |
+| UX2 | Manual priority + same-root watcher supersede | **Implemented**; active watcher is cancelled at its next safe checkpoint and resumes through a coalesced follow-up |
 | UX3 | Queue position + cancellation + configurable lanes | **Implemented** for queue position, priority, cancelability, and `--server cancel`; timeout remains follow-up |
 | UX4 | Watcher scope/default-ignore hardening | **Implemented** for default ignores; skipped-scope reporting remains follow-up |
 

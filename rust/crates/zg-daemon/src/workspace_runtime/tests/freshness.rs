@@ -477,7 +477,7 @@ async fn daemon_watcher_failure_keeps_m4_dirty_until_full_recovery_retry() {
 }
 
 #[tokio::test]
-async fn rejected_watcher_batches_require_full_repair_after_queue_pressure_ends() {
+async fn watcher_batch_runs_on_its_lane_while_manual_blocks_another_root() {
     let workspace = tempdir().expect("workspace");
     let other = tempdir().expect("other workspace");
     let root = workspace.path().canonicalize().expect("root");
@@ -517,38 +517,42 @@ async fn rejected_watcher_batches_require_full_repair_after_queue_pressure_ends(
             IndexOptions::default(),
             JobReason::Manual,
         )
-        .expect("other writer");
+        .expect("other manual writer");
     jobs.recv().await.expect("other writer running");
-    deliver(
-        &manager,
-        &sender,
-        &root,
-        WorkspaceChange::Upsert("lost.rs".into()),
-    )
-    .await;
-    assert!(
-        !manager
-            .runtime(root, &options)
-            .expect("runtime")
-            .is_reconciled()
+
+    // Do not call the shared `deliver` helper here: it waits for tracked jobs
+    // to settle, but the watcher job is intentionally gated below.
+    sender
+        .send(WorkspaceChangeBatch {
+            changes: vec![WorkspaceChange::Upsert("not-lost.rs".into())],
+        })
+        .await
+        .expect("event");
+    manager
+        .flush_watcher(&manager.runtime(root.clone(), &options).expect("runtime"))
+        .await
+        .expect("flush");
+    let watcher = jobs.recv().await.expect("watcher uses its own lane");
+    assert_eq!(
+        watcher.changes,
+        [IndexChange::Upsert("not-lost.rs".into())],
+        "a watcher batch must remain available while a manual job runs elsewhere"
     );
-    executor.release.add_permits(1);
+
+    // Release both lanes: the manual blocker and the watcher job.
+    executor.release.add_permits(2);
     manager
         .inner
         .scheduler
         .wait(blocker.job.id)
         .await
-        .expect("other writer finishes");
-    executor.release.add_permits(1);
+        .expect("manual blocker finishes");
+    manager.inner.scheduler.wait_for_root_idle(&root).await;
+    let runtime = manager.runtime(root, &options).expect("runtime");
+    runtime.settle_jobs(&manager.inner.scheduler, None).await;
     assert!(
-        manager
-            .refresh_index(options, true)
-            .await
-            .expect("repair rejected change")
-    );
-    assert_eq!(
-        jobs.recv().await.expect("repair job").changes,
-        [IndexChange::Rescan]
+        runtime.is_reconciled(),
+        "the watcher change was indexed without a manual repair scan"
     );
     manager.shutdown_all().await.expect("shutdown");
 }

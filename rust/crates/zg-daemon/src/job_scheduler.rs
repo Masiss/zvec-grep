@@ -167,6 +167,7 @@ struct ScheduledJob {
     created_at: Instant,
     snapshot: Mutex<IndexJobSnapshot>,
     options: Mutex<Option<IndexOptions>>,
+    pending_changes: Mutex<Vec<zg_engine::api::index::options::WorkspaceChange>>,
     cancellation: CancellationToken,
     shared: AtomicBool,
     result: Mutex<Option<IndexResult>>,
@@ -262,11 +263,8 @@ impl IndexJobScheduler {
                 note_watch_submission(&active);
             }
             let active_snapshot = lock(&active.snapshot).clone();
-            let needs_followup = reason == JobReason::Watch
-                || active_snapshot.reason == JobReason::Watch
-                || options.rebuild
-                || options.name.is_some()
-                || has_selection_update(&options);
+            let needs_followup = needs_followup(reason, &active_snapshot, &options);
+            supersede_watch(reason, &active_snapshot, &active, &mut options);
             if needs_followup && active_snapshot.state == JobState::Queued {
                 let queued_full_manual = active_snapshot.reason == JobReason::Manual
                     && reason == JobReason::Watch
@@ -274,7 +272,7 @@ impl IndexJobScheduler {
                         .as_ref()
                         .is_some_and(|options| options.changes.is_empty());
                 if !queued_full_manual {
-                    merge_options(&mut lock(&active.options), options);
+                    merge_job_options(&active, options);
                 }
                 if reason == JobReason::Watch
                     && let Some(window) = lock(&active.watch_coalescing).as_mut()
@@ -297,7 +295,7 @@ impl IndexJobScheduler {
                     if reason == JobReason::Watch {
                         note_watch_submission(followup);
                     }
-                    merge_options(&mut lock(&followup.options), options);
+                    merge_job_options(followup, options);
                     if reason == JobReason::Watch
                         && let Some(window) = lock(&followup.watch_coalescing).as_mut()
                     {
@@ -601,6 +599,7 @@ fn create_job(
     reason: JobReason,
 ) -> Arc<ScheduledJob> {
     let id = Uuid::new_v4();
+    let pending_changes = options.changes.clone();
     Arc::new(ScheduledJob {
         id,
         canonical_root: canonical_root.clone(),
@@ -617,6 +616,7 @@ fn create_job(
             finished_at: None,
         }),
         options: Mutex::new(Some(options)),
+        pending_changes: Mutex::new(pending_changes),
         cancellation: CancellationToken::new(),
         shared: AtomicBool::new(reason == JobReason::Watch),
         result: Mutex::new(None),
@@ -1004,6 +1004,84 @@ fn finish_job(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
 
 fn has_selection_update(options: &IndexOptions) -> bool {
     options.reset_paths || options.scan != ScanRulesUpdate::default()
+}
+
+fn needs_followup(reason: JobReason, active: &IndexJobSnapshot, options: &IndexOptions) -> bool {
+    reason == JobReason::Watch
+        || active.reason == JobReason::Watch
+        || options.rebuild
+        || options.name.is_some()
+        || has_selection_update(options)
+}
+
+fn supersede_watch(
+    reason: JobReason,
+    active: &IndexJobSnapshot,
+    active_job: &Arc<ScheduledJob>,
+    options: &mut IndexOptions,
+) {
+    // A manual writer supersedes an active watcher at the engine's next safe
+    // checkpoint. The manual job is still a follow-up, so the root never has
+    // two writers.
+    if reason != JobReason::Manual
+        || active.reason != JobReason::Watch
+        || active.state != JobState::Running
+    {
+        return;
+    }
+    if !options.changes.is_empty() && !options.rebuild {
+        merge_changes(
+            &mut options.changes,
+            lock(&active_job.pending_changes).iter().cloned(),
+        );
+    }
+    active_job.cancellation.cancel();
+}
+
+fn merge_changes(
+    current: &mut Vec<zg_engine::api::index::options::WorkspaceChange>,
+    incoming: impl IntoIterator<Item = zg_engine::api::index::options::WorkspaceChange>,
+) {
+    use zg_engine::api::index::options::WorkspaceChange;
+    let incoming = incoming.into_iter().collect::<Vec<_>>();
+    if incoming.is_empty() {
+        current.clear();
+        return;
+    }
+    if current.is_empty() {
+        return;
+    }
+    if incoming
+        .iter()
+        .any(|change| matches!(change, WorkspaceChange::Rescan))
+    {
+        *current = vec![WorkspaceChange::Rescan];
+        return;
+    }
+    if current
+        .iter()
+        .any(|change| matches!(change, WorkspaceChange::Rescan))
+    {
+        return;
+    }
+    for change in incoming {
+        if let Some(path) = change_path(&change) {
+            current.retain(|existing| change_path(existing) != Some(path));
+        }
+        current.push(change);
+    }
+}
+
+fn merge_job_options(job: &ScheduledJob, incoming: IndexOptions) {
+    let incoming_changes = incoming.changes.clone();
+    let full_scan = incoming.changes.is_empty();
+    merge_options(&mut lock(&job.options), incoming);
+    let mut pending = lock(&job.pending_changes);
+    if full_scan {
+        pending.clear();
+    } else {
+        merge_changes(&mut pending, incoming_changes);
+    }
 }
 
 fn merge_options(current: &mut Option<IndexOptions>, mut incoming: IndexOptions) {
@@ -1595,7 +1673,10 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 mod tests {
     use std::{
         path::PathBuf,
-        sync::{Arc, Mutex},
+        sync::{
+            Arc, Mutex,
+            atomic::{AtomicUsize, Ordering},
+        },
         time::{Duration, Instant},
     };
 
@@ -1652,6 +1733,69 @@ mod tests {
             Ok(IndexResult {
                 ..IndexResult::default()
             })
+        }
+    }
+
+    struct ManualOutcomeExecutor {
+        started: Notify,
+        release: tokio::sync::Semaphore,
+        calls: Mutex<Vec<IndexOptions>>,
+    }
+
+    #[async_trait]
+    impl IndexExecutor for ManualOutcomeExecutor {
+        async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
+            self.calls
+                .lock()
+                .expect("calls lock should be available")
+                .push(options.clone());
+            if !options.changes.is_empty() {
+                return Ok(IndexResult::default());
+            }
+            self.started.notify_one();
+            let signal = options.signal.clone();
+            if let Some(signal) = signal {
+                tokio::select! {
+                    () = signal.cancelled() => {}
+                    permit = self.release.acquire() => { permit.expect("release gate").forget(); }
+                }
+            } else {
+                self.release.acquire().await.expect("release gate").forget();
+            }
+            match options.name.as_deref() {
+                Some("failed") => Err(EngineError::internal("manual fixture failure")),
+                Some("cancelled") => Err(EngineError::cancelled("manual fixture cancellation")),
+                _ => Ok(IndexResult::default()),
+            }
+        }
+    }
+
+    struct SupersedeExecutor {
+        started: Notify,
+        watch_calls: AtomicUsize,
+        manual_calls: Mutex<Vec<IndexOptions>>,
+    }
+
+    #[async_trait]
+    impl IndexExecutor for SupersedeExecutor {
+        async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
+            if options.name.is_some() {
+                self.manual_calls
+                    .lock()
+                    .expect("manual calls lock should be available")
+                    .push(options);
+                return Ok(IndexResult::default());
+            }
+            let call = self.watch_calls.fetch_add(1, Ordering::AcqRel);
+            self.started.notify_one();
+            if call == 0 {
+                let signal = options
+                    .signal
+                    .expect("watch job should carry a cancellation signal");
+                signal.cancelled().await;
+                return Err(EngineError::cancelled("watch superseded by manual"));
+            }
+            Ok(IndexResult::default())
         }
     }
 
@@ -2604,6 +2748,162 @@ mod tests {
             executor.calls.lock().expect("calls should be readable")[1].name,
             Some("manual-now".into())
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn manual_supersedes_running_watch_and_watch_resumes_after_manual() {
+        let executor = Arc::new(SupersedeExecutor {
+            started: Notify::new(),
+            watch_calls: AtomicUsize::new(0),
+            manual_calls: Mutex::new(Vec::new()),
+        });
+        let scheduler = IndexJobScheduler::new(
+            Arc::clone(&executor) as Arc<dyn IndexExecutor>,
+            SchedulerConfig {
+                manual_concurrency: 1,
+                watch_concurrency: 1,
+                queue_capacity: 8,
+            },
+        );
+        let root = PathBuf::from("/workspace/supersede");
+        let watch = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    changes: vec![WorkspaceChange::Upsert(PathBuf::from("watched.rs"))],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("watch job");
+        executor.started.notified().await;
+
+        let manual = scheduler
+            .submit(
+                root.clone(),
+                IndexOptions {
+                    name: Some("manual".into()),
+                    changes: vec![WorkspaceChange::Upsert(PathBuf::from("manual.rs"))],
+                    ..IndexOptions::default()
+                },
+                JobReason::Manual,
+            )
+            .expect("manual job");
+
+        let manual_done = scheduler
+            .wait(manual.job.id)
+            .await
+            .expect("manual completion");
+        assert_eq!(manual_done.job.state, JobState::Succeeded);
+        let watch_done = scheduler
+            .wait(watch.job.id)
+            .await
+            .expect("watch completion");
+        assert_eq!(watch_done.job.state, JobState::Cancelled);
+        let manual_calls = executor
+            .manual_calls
+            .lock()
+            .expect("manual calls should be readable");
+        assert!(
+            manual_calls[0]
+                .changes
+                .contains(&WorkspaceChange::Upsert(PathBuf::from("watched.rs"))),
+            "the superseded watcher batch must move into the manual job"
+        );
+        drop(manual_calls);
+
+        let resumed = scheduler
+            .submit(
+                root,
+                IndexOptions {
+                    changes: vec![WorkspaceChange::Upsert(PathBuf::from("resumed.rs"))],
+                    ..IndexOptions::default()
+                },
+                JobReason::Watch,
+            )
+            .expect("resumed watch");
+        let resumed_done = scheduler
+            .wait(resumed.job.id)
+            .await
+            .expect("resumed watch completion");
+        assert_eq!(resumed_done.job.state, JobState::Succeeded);
+        scheduler.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watcher_changes_survive_manual_success_failure_and_cancellation() {
+        for outcome in ["manual", "failed", "cancelled"] {
+            let executor = Arc::new(ManualOutcomeExecutor {
+                started: Notify::new(),
+                release: tokio::sync::Semaphore::new(0),
+                calls: Mutex::new(Vec::new()),
+            });
+            let scheduler = IndexJobScheduler::new(
+                Arc::clone(&executor) as Arc<dyn IndexExecutor>,
+                SchedulerConfig {
+                    manual_concurrency: 1,
+                    watch_concurrency: 1,
+                    queue_capacity: 8,
+                },
+            );
+            let root = PathBuf::from(format!("/workspace/{outcome}"));
+            let manual = scheduler
+                .submit(
+                    root.clone(),
+                    IndexOptions {
+                        name: Some(outcome.into()),
+                        ..IndexOptions::default()
+                    },
+                    JobReason::Manual,
+                )
+                .expect("manual job");
+            executor.started.notified().await;
+
+            let watch = scheduler
+                .submit(
+                    root.clone(),
+                    IndexOptions {
+                        changes: vec![WorkspaceChange::Upsert(PathBuf::from("during-manual.rs"))],
+                        ..IndexOptions::default()
+                    },
+                    JobReason::Watch,
+                )
+                .expect("watch follow-up");
+            assert_ne!(watch.job.id, manual.job.id);
+
+            if outcome == "cancelled" {
+                assert!(scheduler.cancel(manual.job.id));
+            } else {
+                executor.release.add_permits(1);
+            }
+            let manual_done = scheduler
+                .wait(manual.job.id)
+                .await
+                .expect("manual terminal");
+            assert_eq!(
+                manual_done.job.state,
+                match outcome {
+                    "failed" => JobState::Failed,
+                    "cancelled" => JobState::Cancelled,
+                    _ => JobState::Succeeded,
+                }
+            );
+            let watch_done = scheduler.wait(watch.job.id).await.expect("watch terminal");
+            assert_eq!(
+                watch_done.job.state,
+                JobState::Succeeded,
+                "watcher must resume after manual {outcome}"
+            );
+
+            let calls = executor.calls.lock().expect("calls should be readable");
+            assert!(
+                calls.iter().any(|call| call
+                    .changes
+                    .contains(&WorkspaceChange::Upsert(PathBuf::from("during-manual.rs")))),
+                "watcher change was lost after manual {outcome}"
+            );
+            scheduler.shutdown().await;
+        }
     }
 
     #[tokio::test]

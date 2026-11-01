@@ -257,6 +257,26 @@ mod tests {
     }
 
     #[test]
+    fn daemon_watcher_and_direct_writer_share_the_same_home_lock() {
+        let directory = tempdir().expect("temporary directory");
+        let home = directory.path().join(".zvec-grep");
+
+        // The daemon watcher and the direct CLI both acquire this exact write
+        // lock before an index writer can mutate the workspace.
+        let watcher =
+            acquire_home_lock(&home, LockMode::Write, "daemon.watch").expect("watcher writer lock");
+        let direct = acquire_home_lock(&home, LockMode::Write, "index")
+            .expect_err("direct index must not write while the watcher owns the root");
+        assert_eq!(direct.code(), EngineError::RESOURCE_BUSY);
+        assert!(direct.to_string().contains("operation=index"));
+
+        drop(watcher);
+        let direct = acquire_home_lock(&home, LockMode::Write, "index")
+            .expect("direct index starts after the watcher releases the root");
+        drop(direct);
+    }
+
+    #[test]
     fn readers_share_the_lock_and_block_a_writer() {
         let directory = tempdir().expect("temporary directory");
         let path = directory.path().join("locks/home");
