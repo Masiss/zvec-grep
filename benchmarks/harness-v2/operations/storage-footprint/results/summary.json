@@ -1,0 +1,41 @@
+{
+  "baseline_commit": "4b3bded",
+  "fixture": {
+    "path": "fixture/ws_1",
+    "files": 2000,
+    "source_bytes": 16404480,
+    "manifest_sha256": "45bc27b060fb6705682d808878d912d003b00f08189af7bf801b8ab9d8e501b7"
+  },
+  "before": {
+    "total_bytes": 980261619,
+    "files": 2180,
+    "reconciliation_json_bytes": 134488000,
+    "index_seconds": 203.13,
+    "max_rss_kib": 2086860
+  },
+  "after": {
+    "total_bytes": 899519613,
+    "files": 2180,
+    "reconciliation_bin_bytes": 50172880,
+    "index_seconds": 138.19,
+    "max_rss_kib": 2068320,
+    "search_fts_mean_ms": 633.11,
+    "search_vector_mean_ms": 717.43,
+    "search_max_rss_kib": 422436
+  },
+  "saved_bytes": 80742006,
+  "saved_percent": 8.24,
+  "reconciliation_reduction_percent": 62.69,
+  "breakdown_after_bytes": {
+    "fragments": 638922875,
+    "entities": 208508006,
+    "reconciliation": 50172880,
+    "files": 2020147,
+    "directories": 140399
+  },
+  "limitations": [
+    "Post-change search latency measured; pre-change latency was not retained because the old index was replaced during rebuild.",
+    "Peak PSS was not sampled in this optimization run; peak RSS is reported instead.",
+    "Index timing is a single run per condition and includes finalize."
+  ]
+}

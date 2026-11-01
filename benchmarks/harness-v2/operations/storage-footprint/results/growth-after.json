@@ -1,0 +1,23 @@
+{
+  "rows": [
+    {
+      "phase": "baseline",
+      "bytes": 899519613
+    },
+    {
+      "phase": "after_insert",
+      "bytes": 899760409,
+      "delta": 240796,
+      "index_s": 18.696799062992795,
+      "rc": 0
+    },
+    {
+      "phase": "after_delete",
+      "bytes": 899765537,
+      "delta_vs_base": 245924,
+      "index_s": 1.6856759340007557,
+      "rc": 0
+    }
+  ],
+  "note": "direct incremental index; no rebuild"
+}

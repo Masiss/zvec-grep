@@ -1575,10 +1575,10 @@ fn build_file_manifest(
         return Ok(None);
     }
     let mut manifest = FileManifest::new(file.id);
-    let mut estimated_bytes = 128_usize;
+    let mut estimated_bytes = 16_usize;
     for entity in entities {
         let fingerprint = entity_manifest_fingerprint(entity)?;
-        estimated_bytes = estimated_bytes.saturating_add(112);
+        estimated_bytes = estimated_bytes.saturating_add(48);
         if estimated_bytes > MAX_FILE_MANIFEST_BYTES {
             return Ok(None);
         }
@@ -1623,7 +1623,7 @@ fn build_file_manifest(
             &metadata_fingerprint,
         )?;
         estimated_bytes = estimated_bytes
-            .saturating_add(320)
+            .saturating_add(102)
             .saturating_add(entry.model.len());
         if estimated_bytes > MAX_FILE_MANIFEST_BYTES {
             return Ok(None);
@@ -1650,7 +1650,7 @@ fn build_staged_file_manifest(
 ) -> EngineResult<Option<FileManifest>> {
     let mut manifest = FileManifest::new(file.id);
     let mut metadata_fingerprints = HashMap::new();
-    let mut estimated_bytes = 128_usize;
+    let mut estimated_bytes = 16_usize;
     let mut too_large = false;
     staged.for_each_entity_batch(|entities| {
         if too_large {
@@ -1660,7 +1660,7 @@ fn build_staged_file_manifest(
             let fingerprint = entity_manifest_fingerprint(entity)?;
             let metadata_fingerprint =
                 fragments::metadata_projection_fingerprint(entity.metadata.as_ref())?;
-            estimated_bytes = estimated_bytes.saturating_add(112);
+            estimated_bytes = estimated_bytes.saturating_add(48);
             if estimated_bytes > MAX_FILE_MANIFEST_BYTES {
                 too_large = true;
                 break;
@@ -1698,7 +1698,7 @@ fn build_staged_file_manifest(
                 ));
             };
             estimated_bytes = estimated_bytes
-                .saturating_add(320)
+                .saturating_add(102)
                 .saturating_add(entry.model.len());
             if estimated_bytes > MAX_FILE_MANIFEST_BYTES {
                 too_large = true;
