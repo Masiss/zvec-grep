@@ -160,12 +160,33 @@ pub(crate) struct IndexingContext<'context> {
 pub(crate) async fn index_workspace(
     context: &IndexingContext<'_>,
 ) -> Result<IndexResult, EngineError> {
+    index_workspace_inner(context, false).await
+}
+
+pub(crate) async fn index_workspace_with_content_recheck(
+    context: &IndexingContext<'_>,
+) -> Result<IndexResult, EngineError> {
+    index_workspace_inner(context, true).await
+}
+
+async fn index_workspace_inner(
+    context: &IndexingContext<'_>,
+    force_content_recheck: bool,
+) -> Result<IndexResult, EngineError> {
     validate_context(context)?;
     let started = Instant::now();
     let mut timings = TimingCollector::default();
     let mut model_prepared = false;
 
-    let first = run_index_pass(context, &mut timings, None, &[], &mut model_prepared).await?;
+    let first = run_index_pass(
+        context,
+        &mut timings,
+        None,
+        &[],
+        &mut model_prepared,
+        force_content_recheck,
+    )
+    .await?;
     let mut passes = vec![first];
     if !passes[0].stats.retryable_files.is_empty() {
         let succeeded = passes[0].stats.files_indexed;
@@ -194,6 +215,7 @@ pub(crate) async fn index_workspace(
                 }),
                 &passes[0].stats.retryable_files,
                 &mut model_prepared,
+                force_content_recheck,
             )
             .await?,
         );
@@ -413,6 +435,7 @@ async fn run_index_pass(
     progress_base: Option<ProgressBase>,
     retry_paths: &[PathBuf],
     model_prepared: &mut bool,
+    force_content_recheck: bool,
 ) -> Result<IndexPassResult, EngineError> {
     throw_if_cancelled(context.signal.as_ref())?;
     report(
@@ -459,11 +482,12 @@ async fn run_index_pass(
         )
         .await
         .map_err(map_host_error)?;
-    let (scanned, classification_skips) = classify_files(
+    let (scanned, classification_skips) = classify_files_with_recheck(
         context.workspace_index,
         snapshot.files,
         &all_stored,
         &control,
+        force_content_recheck,
     )
     .await?;
     let (mut skipped, mut skipped_counts) =
@@ -473,7 +497,7 @@ async fn run_index_pass(
     timings.record("index_scan", scan_started.elapsed(), scanned.len());
 
     let diff_started = Instant::now();
-    let mut diff = compute_diff(scanned, &existing);
+    let mut diff = compute_diff_with_recheck(scanned, &existing, force_content_recheck);
     timings.record("index_diff", diff_started.elapsed(), diff.files_scanned);
     report(
         context,
@@ -562,6 +586,14 @@ fn resolve_scanned_identities(
 }
 
 fn compute_diff(scanned: Vec<ScannedFile>, existing_files: &[FileRecord]) -> DiffPlan {
+    compute_diff_with_recheck(scanned, existing_files, false)
+}
+
+fn compute_diff_with_recheck(
+    scanned: Vec<ScannedFile>,
+    existing_files: &[FileRecord],
+    force_content_recheck: bool,
+) -> DiffPlan {
     let mut existing_by_path = existing_files
         .iter()
         .cloned()
@@ -582,7 +614,8 @@ fn compute_diff(scanned: Vec<ScannedFile>, existing_files: &[FileRecord]) -> Dif
             None => CandidateKind::Added,
             Some(existing) if !existing.index_status.is_indexed() => CandidateKind::Pending,
             Some(existing)
-                if scanned.detection_error.is_none()
+                if !force_content_recheck
+                    && scanned.detection_error.is_none()
                     && file_is_unchanged(existing, &scanned.discovered) =>
             {
                 plan.unchanged += 1;
@@ -3324,12 +3357,29 @@ async fn classify_files(
     stored: &[FileRecord],
     control: &TaskControl,
 ) -> Result<(Vec<ScannedFile>, Vec<SkippedFile>), EngineError> {
+    classify_files_with_recheck(workspace, files, stored, control, false).await
+}
+
+async fn classify_files_with_recheck(
+    workspace: &Workspace,
+    files: Vec<DiscoveredFile>,
+    stored: &[FileRecord],
+    control: &TaskControl,
+    force_content_recheck: bool,
+) -> Result<(Vec<ScannedFile>, Vec<SkippedFile>), EngineError> {
     let workspace = workspace.clone();
     let stored = stored.to_vec();
     let signal = control.cancellation.clone();
     tokio::task::spawn_blocking(move || {
         let mut skipped = Vec::new();
-        let files = scanned_files(&workspace, files, &stored, &mut skipped, &signal)?;
+        let files = scanned_files(
+            &workspace,
+            files,
+            &stored,
+            &mut skipped,
+            &signal,
+            force_content_recheck,
+        )?;
         Ok((files, skipped))
     })
     .await
@@ -3368,6 +3418,7 @@ fn scanned_files(
     stored: &[FileRecord],
     skipped: &mut Vec<SkippedFile>,
     signal: &CancellationToken,
+    force_content_recheck: bool,
 ) -> Result<Vec<ScannedFile>, EngineError> {
     let existing = stored
         .iter()
@@ -3392,7 +3443,8 @@ fn scanned_files(
             .scan
             .max_file_size_bytes
             .unwrap_or(MIN_DEFAULT_FILE_SIZE_BYTES);
-        if discovered.size_bytes <= known_limit
+        if !force_content_recheck
+            && discovered.size_bytes <= known_limit
             && existing
                 .get(&relative_path)
                 .is_some_and(|file| file_is_unchanged(file, &discovered))

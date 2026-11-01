@@ -52,16 +52,19 @@ use crate::{
 
 use super::pipeline::{
     IndexEmbeddingRuntime, IndexingContext, get_workspace_index_status, index_workspace,
+    index_workspace_with_content_recheck,
 };
 
 const DEFAULT_LOCAL_EMBEDDING: &str = "local/potion-code-16m-v2";
-const CLEAN_SCAN_VERSION: u32 = 1;
+const CLEAN_SCAN_VERSION: u32 = 2;
+const CLEAN_SCAN_CONTENT_LIMIT_BYTES: u64 = 256 * 1024 * 1024;
 const CLEAN_SCAN_FILE: &str = "clean-scan.json";
 
 #[derive(Debug, Deserialize, Serialize)]
 struct CleanScanSnapshot {
     version: u32,
-    fingerprint: String,
+    metadata_fingerprint: String,
+    content_fingerprint: String,
     storage_generation: Option<String>,
     index_version: Option<u32>,
 }
@@ -107,6 +110,15 @@ fn remove_clean_scan(home: &Path) -> EngineResult<()> {
             &error,
         )),
     }
+}
+
+fn modified_epoch_ms(metadata: &std::fs::Metadata) -> Option<u64> {
+    metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|duration| u64::try_from(duration.as_millis()).ok())
 }
 
 #[derive(Clone)]
@@ -200,13 +212,94 @@ impl WorkspaceIndexService {
         ))
     }
 
+    async fn clean_scan_content_fingerprint(
+        &self,
+        workspace: &crate::domain::Workspace,
+        signal: Option<&tokio_util::sync::CancellationToken>,
+    ) -> Result<Option<String>, EngineError> {
+        let control = TaskControl::new(signal.cloned().unwrap_or_default());
+        let request = ScanRequest {
+            roots: vec![crate::file_selection::ScanPolicy::root_spec(
+                &workspace.root,
+                &workspace.scan,
+            )?],
+            scope_paths: Vec::new(),
+        };
+        let snapshot = self
+            .scanner
+            .discover(&request, &control)
+            .await
+            .map_err(|error| {
+                EngineError::internal(format!("startup content discovery failed: {error}"))
+            })?;
+        if snapshot.diagnostics.skipped_files > 0
+            || snapshot
+                .files
+                .iter()
+                .try_fold(0_u64, |total, file| total.checked_add(file.size_bytes))
+                .is_none_or(|total| total > CLEAN_SCAN_CONTENT_LIMIT_BYTES)
+        {
+            return Ok(None);
+        }
+        let root = workspace.root.clone();
+        let files = snapshot.files;
+        tokio::task::spawn_blocking(move || {
+            let mut hasher = Sha256::new();
+            hasher.update(b"zg-clean-content-v2");
+            for file in files {
+                let path = root.join(&file.relative_path);
+                let before = std::fs::metadata(&path).map_err(|error| {
+                    EngineError::from_io(
+                        format!("cannot stat startup source {}: {error}", path.display()),
+                        &error,
+                    )
+                })?;
+                if before.len() != file.size_bytes
+                    || modified_epoch_ms(&before) != file.modified_epoch_ms
+                {
+                    return Ok(None);
+                }
+                let bytes = std::fs::read(&path).map_err(|error| {
+                    EngineError::from_io(
+                        format!("cannot read startup source {}: {error}", path.display()),
+                        &error,
+                    )
+                })?;
+                let after = std::fs::metadata(&path).map_err(|error| {
+                    EngineError::from_io(
+                        format!(
+                            "cannot stat startup source again {}: {error}",
+                            path.display()
+                        ),
+                        &error,
+                    )
+                })?;
+                if after.len() != before.len()
+                    || modified_epoch_ms(&after) != file.modified_epoch_ms
+                {
+                    return Ok(None);
+                }
+                let relative = file.relative_path.as_os_str().as_encoded_bytes();
+                hasher.update((relative.len() as u64).to_le_bytes());
+                hasher.update(relative);
+                hasher.update((bytes.len() as u64).to_le_bytes());
+                hasher.update(bytes);
+            }
+            Ok(Some(hex::encode(hasher.finalize())))
+        })
+        .await
+        .map_err(|error| EngineError::internal(format!("startup content worker failed: {error}")))?
+    }
+
     fn clean_scan_matches(
         manifest: &WorkspaceManifest,
         snapshot: &CleanScanSnapshot,
-        fingerprint: &str,
+        metadata_fingerprint: &str,
+        content_fingerprint: &str,
     ) -> bool {
         snapshot.version == CLEAN_SCAN_VERSION
-            && snapshot.fingerprint == fingerprint
+            && snapshot.metadata_fingerprint == metadata_fingerprint
+            && snapshot.content_fingerprint == content_fingerprint
             && snapshot.storage_generation == manifest.storage_generation
             && snapshot.index_version == manifest.index_version
     }
@@ -357,36 +450,61 @@ impl WorkspaceIndexService {
             options.changes.clear();
         }
         let mut clean_pre = None;
+        let mut clean_content_pre = None;
+        let mut force_content_recheck = false;
         if Self::fast_noop_eligible(existing.as_ref(), &options, rebuilding) {
             let active = existing.as_ref().expect("fast-path manifest");
             let (fingerprint, file_count, skipped_files) = self
                 .clean_scan_fingerprint(&active.workspace, options.signal.as_ref())
                 .await?;
-            if skipped_files == 0
-                && let Some(snapshot) = read_clean_scan(&location.home)?
-                && Self::clean_scan_matches(active, &snapshot, &fingerprint)
-            {
-                let started = Instant::now();
-                let mut updated = active.clone();
-                updated.record_update(epoch_millis());
-                write_workspace_manifest(&updated.path, &updated)?;
-                let elapsed = started.elapsed();
-                let mut result = IndexResult::default();
-                result.files_scanned = file_count;
-                result.files_unchanged = file_count;
-                result.duration_micros = u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
-                result.timings.push(crate::api::index::result::TimingEntry {
-                    name: "startup_noop".to_owned(),
-                    duration_micros: result.duration_micros,
-                    count: None,
-                });
-                tracing::info!(
-                    root = %location.root.display(),
-                    files = file_count,
-                    elapsed_micros = result.duration_micros,
-                    "direct index startup fast path"
-                );
-                return Ok(result);
+            let snapshot = if skipped_files == 0 {
+                read_clean_scan(&location.home)?
+            } else {
+                None
+            };
+            if let Some(snapshot) = snapshot {
+                if snapshot.version == CLEAN_SCAN_VERSION
+                    && snapshot.metadata_fingerprint == fingerprint
+                    && snapshot.storage_generation == active.storage_generation
+                    && snapshot.index_version == active.index_version
+                {
+                    let content = self
+                        .clean_scan_content_fingerprint(&active.workspace, options.signal.as_ref())
+                        .await?;
+                    if let Some(content) = content {
+                        if Self::clean_scan_matches(active, &snapshot, &fingerprint, &content) {
+                            let started = Instant::now();
+                            let mut updated = active.clone();
+                            updated.record_update(epoch_millis());
+                            write_workspace_manifest(&updated.path, &updated)?;
+                            let elapsed = started.elapsed();
+                            let mut result = IndexResult::default();
+                            result.files_scanned = file_count;
+                            result.files_unchanged = file_count;
+                            result.duration_micros =
+                                u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
+                            result.timings.push(crate::api::index::result::TimingEntry {
+                                name: "startup_noop".to_owned(),
+                                duration_micros: result.duration_micros,
+                                count: None,
+                            });
+                            tracing::info!(
+                                root = %location.root.display(),
+                                files = file_count,
+                                elapsed_micros = result.duration_micros,
+                                "direct index startup fast path"
+                            );
+                            return Ok(result);
+                        }
+                        force_content_recheck = true;
+                        clean_content_pre = Some(content);
+                    }
+                } else if snapshot.metadata_fingerprint == fingerprint {
+                    force_content_recheck = true;
+                }
+            } else if skipped_files == 0 {
+                // Missing or unreadable sidecar cannot prove freshness.
+                force_content_recheck = true;
             }
             clean_pre = Some(fingerprint);
         }
@@ -433,10 +551,22 @@ impl WorkspaceIndexService {
                 .await?;
             clean_pre = Some(fingerprint);
         }
+        if clean_content_pre.is_none() && clean_pre.is_some() && options.changes.is_empty() {
+            clean_content_pre = self
+                .clean_scan_content_fingerprint(&manifest.workspace, options.signal.as_ref())
+                .await?;
+        }
         let pending = build.clone();
         let clean_manifest = manifest.clone();
         let result = self
-            .run_index(manifest, build, acquired, options, Arc::clone(&home_lock))
+            .run_index(
+                manifest,
+                build,
+                acquired,
+                options,
+                Arc::clone(&home_lock),
+                force_content_recheck,
+            )
             .await;
         if result.is_err()
             && let Some(build) = pending
@@ -447,16 +577,21 @@ impl WorkspaceIndexService {
         }
         if result.is_ok()
             && let Some(pre) = clean_pre
+            && let Some(pre_content) = clean_content_pre
         {
             let (post, _, _) = self
                 .clean_scan_fingerprint(&clean_manifest.workspace, None)
                 .await?;
-            if post == pre {
+            let post_content = self
+                .clean_scan_content_fingerprint(&clean_manifest.workspace, None)
+                .await?;
+            if post == pre && post_content.as_deref() == Some(pre_content.as_str()) {
                 write_clean_scan(
                     &location.home,
                     &CleanScanSnapshot {
                         version: CLEAN_SCAN_VERSION,
-                        fingerprint: post,
+                        metadata_fingerprint: post,
+                        content_fingerprint: pre_content,
                         storage_generation: clean_manifest.storage_generation.clone(),
                         index_version: clean_manifest.index_version,
                     },
@@ -473,6 +608,7 @@ impl WorkspaceIndexService {
         models: Vec<ModelRuntimeLease>,
         options: IndexOptions,
         home_lock: Arc<FileLock>,
+        force_content_recheck: bool,
     ) -> Result<IndexResult, EngineError> {
         let open_started = Instant::now();
         let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
@@ -495,7 +631,7 @@ impl WorkspaceIndexService {
             .iter()
             .map(|model| model as &dyn IndexEmbeddingRuntime)
             .collect::<Vec<_>>();
-        let result = index_workspace(&IndexingContext {
+        let context = IndexingContext {
             workspace_index: &manifest.workspace,
             storage: &writer.session.storage,
             scanner: &self.scanner,
@@ -504,8 +640,12 @@ impl WorkspaceIndexService {
             on_progress: options.on_progress,
             signal: options.signal.clone(),
             changes: &options.changes,
-        })
-        .await;
+        };
+        let result = if force_content_recheck {
+            index_workspace_with_content_recheck(&context).await
+        } else {
+            index_workspace(&context).await
+        };
         #[cfg(test)]
         let result = result.and_then(|indexed| {
             // Exercise service cleanup when the indexing pipeline reports a failed checkpoint.
@@ -2462,8 +2602,177 @@ mod tests {
             "delete must refresh the clean-scan sidecar"
         );
         assert_eq!(third_models.snapshot().cached_runtimes, 0);
+
+        let sidecar = directory.path().join(".zvec-grep/clean-scan.json");
+        std::fs::remove_file(&sidecar).expect("remove sidecar");
+        let recovered = service
+            .index(
+                &third_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("missing sidecar fallback");
+        assert!(
+            !recovered
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop"),
+            "missing sidecar must use normal indexing"
+        );
+        assert!(
+            sidecar.exists(),
+            "normal indexing must recreate the sidecar"
+        );
+        let recovered_fast = service
+            .index(
+                &third_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("recovered fast path");
+        assert!(
+            recovered_fast
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop")
+        );
+
+        std::fs::write(&sidecar, b"not a clean-scan snapshot").expect("corrupt sidecar");
+        let corrupt = service
+            .index(
+                &third_models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("corrupt sidecar fallback");
+        assert!(
+            !corrupt
+                .timings
+                .iter()
+                .any(|timing| timing.name == "startup_noop"),
+            "corrupt sidecar must use normal indexing"
+        );
+        assert!(sidecar.exists(), "corrupt sidecar must be replaced");
         third_models.close();
         second_models.close();
+    }
+
+    #[tokio::test]
+    async fn same_size_same_mtime_content_change_is_rechecked() {
+        let directory = tempdir().expect("temporary directory");
+        let path = directory.path().join("sample.rs");
+        let original = "pub const VALUE: &str = \"alphatoken\";\n";
+        std::fs::write(&path, original).expect("source file");
+        let service = WorkspaceIndexService::with_test_registry();
+        let models = ModelRuntimeManager::new();
+        service
+            .index(&models, empty_index_options(directory.path()))
+            .await
+            .expect("initial index");
+        let mtime = std::fs::metadata(&path)
+            .expect("metadata")
+            .modified()
+            .expect("mtime");
+        let changed = "pub const VALUE: &str = \"bravotoken\";\n";
+        assert_eq!(original.len(), changed.len());
+        std::fs::write(&path, changed).expect("changed source");
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .expect("open source");
+        file.set_times(std::fs::FileTimes::new().set_modified(mtime))
+            .expect("restore mtime");
+
+        let engine = crate::ZvecGrep::new();
+        let query = |mode, text: &str| crate::api::context::ContextOptions {
+            root: Some(directory.path().to_path_buf()),
+            auto_update: false,
+            routes: vec![crate::api::context::options::ContextRoute {
+                mode,
+                query: text.to_owned(),
+            }],
+            ..crate::api::context::ContextOptions::default()
+        };
+        let initial = engine
+            .context(query(
+                crate::api::context::options::ContextRouteMode::Fts,
+                "alphatoken",
+            ))
+            .await
+            .expect("initial FTS query");
+        assert!(
+            initial
+                .items
+                .iter()
+                .any(|item| item.relative_path == Path::new("sample.rs")),
+            "initial FTS context: {initial:#?}"
+        );
+        drop(engine);
+
+        let result = service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("content recheck index");
+        assert_eq!(
+            result.files_modified, 1,
+            "same metadata must not be a no-op"
+        );
+        let engine = crate::ZvecGrep::new();
+        let old = engine
+            .context(query(
+                crate::api::context::options::ContextRouteMode::Fts,
+                "alphatoken",
+            ))
+            .await
+            .expect("old FTS query");
+        assert!(
+            !old.items
+                .iter()
+                .any(|item| item.relative_path == Path::new("sample.rs")),
+            "old FTS context: {old:#?}"
+        );
+        let new = engine
+            .context(query(
+                crate::api::context::options::ContextRouteMode::Fts,
+                "bravotoken",
+            ))
+            .await
+            .expect("new FTS query");
+        assert!(
+            new.items
+                .iter()
+                .any(|item| item.relative_path == Path::new("sample.rs")),
+            "new FTS context: {new:#?}"
+        );
+        let vector = engine
+            .context(query(
+                crate::api::context::options::ContextRouteMode::Vector,
+                "bravotoken",
+            ))
+            .await
+            .expect("new vector query");
+        assert!(
+            vector
+                .items
+                .iter()
+                .any(|item| item.relative_path == Path::new("sample.rs"))
+        );
+        models.close();
     }
 
     #[tokio::test]
