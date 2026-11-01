@@ -37,8 +37,8 @@ use crate::{
         CURRENT_INDEX_VERSION,
         build::{
             WorkspaceBuild, discard_build, has_build, has_generation_storage, preflight_rebuild,
-            prepare_build, publish_build, read_build_registration, recover_build,
-            recover_build_for_rebuild,
+            prepare_build, prepare_incremental_build, publish_build, read_build_registration,
+            recover_build, recover_build_for_rebuild,
         },
         layout::{
             WorkspaceIndexLocation, find_nearest_workspace, reset_workspace_index,
@@ -674,6 +674,7 @@ impl WorkspaceIndexService {
         {
             previous.ensure_index_compatible(&descriptor)?;
         }
+        let active_storage = existing.as_ref().map(WorkspaceManifest::storage_home);
         let mut manifest = index_manifest(
             &location,
             existing.as_ref(),
@@ -685,6 +686,13 @@ impl WorkspaceIndexService {
             // Fresh builds always cover the full configured workspace.
             options.changes.clear();
             let build = prepare_build(manifest)?;
+            manifest = build.target.clone();
+            Some(build)
+        } else if let Some(active_storage) = active_storage {
+            // Incremental writes must never mutate the active generation. Clone
+            // it into a stage, publish only after close/seal, and keep the old
+            // generation readable if anything fails before publication.
+            let build = prepare_incremental_build(manifest, &active_storage)?;
             manifest = build.target.clone();
             Some(build)
         } else {
@@ -1711,9 +1719,12 @@ mod tests {
         let updated = super::read_workspace_manifest(&home)
             .expect("manifest")
             .expect("active");
-        assert_eq!(updated.storage_generation, active.storage_generation);
+        assert_ne!(
+            updated.storage_generation, active.storage_generation,
+            "ordinary refresh stages a new generation"
+        );
         assert_eq!(updated.workspace.name, active.workspace.name);
-        assert!(active.storage_home().exists());
+        assert!(updated.storage_home().exists());
         service
             .index(
                 &models,
@@ -1727,8 +1738,8 @@ mod tests {
         let rebuilt = super::read_workspace_manifest(&home)
             .expect("manifest")
             .expect("active");
-        assert_ne!(rebuilt.storage_generation, active.storage_generation);
-        assert!(!active.storage_home().exists());
+        assert_ne!(rebuilt.storage_generation, updated.storage_generation);
+        assert!(!updated.storage_home().exists());
         models.close();
     }
 
@@ -1820,7 +1831,11 @@ mod tests {
         let updated = super::read_workspace_manifest(&home)
             .expect("read")
             .expect("active");
-        assert_eq!(updated.storage_generation, active.storage_generation);
+        assert_ne!(
+            updated.storage_generation, active.storage_generation,
+            "ordinary indexing stages a new generation"
+        );
+        assert!(updated.storage_home().exists());
         assert_eq!(updated.workspace.scan, active.workspace.scan);
         assert_eq!(updated.embedding_runtimes, active.embedding_runtimes);
         assert!(!abandoned.target.storage_home().exists());
@@ -2288,7 +2303,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn explicit_rename_preserves_generation_storage() {
+    async fn explicit_rename_clones_generation_storage() {
         let directory = tempdir().expect("workspace");
         let service = WorkspaceIndexService::with_test_registry();
         let models = ModelRuntimeManager::new();
@@ -2306,8 +2321,11 @@ mod tests {
         let before = super::read_workspace_manifest(&home)
             .expect("manifest")
             .expect("active workspace");
-        let marker = before.storage_home().join("storage/checkpoint-marker");
-        std::fs::write(&marker, b"existing generation").expect("generation storage marker");
+        std::fs::write(
+            before.storage_home().join("storage/checkpoint-marker"),
+            b"existing generation",
+        )
+        .expect("generation storage marker");
         service
             .index(
                 &models,
@@ -2323,13 +2341,17 @@ mod tests {
             .expect("manifest")
             .expect("renamed workspace");
         assert_eq!(after.workspace.name.as_str(), "after");
-        assert_eq!(after.storage_generation, before.storage_generation);
+        assert_ne!(
+            after.storage_generation, before.storage_generation,
+            "rename goes through the staged incremental path"
+        );
         assert_eq!(
             after.workspace.created_epoch_ms,
             before.workspace.created_epoch_ms
         );
         assert_eq!(
-            std::fs::read(&marker).expect("retained generation storage"),
+            std::fs::read(after.storage_home().join("storage/checkpoint-marker"))
+                .expect("cloned generation storage"),
             b"existing generation"
         );
         let info = service
@@ -2354,9 +2376,10 @@ mod tests {
             .expect("manifest")
             .expect("updated workspace");
         assert_eq!(updated.workspace.name, after.workspace.name);
-        assert_eq!(updated.storage_generation, before.storage_generation);
+        assert_ne!(updated.storage_generation, before.storage_generation);
         assert_eq!(
-            std::fs::read(&marker).expect("retained generation storage"),
+            std::fs::read(updated.storage_home().join("storage/checkpoint-marker"))
+                .expect("cloned generation storage"),
             b"existing generation"
         );
         assert_eq!(
@@ -3042,6 +3065,10 @@ mod tests {
             .expect("initial index");
         let sidecar = directory.path().join(".zvec-grep/clean-scan.json");
         assert!(sidecar.exists(), "successful index publishes the sidecar");
+        let home = directory.path().join(".zvec-grep");
+        let active_before = super::read_workspace_manifest(&home)
+            .expect("manifest")
+            .expect("active before failure");
 
         std::fs::write(&source, "pub const TOKEN: &str = \"newtoken\";\n").expect("change");
         service.fail_index_completion = true;
@@ -3060,6 +3087,13 @@ mod tests {
             !sidecar.exists(),
             "a failed index must not leave the old or a new sidecar"
         );
+        assert_eq!(
+            super::read_workspace_manifest(&home).expect("manifest"),
+            Some(active_before.clone()),
+            "a failed staged incremental must not publish a new generation"
+        );
+        assert!(active_before.storage_home().exists());
+        assert!(!super::has_build(&home), "failed stage must be discarded");
 
         service.fail_index_completion = false;
         service

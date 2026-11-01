@@ -1,7 +1,7 @@
 //! Fresh workspace builds, published by a single atomic manifest update.
 
 use std::{
-    fs,
+    fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
 };
 
@@ -189,6 +189,188 @@ pub(crate) fn prepare_build(mut target: WorkspaceManifest) -> Result<WorkspaceBu
         return Err(error);
     }
     Ok(build)
+}
+
+/// Start an incremental build by cloning the active generation. The caller
+/// must hold the workspace write lock so no writer or reader can change the
+/// source generation while it is copied.
+pub(crate) fn prepare_incremental_build(
+    mut target: WorkspaceManifest,
+    active_storage: &Path,
+) -> Result<WorkspaceBuild, EngineError> {
+    let previous_manifest = read_optional(&target.path.join(WORKSPACE_MANIFEST_FILE))?;
+    target.storage_generation = Some(Uuid::new_v4().to_string());
+    let build = WorkspaceBuild {
+        target,
+        previous_manifest,
+    };
+    // Record ownership before copying storage so a crash cannot orphan a stage.
+    if let Err(error) = write_build(&build)
+        .and_then(|()| ensure_stage(&build))
+        .and_then(|()| clone_generation(active_storage, &build.target.storage_home()))
+        .and_then(|()| sync_directory(&build.target.storage_home()))
+    {
+        let _ = discard_build(&build);
+        return Err(error);
+    }
+    Ok(build)
+}
+
+/// Copy a sealed generation into an empty stage. Regular files use FICLONE
+/// when the filesystem supports it and fall back to a byte copy otherwise.
+/// Hardlinks are never used: mutable generation files must be independent.
+fn clone_generation(source: &Path, destination: &Path) -> Result<(), EngineError> {
+    let entries = fs::read_dir(source).map_err(|error| {
+        EngineError::from_io(
+            format!("clone generation directory '{}'", source.display()),
+            &error,
+        )
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            EngineError::from_io(
+                format!("read generation directory '{}'", source.display()),
+                &error,
+            )
+        })?;
+        let source_path = entry.path();
+        let file_type = entry.file_type().map_err(|error| {
+            EngineError::from_io(
+                format!("inspect generation entry '{}'", source_path.display()),
+                &error,
+            )
+        })?;
+        let destination_path = destination.join(entry.file_name());
+        if file_type.is_dir() {
+            fs::create_dir(&destination_path).map_err(|error| {
+                EngineError::from_io(
+                    format!(
+                        "create generation directory '{}'",
+                        destination_path.display()
+                    ),
+                    &error,
+                )
+            })?;
+            clone_generation(&source_path, &destination_path)?;
+            sync_directory(&destination_path)?;
+        } else if file_type.is_file() {
+            clone_file(&source_path, &destination_path, true)?;
+        } else if file_type.is_symlink() {
+            clone_symlink(&source_path, &destination_path)?;
+        } else {
+            return Err(EngineError::storage_failure(format!(
+                "refusing to clone non-file generation entry '{}'",
+                source_path.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn clone_file(source: &Path, destination: &Path, allow_reflink: bool) -> Result<(), EngineError> {
+    let metadata = fs::metadata(source).map_err(|error| {
+        EngineError::from_io(
+            format!("stat generation file '{}'", source.display()),
+            &error,
+        )
+    })?;
+    #[cfg(target_os = "linux")]
+    if allow_reflink {
+        let source_file = File::open(source).map_err(|error| {
+            EngineError::from_io(
+                format!("open generation file '{}'", source.display()),
+                &error,
+            )
+        })?;
+        #[cfg(unix)]
+        let destination_file = {
+            use std::os::unix::fs::OpenOptionsExt;
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(destination)
+        };
+        #[cfg(not(unix))]
+        let destination_file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(destination);
+        let destination_file = destination_file.map_err(|error| {
+            EngineError::from_io(
+                format!("create generation file '{}'", destination.display()),
+                &error,
+            )
+        })?;
+        match rustix::fs::ioctl_ficlone(&destination_file, &source_file) {
+            Ok(()) => {
+                fs::set_permissions(destination, metadata.permissions()).map_err(|error| {
+                    EngineError::from_io(
+                        format!(
+                            "set generation file permissions '{}'",
+                            destination.display()
+                        ),
+                        &error,
+                    )
+                })?;
+                destination_file.sync_all().map_err(|error| {
+                    EngineError::from_io(
+                        format!("sync cloned generation file '{}'", destination.display()),
+                        &error,
+                    )
+                })?;
+                return Ok(());
+            }
+            Err(_) => {
+                drop(destination_file);
+                let _ = fs::remove_file(destination);
+            }
+        }
+    }
+
+    fs::copy(source, destination).map_err(|error| {
+        EngineError::from_io(
+            format!(
+                "copy generation file '{}' -> '{}'",
+                source.display(),
+                destination.display()
+            ),
+            &error,
+        )
+    })?;
+    File::open(destination)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| {
+            EngineError::from_io(
+                format!("sync copied generation file '{}'", destination.display()),
+                &error,
+            )
+        })?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn clone_symlink(source: &Path, destination: &Path) -> Result<(), EngineError> {
+    let target = fs::read_link(source).map_err(|error| {
+        EngineError::from_io(
+            format!("read generation symlink '{}'", source.display()),
+            &error,
+        )
+    })?;
+    std::os::unix::fs::symlink(target, destination).map_err(|error| {
+        EngineError::from_io(
+            format!("create generation symlink '{}'", destination.display()),
+            &error,
+        )
+    })
+}
+
+#[cfg(not(unix))]
+fn clone_symlink(source: &Path, _destination: &Path) -> Result<(), EngineError> {
+    Err(EngineError::storage_failure(format!(
+        "refusing to clone symlink '{}' on this platform",
+        source.display()
+    )))
 }
 
 /// Discard this attempt after its storage handles close. An unreadable original
@@ -449,6 +631,98 @@ mod tests {
         fs::create_dir_all(manifest.storage_home().join("storage")).expect("active storage");
         fs::write(manifest.storage_home().join("storage/old"), "old data").expect("old data");
         write_workspace_manifest(&manifest.path, manifest).expect("active manifest");
+    }
+
+    #[test]
+    fn incremental_build_clones_independent_generation() {
+        let directory = tempdir().expect("workspace");
+        let active = manifest(directory.path());
+        write_active(&active);
+        let old_storage = active.storage_home();
+        fs::create_dir_all(old_storage.join("storage/nested")).expect("nested storage");
+        fs::write(old_storage.join("storage/nested/value"), "nested data").expect("nested");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("old", old_storage.join("storage/link")).expect("symlink");
+
+        let build = prepare_incremental_build(active.clone(), &old_storage).expect("stage");
+        assert_ne!(
+            build.target.storage_generation, active.storage_generation,
+            "incremental build must use a new generation"
+        );
+        assert_eq!(
+            fs::read(build.target.storage_home().join("storage/nested/value"))
+                .expect("cloned nested"),
+            b"nested data"
+        );
+        assert!(old_storage.join("storage/nested/value").exists());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let old_inode = fs::metadata(old_storage.join("storage/old"))
+                .expect("old metadata")
+                .ino();
+            let new_inode = fs::metadata(build.target.storage_home().join("storage/old"))
+                .expect("new metadata")
+                .ino();
+            assert_ne!(
+                old_inode, new_inode,
+                "clone must not hardlink mutable files"
+            );
+        }
+        fs::write(
+            build.target.storage_home().join("storage/old"),
+            "stage data",
+        )
+        .expect("stage write");
+        assert_eq!(
+            fs::read(old_storage.join("storage/old")).expect("old data"),
+            b"old data",
+            "writing the stage must not mutate the active generation"
+        );
+        discard_build(&build).expect("discard stage");
+        assert!(!has_build(&active.path));
+        assert!(old_storage.join("storage/old").exists());
+    }
+
+    #[test]
+    fn clone_failure_discards_stage_and_keeps_active_manifest() {
+        let directory = tempdir().expect("workspace");
+        let active = manifest(directory.path());
+        write_active(&active);
+        let missing = directory.path().join("missing-generation");
+        prepare_incremental_build(active.clone(), &missing).expect_err("clone must fail");
+        assert!(!has_build(&active.path));
+        assert_eq!(
+            read_workspace_manifest(&active.path).expect("manifest"),
+            Some(active.clone())
+        );
+        assert!(active.storage_home().join("storage/old").exists());
+    }
+
+    #[test]
+    fn file_clone_never_uses_hardlinks() {
+        let directory = tempdir().expect("workspace");
+        let source = directory.path().join("source");
+        let destination = directory.path().join("destination");
+        fs::write(&source, "source data").expect("source");
+        clone_file(&source, &destination, false).expect("fallback copy");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            assert_ne!(
+                fs::metadata(&source).expect("source metadata").ino(),
+                fs::metadata(&destination)
+                    .expect("destination metadata")
+                    .ino()
+            );
+        }
+        fs::write(&destination, "destination data").expect("destination write");
+        assert_eq!(fs::read(&source).expect("source read"), b"source data");
+        let reflink_destination = directory.path().join("reflink-destination");
+        clone_file(&source, &reflink_destination, true).expect("reflink or copy");
+        fs::write(&reflink_destination, "reflink data").expect("reflink write");
+        assert_eq!(fs::read(&source).expect("source read"), b"source data");
     }
 
     #[test]

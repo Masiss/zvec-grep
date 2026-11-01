@@ -147,3 +147,16 @@ Minimal C/Rust API remains the one proposed in W2, with `REQUIRE_COMPLETE`
 returning `INCOMPLETE` for legacy zero-CRC indexes.
 
 Evidence: `benchmarks/harness-v2/operations/deep-storage-integrity/w2b/`.
+
+## W2c addendum
+
+W2c resolves the generation-lifecycle blocker above: ordinary incremental writes
+now clone the active generation into a stage and publish only after close/seal.
+See [`deep-storage-integrity-w2c.md`](deep-storage-integrity-w2c.md).
+
+A residual checksum detail was observed on a large fixture: a 204-byte late
+`HnswT4S0` segment occasionally retained `segment_crc=0` while the header
+capability and `content_crc` were valid. The content CRC covers the full content
+region, so this is not a false PASS; W2c reports zero per-segment CRCs as
+`segments_without_crc` and should recompute them in a final native flush if
+per-segment localization is required.
