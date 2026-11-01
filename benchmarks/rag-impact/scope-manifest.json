@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "status": "OPERATION_BLOCKED",
+  "blocker": "Pilot checkout /home/masis/itc/Ricons/HRM2.0 is absent on this host; /home/masis/itc/Ricons does not exist. Source hashes, line ranges and reviewer-selected held-out cases cannot be frozen without the read-only checkout.",
+  "pilot": {
+    "declared_root": "/home/masis/itc/Ricons/HRM2.0",
+    "declared_git_head": "d5e8fbcdd49b48c208887096993074464c793cd7",
+    "observed_root": null
+  },
+  "device": {
+    "policy": "read-only",
+    "no_db": true,
+    "no_build": true,
+    "no_code_execution": true
+  },
+  "selected_projects": [
+    {
+      "id": "P1",
+      "path": "Webs/HRM/HRM.csproj",
+      "role": ".NET 4.6.1 web entry; references Service.Core and DBContext.Core",
+      "sha256": null
+    },
+    {
+      "id": "P2",
+      "path": "Services/HRIS/Service.Core/Service.Core.csproj",
+      "role": "service compile set",
+      "sha256": null
+    },
+    {
+      "id": "P3",
+      "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+      "role": "EF6 context compile set",
+      "sha256": null
+    }
+  ],
+  "source_anchors": [
+    {
+      "id": "C1",
+      "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+      "sha256": null
+    },
+    {
+      "id": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "sha256": null
+    },
+    {
+      "id": "C3",
+      "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+      "sha256": null
+    },
+    {
+      "id": "C4",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "sha256": null
+    },
+    {
+      "id": "C5",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+      "sha256": null
+    },
+    {
+      "id": "C6",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+      "sha256": null
+    },
+    {
+      "id": "C7",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "sha256": null
+    },
+    {
+      "id": "S1",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "sha256": null,
+      "authority": "selected source variant only; not deployment proof"
+    },
+    {
+      "id": "S2",
+      "path": "DB/Views/EmployeeBaseViews.sql",
+      "sha256": null
+    }
+  ],
+  "exclusions": [
+    {
+      "path": "NewSolution",
+      "reason": "different .NET8/EF Core implementation; forbidden as oracle"
+    },
+    {
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee_old.sql",
+      "reason": "unselected source variant; no deployment evidence"
+    },
+    {
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql",
+      "reason": "unselected source variant; no deployment evidence"
+    }
+  ],
+  "acceptance": {
+    "dev_cases": 16,
+    "heldout_cases": 8,
+    "numeric_targets": "see rust/docs/rag/implementation-plan.md section 9; not yet accepted"
+  },
+  "notes": [
+    "Do not invent hashes or line ranges.",
+    "Re-run this manifest against the checkout before R0 can pass."
+  ]
+}

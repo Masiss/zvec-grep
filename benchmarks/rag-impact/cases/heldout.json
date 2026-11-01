@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "status": "OWNER_DECISION_REQUIRED",
+  "split": "held_out",
+  "rule": "A reviewer independent of candidate tuning selects 8 new variants covering all three question classes, guards, ambiguous binding, stale/unknown and reverse-read. Do not copy D01-D16 and change IDs.",
+  "cases": [
+    {
+      "id": "H01",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    },
+    {
+      "id": "H02",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    },
+    {
+      "id": "H03",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    },
+    {
+      "id": "H04",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    },
+    {
+      "id": "H05",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    },
+    {
+      "id": "H06",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    },
+    {
+      "id": "H07",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    },
+    {
+      "id": "H08",
+      "question": null,
+      "expected_evidence": null,
+      "forbidden_claims": [],
+      "frozen": false
+    }
+  ],
+  "next": "Reviewer fills and freezes H01-H08 before candidate measurement; the agent must not author the holdout gold."
+}

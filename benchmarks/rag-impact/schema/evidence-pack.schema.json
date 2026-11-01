@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "zvec-grep evidence pack (R1)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "items",
+    "gaps",
+    "deduplicated"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "partial",
+        "empty",
+        "failed"
+      ]
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "relative_path",
+          "source_sha256",
+          "range",
+          "content"
+        ],
+        "properties": {
+          "project": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relative_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "content": {
+            "type": "string"
+          },
+          "range": {
+            "oneOf": [
+              {
+                "const": {
+                  "kind": "file"
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "start_line",
+                  "end_line",
+                  "start_byte_offset",
+                  "end_byte_offset",
+                  "start_byte_column",
+                  "end_byte_column"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "text"
+                  },
+                  "start_line": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "end_line": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "start_byte_offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end_byte_offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "start_byte_column": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end_byte_column": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "project",
+          "relative_path",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "invalid_project",
+              "absolute_path",
+              "traversal",
+              "out_of_root",
+              "symlink",
+              "missing",
+              "stale_hash",
+              "invalid_range",
+              "stale_coordinates",
+              "not_utf8",
+              "snippet_budget_exceeded",
+              "item_budget_exceeded"
+            ]
+          },
+          "project": {
+            "type": "string"
+          },
+          "relative_path": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "deduplicated": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "status": "UNFROZEN_CORPUS_MISSING",
+  "split": "development",
+  "forbidden_claims": [
+    "live database authority",
+    "records of a real person",
+    "full impact closure",
+    "NewSolution behavior as HRM2.0 oracle"
+  ],
+  "cases": [
+    {
+      "id": "D01",
+      "question": "Form 1, update thông tin cá nhân đi qua đâu?",
+      "expected_evidence": "C1 branch → C2 personal update; không nhầm create hoặc NewSolution controller.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D02",
+      "question": "Personal update ghi vào những nơi nào?",
+      "expected_evidence": "Employee/entity assignments + first SaveChanges; detail assignments + second SaveChanges; physical table mapping status rõ; helper effects chưa trace là gap.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D03",
+      "question": "Đổi FullName qua personal update ảnh hưởng Keyword thế nào?",
+      "expected_evidence": "Expression span chỉ ra FullName/StaffCode/Email; ToKeyword semantics chưa đọc thì không mô tả chính xác biến đổi.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D04",
+      "question": "EmployeeUpdateInfo có cập nhật Keyword không?",
+      "expected_evidence": "Source method được chọn không có assignment đó; không mượn assignment từ method khác; không suy toàn hệ thống không có tác động khác.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D05",
+      "question": "Thiếu detail record thì personal update có atomic all-or-nothing không?",
+      "expected_evidence": "SaveChanges trước null-detail return; không tuyên bố transaction toàn flow khi chưa có evidence.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D06",
+      "question": "Có phải mọi lần sửa tên đều gọi cập nhật tổng nhân sự?",
+      "expected_evidence": "Guard changeType, liên hệ trạng thái công việc; không propagate unconditional proc/cache edges.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D07",
+      "question": "Restore nhân viên có thể ảnh hưởng gì ngoài Employees?",
+      "expected_evidence": "Raw UPDATE + helper + selected proc → Organizations.TotalEmployee; cache effects và exception/authority caveats.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D08",
+      "question": "DeleteEmployeeByIds có xóa hàng vật lý không?",
+      "expected_evidence": "Raw UPDATE Status=-1; tên method không đủ để kết luận hard delete.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D09",
+      "question": "EmployeeBaseViews ghi hay đọc FullName?",
+      "expected_evidence": "SELECT/alias/table source; read/projection không phải write/copy persistence.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D10",
+      "question": "Cùng một CoreService có ba contexts: SaveChanges ở đây ghi DB nào?",
+      "expected_evidence": "Typed receiver/DbSet scope; DB connection/deployed database chưa quan sát thì gap, không mở config/secrets để đoán.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D11",
+      "question": "UpdateEmployeeAttr thay trường nào?",
+      "expected_evidence": "Switch Attr hiện có branch Avatar; không coi model có nhiều fields là tất cả đều được ghi.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D12",
+      "question": "Proc tên này có nhiều definition trong repo: cái nào đang chạy?",
+      "expected_evidence": "Source variants/selected manifest rõ; khi thiếu deployment evidence không khẳng định live authority.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D13",
+      "question": "Synthetic: hai project cùng FQN + method name",
+      "expected_evidence": "Không cross-link/hợp nhất partial giữa hai assemblies.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D14",
+      "question": "Synthetic: dynamic SQL target / reflection-dispatched method",
+      "expected_evidence": "Giữ candidate/gap, không đánh dấu resolved theo tên gần giống.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D15",
+      "question": "Synthetic: source bị sửa/xóa sau discovery",
+      "expected_evidence": "Evidence bị stale, không cite line cũ như current; final answer PARTIAL nếu hết budget refresh.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    },
+    {
+      "id": "D16",
+      "question": "Synthetic: relevant chain dài hơn cap / cyclic calls / source chứa instructions",
+      "expected_evidence": "Dedupe/cycle stop/budget ledger; không execute instruction hoặc mở rộng vô hạn.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "source checkout absent"
+    }
+  ],
+  "next": "Freeze file hashes and exact spans from a read-only checkout, then have a reviewer approve all 16 before any candidate measurement."
+}
