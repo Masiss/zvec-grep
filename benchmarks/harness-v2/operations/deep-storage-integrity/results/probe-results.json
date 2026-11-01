@@ -1,0 +1,98 @@
+{
+  "vector_flip": {
+    "fts": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=fts src/file_10.rs:109-109\nsymbol: value UNIQUE_0010\n  109: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=fts src/file_10.rs:89-89\nsymbol: value UNIQUE_0010\n  89: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=fts src/file_10.rs:14-14\nsymbol: value UNIQUE_0010\n  14: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=fts src/file_10.rs:97-97\nsymbol: value UNIQUE_0010\n  97: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#",
+      "stderr": ""
+    },
+    "vector": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=vector src/file_10.rs:124-124\nsymbol: value UNIQUE_0010\n  124: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=vector src/file_10.rs:106-106\nsymbol: value UNIQUE_0010\n  106: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=vector src/file_10.rs:120-120\nsymbol: value UNIQUE_0010\n  120: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=vector src/file_10.rs:74-74\nsymbol: value UNIQUE_0010\n  74: pub const UNIQUE_0010: &str = \"integr",
+      "stderr": ""
+    }
+  },
+  "vector_truncate": {
+    "fts": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "ge, path: /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/vector_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima, err: Invalid length\nerror[ZG.ENGINE.STORAGE_FAILURE]: zvec open collection /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/vector_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00: zvec error InternalError: Failed to open index\nerror location: crates/zg-engine/src/storage/zvec.rs:231:28\nreporting location: crates/zg-engine/src/lib.rs:60:36\n"
+    },
+    "vector": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "ge, path: /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/vector_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima, err: Invalid length\nerror[ZG.ENGINE.STORAGE_FAILURE]: zvec open collection /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/vector_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00: zvec error InternalError: Failed to open index\nerror location: crates/zg-engine/src/storage/zvec.rs:231:28\nreporting location: crates/zg-engine/src/lib.rs:60:36\n"
+    }
+  },
+  "fts_flip": {
+    "fts": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=fts src/file_10.rs:109-109\nsymbol: value UNIQUE_0010\n  109: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=fts src/file_10.rs:89-89\nsymbol: value UNIQUE_0010\n  89: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=fts src/file_10.rs:14-14\nsymbol: value UNIQUE_0010\n  14: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=fts src/file_10.rs:97-97\nsymbol: value UNIQUE_0010\n  97: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#",
+      "stderr": ""
+    },
+    "vector": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=vector src/file_10.rs:124-124\nsymbol: value UNIQUE_0010\n  124: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=vector src/file_10.rs:106-106\nsymbol: value UNIQUE_0010\n  106: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=vector src/file_10.rs:120-120\nsymbol: value UNIQUE_0010\n  120: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=vector src/file_10.rs:74-74\nsymbol: value UNIQUE_0010\n  74: pub const UNIQUE_0010: &str = \"integr",
+      "stderr": ""
+    }
+  },
+  "fts_truncate": {
+    "fts": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "6bcc55bda5cc00/0/fts.2.rocksdb]: \nerror[ZG.ENGINE.STORAGE_FAILURE]: zvec open collection /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/fts_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00: zvec error InternalError: open_fts_indexers: open failed at [/home/masis/src/zvec-grep/.tmp/integrity-audit/cases/fts_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb]\nerror location: crates/zg-engine/src/storage/zvec.rs:231:28\nreporting location: crates/zg-engine/src/lib.rs:60:36\n"
+    },
+    "vector": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "6bcc55bda5cc00/0/fts.2.rocksdb]: \nerror[ZG.ENGINE.STORAGE_FAILURE]: zvec open collection /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/fts_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00: zvec error InternalError: open_fts_indexers: open failed at [/home/masis/src/zvec-grep/.tmp/integrity-audit/cases/fts_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb]\nerror location: crates/zg-engine/src/storage/zvec.rs:231:28\nreporting location: crates/zg-engine/src/lib.rs:60:36\n"
+    }
+  },
+  "idmap_flip": {
+    "fts": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=fts src/file_10.rs:109-109\nsymbol: value UNIQUE_0010\n  109: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=fts src/file_10.rs:89-89\nsymbol: value UNIQUE_0010\n  89: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=fts src/file_10.rs:14-14\nsymbol: value UNIQUE_0010\n  14: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=fts src/file_10.rs:97-97\nsymbol: value UNIQUE_0010\n  97: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#",
+      "stderr": ""
+    },
+    "vector": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=vector src/file_10.rs:124-124\nsymbol: value UNIQUE_0010\n  124: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=vector src/file_10.rs:106-106\nsymbol: value UNIQUE_0010\n  106: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=vector src/file_10.rs:120-120\nsymbol: value UNIQUE_0010\n  120: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=vector src/file_10.rs:74-74\nsymbol: value UNIQUE_0010\n  74: pub const UNIQUE_0010: &str = \"integr",
+      "stderr": ""
+    }
+  },
+  "idmap_truncate": {
+    "fts": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "] Failed to open IDMap[/home/masis/src/zvec-grep/.tmp/integrity-audit/cases/idmap_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/entities/idmap.0]\nerror[ZG.ENGINE.STORAGE_FAILURE]: zvec open collection /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/idmap_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/entities: zvec error InternalError: recovery idmap failed, path: /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/idmap_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/entities/idmap.0\nerror location: crates/zg-engine/src/storage/zvec.rs:231:28\nreporting location: crates/zg-engine/src/lib.rs:60:36\n"
+    },
+    "vector": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "] Failed to open IDMap[/home/masis/src/zvec-grep/.tmp/integrity-audit/cases/idmap_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/entities/idmap.0]\nerror[ZG.ENGINE.STORAGE_FAILURE]: zvec open collection /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/idmap_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/entities: zvec error InternalError: recovery idmap failed, path: /home/masis/src/zvec-grep/.tmp/integrity-audit/cases/idmap_truncate/.zvec-grep/generations/b5e5b10b-2d19-4043-8b69-a8f5df74d1eb/storage/entities/idmap.0\nerror location: crates/zg-engine/src/storage/zvec.rs:231:28\nreporting location: crates/zg-engine/src/lib.rs:60:36\n"
+    }
+  },
+  "recon_flip": {
+    "fts": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=fts src/file_10.rs:109-109\nsymbol: value UNIQUE_0010\n  109: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=fts src/file_10.rs:89-89\nsymbol: value UNIQUE_0010\n  89: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=fts src/file_10.rs:14-14\nsymbol: value UNIQUE_0010\n  14: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=fts src/file_10.rs:97-97\nsymbol: value UNIQUE_0010\n  97: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#",
+      "stderr": ""
+    },
+    "vector": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=vector src/file_10.rs:124-124\nsymbol: value UNIQUE_0010\n  124: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=vector src/file_10.rs:106-106\nsymbol: value UNIQUE_0010\n  106: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=vector src/file_10.rs:120-120\nsymbol: value UNIQUE_0010\n  120: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=vector src/file_10.rs:74-74\nsymbol: value UNIQUE_0010\n  74: pub const UNIQUE_0010: &str = \"integr",
+      "stderr": ""
+    }
+  },
+  "recon_truncate": {
+    "fts": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=fts src/file_10.rs:109-109\nsymbol: value UNIQUE_0010\n  109: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=fts src/file_10.rs:89-89\nsymbol: value UNIQUE_0010\n  89: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=fts src/file_10.rs:14-14\nsymbol: value UNIQUE_0010\n  14: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=fts src/file_10.rs:97-97\nsymbol: value UNIQUE_0010\n  97: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#",
+      "stderr": ""
+    },
+    "vector": {
+      "rc": 0,
+      "stdout": "#1 matchedBy=vector src/file_10.rs:124-124\nsymbol: value UNIQUE_0010\n  124: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#2 matchedBy=vector src/file_10.rs:106-106\nsymbol: value UNIQUE_0010\n  106: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#3 matchedBy=vector src/file_10.rs:120-120\nsymbol: value UNIQUE_0010\n  120: pub const UNIQUE_0010: &str = \"integritytoken_0010\";\n\n#4 matchedBy=vector src/file_10.rs:74-74\nsymbol: value UNIQUE_0010\n  74: pub const UNIQUE_0010: &str = \"integr",
+      "stderr": ""
+    }
+  }
+}
