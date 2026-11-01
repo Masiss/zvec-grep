@@ -1,44 +1,48 @@
 {
-  "protocol_id": "index-finalize-qualification-v1",
-  "protocol_sha256": "91e461b6b65594f3847e564fb22e8ffa772709df856f9e9c5beb2bbb334b215f",
-  "fixture_manifest_sha256": "57ce6408a8aeacedd439f9173fd3a394ab09ba0af2b3c8a576990b307134804d",
   "binary_sha256": "d2d58b8d1e797da7e0da091ff80ec9e776828e15e22ecb9a910cffe169511de9",
-  "code_baseline_commit": "2478776",
-  "measured_at_utc": "2026-11-01T03:26:23Z",
-  "host": {
-    "kernel": "7.2.11-arch1-1",
-    "logical_cpus": 20,
-    "mem_total_bytes": 16436367360,
-    "mem_available_bytes": 7966752768,
-    "disk_free_bytes": 24893333504,
-    "load1": 2.84,
-    "load5": 2.43,
-    "load15": 3.27
-  },
   "checks": {
+    "cgroup_memory_peak_reset": "pass",
     "cgroup_v2": "pass",
-    "systemd_user_scope": "pass",
+    "foreign_daemon": "isolated by HOME/ZVEC_GREP_HOME for measurement scope; outside daemons remain",
     "memory_accounting": "pass",
     "memory_peak_readable": "pass",
     "memory_pressure_readable": "pass",
+    "model_cache": "pass",
     "pids_current_readable": "pass",
-    "smaps_rollup": "assumed present; not separately probed in this preflight",
-    "model_cache": "present via normal HOME; not hashed in this preflight",
-    "foreign_daemon": "not probed in this preflight"
+    "smaps_rollup": "pass",
+    "systemd_user_scope": "pass"
   },
-  "host_preflight": "PASS_WITH_NAMED_GAPS",
+  "code_baseline_commit": "2478776",
+  "engine_or_scheduler_changed": false,
   "fixture_feasibility_pilot": {
-    "workspace": "ws_1",
-    "files": 2000,
-    "source_bytes": 16000000,
-    "initial_index_wall_seconds": 97.39,
-    "initial_index_max_rss_kib": 2070016,
     "entities": 288120,
-    "status": "PASS (functional) but too expensive to extrapolate blindly"
+    "files": 2000,
+    "initial_index_max_rss_kib": 2070016,
+    "initial_index_wall_seconds": 97.39,
+    "source_bytes": 16000000,
+    "status": "PASS (functional) but too expensive to extrapolate blindly",
+    "workspace": "ws_1"
   },
+  "fixture_manifest_sha256": "57ce6408a8aeacedd439f9173fd3a394ab09ba0af2b3c8a576990b307134804d",
+  "host": {
+    "disk_free_bytes": 24893333504,
+    "kernel": "7.2.11-arch1-1",
+    "load1": 2.84,
+    "load15": 3.27,
+    "load5": 2.43,
+    "logical_cpus": 20,
+    "mem_available_bytes": 7966752768,
+    "mem_total_bytes": 16436367360,
+    "model_cache_path": "/home/masis/casehome/models/model2vec/minishlab--potion-code-16M-v2/e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b/model.safetensors",
+    "model_cache_sha256": "75cf7a6c2171b230ad19b1e7d8e0b1aee86da5a02af8e7cacedd9921d227623c",
+    "smaps_rollup_probe": "pass: /proc/self/smaps_rollup contains Rss/Pss rollup"
+  },
+  "host_preflight": "PASS",
   "matrix_execution": "NOT_RUN",
-  "reason": "One-workspace warm index took 97.39 s and ~2.02 GiB RSS. A full 45-run matrix with 1/4/8 workspaces and fresh warmups is approximately 10+ hours and risks exceeding the preregistered memory envelope. The protocol has no time budget or snapshot-reuse rule, so lowering the workload or reusing a prebuilt index would change the frozen protocol. Execution stopped rather than silently weakening it.",
-  "verdict": "INCONCLUSIVE",
+  "measured_at_utc": "2026-11-01T03:26:23Z",
+  "protocol_id": "index-finalize-qualification-v1",
+  "protocol_sha256": "91e461b6b65594f3847e564fb22e8ffa772709df856f9e9c5beb2bbb334b215f",
+  "reason": "Preflight gaps are closed. Matrix execution was not started because no non-blocking matrix runner exists yet; the only completed run remains the one-workspace pilot. No thresholds or protocol were changed.",
   "thresholds_changed": false,
-  "engine_or_scheduler_changed": false
+  "verdict": "INCONCLUSIVE"
 }
