@@ -371,6 +371,13 @@ def main():
             (RESULTS / cid).mkdir(parents=True, exist_ok=True)
             (RESULTS / cid / "outer.log").write_text(r.stdout + r.stderr)
             if r.returncode == 0:
+                # Preserve bounded raw telemetry, then release the multi-GB index state
+                # so the next 8-workspace cell does not exhaust the disk.
+                out_dir = RESULTS / cid
+                out_dir.mkdir(parents=True, exist_ok=True)
+                for telemetry in (CELLS / cid).glob("rep-*/telemetry.jsonl"):
+                    shutil.copy2(telemetry, out_dir / f"telemetry-{telemetry.parent.name}.jsonl")
+                shutil.rmtree(CELLS / cid, ignore_errors=True)
                 done.write_text("ok\n")
             else:
                 print(f"cell {cid} failed rc={r.returncode}")
