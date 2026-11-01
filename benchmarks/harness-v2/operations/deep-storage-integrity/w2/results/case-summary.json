@@ -1,0 +1,230 @@
+[
+  {
+    "case": "clean",
+    "pass": true,
+    "errors": [],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_hnsw_flip",
+    "pass": true,
+    "errors": [],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_indexmeta_flip",
+    "pass": false,
+    "errors": [
+      "segment CRC mismatch"
+    ],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": false,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 1,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_header_flip",
+    "pass": false,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima_parsed": false,
+    "proxima_checksum_ok": false,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_footer_flip",
+    "pass": false,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima_parsed": false,
+    "proxima_checksum_ok": false,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_truncate_tail",
+    "pass": true,
+    "errors": [],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_truncate_footer",
+    "pass": false,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima_parsed": false,
+    "proxima_checksum_ok": false,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_replace_random",
+    "pass": false,
+    "errors": [
+      "IndexUnpacker rejected header/footer/segment table/content CRC"
+    ],
+    "proxima_parsed": false,
+    "proxima_checksum_ok": false,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 0,
+    "segments_without_crc": 0,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "proxima_replace_valid",
+    "pass": true,
+    "errors": [],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 3,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "rocksdb_fts_sst_flip",
+    "pass": false,
+    "errors": [
+      "VerifyChecksum: Corruption: block checksum mismatch: stored = 2287964843, computed = 4272527649, type = 4  in .tmp/w2-native/results/cases/rocksdb_fts_sst_flip/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst offset 392554 size 4079"
+    ],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 1
+  },
+  {
+    "case": "rocksdb_idmap_sst_flip",
+    "pass": false,
+    "errors": [
+      "VerifyChecksum: Corruption: block checksum mismatch: stored = 269519286, computed = 2766762125, type = 4  in .tmp/w2-native/results/cases/rocksdb_idmap_sst_flip/storage/files/idmap.0/000008.sst offset 20453 size 4083"
+    ],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 1
+  },
+  {
+    "case": "rocksdb_fts_sst_truncate",
+    "pass": false,
+    "errors": [
+      "OpenForReadOnly: Corruption: Sst file size mismatch: .tmp/w2-native/results/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/000021.sst. Expected 787393, actual size 786369\n in file .tmp/w2-native/results/cases/rocksdb_fts_sst_truncate/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb/MANIFEST-000005"
+    ],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 1
+  },
+  {
+    "case": "rocksdb_current_corrupt",
+    "pass": false,
+    "errors": [
+      "ListColumnFamilies: IO error: No such file or directory: While opening a file for sequentially reading: .tmp/w2-native/results/cases/rocksdb_current_corrupt/storage/files/idmap.0/MANIFEST-999999: No such file or directory"
+    ],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 1
+  },
+  {
+    "case": "rocksdb_manifest_flip",
+    "pass": false,
+    "errors": [
+      "ListColumnFamilies: Corruption: checksum mismatch in file .tmp/w2-native/results/cases/rocksdb_manifest_flip/storage/files/idmap.0/MANIFEST-000005"
+    ],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 1
+  },
+  {
+    "case": "scalar_ipc_flip",
+    "pass": true,
+    "errors": [],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  },
+  {
+    "case": "reconciliation_bin_flip",
+    "pass": true,
+    "errors": [],
+    "proxima_parsed": true,
+    "proxima_checksum_ok": true,
+    "proxima_per_segment_ok": true,
+    "content_crc": 0,
+    "segments_with_crc": 2,
+    "segments_without_crc": 5,
+    "segment_crc_mismatches": 0,
+    "rocksdb_failures": 0
+  }
+]

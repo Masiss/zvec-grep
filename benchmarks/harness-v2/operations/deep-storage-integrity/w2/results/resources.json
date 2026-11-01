@@ -1,0 +1,41 @@
+{
+  "runs": [
+    {
+      "wall_ms": 36.19,
+      "peak_pss_kib": 8277,
+      "rc": 0
+    },
+    {
+      "wall_ms": 34.92,
+      "peak_pss_kib": 8199,
+      "rc": 0
+    },
+    {
+      "wall_ms": 34.22,
+      "peak_pss_kib": 8905,
+      "rc": 0
+    },
+    {
+      "wall_ms": 35.45,
+      "peak_pss_kib": 8411,
+      "rc": 0
+    },
+    {
+      "wall_ms": 33.42,
+      "peak_pss_kib": 8176,
+      "rc": 0
+    },
+    {
+      "wall_ms": 33.47,
+      "peak_pss_kib": 8842,
+      "rc": 0
+    },
+    {
+      "wall_ms": 33.17,
+      "peak_pss_kib": 8201,
+      "rc": 0
+    }
+  ],
+  "p50_ms": 34.22,
+  "max_pss_kib": 8905
+}

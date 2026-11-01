@@ -1,0 +1,30 @@
+{
+  "native_source_commit": "8f6d600db769dcabf92f7af11a8242453b7ae5bf",
+  "native_source_path": ".local/native/zvec-native-profile",
+  "native_source_dirty": true,
+  "native_source_note": "Checksum path files inspected were clean at the commit; rocksdb_context.cc had unrelated local modifications. The verifier compiles the clean headers directly and links third-party RocksDB plus ailego archives.",
+  "installed_prebuilt_so_sha256": "58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a",
+  "local_build_dir": ".local/native/zvec-native-build",
+  "local_build_cache_source": ".local/native/zvec-native-profile",
+  "local_build_version": "v0.0.0-g8f6d600",
+  "rocksdb_version": "8.1.1",
+  "libzvec_ailego_sha256": "409d52d5ecfed32a9653b5852a1e3f3c6c762ff398a597b183e5937566f093f7",
+  "librocksdb_sha256": "a30d2a22b24130362bfb34d351d8cf4dd810c05d278f054de183b488e7b40b0a",
+  "verifier_source_sha256": "95e61158b8a69af8e28eccc9c9a56f2238787a94e16b2417b5a2b9920217b206",
+  "compiler": "g++ (GCC) 16.2.1 20260810",
+  "compile_flags": "-std=c++17 -O2 -fPIC -shared; -lzstd -llz4 -lsnappy -lbz2 -lz -lpthread -ldl -lrt",
+  "native_core_patch": "none; PoC verifier only, no core modification",
+  "inspected_source_sha256": {
+    "src/include/zvec/core/framework/index_format.h": "021e3b36775e1180c0014fa46980c978e18bf1bd1915e623b8368417e648aa3c",
+    "src/include/zvec/core/framework/index_unpacker.h": "834cd08e1a1bff8cafe64ef39be61bf8cb4a4f659e0c21c15a9b4513b0549e5e",
+    "src/include/zvec/core/framework/index_packer.h": "6a957874a774f42f53fa066291d697b83b2844a8d8f835d6e67695ea9aa518cf",
+    "src/core/framework/index_mapping.cc": "e835d12a76946e72475ffe0d7e9c6881c24a0e620514e4d23577db88ffb059c1",
+    "src/core/utility/mmap_file_storage.cc": "2166f51bed1b118b5ab10ea65d777d954872cfb3cf8c3ef6c70450409fd18dea"
+  },
+  "verifier_source_file": "w2_verify.cc.in",
+  "runner_sha256": "4a01e45635f0b1aa08b422652c1d70d1ff01c65d37c33285c5767175acb2569e",
+  "probe_verifier_path": ".tmp/w2-native/lib/libzvec_w2_verify.so",
+  "probe_verifier_sha256": "de699925ff6ef50c6aa8a71cc037fd29704d334e8c5950e0e8ac57b7f2505323",
+  "build_script_clean_output_sha256": "f55db223236d980e7d53d6bc5bc21a0415313f5fac868de93d81fa04b5f38a84",
+  "build_script_note": "The clean build.sh output differs from the probe .so byte-for-byte because the ELF embeds build-path metadata; source, archives and tested behavior are identical."
+}

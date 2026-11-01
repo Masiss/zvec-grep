@@ -1,7 +1,9 @@
 # Deep Storage Integrity Audit — zvec / zvec-grep
 
-Status: **PARTIAL FEASIBLE**. No verifier was implemented. No engine,
-scheduler, index format, model, policy, or threshold was changed.
+Status: **PARTIAL FEASIBLE**. W2 follow-up: `rust/docs/deep-storage-integrity-w2.md`.
+The original audit is preserved; W2 built a native-checksum PoC and found that
+current Proxima HNSW data has zero CRC coverage. No engine, scheduler, index
+format, model, policy, or threshold was changed.
 
 Date: 2026-11-01. Baseline worktree: `8313b95`.
 
