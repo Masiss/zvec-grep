@@ -1,0 +1,11 @@
+route: direct
+Scanning — scanning files
+Indexing: 0/2000 files
+Preparing model: local/potion-code-16m-v2
+Downloading model: local/potion-code-16m-v2 0% (0 B/31 MiB)
+Indexing: 0/2000 files — reading src/chunk_00/file_0001.rs
+Indexing: 691/2000 files — indexed src/chunk_06/file_0690.rs
+Indexing: 1342/2000 files — indexed src/chunk_13/file_1342.rs
+Indexing: 1837/2000 files — indexed src/chunk_18/file_1835.rs
+Index complete: 2000/2000 files — indexing complete
+TIME 97.39 RSS 2070016

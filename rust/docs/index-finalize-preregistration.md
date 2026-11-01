@@ -1,6 +1,6 @@
 # Index/Finalize Qualification — preregistration v1
 
-Status: **preregistered, not run**. UX V2 remains closed at `2478776`.
+Status: **preregistered; execution INCONCLUSIVE**. The full matrix was not run; see the result report. UX V2 remains closed at `2478776`.
 Machine-readable protocol:
 `benchmarks/harness-v2/operations/index-finalize/qualification-protocol.json`
 (protocol SHA-256 in the adjacent `.sha256` file). This commit does not change

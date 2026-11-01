@@ -1,0 +1,6 @@
+Workspace index
+files	2000 scanned, 2000 added, 0 modified, 0 retried, 0 unchanged, 0 deleted, 0 failed
+skipped	binary 0, empty 0, too_large 0, unsupported 0
+entities	288120
+duration	1m 37s (96556ms)
+roots	/home/masis/src/zvec-grep/.tmp/ifq/fixture/ws_1

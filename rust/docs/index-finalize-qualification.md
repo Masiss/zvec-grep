@@ -1,6 +1,6 @@
 # Index/Finalize Qualification
 
-Status: **preregistered v1; not run**. UX V2 remains closed at commit `2478776`.
+Status: **INCONCLUSIVE** — preregistered v1, host preflight passed with named gaps, full matrix not executed because the frozen fixture is operationally too expensive; see `index-finalize-qualification-v1-result.md`. UX V2 remains closed at commit `2478776`.
 This track is about deciding whether the current M3 dirty-finalize behavior is
 good enough, or whether Deferred Maintenance #10 is worth pursuing.
 
