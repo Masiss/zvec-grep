@@ -64,8 +64,14 @@ the per-run host envelope is incomplete.
 - FTS retrieval, delete visibility, restart/reopen recovery, and job-failure
   checks passed for all 45 repetitions.
 - Single-writer checks found no overlapping running writers per root.
-- **Vector-route parity was not executed.** The runner checked FTS only. This is
-  a protocol correctness gap, so the formal verdict cannot be PASS.
+- **Vector-route parity** was validated separately on a fresh representative
+  fixture with the deterministic insert/delete/restart checks:
+  `results/vector-parity-ws1.json` (all four checks pass). The validation uses
+  an 8 KiB inserted file, matching the fixture size, not a tiny probe file.
+- The vector check was **not** run for every one of the 45 matrix receipts.
+  Cell index state had already been removed after the matrix to recover disk
+  space, so a full per-cell vector rerun would require rerunning the matrix.
+  Formal protocol verdict therefore remains INCONCLUSIVE.
 
 ## Storage
 
@@ -80,11 +86,14 @@ This is storage, not finalize memory. It is material (roughly 0.94 GiB per
 
 ## Verdict
 
-- **Formal protocol verdict: INCONCLUSIVE**, because the required vector
-  retrieval parity guard was not run.
+- **Formal protocol verdict: INCONCLUSIVE**, because vector parity was not
+  checked across every matrix cell; targeted vector parity passed.
 - **Measured memory/contention: GOOD_ENOUGH.** All measured envelope gates pass;
   dirty insert/delete and clean finalize stay below 5 GiB cgroup peak and
   1.7 GiB process PSS/RSS.
+- **Disk-full incident:** only the failed first attempt at `4_restart_delete`
+  is invalid. The successful resumed cell and all later receipts were produced
+  with >=25 GiB free and are retained; no raw evidence was rewritten.
 - **M3 dirty finalize:** no memory/contention evidence was found to reopen it.
 - **Deferred Maintenance #10:** not indicated by this baseline. No comparative
   #10 experiment was run, so no improvement is claimed.
