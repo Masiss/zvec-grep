@@ -18,6 +18,7 @@ use crate::{
 };
 
 const MANIFEST_VERSION: u32 = 2;
+const COMPACT_MAGIC: &[u8; 4] = b"ZGM2";
 const MAX_FILE_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 const MANIFEST_DIRECTORY: &str = "reconciliation";
 
@@ -98,11 +99,121 @@ impl FileManifest {
     fn encode_bounded(&mut self) -> EngineResult<Option<Vec<u8>>> {
         self.normalize();
         self.validate(self.file_id())?;
-        let bytes = serde_json::to_vec(self).map_err(|error| {
-            EngineError::storage_failure(format!("cannot encode reconciliation manifest: {error}"))
-        })?;
+        let bytes = encode_compact(self)?;
         Ok((bytes.len() <= MAX_FILE_MANIFEST_BYTES).then_some(bytes))
     }
+}
+
+fn decode_hex(value: &str, expected_bytes: usize) -> EngineResult<Vec<u8>> {
+    if value.len() != expected_bytes * 2 || !is_lower_hex(value) {
+        return Err(EngineError::storage_failure(
+            "invalid reconciliation hex field",
+        ));
+    }
+    Ok(value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let digit = |byte: u8| (byte as char).to_digit(16).unwrap_or_default() as u8;
+            (digit(pair[0]) << 4) | digit(pair[1])
+        })
+        .collect())
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 15) as usize] as char);
+    }
+    output
+}
+
+fn encode_compact(manifest: &FileManifest) -> EngineResult<Vec<u8>> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(COMPACT_MAGIC);
+    bytes.extend_from_slice(&MANIFEST_VERSION.to_le_bytes());
+    bytes.extend_from_slice(&manifest.file_id.to_le_bytes());
+    let count = u32::try_from(manifest.fragments.len())
+        .map_err(|_| EngineError::storage_failure("too many reconciliation fragments"))?;
+    bytes.extend_from_slice(&count.to_le_bytes());
+    for entry in &manifest.fragments {
+        bytes.extend_from_slice(&decode_hex(&entry.fragment_id, 20)?);
+        let model = entry.model.as_bytes();
+        let length = u16::try_from(model.len())
+            .map_err(|_| EngineError::storage_failure("reconciliation model name is too long"))?;
+        bytes.extend_from_slice(&length.to_le_bytes());
+        bytes.extend_from_slice(model);
+        bytes.extend_from_slice(&decode_hex(&entry.embedding_fingerprint, 32)?);
+        bytes.extend_from_slice(&decode_hex(&entry.vector_fingerprint, 32)?);
+    }
+    Ok(bytes)
+}
+
+struct CompactReader<'a> {
+    bytes: &'a [u8],
+    cursor: usize,
+}
+impl<'a> CompactReader<'a> {
+    fn take(&mut self, count: usize) -> Result<&'a [u8], ()> {
+        let end = self.cursor.checked_add(count).ok_or(())?;
+        let value = self.bytes.get(self.cursor..end).ok_or(())?;
+        self.cursor = end;
+        Ok(value)
+    }
+    fn u16(&mut self) -> Result<u16, ()> {
+        Ok(u16::from_le_bytes(
+            self.take(2)?.try_into().map_err(|_| ())?,
+        ))
+    }
+    fn u32(&mut self) -> Result<u32, ()> {
+        Ok(u32::from_le_bytes(
+            self.take(4)?.try_into().map_err(|_| ())?,
+        ))
+    }
+}
+
+fn decode_compact(bytes: &[u8], expected: FileId) -> Result<FileManifest, ()> {
+    let mut reader = CompactReader { bytes, cursor: 0 };
+    if reader.take(4)? != COMPACT_MAGIC || reader.u32()? != MANIFEST_VERSION {
+        return Err(());
+    }
+    let file_id = reader.u32()?;
+    if file_id != expected.get() {
+        return Err(());
+    }
+    let count = usize::try_from(reader.u32()?).map_err(|_| ())?;
+    if count > bytes.len() / 87 {
+        return Err(());
+    }
+    let mut fragments = Vec::with_capacity(count);
+    for _ in 0..count {
+        let fragment_id = encode_hex(reader.take(20)?);
+        let model_len = usize::from(reader.u16()?);
+        let model = std::str::from_utf8(reader.take(model_len)?)
+            .map_err(|_| ())?
+            .to_owned();
+        let embedding_fingerprint = encode_hex(reader.take(32)?);
+        let vector_fingerprint = encode_hex(reader.take(32)?);
+        fragments.push(FragmentManifestEntry {
+            fragment_id,
+            model,
+            embedding_fingerprint,
+            vector_fingerprint,
+        });
+    }
+    if reader.cursor != bytes.len() {
+        return Err(());
+    }
+    let mut manifest = FileManifest {
+        version: MANIFEST_VERSION,
+        file_id,
+        fragments,
+    };
+    manifest.validate(expected).map_err(|_| ())?;
+    manifest.normalize();
+    Ok(manifest)
 }
 
 pub(crate) fn vector_fingerprint(vector: &[f32]) -> String {
@@ -190,11 +301,24 @@ impl ManifestStore {
                 &error,
             )
         })?;
-        let mut manifest: FileManifest = match serde_json::from_slice(&bytes) {
-            Ok(manifest) => manifest,
-            Err(error) => {
-                tracing::warn!(file_id = file_id.get(), %error, "ignoring invalid reconciliation manifest");
-                return Ok(None);
+        let mut manifest: FileManifest = if bytes.starts_with(COMPACT_MAGIC) {
+            match decode_compact(&bytes, file_id) {
+                Ok(manifest) => manifest,
+                Err(()) => {
+                    tracing::warn!(
+                        file_id = file_id.get(),
+                        "ignoring invalid compact reconciliation manifest"
+                    );
+                    return Ok(None);
+                }
+            }
+        } else {
+            match serde_json::from_slice(&bytes) {
+                Ok(manifest) => manifest,
+                Err(error) => {
+                    tracing::warn!(file_id = file_id.get(), %error, "ignoring invalid reconciliation manifest");
+                    return Ok(None);
+                }
             }
         };
         if let Err(error) = manifest.validate(file_id) {
@@ -262,8 +386,7 @@ mod tests {
             .fragments
             .push(entry("a".repeat(40).as_str(), "m", &"b".repeat(64)));
         let bytes = manifest.encode_bounded().expect("encode").expect("bounded");
-        let mut decoded: FileManifest = serde_json::from_slice(&bytes).expect("decode");
-        decoded.normalize();
+        let decoded = decode_compact(&bytes, FileId::new(7)).expect("decode compact");
         assert_eq!(decoded.file_id(), FileId::new(7));
         assert!(
             decoded
@@ -308,6 +431,20 @@ mod tests {
             .fragments
             .push(entry("c".repeat(40).as_str(), "m", &"d".repeat(64)));
         assert!(store.publish(&mut manifest).expect("publish"));
+        assert!(
+            fs::read(&path)
+                .expect("compact bytes")
+                .starts_with(COMPACT_MAGIC)
+        );
+        assert_eq!(
+            store
+                .load(file_id)
+                .expect("compact load")
+                .unwrap()
+                .fragments
+                .len(),
+            1
+        );
 
         // Simulate a torn write from an older/non-atomic writer and a future
         // schema version. Both are hints only: load must ignore them.
@@ -320,6 +457,17 @@ mod tests {
         });
         fs::write(&path, serde_json::to_vec(&incompatible).expect("json")).expect("old sidecar");
         assert!(store.load(file_id).expect("old load").is_none());
+        fs::write(&path, serde_json::to_vec(&manifest).expect("legacy json"))
+            .expect("legacy v2 sidecar");
+        assert_eq!(
+            store
+                .load(file_id)
+                .expect("legacy load")
+                .unwrap()
+                .fragments
+                .len(),
+            1
+        );
 
         // A subsequent successful publish replaces the unusable sidecar.
         assert!(store.publish(&mut manifest).expect("republish"));
