@@ -1,0 +1,25 @@
+{
+  "cleanup_complete": true,
+  "errors": [
+    "/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597: [Errno 2] No such file or directory: '/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597'"
+  ],
+  "failure_class": "UNKNOWN",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "reason": "workspace_telemetry_incomplete",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      139593
+    ],
+    "term_pids": [
+      139597
+    ]
+  },
+  "timestamp_utc": "2026-10-20T16:14:41.687678+00:00"
+}

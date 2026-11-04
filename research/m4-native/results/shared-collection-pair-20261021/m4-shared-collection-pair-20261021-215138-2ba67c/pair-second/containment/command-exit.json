@@ -1,0 +1,7 @@
+{
+  "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-bdb9dca5167249df.service",
+  "monotonic_ns": 49848930530809,
+  "pid": 4103225,
+  "returncode": 14,
+  "timestamp_utc": "2026-10-21T15:01:07.444840+00:00"
+}

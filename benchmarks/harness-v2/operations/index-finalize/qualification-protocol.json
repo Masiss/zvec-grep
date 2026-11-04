@@ -1,0 +1,221 @@
+{
+  "churn": {
+    "clean": {
+      "delete_fraction": 0.0,
+      "insert_fraction": 0.0,
+      "modify_fraction": 0.0
+    },
+    "delete_heavy": {
+      "delete_fraction": 0.1,
+      "insert_fraction": 0.0,
+      "modify_fraction": 0.05
+    },
+    "insert_heavy": {
+      "delete_fraction": 0.0,
+      "insert_fraction": 0.1,
+      "modify_fraction": 0.05
+    }
+  },
+  "code_baseline_commit": "2478776",
+  "constraints": {
+    "engine_changes": "forbidden in preregistration/measurement",
+    "native_concurrent_optimize": "forbidden (zvec 0.8.0)",
+    "policy_or_threshold_changes": "forbidden",
+    "rc_changes": "forbidden",
+    "scheduler_changes": "forbidden"
+  },
+  "decision_rules": {
+    "GOOD_ENOUGH": "PASS on the full matrix; no reproducible evidence that deferring maintenance materially lowers peak memory or contention",
+    "NO_GO": "decision requires native concurrent optimize, scheduler changes, or policy/threshold changes",
+    "TEN_CANDIDATE": "a reproducible cell fails an envelope and a compliant deferred-finalize experiment reduces peak total PSS or cgroup peak by at least 20 percent without correctness or retrieval regression",
+    "default_if_no_evidence": "INCONCLUSIVE; do not implement #10"
+  },
+  "envelope_status": "frozen-for-v1; any change requires a new protocol id and preregistration commit",
+  "fixture": {
+    "delete_set": "deterministic 10 percent of files, fixed before run",
+    "file_size_bytes": 8192,
+    "files_per_workspace": 2000,
+    "layout": "src/chunk_{chunk}/file_{ordinal}.rs plus one query term per file",
+    "model": "local/potion-code-16m-v2; no download during measured phase",
+    "query_set": "deterministic 100 exact terms spanning inserted, modified, and stable files",
+    "seed": 20261101,
+    "temperature": "one warm index per workspace before measured runs; warmup excluded",
+    "total_source_bytes_per_workspace": 16384000,
+    "workspace_counts": [
+      1,
+      4,
+      8
+    ]
+  },
+  "host_preflight": {
+    "cpu_affinity": "reserve and record 8 logical CPUs for daemon/CLI; do not change affinity mid-run",
+    "fail_closed": true,
+    "foreign_zg_daemons": "must be absent or isolated by HOME/ZVEC_GREP_HOME; record pgrep -af zg",
+    "host": "single Linux host; record kernel, CPU model, logical CPUs, NUMA, memory total",
+    "maximum_load1_per_logical_cpu": 1.0,
+    "minimum_free_disk_bytes": 10737418240,
+    "minimum_mem_available_bytes": 4294967296,
+    "on_failure": "do not run; report FAILED_PREFLIGHT with the exact missing capability or host condition",
+    "required_capabilities": [
+      "cgroup v2 with memory, cpu, io, pids controllers",
+      "cgroup memory.current, memory.peak, memory.swap.current/peak, memory.pressure, io.pressure, cpu.pressure",
+      "delegated systemd user scope with MemoryAccounting=yes and KillMode=control-group",
+      "per-process /proc/status, /proc/smaps_rollup, /proc/io, /proc/stat",
+      "ps and /usr/bin/time available",
+      "model cache present; no model download allowed",
+      "binary and protocol SHA-256 recorded"
+    ]
+  },
+  "matrix": {
+    "cells": [
+      "dirty_insert_heavy",
+      "dirty_delete_heavy",
+      "clean_finalize",
+      "restart_after_dirty_insert_heavy",
+      "restart_after_dirty_delete_heavy"
+    ],
+    "measured_repetitions_per_cell": 3,
+    "order": "randomized blocks with seed 20261101; counterbalance dirty/clean and insert/delete order",
+    "restart_definition": "stop daemon, wait for exit, start daemon, wait ready, run one query and one reopen check",
+    "total_measured_runs": 45,
+    "warmups_per_cell": 1,
+    "workspace_counts": [
+      1,
+      4,
+      8
+    ]
+  },
+  "measurement": {
+    "cgroup": {
+      "controllers": [
+        "memory",
+        "cpu",
+        "io",
+        "pids"
+      ],
+      "metrics": [
+        "memory.current",
+        "memory.peak",
+        "memory.events",
+        "memory.swap.current",
+        "memory.swap.peak",
+        "memory.swap.events",
+        "memory.pressure",
+        "cpu.stat",
+        "cpu.pressure",
+        "io.pressure",
+        "io.stat",
+        "cgroup.procs",
+        "pids.current",
+        "pids.events"
+      ],
+      "required": true,
+      "reset_peak_per_run": true
+    },
+    "host_metrics": [
+      "MemAvailable",
+      "Dirty",
+      "Writeback",
+      "swap used",
+      "load1/5/15",
+      "PSI memory/cpu/io",
+      "diskstats"
+    ],
+    "phase_boundaries": [
+      "start",
+      "churn_done",
+      "job_submitted",
+      "job_started",
+      "finalize_started",
+      "finalize_done",
+      "query_done",
+      "restart_ready",
+      "end"
+    ],
+    "process_metrics": [
+      "pid",
+      "ppid",
+      "VmRSS",
+      "VmSwap",
+      "Pss",
+      "SwapPss",
+      "utime_ticks",
+      "stime_ticks",
+      "start_ticks"
+    ],
+    "process_sample_interval_ms": 1000,
+    "queue_metrics": [
+      "queued",
+      "running",
+      "queue_position",
+      "waited_millis",
+      "queue_full",
+      "job_state",
+      "root"
+    ],
+    "queue_sample_interval_ms": 500,
+    "sample_interval_ms": 250,
+    "timing": {
+      "engine_execution": "job started to terminal observation; daemon log timestamps may be required",
+      "phase_timing": "recorded by the harness at phase boundaries",
+      "scheduler_wait": "job.waited_millis when queued; derive from job observation timestamps when running"
+    }
+  },
+  "observability_gaps": [
+    "JobView exposes waited_millis but not engine start/finish timestamps or engine CPU; scheduler wait versus engine execution is not fully separable without daemon logs.",
+    "The daemon is one process hosting multiple workspace engines; per-workspace memory is not attributable from cgroup/process totals without new instrumentation.",
+    "No phase-scoped cgroup peak; memory.peak is per run, not per native optimize/finalize phase.",
+    "No native optimize internal phase boundary or per-collection memory attribution.",
+    "Queue polling is observational and can perturb timing; it is sampled at 500 ms and not used as a gate.",
+    "No dedicated native concurrent-optimize telemetry is allowed; none is required for this scope."
+  ],
+  "pass_fail": {
+    "FAIL": "any correctness guard fails, any forbidden change is required, or an envelope is exceeded",
+    "INCONCLUSIVE": "telemetry is incomplete, cgroup peak cannot be reset, or host interference prevents attribution; do not silently downgrade to PASS",
+    "PASS": "all correctness guards pass and every primary/contention envelope holds for every measured cell and repetition"
+  },
+  "protocol_id": "index-finalize-qualification-v1",
+  "provenance": {
+    "note": "Docs-only commits after 2478776 do not change the measured binary, but the exact binary hash must still be recorded.",
+    "required": [
+      "git rev-parse HEAD",
+      "zg binary sha256",
+      "host kernel",
+      "cpu affinity",
+      "model cache paths and hashes",
+      "fixture manifest sha256",
+      "protocol sha256"
+    ]
+  },
+  "resource_envelope": {
+    "contention": {
+      "cpu_pressure_some_avg10_p95_max_percent": 20.0,
+      "io_pressure_full_avg10_p95_max_percent": 10.0,
+      "memory_events_max_oom_oom_kill": 0,
+      "memory_pressure_full_avg10_p95_max_percent": 5.0,
+      "pids_events_max": 0,
+      "queue_full_count_max": 0
+    },
+    "correctness": {
+      "delete_visibility": "deleted files absent from FTS and vector results",
+      "recovery": "reopen returns the same visible result sets",
+      "retrieval_parity": "exact result-set match for all fixture queries",
+      "single_writer_per_root": "no overlap in writer ownership; zero violations"
+    },
+    "primary": {
+      "cgroup_memory_peak_bytes_max": 8589934592,
+      "mem_available_floor_bytes": 2147483648,
+      "swap_increase_bytes_max": 536870912,
+      "total_peak_pss_bytes_max": 7516192768,
+      "total_peak_rss_bytes_max": 10737418240
+    }
+  },
+  "reuse": {
+    "cgroup_reference": "research/m4-native/tools/m4_containment_runner.py: required cgroup telemetry, memory/swap/PSI/io readers, process smaps aggregation",
+    "contracts": "benchmarks/harness-v2/contracts for receipt/policy provenance; no new policy or threshold is introduced",
+    "host": "benchmarks/harness-v2/host/primitives.py: host_snapshot, process_resource_sample, cgroup_path_from_unit, cgroup_populated, service_properties, make_receipt_dir",
+    "measurement": "benchmarks/harness-v2/measurement/primitives.py: UTC/boottime clocks, bounded SHA-256, strict JSON, receipt writing"
+  },
+  "scope": "Decide whether current M3 dirty finalize is good enough or Deferred Maintenance #10 is warranted.",
+  "status": "preregistered-not-run"
+}

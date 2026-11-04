@@ -1,0 +1,54 @@
+{
+  "all_pass": true,
+  "checks": [
+    {
+      "check": "initial_vector_present",
+      "ok": true,
+      "result": [
+        "src/chunk_00/file_0000.rs",
+        "src/chunk_00/file_0010.rs",
+        "src/chunk_01/file_0104.rs"
+      ]
+    },
+    {
+      "check": "insert_vector_present",
+      "ok": true,
+      "result": [
+        "src/chunk_00/file_0009.rs",
+        "src/chunk_10/file_1009.rs",
+        "src/zz/insert_vector_9999.rs"
+      ]
+    },
+    {
+      "check": "delete_vector_absent",
+      "ok": true,
+      "result": [
+        "src/chunk_00/file_0004.rs",
+        "src/chunk_00/file_0010.rs",
+        "src/chunk_01/file_0104.rs"
+      ]
+    },
+    {
+      "after": [
+        "src/chunk_00/file_0010.rs",
+        "src/chunk_01/file_0100.rs",
+        "src/chunk_01/file_0104.rs"
+      ],
+      "before": [
+        "src/chunk_00/file_0010.rs",
+        "src/chunk_01/file_0100.rs",
+        "src/chunk_01/file_0104.rs"
+      ],
+      "check": "restart_vector_parity",
+      "ok": true
+    }
+  ],
+  "protocol_id": "index-finalize-qualification-v1",
+  "raw_outputs": {
+    "finalize_0000": "#1 matchedBy=vector src/chunk_00/file_0010.rs:60-60\nsymbol: value UNIQUE_0010\n  60: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#2 matchedBy=vector src/chunk_00/file_0010.rs:51-51\nsymbol: value UNIQUE_0010\n  51: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#3 matchedBy=vector src/chunk_00/file_0010.rs:156-156\nsymbol: value UNIQUE_0010\n  156: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#4 matchedBy=vector src/chunk_01/file_0104.rs:132-132\nsymbol: value UNIQUE_0104\n  132: pub const UNIQUE_0104: &str = \"finalize_0104\";\n\n#5 matchedBy=vector src/chunk_00/file_0010.rs:33-33\nsymbol: value UNIQUE_0010\n  33: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#6 matchedBy=vector src/chunk_00/file_0010.rs:159-159\nsymbol: value UNIQUE_0010\n  159: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#7 matchedBy=vector src/chunk_01/file_0104.rs:120-120\nsymbol: value UNIQUE_0104\n  120: pub const UNIQUE_0104: &str = \"finalize_0104\";\n\n#8 matchedBy=vector src/chunk_00/file_0004.rs:141-141\nsymbol: value UNIQUE_0004\n  141: pub const UNIQUE_0004: &str = \"finalize_0004\";\n\n#9 matchedBy=vector src/chunk_00/file_0010.rs:213-213\nsymbol: value UNIQUE_0010\n  213: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#10 matchedBy=vector src/chunk_00/file_0010.rs:30-30\nsymbol: value UNIQUE_0010\n  30: pub const UNIQUE_0010: &str = \"finalize_0010\";\n",
+    "finalize_0010": "#1 matchedBy=vector src/chunk_00/file_0010.rs:27-27\nsymbol: value UNIQUE_0010\n  27: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#2 matchedBy=vector src/chunk_00/file_0010.rs:3-3\nsymbol: value UNIQUE_0010\n  3: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#3 matchedBy=vector src/chunk_00/file_0010.rs:69-69\nsymbol: value UNIQUE_0010\n  69: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#4 matchedBy=vector src/chunk_01/file_0100.rs:42-42\nsymbol: value UNIQUE_0100\n  42: pub const UNIQUE_0100: &str = \"finalize_0100\";\n\n#5 matchedBy=vector src/chunk_00/file_0010.rs:72-72\nsymbol: value UNIQUE_0010\n  72: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#6 matchedBy=vector src/chunk_00/file_0010.rs:63-63\nsymbol: value UNIQUE_0010\n  63: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#7 matchedBy=vector src/chunk_00/file_0010.rs:57-57\nsymbol: value UNIQUE_0010\n  57: pub const UNIQUE_0010: &str = \"finalize_0010\";\n\n#8 matchedBy=vector src/chunk_01/file_0100.rs:45-45\nsymbol: value UNIQUE_0100\n  45: pub const UNIQUE_0100: &str = \"finalize_0100\";\n\n#9 matchedBy=vector src/chunk_01/file_0104.rs:6-6\nsymbol: value UNIQUE_0104\n  6: pub const UNIQUE_0104: &str = \"finalize_0104\";\n\n#10 matchedBy=vector src/chunk_00/file_0010.rs:60-60\nsymbol: value UNIQUE_0010\n  60: pub const UNIQUE_0010: &str = \"finalize_0010\";\n",
+    "finalize_vector_insert_9999": "#1 matchedBy=vector src/zz/insert_vector_9999.rs:79-79\nsymbol: value VECTOR_INSERT_9999\n  79: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#2 matchedBy=vector src/zz/insert_vector_9999.rs:68-68\nsymbol: value VECTOR_INSERT_9999\n  68: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#3 matchedBy=vector src/zz/insert_vector_9999.rs:92-92\nsymbol: value VECTOR_INSERT_9999\n  92: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#4 matchedBy=vector src/zz/insert_vector_9999.rs:33-33\nsymbol: value VECTOR_INSERT_9999\n  33: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#5 matchedBy=vector src/zz/insert_vector_9999.rs:38-38\nsymbol: value VECTOR_INSERT_9999\n  38: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#6 matchedBy=vector src/zz/insert_vector_9999.rs:64-64\nsymbol: value VECTOR_INSERT_9999\n  64: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#7 matchedBy=vector src/chunk_00/file_0009.rs:153-153\nsymbol: value UNIQUE_0009\n  153: pub const UNIQUE_0009: &str = \"finalize_0009\";\n\n#8 matchedBy=vector src/zz/insert_vector_9999.rs:102-102\nsymbol: value VECTOR_INSERT_9999\n  102: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#9 matchedBy=vector src/zz/insert_vector_9999.rs:50-50\nsymbol: value VECTOR_INSERT_9999\n  50: pub const VECTOR_INSERT_9999: &str = \"finalize_vector_insert_9999\";\n\n#10 matchedBy=vector src/chunk_10/file_1009.rs:51-51\nsymbol: value UNIQUE_1009\n  51: pub const UNIQUE_1009: &str = \"finalize_1009\";\n"
+  },
+  "root": "/home/masis/src/zvec-grep/.tmp/storage-vector/fixture/ws_1",
+  "scope": "targeted vector parity on one preserved workspace"
+}

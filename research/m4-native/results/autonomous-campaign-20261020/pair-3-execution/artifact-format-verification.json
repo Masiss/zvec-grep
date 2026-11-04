@@ -1,0 +1,6 @@
+{
+  "raw_csv": "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/ambient-baseline.csv",
+  "valid_crlf_records": 1201,
+  "raw_bytes_rewritten": false,
+  "whitespace_check": "Recognize CRLF for retained raw CSV; preserve all other standard whitespace checks; not a safety/qualification guard change"
+}

@@ -1,0 +1,23 @@
+{
+  "new_binary": "/home/masis/.local/bin/zg",
+  "new_binary_sha256": "6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4",
+  "new_library": "/home/masis/.local/lib/libzvec_c_api.so",
+  "new_library_sha256": "532f16dd91574cc692ba5f36f855dd187f04a40afe29dde48fa47a35f8c13c38",
+  "old_binary": ".tmp/w4/oldbin/zg",
+  "old_binary_sha256": "6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4",
+  "old_library": "/home/masis/.local/share/zvec-grep/rollback-20261101T130300Z/libzvec_c_api.so",
+  "old_library_sha256": "5093c7d722304b0efaa7425f206456ca902dc377d5a0ae8056f1c5c010fe763e",
+  "verifier_abi_version": 1,
+  "new_library_exports_verifier": true,
+  "old_library_exports_verifier": false,
+  "new_pair_version": {
+    "code": 0,
+    "stdout": "0.0.1"
+  },
+  "old_pair_version": {
+    "code": 127,
+    "stdout": "",
+    "stderr": ".tmp/w4/oldbin/zg: symbol lookup error: .tmp/w4/oldbin/zg: undefined symbol: zvec_config_data_set_jieba_dict_dir"
+  },
+  "note": "The pre-W4 native library lacks symbols required by the new binary (zvec_config_data_set_jieba_dict_dir). Binary and library must be upgraded together; this is not a supported mixed pairing."
+}

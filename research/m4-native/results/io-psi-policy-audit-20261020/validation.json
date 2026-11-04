@@ -1,0 +1,44 @@
+{
+  "operation": "policy audit only",
+  "source_commit": "475ea4c8d34dd077c187e0be1ce68a51ce860d0e",
+  "benchmark_launched": false,
+  "readiness_or_baseline_capture_launched": false,
+  "systemd_workload_launched": false,
+  "active_policy_or_runner_changed": false,
+  "amendment_status": "PROPOSED_NOT_ACTIVE",
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "/home/masis/src/zvec-grep/research/m4-native/tools/test_m4_benchmark_policy.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/io-psi-policy-audit-20261020/test_m4_benchmark_policy.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/io-psi-policy-audit-20261020/test_aa_gate_policy.log"
+    }
+  ],
+  "active_policy_and_runner_sha256_before": {
+    "research/m4-native/docs/benchmark-policy.json": "606ef8749fddb7e9ae1f23c404683249f542d45a13c9c3bd743a22f6646b997b",
+    "research/m4-native/docs/benchmark-policy.md": "db58689cbd616a7166b4c916aeba406e6e59c00987b31129244cb36766b87c6b",
+    "research/m4-native/tools/m4_containment_runner.py": "a4238558ececff5b882b1bf931257987aeb31e1d200ed06b1ea6cc55c94a96aa",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_sync_reduction_pair.py": "14084c63b42caf684ae1377fcc5890fec3fd8659de3d1974133be668c36b9fd0",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py": "76c8f47cda447d0f33b347434a4c8bcbead8cb39627cf9d9be75309aa18b180f"
+  },
+  "active_policy_and_runner_sha256_after": {
+    "research/m4-native/docs/benchmark-policy.json": "606ef8749fddb7e9ae1f23c404683249f542d45a13c9c3bd743a22f6646b997b",
+    "research/m4-native/docs/benchmark-policy.md": "db58689cbd616a7166b4c916aeba406e6e59c00987b31129244cb36766b87c6b",
+    "research/m4-native/tools/m4_containment_runner.py": "a4238558ececff5b882b1bf931257987aeb31e1d200ed06b1ea6cc55c94a96aa",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_sync_reduction_pair.py": "14084c63b42caf684ae1377fcc5890fec3fd8659de3d1974133be668c36b9fd0",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py": "76c8f47cda447d0f33b347434a4c8bcbead8cb39627cf9d9be75309aa18b180f"
+  },
+  "synthetic_4_68_replay_pass": true
+}

@@ -1,0 +1,60 @@
+{
+  "real_pairs_consumed": 0,
+  "real_resource_plan_rejected": true,
+  "mock_approval_used_for_pure_schema_check_only": true,
+  "real_resource_approval_granted": false,
+  "legacy_policy_identical_to_6267e69": true,
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 7,
+      "log": "test_aa_gate_policy.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0,
+      "tests": 1,
+      "log": "test_aa_containment_integration.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py"
+      ],
+      "exit_code": 0,
+      "tests": 5,
+      "log": "test_stage_counter_bounds.log"
+    },
+    {
+      "command": [
+        "ty",
+        "check",
+        "--output-format",
+        "concise",
+        "research/m4-native/tools/m4_containment_runner.py",
+        "research/m4-native/tools/test_m4_contention_policy.py",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "research/m4-native/results/autonomous-campaign-20261020/stage_counter_bounds.py",
+        "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py",
+        "research/m4-native/results/autonomous-campaign-20261020/inspect_retained_resources.py"
+      ],
+      "exit_code": 0,
+      "log": "typecheck.log"
+    }
+  ],
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "0da531ea75bc02ed92f50e52ddc930925cdf10cf00e0c68945553e56820e721b",
+    "research/m4-native/tools/test_m4_contention_policy.py": "8ebd0eadd848ac5d31d0b429f886dd7562743e848f89378d862e7d7bad15241e",
+    "research/m4-native/tools/test_m4_containment_runner.py": "9d52ba2a0074b477ff589dec1e1e2ee14fd20e96ec1b7c606323b90868ce5b8f",
+    "research/m4-native/results/autonomous-campaign-20261020/stage_counter_bounds.py": "6c733c1e3164b05490db6bca5ce7477d6da7e5f043285dafb0d441c834bbfe74",
+    "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py": "7fd99894c7b2df767bb61b487cf92b00cc68cd96ae2cdb94e187750febada583",
+    "research/m4-native/results/autonomous-campaign-20261020/inspect_retained_resources.py": "d83711f4da7c5d170b5e9971e2ad72d35e573c14b5a7204cca8595887134dc18"
+  }
+}

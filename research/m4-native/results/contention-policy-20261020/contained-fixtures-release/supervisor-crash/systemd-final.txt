@@ -1,0 +1,4 @@
+Result=signal
+ExecMainCode=2
+ExecMainStatus=9
+ControlGroup=

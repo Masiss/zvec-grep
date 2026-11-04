@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "protocol_id": "p2-current-native-finalize-substage-v2",
+  "purpose": "One bounded corrected replacement diagnostic of the current working-tree native lifecycle. The prior one-run attempt passed its test but omitted substage events because cfg(test) is not set for zg-engine when compiled as a zg-daemon dependency; this protocol explicitly enables the non-default profiling feature.",
+  "classification": "EXPLORATORY_SUBSTAGE_DIAGNOSTIC_SINGLE_RUN",
+  "not_a_claim": [
+    "This is not a paired performance comparison, statistical qualification, or production qualification.",
+    "Per-job process CPU/write deltas include concurrent query-sampler and daemon-process work; they are correlational, not exclusive native-call costs.",
+    "The opt-in finalization event is emitted after the store state lock is released, but stderr output can still perturb the workload slightly; query p95 remains diagnostic only.",
+    "The P1 v7 result, the first current-tree profile, and the incomplete v1 substage attempt are separate evidence and will not be pooled with this run.",
+    "This replacement is a single diagnostic only; it does not authorize automatic retry, candidate changes, or production promotion."
+  ],
+  "workload": {
+    "corpus_commit": "34d75aa14c760d302e497831c7501e1a31400f2b",
+    "corpus_path_prefix": "rust/crates/zg-engine/src/",
+    "corpus_extensions": [".rs"],
+    "corpus_selection": "first 64 paths in lexicographic order",
+    "corpus_file_count": 64,
+    "corpus_bytes": 694421,
+    "corpus_manifest_sha256": "7fbc9f951a9b1f75388150a891c984f23dd72717a6ce59070f89fd9f3ad832a3",
+    "fixture_mutations": "append a unique synthetic FTS marker to selected frozen Rust files; rename one marked file, then delete it",
+    "trace": [
+      "initial_index",
+      "single_file_update",
+      "burst_upsert_4_files",
+      "rename",
+      "delete",
+      "idle_2s",
+      "close_and_reopen",
+      "repeat_rescan_1",
+      "repeat_rescan_2"
+    ],
+    "watcher": {"debounce_ms": 30, "max_wait_ms": 100, "poll_interval_ms": 15},
+    "query": {
+      "route": "FTS",
+      "filter": "**/*.rs",
+      "query": "p1nativebaseline",
+      "interval_ms": 250,
+      "p95": "nearest-rank p95 of successful end-to-end search_workspace_index wall time",
+      "included_work": ["native store lock wait", "retrieval", "result hydration"],
+      "excluded_work": ["daemon transport", "serialization", "client rendering"],
+      "max_samples": 4096,
+      "query_p95_slo_max_us": 300000,
+      "event_to_visible_slo_max_us": 5000000,
+      "schedule": "serial; no overlap or backfill; missed starts counted"
+    },
+    "embedding": "deterministic fixed test embedding; no inference or network"
+  },
+  "profile_instrumentation": {
+    "cargo_feature": "zg-engine/native-profile (explicit opt-in, disabled by default)",
+    "environment_toggle": "ZVEC_GREP_NATIVE_PROFILE=1; event emitted only when this is set and the cargo feature is enabled",
+    "scheduler_fields": [
+      "watch submissions and coalesced submissions",
+      "changed path count and rescan status",
+      "IndexResult stage timings and counts",
+      "scheduler elapsed milliseconds",
+      "process write_bytes and CPU tick deltas across each executor call",
+      "process RSS/PSS snapshots at executor completion"
+    ],
+    "finalization_event": "NATIVE_PROFILE event=store_finalize; emitted after the store state lock is released when the explicit feature and environment toggle are both active",
+    "finalization_fields": [
+      "checkpoint duration and write-byte delta",
+      "optimization-probe duration",
+      "directories/entities/files/fragments optimize duration and write-byte delta",
+      "mutation counters, maintenance debt/policy, optimize decision/reason",
+      "fragment completeness before/after, acknowledgement/epoch status, error code",
+      "total finalize_writes duration"
+    ],
+    "concurrency_note": "Per-job process counters include concurrent queries and other work in the test process; use them to rank candidate stages, not as exclusive attribution.",
+    "post_job_delay": "none; capture idle/background tail through the external runner's cgroup telemetry"
+  },
+  "sample_design": {
+    "runs": 1,
+    "order": "single corrected replacement diagnostic current-tree run; no control/candidate arm",
+    "retry": "no automatic retry; classify blocked, failed, or incomplete runs without repeating"
+  },
+  "resource_envelope": {
+    "execution": "systemd-run --user --scope with effective cgroup verification and live monitor",
+    "cpu_quota_percent": 200,
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 128,
+    "runtime_limit_seconds": 900,
+    "minimum_free_bytes_at_launch": 17073741824,
+    "minimum_free_bytes_before_and_during_run": 16000000000,
+    "minimum_memavailable_bytes_before_and_during_run": 3221225472,
+    "telemetry_interval_ms": 500,
+    "host_snapshots": ["immediately_before_launch", "immediately_after_exit"],
+    "scratch_root": ".tmp"
+  },
+  "interpretation": "Use per-finalization-stage timings only to decide whether a correctness-preserving candidate merits separate owner review. This run does not authorize an A/B, behavior change, default change, or production promotion. If a candidate appears supported, first report evidence and limits, then obtain/confirm authorization and freeze a separate paired control/candidate protocol; preserve synchronous fragment-delete visibility."
+}

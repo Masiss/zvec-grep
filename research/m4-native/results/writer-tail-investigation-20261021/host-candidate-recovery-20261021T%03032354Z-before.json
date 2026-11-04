@@ -1,0 +1,10 @@
+{
+  "meminfo_kib": {
+    "MemAvailable": 5496616,
+    "SwapFree": 12737948
+  },
+  "disk_free_bytes": 14641922048,
+  "load1": "3.67",
+  "io": "some avg10=1.82 avg60=1.42 avg300=1.40 total=227151253\nfull avg10=1.56 avg60=1.15 avg300=1.13 total=196662361\n",
+  "memory": "some avg10=0.00 avg60=0.17 avg300=0.31 total=97145765\nfull avg10=0.00 avg60=0.17 avg300=0.30 total=89950309\n"
+}

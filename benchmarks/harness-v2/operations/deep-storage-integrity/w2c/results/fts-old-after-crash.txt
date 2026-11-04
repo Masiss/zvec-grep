@@ -1,0 +1,49 @@
+#1 matchedBy=fts f_042.rs:1-1
+status: possibly_stale
+symbol: function f_42
+  1: pub fn f_42() -> &'static str { "base token 42" }
+
+#2 matchedBy=fts f_000.rs:1-1
+status: possibly_stale
+symbol: function f_0
+  1: pub fn f_0() -> &'static str { "base token 0" }
+
+#3 matchedBy=fts f_001.rs:1-1
+status: possibly_stale
+symbol: function f_1
+  1: pub fn f_1() -> &'static str { "base token 1" }
+
+#4 matchedBy=fts f_002.rs:1-1
+status: possibly_stale
+symbol: function f_2
+  1: pub fn f_2() -> &'static str { "base token 2" }
+
+#5 matchedBy=fts f_003.rs:1-1
+status: possibly_stale
+symbol: function f_3
+  1: pub fn f_3() -> &'static str { "base token 3" }
+
+#6 matchedBy=fts f_004.rs:1-1
+status: possibly_stale
+symbol: function f_4
+  1: pub fn f_4() -> &'static str { "base token 4" }
+
+#7 matchedBy=fts f_005.rs:1-1
+status: possibly_stale
+symbol: function f_5
+  1: pub fn f_5() -> &'static str { "base token 5" }
+
+#8 matchedBy=fts f_006.rs:1-1
+status: possibly_stale
+symbol: function f_6
+  1: pub fn f_6() -> &'static str { "base token 6" }
+
+#9 matchedBy=fts f_007.rs:1-1
+status: possibly_stale
+symbol: function f_7
+  1: pub fn f_7() -> &'static str { "base token 7" }
+
+#10 matchedBy=fts f_008.rs:1-1
+status: possibly_stale
+symbol: function f_8
+  1: pub fn f_8() -> &'static str { "base token 8" }

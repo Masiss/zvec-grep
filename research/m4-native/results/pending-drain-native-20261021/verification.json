@@ -1,0 +1,139 @@
+{
+  "utc": "2026-10-21T02:58:23.687890+00:00",
+  "status": "PASS_REQUESTED_BOUNDED_DIAGNOSTIC_WITH_CAVEATS_NOT_QUALIFICATION",
+  "analysis_replay_byte_identical": true,
+  "focused_tests": 34,
+  "policy_docs_tests": 5,
+  "actual_same_controller_rehearsal": {
+    "cleanup_verified": true,
+    "measurement_quality": "COMPLETE",
+    "native_attempts_consumed": 0,
+    "runner_sha256": "8f9d288db847384f8f9c249009966520a4963abc03e5682e60efe1e69a5ed8bf",
+    "synthetic_only": true,
+    "test_status": "PASS",
+    "unit_state": "LoadState=not-found\nActiveState=inactive\n",
+    "workload_receipt_status": "COMPLETED_WITH_WORKSPACE_WARNINGS",
+    "workspace_warning_samples": 19
+  },
+  "native_arms_launched": 1,
+  "native_arms_completed": 1,
+  "no_retry": true,
+  "raw_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+  "raw_measurement_quality": "INCOMPLETE",
+  "workspace_uncertainty_not_reclassified": true,
+  "hard_safety_telemetry_complete": true,
+  "exact_pending_unknown_samples": 3,
+  "cleanup": {
+    "unit": "m4-contained-a92795d9db7a4185.service",
+    "unit_show_returncode": 0,
+    "unit_show": "LoadState=not-found\nActiveState=inactive\n",
+    "owned_units_returncode": 0,
+    "owned_units": "",
+    "cgroup_absent": true,
+    "socket_absent": true
+  },
+  "historical_ledgers_and_artifact_identities_unchanged": true,
+  "executed_controller_policy_byte_identical_4579e5a": true,
+  "native_compiler_inputs_and_runtime_libraries_unchanged": true,
+  "copied_launch_and_rehearsal_byte_identical": true,
+  "raw_input_hashes_verified": true,
+  "direct_three_path_typecheck": "PASS",
+  "active_three_path_lsp": {
+    "diagnostics": 0,
+    "confirmed_clean": 1,
+    "inconclusive": 2,
+    "not_all_paths_clean_proof": true
+  },
+  "local_links_checked": [
+    {
+      "doc": "research/m4-native/results/pending-drain-native-20261021/REPORT.md",
+      "target": "owner-authorization.md"
+    },
+    {
+      "doc": "research/m4-native/results/pending-drain-native-20261021/REPORT.md",
+      "target": "approved-resource-plan.json"
+    },
+    {
+      "doc": "research/m4-native/results/pending-drain-native-20261021/REPORT.md",
+      "target": "new-attempt-ledger.json"
+    },
+    {
+      "doc": "research/m4-native/results/pending-drain-native-20261021/REPORT.md",
+      "target": "analysis.json"
+    },
+    {
+      "doc": "research/m4-native/results/pending-drain-native-20261021/REPORT.md",
+      "target": "per-round.csv"
+    },
+    {
+      "doc": "research/m4-native/results/pending-drain-native-20261021/REPORT.md",
+      "target": "verification.json"
+    },
+    {
+      "doc": "research/m4-native/results/pending-drain-native-20261021/REPORT.md",
+      "target": "SHA256SUMS.txt"
+    },
+    {
+      "doc": "research/m4-native/README.md",
+      "target": "results/pending-drain-native-20261021/REPORT.md"
+    },
+    {
+      "doc": "research/m4-native/README.md",
+      "target": "results/pending-drain-native-20261021/analysis.json"
+    },
+    {
+      "doc": "research/m4-native/results/RESULTS.md",
+      "target": "pending-drain-native-20261021/REPORT.md"
+    },
+    {
+      "doc": "research/m4-native/results/RESULTS.md",
+      "target": "pending-drain-native-20261021/analysis.json"
+    },
+    {
+      "doc": "research/m4-native/results/RESULTS.md",
+      "target": "pending-drain-native-20261021/per-round.csv"
+    },
+    {
+      "doc": "research/m4-native/docs/benchmark-policy.md",
+      "target": "../results/pending-drain-native-20261021/REPORT.md"
+    },
+    {
+      "doc": "rust/docs/m4-incremental-native-index.md",
+      "target": "../../research/m4-native/results/pending-drain-native-20261021/REPORT.md"
+    },
+    {
+      "doc": "rust/docs/m4-incremental-native-index.md",
+      "target": "../../research/m4-native/results/pending-drain-native-20261021/analysis.json"
+    }
+  ],
+  "git_diff_check": "PASS for source/docs/derived LF CSV; full strict audit retains one expected raw transcript EOF-blank advisory, not a globally clean claim",
+  "unrelated_working_tree_changes_left_unstaged": [
+    "AGENTS.md",
+    "research/m4-native/AGENTS.md",
+    "rust/crates/zg-daemon/src/job_scheduler.rs",
+    "rust/crates/zg-engine/src/storage/store/mod.rs",
+    "rust/crates/zg-engine/src/storage/store/tests.rs"
+  ],
+  "source_sha256": {
+    "research/m4-native/results/pending-drain-native-20261021/analyze.py": "7ebf4f628d6b4da8841921e2bb409b1122ce0b9c10b7463a0739f59f51770e35",
+    "research/m4-native/results/pending-drain-native-20261021/launch_once.py": "cfc084b6ec169fc9774f046479f7e462c8be0a5afe0066dda470918755ba123f",
+    "research/m4-native/results/pending-drain-native-20261021/rehearse.py": "4c6b95567b39d5bb1f7f2043131b604c6a47e1d7f64497ce095df065ccb8d3a9",
+    "research/m4-native/tools/m4_containment_runner.py": "8f9d288db847384f8f9c249009966520a4963abc03e5682e60efe1e69a5ed8bf",
+    "research/m4-native/docs/benchmark-policy.json": "38278043b417f6f84bad62d1c36fbf09936423df3a5b913ff1e43f3311b456e3"
+  },
+  "strict_whitespace_audit": {
+    "returncode": 2,
+    "log": "research/m4-native/results/pending-drain-native-20261021/whitespace-audit.log",
+    "advisory": "Only original tests/rehearse.log trailing blank line; raw transcript bytes preserved unchanged"
+  },
+  "derived_csv_normalization": {
+    "line_endings": "LF",
+    "values_byte_field_equivalent_to_37ca455": true,
+    "no_native_rerun": true
+  },
+  "final_analysis_lsp": {
+    "diagnostics": 0,
+    "confirmed_clean": 1,
+    "inconclusive": 0
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "classification": "EDITOR_COMPILATION_CONTEXT_ONLY; no native source/build/workload change",
+  "source": "research/m4-native/.work/build/durability-restore-20261020/compile_commands.json",
+  "mirror": "research/m4-native/.work/build/lsp/compile_commands.json",
+  "sha256": "f473b2a4400beda38dab94ba7ae76a8e31f5ca23768abd564dbb070b3ccedf2b",
+  "reason": "clang fallback lacked research include directory, causing m4.h-not-found and namespace/type cascade"
+}

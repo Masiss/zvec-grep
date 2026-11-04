@@ -1,0 +1,8 @@
+{
+  "filesystem": "btrfs",
+  "measured_from": "crash during staged incremental, before recovery",
+  "old_generation": {"btrfs_total_mib": 864.84, "btrfs_exclusive_mib": 0.0, "btrfs_shared_mib": 864.84, "du_apparent_human": "858M"},
+  "stage_generation": {"btrfs_total_mib": 866.34, "btrfs_exclusive_mib": 1.56, "btrfs_shared_mib": 864.78, "du_apparent_human": "858M"},
+  "logical_peak_human": "~1.7G for old+stage",
+  "physical_increment_at_crash_mib": 1.56
+}

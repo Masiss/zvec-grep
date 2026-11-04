@@ -1,0 +1,148 @@
+{
+  "operation_id": "m4-contention-campaign-20261020-pair-3",
+  "status": "PARTIAL / OPERATION_BLOCKED / BUDGET_EXHAUSTED",
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "baseline": {
+    "samples": 1200,
+    "duration_seconds": 59.950846022,
+    "integrity": {
+      "status": "VALID",
+      "errors": [],
+      "rows": 1200,
+      "maximum_observation_gap_seconds": 2,
+      "nominal_sample_period_seconds": 0.05,
+      "resolution_note": "actual brackets retained; reduced resolution limits attribution, not a host-idleness test"
+    },
+    "quality_status": "STABILITY_GATE_FAIL",
+    "quality_reason": "baseline drift: last half outside first-half envelope for memavailable_min_kib",
+    "host_ranges": {
+      "load1": {
+        "min": 4.52,
+        "max": 5.73
+      },
+      "cpu_some_avg10": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "io_full_avg10": {
+        "min": 1.29,
+        "max": 3.19
+      },
+      "memory_full_avg10": {
+        "min": 0.0,
+        "max": 2.17
+      },
+      "memavailable_kib": {
+        "min": 2243664.0,
+        "max": 9445100.0
+      }
+    }
+  },
+  "execution": {
+    "native_arms_launched": 1,
+    "native_arms_completed": 0,
+    "second_arm_started": false,
+    "native_pid": 139597,
+    "workload_returncode": -15,
+    "workload_signal": 15,
+    "runtime_samples": 18,
+    "active_samples": 17,
+    "last_observed_active_elapsed_ms": 966.446534,
+    "reason": "workspace_telemetry_incomplete",
+    "scan_errors": [
+      "/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597: [Errno 2] No such file or directory: '/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597'"
+    ],
+    "raw_receipt_measurement_quality": "COMPLETE",
+    "raw_label_limitation": "COMPLETE reflects available process/cgroup samples; workspace scan failed. Not a complete native measurement, no reclassification of raw receipt.",
+    "cleanup_verified": true
+  },
+  "partial_resources": {
+    "scope": "aborted partial cgroup lifetime, not full workload costs or writer isolation",
+    "observed_memory_peak_bytes": 219193344,
+    "observed_swap_peak_bytes": 0,
+    "final_cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 13,
+      "nr_throttled": 0,
+      "system_usec": 265525,
+      "throttled_usec": 0,
+      "usage_usec": 1087464,
+      "user_usec": 821939
+    },
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "pids_events": {
+      "max": 0
+    },
+    "max_sampled_pss_kib": 199961,
+    "max_sampled_rss_kib": 214288,
+    "max_sampled_process_tree_write_bytes": 12025856,
+    "failed_scan_partial": {
+      "allocated_semantics": "sum st_blocks*512, deduplicated hardlinks; Btrfs shared extents may be counted more than once",
+      "allocated_st_blocks_bytes_gross": 3153920,
+      "apparent_bytes": 6197220,
+      "directory_count": 11,
+      "file_count": 42,
+      "generation_apparent_bytes": 6197207,
+      "generation_directory_names": [
+        "generation-1"
+      ],
+      "root": "/var/tmp/m4-writer-sync-pair-z9h8aj8w",
+      "scan_complete": false,
+      "scan_duration_ns": 9495021,
+      "scan_errors": [
+        "/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597: [Errno 2] No such file or directory: '/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597'"
+      ],
+      "staging_named_apparent_bytes": 0,
+      "symlink_count": 0
+    },
+    "limits": "sampled process IO can lose exited workers; failed workspace scan is a partial count, never a verified peak/cap proof"
+  },
+  "writer": {
+    "complete_cycle_payloads": 0,
+    "p50_ms": null,
+    "p95_ms": null,
+    "p99_ms": null,
+    "stage_native_post_m4_finalize": "UNAVAILABLE",
+    "reader_coherence_reopen": "NO_COMPLETED_VERDICT",
+    "arm_order_variability": "UNMEASURED"
+  },
+  "diagnosis": "Workspace walker enumerated tombstones-2-1.bin.tmp.<nativePID>; stat later raised ENOENT. Existing native AtomicWrite creates .tmp.PID then renames/unlinks. Observed traversal/stat race is consistent with normal atomic publication; exact syscall not traced. Do not ignore ENOENT or declare scan complete.",
+  "decision": "KEEP native binding/caps/fullsync/strict guards; DEFER writer-tail optimization. No fifth attempt. Highest-value follow-up is bounded race-aware workspace accounting design/regression, not native retry or removal of integrity checks.",
+  "accounting": {
+    "consumed": 4,
+    "maximum": 4,
+    "remaining": 0,
+    "historical_original1_R1_pair2_unchanged": true
+  },
+  "input_sha256": {
+    "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-3.json": "6ea926e18aed6afc0251343bcacd3e484f231ed4279321d41b3a8909e0ab405c",
+    "research/m4-native/results/autonomous-campaign-20261020/campaign-ledger.json": "93c32e64ebb999c7ffef4d11cc85c8924fd64aa995079f01b9a2bf71d2d85d97",
+    "research/m4-native/results/autonomous-campaign-20261020/ledger-before-final-slot.json": "499d9add0911298aeabdf5f29c8f9ff9bfdf5d165541a1c243d15dd1222795e2",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/ambient-baseline.csv": "1b63b673f3f426cb37d4f7defad95021e880e5ed8faf0d185227107ccd91332c",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/operation-status.json": "f251bffb8fcbb3e6c107a9721fdc8cb13bacdaf180937e18477a0527ba189c8e",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/quiescence-profile.json": "17385772db8eaf8364a8bf5052fbc3145c1272061b69437b61d823f1a10af800",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/receipt.json": "9913c17be473d93e604e73a828139b916285db1ffc37d2b02aac9df307876685",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/watchdog-summary.json": "0fedf669417e6777b434c9813e2dfa72ac42dc79043df5cb3cdcf9e89fa1c208",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/watchdog-abort.json": "3c41a36c9371695f092b8eda00ca50c71a3dd91eef29c5712c6e9449a3ba5b4a",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/runtime.jsonl": "9b864c30464ed579e2f7a9c4754adb8e49005f940184c2a31f11b39faaa2e1ab",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/command-start.json": "ceecdf4acc49a3f7752ce9feb24a53616f7a3323323cc5052c12ec10c58c2516",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/command-exit.json": "3df3ec891b4ad5f584c3de18a0e939b69d1d3e51caa96a04f6547524d0fb031b",
+    "research/m4-native/results/autonomous-campaign-20261020/pair-3-execution/post-stop-verification.json": "0cdff62897b4079328b4749ddc3b70619583187c5c1cef19d6650de263477384"
+  }
+}

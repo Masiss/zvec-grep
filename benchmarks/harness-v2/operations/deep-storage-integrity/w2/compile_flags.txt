@@ -1,0 +1,3 @@
+-std=c++17
+-I../../../../../.local/native/zvec-native-profile/src/include
+-I../../../../../.local/native/zvec-native-profile/thirdparty/rocksdb/rocksdb-8.1.1/include

@@ -1,0 +1,4 @@
+# Mirror the configured CMake compile_commands.json into this project-local
+# tooling directory; keep compiler/include flags owned by CMake, not this file.
+CompileFlags:
+  CompilationDatabase: .work/build/lsp

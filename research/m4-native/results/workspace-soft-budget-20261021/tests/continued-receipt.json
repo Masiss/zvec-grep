@@ -1,0 +1,47 @@
+{
+  "checks": [
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/workspace-soft-budget-20261021/tests/lifecycle"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_containment_runner.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_benchmark_policy.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_aa_gate_policy.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_aa_containment_integration.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/results/workspace-soft-budget-20261021/rehearse.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/rehearse.log"
+    }
+  ],
+  "note": "Initial lifecycle invocation omitted its required output-dir; argument-parser exit2 only, no gate/workload ran."
+}

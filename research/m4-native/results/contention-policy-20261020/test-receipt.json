@@ -1,0 +1,57 @@
+{
+  "real_benchmark_launched": false,
+  "readiness_or_ambient_measurement_launched": false,
+  "synthetic_only": true,
+  "results": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_contention_policy.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_benchmark_policy.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_harness_scenarios.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_harness_scenarios.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/contention-policy-20261020/contained-fixtures"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_containment_runner.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_aa_gate_policy.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_aa_containment_integration.log"
+    }
+  ]
+}

@@ -1,0 +1,1595 @@
+{
+  "schema_version": 1,
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "scope": "standalone research/m4-native measurements only",
+  "authority": {
+    "current_instruction": "Active user authorization and the repository's M4 scope boundaries",
+    "historical_envelope_source": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+    "threshold_change": "Requires explicit owner approval; runners must not change these values autonomously",
+    "policy_change": "Update this file and benchmark-policy.md together, add policy tests, and record the decision in RESULTS.md and the canonical handoff"
+  },
+  "host_pressure_disposition": {
+    "MemAvailable": "telemetry-only; thresholds never block launch or abort an arm",
+    "missing_or_invalid_host_context": "record unavailable/UNKNOWN when possible; missing or malformed MemAvailable, PSI, or load never blocks launch, abort, stability classification, or recovery",
+    "host_memory_reserve_bytes": "legacy planning/provenance field only; never compared to MemAvailable or used to refuse a workload",
+    "host_PSI": "telemetry-only; thresholds never block launch or abort an arm",
+    "load_average": "telemetry-only; thresholds never block launch or abort an arm",
+    "retained_disk_reserve": "hard launch and runtime stop guard",
+    "actual_safety_controls": "owned cgroup caps/events, runtime timeout, host OOM observation, required cgroup/OOM/capacity telemetry integrity (not optional host MemAvailable/PSI/load), swap-capacity and retained-disk checks, correctness/durability, and verified cleanup remain enforced"
+  },
+  "resource_guards": {
+    "MemAvailable_kib_min": 5477762,
+    "var_tmp_bytes_min": 18219000000,
+    "io_full_avg10_max": 4.46,
+    "load1_max": 3.14
+  },
+  "resource_guard_metadata": {
+    "M4-RG-MEM": {
+      "metric": "MemAvailable",
+      "unit": "KiB",
+      "operator": ">=",
+      "threshold_key": "MemAvailable_kib_min",
+      "enforcement": "observation-only; raw threshold comparison retained but never blocks launch or aborts an arm",
+      "evidence_class": "historical successful-run envelope; context telemetry only, not a safety limit",
+      "failure_scope": "measurement context only; does not block the arm or research mission",
+      "recovery": "no recovery required; preserve fresh snapshots and raw threshold comparisons as host-context telemetry",
+      "owner_approval_required_to_change": true
+    },
+    "M4-RG-DISK": {
+      "metric": "resource-root available bytes",
+      "unit": "bytes",
+      "operator": ">=",
+      "threshold_key": "var_tmp_bytes_min",
+      "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+      "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+      "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+      "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+      "owner_approval_required_to_change": true
+    },
+    "M4-RG-IOPSI": {
+      "metric": "host I/O PSI full avg10",
+      "unit": "percent",
+      "operator": "<=",
+      "threshold_key": "io_full_avg10_max",
+      "enforcement": "observation-only; raw threshold comparison retained but never blocks launch or aborts an arm",
+      "evidence_class": "historical successful-run envelope; host-context telemetry, not a safety limit or per-arm I/O cap",
+      "failure_scope": "measurement context only; does not block the arm or research mission",
+      "recovery": "no recovery required; preserve fresh snapshots and raw threshold comparisons as host-context telemetry",
+      "owner_approval_required_to_change": true
+    },
+    "M4-RG-LOAD": {
+      "metric": "host load-1",
+      "unit": "load average",
+      "operator": "<=",
+      "threshold_key": "load1_max",
+      "enforcement": "observation-only in every M4 mode; raw threshold comparison retained",
+      "evidence_class": "historical successful-run envelope; context telemetry only, not a safety limit",
+      "failure_scope": "measurement context only; does not block the arm or research mission",
+      "recovery": "no recovery required; preserve raw threshold comparisons as host-context telemetry",
+      "owner_approval_required_to_change": true
+    }
+  },
+  "resource_only_exploratory_contract": {
+    "scope": "Historical scalar-open resource-only contract; host-pressure thresholds are superseded by host_pressure_disposition for all M4 benchmark modes",
+    "latency_diagnostic": "Exactly seven scalar counts (0\u20136) x HNSW/FLAT x three repetitions; create/close/reopen/close; 84 API opens, empty roots, no documents or queries. Record each create-and-open and reopen API wall interval; exclude schema construction, close, shutdown, and cleanup. Evidence class EXPLORATORY / NON-QUALIFYING; API-level timing only, not internal stage attribution.",
+    "workspace_capacity_unverified_label": "WORKSPACE_CAPACITY_UNVERIFIED when workspace traversal or mutation coverage is incomplete; preserve UNKNOWN/INCOMPLETE without converting workload completion into capacity PASS or verified peak.",
+    "load1": "Load-1 is observation-only in every M4 mode: record baseline and runtime values and analyze them as host context; never use M4-RG-LOAD as an admission, abort, or inter-arm gate. Keep the historical threshold and raw PASS/FAIL observations unchanged.",
+    "host_swap_reclaim": "Record baseline-to-runtime pswpin, pswpout, direct scan/steal, and allocstall deltas; analyze direction and magnitude without attributing host-wide movement to M4. Positive deltas alone are not distress and do not block.",
+    "hard_stop_signals": "Host OOM kill increment, telemetry counter regression or missing required safety counters, approved swap-capacity or retained disk-reserve failure, cgroup cap/limit/OOM distress, timeout, workload correctness failure, required safety-telemetry loss, or cleanup/containment failure remain blocking. Host PSI, load and MemAvailable thresholds are never stop signals.",
+    "reserve_policy": "Retain actual per-operation cgroup memory/swap/task limits, runtime timeout, host OOM observation, and disk reserve. MemAvailable, PSI and load threshold comparisons are telemetry only; no 3 GiB MemAvailable floor is an admission/abort gate.",
+    "workspace": "Retain UNKNOWN/INCOMPLETE for races or lost coverage. Never claim verified peak storage from sampled traversal, and never report a soft-budget observation as PASS or hard-cap proof. Existing fatal scope/permission/I/O/overflow and safety-telemetry failures still block.",
+    "no_retroactive_rewrite": "A contract amendment changes interpretation only; raw receipts and historical execution records remain immutable, and no retry is implied."
+  },
+  "contention_aware": {
+    "mode": "contention-aware",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "engineering_authority": "The active owner M4 mission authorizes bounded exploratory implementation, diagnostics, and benchmark iterations within actual resource-capacity, containment, and filesystem-safety limits. Host PSI, load, and MemAvailable thresholds are telemetry only and are not admission/abort limits. Historical campaign budgets and one-pair authorizations are superseded only for this mission; they remain immutable evidence and do not authorize qualification or production work.",
+    "launch_requires": "For shared_collection_pair, use a fresh unique operation id/root and record the bounded budget. Host PSI, load and MemAvailable thresholds are telemetry only and never block launch. Actual cgroup resource caps/events, approved swap-capacity and retained-disk reserves, required safety telemetry, correctness, durability, timeout, and cleanup remain mandatory. One matched pair per operation; no automatic retry after a blocked/failed operation.",
+    "historical_envelope": "All four raw comparisons remain unchanged and recorded as PASS/FAIL; in this explicitly selected mode only they are measurement context, not universal safety limits or launch/abort criteria",
+    "baseline_pressure": "Record original first-three-window memory/swap bounds and drift for attribution; PSI is observational, and no idle/stationary host prerequisite applies. Enforce only actual swap/disk capacity, cgroup containment, telemetry integrity and correctness/durability checks",
+    "resource_controls": "Required finite M4 cgroup CPU quota, memory.max, memory.swap.max and pids.max (tasks/threads); workspace allocated/apparent monitored soft budgets only in this exploratory mode. Retained-disk reserve, cgroup distress, timeout, correctness/durability and verified cleanup remain mandatory. No host MemAvailable/PSI/load threshold gate, filesystem quota, aggregate hard workspace cap or I/O isolation claim",
+    "capacity_basis": "Agent-authored per-operation resource estimates with resource_basis, within cgroup limits and disk/swap safety controls; no MemAvailable-derived host reservation gate. Record MemAvailable/load/PSI as context, never as launch/abort criteria. SwapFree covers remaining approved M4 swap allocation; filesystem free space covers unconsumed workspace allocation plus disk reserve.",
+    "monitoring": "Host PSI/load/MemAvailable, swap/diskstats, and owned process/cgroup CPU, memory, swap, task counts/limit events, PSI and process-tree I/O remain recorded. Host PSI/load/MemAvailable are observational. Known workspace publication races retain INCOMPLETE/UNKNOWN without abort; sampled soft-budget breaches warn with observed/limit/excess bytes. Unverifiable scope/permission/I/O errors, missing required safety telemetry, monitor gap, OOM/limit distress, swap/disk reserve failure, controller/cleanup failure or timeout stop the operation, never unrelated workloads",
+    "recovery": "Three consecutive valid ten-second safety-capacity/integrity windows; no host-pressure threshold or stationary-baseline requirement. First-arm failure blocks arm two; recovery timeout/integrity/disk-or-swap capacity failure consumes the attempt without retry",
+    "full_sync_binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+    "max_arm_runtime_seconds": 3600,
+    "isolation_scope": "Operation-bound full-sync 500x20 A/A, the owner-authorized shared-collection 500x5 A/B follow-up pair defined below, or separately authorized bounded M4 exploratory diagnostics including multi-arm compaction-contention; qualification, legacy diagnostics, other benchmarks and production unchanged",
+    "no_attribution_shortcut": "Host-wide pressure is not evidence that M4 caused it; observed during-minus-baseline is temporal association, not identified incremental causality",
+    "no_automatic_retry": true
+  },
+  "rust_pipeline_lifecycle_pair": {
+    "purpose": "m4-rust-full-lifecycle-pair",
+    "approval_status": "approved",
+    "approval_reference": "Current explicit owner request 2026-10-26: finish Gate B and independently choose safe ways to obtain useful research output; research-only, no production migration. After full-corpus attempts hit hard resource gates, this operation is explicitly a reduced-scope diagnostic pilot, not a substitute for full-corpus Gate B. Current explicit owner authorization 2026-10-28: analyze, fix, and run up to three new distinct matched lifecycle-pair operations. Current explicit owner request 2026-10-29 after R2: try up to three additional fresh distinct matched lifecycle-pair operations, research-only, after instrumentation/correctness fixes. Following the source-trace review, the owner explicitly authorized up to three further fresh distinct pairs with expanded query/flush timeline instrumentation: \u201ct\u00f4i cho 3 pair n\u1eefa, nh\u01b0ng b\u1ea1n ph\u1ea3i check k\u0129\u201d (2026-10-29). The owner subsequently requested a deep dive and explicitly approved exactly one additional fresh native-first diagnostic pair, conditional on a passing no-launch preflight, unchanged gates, and no retry (2026-10-29). That one attempt was refused before launch by the qgroup reserve gate and is consumed.",
+    "execution_authorization_reference": "The 2026-10-26 one-pair authorization was consumed. New explicit owner authorization on 2026-10-27 (\"ok, l\u00e0m \u0111i\", following the request for fresh diagnostic authority) authorized exactly one fresh matched 64-file diagnostic pair under this unchanged policy; it was consumed by operation m4-rust-lifecycle-pair-20261027-dc8e1120, which was stopped during the native arm for liveness concerns and produced no comparison. The owner's subsequent direction to finish the whole plan authorized at most one additional fresh 64-file diagnostic pair, only after Gate 2 correctness work and an immediate successful no-launch preflight. That authorization was consumed by operation m4-rust-lifecycle-pair-20261027-030722-1b7f7407: its validate-only preflight refused before launch because qgroup available bytes (89,235,456) were below the 100,663,296-byte required headroom. No arm or workspace materialization started. A subsequent explicit owner authorization on 2026-10-27 authorized at most one new fresh 64-file pair under these same controls. Following the owner's separately approved evidence-preserving cleanup, the previous stopped operation `m4-rust-lifecycle-pair-20261027-dc8e1120` was copied outside the quota subvolume with `--reflink=never`, verified against a 368-entry SHA-256 manifest, then removed only from its original operation-owned path. Qgroup became 16,461,824 bytes referenced and 117,755,904 bytes available; the 100,663,296-byte preflight requirement was met. The fresh no-launch preflight passed for operation `m4-rust-lifecycle-pair-20261027-034750-2d863149`, then the one-pair authorization was consumed when its M4 arm hit `runtime_timeout` at 900 seconds during initial indexing; the native arm did not start and no comparison was produced. Containment cleanup was verified. The evidence-bearing partial operation root was subsequently archived outside the quota subvolume using `cp -a --reflink=never`, verified against a 449-entry SHA-256 manifest, and removed only after separate owner approval. Current qgroup is 16,461,824 bytes referenced and 117,755,904 bytes available, 17,092,608 bytes above the next-pair requirement. This restores capacity only; the one-pair authorization remains consumed, and no new preflight or benchmark was run. Do not retry or change controls. Post-run inspection found the two-party start barrier was used by three test participants, allowing the query scheduler to be stranded and emit no query offers; the harness barrier was corrected to three parties. Build-only compilation and the non-ignored Gate B tests passed (10 passed, 1 ignored); the original ignored workload was not rerun. The initial-indexing stall at file 50 remains unexplained. The earlier source/binary mismatch claim was retracted after confirming the binary contained the snapshot marker; a shell pipeline false negative caused that claim. The owner then explicitly authorized exactly one fresh 64-file diagnostic pair on 2026-10-27 (structured response: \"Cho ph\u00e9p m\u1ed9t c\u1eb7p m\u1edbi\"), using the binary built after the three-party barrier fix, unchanged hard controls, and a fresh immediate --validate-only. This authorization was consumed by operation m4-rust-lifecycle-pair-20261027T045033Z-9da70ee5, whose --validate-only was refused because uppercase T/Z violated the lowercase operation-ID contract. No workspace or arm launched; qgroup remained at 117,755,904 bytes available. Preserve the refusal and do not retry with a corrected ID under this authorization. The owner authorized one additional fresh 64-file diagnostic pair on 2026-10-27 (direct response: t\u00f4i cho ph\u00e9p), under unchanged hard controls, using a lowercase-valid ID and immediate fresh --validate-only. This authorization was consumed by m4-rust-lifecycle-pair-20261027t04551793076905z-6a1dd11d: preflight passed, the native first arm completed with workspace uncertainty, then the second-arm qgroup gate refused at 97,935,360 B available versus 100,663,296 B required. M4 did not start; do not retry. A later read-only check showed 117,407,744 B available, but this does not authorize a retry. The raw pair-result classification was left unchanged; the wrapper's qgroup-failure classifier was corrected and its focused tests passed 2/2. The owner has now authorized archiving outside the quota subvolume, manifest verification, and deletion of exactly the retained roots m4-rust-lifecycle-pair-20261026-b6a1348d and m4-rust-lifecycle-pair-20261027t04551793076905z-6a1dd11d, followed by exactly one further 64-file diagnostic pair under unchanged hard controls. Cleanup and manifest verification succeeded for exactly the two authorized roots, with no other qgroup paths removed. The one fresh pair ran as m4-rust-lifecycle-pair-20261027t051335z-c8cf6382 (M4 then native); both workload return codes were zero and correctness parity passed, but both arms had workspace uncertainty and query drops/missed starts/sampling caps, so the pair is PAIR_COMPLETED_WITH_WORKSPACE_CAVEATS and performance_eligible=false. Current qgroup is 102,072,320 bytes available, only 1,409,024 bytes above the 100,663,296-byte next-workspace requirement. This authorization is consumed; no retry, new preflight, or cleanup is authorized. The owner has since authorized one additional 64-file diagnostic pair in this session to exercise the added queue-full versus receiver-disconnected telemetry, with unchanged workload and hard controls. This one-pair authority was consumed by operation `m4-rust-lifecycle-pair-20261027t052952z-332a873b`: its immediate preflight passed, both M4-first/native-second workloads exited 0, hard-safety telemetry and cleanup were verified, and the pair completed with workspace caveats and non-comparable query p95. Cause-specific counters showed queue-full drops (M4 308, native 130) and zero disconnected-receiver drops. Do not retry or launch another operation under this instruction. No cleanup, threshold/control change, full-corpus qualification, or production work is authorized by this instruction. This remains diagnostic only: no full-corpus Gate B qualification, performance-win claim, or production work. Preserve all hard cgroup/disk/qgroup controls. No operation-specific authorization remained active at that historical checkpoint. On 2026-10-28 the owner authorized exactly one fresh pair m4-rust-lifecycle-pair-20261028t085552z-light, conditional on the reduced-artifact observer diagnostic completing safely and showing a clear cost reduction; immediate unchanged preflight and all hard gates remain mandatory, and no retry is authorized after refusal or stop. Query p95 is non-comparable because offers were dropped/capped; in-run workspace inventory and soft-budget peaks remain UNKNOWN while qgroup capacity samples are complete. See `results/M4-GATE-B-QUERY-DROP-CAUSE-20261027.md` and `results/HANDOFF-20261027.md`. The owner separately approved raising the shared qgroup max referenced cap to 150994944 bytes (144 MiB), retaining the 67108864-byte minimum-free reserve and all other controls; this quota amendment does not authorize a new pair. See `results/M4-PHASE3-QGROUP-CAP-AMENDMENT-20261028.md`. The owner applied the cap and refreshed the root attestation on 2026-10-28; supplied output confirmed max referenced=150994944 bytes, consistent squota and 140025856 bytes headroom. This does not renew the consumed pair authorization. The owner subsequently gave a structured explicit approval on 2026-10-28 ('Authorize one diagnostic pair') for exactly one fresh operation `m4-rust-lifecycle-pair-20261028t141504z-nativefts`, to collect direct native FTS-call wall time alongside existing query-worker state-lock telemetry. It uses the opt-in reduced binary SHA-256 `c17e234f9ec300f5f066ce7713790c0e2c2bbecdc375d03efea221ad77d88c27` and unchanged library SHA-256 `58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a`, with the applied 144 MiB qgroup cap and all other controls unchanged. Run immediate no-launch validation before launch; any refusal or safety stop consumes this authorization and is not retried. Lost offers or a capped/incomplete pass make p95 ineligible. The 2026-10-28 authorization completed R1 (`m4-rust-lifecycle-pair-20261028t170509z-nflush-r1`) and R2 (`m4-rust-lifecycle-pair-20261028t170509z-nflush-r2-m4first-a`); its R3 ID was never preflighted or launched. On 2026-10-29, after R2, the owner explicitly authorized up to three additional fresh distinct pairs. The exact current allowlist is `m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r1a`, `m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r2a`, and `m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r3a`; it replaces the prior unused R3 slot, so this authorization is at most three pairs, not four. Each requires immediate fresh no-launch validation. Workload, artifact pinning, resource ceilings, qgroup reserve/cap, durability/correctness, queue and offered-load eligibility, containment, cleanup, and all safety gates remain unchanged. The first 2026-10-29 batch added Linux query-thread CPU time and opt-in native segment-flush-stage wall/CPU spans. That batch is closed: R1a and R2a ran; its unused R3a is not reauthorized or reused. The current owner authorization covers up to three new IDs listed below, with opt-in C++ collection query/flush lock-boundary and FTS-recall worker-stage wall/thread-CPU spans (monotonic intervals, thread IDs, collection/segment identifiers) under the same timeline environment gate. Workload, queue, synchronization, durability, resource controls, and eligibility rules remain unchanged. Each operation needs immediate fresh no-launch validation. Any hard-gate refusal or safety stop halts this batch pending owner review; do not retry or bypass. Stop early when the attribution question is resolved. The owner then explicitly approved exactly one fresh native-first diagnostic pair under the unchanged controls, with a new operation ID and launch permitted only after a fresh no-launch preflight passes (2026-10-29). Operation m4-rust-lifecycle-pair-20261029t151203z-nquery-r4b was refused before launch because qgroup headroom was 114,688 B below the required reserve; no retry or gate change is authorized.",
+    "risk_acceptance_reference": "Pair results remain descriptive exploratory evidence only; shared-host state, missing cgroup I/O isolation, fixed-embedding test runtime, one repository corpus, and a small number of execution orders prohibit causal, qualification, or architecture-win claims. Under the explicit Technical Lead direction of 2026-10-27, concurrent queries use fixed offered-load deadlines with a bounded queue; scheduler lag, accepted/failed/dropped/capped offers, queue delay, service time, end-to-end response, measured M4 PassGate wait, native FTS wall/thread CPU time, native flush-stage intervals, C++ collection-lock boundaries, and FTS-recall worker-stage wall/thread CPU spans are recorded. These are diagnostic attribution data, not performance qualification. Aggregate p95 is non-comparable whenever an offer is dropped/capped/failed, scheduler lag exceeds one interval, or sample count is insufficient.",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "io_pressure_mode": "observational-only; cgroup io.stat/io.max unavailable",
+    "native_flush_timeline": {
+      "environment_variable": "M4_NATIVE_FLUSH_TIMELINE",
+      "value": "1",
+      "scope": "Opt-in Linux diagnostic timeline for the contained lifecycle pair. Existing per-segment flush-stage spans remain; added spans cover CollectionImpl query/flush lock waits and held intervals, query validation/segment enumeration/SQL-engine execution, and FTS-recall schema fetch/filter computation/segment FTS search/result fetch. Each span records CLOCK_MONOTONIC wall bounds, CLOCK_THREAD_CPUTIME_ID duration, thread ID, and collection or segment identity. Diagnostic logging only; no workload, queue, synchronization, durability, or resource-control changes.",
+      "events": [
+        "segment_flush_stage",
+        "collection_query",
+        "collection_query_stage",
+        "collection_flush",
+        "collection_flush_stage",
+        "fts_recall_stage",
+        "schema_handle_lock_owner"
+      ]
+    },
+    "workload": {
+      "source_commit": "34d75aa14c760d302e497831c7501e1a31400f2b",
+      "source_manifest_sha256": "7fbc9f951a9b1f75388150a891c984f23dd72717a6ce59070f89fd9f3ad832a3",
+      "source_file_count": 64,
+      "source_bytes": 694421,
+      "source_selection": {
+        "path_prefix": "rust/crates/zg-engine/src/",
+        "extensions": [
+          ".rs"
+        ],
+        "max_files": 64,
+        "ordering": "lexicographic path order at source_commit"
+      },
+      "profile_label": "64-file Rust engine pilot; not full-corpus Gate B",
+      "full_corpus_reference": {
+        "source_manifest_sha256": "a4d53604bd03386ce0745e902d4099b39def0102753e584ff5312bfaab2d338b",
+        "source_file_count": 421,
+        "source_bytes": 7070189,
+        "provenance_status": "blocked_missing_source",
+        "provenance_note": "Only count/bytes/hash were recorded; source_repo, source_commit, and source_selection are absent. This reference is metadata only and is not a runnable corpus. Replacement diagnostic: camera 421 manifest 9bff98d36f7ad46ae1b8452b0f3cef78c7ce594be4818a47cd9e5864bdd19716."
+      },
+      "test_name": "pipelines::indexed_search::m4_integration_tests::gate_b_lifecycle::gate_b_full_lifecycle_arm",
+      "passes": [
+        "initial_rescan",
+        "single_file_update",
+        "rename",
+        "delete",
+        "repeat_rescan_1",
+        "repeat_rescan_2"
+      ],
+      "reader_queries_during_each_pass": true,
+      "query_filter": "**/*.rs",
+      "reopen_and_search": true,
+      "reader_query_interval_ms": 25,
+      "reader_query_max_samples_per_pass": 256,
+      "reader_query_queue_capacity": 8,
+      "reader_query_schedule": "fixed offered-load deadlines from pass start; bounded single-worker queue; record scheduler lag, accepted, failed, dropped and capped offers, distinguish queue-full from receiver-disconnected drops, record queue delay, service time and end-to-end response; never suppress missed or overload starts",
+      "query_fence_wait_attribution": "cumulative M4 PassGate blocked wall time per query; native baseline reports zero",
+      "zvec_native_memory_limit_bytes": 134217728
+    },
+    "stage_a_rate_ladder": {
+      "approval_status": "consumed",
+      "approval_reference": "Owner confirmation 2026-10-30: authorized Stage A rate-ladder/closed-loop under the 4-point scope, no cap increase.",
+      "execution_authorization_reference": "Consumed by Stage A runs on 2026-10-30; no further Stage A operation is authorized.",
+      "risk_acceptance_reference": "Existing containment: 512 MiB cgroup, zero swap, 2 CPU, 144 MiB qgroup; stop on any gate refusal or safety stop.",
+      "arm_roles": [
+        "native",
+        "m4"
+      ],
+      "arm_orders": [
+        [
+          "native",
+          "m4"
+        ],
+        [
+          "m4",
+          "native"
+        ]
+      ],
+      "reader_query_intervals_ms": [
+        100
+      ],
+      "max_authorized_operations": 2,
+      "authorized_operation_ids": [
+        "m4-rust-lifecycle-pair-20261030t220000z-stagea-r100",
+        "m4-rust-lifecycle-pair-20261030t220200z-stagea-r100c"
+      ]
+    },
+    "arm_roles": [
+      "native",
+      "m4"
+    ],
+    "arm_orders": [
+      [
+        "native",
+        "m4"
+      ],
+      [
+        "m4",
+        "native"
+      ]
+    ],
+    "single_pair_only": true,
+    "max_authorized_pair_operations": 0,
+    "authorized_operation_ids": [],
+    "native_query_stage_diagnostic": {
+      "approval_status": "consumed",
+      "approval_reference": "Fresh owner instruction 2026-10-30 (\"gi\u1edd trace xong ch\u1ea1y l\u1ea1i, t\u00f4i c\u1ea5p 3 l\u1ea7n, t\u00f4i c\u1ea7n k\u1ebft qu\u1ea3\"): authorizes up to three sequential native-only optimize-seal stage-attribution runs, with evidence review after each. First use the prepared v7 library SHA-256 144cbeb7cf53d17f655c8a0dc606c5adc6ad8b52a346f7e3da2ca417ac153fe6 and default-discovered test binary SHA-256 c6b1b11effe9026c0a85fc0b262bc3056ab2b84252fe95350d17a44c41ff8f19; any later changed artifact requires an exact new pin in policy before that ID. No pair, M4 arm, performance qualification, quota/reserve change, or production modification. Stop immediately on any gate refusal or once attribution is resolved; no retries.",
+      "execution_authorization_reference": "R1, R2, and R3 are consumed. R3 completed once with the pinned binary SHA-256 c6b1b11effe9026c0a85fc0b262bc3056ab2b84252fe95350d17a44c41ff8f19 and context-switch library SHA-256 2a7bf846d5dfd7a040ffec01b0df6ada679441e48149cfcd44a67de823ae9f48; see research/m4-native/results/M4-PHASE3-NATIVE-SEAL-STAGE-TRACE-R3-RESULT-20261030.md and its analysis/evidence links. Three of four >100 ms query waits again overlap same-object optimize_seal exclusive holds. The 667.770 ms outlier overlapped 667.655 ms of a same-object flush shared hold; the query recorded 1 voluntary/0 involuntary context switches and the flush holder 42/3. No traced same-object exclusive waiter or holder overlapped that outlier, so the shared-reader wait mechanism remains inconclusive after all three runs. No implementation fix or performance comparison was made; performance_eligible=false. No IDs remain; any new workload or trace requires fresh owner authorization. No quota/reserve threshold changed.",
+      "risk_acceptance_reference": "The operation remains a bounded attribution diagnostic under existing containment and hard resource controls. Results are not a performance or production claim. Preserve every refusal and incomplete trace. Do not bypass a safety/resource gate or automatically retry a rejected ID.",
+      "max_authorized_operations": 0,
+      "authorized_operation_ids": [],
+      "previous_attempts": [
+        {
+          "operation_id": "m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00",
+          "outcome": "IMPLEMENTATION_DEFECT_BEFORE_WORKLOAD",
+          "benchmark_started": false,
+          "error": "Runner rebuilt the arm context with default pair mode instead of propagating native_query_stage_diagnostic; policy correctly rejected it.",
+          "evidence": [
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00-preflight.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00-run.log",
+            "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t155256z-nquery-stage1-00/native-query-stage-result.json"
+          ],
+          "recovery": "Fixed arm-context operation_mode propagation; the old ID remains consumed and is not reused. The one replacement diagnostic later completed under its own ID; no further attempt is authorized."
+        },
+        {
+          "operation_id": "m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00",
+          "outcome": "DIAGNOSTIC_COMPLETED_WITH_CAVEATS",
+          "benchmark_started": true,
+          "measurement_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+          "workload_returncode": 0,
+          "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+          "summary": "Five direct native collection-query calls exceeded 100 ms. Four spent 111.697-1243.589 ms in schema_handle_lock acquisition; two overlapped a flush shared-lock-held interval, which does not establish that flush caused the wait. One 153.214 ms call had an uninstrumented pre-validation gap. Inner FTS recall stages remained below 1 ms. No pair or performance comparison.",
+          "evidence": [
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00-preflight-final.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00-launch-stdout.json",
+            "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00/native-query-stage-result.json",
+            "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00/pair-first/containment/receipt.json",
+            "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261029t161551z-nquery-stage1-recovery-00/pair-first/containment/stderr.log"
+          ],
+          "recovery": "The one-time native-only diagnostic is consumed. Do not retry or reuse this ID. Exact owner of every schema-mutex wait and the uninstrumented gap remain unresolved; additional instrumentation needs fresh owner authorization."
+        },
+        {
+          "operation_id": "m4-rust-lifecycle-pair-20261030t011938z-nquery-locktrace-r1",
+          "outcome": "PREFLIGHT_REFUSED_ARTIFACT_PROVENANCE",
+          "benchmark_started": false,
+          "preflight_returncode": 1,
+          "error": "The explicit measurement executable zg_engine-552d5229013b8e71-nodebug did not match the current original ELF load image; all four PT_LOAD segment identities differed. The preflight stopped in find_test_binary before resource-gate adjudication, workspace creation, or workload launch. An earlier invocation for this ID was rejected at CLI argument parsing because expected binary SHA was supplied without --binary-path.",
+          "artifact_evidence": {
+            "measurement_path": "research/m4-native/.work/build/rust-bridge-target/debug/deps/.m4-measurement/zg_engine-552d5229013b8e71-nodebug",
+            "measurement_sha256": "c17e234f9ec300f5f066ce7713790c0e2c2bbecdc375d03efea221ad77d88c27",
+            "current_original_path": "research/m4-native/.work/build/rust-bridge-target/debug/deps/zg_engine-552d5229013b8e71",
+            "current_original_sha256": "020f8397af778b38082611c2178757e0052f6386c37091aad2b7197e73c9899b",
+            "expected_native_library_sha256": "65817813bacc710b29ea01d273ca604c0e1177b1e5aabf618604fe45c701a971"
+          },
+          "evidence": [
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t011938z-nquery-locktrace-r1-preflight.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t011938z-nquery-locktrace-r1-preflight-final.json",
+            "research/m4-native/results/M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-PREFLIGHT-REFUSAL-20261030.md",
+            "research/m4-native/results/native-query-timeline-20261029/native-schema-lock-trace-build-v4.json"
+          ],
+          "recovery": "ID is consumed and must not be retried. Per stop_on_gate_refusal, the remaining IDs from this authorization batch are not active. Continue only after fresh owner instruction and a new one-use ID, with artifact provenance fixed and a fresh no-launch preflight. No quota/cap change is indicated by the observed qgroup snapshot."
+        },
+        {
+          "operation_id": "m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1",
+          "outcome": "DIAGNOSTIC_COMPLETED_WITH_CAVEATS",
+          "benchmark_started": true,
+          "measurement_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+          "workload_returncode": 0,
+          "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+          "trace_sha256": "180698e7c8a1599ae751a7b44378b2017160e9219a46e7de6ce26652b430c8de",
+          "summary": "Four of 251 collection-query spans exceeded 100 ms. Three query shared-lock waits overlapped same-object optimize_seal exclusive holds by 99.917-99.995%; five fetch waits >10 ms also overlapped optimize_seal exclusive holds. The remaining 502.642 ms query lock wait overlapped a flush shared hold but no exclusive event; cause remains unresolved. Dedicated trace had 13,886 valid lines and zero malformed/invalid clocks. No performance comparison.",
+          "evidence": [
+            "research/m4-native/results/M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-REAUTH-20261030.md",
+            "research/m4-native/results/M4-PHASE3-NATIVE-SCHEMA-LOCK-TRACE-RESULT-20261030.md",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1-preflight.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1-analysis.json",
+            "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/native-query-stage-result.json",
+            "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/pair-first/containment/native-profile.jsonl",
+            "research/m4-native/.work/m4-native-workspace-quota/m4-rust-lifecycle-pair-20261030t015522z-nquery-locktrace-fresh1/pair-first/containment/receipt.json"
+          ],
+          "recovery": "The one-run authorization is consumed; no operation IDs remain active. Preserve COMPLETED_WITH_WORKSPACE_UNCERTAINTY and performance_eligible=false. The optimize_seal exclusive critical section is the evidence-directed research target; do not change locking or run another trace without fresh owner instruction."
+        },
+        {
+          "operation_id": "m4-rust-lifecycle-pair-20261030t031614z-nquery-sealstage-v1",
+          "outcome": "PREFLIGHT_REFUSED_DISK_CAPACITY",
+          "benchmark_started": false,
+          "preflight_returncode": 1,
+          "workspace_root_created": false,
+          "observed_free_bytes": 11520262144,
+          "required_free_bytes": 18286108864,
+          "shortfall_bytes": 6765846720,
+          "error": "disk reserve/capacity gate refused launch: available space below unchanged required threshold",
+          "evidence": [
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t031614z-nquery-sealstage-v1-preflight-refusal.txt",
+            "research/m4-native/results/M4-PHASE3-NATIVE-SEAL-STAGE-PREFLIGHT-REFUSAL-20261030.md",
+            "research/m4-native/results/native-query-timeline-20261029/native-schema-lock-trace-build-v7.json"
+          ],
+          "recovery": "The one-use ID is consumed under stop_on_gate_refusal. Do not retry, issue another ID, lower the disk reserve, or remove files by guess. A later attempt requires fresh owner authorization and a fresh passing preflight; resolve disk capacity only through an independently approved, provenance-verified action. No workload was launched."
+        },
+        {
+          "operation_id": "m4-rust-lifecycle-pair-20261030t034750z-nquery-sealstage-r1",
+          "outcome": "DIAGNOSTIC_COMPLETED_WITH_CAVEATS",
+          "benchmark_started": true,
+          "measurement_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+          "workload_returncode": 0,
+          "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+          "trace_sha256": "cde00276bb64e681fa22e87526b82b9cf8f771b25689d522cb807fc83dbf38e4",
+          "summary": "Thirteen thousand six hundred fifty-four valid trace lines, zero malformed. Three of four query schema-lock waits >100 ms overlap same-collection optimize_seal exclusive holds; all five fetch shared waits >50 ms overlap. Segment::dump/inverted_seal and create_new_writer dominate measured hold time. One 451.423 ms query wait has no overlapping instrumented exclusive hold and remains unresolved. No implementation change or performance comparison; performance_eligible=false.",
+          "resource_note": "Post-run qgroup headroom was 82325504 B, below the next-operation total requirement of 100663296 B. Seven completed historical workspace trees and the completed R1 operation root were archived and verified under results, then their quota-contained workspace copies were removed. Fresh post-cleanup qgroup 0/259 headroom is 130129920 B; no quota or reserve changed.",
+          "evidence": [
+            "research/m4-native/results/M4-PHASE3-NATIVE-SEAL-STAGE-TRACE-R1-RESULT-20261030.md",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t034750z-nquery-sealstage-r1-analysis.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t034750z-nquery-sealstage-r1-preflight.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t034750z-nquery-sealstage-r1-evidence/SHA256-MANIFEST.json",
+            "research/m4-native/results/M4-QUOTA-WORKSPACE-ARCHIVE-20261030.md",
+            "research/m4-native/results/quota-workspace-archive-20261030/archive-manifest.json"
+          ],
+          "recovery": "R1 is consumed. R2 is next and requires a fresh no-launch preflight with the unchanged gates. Stop on refusal; do not retry, lower reserve, alter cap, or run a pair/M4 arm. R3 remains active only if attribution is still unresolved after R2."
+        },
+        {
+          "operation_id": "m4-rust-lifecycle-pair-20261030t034751z-nquery-sealstage-r2",
+          "outcome": "DIAGNOSTIC_COMPLETED_WITH_CAVEATS",
+          "benchmark_started": true,
+          "measurement_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+          "workload_returncode": 0,
+          "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+          "trace_sha256": "bc2c2348f692b9d86911a2456253e9f7772f1353f50b41b27ba943748d9c8093",
+          "summary": "R2 reproduced three of four >100 ms query lock waits overlapping same-collection optimize_seal holds; all four >50 ms fetch shared waits also overlapped optimize_seal. Inverted_seal and create_new_writer again dominated. The early 431.969 ms query wait (0.005 ms thread CPU) overlapped 431.959 ms of a same-object 432.030 ms flush shared-lock hold and acquired shared access 0.010 ms after release. No exclusive wait/hold span overlapped; this is correlation, not proof the shared flush itself blocks a shared reader. No fix or performance comparison.",
+          "resource_note": "R2 preflight passed. Post-run qgroup 0/259 headroom was 106708992 B. The full operation root was SHA-verified under results then removed; fresh 2026-10-30T04:34:31Z headroom is 130183168 B and disk free 18706976768 B. No qgroup cap/reserve change.",
+          "evidence": [
+            "research/m4-native/results/M4-PHASE3-NATIVE-SEAL-STAGE-TRACE-R2-RESULT-20261030.md",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t034751z-nquery-sealstage-r2-analysis.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t034751z-nquery-sealstage-r2-preflight.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t034751z-nquery-sealstage-r2-evidence/SHA256-MANIFEST.json",
+            "research/m4-native/results/native-query-timeline-20261029/m4-rust-lifecycle-pair-20261030t034751z-nquery-sealstage-r2-launch-output.txt"
+          ],
+          "recovery": "R2 is consumed. If the remaining flush-correlated wait still needs attribution, R3 may add only targeted per-thread context-switch counters on query schema-lock and flush spans; pin the changed library SHA-256 in policy before preflight. Run R3 only after fresh no-launch preflight passes; stop on refusal or if attribution is resolved."
+        }
+      ],
+      "operation_sequence": "sequential; one operation at a time; evidence review required before next ID",
+      "max_concurrent_operations": 1,
+      "review_after_each_operation": true,
+      "stop_when_attribution_resolved": true,
+      "stop_on_gate_refusal": true,
+      "arm_roles": [
+        "native"
+      ],
+      "execution_order": [
+        "native"
+      ],
+      "performance_eligible": false
+    },
+    "previous_authorization_batches": [
+      {
+        "operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r1a",
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r2a",
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r3a"
+        ],
+        "completed_operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r1a",
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r2a"
+        ],
+        "unused_not_reauthorized": [
+          "m4-rust-lifecycle-pair-20261029t014553z-nflushcpu-r3a"
+        ]
+      },
+      {
+        "operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r1b",
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r2e",
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r3c"
+        ],
+        "preflight_rejected_before_launch": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r1b"
+        ],
+        "stopped_after_safety_gate": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r2e"
+        ],
+        "unused_not_reauthorized": [
+          "m4-rust-lifecycle-pair-20261029t024751z-nquery-r3c"
+        ]
+      },
+      {
+        "operation_ids": [
+          "m4-rust-lifecycle-pair-20261029t151203z-nquery-r4b"
+        ],
+        "preflight_refused_before_launch": [
+          "m4-rust-lifecycle-pair-20261029t151203z-nquery-r4b"
+        ],
+        "qgroup_available_bytes": 100548608,
+        "qgroup_required_bytes": 100663296,
+        "qgroup_shortfall_bytes": 114688,
+        "retry_authorized": false
+      }
+    ],
+    "resource_controls": {
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 900,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
+    },
+    "max_arm_runtime_seconds": 3600,
+    "workspace_quota": {
+      "attestation_path": "/var/tmp/m4-native-workspace-quota-pwd.attestation.json",
+      "workspace_subvolume": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+      "filesystem_uuid": "6c15377e-2602-4870-96ba-50e58605309c",
+      "subvolume_id": 259,
+      "qgroup_id": "0/259",
+      "max_referenced_bytes": 402653184,
+      "minimum_free_bytes": 67108864,
+      "accounting_mode": "squota",
+      "attestation_owner_uid": 0,
+      "max_attestation_age_seconds": 86400
+    },
+    "stage_c_capacity_attribution": {
+      "approval_status": "consumed",
+      "approval_reference": "Owner selected Option A on 2026-10-30: capacity-first remediation after Stage A/B.",
+      "execution_authorization_reference": "Consumed by both counterbalanced Stage C runs on 2026-10-30; no further Stage C operation is authorized.",
+      "risk_acceptance_reference": "Existing containment: 1 GiB cgroup, zero swap, 2 CPU, qgroup unchanged; stop on any gate refusal or safety stop.",
+      "arm_roles": [
+        "native",
+        "m4"
+      ],
+      "arm_orders": [
+        [
+          "m4",
+          "native"
+        ],
+        [
+          "native",
+          "m4"
+        ]
+      ],
+      "reader_query_intervals_ms": [
+        25
+      ],
+      "max_authorized_operations": 2,
+      "authorized_operation_ids": [
+        "m4-rust-lifecycle-pair-20261030t171400z-stagec-r25",
+        "m4-rust-lifecycle-pair-20261030t171401z-stagec-r25c"
+      ]
+    },
+    "stage_e2_larger_corpus": {
+      "approval_status": "consumed",
+      "approval_reference": "Owner selected option 2 on 2026-10-30: authorize a new, explicitly named larger-corpus diagnostic (not Stage E).",
+      "execution_authorization_reference": "Consumed by two 219-file attempts on 2026-10-30: fixture-limit failure, then watchdog telemetry abort; no retry authorized.",
+      "risk_acceptance_reference": "Existing containment: 1 GiB cgroup, zero swap, 2 CPU, qgroup unchanged; stop on any gate refusal or safety stop.",
+      "workload": {
+        "source_commit": "34d75aa14c760d302e497831c7501e1a31400f2b",
+        "source_manifest_sha256": "9db1849f1482b115a370e15809de1bac4ae19a8e415e1d24f38dfa606a57c01e",
+        "source_file_count": 219,
+        "source_bytes": 3771680,
+        "source_selection": {
+          "path_prefix": "rust/",
+          "extensions": [
+            ".rs"
+          ],
+          "max_files": 219,
+          "ordering": "lexicographic path order at source_commit"
+        },
+        "profile_label": "219-file Rust tree larger-corpus diagnostic; not full-corpus Gate B",
+        "full_corpus_reference": {
+          "source_manifest_sha256": "a4d53604bd03386ce0745e902d4099b39def0102753e584ff5312bfaab2d338b",
+          "source_file_count": 421,
+          "source_bytes": 7070189,
+          "provenance_status": "blocked_missing_source",
+          "provenance_note": "Only count/bytes/hash were recorded; source_repo, source_commit, and source_selection are absent. This reference is metadata only and is not a runnable corpus. Replacement diagnostic: camera 421 manifest 9bff98d36f7ad46ae1b8452b0f3cef78c7ce594be4818a47cd9e5864bdd19716."
+        },
+        "test_name": "pipelines::indexed_search::m4_integration_tests::gate_b_lifecycle::gate_b_full_lifecycle_arm",
+        "passes": [
+          "initial_rescan",
+          "single_file_update",
+          "rename",
+          "delete",
+          "repeat_rescan_1",
+          "repeat_rescan_2"
+        ],
+        "reader_queries_during_each_pass": true,
+        "query_filter": "**/*.rs",
+        "reopen_and_search": true,
+        "reader_query_interval_ms": 25,
+        "reader_query_max_samples_per_pass": 256,
+        "reader_query_queue_capacity": 8,
+        "reader_query_schedule": "fixed offered-load deadlines from pass start; bounded single-worker queue; record scheduler lag, accepted, failed, dropped and capped offers, distinguish queue-full from receiver-disconnected drops, record queue delay, service time and end-to-end response; never suppress missed or overload starts",
+        "query_fence_wait_attribution": "cumulative M4 PassGate blocked wall time per query; native baseline reports zero",
+        "zvec_native_memory_limit_bytes": 134217728
+      },
+      "arm_roles": [
+        "native",
+        "m4"
+      ],
+      "arm_orders": [
+        [
+          "m4",
+          "native"
+        ]
+      ],
+      "reader_query_intervals_ms": [
+        25
+      ],
+      "max_authorized_operations": 2,
+      "authorized_operation_ids": [
+        "m4-rust-lifecycle-pair-20261030t172900z-stagee2-r25",
+        "m4-rust-lifecycle-pair-20261030t173500z-stagee2b-r25"
+      ]
+    },
+    "stage_e3_camera_421": {
+      "approval_status": "consumed",
+      "approval_reference": "Owner selected camera 421-file subset on 2026-10-30; new diagnostic, not Stage E.",
+      "execution_authorization_reference": "Consumed by the 421-file camera run under 1 GiB memory / 384 MiB qgroup on 2026-10-30; completed with workspace caveats. No retry authorized.",
+      "risk_acceptance_reference": "Existing containment: 1 GiB cgroup, zero swap, 2 CPU, qgroup unchanged; stop on any gate refusal or safety stop.",
+      "workload": {
+        "source_commit": "92b9fdd5b9b5e064cb19daf61bd140e404e43d7b",
+        "source_manifest_sha256": "9bff98d36f7ad46ae1b8452b0f3cef78c7ce594be4818a47cd9e5864bdd19716",
+        "source_file_count": 421,
+        "source_bytes": 4693920,
+        "source_selection": {
+          "path_prefix": "AttendanceSafetyCamera/",
+          "extensions": [
+            ".cs"
+          ],
+          "max_files": 421,
+          "ordering": "lexicographic path order at source_commit"
+        },
+        "profile_label": "421-file camera/AttendanceSafetyCamera .cs subset; 1 GiB memory / 384 MiB qgroup",
+        "full_corpus_reference": {
+          "source_manifest_sha256": "a4d53604bd03386ce0745e902d4099b39def0102753e584ff5312bfaab2d338b",
+          "source_file_count": 421,
+          "source_bytes": 7070189,
+          "provenance_status": "blocked_missing_source",
+          "provenance_note": "Only count/bytes/hash were recorded; source_repo, source_commit, and source_selection are absent. This reference is metadata only and is not a runnable corpus. Replacement diagnostic: camera 421 manifest 9bff98d36f7ad46ae1b8452b0f3cef78c7ce594be4818a47cd9e5864bdd19716."
+        },
+        "test_name": "pipelines::indexed_search::m4_integration_tests::gate_b_lifecycle::gate_b_full_lifecycle_arm",
+        "passes": [
+          "initial_rescan",
+          "single_file_update",
+          "rename",
+          "delete",
+          "repeat_rescan_1",
+          "repeat_rescan_2"
+        ],
+        "reader_queries_during_each_pass": true,
+        "query_filter": "**/*.cs",
+        "reopen_and_search": true,
+        "reader_query_interval_ms": 25,
+        "reader_query_max_samples_per_pass": 256,
+        "reader_query_queue_capacity": 8,
+        "reader_query_schedule": "fixed offered-load deadlines from pass start; bounded single-worker queue; record scheduler lag, accepted, failed, dropped and capped offers, distinguish queue-full from receiver-disconnected drops, record queue delay, service time and end-to-end response; never suppress missed or overload starts",
+        "query_fence_wait_attribution": "cumulative M4 PassGate blocked wall time per query; native baseline reports zero",
+        "zvec_native_memory_limit_bytes": 134217728,
+        "source_repo": "/home/masis/itc/camera",
+        "corpus_extension": ".cs"
+      },
+      "arm_roles": [
+        "native",
+        "m4"
+      ],
+      "arm_orders": [
+        [
+          "m4",
+          "native"
+        ]
+      ],
+      "reader_query_intervals_ms": [
+        25
+      ],
+      "max_authorized_operations": 5,
+      "authorized_operation_ids": [
+        "m4-rust-lifecycle-pair-20261030t180000z-stagee3-r25",
+        "m4-rust-lifecycle-pair-20261030t182000z-stagee3b-r25",
+        "m4-rust-lifecycle-pair-20261030t183000z-stagee3c-r25",
+        "m4-rust-lifecycle-pair-20261030t192000z-stagee3d-r25",
+        "m4-rust-lifecycle-pair-20261030t194000z-stagee3e-r25"
+      ]
+    },
+    "stage_e4_camera_300": {
+      "approval_status": "consumed",
+      "approval_reference": "Owner accepted the 300-file camera subset recommendation on 2026-10-30.",
+      "execution_authorization_reference": "Consumed by the 300-file camera run under 768 MiB memory / 384 MiB qgroup on 2026-10-30; completed with workspace caveats. No retry authorized.",
+      "risk_acceptance_reference": "Existing containment: 1 GiB cgroup, zero swap, 2 CPU, 384 MiB qgroup; stop on any gate refusal or safety stop.",
+      "workload": {
+        "source_commit": "92b9fdd5b9b5e064cb19daf61bd140e404e43d7b",
+        "source_manifest_sha256": "b0ccc9781fd8f4fd45c3f0907248fda7a8bbb15bc9743de4d453c2db2d9cda09",
+        "source_file_count": 300,
+        "source_bytes": 3891428,
+        "source_selection": {
+          "path_prefix": "AttendanceSafetyCamera/",
+          "extensions": [
+            ".cs"
+          ],
+          "max_files": 300,
+          "ordering": "lexicographic path order at source_commit"
+        },
+        "profile_label": "300-file camera/AttendanceSafetyCamera .cs subset; 768 MiB envelope",
+        "full_corpus_reference": {
+          "source_manifest_sha256": "a4d53604bd03386ce0745e902d4099b39def0102753e584ff5312bfaab2d338b",
+          "source_file_count": 421,
+          "source_bytes": 7070189,
+          "provenance_status": "blocked_missing_source",
+          "provenance_note": "Only count/bytes/hash were recorded; source_repo, source_commit, and source_selection are absent. This reference is metadata only and is not a runnable corpus. Replacement diagnostic: camera 421 manifest 9bff98d36f7ad46ae1b8452b0f3cef78c7ce594be4818a47cd9e5864bdd19716."
+        },
+        "test_name": "pipelines::indexed_search::m4_integration_tests::gate_b_lifecycle::gate_b_full_lifecycle_arm",
+        "passes": [
+          "initial_rescan",
+          "single_file_update",
+          "rename",
+          "delete",
+          "repeat_rescan_1",
+          "repeat_rescan_2"
+        ],
+        "reader_queries_during_each_pass": true,
+        "query_filter": "**/*.cs",
+        "reopen_and_search": true,
+        "reader_query_interval_ms": 25,
+        "reader_query_max_samples_per_pass": 256,
+        "reader_query_queue_capacity": 8,
+        "reader_query_schedule": "fixed offered-load deadlines from pass start; bounded single-worker queue; record scheduler lag, accepted, failed, dropped and capped offers, distinguish queue-full from receiver-disconnected drops, record queue delay, service time and end-to-end response; never suppress missed or overload starts",
+        "query_fence_wait_attribution": "cumulative M4 PassGate blocked wall time per query; native baseline reports zero",
+        "zvec_native_memory_limit_bytes": 134217728,
+        "source_repo": "/home/masis/itc/camera",
+        "corpus_extension": ".cs"
+      },
+      "arm_roles": [
+        "native",
+        "m4"
+      ],
+      "arm_orders": [
+        [
+          "m4",
+          "native"
+        ]
+      ],
+      "reader_query_intervals_ms": [
+        25
+      ],
+      "max_authorized_operations": 3,
+      "authorized_operation_ids": [
+        "m4-rust-lifecycle-pair-20261030t190000z-stagee4-r25",
+        "m4-rust-lifecycle-pair-20261030t191500z-stagee4b-r25",
+        "m4-rust-lifecycle-pair-20261030t193000z-stagee4c-r25"
+      ]
+    }
+  },
+  "observer_overhead_diagnostic": {
+    "purpose": "m4-observer-overhead-diagnostic",
+    "approval_status": "approved",
+    "approval_reference": "Owner authorized one independent bounded observer overhead diagnostic, 2026-10-28",
+    "execution_authorization_reference": "One diagnostic only; no native/M4 arm, pair retry, quota change, or unrelated cleanup",
+    "risk_acceptance_reference": "Shared-host observer timing is descriptive only; it cannot establish absence of impact on query offers",
+    "operation_id": "m4-observer-diagnostic-20261028t065055z",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "fixture_script": "research/m4-native/tools/observer_overhead_fixture.py",
+    "sample_binary": "research/m4-native/.work/build/rust-bridge-target/debug/deps/zg_engine-552d5229013b8e71",
+    "sample_library": "research/m4-native/.work/build/rust-bridge-target/debug/build/zvec-rust-sys-8fcdeed82df8350b/out/zvec-prebuilt/libzvec_c_api.so",
+    "sample_interval_ms": 500,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 20,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
+    }
+  },
+  "observer_overhead_reduced_diagnostic": {
+    "purpose": "m4-observer-overhead-diagnostic",
+    "approval_status": "approved",
+    "approval_reference": "Owner authorized one independent bounded observer diagnostic with the reduced artifact, 2026-10-28",
+    "execution_authorization_reference": "One fresh diagnostic; one separate fresh pair only if diagnostic is favorable and all unchanged gates pass; no retry after refusal",
+    "risk_acceptance_reference": "Single idle shared-host diagnostic is descriptive only and cannot establish absence of query interference",
+    "operation_id": "m4-observer-diagnostic-20261028t085552z",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "fixture_script": "research/m4-native/tools/observer_overhead_fixture_reduced.py",
+    "sample_binary": "research/m4-native/.work/build/rust-bridge-target/debug/deps/.m4-measurement/zg_engine-552d5229013b8e71-nodebug",
+    "sample_binary_sha256": "c17e234f9ec300f5f066ce7713790c0e2c2bbecdc375d03efea221ad77d88c27",
+    "sample_library": "research/m4-native/.work/build/rust-bridge-target/debug/build/zvec-rust-sys-8fcdeed82df8350b/out/zvec-prebuilt/libzvec_c_api.so",
+    "sample_library_sha256": "58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a",
+    "sample_interval_ms": 500,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 20,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
+    }
+  },
+  "qgroup_reclaim_diagnostic": {
+    "purpose": "m4-qgroup-reclaim-diagnostic",
+    "approval_status": "approved",
+    "approval_reference": "Owner approved one independent bounded qgroup diagnostic after the Phase 3 safety stop, 2026-10-28",
+    "execution_authorization_reference": "Exactly one diagnostic operation; no benchmark arm, retry, automatic pair, quota change, forced sync/reclaim, or unrelated cleanup",
+    "risk_acceptance_reference": "Single diagnostic samples are descriptive, shared-qgroup usage is not isolated, and causality may remain inconclusive",
+    "operation_id": "m4-qgroup-diagnostic-20261028t033016z",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "fixture_script": "research/m4-native/tools/qgroup_reclaim_fixture.py",
+    "fixture_bytes": 16777216,
+    "sample_interval_ms": 1000,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 60,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 33554432,
+      "workspace_max_apparent_bytes": 67108864
+    }
+  },
+  "shared_collection_pair": {
+    "purpose": "m4-shared-collection-pair",
+    "approval_status": "approved",
+    "approval_reference": "Current explicit owner M4 mission: agent may design and run bounded exploratory benchmark iterations without per-milestone approval, inside existing hard limits.",
+    "execution_authorization_reference": "Current owner mission authorizes fresh exploratory shared-collection versus immutable-shard pairs after implementation changes; one pair per unique operation, only after actual-capacity/containment preflight, and no automatic retry after safety failures. Preserve correctness/durability and actual resource controls; host PSI/load/MemAvailable thresholds are observational only.",
+    "risk_acceptance_reference": "Current mission accepts exploratory measurement limits of shared /var/tmp Btrfs I/O without per-arm I/O throttling or physical-write attribution; record host pressure as context only, do not claim causality, and do not stop unrelated workloads.",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "binary_name": "m4_bridge_integration",
+    "resource_root": "/var/tmp",
+    "io_pressure_mode": "observational-only",
+    "workload": {
+      "documents": 500,
+      "rounds": 5,
+      "readers": 4,
+      "reader_mode": "continuous-16-min-through-writer-cycle",
+      "queries_per_reader_per_round": 16,
+      "minimum_reader_queries_per_arm": 320,
+      "baseline_mode": "--incremental-fts-sustained-no-analyzer-cache",
+      "candidate_mode": "--shared-collection-performance",
+      "m4_analyzer_cache": "disabled; fingerprint verification remains strict",
+      "durability": "M4 fsync_wal plus native collection flush"
+    },
+    "arm_roles": [
+      "immutable-shard",
+      "shared-collection"
+    ],
+    "same_binary": true,
+    "randomized_pair_order": true,
+    "single_pair_only": true,
+    "resource_controls": {
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 180,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 268435456,
+      "workspace_max_apparent_bytes": 536870912
+    },
+    "recovery": "Require three consecutive valid ten-second safety-capacity/integrity windows between arms; no host PSI/load/MemAvailable threshold or stationary-baseline requirement. Any actual preflight, runtime, required-telemetry, correctness, containment, recovery, or cleanup safety failure consumes the one operation and forbids automatic retry.",
+    "workspace_semantics": "Allocated/apparent thresholds are monitored soft budgets only; sampled traversal is not an independent hard-cap proof and known atomic-publication races remain UNKNOWN/INCOMPLETE.",
+    "measurement_semantics": "Compare five writer-cycle samples and at least 320 concurrent hybrid-reader queries per arm descriptively. Four reader threads run continuously from writer-cycle start through commit plus GC completion, with at least 16 queries per reader per writer cycle; counts may exceed the 320-query minimum and must be reported per reader-cycle. Writer nearest-rank p95 at n=5 is the maximum, not a stable-tail estimate. Record initial/per-cycle native and M4 opens, M4 apply/flush, native upsert/flush, GC/compaction/checkpoint, per-query vector/FTS/merge and lock waits, process CPU/I/O, cgroup peaks/events, retained bytes, post-arm snapshot coherence, and host I/O PSI throughout. I/O PSI is host-wide observational context only for this benchmark, not an admission or abort gate; disclose elevated or mismatched host pressure as a measurement limitation. Do not claim causality, qualification, or a universal architecture win.",
+    "no_automatic_retry": true
+  },
+  "immutable_write_amplification_pair": {
+    "purpose": "immutable-write-amplification-pair",
+    "binary_name": "native_m4_paired_benchmark",
+    "approval_reference": "Owner-authorized M4 immutable-shard write-amplification mission",
+    "execution_authorization_reference": "Owner standing authorization (2026-10-24): bounded benchmarks within the M4 research project may run without per-operation confirmation, under the unchanged approved policy and containment; no weakening of resource/correctness/durability/cleanup safeguards and no automatic retry after a refusal or safety stop.",
+    "risk_acceptance_reference": "Workspace traversal may be incomplete during live writes; preserve UNKNOWN/INCOMPLETE and never treat it as capacity PASS",
+    "io_pressure_mode": "observational-only",
+    "arm_roles": [
+      "control",
+      "candidate"
+    ],
+    "arm_orders": [
+      [
+        "control",
+        "candidate"
+      ],
+      [
+        "candidate",
+        "control"
+      ]
+    ],
+    "default_arm_order": [
+      "control",
+      "candidate"
+    ],
+    "workload": {
+      "files": 1200,
+      "runs": 1,
+      "control_arm": "m4-batch",
+      "candidate_arm": "m4-batch",
+      "control_max_delta_docs": 1536,
+      "candidate_max_delta_docs": 1536,
+      "control_max_total_runs": 12,
+      "candidate_max_total_runs": 12,
+      "control_max_runs_per_level": 4,
+      "candidate_max_runs_per_level": 4,
+      "control_stats_log_threshold": 4194304,
+      "candidate_stats_log_threshold": 4194304,
+      "control_mutation_batch_docs": 256,
+      "candidate_mutation_batch_docs": 256,
+      "control_coalesce_stats": false,
+      "candidate_coalesce_stats": false,
+      "control_wal_compression_lz4": false,
+      "candidate_wal_compression_lz4": true,
+      "control_wal_lz4_acceleration": 1,
+      "candidate_wal_lz4_acceleration": 1,
+      "wal_replay_probe": true,
+      "trace_fsync": false,
+      "trace_mutation_latency": false,
+      "m4_debt_policy": false,
+      "m4_debt_ratio": 0.01,
+      "m4_debt_cap": 250000
+    },
+    "workload_profiles": {
+      "lz4-acceleration-1-vs-4": {
+        "control_wal_compression_lz4": true,
+        "candidate_wal_compression_lz4": true,
+        "control_wal_lz4_acceleration": 1,
+        "candidate_wal_lz4_acceleration": 4
+      },
+      "mutation-batch-128-vs-256": {
+        "files": 600,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 256,
+        "candidate_wal_compression_lz4": false,
+        "trace_mutation_latency": true
+      },
+      "lz4-compression-at-batch-128": {
+        "files": 600,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 128,
+        "control_wal_compression_lz4": false,
+        "candidate_wal_compression_lz4": true,
+        "trace_mutation_latency": true
+      },
+      "lz4-compression-at-batch-256": {
+        "files": 600,
+        "control_mutation_batch_docs": 256,
+        "candidate_mutation_batch_docs": 256,
+        "control_wal_compression_lz4": false,
+        "candidate_wal_compression_lz4": true,
+        "trace_mutation_latency": true
+      },
+      "lz4-compression-at-batch-128-full-1200": {
+        "files": 1200,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 128,
+        "control_wal_compression_lz4": false,
+        "candidate_wal_compression_lz4": true,
+        "trace_mutation_latency": true
+      },
+      "stats-coalescing-at-batch-128-full-1200": {
+        "files": 1200,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 128,
+        "candidate_coalesce_stats": true,
+        "candidate_wal_compression_lz4": false,
+        "trace_mutation_latency": true
+      },
+      "stats-coalescing-at-batch-128-lz4-full-1200": {
+        "files": 1200,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 128,
+        "control_wal_compression_lz4": true,
+        "candidate_wal_compression_lz4": true,
+        "candidate_coalesce_stats": true,
+        "trace_mutation_latency": true
+      },
+      "mutation-batch-128-vs-256-full-1200": {
+        "files": 1200,
+        "control_mutation_batch_docs": 128,
+        "candidate_mutation_batch_docs": 256,
+        "candidate_wal_compression_lz4": false,
+        "trace_mutation_latency": true
+      },
+      "wal-replay-memory-small": {
+        "files": 64,
+        "control_wal_compression_lz4": false,
+        "candidate_wal_compression_lz4": true,
+        "control_wal_replay_batch_docs": 16,
+        "candidate_wal_replay_batch_docs": 16,
+        "control_wal_replay_mixed_frames": false,
+        "candidate_wal_replay_mixed_frames": true,
+        "wal_replay_torn_tail": true,
+        "trace_mutation_latency": true
+      },
+      "wal-replay-memory-many-records": {
+        "control_wal_compression_lz4": false,
+        "candidate_wal_compression_lz4": true,
+        "control_wal_replay_batch_docs": 16,
+        "candidate_wal_replay_batch_docs": 16,
+        "control_wal_replay_mixed_frames": false,
+        "candidate_wal_replay_mixed_frames": true,
+        "wal_replay_torn_tail": true,
+        "trace_mutation_latency": true
+      }
+    },
+    "resource_controls": {
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 268435456,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 180,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 1073741824,
+      "workspace_max_apparent_bytes": 2147483648
+    },
+    "workspace_policy": "owner-authorized monitored soft budgets for this exploratory profile; live-writer traversal races remain UNKNOWN/INCOMPLETE; actual disk reserve, cgroup limits, OOM/distress, timeout, required telemetry, correctness, durability and cleanup remain enforced",
+    "wal_replay_probe_policy": {
+      "enabled": true,
+      "purpose": "Measure identical WAL-only ApplyBatch writes and fresh Index::Open replay in both arms, with stats-event coalescing disabled to isolate LZ4 compression",
+      "durability": "WAL fsync remains enabled for every bounded ApplyBatch; close without Flush, advise only this fresh probe index's regular files with POSIX_FADV_DONTNEED, verify residency with mincore, then replay and verify live-doc count plus searchable postings",
+      "metrics": [
+        "per-ApplyBatch durable-ACK latency",
+        "probe WAL bytes",
+        "isolated write-stage wall/process CPU/physical-write bytes",
+        "target-index file bytes and mincore resident pages before/after cache advice",
+        "fresh-index replay-open wall/process CPU/physical-write/read bytes",
+        "encoded WAL buffer and decoded record/payload/vector live-capacity estimates with conservative vector-growth overlap bound",
+        "RSS/PSS/Private_Dirty before/after and VmHWM (process-wide, not replay-exclusive)",
+        "valid-prefix recovery with an optional 7-byte simulated torn-batch tail",
+        "recovered searchable document count"
+      ],
+      "limitation": "The probe attempts to evict only the fresh index's file pages; only zero mincore residency supports calling those target files cold. Kernel/library and all unrelated host caches remain warm, so this is not a fully cold-machine start."
+    },
+    "measurement_semantics": "Counterbalanced delta512-to1536 comparisons repeatedly reduced process writes15.0% and segment writes36.83%, compactions6-to-2, but an order-specific query p95 outlier remains; do not change max_delta_docs default. A 4-vs16MiB stats-log threshold pair reduced process writes1.05% with unchanged WAL/segment counters and exact retrieval, but replay-open time regressed18.5%; reject16MiB and retain4MiB default. Reporter reopen-stage parity bug was fixed and covered. A 256-vs512 mutation-chunk attempt was blocked before initial indexing by the supported ApplyBatch cap; preserve256 and do not retry or bypass. Three cap4-vs5 pairs at delta1536 showed consistent segment-write reduction10.12%, process-write reductions2.36-4.06%, and compactions2-to-1 with exact correctness and complete workspace accounting. Median query p95 across pairs/orders stayed within10%; one control-first pair regressed11.1% initial and16.4% burst3. Retain cap5 only as a research candidate; no default change. The first stats-event coalescing pair (candidate first) preserved exact snapshot/oracle/retrieval/reopen parity. Candidate process writes were40,849,400 B vs45,211,600 B (-9.65%); segment writes and WAL bytes were unchanged. Final non-WAL bytes fell4,507,390 B and the candidate stats log was10,207 B vs0 B after the control checkpoint. Query p95 candidate was no slower by >10% at any stage, though burst2 was31% faster and one arm had shared-workspace accounting UNKNOWN; therefore exploratory only, performance-ineligible. Three pre-durability-fix pairs preserved exact snapshot/oracle/retrieval/reopen parity. Process writes fell8.48-9.65% per pair and9.20% pooled; WAL/segment bytes and fsync counts were unchanged. Candidate-first repeats had p95 within10% at all stages but incomplete workspace accounting; control-first was fully accounted but burst3 regressed10.6%. Retain coalescing as a research-only candidate; REWORK performance qualification and do not change defaults. Under the corrected strict file/directory sync, two counterbalanced coalescing pairs each reduced process writes8.7-10.7%, with exact snapshot/retrieval parity. Control-first had p95 regressions13-25%; candidate-first had30-92% and INCOMPLETE_WORKSPACE_CAVEAT, with external host load/process activity visible. The latency results are order/host-contended and not causal; no default change. An offline probe over actual M4 WAL frames (15.99MB,19 txns) found LZ4 default compresses to5.46MB (-65.9%) at34ms CPU; zstd1 to2.87MB (-82.0%) at58ms; zlib1 to3.12MB (-80.5%) at173ms. Select LZ4 for an opt-in, versioned, backward-replay-compatible prototype; preserve fsync boundaries and feature OFF by default. Five P4 WAL-LZ4 pairs preserved exact logical/retrieval/reopen parity; four were workspace-complete and one had INCOMPLETE_WORKSPACE_CAVEAT. WAL appended bytes fell19.758MB\u21926.752MB (-65.83%), segment bytes/fsync counts unchanged; process-attributed writes fell22.16-27.93% per pair and25.05% pooled. Query p95 reversed with order both before and after untimed query warmup: warm candidate-first was10.5-41.8% faster, warm control-first was10.6-21.4% slower on bursts. No causal latency conclusion; retain LZ4 OFF and evidence non-qualifying. A candidate-first warm-query stats-coalescing pair preserved exact snapshots/reopen, logical oracle, PK sets, ranking and scores (0 mismatch; top-10 Jaccard1.000). Candidate process writes were53.16MB vs control57.98MB (-8.31%); WAL appends, segment writes, fsync counts and compactions were identical. Candidate warmed-query p95 was within+3.4%/-23.3% of control across stages; delete-batch latency varied strongly by arm position. The second arm's workspace sampling was UNKNOWN, so the pair is exploratory and performance-ineligible despite no budget warnings. The control-first warm-query counterbalance is complete. Two counterbalanced LZ4 OFF/ON target-index-file-cold replay roots preserved zero resident target pages and recovery, but replay-open, ACK and write-CPU effects reversed with order; both roots are workspace-incomplete/non-qualifying. Keep LZ4 opt-in/OFF by default; fully cold-machine start remains unmeasured. Host PSI/load/MemAvailable remain telemetry only; no safety controls are relaxed. Preserve artifacts; never retry after an actual safety refusal/stop. The 2026-10-24 coalescing+LZ4 combined P4 control-first and candidate-first pairs both preserved exact snapshots, oracle, ranking and retrieval (0 mismatch; Jaccard 1.000) and each reduced process-attributed writes about39.0% and WAL appends65.8%; both remain performance-ineligible because known inotify/workspace traversal races yielded UNKNOWN sampled peaks. Candidate-first query p95 stayed within+9.8%, but delete-batch p95 varied by order. In the same candidate-first root, an isolated coalescing-OFF LZ4-only ApplyBatch probe reduced WAL 16.073MB\u21925.485MB (65.87%) and probe physical writes17.412MB\u21926.251MB (64.1%); durable ApplyBatch ACK p95 62.5ms vs68.4ms and warm fresh-index replay-open 1.046s vs1.042s were similar. This is one pair, same-process page cache, not cold media; do not infer qualification. Candidate ACK p95 was lower in both roots, but the candidate/control gap differed sharply by order; both workspace-incomplete probes remain non-qualifying and establish no stable latency effect. M4 correctness tests cover mixed legacy/LZ4 frames, checksum corruption, torn suffix, post-fsync crash recovery/searchability, coalescing replay and flush crash boundaries; no default change. The counterbalanced LZ4-ON/coalescing-OFF-vs-ON interaction pair completed with COMPLETE workspace receipts and exact parity; process writes fell9.97% and13.62% (11.80% pooled), stats-log bytes3.526MB\u219210,207B, with WAL/segment/fsync/compaction counters equal. Keep coalescing opt-in; no default change, and the pair remains exploratory/non-qualifying. Host PSI/load/MemAvailable are telemetry only; actual disk/cgroup/runtime/watchdog/required telemetry/correctness/durability/cleanup remain enforced. Standing authorization applies; one pair per fresh root; no retry after a blocked/failed operation.",
+    "latest_completed_pair": {
+      "status": "COMPLETED_EXPLORATORY_NONQUALIFYING",
+      "operation_root": "research/m4-native/results/immutable-write-amplification/m4-write-amplification-pair-20261024-lz4-cold-replay-order2-01",
+      "arm_order": [
+        "candidate",
+        "control"
+      ],
+      "same_workload": true,
+      "candidate_change": "Isolated LZ4 ON candidate vs uncompressed OFF control, stats-event coalescing OFF in both; same delta1536, total runs12, per-level cap4, 256-mutation chunks and 4MiB stats threshold. WAL-only probe uses durable ApplyBatch, closes without Flush, advises only the fresh index files via POSIX_FADV_DONTNEED, verifies mincore residency, and reopens/replays. fsync_wal=true is unchanged. Candidate-first root is the latest counterbalance; no defaults change.",
+      "diagnostics": [
+        "WAL bytes and fsyncs",
+        "isolated durable ApplyBatch ACK percentiles and process CPU/write bytes",
+        "fresh-index index-file bytes and mincore page residency before/after file-local cache advice",
+        "target-file-cold replay-open wall/CPU and recovered searchable docs",
+        "segment writes",
+        "process_tree_write_bytes",
+        "physical_write_bytes",
+        "stage query and delete-batch latency",
+        "final close/reopen, oracle and crash-replay parity",
+        "workspace scan race/UNKNOWN status"
+      ],
+      "acceptance": "Both counterbalanced LZ4-only roots completed with stop_reason=none, workload returncode0, exact snapshot/oracle/retrieval/reopen parity (0 mismatches; Jaccard1.000). WAL bytes fell16.073MB\u21925.485MB (-65.87%) in both orders; WAL-only probe process writes fell63.0-63.1%. All four arms had0 resident target-index pages after advice and recovered4,800 searchable docs. ACK p95 was283.1\u2192173.0ms then124.9\u2192160.4ms; write CPU3.940\u21922.281s then1.955\u21922.527s; target-file-cold replay-open2.282\u21921.762s then1.911\u21922.656s, so CPU/latency effects reversed with order. The control role returned COMPLETED_WITH_WORKSPACE_UNCERTAINTY in both orders while both candidate receipts were PASS; both roots are INCOMPLETE_WORKSPACE_CAVEAT/performance_eligible=false. Host snapshots show substantial unrelated load/process activity; telemetry only, not a gate. Keep LZ4 opt-in and OFF by default: byte reduction repeats but no stable latency/CPU effect or qualification. m4_correctness CTest passed1/1, covering mixed/corrupt/torn/crash WAL and coalescing replay. Fully cold-machine and production behavior remain unevaluated.",
+      "launch_authorization": "Covered by owner standing authorization of 2026-10-24; run within existing containment without per-operation confirmation."
+    }
+  },
+  "native_query_lock_split_pair": {
+    "purpose": "m4-native-query-lock-split-pair",
+    "approval_status": "approved",
+    "approval_reference": "Current owner instruction 2026-10-30 to complete the Phase 3 query lock-split completion plan, including one policy-bound matched control/treatment comparison.",
+    "execution_authorization_reference": "The same owner instruction authorizes one bounded diagnostic pair after the correctness and recovery gates pass; no automatic retry after a safety, capacity, or required-telemetry failure.",
+    "risk_acceptance_reference": "Exploratory shared-host timing comparison; host pressure is recorded as context only and no causal or qualification claim is made.",
+    "evidence_class": "EXPLORATORY / NON-QUALIFYING",
+    "binary_name": "libzvec_c_api.so",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "workload": {
+      "documents": 512,
+      "tokens_per_document": 256,
+      "cycles": 32,
+      "readers": 8,
+      "batch_docs": 64,
+      "min_samples_per_phase": 256,
+      "phases": [
+        "idle",
+        "flush",
+        "optimize"
+      ]
+    },
+    "arm_roles": [
+      "control",
+      "treatment"
+    ],
+    "same_source_identity": true,
+    "single_pair_only": false,
+    "resource_controls": {
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 180,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 268435456,
+      "workspace_max_apparent_bytes": 536870912
+    },
+    "measurement_semantics": "Three counterbalanced control/treatment pairs plus one A/A control pair, built from the same source identity and differing only in the lock-split transform. Each arm runs 32 maintenance cycles with 8 concurrent FTS-only readers per cycle, yielding at least 256 samples per phase; each cycle inserts 64 new documents (256 tokens) before flush or optimize. Report per-cycle median query wait and paired bootstrap 95% CIs; compare against the A/A noise bound. Host PSI, load, and MemAvailable are context only. No causal, stable-tail, qualification, or architecture-win claim outside this diagnostic is supported.",
+    "recovery": "A failed correctness/reopen check, containment or preflight refusal, required-telemetry failure, or cleanup failure consumes the one pair and forbids automatic retry.",
+    "no_automatic_retry": true,
+    "max_pairs": 3,
+    "aa_pair": true,
+    "counterbalanced_order": true,
+    "analysis": "Paired bootstrap 95% confidence interval over maintenance cycles; A/A control pair bounds run-to-run noise."
+  },
+  "lock_contention_microbench": {
+    "purpose": "m4-lock-contention-microbench",
+    "approval_status": "approved",
+    "approval_reference": "Current explicit owner instruction 2026-10-22: independently investigate M4 writer-tail and reader contention with bounded contained workloads; preserve actual resource-capacity and containment safeguards. Host PSI/load/MemAvailable are telemetry only.",
+    "execution_authorization_reference": "Current explicit owner instruction 2026-10-22 authorizes bounded exploratory M4 measurements and remeasurement after material instrumentation changes, using fresh operation IDs and full containment; no retry after an actual safety/capacity failure. Host-pressure thresholds are not gates.",
+    "risk_acceptance_reference": "The standard contention profile is four-arm; writer_group_commit is a separate two-arm per-call Upsert experiment. All are descriptive only: shared-host pressure, one round per arm and test-scale workloads prohibit causal, qualification or architecture-win claims. ApplyBatch and Upsert call latencies have different units and must not be compared as equivalent tail samples.",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "binary_name": "m4_compaction_writer_contention",
+    "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+    "workspace_quota": {
+      "attestation_path": "/var/tmp/m4-native-workspace-quota-pwd.attestation.json",
+      "workspace_subvolume": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota",
+      "filesystem_uuid": "6c15377e-2602-4870-96ba-50e58605309c",
+      "subvolume_id": 259,
+      "qgroup_id": "0/259",
+      "max_referenced_bytes": 167772160,
+      "minimum_free_bytes": 67108864,
+      "accounting_mode": "squota",
+      "attestation_owner_uid": 0,
+      "max_attestation_age_seconds": 86400
+    },
+    "io_pressure_mode": "observational-only",
+    "workload": {
+      "documents": 8192,
+      "rounds": 32,
+      "writers": 4,
+      "ops_per_writer": 8,
+      "readers": 2,
+      "queries_per_reader": 32,
+      "mode": "--m4-compaction-contention",
+      "compaction_modes": [
+        "default",
+        "snapshot",
+        "snapshot_rebase",
+        "apply_batch"
+      ],
+      "tracing": false
+    },
+    "memory_probe": {
+      "profile_id": "memory_probe",
+      "workload": {
+        "documents": 4096,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "Independent memory-scaling diagnostic: seed 4,096 documents instead of 8,192, retaining the same four arms, four writers, 32 logical writes, 64 reader queries, and all unchanged cgroup/disk/swap safety limits. This smaller fixture is explicitly non-comparable to the 8,192-document contract and all prior measurements; analyze memory growth and tracked compaction scratch only, not latency, causal effects, or architecture performance. One fresh operation only; actual capacity, containment, required telemetry, correctness, durability, and cleanup safety checks remain mandatory. Host-pressure thresholds are telemetry only. No retry after a safety failure."
+    },
+    "memory_trace": {
+      "profile_id": "memory_trace",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "One bounded phase-attribution operation: 1,024 seeds per arm (one seed/flush block), all four existing arms and their reopen verification, with the same 32 logical writes, 64 reader queries, dictionary, binary, cgroup/host reserves, and hard gates. This is a distinct, lower-volume diagnostic, not a retry of the 4,096-document memory_probe. Correlate CLOCK_BOOTTIME M4_PHASE markers with process PSS and cgroup samples to distinguish analyzer Open/reopen, seed/flush, concurrent compaction/writer/reader and post-flush phases. Do not claim performance comparison, lifetime-peak proof, or cause beyond correlated phases. One operation only; any gate abort is consumed and not retried."
+    },
+    "memory_trace_after_snapshot_fix": {
+      "profile_id": "memory_trace_after_snapshot_fix",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "One fresh, one-shot verification of the content-addressed native dictionary snapshot correction after source-level root-cause analysis and focused regression tests. The four-arm workload remains 1,024 seeds/arm with all original hard limits unchanged; the rebuilt binary has a new identity. This is not an automatic retry of the consumed pre-fix OOM operation. Correlate phase markers, process PSS and cgroup samples; retain the original OOM evidence. Any gate abort consumes this verification and is not retried. No latency/architecture comparison or performance claim."
+    },
+    "memory_trace_scale2_after_snapshot_fix": {
+      "profile_id": "memory_trace_scale2_after_snapshot_fix",
+      "workload": {
+        "documents": 2048,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "One distinct 2,048-seed-per-arm post-fix memory-scaling operation under the unchanged existing hard/soft limits. It is not a retry of either consumed 4,096-document OOM or prior 1,024-document post-fix trace. Compare phase-correlated memory/cgroup data only; do not claim latency improvement or extrapolate capacity. Single operation; any preflight gate abort or runtime limit abort consumes this profile and is not retried."
+    },
+    "memory_churn_two_versions": {
+      "profile_id": "memory_churn_two_versions",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct contained operation: run the existing 1,024-seed/four-arm workload under unchanged hard/soft caps, then initialize two sequential uncached Jieba analyzers from distinct content-addressed dictionary snapshots in the same process. Capture process smaps_rollup before, while live, and after each analyzer release; outer cgroup/PSS cadence captures transient peaks. This observes process residency across version-keyed analyzer initialization and release, alongside outer cgroup/PSS transient sampling; source tracing is needed to attribute retained bytes, and this is not allocator-stack attribution. This is a single exploratory probe, not a latency comparison or capacity claim. Any preflight/runtime abort consumes the profile and is not retried; do not increase caps."
+    },
+    "memory_churn_two_versions_eviction": {
+      "profile_id": "memory_churn_two_versions_eviction",
+      "binary_relative_path": ".work/build/dict-cache-eviction-safe/m4_compaction_writer_contention",
+      "binary_sha256": "3ce5aa71573a09854cefb5a9542f49720e15431770ec4a8ae68d84b4fca0c823",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct contained profile using the research-only cppjieba DictTrie cache-eviction overlay at the exact repository-relative binary path. First run the same 1,024-seed/four-arm workload under unchanged hard/soft caps, then initialize two distinct dictionary versions in one process and record per-version PSS/RSS before and after release. Compare retained/live-entry evidence against the prior uncapped one-entry cache implementation and same-workload baseline descriptively; this is not an isolated benchmark, causal attribution, latency comparison, or capacity claim. The source-level regression separately checks same-key coalescing, concurrent analyzer lifecycle, generation release, and reopening an older version. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried."
+    },
+    "memory_churn_two_versions_trie_stream": {
+      "profile_id": "memory_churn_two_versions_trie_stream",
+      "binary_relative_path": ".work/build/dict-cache-trie-stream/m4_compaction_writer_contention",
+      "binary_sha256": "3f48d0e15aecace753e07f175ec4d88cfc1aa860f73fa121685f3525865db495",
+      "cppjieba_patch_relative_path": "patches/cppjieba-dict-cache-lifecycle-trie-stream.patch",
+      "cppjieba_patch_sha256": "a4bbccdcecf4b3ff8eee6e917f5907064b6a2ef5293f8f844559ef60acee3043",
+      "cppjieba_overlay_sha256": "dfa60124109bfb579be82f8dd00858bb70d98df27369efb6c2e5d03bb1773b72",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct same-cap exploratory cache-churn trace after the copy-reduction candidate. It removes per-analyzer temporary vector<Unicode> and pointer arrays by inserting the immutable base/user DictUnit entries directly into a local exception-safe Trie, in the same order; the existing public two-vector Trie constructor remains unchanged. Compare descriptively to the exact memory_churn_two_versions_memory_opt workload; record cgroup memory.stat, memory.peak, init times, and PSS, but this remains a one-run, multi-change research comparison, not isolated causal proof, stable latency/memory result, capacity claim, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
+    "memory_churn_two_versions_inline_child": {
+      "profile_id": "memory_churn_two_versions_inline_child",
+      "binary_relative_path": ".work/build/dict-cache-inline-child/m4_compaction_writer_contention",
+      "binary_sha256": "833bb2487dae1967712b5cd43be92732eddbf8c9069c35b22e82d8f4f33f09be",
+      "cppjieba_patch_relative_path": "patches/cppjieba-inline-first-child.patch",
+      "cppjieba_patch_sha256": "ef940d69df3b9def4e438e7964ca208e64a2bcc4e5e43500880dc40acf16307d",
+      "cppjieba_overlay_sha256": "83a256ef15729f706dc731cad2dd78d0ef6f2252896d22e934623af37a2c8e9b",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One distinct same-cap cache-churn profile after direct trie streaming. It stores the first child edge inline in every TrieNode and allocates the unordered map only for additional children, reducing per-node map/bucket/hash-node overhead for the pinned base dictionary's frequent unary nodes. It also makes DeleteUserWord remove/prune the requested term rather than the pre-existing first-rune subtree. The legacy vector-taking Trie constructor remains and both entry paths are tested. Capture cgroup memory.stat, memory.peak, analyzer init times and PSS; compare descriptively with memory_churn_two_versions_trie_stream. Single-run multi-change exploratory evidence only, not causal proof, stable latency/memory, capacity or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
+    "memory_churn_two_versions_concurrent_open": {
+      "profile_id": "memory_churn_two_versions_concurrent_open",
+      "binary_relative_path": ".work/build/dict-cache-concurrent-open/m4_compaction_writer_contention",
+      "binary_sha256": "017ef88ca30873ec474fa3473a676138187dc1a2bd9e9e21c142551c16fcd568",
+      "cppjieba_patch_relative_path": "patches/cppjieba-inline-first-child.patch",
+      "cppjieba_patch_sha256": "ef940d69df3b9def4e438e7964ca208e64a2bcc4e5e43500880dc40acf16307d",
+      "cppjieba_overlay_sha256": "83a256ef15729f706dc731cad2dd78d0ef6f2252896d22e934623af37a2c8e9b",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-concurrent-v2",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "Distinct same-cap diagnostic after the inline-child candidate. Two analyzers with different dictionary content fingerprints open concurrently, synchronize while both remain live for PSS sampling, then release one at a time. The inline-child overlay uses a bounded native cache (one retained path entry plus weak slots while older generations remain live); this measures co-resident analyzers and concurrent initialization, not an unbounded native-cache map. Compare only descriptively with the sequential two-version profile. Capture cgroup memory.stat/peak, phase markers, process PSS, and release observations. Exploratory memory/lifecycle evidence only, not a latency claim, stable capacity result, or architecture qualification. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
+    "memory_churn_two_versions_concurrent_allocator": {
+      "profile_id": "memory_churn_two_versions_concurrent_allocator",
+      "binary_relative_path": ".work/build/dict-cache-concurrent-heap/m4_compaction_writer_contention",
+      "binary_sha256": "3702795d130f8949051106c8ade1bff7f7c172d19436d409517012c707823f8d",
+      "cppjieba_patch_relative_path": "patches/cppjieba-inline-first-child.patch",
+      "cppjieba_patch_sha256": "ef940d69df3b9def4e438e7964ca208e64a2bcc4e5e43500880dc40acf16307d",
+      "cppjieba_overlay_sha256": "83a256ef15729f706dc731cad2dd78d0ef6f2252896d22e934623af37a2c8e9b",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-concurrent-v2",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "Distinct follow-up to memory_churn_two_versions_concurrent_open with mallinfo2 allocator snapshots added to the same process-memory records. Reports current allocated heap+mmapped bytes and free arena bytes at baseline, concurrent-live, and each release point to help distinguish allocator-owned live memory from RSS/PSS residency. No profile caps or workload change; exploratory ownership accounting only, not a latency or capacity result. One operation, no retry if any gate or containment issue occurs."
+    },
+    "memory_churn_two_versions_memory_opt": {
+      "profile_id": "memory_churn_two_versions_memory_opt",
+      "binary_relative_path": ".work/build/dict-cache-eviction-memory-opt-final/m4_compaction_writer_contention",
+      "binary_sha256": "722a6ac23d7121ec7b37a6cab910e09433a756335f3a616af275d3a4956e38bc",
+      "cppjieba_patch_relative_path": "patches/cppjieba-dict-cache-lifecycle-memory-optimized.patch",
+      "cppjieba_patch_sha256": "2e81ef69aebfd221aae604bc1e077acdb34b89eafd6c383b5caaff0af602a864",
+      "cppjieba_overlay_sha256": "93635d1eed3c9e31f61c732d056e6f0c06cea40c75004221489dbb8547729f1a",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-compaction-contention-cache-churn-v2",
+        "compaction_modes": [
+          "default",
+          "snapshot",
+          "snapshot_rebase",
+          "apply_batch"
+        ],
+        "tracing": false,
+        "dictionary_churn_versions": 2
+      },
+      "measurement_semantics": "One exploratory same-workload/same-cap comparison with memory_churn_two_versions_eviction. The source-only research patch replaces a full DictUnit sort-copy with scalar weight min/max/median selection and moves parsed DictUnit storage into the immutable cache entry. Lifecycle and exact min/median/max user-weight tests pass. Capture cgroup memory.stat and per-version PSS/init timing; this single run is directional, not an isolated causal measurement, stable performance result, or capacity claim. Any preflight/runtime/containment failure consumes the profile and is not retried."
+    },
+    "writer_group_commit": {
+      "profile_id": "writer_group_commit",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-writer-group-commit",
+        "compaction_modes": [
+          "default",
+          "group_commit"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "A single bounded, two-arm exploratory test of the opt-in M4 Upsert group-commit prototype versus ordinary per-call Upsert. Both arms use identical 1,024-document seeds, four concurrent writers \u00d7 eight independent Upsert calls, two concurrent search readers, one default compaction, explicit flush, reopen verification, WAL fsync enabled, and unchanged containment/resource caps. Group commit coalesces only overlapping calls for at most 500 us or four records, persists them using existing atomic ApplyBatch WAL/replay semantics, then publishes the group atomically; this remains linearizable for overlapping calls but may add bounded queue delay. Record end-to-end per-call latency, pre-dispatch group-formation wait, per-call batch-size evidence (require at least one multi-record group), reader latency, WAL fsync counts, and durability/reopen checks; do not compare against the older ApplyBatch API arm as identical call semantics. One operation only; any preflight/runtime/containment failure consumes it and is not retried. Exploratory evidence, not qualification or production authorization."
+    },
+    "writer_group_commit_per_upsert": {
+      "profile_id": "writer_group_commit_per_upsert",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-writer-group-commit-per-upsert",
+        "compaction_modes": [
+          "default",
+          "group_commit_per_upsert"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "A separately consumed, bounded two-arm test comparing ordinary per-call durable Upsert against per-Upsert WAL records sharing only the fsync for overlapping calls. Both arms use identical 1,024-document seeds, four concurrent writers \u00d7 eight individual Upsert calls, two concurrent search readers, default compaction, explicit flush, reopen verification, WAL fsync enabled, and unchanged containment/resource caps. The candidate appends one independently replayable WAL frame per Upsert, fsyncs the complete frame prefix once, then applies individual records with a reader-visible boundary per Upsert; this intentionally does not provide ApplyBatch atomicity. Verify multiple records per shared fsync, per-call ACKs only after durable sync and apply, WAL sequence order, reader-visible prefixes, crash recovery before/after sync and between applies, and no post-fsync mutation after an uncertain sync/apply error. Capture per-call writer latency, queue wait/group size, fsync count, reader latency, and durability/reopen checks. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried. Exploratory evidence only; no production authorization."
+    },
+    "writer_group_commit_snapshot_rebase": {
+      "profile_id": "writer_group_commit_snapshot_rebase",
+      "binary_relative_path": ".work/build/writer-group-commit-rebase-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "12b7c0f3691b1f87c33ff3031d4918bd6fd6297adeb476da02fbbcd1dc00ef00",
+      "workload": {
+        "documents": 1024,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-writer-group-commit-snapshot-rebase",
+        "compaction_modes": [
+          "snapshot_rebase",
+          "group_commit_snapshot_rebase"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "One distinct, bounded paired experiment testing whether the opt-in ordered Upsert group-commit queue adds value when both arms use the existing WAL-preserving snapshot-rebase compaction. The direct and group-commit arms use identical 1,024-document seeds, four writers \u00d7 eight individual Upsert calls, two search readers, one concurrent snapshot-rebase compaction, explicit flush, reopen verification and WAL fsync; resource and containment caps are unchanged. The paired direct arm distinguishes the queue effect within this operation; compare it descriptively with the separately consumed default-compaction profile only, not as a controlled four-way comparison. Capture per-call writer latency, group wait/size, state-lock and compaction stages, reader samples, fsync counts, and durability/reopen checks. One fresh operation only; any preflight/runtime/containment failure consumes it and is not retried. No qualification, stable-tail claim, architecture win, or production authorization."
+    },
+    "flush_reader_staging_pair": {
+      "profile_id": "flush_reader_staging_pair",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "ef6e77791d6f307c2464874f0afbf8dfa8564669e8d4e68fad94b92c8ff2640c",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-flush-reader-staging-pair",
+        "compaction_modes": [
+          "flush_baseline",
+          "flush_candidate"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "One bounded paired same-binary comparison of the pre-staging flush query-lock boundary (baseline) versus metadata publication staging (candidate). Each arm seeds the same 8,192 Jieba documents, runs four WAL-durable writers \u00d7 eight Upserts with two readers during one default compaction, then starts two continuous readers before explicit Flush and keeps them active until at least two post-flush queries each. The verifier requires per-reader timestamps proving at least two completed queries before, one query started during and overlapping the flush interval, and two queries after; a larger query count without interval overlap is invalid. Both modes preserve WAL fsync, manifest-before-publication and reopen/replay semantics. Capture per-query total wall, native query-mutex wait and execution CPU; flush total/stage wall+CPU and query-lock wait/hold; writer p95/state wait; fsync and bytes-written counters; cgroup/host memory, CPU and I/O evidence. Single operation only, no retry if any gate, containment or overlap check fails. Exploratory evidence, not qualification, a stable p95 claim, or production authorization. Concurrent flush remains out of scope."
+    },
+    "writer_group_commit_flush_reader_pair": {
+      "profile_id": "writer_group_commit_flush_reader_pair",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "2246a353e477a715ebd3a1e26034e7e75f390d729a7c543e45faa1fd84902682",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-group-commit-flush-reader-pair",
+        "compaction_modes": [
+          "default",
+          "group_commit"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "Distinct, one-shot paired experiment following the direct flush-staging pair: compare ordinary Upsert against bounded four-record/500-us Upsert group commit while both arms use metadata staging, the same 8,192-document corpus, default compaction, two readers, 32 logical writes, WAL fsync, explicit flush and reopen/replay checks. During each arm, retain the established concurrent-reader/compaction phase and then run continuous timestamped readers across explicit Flush; require at least two completed queries per reader before and after plus a query starting and overlapping the native flush interval, corroborated by M4_PHASE events. Capture writer wall/state wait and group size/queue delay/fsyncs, reader total wall/native mutex wait/execution CPU for concurrent compaction and explicit flush, flush stage/query-lock/state-lock timings, bytes, cgroup/host resource and I/O evidence. Both arms keep atomic visibility and durability unchanged; group commit remains default-off. This is a new cross-factor comparison, not a retry of the consumed direct-vs-staging profile. Any gate, containment or overlap failure consumes this profile without retry. Exploratory only; not qualification, stable-tail claim, architecture win, or production authorization."
+    },
+    "writer_group_commit_pending_flush_reader_pair": {
+      "profile_id": "writer_group_commit_pending_flush_reader_pair",
+      "binary_relative_path": ".work/build/writer-group-commit-prototype/m4_compaction_writer_contention",
+      "binary_sha256": "d1324094d7cded3fadbe6cb4f316161f7841b6dcb4087cb5d4cd83ade5fbbf09",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "pending_flush_documents": 256,
+        "mode": "--m4-group-commit-pending-flush-reader-pair",
+        "compaction_modes": [
+          "default",
+          "group_commit"
+        ],
+        "tracing": false
+      },
+      "measurement_semantics": "A distinct one-shot follow-up to the consumed writer_group_commit_flush_reader_pair. That operation showed the default arm's post-writer explicit Flush had no pending delta and did not exercise metadata staging; do not infer reader-through-flush impact from its default-arm trace. This profile compares ordinary Upsert with bounded four-record/500-us Upsert group commit while both use metadata staging, with 8,192 seed documents and 32 concurrent logical writes. Immediately before the continuous-reader phase, each arm applies a separate 256-document WAL-durable batch with unique flushmarker terms; this intentionally leaves a bounded pending delta below max_delta_docs so the explicit Flush must persist real data. Verify exactly 256 flushmarker hits after close/reopen. Timestamp two continuously active readers across that flush; require at least two completed queries before/after, a started+overlapping query during it, phase-log corroboration, pending_flush_ms and nonzero segment build/write work. Preserve atomic publication and WAL durability. Capture writer/group queue and fsync metrics, reader wall/mutex/CPU, flush stages/locks, bytes, cgroup/host resource and I/O evidence. New profile, not retry or reuse of the prior one; any gate/containment/overlap/flush-work check failure consumes it without retry. Exploratory only; no stable-tail, architecture, qualification or production claim."
+    },
+    "background_compaction_pair_off_first": {
+      "profile_id": "background_compaction_pair_off_first",
+      "binary_relative_path": ".work/build/background-compaction-benchmark-20261029/m4_compaction_writer_contention",
+      "binary_sha256": "74cb7214fe669590b7920dd18df482416d246bf465700190b728cdc140620474",
+      "runtime_library_relative_path": ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+      "runtime_library_sha256": "cbb596cadb910a691b4ee367283031cb3819efb4e919beefa62328e9d101e6d3",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-background-compaction-pair",
+        "compaction_modes": [
+          "background_off",
+          "background_on"
+        ],
+        "arm_order": "background_off_first",
+        "tracing": false
+      },
+      "execution_authorization_reference": "Owner instruction 2026-10-29: 't\u00f4i cho b\u1ea1n 3 pair n\u1eefa, l\u00e0m theo b\u1ea1n \u0111\u1ec1 xu\u1ea5t \u0111i' authorized up to three additional fresh bounded ON/OFF pair operations after the prior renewed batch completed 3/3. This authorization was consumed 3/3 in OFF/ON, ON/OFF, OFF/ON order; exact operation IDs and evidence are in results/native-background-compaction-20261029/second-renewal-batch-identity.json. No further operations are authorized by this instruction. The work remains exploratory/non-qualifying under unchanged containment/safety policy; no retry, bypass, threshold change, or production use.",
+      "risk_acceptance_reference": "Each operation is one contained process with two sequential arms; the cross-operation order is OFF/ON, ON/OFF, OFF/ON. Each arm builds the same eight-run fixture with automatic compaction suppressed and raised thresholds, then reopens at a four-run cap; OFF uses synchronous post-flush compaction, ON uses the opt-in background worker. The measured interval includes four concurrent writers (32 durable Upserts), two search readers (64 queries), automatic delta flushes and a final flush/reopen oracle. Fixture setup is separately marked but remains inside containment; M4_REPO_TMP_DIR redirects the analyzer snapshot cache into each operation workspace and the harness asserts that placement. The dynamically linked libzvec_c_api.so is SHA-pinned and its resolved path is verified before launch. Three pairs are descriptive exploratory evidence only; small sample count, sequential arms and shared-host pressure prohibit qualification or a stable performance claim. Resource limits and stop conditions are inherited unchanged. Stop the batch on any safety, capacity, correctness, durability, telemetry-integrity or cleanup refusal; never retry a refused operation.",
+      "measurement_semantics": "One owner-authorized paired background-compaction operation, OFF-first. Both arms rebuild identical 8,192-document/eight-run fixtures; the measured reopen uses max_total_runs=4, max_runs_per_level=4, max_delta_docs=8, and WAL fsync remains enabled. OFF leaves background_compaction_enabled=false, so maintenance runs synchronously on threshold-triggered flush; ON sets it true, queues startup maintenance and moves post-flush compaction to the coalescing worker. Each arm runs four concurrent writers for 32 logical Upserts and two readers for 64 FTS queries, explicitly flushes, waits for background work where enabled, and verifies retrieval after reopen. Validate fixture run count, actual compaction merges, final run cap, parity, per-call latency, WAL/segment/physical writes, per-process CPU/RSS/PSS/swap and host/cgroup telemetry. This pair operation is one repeat; no qualification, production or stable-win claim. No automatic retry after a gate refusal."
+    },
+    "background_compaction_pair_on_first": {
+      "profile_id": "background_compaction_pair_on_first",
+      "binary_relative_path": ".work/build/background-compaction-benchmark-20261029/m4_compaction_writer_contention",
+      "binary_sha256": "74cb7214fe669590b7920dd18df482416d246bf465700190b728cdc140620474",
+      "runtime_library_relative_path": ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+      "runtime_library_sha256": "cbb596cadb910a691b4ee367283031cb3819efb4e919beefa62328e9d101e6d3",
+      "workload": {
+        "documents": 8192,
+        "rounds": 32,
+        "writers": 4,
+        "ops_per_writer": 8,
+        "readers": 2,
+        "queries_per_reader": 32,
+        "mode": "--m4-background-compaction-pair",
+        "compaction_modes": [
+          "background_on",
+          "background_off"
+        ],
+        "arm_order": "background_on_first",
+        "tracing": false
+      },
+      "execution_authorization_reference": "Owner instruction 2026-10-29: 't\u00f4i cho b\u1ea1n 3 pair n\u1eefa, l\u00e0m theo b\u1ea1n \u0111\u1ec1 xu\u1ea5t \u0111i' authorized up to three additional fresh bounded ON/OFF pair operations after the prior renewed batch completed 3/3. This authorization was consumed 3/3 in OFF/ON, ON/OFF, OFF/ON order; exact operation IDs and evidence are in results/native-background-compaction-20261029/second-renewal-batch-identity.json. No further operations are authorized by this instruction. The work remains exploratory/non-qualifying under unchanged containment/safety policy; no retry, bypass, threshold change, or production use.",
+      "risk_acceptance_reference": "Same pair-level evidence and non-qualification limits as background_compaction_pair_off_first; reverse the arm order once to reduce systematic order bias. This one contained operation is one of at most three pairs, not a retry. Stop the remaining batch on any formal safety/capacity/correctness/telemetry/cleanup refusal.",
+      "measurement_semantics": "One owner-authorized paired background-compaction operation, ON-first. The workload, fixture, options, telemetry and acceptance checks are identical to background_compaction_pair_off_first; only the sequential arm order is reversed. This is a distinct order counterbalance, not a retry."
+    },
+    "single_arm": false,
+    "multi_arm_within_operation": true,
+    "resource_controls": {
+      "memory_max_bytes": 536870912,
+      "memory_swap_max_bytes": 0,
+      "cpu_max": "200000 100000",
+      "pids_max": 128,
+      "runtime_limit_seconds": 120,
+      "max_monitor_gap_seconds": 2,
+      "host_memory_reserve_bytes": 3221225472,
+      "disk_reserve_bytes": 18219000000,
+      "workspace_max_allocated_bytes": 134217728,
+      "workspace_max_apparent_bytes": 268435456
+    },
+    "measurement_semantics": "Within each arm, seed 8,192 Jieba-tokenized documents, run one compaction concurrently with four writers and two search readers (32 queries each), then Flush and verify after reopen. The default, snapshot, and snapshot_rebase arms use four WAL-durable writers making eight individual Upsert calls each. The apply_batch arm uses the same four writers and 32 logical mutations, but each writer submits eight mutations in one atomic, WAL-durable ApplyBatch call. This compares explicit client batching, not an internal autonomous group-commit queue. Writer timing is per API call: 32 Upsert samples versus four ApplyBatch samples; call p95 values have different units and sample counts and are not equivalent tail measures. The ApplyBatch arm uses default compaction. Compare the three compaction strategies plus the batch API arm in alternating root-hash order. With WAL enabled, rebase mode does not flush pending writer deltas at publication: it scans the uncommitted WAL for concurrent deletes, preserves their run dead-count/tombstone accounting, publishes only through the prior durable WAL sequence, and leaves the concurrent delta WAL-backed for normal later flush/replay. With WAL disabled, the existing pending-flush fallback remains. Rebase replaces only the captured immutable input runs; this is a research-only prototype and does not change the default API path. Record per-call writer wall times plus opt-in stage wall/CPU timings for normalization, state-mutex wait and hold, WAL encoding/append, query-mutex wait, apply and auto-flush; record query wall times and timing-schema-v5 diagnostics for compaction lock/pending-flush stages plus standalone post-writer Flush total, state/query lock wait/hold, and stage timings. Nested flush-stage schema v2 includes query-lock hold as an inclusive interval bounded by pending-flush duration and excluded from component-stage sums. Schema v5 extends the v4 writer API/call/logical-mutation binding; timing schemas 2\u20134 and nested flush-stage v1 historical receipts remain accepted. State-mutex wait is exact API lock acquisition time; hold timing accumulates only intervals with the state mutex owned and pauses across the unlocked snapshot merge build. merge_build includes streaming merge, reopen, and test-hook time. Residual wall time is not labeled scheduler time because it also includes other work. This 32-logical-write/64-query, one-round-per-arm operation is diagnostic only: no stable-tail claim, no cause attribution beyond instrumented stages, no qualification or architecture winner. Any superseded snapshot compaction is reported as such rather than hidden or retried.",
+    "no_automatic_retry": true
+  },
+  "workspace_observer": {
+    "schema_version": 2,
+    "max_entries_per_scan": 16384,
+    "max_depth": 64,
+    "max_issue_examples": 32,
+    "max_event_bytes_per_scan": 65536,
+    "scan_time_budget_seconds": 0.25,
+    "passes_per_sample": 1,
+    "cost_semantics": "Bounded streaming descriptor walk; cooperative deadline cannot bound a single blocked kernel filesystem syscall. No retry/rescan.",
+    "snapshot_semantics": "Complete traversal is a sampled observation, not an atomic snapshot, capacity upper bound or verified lifetime peak",
+    "known_race": "Retain ENOENT/directory mutation as partial observation, never COMPLETE/PASS. Legacy/qualification fail closed without proof; explicitly bound contention-aware exploratory mode may continue UNKNOWN under the owner-approved soft-budget contract.",
+    "contention_aware": {
+      "enforcement": "monitored-soft-budgets",
+      "approval_reference": "Owner explicit approval 2026-10-21; results/workspace-soft-budget-20261021/owner-authorization.md",
+      "race_continuation_inventory_status": "PARTIAL_KNOWN_RACE",
+      "pending_event_drain_issue": {
+        "kind": "MUTATION_COVERAGE_LOST",
+        "detail": "events exceed one bounded drain"
+      },
+      "pending_event_semantics": "A readable queue after one drain is accounting UNKNOWN, not observed overflow. Only this exact issue plus known mutations may continue with raw UNVERIFIABLE/INCOMPLETE retained, valid root identity and all issue examples present. Actual overflow/unmount/truncated events, scope, permissions and I/O errors remain fatal. No extra drain/rescan.",
+      "breach_action": "complete traversal overage: warn with raw observed/limit/excess bytes; never claim hard-cap enforcement",
+      "incomplete_overage_action": "retain raw observed/limit/excess bytes as indeterminate; incomplete traversal values are not verified budget breaches or peaks and remain UNKNOWN/INCOMPLETE",
+      "scope_error_action": "abort unknown scope, permission/EIO, actual overflow/unmount/truncated records and all unverified quota states. Observer depth/entry/time exhaustion remains fatal except for the separately registered Rust lifecycle pilot when its exact fresh root-owned qgroup attestation is revalidated and every live kernel qgroup sample passes; then the raw inventory remains UNKNOWN and soft workspace budgets are explicitly uncertified. Pending readable queue alone is handled by the exact accounting-uncertainty rule, not fabricated complete telemetry",
+      "completion_semantics": "Workspace inventory uncertainty remains INCOMPLETE/UNKNOWN; a qgroup-bounded Rust pilot may complete only with explicit non-qualifying workspace uncertainty. Completion with warnings or unknown soft budgets is not PASS/qualification. All independent hard safety telemetry and retained disk reserve remain mandatory."
+    },
+    "reservation_credit": "Zero: sampled gross allocated bytes are not a conservative lower bound on scoped physical allocation and cannot reduce shared-disk reserve requirements",
+    "independent_capacity_proof": "Unavailable by default; only the separately registered lock-contention microbenchmark and Rust lifecycle pilot may use their exact root-owned, policy-bound Btrfs simple-quota attestations. The Rust pilot still reports inventory and soft workspace budgets UNKNOWN when traversal is not sampled; the qgroup covers only the registered subvolume, not physical-device usage. No external JSON, environment or fixture assertion can certify a bound"
+  },
+  "baseline_pressure_guard": {
+    "gate_id": "M4-RG-MEMSWAP-BASELINE",
+    "evidence_class": "baseline-derived host context from the first three valid 10-second windows; not a host admission limit",
+    "source_of_authority": "same-operation baseline snapshot/window statistics",
+    "enforcement": "memory PSI is observation-only; an independently configured SwapFree capacity floor remains enforced, and telemetry-integrity failures remain blocking",
+    "failure_scope": "PSI contributes measurement context only, including when unavailable; only swap-capacity or required safety/workload telemetry-integrity failures affect the operation",
+    "recovery": "no recovery for PSI excursions; preserve snapshots; swap capacity must meet its explicit floor; no automatic retry",
+    "owner_approval_required_to_change": false
+  },
+  "measurement_quality": {
+    "telemetry_integrity": {
+      "gate_id": "M4-MQ-INTEGRITY",
+      "enforcement": "blocks measurement and qualification; never bypassed in diagnostic mode",
+      "requirements": "complete finite required safety/workload telemetry and valid monotonic sample brackets/cadence; host MemAvailable, load and PSI are optional context and may be missing/invalid without blocking launch, abort, stability classification or recovery",
+      "failure_scope": "affected measurement operation only"
+    },
+    "stability_envelope": {
+      "gate_id": "M4-MQ-STABILITY",
+      "enforcement": "stability/host-pressure observations affect evidence classification and analysis only; they never block launch. Telemetry integrity, correctness, durability and actual containment checks remain enforced",
+      "failure_scope": "qualification validity or diagnostic evidence class only; never changes resource thresholds",
+      "diagnostic_evidence_class": "EXPLORATORY / NOT QUALIFICATION EVIDENCE"
+    },
+    "interarm_recovery": {
+      "gate_id": "M4-MQ-RECOVERY",
+      "enforcement": "both modes require valid consecutive recovery windows, required safety/workload telemetry, retained-disk reserve, and any explicit swap-capacity floor before launching arm two; missing/invalid PSI/load/MemAvailable remain observational and do not block recovery",
+      "failure_scope": "second arm only; preserve first-arm receipt and stop the pair if recovery does not pass"
+    }
+  },
+  "containment": {
+    "mechanism": "transient per-arm systemd user service and delegated cgroup v2 with independent watchdog",
+    "controllers_expected_from_observed_host": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "io_controller_delegated": false,
+    "io_limit_claim": "Do not claim per-arm I/O throttling or physical-write attribution; record process-tree /proc I/O and host-wide diskstats as distinct scopes",
+    "resource_budgets": "No numeric cgroup memory, swap, CPU, or workspace ceilings are enabled unless separately approved; sampled workspace size is not a kernel quota",
+    "test_fixture_override": "The run_arm host-guard override is restricted to explicit M4_TEST_FIXTURE_MODE=1 synthetic commands in a temp-tree resource root; receipts label test_fixture_mode=true and performance_eligible=false. It is not exposed as a benchmark CLI option and must never wrap an M4 benchmark executable.",
+    "cleanup": "timeout/controller failure must terminate only the owned cgroup descendants, durably record the abort, and verify cleanup; never signal unrelated host processes"
+  },
+  "correctness_and_durability": {
+    "authority": "M4 invariants in research/m4-native/AGENTS.md, research/m4-native/README.md, oracle/regression tests, and approved format contracts",
+    "enforcement": "oracle/fault/recovery/sanitizer/build gates; a performance diagnostic cannot waive or downgrade a correctness/durability failure",
+    "failure_scope": "candidate/operation remains NO-GO; only an independently approved branch may continue"
+  },
+  "operation_outcomes": [
+    "SUCCESS",
+    "PARTIAL",
+    "OPERATION_BLOCKED",
+    "OWNER_DECISION_REQUIRED",
+    "SAFETY_STOP",
+    "EXHAUSTED"
+  ],
+  "authority_precedence": [
+    "platform/security boundaries and repository scope",
+    "current explicit user mission, authorization, and DoD",
+    "approved owner decisions and current repository policy",
+    "canonical handoff as state/evidence/continuity, not authority over newer user instructions",
+    "historical notes and agent assumptions"
+  ],
+  "continuation_rules": {
+    "operation_guard_failure": "stop the affected benchmark/arm; do not bypass, weaken, auto-retry, or mark the whole mission done; continue only already-authorized independent safe work",
+    "measurement_quality_failure": "qualification evidence is invalid; only explicitly allowed exploratory diagnostics may continue after all resource, integrity, containment, and baseline-pressure guards pass",
+    "correctness_or_durability_failure": "block the candidate/operation and unsafe dependents; do not downgrade the gate or switch to an unapproved branch",
+    "owner_decision_required": "stop only the decision-dependent action; preserve the current state and continue unrelated safe authorized work",
+    "mission_completion": "requires reconciliation of every active mission DoD item; one operation, test, report, or no-launch is not mission success",
+    "stale_handoff": "reconcile a handoff next action against current user authorization and active mission scope before execution",
+    "long_running_work": "keep jobs interruptible and record job id, outputs, stop condition, and exact next action",
+    "delegation": "a sub-agent inherits the same scope and authority limits and cannot approve a gate change or mission completion"
+  },
+  "runner_mission_semantics": "A benchmark runner may report only the operation and evidence class. It must never bypass a current gate or infer whole-mission SUCCESS from no-launch, one completed benchmark, one test, or one report. Whole-mission status belongs to the active mission DoD/handoff review."
+}

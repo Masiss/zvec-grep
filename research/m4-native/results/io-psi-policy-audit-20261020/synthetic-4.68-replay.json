@@ -1,0 +1,54 @@
+{
+  "synthetic_input_not_host_observation": true,
+  "state": {
+    "MemAvailable_kib": 5477762,
+    "resource_root_available_bytes": 18219000000,
+    "io_full_avg10": 4.68,
+    "load1": 3.14
+  },
+  "failures": [
+    {
+      "metric": "io_full_avg10",
+      "observed": 4.68,
+      "threshold": 4.46,
+      "gate_id": "M4-RG-IOPSI",
+      "threshold_key": "io_full_avg10_max",
+      "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap"
+    }
+  ],
+  "baseline_decisions": {
+    "qualification": {
+      "policy_id": "m4-benchmark-operation-policy-v1",
+      "gate_id": [
+        "M4-RG-IOPSI"
+      ],
+      "gate_class": "HISTORICAL_ENVELOPE_RESOURCE_GUARD",
+      "operation_outcome": "OPERATION_BLOCKED",
+      "reason": "ambient baseline violated unchanged operation-level resource guard(s)",
+      "evidence_class": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+      "failure_scope": "this baseline/A/A operation only",
+      "mission_status": "NOT_EVALUATED_BY_RUNNER",
+      "mission_marked_done": false,
+      "safe_independent_work_may_continue": true,
+      "recovery_conditions": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+      "owner_approval_required_to_change_thresholds": true
+    },
+    "diagnostic": {
+      "policy_id": "m4-benchmark-operation-policy-v1",
+      "gate_id": [
+        "M4-RG-IOPSI"
+      ],
+      "gate_class": "HISTORICAL_ENVELOPE_RESOURCE_GUARD",
+      "operation_outcome": "OPERATION_BLOCKED",
+      "reason": "ambient baseline violated unchanged operation-level resource guard(s)",
+      "evidence_class": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+      "failure_scope": "this baseline/A/A operation only",
+      "mission_status": "NOT_EVALUATED_BY_RUNNER",
+      "mission_marked_done": false,
+      "safe_independent_work_may_continue": true,
+      "recovery_conditions": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+      "owner_approval_required_to_change_thresholds": true
+    }
+  },
+  "diagnostic_recovery_allowed": false
+}

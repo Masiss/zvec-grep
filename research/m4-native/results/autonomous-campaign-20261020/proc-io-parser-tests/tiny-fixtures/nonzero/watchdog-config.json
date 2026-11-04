@@ -1,0 +1,32 @@
+{
+  "arm_name": "tiny-fixtures",
+  "baseline_memory_events": {
+    "high": 0,
+    "low": 0,
+    "max": 0,
+    "oom": 0,
+    "oom_group_kill": 0,
+    "oom_kill": 0,
+    "sock_throttled": 0
+  },
+  "bootstrap_pid": 421970,
+  "budget": null,
+  "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-43ba57c1e3e44d2f.service",
+  "cgroup_rel": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-43ba57c1e3e44d2f.service",
+  "command_done_marker": "/run/user/1000/m4-cgroup-xsskrwtz/command.done",
+  "controller_pid": 421921,
+  "enforce_host_gates": false,
+  "policy_context": null,
+  "policy_context_digest": null,
+  "policy_mode": "legacy",
+  "pressure_limits": null,
+  "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/tmp/m4-containment-fixtures-8skmwyby",
+  "runtime_limit_seconds": 5.0,
+  "sample_interval_ms": 20,
+  "socket_dir": "/run/user/1000/m4-cgroup-xsskrwtz",
+  "start_marker": "/run/user/1000/m4-cgroup-xsskrwtz/go",
+  "unit": "m4-contained-43ba57c1e3e44d2f.service",
+  "watchdog_output": "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/proc-io-parser-tests/tiny-fixtures/nonzero",
+  "watchdog_ready_path": "/run/user/1000/m4-cgroup-xsskrwtz/watchdog.ready",
+  "workspace_root": "/home/masis/src/zvec-grep/research/m4-native/.work/tmp/m4-containment-fixtures-8skmwyby/workspace"
+}

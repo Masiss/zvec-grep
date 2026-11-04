@@ -1,0 +1,36 @@
+{
+  "evidence_source": "/home/masis/src/zvec-grep/research/m4-native/.work/scratch/containment-signal-retirement-check/supervisor-crash",
+  "failure_class": "CONTROLLER_CRASH_ABORT",
+  "performance_eligible": false,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "status": "WATCHDOG_ABORT",
+  "unit": "m4-contained-b0901c53ed394c6c.service",
+  "unit_cleanup": {
+    "reset_failed_returncode": 0,
+    "stop_returncode": 0,
+    "unit_collected": true,
+    "verified": true
+  },
+  "watchdog_abort": {
+    "failure_class": "CONTROLLER_CRASH_ABORT",
+    "final_cleanup": {
+      "attempted": true,
+      "method": "cgroup.kill",
+      "success": true
+    },
+    "reason": "supervisor_lost",
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        1588396
+      ],
+      "term_pids": [
+        1588406,
+        1588407
+      ]
+    },
+    "timestamp_utc": "2026-10-20T04:19:42.794286+00:00"
+  }
+}

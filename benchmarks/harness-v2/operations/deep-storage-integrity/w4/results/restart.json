@@ -1,0 +1,44 @@
+{
+  "scratch_server": {
+    "listen": "127.0.0.1:7998",
+    "home": ".tmp/w4/server-home",
+    "on": {
+      "code": 0,
+      "status": "ready",
+      "pid_note": "reported ready"
+    },
+    "off": {
+      "code": 0,
+      "status": "stopped"
+    },
+    "on_again": {
+      "code": 0,
+      "status": "ready"
+    },
+    "final_off": {
+      "code": 0,
+      "status": "stopped"
+    }
+  },
+  "installed_server_after_rollout": {
+    "listen": "127.0.0.1:7999",
+    "off": {
+      "code": 0,
+      "status": "stopped"
+    },
+    "on": {
+      "code": 0,
+      "status": "ready"
+    },
+    "check_ready": {
+      "code": 0,
+      "status": "ready"
+    },
+    "verify_after_restart": {
+      "code": 0,
+      "outcome": "pass",
+      "status": "PASS_COMPLETE"
+    }
+  },
+  "note": "The old installed daemon on port 7999 was terminated gracefully before installation; no indexing jobs were active."
+}

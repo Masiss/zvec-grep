@@ -1,0 +1,24 @@
+{
+  "cleanup_complete": true,
+  "failure_class": "CONTROLLER_CRASH_ABORT",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "reason": "supervisor_lost",
+  "socket_cleanup_verified": true,
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      732916
+    ],
+    "term_pids": [
+      732928,
+      732929
+    ]
+  },
+  "timestamp_utc": "2026-10-21T02:36:34.591340+00:00"
+}

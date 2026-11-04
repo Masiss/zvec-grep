@@ -1,0 +1,1834 @@
+{
+  "status": "INCOMPLETE_LEGACY",
+  "pass": true,
+  "complete": false,
+  "legacy": true,
+  "stable": true,
+  "stability": "stable",
+  "stability_detail": "shared lock acquired; no active writer",
+  "flags": 7,
+  "collection_path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage",
+  "generation": "1824596c-7ef6-414c-be7f-9e0c311213fd",
+  "coverage": [
+    {
+      "name": "proxima",
+      "status": "partial",
+      "files": 1,
+      "bytes": 4456448
+    },
+    {
+      "name": "rocksdb",
+      "status": "covered",
+      "files": 13,
+      "bytes": 1047731
+    },
+    {
+      "name": "ipc",
+      "status": "partial",
+      "files": 3,
+      "bytes": 288214
+    },
+    {
+      "name": "sidecars",
+      "status": "partial",
+      "files": 201,
+      "bytes": 38994
+    },
+    {
+      "name": "wal",
+      "status": "covered",
+      "files": 13,
+      "bytes": 0
+    }
+  ],
+  "missing_coverage": [],
+  "limitations": [
+    "sidecars.content_checksum",
+    "ipc.content_checksum"
+  ],
+  "errors": [],
+  "components": [
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000000.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000001.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000002.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000003.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000004.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000005.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000006.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000007.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000008.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000009.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000000a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000000b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000000c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000000d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000000e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000000f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000010.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000011.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000012.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000013.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000014.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000015.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000016.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000017.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000018.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000019.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000001a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000001b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000001c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000001d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000001e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000001f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000020.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000021.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000022.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000023.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000024.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000025.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000026.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000027.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000028.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000029.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000002a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000002b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000002c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000002d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000002e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000002f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000030.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000031.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000032.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000033.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000034.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000035.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000036.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000037.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000038.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000039.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000003a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000003b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000003c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000003d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000003e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000003f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000040.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000041.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000042.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000043.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000044.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000045.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000046.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000047.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000048.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000049.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000004a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000004b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000004c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000004d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000004e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000004f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000050.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000051.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000052.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000053.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000054.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000055.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000056.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000057.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000058.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000059.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000005a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000005b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000005c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000005d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000005e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000005f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000060.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000061.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000062.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000063.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000064.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000065.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000066.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000067.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000068.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000069.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000006a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000006b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000006c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000006d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000006e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000006f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000070.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000071.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000072.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000073.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000074.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000075.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000076.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000077.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000078.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000079.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000007a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000007b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000007c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000007d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000007e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000007f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000080.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000081.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000082.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000083.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000084.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000085.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000086.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000087.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000088.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000089.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000008a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000008b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000008c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000008d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000008e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000008f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000090.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000091.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000092.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000093.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000094.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000095.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000096.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000097.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000098.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-00000099.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000009a.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000009b.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000009c.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000009d.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000009e.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-0000009f.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a0.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a1.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a2.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a3.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a4.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a5.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a6.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a7.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a8.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000a9.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000aa.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000ab.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000ac.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000ad.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000ae.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000af.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b0.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b1.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b2.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b3.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b4.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b5.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b6.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b7.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b8.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000b9.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000ba.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000bb.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000bc.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000bd.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000be.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000bf.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c0.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c1.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c2.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c3.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c4.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c5.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c6.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c7.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "sidecar",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/reconciliation/file-000000c8.bin",
+      "status": "partial",
+      "complete": false,
+      "bytes": 194,
+      "error": "sidecar structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/idmap.0",
+      "status": "ok",
+      "complete": true,
+      "bytes": 19373,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/scalar.index.1.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 125109,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/1/fts.2.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 63724,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 197481,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/fts.2.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 140850,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "ipc",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.0.ipc",
+      "status": "partial",
+      "complete": false,
+      "bytes": 67026,
+      "error": "IPC structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "proxima",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.5.proxima",
+      "status": "legacy",
+      "complete": false,
+      "bytes": 4456448,
+      "error": "content CRC absent (legacy writer)",
+      "segments": 7,
+      "segments_with_crc": 2,
+      "segments_without_crc": 5,
+      "unprotected_bytes": 3383296,
+      "segment_crc_mismatches": 0,
+      "content_size": 3403776,
+      "content_crc": 0,
+      "capability": 0,
+      "capability_ok": false,
+      "content_crc_checked": true
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/entities/idmap.0",
+      "status": "ok",
+      "complete": true,
+      "bytes": 17751,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/entities/1/scalar.index.1.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 54077,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/entities/0/scalar.index.1.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 83484,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "ipc",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/entities/0/scalar.0.ipc",
+      "status": "partial",
+      "complete": false,
+      "bytes": 123578,
+      "error": "IPC structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/directories/idmap.0",
+      "status": "ok",
+      "complete": true,
+      "bytes": 7163,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/directories/0/scalar.index.1.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 54227,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/files/idmap.0",
+      "status": "ok",
+      "complete": true,
+      "bytes": 12733,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/files/2/scalar.index.1.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 164378,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    },
+    {
+      "kind": "ipc",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/files/2/scalar.0.ipc",
+      "status": "partial",
+      "complete": false,
+      "bytes": 97610,
+      "error": "IPC structure verified; the format has no content checksum"
+    },
+    {
+      "kind": "rocksdb",
+      "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/files/1/scalar.index.1.rocksdb",
+      "status": "ok",
+      "complete": true,
+      "bytes": 107381,
+      "error": "",
+      "wal_files": 1,
+      "wal_bytes": 0
+    }
+  ],
+  "native_code": 2,
+  "native_complete": false
+}

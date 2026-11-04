@@ -1,0 +1,430 @@
+{
+  "analysis_status": "COMPLETE",
+  "api_latency_rows": 84,
+  "evidence_class": "EXPLORATORY / NON-QUALIFYING",
+  "expected_api_latency_rows": 84,
+  "groups": [
+    {
+      "max_us": 17232.481,
+      "median_us": 15831.753,
+      "min_us": 12648.505,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 0,
+      "values_us": [
+        12648.505,
+        17232.481,
+        15831.753
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 10749.748,
+      "median_us": 9193.841,
+      "min_us": 8914.163,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 0,
+      "values_us": [
+        8914.163,
+        9193.841,
+        10749.748
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 17712.684,
+      "median_us": 16065.192,
+      "min_us": 15827.896,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 0,
+      "values_us": [
+        17712.684,
+        16065.192,
+        15827.896
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 11197.484,
+      "median_us": 10007.963,
+      "min_us": 9396.008,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 0,
+      "values_us": [
+        11197.484,
+        9396.008,
+        10007.963
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 46828.746,
+      "median_us": 38881.017,
+      "min_us": 34235.137,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 1,
+      "values_us": [
+        34235.137,
+        46828.746,
+        38881.017
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 26482.061,
+      "median_us": 21558.352,
+      "min_us": 20307.657,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 1,
+      "values_us": [
+        20307.657,
+        21558.352,
+        26482.061
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 48412.831,
+      "median_us": 43742.007,
+      "min_us": 40776.74,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 1,
+      "values_us": [
+        43742.007,
+        48412.831,
+        40776.74
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 31350.502,
+      "median_us": 27460.148,
+      "min_us": 24067.698,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 1,
+      "values_us": [
+        31350.502,
+        27460.148,
+        24067.698
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 54953.154,
+      "median_us": 47299.526,
+      "min_us": 42881.903,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 2,
+      "values_us": [
+        47299.526,
+        54953.154,
+        42881.903
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 46255.025,
+      "median_us": 29862.646,
+      "min_us": 25136.047,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 2,
+      "values_us": [
+        25136.047,
+        29862.646,
+        46255.025
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 67323.481,
+      "median_us": 64444.18,
+      "min_us": 53566.731,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 2,
+      "values_us": [
+        67323.481,
+        64444.18,
+        53566.731
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 38027.853,
+      "median_us": 32744.812,
+      "min_us": 32579.44,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 2,
+      "values_us": [
+        38027.853,
+        32744.812,
+        32579.44
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 122227.705,
+      "median_us": 113154.022,
+      "min_us": 107178.745,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 3,
+      "values_us": [
+        113154.022,
+        122227.705,
+        107178.745
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 49981.387,
+      "median_us": 44008.798,
+      "min_us": 39586.393,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 3,
+      "values_us": [
+        49981.387,
+        39586.393,
+        44008.798
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 120399.564,
+      "median_us": 114266.839,
+      "min_us": 111987.207,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 3,
+      "values_us": [
+        120399.564,
+        114266.839,
+        111987.207
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 54944.58,
+      "median_us": 49946.798,
+      "min_us": 41004.161,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 3,
+      "values_us": [
+        49946.798,
+        41004.161,
+        54944.58
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 172533.185,
+      "median_us": 167324.485,
+      "min_us": 163048.005,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 4,
+      "values_us": [
+        163048.005,
+        172533.185,
+        167324.485
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 52513.489,
+      "median_us": 44585.847,
+      "min_us": 42959.55,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 4,
+      "values_us": [
+        52513.489,
+        42959.55,
+        44585.847
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 149182.06,
+      "median_us": 149025.996,
+      "min_us": 145791.901,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 4,
+      "values_us": [
+        145791.901,
+        149025.996,
+        149182.06
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 61039.024,
+      "median_us": 53183.387,
+      "min_us": 41790.08,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 4,
+      "values_us": [
+        61039.024,
+        41790.08,
+        53183.387
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 130410.311,
+      "median_us": 130346.505,
+      "min_us": 124940.209,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 5,
+      "values_us": [
+        124940.209,
+        130410.311,
+        130346.505
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 58332.674,
+      "median_us": 47746.57,
+      "min_us": 44715.094,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 5,
+      "values_us": [
+        44715.094,
+        47746.57,
+        58332.674
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 152867.062,
+      "median_us": 126489.402,
+      "min_us": 126392.173,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 5,
+      "values_us": [
+        126392.173,
+        152867.062,
+        126489.402
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 47056.152,
+      "median_us": 44753.121,
+      "min_us": 40541.456,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 5,
+      "values_us": [
+        40541.456,
+        44753.121,
+        47056.152
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 154019.39,
+      "median_us": 138218.104,
+      "min_us": 134407.032,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 6,
+      "values_us": [
+        138218.104,
+        154019.39,
+        134407.032
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 52600.658,
+      "median_us": 49181.338,
+      "min_us": 45989.399,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 6,
+      "values_us": [
+        49181.338,
+        52600.658,
+        45989.399
+      ],
+      "vector_type": "flat"
+    },
+    {
+      "max_us": 152509.634,
+      "median_us": 152467.953,
+      "min_us": 146812.618,
+      "n": 3,
+      "operation": "create_and_open",
+      "scalar_count": 6,
+      "values_us": [
+        152467.953,
+        152509.634,
+        146812.618
+      ],
+      "vector_type": "hnsw"
+    },
+    {
+      "max_us": 53671.648,
+      "median_us": 53431.738,
+      "min_us": 40411.85,
+      "n": 3,
+      "operation": "reopen",
+      "scalar_count": 6,
+      "values_us": [
+        53671.648,
+        53431.738,
+        40411.85
+      ],
+      "vector_type": "hnsw"
+    }
+  ],
+  "measurement_semantics": "Per-call wall intervals for C API create_and_open and reopen only; three observations per count/type/operation cell. Report every observation, median and range; no stable-tail or causal claims.",
+  "parse_errors": [],
+  "summary_rows": [
+    {
+      "api_latency_samples": 84,
+      "api_opens": 84,
+      "collection_roots_at_once": 1,
+      "documents": 0,
+      "elapsed_ms": 5689.557,
+      "queries": 0,
+      "repetitions": 3,
+      "row_kind": "summary",
+      "scalar_counts": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "vector_types": [
+        "HNSW",
+        "FLAT"
+      ],
+      "workload": "m4-scalar-open-latency-diagnostic"
+    }
+  ],
+  "workload_complete": true,
+  "workspace_capacity_status": "WORKSPACE_CAPACITY_UNVERIFIED"
+}

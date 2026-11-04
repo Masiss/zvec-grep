@@ -1,0 +1,155 @@
+--- a/DictTrie.hpp
++++ b/DictTrie.hpp
+@@ -8,0 +9 @@
++#include <condition_variable>
+@@ -9,0 +11 @@
++#include <exception>
+@@ -15,0 +18 @@
++#include <utility>
+@@ -44,0 +48,19 @@
++#ifdef CPPJIEBA_CACHE_LIFECYCLE_TESTING
++  static size_t CacheLiveEntryCountForTesting() {
++    DictCacheState& state = GetDictCacheState();
++    std::lock_guard<std::mutex> lock(state.mutex);
++    size_t count = 0;
++    for (std::unordered_map<std::string, std::shared_ptr<DictCacheSlot> >::const_iterator it =
++             state.slots.begin(); it != state.slots.end(); ++it) {
++      if (!it->second->entry.expired()) ++count;
++    }
++    return count;
++  }
++
++  static size_t CacheBuildCountForTesting() {
++    DictCacheState& state = GetDictCacheState();
++    std::lock_guard<std::mutex> lock(state.mutex);
++    return state.build_count;
++  }
++#endif
++
+@@ -180 +202,2 @@
+-    const DictCacheEntry& cache = GetDictCache(dict_path);
++    dict_cache_entry_ = GetDictCache(dict_path);
++    const DictCacheEntry& cache = *dict_cache_entry_;
+@@ -259,5 +282,11 @@
+-    std::vector<DictUnit> sorted = node_infos;
+-    std::sort(sorted.begin(), sorted.end(), WeightCompare);
+-    entry.min_weight = sorted.front().weight;
+-    entry.max_weight = sorted.back().weight;
+-    entry.median_weight = sorted[sorted.size() / 2].weight;
++    std::vector<double> weights;
++    weights.reserve(node_infos.size());
++    for (size_t i = 0; i < node_infos.size(); ++i) {
++      weights.push_back(node_infos[i].weight);
++    }
++    const auto minmax = std::minmax_element(weights.begin(), weights.end());
++    entry.min_weight = *minmax.first;
++    entry.max_weight = *minmax.second;
++    std::vector<double>::iterator median = weights.begin() + weights.size() / 2;
++    std::nth_element(weights.begin(), median, weights.end());
++    entry.median_weight = *median;
+@@ -265 +294,2 @@
+-    entry.node_infos = std::shared_ptr<const std::vector<DictUnit> >(new std::vector<DictUnit>(node_infos));
++    entry.node_infos = std::shared_ptr<const std::vector<DictUnit> >(
++        new std::vector<DictUnit>(std::move(node_infos)));
+@@ -269,12 +299,87 @@
+-  static const DictCacheEntry& GetDictCache(const std::string& filePath) {
+-    static std::unordered_map<std::string, DictCacheEntry> cache;
+-    static std::mutex cache_mutex;
+-    std::lock_guard<std::mutex> lock(cache_mutex);
+-    std::unordered_map<std::string, DictCacheEntry>::const_iterator it = cache.find(filePath);
+-    if (it != cache.end()) {
+-      return it->second;
+-    }
+-    DictCacheEntry entry = BuildDictCacheEntry(filePath);
+-    std::pair<std::unordered_map<std::string, DictCacheEntry>::iterator, bool> result =
+-      cache.insert(std::make_pair(filePath, entry));
+-    return result.first->second;
++  struct DictCacheSlot {
++    std::weak_ptr<const DictCacheEntry> entry;
++    std::condition_variable ready;
++    bool loading = false;
++    std::exception_ptr error;
++  };
++
++  struct DictCacheState {
++    std::mutex mutex;
++    std::unordered_map<std::string, std::shared_ptr<DictCacheSlot> > slots;
++    std::string retained_path;
++    std::shared_ptr<const DictCacheEntry> retained_entry;
++#ifdef CPPJIEBA_CACHE_LIFECYCLE_TESTING
++    size_t build_count{0};
++#endif
++  };
++
++  static DictCacheState& GetDictCacheState() {
++    static DictCacheState state;
++    return state;
++  }
++
++  static std::shared_ptr<const DictCacheEntry> GetDictCache(const std::string& filePath) {
++    DictCacheState& state = GetDictCacheState();
++    std::shared_ptr<DictCacheSlot> slot;
++    std::unique_lock<std::mutex> lock(state.mutex);
++    for (std::unordered_map<std::string, std::shared_ptr<DictCacheSlot> >::iterator it =
++             state.slots.begin(); it != state.slots.end();) {
++      if (it->first != state.retained_path && !it->second->loading &&
++          it->second->entry.expired()) {
++        it = state.slots.erase(it);
++      } else {
++        ++it;
++      }
++    }
++    std::shared_ptr<DictCacheSlot>& slot_ref = state.slots[filePath];
++    if (!slot_ref) slot_ref.reset(new DictCacheSlot());
++    slot = slot_ref;
++
++    for (;;) {
++      if (state.retained_path == filePath && state.retained_entry) {
++        return state.retained_entry;
++      }
++      std::shared_ptr<const DictCacheEntry> cached = slot->entry.lock();
++      if (cached) {
++        state.retained_path = filePath;
++        state.retained_entry = cached;
++        return cached;
++      }
++      if (!slot->loading) {
++        slot->loading = true;
++        slot->error = std::exception_ptr();
++        break;
++      }
++      slot->ready.wait(lock, [&slot] { return !slot->loading; });
++      if (slot->error) {
++        const std::exception_ptr error = slot->error;
++        lock.unlock();
++        std::rethrow_exception(error);
++      }
++    }
++
++    lock.unlock();
++    std::shared_ptr<DictCacheEntry> built;
++    std::string retained_path;
++    try {
++      built.reset(new DictCacheEntry(BuildDictCacheEntry(filePath)));
++      retained_path = filePath;
++    } catch (...) {
++      lock.lock();
++      slot->error = std::current_exception();
++      slot->loading = false;
++      slot->ready.notify_all();
++      throw;
++    }
++
++    lock.lock();
++    slot->entry = built;
++    slot->loading = false;
++    slot->error = std::exception_ptr();
++    state.retained_path.swap(retained_path);
++    state.retained_entry = built;
++#ifdef CPPJIEBA_CACHE_LIFECYCLE_TESTING
++    ++state.build_count;
++#endif
++    slot->ready.notify_all();
++    return built;
+@@ -307,0 +413 @@
++  std::shared_ptr<const DictCacheEntry> dict_cache_entry_;

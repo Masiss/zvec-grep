@@ -1,0 +1,34 @@
+{
+  "cleanup_complete": true,
+  "continuation_allowed": false,
+  "errors": [
+    "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+    "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+    "/var/tmp/m4-soft-native-ilm3j5wc: events exceed one bounded drain"
+  ],
+  "failure_class": "WORKSPACE_CAPACITY_UNVERIFIABLE",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "independent_capacity_upper_bound": null,
+  "inventory_status": "UNVERIFIABLE",
+  "measurement_quality": "INCOMPLETE",
+  "proof_semantics": "owner-approved monitored soft budgets only; NOT hard enforcement/capacity proof",
+  "reason": "workspace_capacity_unverifiable",
+  "state": "UNKNOWN",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      716259
+    ],
+    "term_pids": [
+      716330
+    ]
+  },
+  "timestamp_utc": "2026-10-21T02:32:54.073089+00:00",
+  "warnings": []
+}

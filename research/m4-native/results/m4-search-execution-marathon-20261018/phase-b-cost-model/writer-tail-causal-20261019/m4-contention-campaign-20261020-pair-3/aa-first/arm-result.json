@@ -1,0 +1,24 @@
+{
+  "status": "WATCHDOG_ABORT",
+  "failure_class": "SIGNAL_EXIT",
+  "operation_outcome": "OPERATION_BLOCKED",
+  "failure_scope": "this arm only",
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "safety_outcome": "ABORTED_CONTAINED",
+  "measurement_quality": "COMPLETE",
+  "test_fixture_mode": false,
+  "operation_complete": false,
+  "performance_eligible": false,
+  "unit": "m4-contained-580593efa0104d61.service",
+  "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-580593efa0104d61.service",
+  "io_control": {
+    "fallback": "process-tree /proc/<pid>/io plus host /proc/diskstats; not a per-arm physical-write attribution",
+    "io_limit_applied": false,
+    "status": "UNAVAILABLE"
+  },
+  "runtime_limit_seconds": 115,
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "private_workdir": "/var/tmp/m4-writer-sync-pair-z9h8aj8w",
+  "workload_root": "/var/tmp/m4-writer-sync-pair-z9h8aj8w/root"
+}

@@ -1,3 +1,11 @@
+> **Fork development:** use branch `work/zg-recovered`. It recovers the newer
+> work onto this fork's released Rust baseline. Upstream comparison refs are
+> unchanged; the former personal branches are preserved by `archive/zg-v1-*`
+> and `archive/zg-v2-*` tags, not parallel implementation targets. See
+> [`rust/docs/branch-recovery-status.md`](rust/docs/branch-recovery-status.md)
+> for verification and remaining recovery work. Research/native archives are
+> not production integrations.
+
 <p align="right">
   English | <a href="./README_CN.md">中文</a>
 </p>

@@ -1,0 +1,10 @@
+{
+  "scope": "repository text-format check, NOT measurement/resource/containment gate",
+  "default_diff_check": "flags raw CSV CR as trailing whitespace on 1201 CRLF records",
+  "raw_csv": "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/ambient-baseline.csv",
+  "sha256": "8d9c1ee2d404eff47d3cc0f191846caedee5e9f1451a953fea541739195dcae9",
+  "raw_bytes_modified": false,
+  "valid_crlf_records": 1201,
+  "spaces_or_tabs_before_eol": false,
+  "resolution": "Preserve original csv.writer CRLF bytes; per-command Git cr-at-eol recognition retains the other standard whitespace checks. No source/safety/qualification policy or benchmark guard changed."
+}

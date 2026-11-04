@@ -1,0 +1,180 @@
+{
+  "timestamp_utc": "2026-10-20T14:55:15.439812+00:00",
+  "purpose": "Post-inspection closure snapshot, not an immediate after-run sample or new readiness/preflight; exception branch omitted its normal host-after artifact",
+  "unit": "m4-contained-b32d2a2fdbab4065.service",
+  "unit_state": "LoadState=not-found\nActiveState=inactive\nControlGroup=\n",
+  "unit_query_returncode": 0,
+  "unit_cgroup_absent": true,
+  "native_workload_started": false,
+  "workload_root_absent": true,
+  "private_empty_workspace_retained": "/var/tmp/m4-writer-sync-pair-uflgu82c",
+  "workspace_mode": "0o700",
+  "host": {
+    "timestamp_utc": "2026-10-20T14:55:15.441197+00:00",
+    "monotonic_ns": 213794979939175,
+    "meminfo_kib": {
+      "MemTotal_kib": 16051144,
+      "MemAvailable_kib": 5166716,
+      "SwapTotal_kib": 24802296,
+      "SwapFree_kib": 16151100
+    },
+    "loadavg": [
+      2.78,
+      2.33,
+      2.35
+    ],
+    "io_pressure": {
+      "some": {
+        "avg10": 2.03,
+        "avg60": 1.58,
+        "avg300": 1.79,
+        "total": 4377557616.0
+      },
+      "full": {
+        "avg10": 1.26,
+        "avg60": 1.2,
+        "avg300": 1.48,
+        "total": 3970324988.0
+      }
+    },
+    "memory_pressure": {
+      "some": {
+        "avg10": 0.0,
+        "avg60": 0.0,
+        "avg300": 0.0,
+        "total": 289051196.0
+      },
+      "full": {
+        "avg10": 0.0,
+        "avg60": 0.0,
+        "avg300": 0.0,
+        "total": 274779047.0
+      }
+    },
+    "resource_root_free_bytes": 17547923456,
+    "vmstat": {
+      "pgsteal_direct": 41305551,
+      "pgscan_direct": 74127186,
+      "pswpin_pages": 40572126,
+      "pswpout_pages": 61106376,
+      "allocstall_dma": 0,
+      "allocstall_dma32": 0,
+      "allocstall_normal": 189346,
+      "allocstall_movable": 520742,
+      "allocstall_device": 4,
+      "oom_kill": 0
+    },
+    "diskstats": {
+      "nvme0n1": {
+        "major": 259,
+        "minor": 0,
+        "reads_completed": 26498080,
+        "sectors_read": 1696326659,
+        "read_ms": 8384149,
+        "writes_completed": 26576057,
+        "sectors_written": 1372715826,
+        "write_ms": 155512351,
+        "io_in_progress": 0,
+        "io_ms": 6732409,
+        "weighted_io_ms": 164818477
+      },
+      "nvme0n1p1": {
+        "major": 259,
+        "minor": 1,
+        "reads_completed": 859,
+        "sectors_read": 18306,
+        "read_ms": 267,
+        "writes_completed": 12,
+        "sectors_written": 10,
+        "write_ms": 1,
+        "io_in_progress": 0,
+        "io_ms": 50,
+        "weighted_io_ms": 274
+      },
+      "nvme0n1p2": {
+        "major": 259,
+        "minor": 2,
+        "reads_completed": 13238530,
+        "sectors_read": 162570352,
+        "read_ms": 2488049,
+        "writes_completed": 4606512,
+        "sectors_written": 221642560,
+        "write_ms": 114003486,
+        "io_in_progress": 0,
+        "io_ms": 2066027,
+        "weighted_io_ms": 116491535
+      },
+      "nvme0n1p3": {
+        "major": 259,
+        "minor": 3,
+        "reads_completed": 13258578,
+        "sectors_read": 1533734793,
+        "read_ms": 5895822,
+        "writes_completed": 21969529,
+        "sectors_written": 1151073256,
+        "write_ms": 41508863,
+        "io_in_progress": 0,
+        "io_ms": 4793455,
+        "weighted_io_ms": 47404685
+      },
+      "dm-0": {
+        "major": 253,
+        "minor": 0,
+        "reads_completed": 16567411,
+        "sectors_read": 1533733792,
+        "read_ms": 9849155,
+        "writes_completed": 25596940,
+        "sectors_written": 1151073256,
+        "write_ms": 210647530,
+        "io_in_progress": 0,
+        "io_ms": 5562812,
+        "weighted_io_ms": 220496685
+      },
+      "zram0": {
+        "major": 252,
+        "minor": 0,
+        "reads_completed": 20251475,
+        "sectors_read": 162014048,
+        "read_ms": 180108,
+        "writes_completed": 31509689,
+        "sectors_written": 267208456,
+        "write_ms": 913973,
+        "io_in_progress": 0,
+        "io_ms": 833354,
+        "weighted_io_ms": 1094081
+      }
+    },
+    "cpu_pressure": {
+      "some": {
+        "avg10": 0.0,
+        "avg60": 0.0,
+        "avg300": 0.0,
+        "total": 1292781104.0
+      },
+      "full": {
+        "avg10": 0.0,
+        "avg60": 0.0,
+        "avg300": 0.0,
+        "total": 0.0
+      }
+    }
+  },
+  "top_processes": [
+    "    PID COMMAND         %CPU %MEM   RSS",
+    " 300873 opengrep-core   37.6  1.7 285028",
+    " 156817 Web Content     19.5  6.8 1102692",
+    " 303649 python3         18.9  0.1 26996",
+    "2123635 zen-bin         15.9  5.2 841876",
+    "3092973 Web Content      8.4  5.9 958368",
+    "2124295 WebExtensions    7.4  3.5 569580",
+    "2299835 opencode         6.3  2.4 386652",
+    "   1859 Hyprland         5.1  0.3 63488",
+    " 302858 node-MainThread  4.9  1.1 178928",
+    " 302844 node-MainThread  4.8  1.1 179108",
+    "1110269 pi               3.7  2.8 456156",
+    "1335348 pi               3.4  2.7 437172",
+    "   2055 eww              2.2  0.2 34964",
+    " 300847 opengrep         1.8  0.2 46508",
+    " 536162 btop             1.8  0.1 25096"
+  ]
+}

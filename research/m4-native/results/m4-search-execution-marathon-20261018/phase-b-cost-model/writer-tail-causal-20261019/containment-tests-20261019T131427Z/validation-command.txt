@@ -1,0 +1,2 @@
+python3 -m py_compile research/m4-native/tools/m4_containment_runner.py research/m4-native/tools/test_m4_containment_runner.py
+python3 research/m4-native/tools/test_m4_containment_runner.py --output-dir research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/containment-tests-20261019T131427Z

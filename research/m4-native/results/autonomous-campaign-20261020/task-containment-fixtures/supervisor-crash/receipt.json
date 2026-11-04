@@ -1,0 +1,37 @@
+{
+  "failure_class": "CONTROLLER_CRASH_ABORT",
+  "performance_eligible": false,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "status": "WATCHDOG_ABORT",
+  "unit": "m4-contained-fb2ab37838994eac.service",
+  "unit_cleanup": {
+    "reset_failed_returncode": 0,
+    "stop_returncode": 0,
+    "unit_collected": true,
+    "verified": true
+  },
+  "watchdog_abort": {
+    "cleanup_complete": true,
+    "failure_class": "CONTROLLER_CRASH_ABORT",
+    "final_cleanup": {
+      "attempted": true,
+      "method": "cgroup.kill",
+      "success": true
+    },
+    "reason": "supervisor_lost",
+    "socket_cleanup_verified": true,
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        3355753
+      ],
+      "term_pids": [
+        3355762,
+        3355763
+      ]
+    },
+    "timestamp_utc": "2026-10-20T10:26:39.303776+00:00"
+  }
+}

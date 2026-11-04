@@ -1,0 +1,56 @@
+{
+  "baseline_commit": "3be680b",
+  "fixture": {
+    "files": 2000,
+    "bytes_per_file": 8192,
+    "workspace": "one workspace"
+  },
+  "scope": "direct index startup with metadata + content verification; daemon measured separately",
+  "before": {
+    "cli_version_p50_ms": 6.96,
+    "warm_noop_p50_ms": 554.67,
+    "warm_noop_p95_ms": 577.63,
+    "warm_noop_peak_pss_kib": 316864,
+    "storage_open_ms": 407,
+    "pipeline_ms": 29
+  },
+  "after": {
+    "cli_version_p50_ms": 7.38,
+    "warm_noop_p50_ms": 69.48,
+    "warm_noop_p95_ms": 72.49,
+    "warm_noop_peak_pss_kib": 33076,
+    "fast_noop_user_cpu_s": 0.05,
+    "fast_noop_sys_cpu_s": 0.01
+  },
+  "incremental": {
+    "one_file_change_wall_s": 29.87,
+    "one_file_change_peak_rss_kib": 1109564,
+    "next_noop_wall_s": 0.03
+  },
+  "rebuild": {
+    "wall_s": 170.73,
+    "peak_rss_kib": 2057744,
+    "post_rebuild_noop_wall_s": 0.04
+  },
+  "daemon": {
+    "warm_noop_client_p50_ms": 0.04,
+    "daemon_pss_kib": 115377,
+    "note": "daemon process memory includes the resident engine and is not comparable to the direct CLI process RSS/PSS"
+  },
+  "correctness": [
+    "same-size/same-mtime content change is detected by content fingerprint and forces normal pipeline content recheck; FTS/vector freshness test passes",
+    "delete invalidates the fast path and refreshes the sidecar",
+    "missing and corrupt sidecars fall back to normal indexing and are replaced",
+    "sidecar requires indexed manifest, existing storage, generation/index version, metadata and content fingerprints",
+    "explicit changes, rebuild, scan/model options and skipped files bypass the fast path",
+    "ZGM2 manifests remain 2000/2000, no legacy JSON manifests",
+    "sidecar v4 includes storage metadata seal; ctime/inode changes force content recheck"
+  ],
+  "limits": [
+    "single host/single run per incremental/rebuild condition",
+    "no OS page-cache drop; cold I/O not forced",
+    "storage seal is metadata-derived; deep data-page corruption still requires opening storage",
+    "a source change that fully reverts during one index attempt remains a TOCTOU window",
+    "daemon comparison is client latency plus resident daemon PSS, not direct process RSS"
+  ]
+}

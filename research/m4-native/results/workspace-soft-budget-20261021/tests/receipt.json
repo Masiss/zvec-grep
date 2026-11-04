@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_contention_policy.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_workspace_observer.py",
+        "--output-dir",
+        "research/m4-native/results/workspace-soft-budget-20261021/tests/workspace",
+        "--containment"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_workspace_observer.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_containment_runner.py"
+      ],
+      "exit_code": 2,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/tests/test_m4_containment_runner.log"
+    }
+  ],
+  "runner_sha256": "f18f4048fc12f764cf7822d537cce9ee0b167fb05f7b913cf1c8b45cf705c17f"
+}

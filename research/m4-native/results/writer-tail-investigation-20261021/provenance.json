@@ -1,0 +1,68 @@
+{
+  "date_local": "2026-10-21",
+  "git_head": "9a27fcda5418441e25c1f931d869fd759c08ddac",
+  "scope": "bounded research-only M4 writer-tail diagnosis; no sustained/native campaign",
+  "unchanged_hard_caps": {
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "cpu_quota_percent": 200,
+    "tasks_max": 128,
+    "collection_open_runtime_max_seconds": 20,
+    "500x5_runtime_max_seconds": 30,
+    "candidate_correctness_runtime_max_seconds": 115
+  },
+  "inputs": {
+    "integration_source": {
+      "path": "research/m4-native/tests/m4_bridge_integration.cc",
+      "sha256": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34",
+      "worktree_modified": false
+    },
+    "m4_runtime_source": {
+      "path": "research/m4-native/src/index.cc",
+      "worktree_modified": false
+    },
+    "collection_probe_source": {
+      "path": "research/m4-native/results/writer-tail-investigation-20261021/collection_open_microbench.cc",
+      "sha256": "d83b735279f14260138701b7a7f2a783cb3b47b34f52e61e13969892f0428855"
+    },
+    "integration_binary": {
+      "path": "research/m4-native/results/durability-restore-20261020/m4_bridge_integration.full-sync",
+      "sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+      "build_id": "aad9b1e998867e304bf03ff0b298d765456a9e8b",
+      "matches_current_cmake_test_binary_sha256": true
+    },
+    "final_collection_probe_binary": {
+      "path": "research/m4-native/.work/tmp/m4-open-microbench",
+      "sha256": "0b1c5edcf6f5d273329835ffdadc132edf54f1fda94c83b91d104f42d64cfc9c",
+      "build_id": "82663b7cbc366af764d885d0a5a3f7afcf10bd3c",
+      "applies_to": ["per-field decomposition", "strace syscall-summary runs"]
+    },
+    "earlier_collection_probe_builds": {
+      "applies_to": ["20261021T031913Z three-case run", "20261021T032148Z schema-timed run"],
+      "binary_hash": "not captured; temporary executable was overwritten by later instrumentation-only rebuilds",
+      "limitations": "same collection schema/API call, but no byte-identity claim for these earlier probe executables"
+    },
+    "zvec_c_api_library": {
+      "path": ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+      "sha256": "6d55b9131766d943fbad1f77dbebc6a2db7951ce8d89ad46a92b7619cc92d950"
+    },
+    "jieba_dictionary_directory": ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+    "jieba_top_level_file_names_sha256": "a9fc95da1a9e259acc8a769a301a8db788d877b77a0c35d310a3af2ec1e547b5"
+  },
+  "successful_operations": [
+    "collection-open microbench: 3 cases x 3 iterations, systemd unit m4-open-probe-20261021T031913Z.service",
+    "schema-timed collection-open microbench: 3 cases x 3 iterations, systemd unit m4-open-schema-20261021T032148Z.service",
+    "per-field collection-open decomposition: 9 cases x 3 iterations, systemd unit m4-open-field-20261021T033207Z.service",
+    "strace -f -c -w syscall-count comparison: 3 exact-HNSW opens and 3 no-scalar opens in separate capped systemd units; instrumentation-perturbed timing excluded",
+    "strict 500-doc x 5-round arm, systemd unit m4-writer-incremental-fts-sustained-20261021T032013Z.service",
+    "cached-fingerprint candidate 500-doc x 5-round arm, systemd unit m4-writer-incremental-fts-sustained-cached-fingerprint-20261021T032015Z.service",
+    "M4 incremental FTS candidate correctness/recovery integration: 582 checks, 0 failures, task-limited systemd unit name was escaped by systemd but command exited 0",
+    "m4_analyzer_cache_lifecycle CTest: 1/1 PASS after building the previously absent test executable"
+  ],
+  "excluded_attempts": [
+    "collection-open 20261021T031747Z: executable was absent; exit 127; empty JSONL excluded",
+    "collection-open 20261021T031821Z: SIGABRT under locally imposed TasksMax=32; exact failure cause not established; empty JSONL excluded"
+  ],
+  "authorization_boundary": "The single 2026-10-21 native 500x20 diagnostic authority is exhausted. No additional native 500x20 or sustained campaign was started.",
+  "notes": "Timestamps, command outputs, before/after host snapshots, and retained failed-attempt logs are in this directory. The TasksMax=32 attempt is not treated as a policy-gate rejection and its cause is not inferred from the stack dump. Temporary collection-probe executable hashes are available only for the final per-field/strace build; hashes for earlier overwritten probe builds were not captured. Successful collection-open probes deleted their own temporary roots; the failed capped run left its empty root. The two 500x5 roots (each du -sb 11496089 bytes) and candidate-recovery root (du -sb 10963735 bytes) remain in /var/tmp and were not reused or cleaned up."
+}

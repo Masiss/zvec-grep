@@ -1,0 +1,282 @@
+{
+  "status": "PARTIAL / OPERATION_BLOCKED / NEW_ATTEMPT_EXHAUSTED",
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "authority": {
+    "authority_reference": "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/owner-authorization.md",
+    "consumed": 1,
+    "historical_campaign_unchanged": "4/4 exhausted; not a replacement or automatic retry",
+    "maximum": 1,
+    "measurement_quality": "INCOMPLETE",
+    "native_arms_completed": 0,
+    "native_arms_launched": 1,
+    "operation_id": "m4-contention-soft-budget-native-20261021-1",
+    "receipt_status": "WATCHDOG_ABORT",
+    "remaining": 0,
+    "state": "OPERATION_BLOCKED"
+  },
+  "historical_ledger_unchanged": true,
+  "historical_ledger_sha256": "93c32e64ebb999c7ffef4d11cc85c8924fd64aa995079f01b9a2bf71d2d85d97",
+  "readiness_pass": true,
+  "native_pid": 716330,
+  "native_started_utc": "2026-10-21T02:32:52.935899+00:00",
+  "returncode": -15,
+  "signal": 15,
+  "command_elapsed_seconds": 1.175346733,
+  "raw_status": "WATCHDOG_ABORT",
+  "raw_measurement_quality": "INCOMPLETE",
+  "abort": {
+    "cleanup_complete": true,
+    "continuation_allowed": false,
+    "errors": [
+      "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+      "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+      "/var/tmp/m4-soft-native-ilm3j5wc: events exceed one bounded drain"
+    ],
+    "failure_class": "WORKSPACE_CAPACITY_UNVERIFIABLE",
+    "final_cleanup": {
+      "attempted": true,
+      "method": "cgroup.kill",
+      "success": true
+    },
+    "independent_capacity_upper_bound": null,
+    "inventory_status": "UNVERIFIABLE",
+    "measurement_quality": "INCOMPLETE",
+    "proof_semantics": "owner-approved monitored soft budgets only; NOT hard enforcement/capacity proof",
+    "reason": "workspace_capacity_unverifiable",
+    "state": "UNKNOWN",
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        716259
+      ],
+      "term_pids": [
+        716330
+      ]
+    },
+    "timestamp_utc": "2026-10-21T02:32:54.073089+00:00",
+    "warnings": []
+  },
+  "cleanup": {
+    "unit": "m4-contained-adf6803b58cc4074.service",
+    "unit_show_returncode": 0,
+    "unit_show": "LoadState=not-found\nActiveState=inactive\n",
+    "owned_units_returncode": 0,
+    "owned_units": "",
+    "cgroup_absent": true,
+    "socket_absent": true
+  },
+  "runtime_sample_count": 20,
+  "raw_workspaces_complete": false,
+  "hard_safety_telemetry_complete": true,
+  "workspace_verified_peak": null,
+  "last_partial_workspace": {
+    "allocated_semantics": "observed sum st_blocks*512, deduplicated hardlinks; Btrfs shared extents may be counted more than once",
+    "allocated_st_blocks_bytes_gross": 14897152,
+    "apparent_bytes": 22994122,
+    "complete_snapshot": false,
+    "directory_count": 32,
+    "entries_observed": 167,
+    "file_count": 135,
+    "generation_apparent_bytes": 17403127,
+    "generation_directory_names": [
+      "generation-1",
+      "generation-2",
+      "generation-3",
+      "generation-4"
+    ],
+    "independent_capacity_upper_bound": null,
+    "inventory_status": "UNVERIFIABLE",
+    "issue_count": 3,
+    "issues": [
+      {
+        "detail": "inotify mask=2",
+        "kind": "DIRECTORY_ACTIVITY",
+        "known_race": true,
+        "path": "/var/tmp/m4-soft-native-ilm3j5wc"
+      },
+      {
+        "detail": "inotify mask=2",
+        "kind": "DIRECTORY_ACTIVITY",
+        "known_race": true,
+        "path": "/var/tmp/m4-soft-native-ilm3j5wc"
+      },
+      {
+        "detail": "events exceed one bounded drain",
+        "kind": "MUTATION_COVERAGE_LOST",
+        "known_race": false,
+        "path": "/var/tmp/m4-soft-native-ilm3j5wc"
+      }
+    ],
+    "limitations": "No atomic snapshot/quota backend. A traversal can miss creates/growth/mmap/replacements between observations; no upper bound or verified lifetime peak. One pass, no retry. Deadline is cooperative, not a bound on one blocked kernel syscall.",
+    "mutation_observer": "bounded per-pass inotify; not independent capacity proof; mmap/writeback not covered",
+    "reservation_credit_bytes": 0,
+    "root": "/var/tmp/m4-soft-native-ilm3j5wc",
+    "root_identity": [
+      37,
+      29593462
+    ],
+    "scan_complete": false,
+    "scan_duration_ns": 41152320,
+    "scan_errors": [
+      "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+      "/var/tmp/m4-soft-native-ilm3j5wc: inotify mask=2",
+      "/var/tmp/m4-soft-native-ilm3j5wc: events exceed one bounded drain"
+    ],
+    "schema_version": 2,
+    "staging_named_apparent_bytes": 0,
+    "symlink_count": 0,
+    "verified_peak": null
+  },
+  "complete_traversal_maxima_not_lifetime_peaks": {
+    "allocated_bytes": 14499840,
+    "apparent_bytes": 22896842
+  },
+  "partial_owned_resources": {
+    "cgroup_memory_peak_bytes": 229666816,
+    "cgroup_swap_peak_bytes": 0,
+    "final_cgroup_cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 13,
+      "nr_throttled": 0,
+      "system_usec": 295135,
+      "throttled_usec": 0,
+      "usage_usec": 824026,
+      "user_usec": 528890
+    },
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "task_events": {
+      "max": 0
+    },
+    "sampled_task_peak": 76,
+    "sampled_process_tree_pss_kib": 221518,
+    "sampled_process_tree_rss_kib": 236216,
+    "sampled_process_tree_write_bytes": 39514112
+  },
+  "runtime_host_context": {
+    "load1": {
+      "min": 1.81,
+      "max": 2.14
+    },
+    "memavailable_kib": {
+      "min": 4418612,
+      "max": 5221452
+    },
+    "disk_available_bytes": {
+      "min": 16543498240,
+      "max": 16552894464
+    },
+    "io_pressure": {
+      "min": 0.0,
+      "max": 0.0
+    },
+    "memory_pressure": {
+      "min": 0.0,
+      "max": 0.0
+    },
+    "cpu_pressure": {
+      "min": 0.0,
+      "max": 0.0
+    },
+    "attribution": "contemporaneous shared-host observations, not identified incremental M4 impact"
+  },
+  "native_affinity_observation": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "pid": 716330,
+    "proc_status": "Name:\tm4_bridge_integ\nUmask:\t0022\nState:\tR (running)\nTgid:\t716330\nNgid:\t0\nPid:\t716330\nPPid:\t716259\nTracerPid:\t0\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\nFDSize:\t64\nGroups:\t965 998 1000 1001 \nNStgid:\t716330\nNSpid:\t716330\nNSpgid:\t716259\nNSsid:\t716259\nKthread:\t0\nVmPeak:\t 1942640 kB\nVmSize:\t 1853824 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t   40556 kB\nVmRSS:\t   40556 kB\nRssAnon:\t   21740 kB\nRssFile:\t   18816 kB\nRssShmem:\t       0 kB\nVmData:\t  561052 kB\nVmStk:\t     132 kB\nVmExe:\t    1268 kB\nVmLib:\t   36796 kB\nVmPTE:\t     520 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t63\nSigQ:\t0/62489\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000000000\nSigCgt:\t0000000100000000\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tfffff\nCpus_allowed_list:\t0-19\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t198\nnonvoluntary_ctxt_switches:\t42\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n",
+    "timestamp_utc": "2026-10-21T02:32:52.994616+00:00",
+    "top": {
+      "observer_affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "    PID    PPID COMMAND         %CPU   RSS ELAPSED\n 716329  716238 python          36.3 27468       0\n 716330  716259 m4_bridge_integ 33.3 40792       0\n 716238  716237 python          28.5 28944       0\n 716259    1855 python          27.7 27352       0\n 654155  654073 opengrep-core   12.0 350668    653\n 701691    8740 clangd.main      4.7 473636    164\n 335056    1855 zed-editor       3.3 139292   4220\n 151542    2011 zen-bin          2.6 668204  36932\n   7667    6266 pi               2.5 420864  38427\n 336439  335547 claude           2.4 364684   4211\n   8740    7802 pi               2.4 1014340 38417\n   6087    2213 opencode         1.9 178812  38449\n 152162  151760 Web Content      1.4 750760  36929\n 654115    8740 ast-grep         1.3 132600    654\n   2011    2006 Hyprland         1.2 63108   38468\n 152234  151760 WebExtensions    1.1 523928  36929\n 152718  151760 Web Content      1.0 409452  36925\n   6510    6087 opencode         0.8 371124  38444\n   2072    2011 kitty            0.6 33020   38466\n   2200    1855 eww              0.5 28552   38466"
+    }
+  },
+  "writer_results": {
+    "complete_stdout_payloads": 0,
+    "p50_ms": null,
+    "p95_ms": null,
+    "p99_ms": null,
+    "stages": "UNAVAILABLE",
+    "coherence_reopen": "NO_COMPLETED_VERDICT",
+    "comparison_or_order_variability": "UNMEASURED"
+  },
+  "interpretation": "Readable queue after bounded drain was treated as fatal coverage loss. It does not establish observed overflow or hard resource distress. A prospective exact pending-drain accounting exception was added after this abort and synthetic-tested; raw abort, execution policy/plan and consumed budget are not reclassified. No native retry.",
+  "limitations": [
+    "Partial lifetime only; resource maxima are not full500x20 costs or isolated writer CPU/IO.",
+    "No completed cycle payload, latency distribution or correctness/coherence verdict from this arm.",
+    "No filesystem quota/aggregate hard workspace bound or deterministic overshoot guarantee.",
+    "Post-abort pending-drain correction is software-tested, not native-run validated."
+  ],
+  "input_sha256": {
+    "m4-contention-soft-budget-native-20261021-1/aa-first/containment/receipt.json": "7c0276adbc2dbf9cb616a2e675220d5e4bad3447dc390420ae373ef97dbbf89d",
+    "m4-contention-soft-budget-native-20261021-1/aa-first/containment/watchdog-summary.json": "c6d114186c7408825c290a7f986795a02ba4ff8e6c89cd2351e68d541602d4df",
+    "m4-contention-soft-budget-native-20261021-1/aa-first/containment/watchdog-abort.json": "a88420bd6c4b81830e665ce6ed32087883ab4ca79e1e67d6a6128033c8848e63",
+    "m4-contention-soft-budget-native-20261021-1/aa-first/containment/runtime.jsonl": "dafade3e548576183d8dddd383cbfc7d537f8e5acfbc6a87c3c00832daeaadf6",
+    "m4-contention-soft-budget-native-20261021-1/aa-first/containment/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "m4-contention-soft-budget-native-20261021-1/aa-first/containment/command-start.json": "266557d04ee5fed5c02f1d7d68b9d0dd6246db6cb8f76d9979440120f891a6cf",
+    "m4-contention-soft-budget-native-20261021-1/aa-first/containment/command-exit.json": "25e9c540bc0b816b66f04d1238e9e89ac1b14ff208257337e95bab9e96e73455",
+    "approved-resource-plan.json": "ea303d5626ba368a2e4eda34658a2f355c9530c0403eb780b6123f55e8c87d3d",
+    "new-attempt-ledger.json": "f72e512c68a90967bc56411cc28e9e04455c286e1b62b4613625d89d2f4f7970",
+    "m4-contention-soft-budget-native-20261021-1/readiness.json": "59cc484b2e62cffc626da78f88c05089e72b6cdf1b46bcff3c2f7bd9ada45d72"
+  }
+}

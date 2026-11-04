@@ -1,0 +1,56 @@
+{
+  "installed_binary": {
+    "path": "/home/masis/.local/bin/zg",
+    "sha256": "6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4",
+    "version": "0.0.1"
+  },
+  "installed_library": {
+    "path": "/home/masis/.local/lib/libzvec_c_api.so",
+    "sha256": "532f16dd91574cc692ba5f36f855dd187f04a40afe29dde48fa47a35f8c13c38"
+  },
+  "rollback": {
+    "directory": "/home/masis/.local/share/zvec-grep/rollback-20261101T130300Z",
+    "binary_sha256": "ad1d9c2c1aca53d1b1c113ca84f5b1006289592df9e8e85b9f18d1629fba7d0a",
+    "library_sha256": "5093c7d722304b0efaa7425f206456ca902dc377d5a0ae8056f1c5c010fe763e",
+    "binary_version": "0.3.0-rc.2",
+    "old_workspace_status": {
+      "code": 0,
+      "stdout": "Coverage    \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591  97%  9,571 / 9,899 files (needs update)\n\n  Embedding   local/potion-code-16m-v2\n              256 dimensions \u00b7 cosine\n  FTS         tokenizer=jieba filters=lowercase\n\n  Storage     .zvec-grep/index",
+      "stderr": ""
+    },
+    "rollback_confirmed": true
+  },
+  "daemon": {
+    "old_daemon_stopped_gracefully": true,
+    "installed_check_ready": {
+      "code": 0,
+      "stdout": "Server: ready\nPID: 2392363\nURL: http://127.0.0.1:7999/mcp\nMCP toolset: agent",
+      "stderr": ""
+    },
+    "port": "127.0.0.1:7999"
+  },
+  "smoke": {
+    "verify": {
+      "code": 0,
+      "stdout": "{\n  \"root\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3\",\n  \"home\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep\",\n  \"index_path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/3e800bf5-2e64-4f77-80a0-c23386d64002/storage\",\n  \"expected_generation\": \"3e800bf5-2e64-4f77-80a0-c23386d64002\",\n  \"native_available\": true,\n  \"native_abi\": 1,\n  \"outcome\": \"pass\",\n  \"report\": {\n    \"status\": \"PASS_COMPLETE\",\n    \"pass\": true,\n    \"complete\": true,\n    \"legacy\": false,\n    \"stable\": true,\n    \"stability\": \"stable\",\n    \"stability_detail\": \"shared lock acquired; no active writer\",\n    \"flags\": 7,\n    \"collection_path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/3e800bf5-2e64-4f77-80a0-c23386d64002/storage\",\n    \"generation\": \"3e800bf5-2e64-4f77-80a0-c23386d64002\",\n    \"coverage\": [\n      {\n        \"name\": \"proxima\",\n        \"status\": \"covered\",\n        \"files\": 1,\n        \"bytes\": 4456448\n      },\n      {\n        \"name\": \"rocksdb\",\n        \"status\": \"covered\",\n        \"files\": 13,\n        \"bytes\": 1104604\n      },\n      {\n        \"name\": \"ipc\",\n        \"status\": \"partial\",\n        \"files\": 3,\n        \"bytes\": 289414\n      },\n      {\n        \"name\": \"sidecars\",\n        \"status\": \"partial\",\n        \"files\": 201,\n        \"bytes\": 38994\n      },\n      {\n        \"name\": \"wal\",\n        \"status\": \"covered\",\n        \"files\": 75,\n        \"bytes\": 0\n      }\n    ],\n    \"missing_coverage\": [],\n    \"limitations\": [\n      \"sidecars.content_checksum\",\n      \"ipc.content_checksum\"\n    ],\n    \"errors\": [],\n    \"components\": [\n      {\n        \"kind\": \"sidecar\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/3e800bf5-2e64-4f77-80a0-c23386d64002/storage/reconciliation/file-0000001e.bin\",\n        \"status\": \"partial\",\n        \"complete\": false,\n        \"bytes\": 194,\n        \"error\": \"sidecar structure verified; the format has no content checksum\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": null\n      },\n      {\n        \"kind\": \"sidecar\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/3e800bf5-2e64-4f77-80a0-c23386d64002/storage/reconciliation/file-0000001f.bin\",\n        \"status\": \"partial\",\n        \"complete\": false,\n        \"bytes\": 194,\n        \"error\": \"sidecar structure verified; the format has no content checksum\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": null\n      },\n      {\n        \"kind\": \"sidecar\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/3e800bf5-2e64-4f77-80a0-c23386d64002/storage/reconciliation/file-00000020.bin\",\n        \"status\": \"partial\",\n        \"complete\": false,\n        \"bytes\": 194,\n        \"error\": \"sidecar structure verified; the format has no content checksum\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": null\n      },\n      {\n        \"kind\": \"sidecar\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w3/ws3/.zvec-grep/generations/3e800bf5-2e64-4f77-80a0-c23386d64002/storage/reconciliation/file-00000021.bin\",\n        \"status\": \"partial\",\n        \"complete\": false,\n        \"bytes\": 194,\n        \"error\": ...",
+      "stderr": ""
+    },
+    "fts": {
+      "code": 1,
+      "stdout": "",
+      "stderr": "error[ZG.ENGINE.STORAGE_FAILURE]: invalid workspace manifest: unknown field `index`, expected one of `name`, `path`, `root`, `scan`, `indexPolicy`, `embeddings`, `embeddingRoutes`, `indexVersion`, `storageGeneration`, `createdTime`, `updatedTime`, `embeddingRuntimes`; rebuild the index with `zg --index --rebuild`\nerror location: crates/zg-engine/src/workspace/manifest.rs:252:5\nreporting location: crates/zg-engine/src/lib.rs:61:36"
+    },
+    "server_mode_fts": {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Error: resident daemon is not ready"
+    }
+  },
+  "residual_risks": [
+    "Pre-W4 rc.2 workspace manifests use a different schema (old `.zvec-grep/index` layout). The new binary reports rebuild-required and never rewrites that workspace. No registered live workspace exists outside scratch fixtures.",
+    "The pre-W4 native library is not ABI-compatible with the new binary; binary and library must be upgraded together.",
+    "`.ipc` and `.bin` payload content checksums are unavailable; only structural corruption is detected and limitations are explicit.",
+    "True ENOSPC was not exercised because no isolated mount privilege exists; RLIMIT_FSIZE write-failure proxy passed."
+  ],
+  "note": "Backup remains available; rollback is a copy of the two files and a daemon restart. No live index was modified or deleted."
+}

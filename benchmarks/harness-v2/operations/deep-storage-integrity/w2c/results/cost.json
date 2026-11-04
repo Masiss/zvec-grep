@@ -1,0 +1,31 @@
+{
+  "fixture": {
+    "workspace": ".tmp/w2c/cost/fixture/ws_1",
+    "files": 2001,
+    "source_bytes_human": "881M",
+    "generation_bytes_human": "858M"
+  },
+  "binary_sha256": "1bb73816d1d0446c9dbef02daa1a63700f9655ba101370678d44970172c71e60",
+  "installed_native_sha256": "58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a",
+  "custom_native_sha256": "b8f35074571e555e704b07e8b90e952529f8e56c2bdbf5663917754cb5830cb2",
+  "measurements": {
+    "initial_index": {"wall_s": 65.92, "max_rss_kb": 2466544, "fs_output_blocks": 5137872},
+    "one_file_incremental": {"wall_s": 16.14, "max_rss_kb": 1239904, "fs_output_blocks": 2163184},
+    "crash_recovery_incremental": {"wall_s": 13.00, "max_rss_kb": 1237500, "fs_output_blocks": 2126800},
+    "reflink_copy_generation": {"wall_s": 0.53, "max_rss_kb": 2288, "fs_output_blocks": 2912},
+    "byte_copy_to_tmpfs": {"wall_s": 0.29, "max_rss_kb": 2548, "fs_output_blocks": 0, "note": "tmpfs, not representative of durable storage"}
+  },
+  "disk_amplification_crash": {
+    "active_generation_total_mib": 864.84,
+    "active_generation_exclusive_mib": 0.0,
+    "stage_generation_total_mib": 866.34,
+    "stage_generation_exclusive_mib": 1.56,
+    "stage_shared_mib": 864.78,
+    "logical_bytes_each_human": "858M"
+  },
+  "after_recovery": {
+    "generation_total_mib": 773.78,
+    "generation_exclusive_mib": 692.37,
+    "generation_shared_mib": 81.41
+  }
+}

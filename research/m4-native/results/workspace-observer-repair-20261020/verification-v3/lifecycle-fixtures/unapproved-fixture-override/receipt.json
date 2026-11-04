@@ -1,0 +1,13 @@
+{
+  "benchmark_started": false,
+  "failure_class": "TEST_FIXTURE_OVERRIDE_REFUSED",
+  "failure_scope": "this arm only",
+  "measurement_quality": "NOT_APPLICABLE",
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "operation_outcome": "OPERATION_BLOCKED",
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "reason": "host-guard override is restricted to explicit synthetic fixtures in the OS temp tree",
+  "safety_outcome": "NOT_STARTED",
+  "schema_version": 1,
+  "status": "PREFLIGHT_BLOCKED"
+}

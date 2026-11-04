@@ -1,0 +1,48 @@
+{
+  "recorded_at": "2026-10-19T20:56:34+0700",
+  "gate": "Phase D diagnostic same-binary A/A launch safety snapshot",
+  "status": "SAFETY_GATE_FAIL",
+  "benchmark_launched": false,
+  "baseline_capture_started": false,
+  "arms_started": false,
+  "hard_thresholds_unchanged": {
+    "MemAvailable_kib_min": 5477762,
+    "var_tmp_bytes_min": 18219000000,
+    "io_full_avg10_max": 4.46,
+    "load1_max": 3.14
+  },
+  "observed": {
+    "MemAvailable_kib": 6886092,
+    "var_tmp_bytes": 19470082048,
+    "io_full_avg10": 4.52,
+    "load1": 1.76
+  },
+  "checks": {
+    "MemAvailable": "PASS; headroom 1408330 KiB",
+    "/var/tmp free": "PASS; headroom 1251082048 B",
+    "I/O PSI full avg10": "FAIL; 0.06 percentage points over hard ceiling",
+    "load-1": "PASS; headroom 1.38"
+  },
+  "binary_identity_probe": {
+    "repeatable": true,
+    "binary_sha256": "70eb45587252770b9f3fbcf8d057f6aff63ca03041a31d0a0981262853dd97a8",
+    "source_git_revision": "b4b86860c574311bec80089951b6187cbf194399",
+    "current_source_tree_sha256": "e6e4702945f2ee29f1a651d6a51d1226c104a4c0b16c4d7a485e6f09c2334ec0",
+    "loaded_shared_libraries": {
+      "/home/masis/src/zvec-grep/.local/native/zvec-native-build/lib/libzvec_c_api.so": "6d55b9131766d943fbad1f77dbebc6a2db7951ce8d89ad46a92b7619cc92d950",
+      "/usr/lib/libstdc++.so.6.0.36": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e",
+      "/usr/lib/libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+      "/usr/lib/libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+      "/usr/lib/libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+      "/usr/lib/ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+    }
+  },
+  "archived_build_provenance_note": "The archived build checksum for tests/m4_bridge_integration.cc is 01943e0cedc3fa121a65b4f62f6e50cc467ca611d9e1d6a46c90fe19d389004e, while the current source is 31e9e1db9dfacba98987c38799efcdc2be2bb805656e4ef89c27273d047a1cb5; src/index.cc matches archived hash 71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51. Compiler flags were not preserved. The exact preserved binary is still the same-binary diagnostic target, and current source/native-library identities will be captured and enforced consistently across both arms; results apply to this binary, not automatically to the changed current harness source.",
+  "measurement_runner_fingerprint_added_after_gate_snapshot": {
+    "recorded_after_snapshot": true,
+    "measurement_runner_tree_sha256": "ebda49add2738cef83622ccf21e94073897f4159b5fcb71c7ec11fcb7294318d",
+    "note": "The exact gate snapshot remains 20:56:34. This later fingerprint is from the final identity-aware source; the eventual A/A pair captures its own source fingerprint and enforces it for both arms."
+  },
+  "cleanup_check": "No active M4 benchmark/process or running M4 transient user service was observed after tests.",
+  "next_action": "Do not launch or repeat the gate in a polling loop. Resume the approved diagnostic A/A only on a fresh resource snapshot with all four unchanged hard limits passing; the orchestrator itself then captures the 60-second baseline and will refuse before either arm if any samplewise safety/telemetry gate fails."
+}

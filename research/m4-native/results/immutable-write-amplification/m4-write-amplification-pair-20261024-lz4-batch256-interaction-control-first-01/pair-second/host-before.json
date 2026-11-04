@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-10-24T15:00:42.017967+00:00",
+  "label": "pair-second_before",
+  "filesystem": "/dev/mapper/cryptroot btrfs rw,relatime,ssd,space_cache=v2,subvolid=5,subvol=/",
+  "cpu_count": 20,
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "loadavg": "3.19 4.36 3.94 2/2358 1779599",
+  "mem_available_bytes": 4315344896,
+  "mem_free_bytes": 1062494208,
+  "swap_free_bytes": 10775605248,
+  "cpu_pressure": "some avg10=0.00 avg60=0.08 avg300=0.20 total=1636610473\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+  "memory_pressure": "some avg10=0.03 avg60=0.11 avg300=0.44 total=1025037222\nfull avg10=0.03 avg60=0.10 avg300=0.40 total=955419418",
+  "io_pressure": "some avg10=0.56 avg60=0.99 avg300=2.42 total=5673484067\nfull avg10=0.42 avg60=0.73 avg300=1.95 total=5003536680",
+  "disk": {
+    "total_bytes": 493838401536,
+    "used_bytes": 464103469056,
+    "free_bytes": 27455295488,
+    "device": 78
+  },
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "top_processes": [
+    "    PID COMMAND         %CPU %MEM   RSS COMMAND",
+    "1778997 node-MainThread  173  8.0 1284720 node /home/masis/.pi-lens/tools/node_modules/.bin/pyright --outputjson /home/masis/app/laya-mini/docs/chatgpt/verdict-next/d13-real-docs/extraction-05-sparse-boundary/autonomous-campaign-20261019/research-tracks/schema-confusion-challenger-20261024/revision-001/runtime/within_row_listwise_null_runner.py",
+    "1380453 zen-bin         25.1  3.6 581644 /opt/zen-browser-bin/zen-bin",
+    "1703480 pi              16.8  2.2 353836 pi",
+    "1381107 Web Content     13.4  3.9 634656 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:37453 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {573cec63-5844-4230-9a1c-25615fba2f90} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 7 tab",
+    "1778891 python3         10.6  0.4 66184 python3 research/m4-native/tests/profile_native_m4_paired.py --workload-profile lz4-compression-at-batch-256 --binary /home/masis/src/zvec-grep/research/m4-native/.work/build/writer-group-commit-prototype/native_m4_paired_benchmark --dictionary /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict --root /home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-lz4-batch256-interaction-control-first-01 --arm-order control-first",
+    " 500502 pi              10.3  5.8 933436 pi",
+    " 572566 opencode         9.7  1.4 237012 opencode",
+    "1381162 WebExtensions    9.1  4.4 711612 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:46174 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {ccdcbe44-2735-4811-86a0-270aa9e3f90b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 8 tab",
+    "1382052 Web Content      7.7  1.4 236320 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:54767 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {bd92fdb6-db25-4ca8-86c4-3eb5137f1f7b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 10 tab",
+    "1726350 claude           7.5  2.3 373840 claude",
+    "1633949 claude           6.7  2.2 353324 claude --resume",
+    "1536638 opengrep-core    5.4  0.8 140532 opengrep-cli lsp --experimental"
+  ],
+  "resource_guard_observations": {
+    "MemAvailable_kib_min": {
+      "observed": 4214204.0,
+      "threshold": 5477762,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "var_tmp_bytes_min": {
+      "observed": 27455295488,
+      "threshold": 18219000000,
+      "status": "PASS",
+      "disposition": "enforced_retained_disk_reserve"
+    },
+    "io_full_avg10_max": {
+      "observed": 0.42,
+      "threshold": 4.46,
+      "status": "PASS",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "load1_max": {
+      "observed": 3.19,
+      "threshold": 3.14,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    }
+  }
+}

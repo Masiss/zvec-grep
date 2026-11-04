@@ -1,0 +1,4 @@
+Result=exit-code
+ExecMainCode=1
+ExecMainStatus=1
+ControlGroup=

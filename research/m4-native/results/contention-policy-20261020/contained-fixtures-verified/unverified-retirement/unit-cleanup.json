@@ -1,0 +1,6 @@
+{
+  "error": "RuntimeError: unit/cgroup cleanup not verified; retaining failed-unit state",
+  "stop_returncode": 0,
+  "unit_collected": false,
+  "verified": false
+}

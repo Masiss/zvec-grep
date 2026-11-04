@@ -1,0 +1,85 @@
+{
+  "experiment": "M4 same-binary A/A readiness; no arm launched",
+  "runner_command": [
+    "python3",
+    "-B",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py"
+  ],
+  "working_directory": "/home/masis/src/zvec-grep",
+  "environment_allowlist": {
+    "M4_RESOURCE_ROOT": "/var/tmp",
+    "M4_AA_BINARY": "/var/tmp/m4-writer-tail-current-corrected.iakWXv/build/m4_bridge_integration"
+  },
+  "binary": "/var/tmp/m4-writer-tail-current-corrected.iakWXv/build/m4_bridge_integration",
+  "binary_sha256": "70eb45587252770b9f3fbcf8d057f6aff63ca03041a31d0a0981262853dd97a8",
+  "workload": "500 docs x 20 rounds",
+  "fresh_roots": true,
+  "resource_thresholds": {
+    "MemAvailable_kib_min": 5477762,
+    "var_tmp_bytes_min": 18219000000,
+    "io_full_avg10_max": 4.46,
+    "load1_max": 3.14
+  },
+  "standalone_readiness_receipts": [
+    "aa-resource-gate-readiness-20261019Tcurrent.json",
+    "aa-resource-gate-readiness-20261019Tcurrent-after-redaction.json"
+  ],
+  "runner_preflight": {
+    "time": "2026-10-19T17:22:59+0700",
+    "pass": true,
+    "MemAvailable_kib": 6020276,
+    "load1": 2.17,
+    "io_full_avg10": 0.51,
+    "resource_root_available_bytes": 19211120640,
+    "thresholds": {
+      "MemAvailable_kib_min": 5477762,
+      "var_tmp_bytes_min": 18219000000,
+      "io_full_avg10_max": 4.46,
+      "load1_max": 3.14
+    }
+  },
+  "baseline_capture": {
+    "rows": 1200,
+    "duration_seconds": 60.01919421800994,
+    "sample_interval_seconds": 0.05,
+    "first_epoch": "2026-10-19T17:22:59.393+07:00",
+    "last_epoch": "2026-10-19T17:23:59.343+07:00",
+    "first_monotonic_ns": 143844867320052,
+    "last_monotonic_ns": 143904817673501,
+    "measurement_integrity": "VALID",
+    "decision": "STABILITY_GATE_FAIL",
+    "reason": "baseline drift: last half outside first-half envelope for load1_max"
+  },
+  "outcome": "NO_LAUNCH: STABILITY_GATE_FAIL; no AA_ARM_START in runner log",
+  "post_baseline_snapshot": {
+    "time": "2026-10-19T17:32:29+0700",
+    "pass": false,
+    "MemAvailable_kib": 5472864,
+    "load1": 0.78,
+    "io_full_avg10": 0.08,
+    "resource_root_available_bytes": 19204743168,
+    "thresholds": {
+      "MemAvailable_kib_min": 5477762,
+      "var_tmp_bytes_min": 18219000000,
+      "io_full_avg10_max": 4.46,
+      "load1_max": 3.14
+    }
+  },
+  "source_sha256_at_manifest_generation": {
+    "run_host_carryover_aa.py": "b7a916b03ff3e2664ae6cfc283e4999ee622fc4984af27bb594e86260922f923",
+    "run_sync_reduction_pair.py": "680f4b8454b2e806c9de3ab898da4d4d9e23460d2b4b6d09a002352f0517b215",
+    "capture_host_baseline.py": "bdef034c761e483fbc06163727727b6829afc4a1ddbe14162946e00d67d0399b",
+    "analyze_host_pressure.py": "b932fab0edf08fc31c1e704489fbcd76825f7f87d75ed2adf81861c828f7047f",
+    "stability_gate_replay.py": "92f3ac246faa85068bb3e7480adc1c4c0497cf8d1acd55bec8d5ed7455f536d2"
+  },
+  "source_timing_caveat": "The arm telemetry sampler was changed after this no-arm attempt to buffer its rows until child exit; it did not participate in this baseline. The baseline sampler argv-only redaction change was made around the attempt; recorded process command arguments were redacted in-place. Stability feature collection and thresholds were not changed by that redaction.",
+  "artifacts": {
+    "baseline_csv": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/host-carryover-aa-pair-20261019T102259Z/ambient-baseline.csv",
+    "baseline_metadata": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/host-carryover-aa-pair-20261019T102259Z/ambient-baseline.host.json",
+    "preflight": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/host-carryover-aa-pair-20261019T102259Z/baseline/host-before.json",
+    "decision_and_windows": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/host-carryover-aa-pair-20261019T102259Z/quiescence-profile.json",
+    "runner_log": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/aa-readiness-run-20261019.log",
+    "argv_redaction_receipt": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/host-carryover-aa-pair-20261019T102259Z/process-argv-redaction.json",
+    "post_snapshot": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/aa-post-baseline-host-20261019.json"
+  }
+}

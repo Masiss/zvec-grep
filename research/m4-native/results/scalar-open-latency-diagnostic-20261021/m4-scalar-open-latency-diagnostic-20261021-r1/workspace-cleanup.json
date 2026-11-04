@@ -1,0 +1,5 @@
+{
+  "method": "remove only empty owned directories with rmdir; never recursively remove workspace data",
+  "path": "/var/tmp/m4-scalar-open-latency-diagnostic-20261021-r1-o5j7_fa2",
+  "verified": true
+}

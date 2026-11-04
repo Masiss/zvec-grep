@@ -1,0 +1,235 @@
+#include <cppjieba/DictTrie.hpp>
+
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <exception>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <vector>
+
+namespace fs = std::filesystem;
+
+namespace {
+
+void Check(bool condition, const std::string& message) {
+  if (!condition) throw std::runtime_error(message);
+}
+
+void WriteDictionary(const fs::path& path, const std::string& contents) {
+  std::ofstream output(path, std::ios::binary);
+  if (!output) throw std::runtime_error("cannot create dictionary fixture");
+  output << contents;
+  if (!output) throw std::runtime_error("cannot write dictionary fixture");
+}
+
+void CheckDefaultUserWordWeight(const fs::path& dict_path,
+                                cppjieba::DictTrie::UserWordWeightOption option,
+                                double expected_weight,
+                                const std::string& label) {
+  cppjieba::DictTrie analyzer(dict_path.string(), "", option);
+  const double expected_minimum = std::log(25.0 / 175.0);
+  Check(std::abs(analyzer.GetMinWeight() - expected_minimum) < 1e-12,
+        label + " min weight changed");
+  Check(analyzer.InsertUserWord("weightprobe"), label + " insertion failed");
+  cppjieba::RuneStrArray runes;
+  Check(cppjieba::DecodeUTF8RunesInString(std::string("weightprobe"), runes),
+        label + " UTF-8 decoding failed");
+  const cppjieba::DictUnit* unit = analyzer.Find(runes.begin(), runes.end());
+  Check(unit != nullptr, label + " inserted term was not found");
+  Check(std::abs(unit->weight - expected_weight) < 1e-12,
+        label + " default user-word weight changed");
+}
+
+}  // namespace
+
+int main() {
+  const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+  const fs::path root = fs::current_path() /
+      ("cppjieba-cache-lifecycle-overlay-" + std::to_string(nonce));
+  try {
+    fs::create_directories(root);
+    const fs::path first_path = root / "dictionary-a.txt";
+    const fs::path second_path = root / "dictionary-b.txt";
+    const fs::path shared_path = root / "dictionary-shared.txt";
+    const fs::path topology_path = root / "dictionary-topology.txt";
+    WriteDictionary(first_path, "alpha 100 n\nshared 50 n\ngamma 25 n\n");
+    WriteDictionary(second_path, "beta 100 n\nshared 50 n\n");
+    WriteDictionary(shared_path, "shared 100 n\n");
+    WriteDictionary(topology_path,
+                    "a 100 n\nab 90 n\nabc 80 n\nabd 70 n\nx 60 n\n");
+
+    const size_t initial_builds = cppjieba::DictTrie::CacheBuildCountForTesting();
+    std::mutex failure_mutex;
+    std::vector<std::string> failures;
+    std::vector<std::unique_ptr<cppjieba::DictTrie> > shared_analyzers;
+    std::mutex analyzers_mutex;
+    std::atomic<bool> start{false};
+    std::vector<std::thread> openers;
+    for (size_t i = 0; i < 4; ++i) {
+      openers.emplace_back([&] {
+        while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+        try {
+          std::unique_ptr<cppjieba::DictTrie> analyzer(
+              new cppjieba::DictTrie(shared_path.string()));
+          Check(analyzer->Find("shared"), "same-key analyzer lost its dictionary term");
+          std::lock_guard<std::mutex> lock(analyzers_mutex);
+          shared_analyzers.push_back(std::move(analyzer));
+        } catch (const std::exception& error) {
+          std::lock_guard<std::mutex> lock(failure_mutex);
+          failures.push_back(error.what());
+        }
+      });
+    }
+    start.store(true, std::memory_order_release);
+    for (auto& opener : openers) opener.join();
+    Check(failures.empty(), "concurrent same-key initialization failed");
+    Check(cppjieba::DictTrie::CacheBuildCountForTesting() == initial_builds + 1,
+          "same-key concurrent opens parsed the dictionary more than once");
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+          "same-key opens did not share one live dictionary-cache entry");
+    shared_analyzers.clear();
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+          "the bounded most-recent dictionary entry was not retained");
+    const size_t before_same_version_reopen = cppjieba::DictTrie::CacheBuildCountForTesting();
+    {
+      cppjieba::DictTrie reopened(shared_path.string());
+      Check(reopened.Find("shared"), "same-version reopen lost its dictionary term");
+    }
+    Check(cppjieba::DictTrie::CacheBuildCountForTesting() == before_same_version_reopen,
+          "most-recent same-version reopen reparsed the dictionary");
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+          "same-version reopen changed the retained cache generation count");
+
+    const size_t before_distinct_key_opens = cppjieba::DictTrie::CacheBuildCountForTesting();
+    std::vector<std::unique_ptr<cppjieba::DictTrie> > distinct_analyzers;
+    openers.clear();
+    failures.clear();
+    start.store(false, std::memory_order_relaxed);
+    for (const fs::path& path : {first_path, second_path}) {
+      openers.emplace_back([&, path] {
+        while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+        try {
+          std::unique_ptr<cppjieba::DictTrie> analyzer(new cppjieba::DictTrie(path.string()));
+          const bool first = path == first_path;
+          Check(analyzer->Find(first ? "alpha" : "beta") &&
+                    !analyzer->Find(first ? "beta" : "alpha"),
+                "concurrent distinct-key open returned aliased terms");
+          std::lock_guard<std::mutex> lock(analyzers_mutex);
+          distinct_analyzers.push_back(std::move(analyzer));
+        } catch (const std::exception& error) {
+          std::lock_guard<std::mutex> lock(failure_mutex);
+          failures.push_back(error.what());
+        }
+      });
+    }
+    start.store(true, std::memory_order_release);
+    for (auto& opener : openers) opener.join();
+    Check(failures.empty(), "concurrent distinct-key initialization failed");
+    Check(cppjieba::DictTrie::CacheBuildCountForTesting() == before_distinct_key_opens + 2,
+          "concurrent distinct-key opens did not build their own entries");
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 2,
+          "active distinct-key analyzers did not retain exactly their generations");
+    distinct_analyzers.clear();
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+          "distinct-key releases retained more than the most-recent generation");
+
+    {
+      std::unique_ptr<cppjieba::DictTrie> first(
+          new cppjieba::DictTrie(first_path.string()));
+      Check(first->Find("alpha") && !first->Find("beta"),
+            "first dictionary contents are incorrect");
+      std::unique_ptr<cppjieba::DictTrie> second(
+          new cppjieba::DictTrie(second_path.string()));
+      Check(second->Find("beta") && !second->Find("alpha"),
+            "second dictionary contents are incorrect or aliased");
+      Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 2,
+            "active old and current dictionary generations were not both retained");
+      first.reset();
+      Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+            "old dictionary generation survived its final live analyzer");
+    }
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+          "cache retained more than the most-recent generation after release");
+
+    const size_t before_reopen = cppjieba::DictTrie::CacheBuildCountForTesting();
+    {
+      cppjieba::DictTrie reopened(first_path.string());
+      Check(reopened.Find("alpha") && !reopened.Find("beta"),
+            "reopening an older dictionary version returned stale terms");
+    }
+    Check(cppjieba::DictTrie::CacheBuildCountForTesting() == before_reopen + 1,
+          "expired older version did not rebuild its own cache entry");
+    Check(cppjieba::DictTrie::CacheLiveEntryCountForTesting() == 1,
+          "reopening an older version left multiple unleased cache entries");
+
+    CheckDefaultUserWordWeight(first_path, cppjieba::DictTrie::WordWeightMin,
+                               std::log(25.0 / 175.0), "minimum");
+    CheckDefaultUserWordWeight(first_path, cppjieba::DictTrie::WordWeightMedian,
+                               std::log(50.0 / 175.0), "median");
+    CheckDefaultUserWordWeight(first_path, cppjieba::DictTrie::WordWeightMax,
+                               std::log(100.0 / 175.0), "maximum");
+
+    {
+      const char* legacy_words[] = {"a", "ab", "x"};
+      std::vector<cppjieba::Unicode> legacy_keys(3);
+      std::vector<cppjieba::DictUnit> legacy_units(3);
+      std::vector<const cppjieba::DictUnit*> legacy_values(3);
+      for (size_t i = 0; i < legacy_keys.size(); ++i) {
+        Check(cppjieba::DecodeUTF8RunesInString(legacy_words[i], legacy_keys[i]),
+              "legacy vector Trie key decoding failed");
+        legacy_units[i].word = legacy_keys[i];
+        legacy_units[i].weight = 1.0;
+        legacy_units[i].tag = "n";
+        legacy_values[i] = &legacy_units[i];
+      }
+      cppjieba::Trie legacy_trie(legacy_keys, legacy_values);
+      cppjieba::RuneStrArray legacy_query;
+      Check(cppjieba::DecodeUTF8RunesInString("ab", legacy_query),
+            "legacy vector Trie query decoding failed");
+      Check(legacy_trie.Find(legacy_query.begin(), legacy_query.end()) == &legacy_units[1],
+            "legacy two-vector Trie constructor lost an inline-prefix term");
+    }
+
+    {
+      cppjieba::DictTrie topology(topology_path.string());
+      for (const char* word : {"a", "ab", "abc", "abd", "x"}) {
+        Check(topology.Find(word), std::string("inline-child trie lost a prefix or branch term: ") + word);
+      }
+      Check(topology.InsertUserWord("abe"), "inline-child branch insertion failed");
+      Check(topology.Find("abe"), "inserted inline-child branch term was not found");
+      Check(topology.DeleteUserWord("abc"), "inline-child leaf deletion failed");
+      Check(!topology.Find("abc") && topology.Find("ab") && topology.Find("abd"),
+            "deleting a leaf damaged its prefix or sibling branch");
+      Check(topology.DeleteUserWord("ab"), "inline-child prefix deletion failed");
+      Check(!topology.Find("ab") && topology.Find("a") && topology.Find("abd"),
+            "deleting a prefix damaged its descendants");
+      Check(topology.DeleteUserWord("a"), "inline-child root-branch prefix deletion failed");
+      Check(!topology.Find("a") && topology.Find("abd"),
+            "deleting a root-branch prefix damaged its child");
+      Check(topology.DeleteUserWord("x"), "inline-only root child deletion failed");
+      Check(!topology.Find("x") && topology.Find("abd"),
+            "deleting an inline root child damaged another root branch");
+      Check(topology.DeleteUserWord("abe") && topology.Find("abd"),
+            "removing an extra child damaged the inline sibling");
+      Check(topology.DeleteUserWord("abd"), "last descendant deletion failed");
+      Check(!topology.Find("abd") && !topology.Find("a") && !topology.Find("ab"),
+            "empty trie branch was not pruned after final deletion");
+    }
+
+    std::error_code cleanup_error;
+    fs::remove_all(root, cleanup_error);
+    Check(!cleanup_error, "could not remove the test-owned temporary directory");
+    std::cout << "cppjieba bounded cache lifecycle passed\n";
+    return 0;
+  } catch (const std::exception& error) {
+    std::cerr << "cppjieba bounded cache lifecycle failed: " << error.what() << '\n';
+    return 1;
+  }
+}

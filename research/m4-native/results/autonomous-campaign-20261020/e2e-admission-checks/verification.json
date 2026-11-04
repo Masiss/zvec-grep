@@ -1,0 +1,73 @@
+{
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/autonomous-campaign-20261020/e2e-admission-checks/tiny-fixtures"
+      ],
+      "exit_code": 0,
+      "tests": 15
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 25
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 5
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 7
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0,
+      "tests": 1
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py"
+      ],
+      "exit_code": 0,
+      "tests": 6
+    },
+    {
+      "command": [
+        "ty",
+        "check",
+        "--output-format",
+        "concise",
+        "research/m4-native/tools/m4_containment_runner.py",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "research/m4-native/tools/test_m4_contention_policy.py",
+        "research/m4-native/results/autonomous-campaign-20261020/rehearse_launch_path.py"
+      ],
+      "exit_code": 1
+    }
+  ],
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "aa1103b48981d1dbe2a04233ca7ba2019c9719c61534a48243c9ca565c891543",
+    "research/m4-native/tools/test_m4_containment_runner.py": "a8582a017da190b2b51f799454e27220071034c838d586e8670b8dbe40080f37",
+    "research/m4-native/tools/test_m4_contention_policy.py": "a05a2d59a5130b7d006d7220480688bd5bf70bdae205edeabc85a2a6e5c78183",
+    "research/m4-native/results/autonomous-campaign-20261020/rehearse_launch_path.py": "70ea6e1e194cb1f3d315687099ff240dd47c288bc1b83c6690215cc3364fc6f3"
+  }
+}

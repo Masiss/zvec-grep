@@ -1,0 +1,23 @@
+{
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_workspace_observer.py",
+        "--output-dir",
+        "research/m4-native/results/workspace-observer-repair-20261020/verification-v2/focused-fixtures",
+        "--containment"
+      ],
+      "exit_code": 1,
+      "tests": 19
+    }
+  ],
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "0c9300eb34508d5f39a355e7e02448d9a515dcc47f1ac33b8cf3f53765651ead",
+    "research/m4-native/tools/test_m4_workspace_observer.py": "e6ddb8396b58f484d225477fc8ca6919da276af99ee5ac785595672498191760",
+    "research/m4-native/docs/benchmark-policy.json": "7399535d179f739a26304f0b78369139714df12c4d2e89f57e19edd254906d2c"
+  },
+  "sources_unchanged": true,
+  "native_executions": 0,
+  "campaign_budget_unchanged": "4/4 consumed,0remaining"
+}

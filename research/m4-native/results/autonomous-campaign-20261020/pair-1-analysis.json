@@ -1,0 +1,105 @@
+{
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "pair_slot": 1,
+  "pair_completed": false,
+  "native_workload_started": false,
+  "second_arm_started": false,
+  "baseline": {
+    "samples": 1200,
+    "duration_seconds": 59.951419936,
+    "integrity": {
+      "status": "VALID",
+      "errors": [],
+      "rows": 1200,
+      "maximum_observation_gap_seconds": 2,
+      "nominal_sample_period_seconds": 0.05,
+      "resolution_note": "actual brackets retained; reduced resolution limits attribution, not a host-idleness test"
+    },
+    "capacity_decision": "OPERATION_READY_EXPLORATORY",
+    "quality_status": "STABILITY_GATE_FAIL",
+    "quality_reason": "baseline drift: last half outside first-half envelope for load1_max",
+    "load1": {
+      "min": 1.54,
+      "max": 2.65
+    },
+    "io_full_avg10": {
+      "min": 4.3,
+      "max": 13.81
+    },
+    "memavailable_kib": {
+      "min": 7278576.0,
+      "max": 7727404.0
+    },
+    "minimum_disk_free_bytes": 18041962496,
+    "host_oom_kill_delta": 0,
+    "host_pswpin_pages_delta": 565,
+    "host_pswpout_pages_delta": 1,
+    "historical_raw_failed_samples": {
+      "M4-RG-LOAD1": 0,
+      "M4-RG-MEM": 0,
+      "M4-RG-IOPSI": 1193,
+      "M4-RG-DISK": 1200
+    },
+    "attribution": "host/observer context without M4 native workload; cannot assign IO or order effects to M4 or isolate observer overhead"
+  },
+  "operation_receipt_preserved": {
+    "schema_version": 1,
+    "operation_id": "m4-contention-campaign-20261020-pair-1",
+    "operation": "same-binary A/A host-carryover measurement",
+    "operation_status": "OPERATION_FAILED",
+    "phase": "uncaught-operation-exit",
+    "reason": "timed out",
+    "gate_id": null,
+    "gate_class": "RUNNER_OR_ANALYSIS_FAILURE",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "recovery_conditions": "preserve original receipt; fix actual capacity/integrity/containment blocker; new explicit authorization for another operation, no idle wait or automatic retry",
+    "failure_scope": "this benchmark/A/A operation only",
+    "mission_status": "NOT_EVALUATED_BY_RUNNER",
+    "mission_marked_done": false,
+    "safe_independent_work_may_continue": true,
+    "policy_id": "m4-benchmark-operation-policy-v1",
+    "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard"
+  },
+  "launch_mechanism": {
+    "direct_error": "Failed to parse CPUQuota= value '200.000%': Invalid argument",
+    "secondary_exception": "TimeoutError: timed out",
+    "diagnosis": "systemd-run rejected the integer CPU quota encoded with three decimal places before creating/bootstrap handshake; controller socket accept timed out",
+    "readback_reached": false,
+    "approved_cpu_max": "200000 100000",
+    "original_cli_cpu_quota": "200.000%",
+    "raw_controller_cleanup": {
+      "error": null,
+      "kill_result": null,
+      "systemd_kill_returncode": 1,
+      "systemd_stop_returncode": 5,
+      "verified": true
+    },
+    "raw_unit_cleanup": {
+      "stop_returncode": 5,
+      "unit_collected": true,
+      "verified": true
+    }
+  },
+  "hypotheses": {
+    "H1_host_order": "DEFER: valid ambient variation, no two native arms/order comparison",
+    "H2_native_vector": "DEFER: no native stages measured; not pure-HNSW attribution",
+    "H3_post_m4_sync": "DEFER: no stage data; no sync removed",
+    "H4_shared_host_implementation": "DEFER: no native incremental-effect/cost evidence",
+    "H5_measurement_artifact": "CONFIRMED launch-property serialization defect; NOT historical writer-tail root cause"
+  },
+  "cost_and_correctness": "Native latency/CPU/PSS/RAM/IO/writes/maintenance/retrieval/freshness/coherence are NOT MEASURED by this attempt; no performance comparison or regression claim.",
+  "decision": "DEFER writer-tail optimization; keep full sync; independently fix exact integer launch-property serialization and validate using tiny synthetic units only.",
+  "remaining_slots": 2,
+  "eligible_next_pair": false,
+  "eligibility_reason": "No valid prior native pair data; rerunning the same intended pair after repairing launch would be a disguised retry under another slot, prohibited by owner sections 5/9.",
+  "input_sha256": {
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/ambient-baseline.csv": "8d9c1ee2d404eff47d3cc0f191846caedee5e9f1451a953fea541739195dcae9",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/ambient-baseline.host.json": "a3d877ae1c70001fe2674ed1e6fbf616ff5d492f6a4bc2b71b50c5b03377e32f",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/quiescence-profile.json": "686ac54b6ecfc9a0fbd929a42ede1b753362d42975230ecb0904fe84941917c0",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/baseline-gate-decision.json": "59f05f3abf13682452f87ead7c0d8fb3df037cb2eb69c258f07e49e1d05c18c5",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/operation-status.json": "00bb9b75b3d993bc7f19ca37d7a5bb47dfbae185f5cbb5f5db3f6248b3131edf",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/aa-first/containment/receipt.json": "9f29c0d5ccafd03940ae6446784b189c6867f47aa35f619b7a413fa80dc0760c",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-1/aa-first/containment/stderr.log": "9254706adb012d5f04c57078c51889cf804eadc1b9cb85f46676b476e1abd8c9",
+    "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-1.json": "a3992f21356bc61c1535cc5dbfc8627db49c1a9b2a8e4508407ff522a493c630"
+  }
+}

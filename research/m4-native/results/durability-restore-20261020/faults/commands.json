@@ -1,0 +1,88 @@
+[
+  {
+    "label": "old-elision",
+    "argv": [
+      "strace",
+      "-qq",
+      "-yy",
+      "-e",
+      "trace=fsync,ftruncate",
+      "-o",
+      "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/faults/old-elision.trace",
+      "/home/masis/src/zvec-grep/research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/current-source-build-20261019/m4_bridge_integration",
+      "--delta-crash-child",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/scratch/durability-faults-20261020/old-elision",
+      "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+      "after_stage"
+    ],
+    "returncode": 86,
+    "outer_wal_fsync_after_truncate": []
+  },
+  {
+    "label": "restored-stage",
+    "argv": [
+      "strace",
+      "-qq",
+      "-yy",
+      "-e",
+      "trace=fsync,ftruncate",
+      "-o",
+      "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/faults/restored-stage.trace",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020/m4_bridge_integration",
+      "--delta-crash-child",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/scratch/durability-faults-20261020/restored-stage",
+      "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+      "after_stage"
+    ],
+    "returncode": 86,
+    "outer_wal_fsync_after_truncate": [
+      "fsync(68</home/masis/src/zvec-grep/research/m4-native/.work/scratch/durability-faults-20261020/restored-stage/generation-12/fts/wal.log>) = 0"
+    ]
+  },
+  {
+    "label": "wal-sync-eio",
+    "argv": [
+      "strace",
+      "-qq",
+      "-yy",
+      "-e",
+      "trace=fsync,ftruncate",
+      "-o",
+      "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/faults/wal-sync-eio.trace",
+      "-e",
+      "inject=fsync:error=EIO:when=65",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020/m4_bridge_integration",
+      "--delta-crash-child",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/scratch/durability-faults-20261020/wal-sync-eio",
+      "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+      "after_stage"
+    ],
+    "returncode": 91,
+    "outer_wal_fsync_after_truncate": [
+      "fsync(68</home/masis/src/zvec-grep/research/m4-native/.work/scratch/durability-faults-20261020/wal-sync-eio/generation-12/fts/wal.log>) = -1 EIO (Input/output error) (INJECTED)"
+    ]
+  },
+  {
+    "label": "wal-sync-sigkill",
+    "argv": [
+      "strace",
+      "-qq",
+      "-yy",
+      "-e",
+      "trace=fsync,ftruncate",
+      "-o",
+      "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/faults/wal-sync-sigkill.trace",
+      "-e",
+      "inject=fsync:signal=SIGKILL:when=65",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020/m4_bridge_integration",
+      "--delta-crash-child",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/scratch/durability-faults-20261020/wal-sync-sigkill",
+      "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+      "after_stage"
+    ],
+    "returncode": -9,
+    "outer_wal_fsync_after_truncate": [
+      "fsync(68</home/masis/src/zvec-grep/research/m4-native/.work/scratch/durability-faults-20261020/wal-sync-sigkill/generation-12/fts/wal.log>) = ?"
+    ]
+  }
+]

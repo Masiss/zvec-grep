@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/usr/sbin/c++",
+    "-DM4_USE_ZVEC_NATIVE_TOKENIZER=1",
+    "-I/home/masis/src/zvec-grep/research/m4-native/include",
+    "-I/home/masis/src/zvec-grep/research/m4-native/src",
+    "-I/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src",
+    "-I/home/masis/src/zvec-grep/.local/native/zvec-native-profile/src/include",
+    "-I/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/utf8proc/utf8proc-2.11.3",
+    "-isystem",
+    "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include",
+    "-isystem",
+    "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include",
+    "-O3",
+    "-DNDEBUG",
+    "-std=gnu++17",
+    "-Wall",
+    "-Wextra",
+    "/home/masis/src/zvec-grep/research/m4-native/src/index.cc",
+    "-fsyntax-only"
+  ],
+  "cwd": "/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020",
+  "exit_code": 0,
+  "scope": "same actual compiler flags, syntax only; no object/binary/workload output",
+  "clangd_check_note": "Original60s check timed out after successful AST build while exhaustive token/refactor feature testing; not claimed PASS. Corrected-context activeLSP3paths confirmed0diagnostics."
+}

@@ -1,0 +1,17 @@
+{
+  "verified_archived_tiny_units": [
+    "m4-contained-5cb80fbf5af84432.service",
+    "m4-contained-44db2a78acbc4e2b.service",
+    "m4-contained-82ef370f9eac4922.service",
+    "m4-contained-41a98df3f6a742ed.service",
+    "m4-contained-b418a417cbc24182.service",
+    "m4-contained-0f9ebe99f49343ec.service",
+    "m4-contained-9d406ba632494904.service",
+    "m4-contained-8fd2de457a984c25.service"
+  ],
+  "all_retired": true,
+  "native_benchmark_attempts": 1,
+  "native_arms_started": 0,
+  "no_retry": true,
+  "old_execution_helper_sha256_matches_git_ac48652": true
+}

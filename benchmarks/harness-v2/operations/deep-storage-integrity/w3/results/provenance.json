@@ -1,0 +1,40 @@
+{
+  "native_source_commit": "8f6d600db769dcabb92f7af11a8242453b7ae5bf",
+  "native_source_path": ".local/native/zvec-native-profile",
+  "local_build_dir": ".local/native/zvec-native-build",
+  "patch": "benchmarks/harness-v2/operations/deep-storage-integrity/w3/patches/w3-integrity-verifier.patch",
+  "patch_sha256": "8230d09023d631ed99d459a52f3cff7ad2d1517cfd6ca0fe0f8b25d8c94a46ad",
+  "patch_contains": "W2b checksum writer + W3 verifier surface, coverage and CRC-gap fix",
+  "verifier_source": "src/binding/c/integrity_verify.cc",
+  "verifier_source_sha256": "e860cb68937b6a192c0cb0f76c577aa71121c8f3e58546351d802def152ea2c4",
+  "index_mapping_source_sha256": "792aea0ff03a6b0c0380ecd04e6da3ed6558b0d9bdcd59de8954591e69cd2bb6",
+  "custom_native_so_sha256": "415007c53cdbc8f1359b6bd1d5bf07416ff8bdaa798c7862292415e20c83106e",
+  "installed_native_so_sha256_before_after": "58381ac7b12afd5eeae3dc10325914a28fc3157061291bb693a9ed757d815b8a",
+  "production_binary_sha256_note": "rust/target/release/zg was not replaced; the scratch copy under .tmp/w3/bin is disposable",
+  "build_command": "cmake --build .local/native/zvec-native-build --target zvec_c_api -j 8",
+  "compiler": "g++ (GCC) 16.2.1 20260810",
+  "rocksdb_version": "8.1.1",
+  "checksum_capability_marker": "0x5A564543484B5331",
+  "clean_fixture": {
+    "files": 201,
+    "entities": 201,
+    "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+    "proxima_segments": 7,
+    "segments_without_crc": 0
+  },
+  "large_fixture": {
+    "files": 2001,
+    "entities": 80040,
+    "generation": "f2eaeba2-23df-4b29-8954-6a63424c6290",
+    "proxima_segments": 48,
+    "proxima_bytes": 119791616,
+    "segments_without_crc": 0,
+    "meta_headers": 1
+  },
+  "legacy_fixture": {
+    "path": ".tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd",
+    "generation": "1824596c-7ef6-414c-be7f-9e0c311213fd",
+    "expected_status": "INCOMPLETE_LEGACY"
+  },
+  "note": "The custom native candidate was built in the local build tree. The installed/prebuilt libzvec_c_api.so and the production zg binary were not replaced. Fixtures are scratch artifacts under .tmp and are not committed."
+}

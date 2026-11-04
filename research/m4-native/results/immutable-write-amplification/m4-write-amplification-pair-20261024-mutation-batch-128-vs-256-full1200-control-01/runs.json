@@ -1,0 +1,53 @@
+[
+  {
+    "pair": 1,
+    "role": "control",
+    "arm": "m4-batch",
+    "max_delta_docs": 1536,
+    "stats_log_threshold": 4194304,
+    "mutation_batch_docs": 128,
+    "coalesce_stats": false,
+    "wal_compression_lz4": false,
+    "wal_lz4_acceleration": 1,
+    "label": "pair-first",
+    "cmd": [
+      "/home/masis/src/zvec-grep/research/m4-native/.work/build/writer-group-commit-prototype/native_m4_paired_benchmark",
+      "m4-batch",
+      "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs-256-full1200-control-01/pair-first/workspace/index",
+      "1200",
+      "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
+    ],
+    "returncode": 2,
+    "abort_reason": "NONZERO_EXIT",
+    "containment_status": "NONZERO_EXIT",
+    "measurement_quality": "HARD_QUOTA_BOUND",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "policy_context_digest": "5bb381c1a05e0d00c672827c777cdead14240902b0d95d50f51e03d439958e42",
+    "containment_receipt": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs-256-full1200-control-01/pair-first/containment/receipt.json",
+    "cgroup_peak_memory_bytes": 191324160,
+    "cgroup_peak_swap_bytes": 0,
+    "process_tree_write_bytes": 9408512,
+    "cgroup_io_controller_available": false,
+    "syscall_sync_counts": null,
+    "started_before": "2026-10-24T15:38:27.204904+00:00",
+    "ended_after": "2026-10-24T15:38:28.598663+00:00",
+    "process_wall_seconds": 1.3739691480004694,
+    "samples": 6,
+    "peak_rss_bytes": 146817024,
+    "peak_pss_bytes": 141634560,
+    "peak_swap_bytes": 0,
+    "mean_cpu_pct_one_core": 98.00990249803007,
+    "peak_cpu_pct_one_core": 107.75332063197786,
+    "final_io": {
+      "rchar": 10678748,
+      "wchar": 0,
+      "read_bytes": 18989056,
+      "write_bytes": 0
+    },
+    "stdout": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs-256-full1200-control-01/pair-first/stdout.log",
+    "stderr": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs-256-full1200-control-01/pair-first/stderr.log",
+    "profile": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs-256-full1200-control-01/pair-first/profile.jsonl",
+    "host_before": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs-256-full1200-control-01/pair-first/host-before.json",
+    "host_after": "/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-mutation-batch-128-vs-256-full1200-control-01/pair-first/host-after.json"
+  }
+]

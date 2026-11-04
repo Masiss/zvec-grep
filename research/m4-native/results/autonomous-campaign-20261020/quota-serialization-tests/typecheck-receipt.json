@@ -1,0 +1,17 @@
+{
+  "exit_code": 0,
+  "command": [
+    "ty",
+    "check",
+    "--output-format",
+    "concise",
+    "/home/masis/src/zvec-grep/research/m4-native/tools/m4_containment_runner.py",
+    "/home/masis/src/zvec-grep/research/m4-native/tools/test_m4_containment_runner.py",
+    "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/analyze_authorized_attempt.py"
+  ],
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "da8c14b07e3ac3f6ebb9ddf370204ae0e00d2fcc57177355b86ea1a36f6d0669",
+    "research/m4-native/tools/test_m4_containment_runner.py": "8401c57bdcf59240234c8f6046fe946119f789cddcd8a403e92d53ee6e585346",
+    "research/m4-native/results/autonomous-campaign-20261020/analyze_authorized_attempt.py": "fb8b949052843dcdba01d9be4f2c92474d4ac81116d7a9af861caf7a1a868073"
+  }
+}

@@ -1,0 +1,49 @@
+#1 matchedBy=vector f_042.rs:1-1
+status: possibly_stale
+symbol: function f_42
+  1: pub fn f_42() -> &'static str { "base token 42" }
+
+#2 matchedBy=vector f_040.rs:1-1
+status: possibly_stale
+symbol: function f_40
+  1: pub fn f_40() -> &'static str { "base token 40" }
+
+#3 matchedBy=vector f_047.rs:1-1
+status: possibly_stale
+symbol: function f_47
+  1: pub fn f_47() -> &'static str { "base token 47" }
+
+#4 matchedBy=vector f_022.rs:1-1
+status: possibly_stale
+symbol: function f_22
+  1: pub fn f_22() -> &'static str { "base token 22" }
+
+#5 matchedBy=vector f_044.rs:1-1
+status: possibly_stale
+symbol: function f_44
+  1: pub fn f_44() -> &'static str { "base token 44" }
+
+#6 matchedBy=vector f_052.rs:1-1
+status: possibly_stale
+symbol: function f_52
+  1: pub fn f_52() -> &'static str { "base token 52" }
+
+#7 matchedBy=vector f_041.rs:1-1
+status: possibly_stale
+symbol: function f_41
+  1: pub fn f_41() -> &'static str { "base token 41" }
+
+#8 matchedBy=vector f_045.rs:1-1
+status: possibly_stale
+symbol: function f_45
+  1: pub fn f_45() -> &'static str { "base token 45" }
+
+#9 matchedBy=vector f_072.rs:1-1
+status: possibly_stale
+symbol: function f_72
+  1: pub fn f_72() -> &'static str { "base token 72" }
+
+#10 matchedBy=vector f_120.rs:1-1
+status: possibly_stale
+symbol: function f_120
+  1: pub fn f_120() -> &'static str { "base token 120" }

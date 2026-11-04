@@ -1,0 +1,536 @@
+{
+  "capability": {
+    "cgroup2_mount": "47 45 0:29 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:7 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting",
+    "cgroup_v2_mounted": true,
+    "current_leaf": {
+      "cgroup_kill_writable": true,
+      "controllers": [
+        "memory",
+        "pids"
+      ],
+      "io_max": false,
+      "io_pressure": true,
+      "io_stat": false,
+      "memory_max_writable": true,
+      "memory_swap_max_writable": true
+    },
+    "current_unit": [
+      "ControlGroup=/user.slice/user-1000.slice/user@1000.service/session.slice/kitty-2072-2.scope",
+      "Delegate=no",
+      "IOAccounting=no",
+      "KillMode=process"
+    ],
+    "host_telemetry": {
+      "diskstats": true,
+      "host_io_psi": true,
+      "host_memory_psi": true,
+      "vmstat_swap": true
+    },
+    "root_controllers": [
+      "cpuset",
+      "cpu",
+      "io",
+      "memory",
+      "hugetlb",
+      "pids",
+      "rdma",
+      "misc",
+      "dmem"
+    ],
+    "self_cgroup": "user.slice/user-1000.slice/user@1000.service/session.slice/kitty-2072-2.scope",
+    "systemctl_available": true,
+    "systemd_run_available": true,
+    "systemd_runtime": [
+      "systemd 262 (262-1-arch)"
+    ],
+    "user_service_controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "user_service_subtree_control": [
+      "cpu",
+      "memory",
+      "pids"
+    ]
+  },
+  "controller_sha256": "f18f4048fc12f764cf7822d537cce9ee0b167fb05f7b913cf1c8b45cf705c17f",
+  "decision": {
+    "approval_reference": "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/owner-authorization.md",
+    "blocking_failures": [],
+    "continuation_allowed": true,
+    "continuation_reason": "approved workload capacity and containment plan, not an idle-envelope waiver or safety certification",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "historical_gate_decisions": [
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-MEM",
+        "metric": "MemAvailable",
+        "observed": 5261288,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 5477762,
+        "threshold_key": "MemAvailable_kib_min",
+        "unit": "KiB"
+      },
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-DISK",
+        "metric": "resource-root available bytes",
+        "observed": 16552894464,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 18219000000,
+        "threshold_key": "var_tmp_bytes_min",
+        "unit": "bytes"
+      },
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-IOPSI",
+        "metric": "host I/O PSI full avg10",
+        "observed": 0.0,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 4.46,
+        "threshold_key": "io_full_avg10_max",
+        "unit": "percent"
+      },
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-LOAD",
+        "metric": "host load-1",
+        "observed": 1.81,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 3.14,
+        "threshold_key": "load1_max",
+        "unit": "load average"
+      }
+    ],
+    "historical_guard_failures": [
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-MEM",
+        "metric": "MemAvailable",
+        "observed": 5261288,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 5477762,
+        "threshold_key": "MemAvailable_kib_min",
+        "unit": "KiB"
+      },
+      {
+        "enforced_in_selected_mode": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-DISK",
+        "metric": "resource-root available bytes",
+        "observed": 16552894464,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 18219000000,
+        "threshold_key": "var_tmp_bytes_min",
+        "unit": "bytes"
+      }
+    ],
+    "mode": "contention-aware",
+    "monotonic_ns": 8136110508673,
+    "operation_id": "m4-contention-soft-budget-native-20261021-1",
+    "phase": "aa-first",
+    "timestamp_utc": "2026-10-21T02:32:52.780733+00:00"
+  },
+  "head": "fdef863498e0fed8652a2c46f02b8a5b7b33a269",
+  "host": {
+    "cpu_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.09,
+        "avg60": 0.02,
+        "total": 102719839.0
+      }
+    },
+    "diskstats": {
+      "dm-0": {
+        "io_in_progress": 0,
+        "io_ms": 329709,
+        "major": 253,
+        "minor": 0,
+        "read_ms": 798083,
+        "reads_completed": 1732898,
+        "sectors_read": 144449808,
+        "sectors_written": 39662000,
+        "weighted_io_ms": 11254333,
+        "write_ms": 10456250,
+        "writes_completed": 850364
+      },
+      "nvme0n1": {
+        "io_in_progress": 0,
+        "io_ms": 460742,
+        "major": 259,
+        "minor": 0,
+        "read_ms": 1066843,
+        "reads_completed": 4292317,
+        "sectors_read": 177923074,
+        "sectors_written": 86592522,
+        "weighted_io_ms": 31775960,
+        "write_ms": 30679781,
+        "writes_completed": 1377457
+      },
+      "nvme0n1p1": {
+        "io_in_progress": 0,
+        "io_ms": 14,
+        "major": 259,
+        "minor": 1,
+        "read_ms": 63,
+        "reads_completed": 235,
+        "sectors_read": 6353,
+        "sectors_written": 10,
+        "weighted_io_ms": 64,
+        "write_ms": 1,
+        "writes_completed": 12
+      },
+      "nvme0n1p2": {
+        "io_in_progress": 0,
+        "io_ms": 214753,
+        "major": 259,
+        "minor": 2,
+        "read_ms": 593795,
+        "reads_completed": 2848416,
+        "sectors_read": 33463064,
+        "sectors_written": 46930512,
+        "weighted_io_ms": 28842190,
+        "write_ms": 28248394,
+        "writes_completed": 652294
+      },
+      "nvme0n1p3": {
+        "io_in_progress": 0,
+        "io_ms": 270797,
+        "major": 259,
+        "minor": 3,
+        "read_ms": 472976,
+        "reads_completed": 1443576,
+        "sectors_read": 144450817,
+        "sectors_written": 39662000,
+        "weighted_io_ms": 2904362,
+        "write_ms": 2431386,
+        "writes_completed": 725148
+      },
+      "zram0": {
+        "io_in_progress": 0,
+        "io_ms": 109459,
+        "major": 252,
+        "minor": 0,
+        "read_ms": 29880,
+        "reads_completed": 2546237,
+        "sectors_read": 20372144,
+        "sectors_written": 42932448,
+        "weighted_io_ms": 221707,
+        "write_ms": 191827,
+        "writes_completed": 4875396
+      }
+    },
+    "io_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.39,
+        "avg60": 0.07,
+        "total": 141141757.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.5,
+        "avg60": 0.1,
+        "total": 155052005.0
+      }
+    },
+    "loadavg": [
+      1.81,
+      3.4,
+      3.24
+    ],
+    "meminfo_kib": {
+      "MemAvailable_kib": 5261288,
+      "MemTotal_kib": 16051136,
+      "SwapFree_kib": 16118212,
+      "SwapTotal_kib": 24802296
+    },
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 52404712.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 53395508.0
+      }
+    },
+    "monotonic_ns": 8136110508673,
+    "resource_root_free_bytes": 16552894464,
+    "timestamp_utc": "2026-10-21T02:32:52.780733+00:00",
+    "vmstat": {
+      "allocstall_device": 1,
+      "allocstall_dma": 0,
+      "allocstall_dma32": 0,
+      "allocstall_movable": 63381,
+      "allocstall_normal": 19006,
+      "oom_kill": 0,
+      "pgscan_direct": 12308982,
+      "pgsteal_direct": 5730624,
+      "pswpin_pages": 6728477,
+      "pswpout_pages": 11232869
+    }
+  },
+  "native_started": false,
+  "old_ledger_sha256": "93c32e64ebb999c7ffef4d11cc85c8924fd64aa995079f01b9a2bf71d2d85d97",
+  "provenance": {
+    "build_manifest": {
+      "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+      "binary_size_bytes": 2311488,
+      "bridge_source_sha256": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34",
+      "build_command": [
+        "cmake",
+        "--build",
+        "/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020",
+        "--target",
+        "m4_bridge_integration",
+        "--parallel",
+        "1"
+      ],
+      "build_exit": 0,
+      "build_unit": "m4-durability-build-20261020.service",
+      "changed_inputs_against_old_receipt": {
+        "research/m4-native/tests/m4_bridge_integration.cc": {
+          "new": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34",
+          "old": "31e9e1db9dfacba98987c38799efcdc2be2bb805656e4ef89c27273d047a1cb5"
+        }
+      },
+      "classification": "NEW FULL-SYNC RESEARCH BINARY; correctness/fault verification only",
+      "compile_dependency_count": 61,
+      "compile_dependency_hashes": {
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/jieba_tokenizer.cc": "b5092a63528a3bd4faf6e31c156217d5dddccb678cb829569b87cb63e6218edd",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/jieba_tokenizer.h": "bb1085c37ca97e7544e6f7894b1b38dfe752d3dbb79a40adbe48cc0f7ead84b7",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer.cc": "3f9a7ee811e9fac253bac363d5b208b9e7a03cc1bb51b771221e9417bc8864e9",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer.h": "b51f6c0c556808b5dfdc9e6f5542fbb1172a2f2d9d4e9a2b9a30bfd09d68f851",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer_unicode.inc": "3d666796d24191c9708fb3a183d7ce0f61962da0b34dacfdc73d03061f342722",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/token_filter.cc": "52a9c44a460818cf4d4857f980eea8bad944466ca8ca93e754107d4aa47ea7eb",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/token_filter.h": "b09408f2b66c50a7bb7e32c960aefdeb06f59493b1242af91c8c09d367348b75",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/tokenizer.h": "7b4ff80674117f396ceea28195824577fc18f0fcc9d38e6906ec6d0635ff1eed",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/unicode_utils.cc": "8f3f9e7bf9745ca2b427011e4987ccce6991ca1dc80fddf3d26b4d118d383da7",
+        ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/unicode_utils.h": "08d942d6803ba18ddb1f4d344c7b4fa8efde358b0987ca5b2080ab262b4531a3",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/container/cube.h": "7ad53479c329bb983a9b455728c7df9753c533a849a43829ea516d4cf3c5358a",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/container/hypercube.h": "93381d6b799b6861c36184ae78abff895aa58e54bd4de2e13845ac5d8b708af9",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/container/params.h": "0eee6e112f48d73a692ab5ba6515ac6a5134f3aca109b2a43460b8cee105a413",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/encoding/json/mod_json.h": "5abc71c3d4466fc64dd9aae7a41ca8a654615b5f8049d425beb12811f8b28a75",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/encoding/json/mod_json_plus.h": "b3f0dd3a5d34a70ce76b254d58eb206437ca982ab87a9d7f1781b080babd59fb",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/internal/platform.h": "02b7e6ff05edb95a488c49973831688671f639f231e1626ccc6e58e8d1f456d8",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/logger/logger.h": "ec20e43b612cb21e2419b10bffa73c7885743b09a40f8fd3aaf78ba3314cf20b",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/pattern/expected.hpp": "fcbc6e69654a60c851136017de67ab4660b192a6d3ed3cd2f3bc743e795ba8ef",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/pattern/factory.h": "e6a301beddef1c7aad934258fb0f2f2b7950c536caa1c33971724bc4d25aa63e",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/pattern/singleton.h": "d09e4856764fb92c83de8d70ad8de820bd2019af227f1192e979f7f293dc9bc6",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/string/string_concat_helper.h": "d0d2cc0471d97ab3f1b73db75234fd1b2259e01c5aeaa5e98d013acbc727ec3e",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/string/string_view.h": "b1976a785d2bb7c6867ad47c9f60076838816dd328b6d6af757ec0272308d041",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/float_helper.h": "c56283f87f9671057104d6528a43a8aed183cab78d4c812c92aded187d42ba0f",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/string_helper.h": "aec1f0000e0a5f0446f5bbb14f9cf289d8f7a18db1dff70d295fada3ecc0890a",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/string_helper_impl.h": "d4786fb73da3f235c88bcf79087384e86dfd5bb87514c8f244b62fce5b7e4c34",
+        ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/type_helper.h": "986977ee4d95248ea5344316eaebfbd911292afbac49a26a9910dd59c572928c",
+        ".local/native/zvec-native-profile/src/include/zvec/c_api.h": "f8dfcf4a5d3cc59b3f8ee7c2a87599051341555b6a0b5ca0669b115bc15e4c49",
+        ".local/native/zvec-native-profile/src/include/zvec/db/config.h": "07156151a887c97d26f51520a6ab7ea897de09a4c1a7e2b70e99ffcc9adf699f",
+        ".local/native/zvec-native-profile/src/include/zvec/db/status.h": "50ae8428d19040824048b696dd361a4c99cb1c6bb0761a3766ec40bc36f177cd",
+        ".local/native/zvec-native-profile/src/include/zvec/export.h": "e160b37944ef3ec6ff09095554f5a2d40280d51a39374329028587c49470c702",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/DictTrie.hpp": "88908f2ccb24738d8eb121733b3422c68579110f79ce1f81112d4c99c2bc67c8",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/FullSegment.hpp": "0daf88c8c010f8e42c01631bdbcd0599d5b0662c2864d958d38eda31f4b9a4ff",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/HMMModel.hpp": "bf0f8d5b93d3d4b54b87c5010a0e797fbe3fb1ec43057be3c8e5b6a875a796cc",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/HMMSegment.hpp": "4727266bbf99b7a485bb2747e610cc6c35674600959dda1626d6438127ba02b2",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/MPSegment.hpp": "608adde6d93d7abd2a7dfb2ea56756b969ee47a817a91553f371051bb105c640",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/MixSegment.hpp": "8d9d55b16acb16bf9ae09210f7ba54066b0d2db92d9ae4b3e192ed4ecdadb174",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/PosTagger.hpp": "68946c8d9277d37ca1d6cfc83e92fe8298c6419a555c8396510b2e061304b7f1",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/PreFilter.hpp": "23536504cf8d4f9900ee270cbcf122137e62d02523b18fb7f784dd33887cb61c",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/QuerySegment.hpp": "60812fb607f42ce0afe872fada2b5ae77b5dccbd872caf46ebb8554ef9cfa0c7",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/SegmentBase.hpp": "13aa43fa18e1f7e8ce1b5789c99450f8e9b8c9c40291b14a6733f5da05504a78",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/SegmentTagged.hpp": "fd6616377dc5c20b5fa872050e3dc385863824dbc78c7d4d90a9aab820e2c488",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/Trie.hpp": "a9f10ee301d29a07ef1d6c33b9146880d86459999360dd2616a3697d5ab6a95c",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/Unicode.hpp": "2b0af7e9d1a7b6b316ae5a5d94dc30ce4aa6ee6ec30cb5e0205969af2e8dc107",
+        ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/UnicodeFile.hpp": "d33fa7e48e7c4025e15f61ecf6370d2fda1a018b2dbabd3f16f505337b029be9",
+        ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/LocalVector.hpp": "1227bdeee48489affeb57ac130ec7f10467d54beac46d3505fead662d1cb51cb",
+        ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/Logging.hpp": "eda5ffe1d18b41981ca0ba6b30e51a9167afcf64fc4c28c33a3f57962fc83f11",
+        ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/StdExtension.hpp": "5f5bf96e036f5f678940996976ec40a22030b274fb0d9fd561596eba5ba0e8b2",
+        ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/StringUtil.hpp": "222ba1615c856255c25b5e4d5a93f178036680595c2f22dd76a20d75fafa778a",
+        ".local/native/zvec-native-profile/thirdparty/utf8proc/utf8proc-2.11.3/utf8proc.h": "a4e498b7392c383cf3b22e662da21e0b48f1264806235d87b5d8bd166232f658",
+        "research/m4-native/include/m4/index.h": "0f5106f85a8037e336338c9ad2f9dab31cfba2ab891e9c6d7277048aebb236ad",
+        "research/m4-native/src/../include/m4/index.h": "0f5106f85a8037e336338c9ad2f9dab31cfba2ab891e9c6d7277048aebb236ad",
+        "research/m4-native/src/format.cc": "580e244ca680fb63fa623661d0a75530a22d7615ea48c651b45f43e3da4422b7",
+        "research/m4-native/src/format.h": "1e28efda9954c5155f8a74c7f8d34f613c9169ff33d6baeb40baaf3ccfc66bf6",
+        "research/m4-native/src/index.cc": "71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51",
+        "research/m4-native/src/native_global_config_link_shim.cc": "d6f292dc46534ddb2c8d08ec4f3cd8c9a379f475db6f8a18b9d36c890a9f6e1e",
+        "research/m4-native/src/native_tokenizer_adapter.cc": "a4d001b568a82fdaa2b61789cba251b205e91de864adc34b72e2a532a3d0b003",
+        "research/m4-native/src/stream_merge.cc": "8e04fe2b5428a252fbdd9987004f7e84624a9c3322b2ba9eb8220e3d61d79d22",
+        "research/m4-native/src/tokenizer.h": "cda55b328f1a7bbd50444c91cbe891a677b1e34f20fc4ea17ed3e04e49cc26ef",
+        "research/m4-native/src/util.h": "893d617a3273b7c54d90320e88b10119589827e770037bd4ed6a403d814e345a",
+        "research/m4-native/tests/../src/tokenizer.h": "cda55b328f1a7bbd50444c91cbe891a677b1e34f20fc4ea17ed3e04e49cc26ef",
+        "research/m4-native/tests/m4_bridge_integration.cc": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34"
+      },
+      "compiled_source_whitespace_verification": {
+        "exit": 0,
+        "final_compiled_source_sha256": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34",
+        "original_tested_source_sha256": "d6a5f4ec834820cfb410ad9e8019cf6d388ee3e397c01b01b2b90c2e13576a0a",
+        "reason": "Removed one pre-existing trailing space for clean source packaging; rebuilt with same config. Executable SHA-256 byte-identical, so completed binary tests apply without repetition.",
+        "unit": "m4-durability-whitespace-build-20261020.service"
+      },
+      "compiler": "c++ (GCC) 16.2.1 20260810",
+      "configuration_archive_sha256": "3d4b60886afdceb61323e836d1071ab08c780f30b024d3533a664605b9745df0",
+      "configure_command": [
+        "cmake",
+        "-S",
+        "research/m4-native",
+        "-B",
+        "/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DM4_ZVEC_ROOT=/home/masis/src/zvec-grep/.local/native/zvec-native-profile",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+      ],
+      "elf_notes": "\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\n    Build ID: aad9b1e998867e304bf03ff0b298d765456a9e8b\n\nDisplaying notes found in: .note.gnu.property\n  Owner                Data size \tDescription\n  GNU                  0x00000030\tNT_GNU_PROPERTY_TYPE_0\n      Properties: x86 ISA needed: x86-64-baseline\n\tx86 feature used: x86, XMM\n\tx86 ISA used: x86-64-baseline\n\nDisplaying notes found in: .note.ABI-tag\n  Owner                Data size \tDescription\n  GNU                  0x00000010\tNT_GNU_ABI_TAG (ABI version tag)\n    OS: Linux, ABI: 4.4.0\n",
+      "exact_source_delta": {
+        "patch": "configuration-and-change.tar.gz:bridge-change.patch",
+        "patch_sha256": "49792b5883d3c9e42d8ebab5a1f86a450a05ae6c4386cce599fb8c6ff44c35f3",
+        "verified_preimage_sha256": "31e9e1db9dfacba98987c38799efcdc2be2bb805656e4ef89c27273d047a1cb5"
+      },
+      "focused_test_source_sha256": "28ca3a8911a171e15889a921a1bc0c19a59ada972039c071e0984409276ed56d",
+      "ldd": "\tlinux-vdso.so.1 (0x00007fa2e815a000)\n\tlibzvec_c_api.so => /home/masis/src/zvec-grep/.local/native/zvec-native-profile/../zvec-native-build/lib/libzvec_c_api.so (0x00007fa2e5600000)\n\tlibstdc++.so.6 => /usr/lib/libstdc++.so.6 (0x00007fa2e5200000)\n\tlibm.so.6 => /usr/lib/libm.so.6 (0x00007fa2e50c9000)\n\tlibgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x00007fa2e7ef4000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x00007fa2e4e00000)\n\t/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007fa2e815c000)\n",
+      "old_elision_binary_sha256": "57f3a19e0fb5dfe4d2d64ea4831f276a81a586c22ee30309d6249ed986ba342f",
+      "retained_copy_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+      "retention": "Corrected binary retained under results/ (not .work only); do not delete it or old binary. Binary intentionally not committed; small configs/source hashes/test logs committed. Other unchanged research inputs remain at recorded source paths. No off-host archive claimed.",
+      "runtime_library_hashes": {
+        "/home/masis/src/zvec-grep/.local/native/zvec-native-build/lib/libzvec_c_api.so": "6d55b9131766d943fbad1f77dbebc6a2db7951ce8d89ad46a92b7619cc92d950",
+        "/usr/lib/ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
+        "/usr/lib/libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+        "/usr/lib/libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+        "/usr/lib/libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+        "/usr/lib/libstdc++.so.6.0.36": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e"
+      },
+      "source_revision_before_change": "ae7117ff00ba6f7815aef534aa2fdb5b79811abd",
+      "timestamp": "2026-10-20T11:54:58+0700"
+    },
+    "durability_evidence": {
+      "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+      "cases": 5,
+      "injected_fsync_ordinal": 65,
+      "old_binary_sha256": "57f3a19e0fb5dfe4d2d64ea4831f276a81a586c22ee30309d6249ed986ba342f",
+      "recovery_checks": 4,
+      "scope": "Process-crash/EIO/SIGKILL verification and observed syscall ordering, NOT physical power-loss simulation; no benchmark.",
+      "status": "PASS"
+    },
+    "runtime_identity": {
+      "binary_realpath": "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/m4_bridge_integration.full-sync",
+      "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+      "current_source_file_sha256": {
+        "research/m4-native/CMakeLists.txt": "1bfb407016d190878af4d70661b6076d38d0a8f503d23de226040a3b5895aa70",
+        "research/m4-native/include/m4/index.h": "0f5106f85a8037e336338c9ad2f9dab31cfba2ab891e9c6d7277048aebb236ad",
+        "research/m4-native/src/format.cc": "580e244ca680fb63fa623661d0a75530a22d7615ea48c651b45f43e3da4422b7",
+        "research/m4-native/src/format.h": "1e28efda9954c5155f8a74c7f8d34f613c9169ff33d6baeb40baaf3ccfc66bf6",
+        "research/m4-native/src/index.cc": "71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51",
+        "research/m4-native/src/native_global_config_link_shim.cc": "d6f292dc46534ddb2c8d08ec4f3cd8c9a379f475db6f8a18b9d36c890a9f6e1e",
+        "research/m4-native/src/native_tokenizer_adapter.cc": "a4d001b568a82fdaa2b61789cba251b205e91de864adc34b72e2a532a3d0b003",
+        "research/m4-native/src/stream_merge.cc": "8e04fe2b5428a252fbdd9987004f7e84624a9c3322b2ba9eb8220e3d61d79d22",
+        "research/m4-native/src/tokenizer.h": "cda55b328f1a7bbd50444c91cbe891a677b1e34f20fc4ea17ed3e04e49cc26ef",
+        "research/m4-native/src/util.h": "893d617a3273b7c54d90320e88b10119589827e770037bd4ed6a403d814e345a",
+        "research/m4-native/tests/m4_bridge_integration.cc": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34"
+      },
+      "current_source_tree_sha256": "e87fae19ea617b490e62f4c498e68290e2b6d0c776928860347260fb480de80a",
+      "ldd_output": "linux-vdso.so.1\n\tlibzvec_c_api.so => /home/masis/src/zvec-grep/.local/native/zvec-native-profile/../zvec-native-build/lib/libzvec_c_api.so\n\tlibstdc++.so.6 => /usr/lib/libstdc++.so.6\n\tlibm.so.6 => /usr/lib/libm.so.6\n\tlibgcc_s.so.1 => /usr/lib/libgcc_s.so.1\n\tlibc.so.6 => /usr/lib/libc.so.6\n\t/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2",
+      "ldd_returncode": 0,
+      "loaded_shared_libraries": {
+        "/home/masis/src/zvec-grep/.local/native/zvec-native-build/lib/libzvec_c_api.so": "6d55b9131766d943fbad1f77dbebc6a2db7951ce8d89ad46a92b7619cc92d950",
+        "/usr/lib/ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
+        "/usr/lib/libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+        "/usr/lib/libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+        "/usr/lib/libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+        "/usr/lib/libstdc++.so.6.0.36": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e"
+      },
+      "measurement_runner_file_sha256": {
+        "research/m4-native/docs/benchmark-policy.json": "f975b5699a98c260704cee8557ac64c50103e9d575e820ba661046df398a7b74",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/analyze_host_pressure.py": "b932fab0edf08fc31c1e704489fbcd76825f7f87d75ed2adf81861c828f7047f",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/capture_host_baseline.py": "b0180d8fd8449b8cd197d4bfb7642131443d19851c5354fcaa7067422d38e710",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py": "b08df542eb72e29da653ac26f6b040d67831bd3637c5794d1014dea4e2f56c61",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_sync_reduction_pair.py": "d8ec467f73fa5c94b9ba16ccbb14e4269bf399efd79082142a1e5c532685f8de",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/summarize_aa_diagnostic.py": "007dcab99f78f40120534567f23be9c87783f2599fd37bb4b3c0dee026777098",
+        "research/m4-native/tools/m4_containment_runner.py": "f18f4048fc12f764cf7822d537cce9ee0b167fb05f7b913cf1c8b45cf705c17f"
+      },
+      "measurement_runner_tree_sha256": "200c6194b609d1e20a8d68d88ed4f0bce16d85269c29e8c558a586999b77a97f",
+      "source_git_revision": "fdef863498e0fed8652a2c46f02b8a5b7b33a269"
+    },
+    "verification": "static hashes and retained completed tests; no new binary execution"
+  },
+  "same_controller_actual_rehearsal": true,
+  "timestamp_utc": "2026-10-21T02:32:52.781141+00:00",
+  "top": {
+    "observer_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "    PID    PPID COMMAND         %CPU   RSS ELAPSED\n 716238  716237 python          71.4 28832       0\n 654155  654073 opengrep-core   12.0 350668    653\n 701691    8740 clangd.main      4.7 473636    164\n 335056    1855 zed-editor       3.3 139292   4220\n 151542    2011 zen-bin          2.6 667992  36932\n   7667    6266 pi               2.5 420864  38427\n 336439  335547 claude           2.4 364780   4211\n   8740    7802 pi               2.4 1014340 38417\n   6087    2213 opencode         1.9 179208  38449\n 152162  151760 Web Content      1.4 750404  36929\n 654115    8740 ast-grep         1.3 132600    653\n   2011    2006 Hyprland         1.2 63108   38468\n 152234  151760 WebExtensions    1.1 518052  36929\n 152718  151760 Web Content      1.0 409452  36925\n   6510    6087 opencode         0.8 371124  38443\n   2072    2011 kitty            0.6 33020   38466\n   2200    1855 eww              0.5 28528   38466\n 644774    8740 marksman         0.5 121868    744\n    175       2 kswapd0          0.3     0   38484\n 644796    8740 ty               0.3 109744    744"
+  }
+}

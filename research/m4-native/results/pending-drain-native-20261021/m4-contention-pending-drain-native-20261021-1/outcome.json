@@ -1,0 +1,17 @@
+{
+  "authority_reference": "/home/masis/src/zvec-grep/research/m4-native/results/pending-drain-native-20261021/owner-authorization.md",
+  "consumed": 1,
+  "historical_campaign_unchanged": "campaign4/4 exhausted and prior separate1/1spent; this is distinct authority after4579e5a",
+  "maximum": 1,
+  "measurement_quality": "INCOMPLETE",
+  "native_arms_completed": 1,
+  "native_arms_launched": 1,
+  "no_retry": true,
+  "old_ledger_unchanged": true,
+  "operation_id": "m4-contention-pending-drain-native-20261021-1",
+  "qualification_eligible": false,
+  "receipt_status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+  "remaining": 0,
+  "state": "DIAGNOSTIC_COMPLETED_WITH_REPORTED_CAVEATS",
+  "workspace": "/var/tmp/m4-soft-native-cyziqj0u"
+}

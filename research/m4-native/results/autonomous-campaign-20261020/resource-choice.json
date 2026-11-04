@@ -1,0 +1,10 @@
+{
+  "decision_scope": "Proposal only; no resource approval or launch authority",
+  "alternatives": {
+    "roomier": {"memory_bytes":1073741824,"cpu_equivalent_quota":2,"tasks":128},
+    "tighter": {"memory_bytes":536870912,"cpu_equivalent_quota":1,"tasks":64}
+  },
+  "local_adviser_suggestion": "tighter",
+  "proposed_to_owner": "roomier",
+  "agent_reason": "Historical roughly 302 MiB single-PID RSS does not include cgroup file-cache peak, nor measure task peak. The tighter option offers only about 1.7x RSS headroom and more self-throttling; a memory/task distress event would abort, not permit automatic enlargement/retry. Choose about 3.4x RSS headroom for the first diagnostic proposal, contingent on a separate 1 GiB available-host reserve and owner acceptance. Neither alternative is proven to fit or be safe; the roomier proposal spends more host capacity and may still fail. Owner may reduce/edit budgets before activation."
+}

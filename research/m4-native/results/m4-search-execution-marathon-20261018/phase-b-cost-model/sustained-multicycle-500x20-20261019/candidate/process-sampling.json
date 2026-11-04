@@ -1,0 +1,9 @@
+{
+  "returncode": 0,
+  "wall_ms": 6941.747748001944,
+  "pss_samples": 131,
+  "sampled_peak_pss_kb": 286915,
+  "sampled_peak_swap_kb": 0,
+  "sampled_peak_rss_kb": 294412,
+  "process_io_write_bytes_delta": 251863040
+}

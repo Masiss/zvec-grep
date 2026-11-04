@@ -1,0 +1,9 @@
+{
+  "status": "OPERATION_BLOCKED",
+  "reason": "Fresh inter-arm preflight refused continuation; candidate arm not launched.",
+  "gate_id": "M4-CA-MEM-CAPACITY",
+  "observed_memavailable_bytes": 2964193280,
+  "required_memavailable_bytes": 4294967296,
+  "source": "job-3573960-120 output; continuation stopped immediately at preflight",
+  "no_retry": true
+}

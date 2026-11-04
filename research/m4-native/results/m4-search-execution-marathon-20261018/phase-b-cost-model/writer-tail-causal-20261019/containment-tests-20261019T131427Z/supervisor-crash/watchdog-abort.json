@@ -1,0 +1,23 @@
+{
+  "final_cleanup": {
+    "attempted": true,
+    "method": "systemctl-user-stop",
+    "returncode": 0,
+    "stderr": "",
+    "success": true
+  },
+  "reason": "supervisor_lost",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      3676669
+    ],
+    "term_pids": [
+      3676729,
+      3676733
+    ]
+  },
+  "timestamp_utc": "2026-10-19T13:14:29.293130+00:00"
+}

@@ -1,0 +1,276 @@
+{
+  "approved_budget": null,
+  "benchmark_started": true,
+  "cgroup_io_controller_available": false,
+  "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-f3dab781624e4205.service",
+  "final_process_status": "PASS only when exit=0, no watchdog/OOM abort, and telemetry is complete",
+  "hard_guards": {
+    "io_full_avg10_max": 4.46,
+    "load1_max": 3.14,
+    "memavailable_min_kib": 5477762,
+    "var_tmp_free_min_bytes": 18219000000
+  },
+  "limits_applied": {
+    "approval_reference": null,
+    "cpu_max": null,
+    "memory_max_bytes": null,
+    "memory_swap_max_bytes": null,
+    "workspace_limits": "none"
+  },
+  "measurement_quality": "COMPLETE",
+  "memory_swap_pressure_limits": null,
+  "preflight": {
+    "diskstats": {
+      "dm-0": {
+        "io_in_progress": 1,
+        "io_ms": 3655574,
+        "major": 253,
+        "minor": 0,
+        "read_ms": 5634321,
+        "reads_completed": 8542503,
+        "sectors_read": 803332232,
+        "sectors_written": 693261816,
+        "weighted_io_ms": 77390878,
+        "write_ms": 71756557,
+        "writes_completed": 16557502
+      },
+      "nvme0n1": {
+        "io_in_progress": 1,
+        "io_ms": 3886026,
+        "major": 259,
+        "minor": 0,
+        "read_ms": 4401777,
+        "reads_completed": 10903278,
+        "sectors_read": 855158012,
+        "sectors_written": 772420618,
+        "weighted_io_ms": 55175766,
+        "write_ms": 50104697,
+        "writes_completed": 15721906
+      },
+      "nvme0n1p1": {
+        "io_in_progress": 0,
+        "io_ms": 42,
+        "major": 259,
+        "minor": 1,
+        "read_ms": 218,
+        "reads_completed": 641,
+        "sectors_read": 14715,
+        "sectors_written": 10,
+        "weighted_io_ms": 226,
+        "write_ms": 1,
+        "writes_completed": 12
+      },
+      "nvme0n1p2": {
+        "io_in_progress": 0,
+        "io_ms": 731547,
+        "major": 259,
+        "minor": 2,
+        "read_ms": 788727,
+        "reads_completed": 4086182,
+        "sectors_read": 51806952,
+        "sectors_written": 79158792,
+        "weighted_io_ms": 31275381,
+        "write_ms": 30486654,
+        "writes_completed": 1295344
+      },
+      "nvme0n1p3": {
+        "io_in_progress": 1,
+        "io_ms": 3189308,
+        "major": 259,
+        "minor": 3,
+        "read_ms": 3612820,
+        "reads_completed": 6816348,
+        "sectors_read": 803333233,
+        "sectors_written": 693261816,
+        "weighted_io_ms": 23230862,
+        "write_ms": 19618041,
+        "writes_completed": 14426546
+      },
+      "zram0": {
+        "io_in_progress": 0,
+        "io_ms": 470320,
+        "major": 252,
+        "minor": 0,
+        "read_ms": 79617,
+        "reads_completed": 10119569,
+        "sectors_read": 80958800,
+        "sectors_written": 157373416,
+        "weighted_io_ms": 542454,
+        "write_ms": 462837,
+        "writes_completed": 17880376
+      }
+    },
+    "io_pressure": {
+      "full": {
+        "avg10": 4.22,
+        "avg300": 2.99,
+        "avg60": 3.47,
+        "total": 2685907524.0
+      },
+      "some": {
+        "avg10": 4.5,
+        "avg300": 3.29,
+        "avg60": 3.74,
+        "total": 2918955890.0
+      }
+    },
+    "loadavg": [
+      1.85,
+      2.87,
+      3.07
+    ],
+    "meminfo_kib": {
+      "MemAvailable_kib": 4473204,
+      "MemTotal_kib": 16051144,
+      "SwapFree_kib": 13283080,
+      "SwapTotal_kib": 24802296
+    },
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 133950283.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 141984770.0
+      }
+    },
+    "monotonic_ns": 151843004872062,
+    "resource_root_free_bytes": 15469010944,
+    "timestamp_utc": "2026-10-19T13:14:27.530804+00:00",
+    "vmstat": {
+      "pswpin_pages": 16594795,
+      "pswpout_pages": 29566525
+    }
+  },
+  "process_returncode": 7,
+  "reason": null,
+  "safety_outcome": "WORKLOAD_FAILED",
+  "schema_version": 1,
+  "status": "NONZERO_EXIT",
+  "timestamp_utc": "2026-10-19T13:14:27.947000+00:00",
+  "unit": "m4-contained-f3dab781624e4205.service",
+  "watchdog_abort": null,
+  "watchdog_summary": {
+    "abort": null,
+    "cgroup_io_stat_available": false,
+    "final_cgroup": {
+      "cgroup_io_controller": false,
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "cpu_pressure": {
+        "full": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 14.0
+        },
+        "some": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 14.0
+        }
+      },
+      "cpu_stat": {
+        "burst_usec": 0,
+        "core_sched.force_idle_usec": 0,
+        "nice_usec": 0,
+        "nr_bursts": 0,
+        "nr_periods": 0,
+        "nr_throttled": 0,
+        "system_usec": 38527,
+        "throttled_usec": 0,
+        "usage_usec": 147555,
+        "user_usec": 109027
+      },
+      "io_max": null,
+      "io_pressure": {
+        "full": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 1843.0
+        },
+        "some": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 1843.0
+        }
+      },
+      "io_stat": null,
+      "memory_current_bytes": 15937536,
+      "memory_events": {
+        "high": 0,
+        "low": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_group_kill": 0,
+        "oom_kill": 0,
+        "sock_throttled": 0
+      },
+      "memory_peak_bytes": 18980864,
+      "memory_pressure": {
+        "full": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 0.0
+        },
+        "some": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 0.0
+        }
+      },
+      "memory_swap_current_bytes": 0,
+      "memory_swap_events": {
+        "fail": 0,
+        "high": 0,
+        "max": 0
+      },
+      "memory_swap_peak_bytes": 0,
+      "pids": [
+        3676558
+      ],
+      "populated": 1,
+      "process_io_sample_complete": true,
+      "process_tree_read_bytes": 0,
+      "process_tree_write_bytes": 0
+    },
+    "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+    "measurement_quality": "COMPLETE",
+    "peak_cgroup_memory_current_bytes_sampled": 17670144,
+    "peak_cgroup_memory_peak_bytes_observed": 18980864,
+    "peak_cgroup_swap_current_bytes_sampled": 0,
+    "peak_cgroup_swap_peak_bytes_observed": 0,
+    "peak_sampled_generation_apparent_bytes": 0,
+    "peak_sampled_staging_named_apparent_bytes": 0,
+    "peak_sampled_workspace_allocated_st_blocks_bytes_gross": 0,
+    "peak_sampled_workspace_apparent_bytes": 0,
+    "safety_outcome": "WATCHDOG_COMPLETED_NO_ABORT",
+    "sample_interval_ms_requested": 20,
+    "samples": 3,
+    "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+    "schema_version": 1,
+    "workspace_shared_extent_inspection": {
+      "available": true,
+      "errors": [],
+      "files_examined": 0,
+      "files_with_shared_extent_flag": 0,
+      "method": "filefrag -v FIEMAP flags on final workspace files",
+      "scope": "final tree only; not a historical peak/shared-byte de-duplication measurement",
+      "shared_file_samples": []
+    }
+  },
+  "workload_returncode": 7
+}

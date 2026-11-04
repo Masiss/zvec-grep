@@ -1,0 +1,26 @@
+{
+  "cleanup_complete": true,
+  "failure_class": "UNKNOWN",
+  "failures": [
+    "memory_events.max increased; M4 allocation/swap/task limit distress"
+  ],
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "pressure_failures": [],
+  "reason": "existing_host_guard",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      1634307
+    ],
+    "term_pids": [
+      1634357
+    ]
+  },
+  "timestamp_utc": "2026-10-22T04:20:48.625726+00:00"
+}

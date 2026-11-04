@@ -1,0 +1,50 @@
+{
+  "real_benchmark_launched": false,
+  "performance_readiness_or_ambient_capture_launched": false,
+  "synthetic_only": true,
+  "legacy_policy_fields_identical_to_HEAD": true,
+  "results": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_contention_policy.final.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_benchmark_policy.final.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_harness_scenarios.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_harness_scenarios.final.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/contention-policy-20261020/contained-fixtures-final"
+      ],
+      "exit_code": 1,
+      "log": "research/m4-native/results/contention-policy-20261020/test_m4_containment_runner.final.log"
+    }
+  ],
+  "tested_source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "b7e6446fc454bceb3beef5d189ae3c08b6f119e080a53f6efadaf20d53cc2fc3",
+    "research/m4-native/tools/test_m4_contention_policy.py": "e6f65ff6e646c480cc0d46417c471ba02c2bafe276bbbb3f947597ce4cc0572d",
+    "research/m4-native/docs/benchmark-policy.json": "96572ca49a60a6c6f416ce2d9c578f363b20c9b8a6cd484dbd670160c8be8f68",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py": "594cba2f572cf957d334a9f600d807d52f044812732937ab883bedfd8507ea27",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_sync_reduction_pair.py": "d8ec467f73fa5c94b9ba16ccbb14e4269bf399efd79082142a1e5c532685f8de",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/capture_host_baseline.py": "b0180d8fd8449b8cd197d4bfb7642131443d19851c5354fcaa7067422d38e710"
+  }
+}

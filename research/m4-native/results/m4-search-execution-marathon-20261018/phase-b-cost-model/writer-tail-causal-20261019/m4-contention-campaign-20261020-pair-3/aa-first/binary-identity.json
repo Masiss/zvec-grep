@@ -1,0 +1,39 @@
+{
+  "binary_realpath": "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/m4_bridge_integration.full-sync",
+  "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+  "current_source_file_sha256": {
+    "research/m4-native/CMakeLists.txt": "1bfb407016d190878af4d70661b6076d38d0a8f503d23de226040a3b5895aa70",
+    "research/m4-native/include/m4/index.h": "0f5106f85a8037e336338c9ad2f9dab31cfba2ab891e9c6d7277048aebb236ad",
+    "research/m4-native/src/format.cc": "580e244ca680fb63fa623661d0a75530a22d7615ea48c651b45f43e3da4422b7",
+    "research/m4-native/src/format.h": "1e28efda9954c5155f8a74c7f8d34f613c9169ff33d6baeb40baaf3ccfc66bf6",
+    "research/m4-native/src/index.cc": "71576698554958ecc49dd4849f3fd186ac8f4906291c6f70e879a2b8a29b2f51",
+    "research/m4-native/src/native_global_config_link_shim.cc": "d6f292dc46534ddb2c8d08ec4f3cd8c9a379f475db6f8a18b9d36c890a9f6e1e",
+    "research/m4-native/src/native_tokenizer_adapter.cc": "a4d001b568a82fdaa2b61789cba251b205e91de864adc34b72e2a532a3d0b003",
+    "research/m4-native/src/stream_merge.cc": "8e04fe2b5428a252fbdd9987004f7e84624a9c3322b2ba9eb8220e3d61d79d22",
+    "research/m4-native/src/tokenizer.h": "cda55b328f1a7bbd50444c91cbe891a677b1e34f20fc4ea17ed3e04e49cc26ef",
+    "research/m4-native/src/util.h": "893d617a3273b7c54d90320e88b10119589827e770037bd4ed6a403d814e345a",
+    "research/m4-native/tests/m4_bridge_integration.cc": "43d62bc410d22366cf96a78883d8838c94408fcb2482c899c911f095749ffa34"
+  },
+  "current_source_tree_sha256": "e87fae19ea617b490e62f4c498e68290e2b6d0c776928860347260fb480de80a",
+  "ldd_output": "linux-vdso.so.1\n\tlibzvec_c_api.so => /home/masis/src/zvec-grep/.local/native/zvec-native-profile/../zvec-native-build/lib/libzvec_c_api.so\n\tlibstdc++.so.6 => /usr/lib/libstdc++.so.6\n\tlibm.so.6 => /usr/lib/libm.so.6\n\tlibgcc_s.so.1 => /usr/lib/libgcc_s.so.1\n\tlibc.so.6 => /usr/lib/libc.so.6\n\t/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2",
+  "ldd_returncode": 0,
+  "loaded_shared_libraries": {
+    "/home/masis/src/zvec-grep/.local/native/zvec-native-build/lib/libzvec_c_api.so": "6d55b9131766d943fbad1f77dbebc6a2db7951ce8d89ad46a92b7619cc92d950",
+    "/usr/lib/ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
+    "/usr/lib/libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+    "/usr/lib/libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+    "/usr/lib/libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+    "/usr/lib/libstdc++.so.6.0.36": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e"
+  },
+  "measurement_runner_file_sha256": {
+    "research/m4-native/docs/benchmark-policy.json": "be7eca5603ae4e29d9f8b42203fdf4b3b0be3beaf376fdc6ab613392810ef6bb",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/analyze_host_pressure.py": "b932fab0edf08fc31c1e704489fbcd76825f7f87d75ed2adf81861c828f7047f",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/capture_host_baseline.py": "b0180d8fd8449b8cd197d4bfb7642131443d19851c5354fcaa7067422d38e710",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_host_carryover_aa.py": "67d4608a9dd97d36347788c5be92eb2eb5eedf0e3094695c56e07673444360e5",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_sync_reduction_pair.py": "d8ec467f73fa5c94b9ba16ccbb14e4269bf399efd79082142a1e5c532685f8de",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/summarize_aa_diagnostic.py": "007dcab99f78f40120534567f23be9c87783f2599fd37bb4b3c0dee026777098",
+    "research/m4-native/tools/m4_containment_runner.py": "aa1103b48981d1dbe2a04233ca7ba2019c9719c61534a48243c9ca565c891543"
+  },
+  "measurement_runner_tree_sha256": "5cf6e4a96a6e2b3693563c82ce024e3dafcd131fbeec9fe533baef6daaabcddd",
+  "source_git_revision": "cc813f9c28ce1f3319a015f6d9a9736998cadd64"
+}

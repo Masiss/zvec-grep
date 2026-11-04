@@ -1,0 +1,146 @@
+{
+  "abort": {
+    "errors": [
+      "/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597: [Errno 2] No such file or directory: '/var/tmp/m4-writer-sync-pair-z9h8aj8w/root/generation-1/fts/tombstones-2-1.bin.tmp.139597'"
+    ],
+    "failure_class": "UNKNOWN",
+    "reason": "workspace_telemetry_incomplete",
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [
+        139593
+      ],
+      "term_pids": [
+        139597
+      ]
+    },
+    "timestamp_utc": "2026-10-20T16:14:41.687678+00:00"
+  },
+  "cgroup_io_stat_available": false,
+  "final_cgroup": {
+    "cgroup_io_controller": false,
+    "controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "cpu_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 1599.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 3794.0
+      }
+    },
+    "cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 13,
+      "nr_throttled": 0,
+      "system_usec": 265525,
+      "throttled_usec": 0,
+      "usage_usec": 1087464,
+      "user_usec": 821939
+    },
+    "io_max": null,
+    "io_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 28011.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 28015.0
+      }
+    },
+    "io_stat": null,
+    "memory_current_bytes": 38629376,
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "memory_peak_bytes": 219193344,
+    "memory_pressure": {
+      "full": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      },
+      "some": {
+        "avg10": 0.0,
+        "avg300": 0.0,
+        "avg60": 0.0,
+        "total": 0.0
+      }
+    },
+    "memory_swap_current_bytes": 0,
+    "memory_swap_events": {
+      "fail": 0,
+      "high": 0,
+      "max": 0
+    },
+    "memory_swap_peak_bytes": 0,
+    "pids": [
+      139593
+    ],
+    "pids_current": 1,
+    "pids_events": {
+      "max": 0
+    },
+    "populated": 1,
+    "process_io_sample_complete": true,
+    "process_memory_sample_complete": true,
+    "process_tree_pss_kib": 16500,
+    "process_tree_read_bytes": 10121216,
+    "process_tree_rss_kib": 26464,
+    "process_tree_swap_kib": 0,
+    "process_tree_write_bytes": 13053952
+  },
+  "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+  "measurement_quality": "COMPLETE",
+  "peak_cgroup_memory_current_bytes_sampled": 201854976,
+  "peak_cgroup_memory_peak_bytes_observed": 219193344,
+  "peak_cgroup_swap_current_bytes_sampled": 0,
+  "peak_cgroup_swap_peak_bytes_observed": 0,
+  "peak_sampled_generation_apparent_bytes": 6197207,
+  "peak_sampled_staging_named_apparent_bytes": 0,
+  "peak_sampled_workspace_allocated_st_blocks_bytes_gross": 3153920,
+  "peak_sampled_workspace_apparent_bytes": 6197220,
+  "policy_context_digest": "986c24b70b4177d62899ec2945c24a80d86a36afd844130b1763fab1d81ba574",
+  "policy_mode": "contention-aware",
+  "process_tree_samples_complete": true,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "sample_interval_ms_requested": 50,
+  "samples": 18,
+  "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+  "schema_version": 1,
+  "workspace_shared_extent_inspection": {
+    "available": true,
+    "errors": [],
+    "files_examined": 43,
+    "files_with_shared_extent_flag": 0,
+    "method": "filefrag -v FIEMAP flags on final workspace files",
+    "scope": "final tree only; not a historical peak/shared-byte de-duplication measurement",
+    "shared_file_samples": []
+  }
+}

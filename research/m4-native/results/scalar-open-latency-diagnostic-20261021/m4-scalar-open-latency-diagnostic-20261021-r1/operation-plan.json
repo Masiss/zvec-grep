@@ -1,0 +1,60 @@
+{
+  "automatic_retry": false,
+  "binary_sha256": "b37310fa1749daa5ea8e8d5dd5b21de736c863b696d8ffd0baa0402c76c3316d",
+  "context": {
+    "approval_reference": "Owner instruction in active conversation: run one bounded 0\u20136 scalar-open latency diagnostic under the amended exploratory contract; accept EXPLORATORY / NON-QUALIFYING and WORKSPACE_CAPACITY_UNVERIFIED.",
+    "approval_status": "approved",
+    "approved_binary_sha256": "b37310fa1749daa5ea8e8d5dd5b21de736c863b696d8ffd0baa0402c76c3316d",
+    "binary_path": "/home/masis/src/zvec-grep/research/m4-native/.work/build/durability-restore-20261020/m4_native_scalar_open_latency_diagnostic",
+    "binary_sha256": "b37310fa1749daa5ea8e8d5dd5b21de736c863b696d8ffd0baa0402c76c3316d",
+    "cpu_max": "200000 100000",
+    "disk_reserve_bytes": 8589934592,
+    "execution_authorization_reference": "Owner instruction in active conversation: run this diagnostic once; no retry or resource-only rehearsal.",
+    "host_memory_reserve_bytes": 3221225472,
+    "max_monitor_gap_seconds": 2,
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "mode": "contention-aware",
+    "operation_id": "m4-scalar-open-latency-diagnostic-20261021-r1",
+    "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/scalar-open-latency-diagnostic-20261021/m4-scalar-open-latency-diagnostic-20261021-r1",
+    "pids_max": 128,
+    "policy_sha256": "47070d0143d14ddf64253ff8bbd71ea6a77c4abb2d44eb14fa68499ce8ab7f18",
+    "purpose": "m4-scalar-open-latency-diagnostic",
+    "resource_basis": "One serial API-level latency diagnostic: scalar counts 0\u20136 x HNSW/FLAT x three repetitions; each case creates, closes, reopens, closes one empty collection; 84 API opens total; no documents or queries; schema construction, close, shutdown and cleanup excluded from per-API timers.",
+    "resource_root": "/var/tmp",
+    "risk_acceptance_reference": "Retain operation-approved 3 GiB MemAvailable / 8 GiB free-disk reserves, 1 GiB MemoryMax, swap 0, CPU 200%, tasks 128, 20 s workload timeout, correctness, safety telemetry and verified cleanup; host load and positive swap/reclaim deltas are observations; workspace capacity may remain UNKNOWN/INCOMPLETE.",
+    "runtime_limit_seconds": 20,
+    "schema_version": 1,
+    "workload": {
+      "api_opens": 84,
+      "documents": 0,
+      "queries": 0,
+      "repetitions": 3,
+      "scalar_counts": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "vector_types": [
+        "HNSW",
+        "FLAT"
+      ]
+    },
+    "workspace_max_allocated_bytes": 1073741824,
+    "workspace_max_apparent_bytes": 1073741824
+  },
+  "context_digest": "ad5e35feee8762122e9ae1d6406752ee4fae01abe1946612b4e7c5adccf55c3e",
+  "evidence_class": "EXPLORATORY / NON-QUALIFYING",
+  "source_sha256": {
+    "CMakeLists.txt": "880152c7c85876f5313754f47693b62d62fa1081939f088419dde9b26c4a8169",
+    "docs/benchmark-policy.json": "47070d0143d14ddf64253ff8bbd71ea6a77c4abb2d44eb14fa68499ce8ab7f18",
+    "tests/native_scalar_open_resource_rehearsal.cc": "9599dc643e79503ea03bb7a2103131d6bb7902625faf2133a57f9a383ead3708",
+    "tools/m4_containment_runner.py": "ba3e44e5f4ca99e5ba8191e320367440c0dc9cd61094b8df5b5fff7d3e8b18ad",
+    "tools/run_scalar_open_latency_diagnostic.py": "1a39ac00a787f81aa643a287716b7c01b686cedbcb284f4a424a59cbd83494f3"
+  },
+  "workspace_capacity_status_if_not_proven": "WORKSPACE_CAPACITY_UNVERIFIED"
+}

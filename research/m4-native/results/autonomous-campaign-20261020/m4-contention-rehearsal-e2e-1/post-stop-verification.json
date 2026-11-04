@@ -1,0 +1,7 @@
+{
+  "cgroup_absent": true,
+  "socket_absent": true,
+  "unit": "m4-contained-579ca03808454887.service",
+  "unit_state": "LoadState=not-found\nActiveState=inactive\n",
+  "workspace_empty": true
+}

@@ -1,0 +1,152 @@
+{
+  "operation_id": "m4-contention-campaign-20261020-replacement-1",
+  "slot": "R1",
+  "total_attempt_index": 2,
+  "maximum_total_attempts": 4,
+  "original_pair_1_untouched": true,
+  "original_slots_remaining": 2,
+  "native_arms_started": 0,
+  "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+  "writer": {
+    "samples": 0,
+    "p50_ms": null,
+    "p95_ms": null,
+    "p99_ms": null,
+    "reason": "native GO never released; no cycle/native/post-M4 timing or reader/coherence/reopen result"
+  },
+  "baseline": {
+    "samples": 1200,
+    "duration_seconds": 59.951112561,
+    "integrity": {
+      "status": "VALID",
+      "errors": [],
+      "rows": 1200,
+      "maximum_observation_gap_seconds": 2,
+      "nominal_sample_period_seconds": 0.05,
+      "resolution_note": "actual brackets retained; reduced resolution limits attribution, not a host-idleness test"
+    },
+    "capacity_decision": "OPERATION_READY_EXPLORATORY",
+    "quality_status": "STABILITY_GATE_FAIL",
+    "quality_reason": "baseline drift: last half outside first-half envelope for load1_max",
+    "load1": {
+      "min": 3.81,
+      "max": 4.82
+    },
+    "cpu_some_avg10": {
+      "min": 0.0,
+      "max": 0.37
+    },
+    "io_full_avg10": {
+      "min": 1.76,
+      "max": 5.05
+    },
+    "memory_full_avg10": {
+      "min": 0.0,
+      "max": 0.55
+    },
+    "memavailable_kib": {
+      "min": 5605092.0,
+      "max": 6440432.0
+    },
+    "minimum_disk_free_bytes": 17269014528,
+    "host_oom_kill_delta": 0,
+    "host_swapin_pages_delta": 12099,
+    "host_swapout_pages_delta": 7647,
+    "raw_historical_failures": {
+      "IOPSI": 487,
+      "DISK": 1200,
+      "MEM": 0,
+      "LOAD1": 1200
+    }
+  },
+  "original_operation_status": {
+    "schema_version": 1,
+    "operation_id": "m4-contention-campaign-20261020-replacement-1",
+    "operation": "same-binary A/A host-carryover measurement",
+    "operation_status": "SAFETY_STOP",
+    "phase": "uncaught-operation-exit",
+    "reason": "independent watchdog did not establish baseline telemetry before workload start",
+    "gate_id": null,
+    "gate_class": "CONTAINMENT_OR_CLEANUP_UNVERIFIED",
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "recovery_conditions": "preserve original receipt; fix actual capacity/integrity/containment blocker; new explicit authorization for another operation, no idle wait or automatic retry",
+    "failure_scope": "this benchmark/A/A operation only",
+    "mission_status": "NOT_EVALUATED_BY_RUNNER",
+    "mission_marked_done": false,
+    "safe_independent_work_may_continue": false,
+    "policy_id": "m4-benchmark-operation-policy-v1",
+    "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard"
+  },
+  "original_receipt_status": "LAUNCH_FAILED",
+  "original_safety_outcome": "CONTAINMENT_UNVERIFIED",
+  "original_controller_cleanup_verified": false,
+  "original_unit_retirement_verified": true,
+  "subsequent_independent_cleanup_verified": true,
+  "cleanup_verification_does_not_resume_measurement": true,
+  "caps_applied": {
+    "approval_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-replacement-authorization.md (current explicit user amendment)",
+    "cpu_max": "200000 100000",
+    "memory_max_bytes": "1073741824",
+    "memory_swap_max_bytes": "0",
+    "pids_max": "128",
+    "workspace_limits": "sampled-abort-only; no kernel/filesystem quota is available"
+  },
+  "admission_readiness_acknowledged": false,
+  "bootstrap_only": {
+    "sample_count": 1,
+    "pids": [
+      397739
+    ],
+    "memory_peak_bytes": 16023552,
+    "swap_peak_bytes": 0,
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+    },
+    "cpu_stat": {
+      "burst_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nice_usec": 0,
+      "nr_bursts": 0,
+      "nr_periods": 1,
+      "nr_throttled": 0,
+      "system_usec": 14506,
+      "throttled_usec": 0,
+      "usage_usec": 55717,
+      "user_usec": 41210
+    },
+    "process_io_sample_complete": false,
+    "process_memory_sample_complete": true,
+    "note": "reported process IO zeros invalid because sample incomplete; not zero physical IO proof"
+  },
+  "diagnosis": "parse_kv retained trailing colons from /proc/PID/io keys; read_cgroup_metric requires read_bytes/write_bytes without colons. Deterministic mismatch guarantees incomplete IO telemetry even on a readable file. Raw gate failure remains intact.",
+  "hypotheses": {
+    "H1_order": "UNMEASURED: valid host baseline only, no paired native order data",
+    "H2_vector": "UNMEASURED",
+    "H3_sync_finalize": "UNMEASURED",
+    "H4_shared_implementation": "UNRESOLVED",
+    "H5_artifact": "CONFIRMED /proc IO key normalization defect; correct strict gate blocked GO; not writer-tail root cause"
+  },
+  "decision": "KEEP strict completeness requirement and full sync; independently correct parser and strengthen actual-kernel initial-sample regression; DEFER native writer-tail optimization.",
+  "eligible_next_pair": false,
+  "reason_no_next": "Formal watchdog integrity refusal; no retry/new-ID substitute under current authorization.",
+  "input_sha256": {
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/ambient-baseline.csv": "7ab5e112f0e5e14eb9543fc7dbc09cf957ea02c99cf0239d48611ca389de1f45",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/ambient-baseline.host.json": "19fbb3702214b04421b9509caba736ab403ac7a964bef361d1496fa79eb4caee",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/quiescence-profile.json": "6f4fdad19dd3b55845a9edddb27af8ce8b0530e809d3b9d1310a14d48c4983c4",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/baseline-gate-decision.json": "471fb6a21418729eadbc1d8292479f45dbf16bac391bade1fe13c5f438245245",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/operation-status.json": "fd2e5d01bc18833d1d2310a49c4d83973a2179505c3b06e57601044d5dc79fbd",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/aa-first/containment/receipt.json": "5cb28cf86d56dbfaf9b4d303a88e3187a2df9bf56f2e7ea55789a87c2f46264c",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/aa-first/containment/provenance.json": "3b7c239d15a92c661482c8f90a6107f6275cdbee732a1aa6bb2092bc0aed28e8",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/aa-first/containment/watchdog-config.json": "3f49cf4457566f0f8a21c439b8532a2f217118a9d143a777443bc913b790a502",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/aa-first/containment/watchdog-summary.json": "b79e35cf84b5702fca33d32ca41f2ac9b6b1cb8b65778ec6bc161a2c053dea8c",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/aa-first/containment/watchdog-abort.json": "35166bb266f73a88698b0e86362255f1fa132861a918fe0ebdff414667c0f6c1",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1/aa-first/containment/runtime.jsonl": "801d99d3ac1cd75390900fe77f4b95519a6f84352d6d359676f48c8c55a76956",
+    "research/m4-native/results/autonomous-campaign-20261020/replacement-1-execution/post-stop-verification.json": "dfaa754bd47c6ab4a210be726299c664535b519cb51bc8d37f3242217a5c704b"
+  }
+}

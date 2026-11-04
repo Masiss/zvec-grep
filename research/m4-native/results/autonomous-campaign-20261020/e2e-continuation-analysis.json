@@ -1,0 +1,71 @@
+{
+  "classification": "PARTIAL / OPERATION_BLOCKED; native writer-tail objective NOT fulfilled",
+  "rehearsal": {
+    "status": "PASS",
+    "benchmark_evidence": false,
+    "runtime_samples": 12,
+    "strict_contention_watchdog": true,
+    "caps": {
+      "approval_reference": "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/owner-rehearsal-continuation-authorization.md",
+      "cpu_max": "200000 100000",
+      "memory_max_bytes": "1073741824",
+      "memory_swap_max_bytes": "0",
+      "pids_max": "128",
+      "workspace_limits": "sampled-abort-only; no kernel/filesystem quota is available"
+    },
+    "proc_io_worker": {
+      "cancelled_write_bytes": 0,
+      "rchar": 1326832,
+      "read_bytes": 0,
+      "syscr": 142,
+      "syscw": 1,
+      "wchar": 32768,
+      "write_bytes": 49152
+    },
+    "memory_peak_bytes": 22282240,
+    "swap_peak_bytes": 0,
+    "workspace_allocated_peak_bytes": 32768,
+    "generic_benchmark_started_field": "synthetic fixed Python command only, NOT native execution"
+  },
+  "native_slot2": {
+    "outcome": "NO_LAUNCH_FORMAL_MEMORY_CAPACITY_REFUSAL",
+    "timestamp_utc": "2026-10-20T15:44:07.135544+00:00",
+    "gate_id": "M4-CA-MEM-CAPACITY",
+    "observed_bytes": 2020233216,
+    "required_bytes": 2147483648,
+    "shortfall_bytes": 127250432,
+    "native_command_invoked": false,
+    "native_arms_launched": 0,
+    "completed_native_pairs": 0,
+    "baseline_capture_started": false,
+    "writer_samples": 0,
+    "writer_p50_ms": null,
+    "writer_p95_ms": null,
+    "writer_p99_ms": null,
+    "causal_host_crash_attribution": "UNKNOWN; no native workload launched, job exit/log not retained after crash"
+  },
+  "accounting": {
+    "consumed": 3,
+    "maximum": 4,
+    "remaining_conditional": 1,
+    "rehearsal_native_slots": 0,
+    "original1_and_R1_unchanged": true,
+    "final_slot_eligible_now": false
+  },
+  "decision": "KEEP control/parser correction and fixed real strict rehearsal; DEFER latency optimization. Preserve formal refusal, no retry/current-host replacement decision/automatic last-slot substitution.",
+  "known_limits": [
+    "tiny synthetic not native initialization,20-cycle pressure,reader/reopen/durability test or performance evidence",
+    "real per-process physical IO aggregation may lose exited workers; char/cancelled counters verified in parser/worker dump, not new aggregate performance counters",
+    "no hard IO cap or hard observer CPU/RAM budget; sampled workspace bounds unchanged",
+    "post-crash host snapshot delayed, cannot reconstruct crash cause or original exit code"
+  ],
+  "input_sha256": {
+    "research/m4-native/results/autonomous-campaign-20261020/m4-contention-rehearsal-e2e-1/rehearsal-result.json": "8c6098cc6d78f56debacfa36f3bb925176cabe5b9e70e1ff9f53aab012f266a0",
+    "research/m4-native/results/autonomous-campaign-20261020/m4-contention-rehearsal-e2e-1/aa-first/containment/watchdog-summary.json": "8abca2d1e026e71307c08debc45113c393b185754b1cc4c17f55714b6f697c3a",
+    "research/m4-native/results/autonomous-campaign-20261020/m4-contention-rehearsal-e2e-1/aa-first/containment/receipt.json": "48144ef60b9dde4f6043be44c7c498f75529d640c0839a7bdab5bcc691277bb6",
+    "research/m4-native/results/autonomous-campaign-20261020/pair-2-execution/after-import-correction/prerequisites.json": "ee66c580f398d1d4e47cb9d47266f3133c99aa13ebe0742cce7461f94a0e8904",
+    "research/m4-native/results/autonomous-campaign-20261020/campaign-ledger.json": "499d9add0911298aeabdf5f29c8f9ff9bfdf5d165541a1c243d15dd1222795e2",
+    "research/m4-native/results/autonomous-campaign-20261020/ledger-before-e2e-continuation.json": "cc65492b432df75e8739db7c44f5ea571c444dd6af8d4744c2e14b81ec407e61",
+    "research/m4-native/results/autonomous-campaign-20261020/pair-2-execution/post-crash-reconciliation/reconciliation.json": "8396f7f842e7726354557fdc2001bc1cd3ec37fa0e100442253f9ea15181bba9"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "arm_name": "workspace",
+  "baseline_memory_events": {
+    "high": 0,
+    "low": 0,
+    "max": 0,
+    "oom": 0,
+    "oom_group_kill": 0,
+    "oom_kill": 0,
+    "sock_throttled": 0
+  },
+  "bootstrap_pid": 732285,
+  "budget": {
+    "approval_reference": "OWNER-APPROVED SYNTHETIC OBSERVER REPAIR ONLY",
+    "cpu_max": "200000 100000",
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 128,
+    "workspace_max_allocated_bytes": 4096,
+    "workspace_max_apparent_bytes": 4096
+  },
+  "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-00334ed0190a43a6.service",
+  "cgroup_rel": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-00334ed0190a43a6.service",
+  "command_done_marker": "/run/user/1000/m4-cgroup-92u7am_o/command.done",
+  "controller_pid": 732122,
+  "enforce_host_gates": false,
+  "policy_context": null,
+  "policy_context_digest": null,
+  "policy_mode": "legacy",
+  "pressure_limits": null,
+  "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/tmp/m4-workspace-contained-l5fypw9r",
+  "runtime_limit_seconds": 5,
+  "sample_interval_ms": 20,
+  "socket_dir": "/run/user/1000/m4-cgroup-92u7am_o",
+  "start_marker": "/run/user/1000/m4-cgroup-92u7am_o/go",
+  "unit": "m4-contained-00334ed0190a43a6.service",
+  "watchdog_output": "/home/masis/src/zvec-grep/research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/workspace/limit",
+  "watchdog_ready_path": "/run/user/1000/m4-cgroup-92u7am_o/watchdog.ready",
+  "workspace_root": "/home/masis/src/zvec-grep/research/m4-native/.work/tmp/m4-workspace-contained-l5fypw9r/limit"
+}

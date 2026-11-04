@@ -1,0 +1,61 @@
+{
+  "checks": [
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/test_m4_contention_policy.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_workspace_observer.py",
+        "--output-dir",
+        "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/workspace",
+        "--containment"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/test_m4_workspace_observer.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/lifecycle"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/test_m4_containment_runner.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/test_m4_benchmark_policy.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/test_aa_gate_policy.log"
+    },
+    {
+      "argv": [
+        "python",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0,
+      "log": "research/m4-native/results/workspace-soft-budget-20261021/final-synthetic/test_aa_containment_integration.log"
+    }
+  ],
+  "runner_sha256": "8f9d288db847384f8f9c249009966520a4963abc03e5682e60efe1e69a5ed8bf",
+  "policy_sha256": "38278043b417f6f84bad62d1c36fbf09936423df3a5b913ff1e43f3311b456e3",
+  "native_runs": 0,
+  "purpose": "Final synthetic verification of prospective exact pending-drain correction; historical native abort unchanged"
+}

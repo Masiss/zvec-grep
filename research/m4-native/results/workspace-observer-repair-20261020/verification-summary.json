@@ -1,0 +1,332 @@
+{
+  "checks": {
+    "checks": [
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/tools/test_m4_workspace_observer.py",
+          "--output-dir",
+          "research/m4-native/results/workspace-observer-repair-20261020/verification-v3/focused-fixtures",
+          "--containment"
+        ],
+        "exit_code": 0,
+        "tests": 19
+      },
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/tools/test_m4_containment_runner.py",
+          "--output-dir",
+          "research/m4-native/results/workspace-observer-repair-20261020/verification-v3/lifecycle-fixtures"
+        ],
+        "exit_code": 0,
+        "tests": 15
+      },
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/tools/test_m4_contention_policy.py"
+        ],
+        "exit_code": 0,
+        "tests": 25
+      },
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/tools/test_m4_benchmark_policy.py"
+        ],
+        "exit_code": 0,
+        "tests": 5
+      },
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+        ],
+        "exit_code": 0,
+        "tests": 7
+      },
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+        ],
+        "exit_code": 0,
+        "tests": 1
+      }
+    ],
+    "source_sha256": {
+      "research/m4-native/tools/m4_containment_runner.py": "0c9300eb34508d5f39a355e7e02448d9a515dcc47f1ac33b8cf3f53765651ead",
+      "research/m4-native/tools/test_m4_workspace_observer.py": "d8d387f9e5b11687ba45229a1c57683abf86c2bbee9be39d6af03926f32c2ee7",
+      "research/m4-native/docs/benchmark-policy.json": "7399535d179f739a26304f0b78369139714df12c4d2e89f57e19edd254906d2c"
+    },
+    "sources_unchanged": true,
+    "native_executions": 0,
+    "campaign_budget_unchanged": "4/4 consumed,0remaining"
+  },
+  "final_consumer_rerun": {
+    "checks": [
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "/usr/sbin/python3",
+          "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "controller_sha256": "b08df542eb72e29da653ac26f6b040d67831bd3637c5794d1014dea4e2f56c61",
+    "source_unchanged": true,
+    "native_executions": 0,
+    "scope": "Seven existing A/A gate tests and one tiny Python contained-pair regression, final controller source"
+  },
+  "test_count": 72,
+  "all_checks_pass": true,
+  "direct_typecheck": {
+    "exit_code": 0,
+    "paths": 4,
+    "log": "final-ty.log"
+  },
+  "receipts": [
+    {
+      "path": "verification-v3/focused-fixtures/limit/receipt.json",
+      "status": "LAUNCH_FAILED",
+      "unit": "m4-contained-2388b093f3e34cd0.service",
+      "benchmark_started": false,
+      "workload_returncode": null,
+      "workload_signal": null,
+      "unit_cleanup": {
+        "reset_failed_returncode": 0,
+        "stop_returncode": 0,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": {
+        "error": null,
+        "kill_result": null,
+        "systemd_kill_returncode": 0,
+        "systemd_stop_returncode": 0,
+        "verified": false
+      },
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/focused-fixtures/permission/receipt.json",
+      "status": "WATCHDOG_ABORT",
+      "unit": "m4-contained-27e9a1136ba84f97.service",
+      "benchmark_started": true,
+      "workload_returncode": -15,
+      "workload_signal": 15,
+      "unit_cleanup": {
+        "reset_failed_returncode": 0,
+        "stop_returncode": 0,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/hard-gate-refusal/receipt.json",
+      "status": "PREFLIGHT_BLOCKED",
+      "unit": null,
+      "benchmark_started": false,
+      "workload_returncode": null,
+      "workload_signal": null,
+      "unit_cleanup": null,
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/integer-cpu-complete-budget/receipt.json",
+      "status": "PASS",
+      "unit": "m4-contained-c9cfa299185947b9.service",
+      "benchmark_started": true,
+      "workload_returncode": 0,
+      "workload_signal": null,
+      "unit_cleanup": {
+        "stop_returncode": 5,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/nonzero/receipt.json",
+      "status": "NONZERO_EXIT",
+      "unit": "m4-contained-071dde532d344428.service",
+      "benchmark_started": true,
+      "workload_returncode": 7,
+      "workload_signal": null,
+      "unit_cleanup": {
+        "reset_failed_returncode": 0,
+        "stop_returncode": 0,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/normal-child/receipt.json",
+      "status": "PASS",
+      "unit": "m4-contained-348eadd11cce48d0.service",
+      "benchmark_started": true,
+      "workload_returncode": 0,
+      "workload_signal": null,
+      "unit_cleanup": {
+        "stop_returncode": 5,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/sigkill/receipt.json",
+      "status": "SIGNAL_EXIT",
+      "unit": "m4-contained-15b639a627844b9e.service",
+      "benchmark_started": true,
+      "workload_returncode": -9,
+      "workload_signal": 9,
+      "unit_cleanup": {
+        "reset_failed_returncode": 0,
+        "stop_returncode": 0,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/sigterm/receipt.json",
+      "status": "SIGNAL_EXIT",
+      "unit": "m4-contained-01bc074e179a4f28.service",
+      "benchmark_started": true,
+      "workload_returncode": -15,
+      "workload_signal": 15,
+      "unit_cleanup": {
+        "reset_failed_returncode": 0,
+        "stop_returncode": 0,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/supervisor-crash/receipt.json",
+      "status": "WATCHDOG_ABORT",
+      "unit": "m4-contained-0781b28997cf4b5c.service",
+      "benchmark_started": null,
+      "workload_returncode": null,
+      "workload_signal": null,
+      "unit_cleanup": {
+        "reset_failed_returncode": 0,
+        "stop_returncode": 0,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/task-budget/receipt.json",
+      "status": "PASS",
+      "unit": "m4-contained-e739572faed64778.service",
+      "benchmark_started": true,
+      "workload_returncode": 0,
+      "workload_signal": null,
+      "unit_cleanup": {
+        "stop_returncode": 5,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/telemetry-incomplete/receipt.json",
+      "status": "TELEMETRY_INCOMPLETE",
+      "unit": null,
+      "benchmark_started": false,
+      "workload_returncode": null,
+      "workload_signal": null,
+      "unit_cleanup": null,
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/unapproved-fixture-override/receipt.json",
+      "status": "PREFLIGHT_BLOCKED",
+      "unit": null,
+      "benchmark_started": false,
+      "workload_returncode": null,
+      "workload_signal": null,
+      "unit_cleanup": null,
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/unverified-retirement/receipt.json",
+      "status": "CLEANUP_FAILED",
+      "unit": null,
+      "benchmark_started": null,
+      "workload_returncode": -15,
+      "workload_signal": null,
+      "unit_cleanup": {
+        "error": "RuntimeError: unit/cgroup cleanup not verified; retaining failed-unit state",
+        "stop_returncode": 0,
+        "unit_collected": false,
+        "verified": false
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    },
+    {
+      "path": "verification-v3/lifecycle-fixtures/watchdog-timeout/receipt.json",
+      "status": "WATCHDOG_ABORT",
+      "unit": "m4-contained-ce93d31828a342d3.service",
+      "benchmark_started": true,
+      "workload_returncode": -15,
+      "workload_signal": 15,
+      "unit_cleanup": {
+        "reset_failed_returncode": 0,
+        "stop_returncode": 0,
+        "unit_collected": true,
+        "verified": true
+      },
+      "controller_cleanup": null,
+      "note": "Includes deliberately mocked negative fixtures; not all rows represent real services."
+    }
+  ],
+  "closure_owned_units_query": {
+    "returncode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "filesystem_observation": {
+    "returncode": 0,
+    "stdout": "TARGET SOURCE                FSTYPE OPTIONS\n/      /dev/mapper/cryptroot btrfs  rw,relatime,ssd,space_cache=v2,subvolid=5,subvol=/\n"
+  },
+  "campaign_ledger_sha256": "93c32e64ebb999c7ffef4d11cc85c8924fd64aa995079f01b9a2bf71d2d85d97",
+  "native_launch_ready": false,
+  "recovery_condition": "Independently verified correctly scoped allocated AND apparent capacity evidence; no backend implemented. Fresh separate native authority also required.",
+  "lsp": {
+    "checked_paths": [
+      "tools/m4_containment_runner.py",
+      "tools/test_m4_workspace_observer.py"
+    ],
+    "errors": 0,
+    "hints": 2,
+    "auxiliary_numeric_parse_warnings": 30,
+    "scope": "Active two-path probe; analyzer subsequently confirmed clean. Final A/A controller probe had zero diagnostics but inconclusive clean confirmation; not a warning-free repository claim."
+  }
+}

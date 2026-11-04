@@ -1,0 +1,10 @@
+{
+  "scope": "offline reader only, after the consumed launch refusal",
+  "error": "KeyError: measurement_integrity",
+  "cause": "quiescence-profile.json wraps baseline_result; initial reader treated wrapper as the result",
+  "correction": "Read json.loads(...)[baseline_result] before integrity/quality fields",
+  "raw_evidence_modified": false,
+  "live_guard_reexecuted": false,
+  "benchmark_retried": false,
+  "final_result": "pair-1-analysis.json"
+}

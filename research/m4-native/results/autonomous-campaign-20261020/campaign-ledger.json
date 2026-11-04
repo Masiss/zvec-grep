@@ -1,0 +1,130 @@
+{
+  "campaign_id": "m4-writer-tail-20261020",
+  "status": "BUDGET_EXHAUSTED_FINAL_NATIVE_WORKSPACE_TELEMETRY_ABORT",
+  "engineering_authority": "Active owner GOAL-BOUNDED AUTONOMY mission; offline research and engineering effective immediately",
+  "resource_plan_approval": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+  "benchmark_campaign_activated": true,
+  "max_pairs_after_resource_approval": 3,
+  "pairs_consumed": 4,
+  "conditional_pairs_remaining": 0,
+  "currently_authorized_real_pairs": 0,
+  "remaining_budget_slots": 0,
+  "currently_eligible_next_pairs": 0,
+  "currently_active_benchmark_arms": 0,
+  "campaign_stop_reason": "Final slot native arm1 actually launched then mandatory watchdog workspace_telemetry_incomplete ENOENT on transient tombstone.tmp; SIGTERM contained. No arm2/retry,4/4 consumed.",
+  "maximum_concurrent_heavy_operations": 1,
+  "proposed_per_pair_supervisor_timeout_seconds": 360,
+  "proposed_supervisor_timeout_mechanism": "GNU timeout --signal=TERM --kill-after=5s 355s; tool auto-background is not a hard deadline. Existing watchdog/systemd own the workload; verified cleanup still required after controller timeout.",
+  "proposed_total_measurement_supervisor_seconds": 1080,
+  "consumption_rule": "Each named operation consumes a slot when its unique operation directory is claimed or at its first resource preflight, whichever comes first, including no-launch/abort. No automatic retry, replacement slot, cap increase or extra pair. A formal guard refusal is not permission to relaunch the same refused operation under the next slot.",
+  "slots": [
+    {
+      "slot": 1,
+      "operation_id": "m4-contention-campaign-20261020-pair-1",
+      "status": "NO_LAUNCH_CPUQUOTA_PARSE_REFUSAL",
+      "job_id": "job-1335348-229",
+      "benchmark_started": false,
+      "second_arm_started": false,
+      "verified_cleanup": true,
+      "analysis": "research/m4-native/results/autonomous-campaign-20261020/pair-1-analysis.json",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-1.json",
+      "debit_reason": "First authorized attempt includes its prerequisite/no-launch outcome; debited conservatively before guard execution."
+    },
+    {
+      "slot": 2,
+      "operation_id": "m4-contention-campaign-20261020-pair-2",
+      "status": "NO_LAUNCH_FORMAL_MEMORY_CAPACITY_REFUSAL",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-2.json",
+      "debit_reason": "Original slot2 authorized after real rehearsal PASS; conservatively charged at plan preparation, includes any forthcoming no-launch/refusal. Not Original1/R1 retry.",
+      "job_id": "job-1335348-262",
+      "preparatory_wrapper_import_error_job": "job-1335348-261",
+      "native_arms_launched": 0,
+      "native_command_invoked": false,
+      "verified_no_active_owned_containment": true,
+      "guard_id": "M4-CA-MEM-CAPACITY",
+      "observed_bytes": 2020233216,
+      "required_bytes": 2147483648,
+      "shortfall_bytes": 127250432,
+      "raw_prerequisites": "research/m4-native/results/autonomous-campaign-20261020/pair-2-execution/after-import-correction/prerequisites.json"
+    },
+    {
+      "slot": 3,
+      "operation_id": "m4-contention-campaign-20261020-pair-3",
+      "status": "NATIVE_ARM1_WATCHDOG_ABORT_WORKSPACE_SCAN_ENOENT",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-3.json",
+      "debit_reason": "Last existing original slot consumed conservatively at preparation after current explicit run direction; no automatic retry, accounting reset or fifth slot.",
+      "job_id": "job-8740-9",
+      "native_arms_launched": 1,
+      "native_arms_completed": 0,
+      "second_arm_started": false,
+      "cleanup_verified": true,
+      "guard_reason": "workspace_telemetry_incomplete",
+      "workload_returncode": -15,
+      "workload_signal": 15,
+      "raw_receipt": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-pair-3/aa-first/containment/receipt.json",
+      "raw_operation_status": "OPERATION_BLOCKED"
+    }
+  ],
+  "offline_work": [
+    {
+      "id": "OFF-1",
+      "outcome": "Extracted old RSS/PSS/swap/process CPU/writes and final root size; explicitly missing cgroup/task/workspace peaks"
+    },
+    {
+      "id": "OFF-2",
+      "outcome": "Native build source map: new per-generation shard, six native scalar indexes, HNSW, flush and durable metadata; no evidence for reader contention on an unpublished collection's schema mutex"
+    },
+    {
+      "id": "OFF-3",
+      "outcome": "Mapped post-M4 durable writes, mandatory outer WAL sync, immutable-segment repeat-sync candidate and snapshot-finalization work; no unsafe sync removal"
+    },
+    {
+      "id": "ENG-1",
+      "outcome": "Added explicit task cap/readback/events to existing contention budgets; synthetic and tiny owned-unit tests only"
+    },
+    {
+      "id": "OFF-4",
+      "outcome": "Added pure offline conservative stage/cgroup counter bounds and synthetic tests; no interpolation or compute/wait overclaim"
+    }
+  ],
+  "research_completion_condition": "Strict launch path demonstrated and first actual native child executed, but no completed native measurement or per-cycle payload. Overall writer-tail objective remains unfulfilled; evidence/report only after cleanup.",
+  "performance_conclusion": "INCONCLUSIVE: one aborted native arm, zero completed20-cycle payloads, no latency/order/coherence comparison.",
+  "engineering_decision": "KEEP strict telemetry/fullsync/resource caps and known parser/CPU corrections. No guard weakening or native optimization. DEFER scanner race-aware design until explicit scope; no further native budget.",
+  "verification": "59 focused tests PASS and fresh4-file ty PASS after2 Path-typing corrections; actual contention rehearsal12 complete samples, exit0, verified cleanup. Native fresh fullsync static61-input/6-library/50-durability verification PASS; memory capacity FAIL. Current no owned units/processes after crash verified.",
+  "next_action": "No fifth attempt or remaining slot. Highest-value independent follow-up is a focused design/regression for dynamic workspace atomic-rename/stat races with explicit completeness/bounds, not ignoring ENOENT or reclassifying this receipt. Any future native campaign requires new owner authority, not an automatic retry.",
+  "owner_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+  "max_total_attempts": 4,
+  "max_executable_pairs": 3,
+  "original_pairs_consumed": 3,
+  "replacement_attempts_consumed": 1,
+  "total_attempts_consumed": 4,
+  "replacement_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-replacement-authorization.md (current explicit user amendment)",
+  "replacement_attempts": [
+    {
+      "slot": "R1",
+      "operation_id": "m4-contention-campaign-20261020-replacement-1",
+      "status": "NO_NATIVE_GO_REQUIRED_TELEMETRY_MISSING",
+      "raw_operation_status": "SAFETY_STOP",
+      "job_id": "job-1335348-244",
+      "native_arms_started": 0,
+      "second_arm_started": false,
+      "original_controller_cleanup_verified": false,
+      "original_unit_retirement_verified": true,
+      "subsequent_independent_cleanup_verified": true,
+      "analysis": "research/m4-native/results/autonomous-campaign-20261020/replacement-1-analysis.json",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-replacement-1.json",
+      "debit_reason": "Explicit additional owner slot, conservatively consumed at preparation; historical Pair1 and original slots2/3 untouched."
+    }
+  ],
+  "continuation_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-rehearsal-continuation-authorization.md",
+  "rehearsal": {
+    "status": "PASS",
+    "operation_id": "m4-contention-rehearsal-e2e-1",
+    "job_id": "job-1335348-259",
+    "native_slots_consumed": 0,
+    "result": "research/m4-native/results/autonomous-campaign-20261020/m4-contention-rehearsal-e2e-1/rehearsal-result.json"
+  },
+  "native_arms_launched": 1,
+  "native_pairs_completed": 0,
+  "final_slot_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-final-slot-authorization.md"
+}

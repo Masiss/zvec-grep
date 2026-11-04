@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-10-24T15:11:44.501861+00:00",
+  "label": "pair-second_before",
+  "filesystem": "/dev/mapper/cryptroot btrfs rw,relatime,ssd,space_cache=v2,subvolid=5,subvol=/",
+  "cpu_count": 20,
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "loadavg": "4.19 3.08 3.23 5/2395 1842618",
+  "mem_available_bytes": 5588762624,
+  "mem_free_bytes": 513036288,
+  "swap_free_bytes": 8785924096,
+  "cpu_pressure": "some avg10=0.09 avg60=0.09 avg300=0.05 total=1639596396\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+  "memory_pressure": "some avg10=0.89 avg60=0.69 avg300=0.43 total=1028439771\nfull avg10=0.89 avg60=0.69 avg300=0.43 total=958750905",
+  "io_pressure": "some avg10=3.26 avg60=2.12 avg300=1.85 total=5687182581\nfull avg10=2.71 avg60=1.72 avg300=1.52 total=5015708533",
+  "disk": {
+    "total_bytes": 493838401536,
+    "used_bytes": 464672210944,
+    "free_bytes": 26891304960,
+    "device": 78
+  },
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "top_processes": [
+    "    PID COMMAND         %CPU %MEM   RSS COMMAND",
+    "1841464 node-MainThread  149  8.9 1443408 node /home/masis/.pi-lens/tools/node_modules/.bin/pyright --outputjson /home/masis/app/laya-mini/docs/chatgpt/verdict-next/d13-real-docs/extraction-05-sparse-boundary/autonomous-campaign-20261019/research-tracks/schema-confusion-challenger-20261024/revision-001/runtime/within_row_listwise_null_runner.py",
+    "1842357 rustc           87.9  3.5 569004 /home/masis/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name dsh_desktop_native_app --edition=2021 src/main.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values()) -C metadata=52574d14d4512d5e -C extra-filename=-836a5feb8dfc659b --out-dir /home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps -C incremental=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/incremental -L dependency=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps --extern base64=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libbase64-61acbe23ca84db72.rlib --extern dirs=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libdirs-ec4301718b989c72.rlib --extern dsh_client_core=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libdsh_client_core-640a9324a691ab34.rlib --extern eframe=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libeframe-351dfc9efd27e50b.rlib --extern egui_kittest=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libegui_kittest-55edeb1386806772.rlib --extern fs2=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libfs2-bf331162f7451471.rlib --extern image=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libimage-15223bae4ddeb3ef.rlib --extern reqwest=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libreqwest-2a19c0dac6bed816.rlib --extern rfd=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/librfd-6c8af728a6a2c43c.rlib --extern ring=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libring-8ef0564a8588e0d4.rlib --extern semver=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libsemver-cecd1e6337c19648.rlib --extern serde=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libserde-02807580f6a2b9f2.rlib --extern serde_json=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libserde_json-d655cb50ebb30c6a.rlib --extern tray_icon=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libtray_icon-7a4e08acb9892bfc.rlib --extern unicode_width=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/deps/libunicode_width-b12dc506560895c6.rlib -L native=/home/masis/deepseek-harness/apps/desktop-tauri/native-app/target/debug/build/ring-a96a831d3eb8c4e9/out",
+    "1842265 cargo           25.2  0.7 119924 /home/masis/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked --offline ui_harness",
+    "1380453 zen-bin         23.0  2.5 404380 /opt/zen-browser-bin/zen-bin",
+    "1703480 pi              15.1  1.9 307760 pi",
+    "1841416 python3         13.4  0.4 66108 python3 research/m4-native/tests/profile_native_m4_paired.py --workload-profile lz4-compression-at-batch-128-full-1200 --binary /home/masis/src/zvec-grep/research/m4-native/.work/build/writer-group-commit-prototype/native_m4_paired_benchmark --dictionary /home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict --root /home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota/m4-write-amplification-pair-20261024-lz4-batch128-full1200-control-first-01 --arm-order control-first",
+    "1381107 Web Content     11.8  0.8 140664 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:37453 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {573cec63-5844-4230-9a1c-25615fba2f90} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 7 tab",
+    " 500502 pi              10.7  6.0 969696 pi",
+    "1726350 claude           9.6  1.8 296188 claude",
+    " 572566 opencode         9.5  1.5 245244 opencode",
+    "1381162 WebExtensions    8.9  3.8 620136 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:46174 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {ccdcbe44-2735-4811-86a0-270aa9e3f90b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 8 tab",
+    "1382052 Web Content      6.9  1.0 165796 /opt/zen-browser-bin/zen-bin -contentproc -isForBrowser -prefsHandle 0:54767 -prefMapHandle 1:314237 -jsInitHandle 2:162336 -parentBuildID 20261009073723 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {bd92fdb6-db25-4ca8-86c4-3eb5137f1f7b} -parentPid 1380453 -greomni /opt/zen-browser-bin/omni.ja -appomni /opt/zen-browser-bin/browser/omni.ja -appDir /opt/zen-browser-bin/browser 10 tab"
+  ],
+  "resource_guard_observations": {
+    "MemAvailable_kib_min": {
+      "observed": 5457776.0,
+      "threshold": 5477762,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "var_tmp_bytes_min": {
+      "observed": 26891304960,
+      "threshold": 18219000000,
+      "status": "PASS",
+      "disposition": "enforced_retained_disk_reserve"
+    },
+    "io_full_avg10_max": {
+      "observed": 2.71,
+      "threshold": 4.46,
+      "status": "PASS",
+      "disposition": "telemetry_only_never_blocks"
+    },
+    "load1_max": {
+      "observed": 4.19,
+      "threshold": 3.14,
+      "status": "FAIL",
+      "disposition": "telemetry_only_never_blocks"
+    }
+  }
+}

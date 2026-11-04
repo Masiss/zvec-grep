@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "build_kind": "isolated-native-schema-lock-owner-trace",
+  "finalized_existing_build": true,
+  "created_utc": "2026-10-30T01:38:19Z",
+  "source_root": "/home/masis/src/zvec-grep/.local/native/zvec-native-profile",
+  "source_head": "8f6d600db769dcabf92f7af11a8242453b7ae5bf",
+  "build_root": "/home/masis/src/zvec-grep/.local/native/zvec-native-build",
+  "build_root_written": false,
+  "source_root_written": false,
+  "work_root": "/home/masis/src/zvec-grep/research/m4-native/.work/native-schema-lock-trace-v4",
+  "lock_sites": [
+    {
+      "method": "close",
+      "lock_kind": "unique_lock",
+      "site": "close",
+      "action": "trace"
+    },
+    {
+      "method": "close_internal",
+      "lock_kind": "unique_lock",
+      "site": "close_internal",
+      "action": "special"
+    },
+    {
+      "method": "destroy",
+      "lock_kind": "unique_lock",
+      "site": "destroy",
+      "action": "trace"
+    },
+    {
+      "method": "flush",
+      "lock_kind": "unique_lock",
+      "site": "flush_vector",
+      "action": "existing"
+    },
+    {
+      "method": "flush",
+      "lock_kind": "shared_lock",
+      "site": "flush_shared",
+      "action": "existing"
+    },
+    {
+      "method": "stats",
+      "lock_kind": "shared_lock",
+      "site": "stats",
+      "action": "trace"
+    },
+    {
+      "method": "schema",
+      "lock_kind": "shared_lock",
+      "site": "schema",
+      "action": "trace"
+    },
+    {
+      "method": "options",
+      "lock_kind": "shared_lock",
+      "site": "options",
+      "action": "trace"
+    },
+    {
+      "method": "create_index",
+      "lock_kind": "unique_lock",
+      "site": "create_index",
+      "action": "trace"
+    },
+    {
+      "method": "drop_index",
+      "lock_kind": "unique_lock",
+      "site": "drop_index",
+      "action": "trace"
+    },
+    {
+      "method": "optimize",
+      "lock_kind": "unique_lock",
+      "site": "optimize_seal",
+      "action": "trace"
+    },
+    {
+      "method": "optimize",
+      "lock_kind": "unique_lock",
+      "site": "optimize_commit",
+      "action": "trace"
+    },
+    {
+      "method": "add_column",
+      "lock_kind": "unique_lock",
+      "site": "add_column",
+      "action": "trace"
+    },
+    {
+      "method": "drop_column",
+      "lock_kind": "unique_lock",
+      "site": "drop_column",
+      "action": "trace"
+    },
+    {
+      "method": "alter_column",
+      "lock_kind": "unique_lock",
+      "site": "alter_column",
+      "action": "trace"
+    },
+    {
+      "method": "write_impl",
+      "lock_kind": "shared_lock",
+      "site": "write_impl",
+      "action": "trace"
+    },
+    {
+      "method": "delete_",
+      "lock_kind": "shared_lock",
+      "site": "delete",
+      "action": "trace"
+    },
+    {
+      "method": "delete_by_filter",
+      "lock_kind": "shared_lock",
+      "site": "delete_by_filter",
+      "action": "trace"
+    },
+    {
+      "method": "query",
+      "lock_kind": "shared_lock",
+      "site": "query_search",
+      "action": "query_hold"
+    },
+    {
+      "method": "query",
+      "lock_kind": "shared_lock",
+      "site": "query_multi",
+      "action": "trace"
+    },
+    {
+      "method": "query_result_snapshot_impl",
+      "lock_kind": "shared_lock",
+      "site": "query_snapshot",
+      "action": "trace"
+    },
+    {
+      "method": "group_by_query",
+      "lock_kind": "shared_lock",
+      "site": "group_by_query",
+      "action": "trace"
+    },
+    {
+      "method": "fetch",
+      "lock_kind": "shared_lock",
+      "site": "fetch",
+      "action": "trace"
+    },
+    {
+      "method": "debug_get_hnsw_storage_mode",
+      "lock_kind": "shared_lock",
+      "site": "debug_hnsw_mode",
+      "action": "trace"
+    },
+    {
+      "method": "create_iterator",
+      "lock_kind": "unique_lock",
+      "site": "create_iterator",
+      "action": "trace"
+    },
+    {
+      "method": "decrement_active_iterators",
+      "lock_kind": "unique_lock",
+      "site": "decrement_iterators",
+      "action": "trace"
+    }
+  ],
+  "lock_site_count": 26,
+  "timeline_header_translation_units": [
+    "src/db/collection.cc",
+    "src/db/sqlengine/planner/fts_recall_node.cc"
+  ],
+  "trace_writer_smoke": {
+    "status": "PASS",
+    "bytes": 192,
+    "sha256": "b1dfc902da314cd6651dae63fdcb172f1b64e4c09f11957945932fb75eb82771",
+    "event_lines": 1
+  },
+  "linked_trace_string_check": {
+    "status": "PASS",
+    "required_strings": [
+      "M4_NATIVE_PROFILE_LOG_PATH",
+      "schema_handle_lock_owner",
+      "query_unsafe_setup",
+      "fts_search"
+    ]
+  },
+  "source_collection_sha256": "55ca5416a086c3d70c85a1caf18b3330d21bad2699f3c7f6eb996aa9553e75bf",
+  "source_timeline_header_sha256": "ea424da1972f37b05661deb9d3811e900364c8feeb308dca6f4589bc47013c4b",
+  "source_fts_recall_node_sha256": "5fbd0b08a10d5ebf15606dce5abd9abb2a810c4465faf162e73fb573f21160ea",
+  "overlay_collection_sha256": "1925cc455df43cbfed72477d2e8765148ea189486f40f2fb39112cd58f4b1efb",
+  "overlay_timeline_header_sha256": "d5636896e5febd450aec386dc6bbe5de8df79e5bfa5f3c0920a2ecec405da436",
+  "overlay_fts_recall_node_sha256": "5fbd0b08a10d5ebf15606dce5abd9abb2a810c4465faf162e73fb573f21160ea",
+  "instrumented_object_sha256": {
+    "collection.cc.o": "ffd9c6c8d3066d6daee4f4ba6dfb153b12f950b2ad499e3f23d8fbbb663ffe92",
+    "fts_recall_node.cc.o": "dcdbf1de5691f6cf33f1385fe2f0ba854ac252dfe2914c1560c73a4344201c15"
+  },
+  "instrumented_archive_sha256": "d8a943fe2c13fb6149490eaeed01a6c3218c7b79d70df867ac173603286a0fde",
+  "native_library_sha256": "65817813bacc710b29ea01d273ca604c0e1177b1e5aabf618604fe45c701a971",
+  "native_library_bytes": 53045488,
+  "library_path": "/home/masis/src/zvec-grep/research/m4-native/.work/build/rust-bridge-target/debug/build/m4-native-schema-lock-trace-v4/out/zvec-prebuilt",
+  "library_file": "/home/masis/src/zvec-grep/research/m4-native/.work/build/rust-bridge-target/debug/build/m4-native-schema-lock-trace-v4/out/zvec-prebuilt/libzvec_c_api.so"
+}

@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+  "old_binary_sha256": "57f3a19e0fb5dfe4d2d64ea4831f276a81a586c22ee30309d6249ed986ba342f",
+  "cases": 5,
+  "recovery_checks": 4,
+  "injected_fsync_ordinal": 65,
+  "scope": "Process-crash/EIO/SIGKILL verification and observed syscall ordering, NOT physical power-loss simulation; no benchmark."
+}

@@ -1,0 +1,77 @@
+{
+  "new_measurement": false,
+  "arms": [
+    {
+      "order": "sustained-multicycle-500x20-20261019",
+      "arm": "baseline",
+      "samples": 105,
+      "sampled_process_peak_rss_kib": 308788.0,
+      "sampled_process_peak_pss_kib": 304227.0,
+      "sampled_process_peak_swap_kib": 0.0,
+      "reported_maxrss_kib_across_payloads": 308340,
+      "whole_wall_ms": 5028.0891,
+      "whole_process_cpu_ms": 3476.33,
+      "reported_process_physical_write_bytes": 247373824,
+      "retained_root_logical_bytes": 7177536
+    },
+    {
+      "order": "sustained-multicycle-500x20-20261019",
+      "arm": "candidate",
+      "samples": 131,
+      "sampled_process_peak_rss_kib": 294412.0,
+      "sampled_process_peak_pss_kib": 286915.0,
+      "sampled_process_peak_swap_kib": 0.0,
+      "reported_maxrss_kib_across_payloads": 308636,
+      "whole_wall_ms": 6382.5994,
+      "whole_process_cpu_ms": 4101.867,
+      "reported_process_physical_write_bytes": 251011072,
+      "retained_root_logical_bytes": 7177536
+    },
+    {
+      "order": "sustained-multicycle-500x20-reverse-20261019",
+      "arm": "baseline",
+      "samples": 102,
+      "sampled_process_peak_rss_kib": 295232.0,
+      "sampled_process_peak_pss_kib": 295621.0,
+      "sampled_process_peak_swap_kib": 0.0,
+      "reported_maxrss_kib_across_payloads": 309116,
+      "whole_wall_ms": 4963.1866,
+      "whole_process_cpu_ms": 3262.193,
+      "reported_process_physical_write_bytes": 248045568,
+      "retained_root_logical_bytes": 7177536
+    },
+    {
+      "order": "sustained-multicycle-500x20-reverse-20261019",
+      "arm": "candidate",
+      "samples": 117,
+      "sampled_process_peak_rss_kib": 286820.0,
+      "sampled_process_peak_pss_kib": 288416.0,
+      "sampled_process_peak_swap_kib": 0.0,
+      "reported_maxrss_kib_across_payloads": 307708,
+      "whole_wall_ms": 5878.4764,
+      "whole_process_cpu_ms": 3393.355,
+      "reported_process_physical_write_bytes": 226091008,
+      "retained_root_logical_bytes": 7177536
+    }
+  ],
+  "source_sha256": {
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-20261019/baseline/stdout.jsonl": "1fa444aed9197949c38e59a8ae30d556e588de9f9de044fe15d1d406ef0a11c4",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-20261019/baseline/pss-samples.csv": "8ae7f92dda3308a0f11f6898480aae436aecfa370fef5f6d31d3abaa2d1de283",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-20261019/baseline/process-sampling.json": "d64d611fd49447a359d1c33000ba4dcb02bfb3c8acfd1a5dbded4b87a4de69f4",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-20261019/candidate/stdout.jsonl": "839a2565e33b623cb3f6ca7e3ca1ccc3d8f181f29018710c7db012a94545796e",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-20261019/candidate/pss-samples.csv": "8ea6779dff3d064153a60e93e4dd3c9235018c0f7b503a61e38832195c4cef73",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-20261019/candidate/process-sampling.json": "dc759ffb9c64a907a4159cb78c5a96d4162c1402decd1726d4188e1c23ac426a",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-reverse-20261019/baseline/stdout.jsonl": "f31f3d548fb14796246afa00879b1847ccf7d78e260245b0a0c44785dda37602",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-reverse-20261019/baseline/pss-samples.csv": "99defe9b9a55215c2c647d9b754e002438ce223f6331df82f8d4238339b2e80b",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-reverse-20261019/baseline/process-sampling.json": "7aff73b426d8f0f01448ee0d698708e52506cf0398060bb3f376ddb6f7f11cb1",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-reverse-20261019/candidate/stdout.jsonl": "6b52d4d77cf31eafc0d6f7d386203f27ff042698a214a6697860aa92878750bb",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-reverse-20261019/candidate/pss-samples.csv": "4f8a327b43640e8819b1c6598d91f815a40b580b552181b8c99b0a8a36c5487e",
+    "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/sustained-multicycle-500x20-reverse-20261019/candidate/process-sampling.json": "5688cfd2a4fdaa22d968cc8160ec9b9f0939a5210192026e91652e67c3aeea32"
+  },
+  "limitations": [
+    "historical filter-identity runs are not a current full-sync performance comparison",
+    "RSS/PSS are process snapshots, not cgroup memory including file cache",
+    "retained root bytes are final logical size, not workspace allocation/apparent peak",
+    "per-arm task/thread peak and cgroup throttle counters were not captured"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "command": [
+    ".tmp/w4/bin/zg",
+    "--verify",
+    ".tmp/w2c/vec/ws",
+    "--json"
+  ],
+  "exit_code": 2,
+  "wall_seconds": 0.105536,
+  "user_seconds": 0.026627,
+  "system_seconds": 0.079475,
+  "max_rss_kib": 35528,
+  "max_pss_kib": 30605,
+  "io": {
+    "rchar": 705033,
+    "wchar": 158494,
+    "syscr": 849,
+    "syscw": 5,
+    "read_bytes": 2347008,
+    "write_bytes": 0,
+    "cancelled_write_bytes": 0
+  },
+  "host_before": {
+    "load1": 3.07,
+    "load5": 3.54,
+    "load15": 6.27,
+    "mem_available_kib": 10201668,
+    "swap_free_kib": 15547800,
+    "memory_pressure": {
+      "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824018",
+      "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939215"
+    }
+  },
+  "host_after": {
+    "load1": 3.07,
+    "load5": 3.54,
+    "load15": 6.27,
+    "mem_available_kib": 10180108,
+    "swap_free_kib": 15547800,
+    "memory_pressure": {
+      "some": "avg10=0.13 avg60=3.76 avg300=6.41 total=464824018",
+      "full": "avg10=0.13 avg60=3.76 avg300=6.36 total=435939215"
+    }
+  },
+  "stdout_tail": "/.tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/files/2/scalar.index.1.rocksdb\",\n        \"status\": \"ok\",\n        \"complete\": true,\n        \"bytes\": 164378,\n        \"error\": \"\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": 1\n      },\n      {\n        \"kind\": \"ipc\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/files/2/scalar.0.ipc\",\n        \"status\": \"partial\",\n        \"complete\": false,\n        \"bytes\": 97610,\n        \"error\": \"IPC structure verified; the format has no content checksum\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": null\n      },\n      {\n        \"kind\": \"rocksdb\",\n        \"path\": \"/home/masis/src/zvec-grep/.tmp/w2c/vec/ws/.zvec-grep/generations/1824596c-7ef6-414c-be7f-9e0c311213fd/storage/files/1/scalar.index.1.rocksdb\",\n        \"status\": \"ok\",\n        \"complete\": true,\n        \"bytes\": 107381,\n        \"error\": \"\",\n        \"segments\": null,\n        \"segments_with_crc\": null,\n        \"segments_without_crc\": null,\n        \"unprotected_bytes\": null,\n        \"segment_crc_mismatches\": null,\n        \"content_size\": null,\n        \"content_crc\": null,\n        \"capability\": null,\n        \"capability_ok\": null,\n        \"content_crc_checked\": null,\n        \"wal_files\": 1\n      }\n    ]\n  },\n  \"message\": \"legacy generation has no content checksum\"\n}\n",
+  "stderr_tail": ""
+}

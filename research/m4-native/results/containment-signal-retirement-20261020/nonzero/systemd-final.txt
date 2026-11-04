@@ -1,0 +1,7 @@
+Result=exit-code
+ExecMainCode=1
+ExecMainStatus=7
+ControlGroup=
+MemoryPeak=18886656
+MemorySwapPeak=0
+CPUUsageNSec=68282000

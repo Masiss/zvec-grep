@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "/usr/sbin/python3",
+    "-c",
+    "import os,pathlib,json,threading; p=pathlib.Path(\"synthetic-rehearsal.bin\"); data=b\"r\"*32768; f=p.open(\"wb\"); f.write(data); f.flush(); os.fsync(f.fileno()); f.close(); assert p.read_bytes()==data; print(json.dumps({\"synthetic_only\":True,\"proc_io\":pathlib.Path(\"/proc/self/io\").read_text(),\"cgroup\":pathlib.Path(\"/proc/self/cgroup\").read_text()}),flush=True); threading.Event().wait(1); p.unlink()"
+  ],
+  "benchmark_evidence": false,
+  "head": "277245a938e4b0181d9e58f142d722c24905a1be",
+  "runner_sha256": "aa1103b48981d1dbe2a04233ca7ba2019c9719c61534a48243c9ca565c891543",
+  "synthetic_only": true
+}

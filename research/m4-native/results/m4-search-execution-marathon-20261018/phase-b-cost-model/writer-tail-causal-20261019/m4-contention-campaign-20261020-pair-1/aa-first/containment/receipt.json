@@ -1,0 +1,29 @@
+{
+  "benchmark_started": false,
+  "cgroup_relative_path": null,
+  "controller_cleanup": {
+    "error": null,
+    "kill_result": null,
+    "systemd_kill_returncode": 1,
+    "systemd_stop_returncode": 5,
+    "verified": true
+  },
+  "exception": "TimeoutError: timed out",
+  "failure_class": "CONTROLLER_ERROR",
+  "failure_scope": "this arm only",
+  "limits_applied": {},
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "operation_outcome": "OPERATION_BLOCKED",
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "safety_outcome": "NOT_STARTED",
+  "schema_version": 1,
+  "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+  "status": "LAUNCH_FAILED",
+  "timestamp_utc": "2026-10-20T11:38:35.523757+00:00",
+  "unit": "m4-contained-b32d2a2fdbab4065.service",
+  "unit_cleanup": {
+    "stop_returncode": 5,
+    "unit_collected": true,
+    "verified": true
+  }
+}

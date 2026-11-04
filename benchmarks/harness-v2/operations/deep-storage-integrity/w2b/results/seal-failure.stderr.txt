@@ -1,0 +1,26 @@
+route: direct
+Scanning — scanning files
+Indexing: 0/100 files
+Preparing model: local/potion-code-16m-v2
+Indexing: 0/100 files — reading f_99.rs
+[ERROR 2026-11-01 17:02:09 139726915625728 index_mapping.cc:327] Failed to compute index checksums for /home/masis/src/zvec-grep/.tmp/w2b/fail/ws/.zvec-grep/generations/a3da236b-2d25-47a6-bd95-62604ee2c0e0/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.3.proxima
+[ERROR 2026-11-01 17:02:09 139726915625728 index_mapping.cc:327] Failed to compute index checksums for /home/masis/src/zvec-grep/.tmp/w2b/fail/ws/.zvec-grep/generations/a3da236b-2d25-47a6-bd95-62604ee2c0e0/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.3.proxima
+[ERROR 2026-11-01 17:02:09 139726915625728 flat_streamer_entity.cc:266] Failed to refresh storage for Invalid checksum
+[ERROR 2026-11-01 17:02:09 139726915625728 index.cc:671] Failed to flush streamer
+[ERROR 2026-11-01 17:02:09 139726915625728 index_mapping.cc:327] Failed to compute index checksums for /home/masis/src/zvec-grep/.tmp/w2b/fail/ws/.zvec-grep/generations/a3da236b-2d25-47a6-bd95-62604ee2c0e0/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.3.proxima
+[ERROR 2026-11-01 17:02:09 139726915625728 flat_streamer_entity.cc:266] Failed to refresh storage for Invalid checksum
+[ERROR 2026-11-01 17:02:09 139726915625728 index.cc:671] Failed to flush streamer
+[ERROR 2026-11-01 17:02:09 139726915625728 index_mapping.cc:327] Failed to compute index checksums for /home/masis/src/zvec-grep/.tmp/w2b/fail/ws/.zvec-grep/generations/a3da236b-2d25-47a6-bd95-62604ee2c0e0/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.3.proxima
+[ERROR 2026-11-01 17:02:09 139726915625728 flat_streamer_entity.cc:266] Failed to refresh storage for Invalid checksum
+[ERROR 2026-11-01 17:02:09 139726915625728 index.cc:671] Failed to flush streamer
+[ERROR 2026-11-01 17:02:09 139726915625728 index_mapping.cc:327] Failed to compute index checksums for /home/masis/src/zvec-grep/.tmp/w2b/fail/ws/.zvec-grep/generations/a3da236b-2d25-47a6-bd95-62604ee2c0e0/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.3.proxima
+[ERROR 2026-11-01 17:02:09 139726915625728 flat_streamer_entity.cc:266] Failed to refresh storage for Invalid checksum
+[ERROR 2026-11-01 17:02:09 139726915625728 index.cc:671] Failed to flush streamer
+[ERROR 2026-11-01 17:02:09 139726915625728 index_mapping.cc:327] Failed to compute index checksums for /home/masis/src/zvec-grep/.tmp/w2b/fail/ws/.zvec-grep/generations/a3da236b-2d25-47a6-bd95-62604ee2c0e0/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.3.proxima
+[ERROR 2026-11-01 17:02:09 139726915625728 flat_streamer_entity.cc:266] Failed to refresh storage for Invalid checksum
+[ERROR 2026-11-01 17:02:09 139726915625728 index.cc:671] Failed to flush streamer
+[ERROR 2026-11-01 17:02:09 139726915625728 index.cc:636] Failed to cleanup streamer
+[ERROR 2026-11-01 17:02:09 139726915625728 index_mapping.cc:327] Failed to compute index checksums for /home/masis/src/zvec-grep/.tmp/w2b/fail/ws/.zvec-grep/generations/a3da236b-2d25-47a6-bd95-62604ee2c0e0/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/embedding.index.3.proxima
+error[ZG.ENGINE.STORAGE_FAILURE]: failed to finalize index storage: zvec flush fragment collection: zvec error InternalError: Failed to flush index
+error location: crates/zg-engine/src/pipelines/indexing/pipeline.rs:243:9
+reporting location: crates/zg-engine/src/lib.rs:82:36

@@ -1,0 +1,402 @@
+{
+  "cell": "8_dirty_delete",
+  "correctness": [
+    {
+      "check": "fts_present_0",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_1",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_2",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_3",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_4",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_5",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_6",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    },
+    {
+      "check": "fts_present_7",
+      "ok": true,
+      "tail": "c/chunk_00/file_0001.rs:105-105\nsymbol: value UNIQUE_0001\n  105: pub const UNIQUE_0001: &str = \"finalize_0001\";\n\n#8 matchedBy=fts src/chunk_00/file_0000.rs:39-39\nsymbol: value UNIQUE_0000\n  39: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#9 matchedBy=fts src/chunk_00/file_0000.rs:99-99\nsymbol: value UNIQUE_0000\n  99: pub const UNIQUE_0000: &str = \"finalize_0000\";\n\n#10 matchedBy=fts src/chunk_00/file_0000.rs:93-93\nsymbol: value UNIQUE_0000\n  93: pub const UNIQUE_0000: &str = \"finalize_0000\";\n"
+    }
+  ],
+  "peaks": {
+    "memory_peak": 4726542336,
+    "process_pss_kib": 1234492,
+    "process_rss_kib": 1247628,
+    "swap_current": 0
+  },
+  "phases": {
+    "correctness": 1793508852.6130974,
+    "jobs_done": 1793508848.5344965,
+    "start": 1793508845.3560665,
+    "submitted": 1793508845.4548507
+  },
+  "queue_samples": [
+    {
+      "active": 9,
+      "jobs": [
+        {
+          "id": "8ce2cb8d-79d4-4528-a590-d875b020d859",
+          "queue_position": null,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+          "state": "running",
+          "waited_millis": 0
+        },
+        {
+          "id": "03bee4c8-ad7f-44d2-8c9c-6d8f3dbb307d",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_4",
+          "state": "running",
+          "waited_millis": 0
+        },
+        {
+          "id": "756b7000-c043-4789-bf72-4fa8c148fe9d",
+          "queue_position": 3,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+          "state": "queued",
+          "waited_millis": 99
+        },
+        {
+          "id": "5611b021-dfda-4001-bdbb-41ad75964bcd",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_2",
+          "state": "queued",
+          "waited_millis": 296
+        },
+        {
+          "id": "f0154691-fc0a-41ae-90c2-c98c366715e0",
+          "queue_position": 2,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_3",
+          "state": "queued",
+          "waited_millis": 149
+        },
+        {
+          "id": "dbccaf6f-3bd4-4154-871f-30698cd475f3",
+          "queue_position": 4,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5",
+          "state": "queued",
+          "waited_millis": 49
+        },
+        {
+          "id": "66d7618f-8a95-45b8-b821-71b20135cc57",
+          "queue_position": 5,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_6",
+          "state": "queued",
+          "waited_millis": 36
+        },
+        {
+          "id": "413f087e-8aee-4534-883d-7f921c7ddb21",
+          "queue_position": 6,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_7",
+          "state": "queued",
+          "waited_millis": 21
+        },
+        {
+          "id": "945b0161-4c1d-41b5-869d-355f3b0d8b0f",
+          "queue_position": 7,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8",
+          "state": "queued",
+          "waited_millis": 10
+        }
+      ],
+      "queued": 7,
+      "running": 2,
+      "t": 1793508845.467579
+    },
+    {
+      "active": 7,
+      "jobs": [
+        {
+          "id": "5611b021-dfda-4001-bdbb-41ad75964bcd",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_2",
+          "state": "running",
+          "waited_millis": 365
+        },
+        {
+          "id": "dbccaf6f-3bd4-4154-871f-30698cd475f3",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5",
+          "state": "running",
+          "waited_millis": 440
+        },
+        {
+          "id": "756b7000-c043-4789-bf72-4fa8c148fe9d",
+          "queue_position": 2,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+          "state": "queued",
+          "waited_millis": 611
+        },
+        {
+          "id": "f0154691-fc0a-41ae-90c2-c98c366715e0",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_3",
+          "state": "queued",
+          "waited_millis": 661
+        },
+        {
+          "id": "66d7618f-8a95-45b8-b821-71b20135cc57",
+          "queue_position": 3,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_6",
+          "state": "queued",
+          "waited_millis": 548
+        },
+        {
+          "id": "413f087e-8aee-4534-883d-7f921c7ddb21",
+          "queue_position": 4,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_7",
+          "state": "queued",
+          "waited_millis": 533
+        },
+        {
+          "id": "945b0161-4c1d-41b5-869d-355f3b0d8b0f",
+          "queue_position": 5,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8",
+          "state": "queued",
+          "waited_millis": 522
+        }
+      ],
+      "queued": 5,
+      "running": 2,
+      "t": 1793508845.978624
+    },
+    {
+      "active": 7,
+      "jobs": [
+        {
+          "id": "f0154691-fc0a-41ae-90c2-c98c366715e0",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_3",
+          "state": "running",
+          "waited_millis": 821
+        },
+        {
+          "id": "66d7618f-8a95-45b8-b821-71b20135cc57",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_6",
+          "state": "running",
+          "waited_millis": 946
+        },
+        {
+          "id": "756b7000-c043-4789-bf72-4fa8c148fe9d",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+          "state": "queued",
+          "waited_millis": 1123
+        },
+        {
+          "id": "91f0623a-2bba-42ba-8296-9b4257c4e36b",
+          "queue_position": 5,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_4",
+          "state": "queued",
+          "waited_millis": 380
+        },
+        {
+          "id": "303d6cf3-bd51-4ae9-b4d4-0e29009a3a8d",
+          "queue_position": 4,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5",
+          "state": "queued",
+          "waited_millis": 381
+        },
+        {
+          "id": "413f087e-8aee-4534-883d-7f921c7ddb21",
+          "queue_position": 2,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_7",
+          "state": "queued",
+          "waited_millis": 1045
+        },
+        {
+          "id": "945b0161-4c1d-41b5-869d-355f3b0d8b0f",
+          "queue_position": 3,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8",
+          "state": "queued",
+          "waited_millis": 1035
+        }
+      ],
+      "queued": 5,
+      "running": 2,
+      "t": 1793508846.49134
+    },
+    {
+      "active": 5,
+      "jobs": [
+        {
+          "id": "91f0623a-2bba-42ba-8296-9b4257c4e36b",
+          "queue_position": null,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_4",
+          "state": "running",
+          "waited_millis": 521
+        },
+        {
+          "id": "413f087e-8aee-4534-883d-7f921c7ddb21",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_7",
+          "state": "running",
+          "waited_millis": 1419
+        },
+        {
+          "id": "756b7000-c043-4789-bf72-4fa8c148fe9d",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+          "state": "queued",
+          "waited_millis": 1635
+        },
+        {
+          "id": "303d6cf3-bd51-4ae9-b4d4-0e29009a3a8d",
+          "queue_position": 3,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5",
+          "state": "queued",
+          "waited_millis": 892
+        },
+        {
+          "id": "945b0161-4c1d-41b5-869d-355f3b0d8b0f",
+          "queue_position": 2,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8",
+          "state": "queued",
+          "waited_millis": 1546
+        }
+      ],
+      "queued": 3,
+      "running": 2,
+      "t": 1793508847.0025077
+    },
+    {
+      "active": 3,
+      "jobs": [
+        {
+          "id": "303d6cf3-bd51-4ae9-b4d4-0e29009a3a8d",
+          "queue_position": null,
+          "reason": "watch",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5",
+          "state": "running",
+          "waited_millis": 1006
+        },
+        {
+          "id": "945b0161-4c1d-41b5-869d-355f3b0d8b0f",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8",
+          "state": "running",
+          "waited_millis": 1933
+        },
+        {
+          "id": "756b7000-c043-4789-bf72-4fa8c148fe9d",
+          "queue_position": 1,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+          "state": "queued",
+          "waited_millis": 2145
+        }
+      ],
+      "queued": 1,
+      "running": 2,
+      "t": 1793508847.513293
+    },
+    {
+      "active": 1,
+      "jobs": [
+        {
+          "id": "756b7000-c043-4789-bf72-4fa8c148fe9d",
+          "queue_position": null,
+          "reason": "manual",
+          "root": "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+          "state": "running",
+          "waited_millis": 2552
+        }
+      ],
+      "queued": 0,
+      "running": 1,
+      "t": 1793508848.0242865
+    },
+    {
+      "active": 0,
+      "jobs": [],
+      "queued": 0,
+      "running": 0,
+      "t": 1793508848.534494
+    }
+  ],
+  "rep": 3,
+  "roots": [
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_2",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_3",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_4",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_6",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_7",
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8"
+  ],
+  "status": "pass",
+  "storage_bytes": {
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1": 980312594,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_2": 980312547,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_3": 980312260,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_4": 980312407,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5": 980311988,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_6": 980311781,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_7": 980312278,
+    "/home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8": 980312178
+  },
+  "submit_tails": [
+    "Daemon index job 756b7000-c043-4789-bf72-4fa8c148fe9d queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_1 behind job 8ce2cb8d-79d4-4528-a590-d875b020d859",
+    "Daemon index job 5611b021-dfda-4001-bdbb-41ad75964bcd queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_2",
+    "Daemon index job f0154691-fc0a-41ae-90c2-c98c366715e0 queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_3",
+    "Daemon index job 03bee4c8-ad7f-44d2-8c9c-6d8f3dbb307d queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_4",
+    "Daemon index job dbccaf6f-3bd4-4154-871f-30698cd475f3 queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_5",
+    "Daemon index job 66d7618f-8a95-45b8-b821-71b20135cc57 queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_6",
+    "Daemon index job 413f087e-8aee-4534-883d-7f921c7ddb21 queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_7",
+    "Daemon index job 945b0161-4c1d-41b5-869d-355f3b0d8b0f queued for /home/masis/src/zvec-grep/.tmp/ifq/cells/8_dirty_delete/ws_8"
+  ]
+}

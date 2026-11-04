@@ -1,0 +1,14 @@
+{
+  "job_id": "job-1335348-244",
+  "slot": "R1",
+  "total_attempt_index": 2,
+  "original_pair_1_unchanged": true,
+  "maximum_total_attempts": 4,
+  "original_conditional_slots_remaining": 2,
+  "runner_log": "research/m4-native/results/autonomous-campaign-20261020/replacement-1-execution/runner.log",
+  "exit_receipt": "research/m4-native/results/autonomous-campaign-20261020/replacement-1-execution/exit.json",
+  "operation_root": "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/m4-contention-campaign-20261020-replacement-1",
+  "supervisor": "nonblocking flock; GNU TERM355s/KILL+5s; watchdog115s/systemd120s per arm",
+  "stop_conditions": "Current formal capacity/integrity/correctness/identity/distress/cap/readback/runtime/cleanup failure; do not automatically retry.",
+  "next_action": "Inspect terminal raw receipts and cleanup, then per-cycle/stage/resource analysis before deciding eligibility or question for either remaining original slot."
+}

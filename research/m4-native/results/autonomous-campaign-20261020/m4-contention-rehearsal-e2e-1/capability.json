@@ -1,0 +1,55 @@
+{
+  "cgroup2_mount": "47 45 0:29 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:7 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting",
+  "cgroup_v2_mounted": true,
+  "current_leaf": {
+    "cgroup_kill_writable": true,
+    "controllers": [
+      "memory",
+      "pids"
+    ],
+    "io_max": false,
+    "io_pressure": true,
+    "io_stat": false,
+    "memory_max_writable": true,
+    "memory_swap_max_writable": true
+  },
+  "current_unit": [
+    "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/kitty-1688559-2.scope",
+    "Delegate=no",
+    "IOAccounting=no",
+    "KillMode=process"
+  ],
+  "host_telemetry": {
+    "diskstats": true,
+    "host_io_psi": true,
+    "host_memory_psi": true,
+    "vmstat_swap": true
+  },
+  "root_controllers": [
+    "cpuset",
+    "cpu",
+    "io",
+    "memory",
+    "hugetlb",
+    "pids",
+    "rdma",
+    "misc",
+    "dmem"
+  ],
+  "self_cgroup": "user.slice/user-1000.slice/user@1000.service/app.slice/kitty-1688559-2.scope",
+  "systemctl_available": true,
+  "systemd_run_available": true,
+  "systemd_runtime": [
+    "systemd 262 (262-1-arch)"
+  ],
+  "user_service_controllers": [
+    "cpu",
+    "memory",
+    "pids"
+  ],
+  "user_service_subtree_control": [
+    "cpu",
+    "memory",
+    "pids"
+  ]
+}

@@ -1,0 +1,35 @@
+2026-10-27T00:51:34+07:00
+ 00:51:34 up 6 days,  2:00,  1 user,  load average: 3.29, 4.03, 4.75
+               total        used        free      shared  buff/cache   available
+Mem:     16436363264 11823382528  3018792960  1156300800  3384156160  4612980736
+Swap:    25397551104 17260822528  8136728576
+--- /proc/pressure/cpu
+some avg10=0.00 avg60=0.00 avg300=0.03 total=2630647584
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+--- /proc/pressure/memory
+some avg10=0.00 avg60=0.17 avg300=0.58 total=1580006314
+full avg10=0.00 avg60=0.17 avg300=0.55 total=1472937993
+--- /proc/pressure/io
+some avg10=1.82 avg60=1.94 avg300=2.45 total=8982411079
+full avg10=1.54 avg60=1.62 avg300=2.06 total=7853384498
+--- root disk
+      Avail
+21750763520
+--- qgroup
+--- top processes
+    PID    PPID ELAPSED %CPU   RSS COMMAND
+1600903    2011   13025 33.3 542900 zen-bin
+2445754 2445072    4260 21.5 1353848 pi
+1601755 1601053   13021 17.5 103536 Web Content
+ 108250  108131  117017 15.0 791160 spotify
+2808937 2445754       0 12.5  4100 bash
+2167865 1601053    6988 12.4 980988 Web Content
+ 759632 2061511   30791 10.3 437080 pi
+2756590 2697611     521  8.3 306344 pi
+1601630 1601053   13023  8.1 316412 WebExtensions
+2292771 2292742    5972  5.0 31828 opengrep-core
+   2011    2006  525590  4.5 59024 Hyprland
+2565067 2445754    2702  3.8 593384 rust-analyzer
+2289150 1601053    6021  3.1 65172 Web Content
+2785202 2756590     333  2.7 121236 marksman
+   2200    1855  525587  1.8 33008 eww

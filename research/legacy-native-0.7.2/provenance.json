@@ -1,0 +1,37 @@
+{
+  "status": "archived_not_runtime",
+  "native_base": "8f6d600db769dcabf92f7af11a8242453b7ae5bf",
+  "native_patch_sha256": "1c949b1ccc58d4e6e9fdcd76e0b5a0860020e3e3259cf82bec7f15bbf7edc46a",
+  "dependencies": [
+    {
+      "path": "thirdparty/RaBitQ-Library/RaBitQ-Library-0.3.8",
+      "base": "0e87c6cb582143f1be0077e6af48f423e525a247",
+      "patch": "thirdparty__RaBitQ-Library__RaBitQ-Library-0.3.8.patch",
+      "sha256": "8034b8b890ad3bb0d90386c6ae4bf31bbbd8fc5cd958511f6986280f49175334"
+    },
+    {
+      "path": "thirdparty/antlr/antlr4",
+      "base": "7a3f40bc341ddfb463d6e0aa1a6265064d020cb6",
+      "patch": "thirdparty__antlr__antlr4.patch",
+      "sha256": "49bb794c6e80b6b1f7ed31405c4161d2b1b73362f7d9ab03484f114426e51a35"
+    },
+    {
+      "path": "thirdparty/arrow/apache-arrow-21.0.0",
+      "base": "ee4d09ebef61c663c1efbfa4c18e518a03b798be",
+      "patch": "thirdparty__arrow__apache-arrow-21.0.0.patch",
+      "sha256": "77f9f40a307ee83c48492529919a979b4a380113973bca0548f03ad8a5a974c6"
+    },
+    {
+      "path": "thirdparty/glog/glog-0.5.0",
+      "base": "8f9ccfe770add9e4c64e9b25c102658e3c763b73",
+      "patch": "thirdparty__glog__glog-0.5.0.patch",
+      "sha256": "7bea54668d24c10d662d591fc427dfa0951fedcc32d88762c6b7681ebd9b4b14"
+    },
+    {
+      "path": "thirdparty/rocksdb/rocksdb-8.1.1",
+      "base": "6a436150417120a3f9732d65a2a5c2b8d19b60fc",
+      "patch": "thirdparty__rocksdb__rocksdb-8.1.1.patch",
+      "sha256": "62f69ba98da8ea68b60d45c6d538d783747e8fc35988618017ac73f7f3dee918"
+    }
+  ]
+}

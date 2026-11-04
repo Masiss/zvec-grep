@@ -1,0 +1,37 @@
+{
+  "failure_class": "CONTROLLER_CRASH_ABORT",
+  "performance_eligible": false,
+  "safety_outcome": "ABORTED_CONTAINED",
+  "status": "WATCHDOG_ABORT",
+  "unit": "m4-contained-dc149feba72d4e03.service",
+  "unit_cleanup": {
+    "reset_failed_returncode": 0,
+    "stop_returncode": 0,
+    "unit_collected": true,
+    "verified": true
+  },
+  "watchdog_abort": {
+    "cleanup_complete": true,
+    "failure_class": "CONTROLLER_CRASH_ABORT",
+    "final_cleanup": {
+      "attempted": true,
+      "method": "systemctl-user-stop",
+      "returncode": 0,
+      "stderr": "",
+      "success": true
+    },
+    "reason": "supervisor_lost",
+    "socket_cleanup_verified": true,
+    "termination": {
+      "errors": [],
+      "kill_fallback": false,
+      "kill_pids": [],
+      "preserved_pids": [],
+      "term_pids": [
+        3215022,
+        3215068
+      ]
+    },
+    "timestamp_utc": "2026-10-20T10:00:31.854487+00:00"
+  }
+}

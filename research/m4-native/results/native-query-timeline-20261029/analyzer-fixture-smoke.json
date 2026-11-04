@@ -1,0 +1,8 @@
+{
+  "event_stage_kinds": 25,
+  "fixture": "research/m4-native/results/native-query-timeline-20261029/focused-native-query-timeline-test.log",
+  "interval_union_smoke_ns": 20,
+  "invalid_clock_records": 0,
+  "matched_event_lines": 92,
+  "valid_events": 92
+}

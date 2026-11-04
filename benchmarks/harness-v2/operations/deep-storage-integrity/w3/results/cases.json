@@ -1,0 +1,573 @@
+{
+  "library": ".local/native/zvec-native-build/lib/libzvec_c_api.so",
+  "clean_generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+  "legacy_generation": "1824596c-7ef6-414c-be7f-9e0c311213fd",
+  "cases": [
+    {
+      "case": "clean",
+      "expect_code": 0,
+      "expect_status": "PASS_COMPLETE",
+      "code": 0,
+      "status": "PASS_COMPLETE",
+      "pass": true,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "read_only": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_header_flip",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "IndexUnpacker rejected header/footer/segment table/content CRC"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_segment_content_flip",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "IndexUnpacker rejected header/footer/segment table/content CRC"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_segment_meta_flip",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "IndexUnpacker rejected header/footer/segment table/content CRC"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "proxima_truncate_tail",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "IndexUnpacker rejected header/footer/segment table/content CRC"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "rocksdb_sst_flip",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "VerifyChecksum: Corruption: block checksum mismatch: stored = 324900792, computed = 2274965252, type = 4  in benchmarks/harness-v2/operations/deep-storage-integrity/w3/results/cases/rocksdb_sst_flip/713ef6f0-5e5b-48e5-a3e3-f8906d494ade/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb/000074.sst offset 5989 size 4741"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "rocksdb_manifest_flip",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "ListColumnFamilies: Corruption: checksum mismatch in file benchmarks/harness-v2/operations/deep-storage-integrity/w3/results/cases/rocksdb_manifest_flip/713ef6f0-5e5b-48e5-a3e3-f8906d494ade/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb/MANIFEST-000005"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "rocksdb_current_corrupt",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "ListColumnFamilies: IO error: No such file or directory: While opening a file for sequentially reading: benchmarks/harness-v2/operations/deep-storage-integrity/w3/results/cases/rocksdb_current_corrupt/713ef6f0-5e5b-48e5-a3e3-f8906d494ade/storage/fragments_bf8b58d66b0d4a68e01c0f31c59b7d77f4ca3899124fe7cc116bcc55bda5cc00/0/scalar.index.1.rocksdb/MANIFEST-999999: No such file or directory"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "ipc_footer_flip",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "read IPC footer: IOError: Verification of flatbuffer-encoded Footer failed."
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "ipc_truncate",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "read IPC footer: Invalid: Not an Arrow file"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_magic_flip",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "invalid sidecar magic"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_truncate",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "sidecar fragment fingerprints are truncated"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_count_overflow",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "sidecar file identity does not match its name"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "sidecar_trailing_bytes",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "sidecar has trailing bytes"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "missing_collection",
+      "expect_code": 1,
+      "expect_status": "CORRUPT",
+      "code": 1,
+      "status": "CORRUPT",
+      "pass": false,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [
+        "missing required collection entities"
+      ],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "active_writer_refused",
+      "expect_code": 2,
+      "expect_status": "INCOMPLETE",
+      "code": 2,
+      "status": "INCOMPLETE",
+      "pass": true,
+      "complete": false,
+      "stable": false,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "wal_non_empty_incomplete",
+      "expect_code": 2,
+      "expect_status": "INCOMPLETE",
+      "code": 2,
+      "status": "INCOMPLETE",
+      "pass": true,
+      "complete": false,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [
+        "wal"
+      ],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "rocksdb_only_subset_incomplete",
+      "expect_code": 2,
+      "expect_status": "INCOMPLETE",
+      "code": 2,
+      "status": "INCOMPLETE",
+      "pass": true,
+      "complete": false,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [
+        "ipc",
+        "proxima"
+      ],
+      "limitations": [
+        "sidecars.content_checksum"
+      ],
+      "errors": [],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "require_complete",
+      "expect_code": 0,
+      "expect_status": "PASS_COMPLETE",
+      "code": 0,
+      "status": "PASS_COMPLETE",
+      "pass": true,
+      "complete": true,
+      "stable": true,
+      "legacy": false,
+      "generation": "713ef6f0-5e5b-48e5-a3e3-f8906d494ade",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "legacy_zero_crc",
+      "expect_code": 2,
+      "expect_status": "INCOMPLETE_LEGACY",
+      "code": 2,
+      "status": "INCOMPLETE_LEGACY",
+      "pass": true,
+      "complete": false,
+      "stable": true,
+      "legacy": true,
+      "generation": "1824596c-7ef6-414c-be7f-9e0c311213fd",
+      "missing_coverage": [],
+      "limitations": [
+        "sidecars.content_checksum",
+        "ipc.content_checksum"
+      ],
+      "errors": [],
+      "checks": {
+        "return_code": true,
+        "status": true,
+        "read_only": true,
+        "generation_identity": true,
+        "coverage_named": true
+      },
+      "ok": true
+    },
+    {
+      "case": "invalid_null",
+      "expect_code": 3,
+      "code": 3,
+      "status": null,
+      "checks": {
+        "return_code": true
+      },
+      "ok": true
+    },
+    {
+      "case": "invalid_empty",
+      "expect_code": 3,
+      "code": 3,
+      "status": null,
+      "checks": {
+        "return_code": true
+      },
+      "ok": true
+    },
+    {
+      "case": "invalid_missing",
+      "expect_code": 3,
+      "code": 3,
+      "status": null,
+      "checks": {
+        "return_code": true
+      },
+      "ok": true
+    }
+  ],
+  "passed": 23,
+  "failed": 0
+}

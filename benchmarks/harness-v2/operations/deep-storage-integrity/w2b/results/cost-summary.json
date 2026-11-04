@@ -1,0 +1,28 @@
+{
+  "initial": {
+    "orig_s": 6.79,
+    "custom_s": 7.09,
+    "orig_rss_kib": 406852,
+    "custom_rss_kib": 423332
+  },
+  "incremental": {
+    "orig_s": 2.11,
+    "custom_s": 1.71
+  },
+  "rebuild_orig_s": [
+    6.7,
+    7.29,
+    6.66
+  ],
+  "rebuild_custom_s": [
+    8.26,
+    6.78,
+    7.73
+  ],
+  "rebuild_orig_median_s": 6.7,
+  "rebuild_custom_median_s": 7.73,
+  "post_rebuild_noop": {
+    "orig_s": 0.57,
+    "custom_s": 0.6
+  }
+}

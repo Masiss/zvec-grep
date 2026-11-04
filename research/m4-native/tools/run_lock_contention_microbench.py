@@ -1,0 +1,893 @@
+#!/usr/bin/env python3
+"""Run the explicitly authorized, contained M4 compaction-contention comparison."""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import math
+import os
+import pathlib
+import re
+import secrets
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from typing import Any
+
+BASE = pathlib.Path(__file__).resolve().parents[1]
+POLICY_PATH = BASE / "docs/benchmark-policy.json"
+BINARY = BASE / ".work/build/durability-restore-20261020/m4_compaction_writer_contention"
+DICTIONARY = BASE.parent.parent / ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict"
+RESULTS = BASE / "results/lock-contention-microbench"
+sys.path.insert(0, str(BASE / "tools"))
+import m4_containment_runner as runner  # noqa: E402
+
+
+def sha256(path: pathlib.Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def profile_binary(profile_contract: dict[str, Any]) -> pathlib.Path:
+    relative = profile_contract.get("binary_relative_path")
+    if relative is None:
+        return BINARY
+    if not isinstance(relative, str) or pathlib.Path(relative).is_absolute():
+        raise ValueError("profile binary path must be repository-relative")
+    binary = (BASE / relative).resolve(strict=True)
+    try:
+        binary.relative_to(BASE)
+    except ValueError as exc:
+        raise ValueError("profile binary path escapes the M4 repository") from exc
+    if binary.name != "m4_compaction_writer_contention" or not binary.is_file():
+        raise ValueError("profile binary path is not the registered contention harness")
+    expected_sha = profile_contract.get("binary_sha256")
+    if expected_sha is not None and sha256(binary) != expected_sha:
+        raise ValueError("profile binary differs from its registered SHA-256")
+    return binary
+
+
+def profile_runtime_library(profile_contract: dict[str, Any],
+                            binary: pathlib.Path) -> tuple[pathlib.Path, str] | None:
+    relative = profile_contract.get("runtime_library_relative_path")
+    if relative is None:
+        return None
+    if not isinstance(relative, str) or pathlib.Path(relative).is_absolute():
+        raise ValueError("profile runtime-library path must be repository-relative")
+    repo_root = BASE.parents[1].resolve()
+    library = (repo_root / relative).resolve(strict=True)
+    try:
+        library.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError("profile runtime-library path escapes the repository") from exc
+    expected_sha = profile_contract.get("runtime_library_sha256")
+    if not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+        raise ValueError("profile runtime library requires a pinned SHA-256")
+    if sha256(library) != expected_sha:
+        raise ValueError("profile runtime library differs from its registered SHA-256")
+    resolved = subprocess.run(["ldd", str(binary)], check=False,
+                              capture_output=True, text=True)
+    if resolved.returncode != 0:
+        raise ValueError("cannot inspect profile benchmark runtime dependencies")
+    match = re.search(r"^\s*libzvec_c_api\.so\s+=>\s+(\S+)",
+                      resolved.stdout, re.MULTILINE)
+    if not match or pathlib.Path(match.group(1)).resolve() != library:
+        raise ValueError("benchmark does not resolve the registered libzvec_c_api.so")
+    return library, expected_sha
+
+
+def write_json(path: pathlib.Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def cleanup_operation_tmp_root(
+    tmp_root: pathlib.Path | None,
+    temp_base: pathlib.Path,
+    receipt_dir: pathlib.Path,
+    benchmark_started: bool,
+    operation_id: str,
+) -> dict[str, Any]:
+    if tmp_root is None:
+        return {"status": "NOT_CREATED", "verified": True}
+    root = pathlib.Path(tmp_root)
+    base = pathlib.Path(temp_base).resolve(strict=True)
+    if root.parent.resolve(strict=True) != base or not root.name.startswith(f"{operation_id}-tmp-"):
+        return {"status": "PRESERVED_UNEXPECTED_PATH", "verified": False, "path": str(root)}
+    try:
+        info = root.lstat()
+    except FileNotFoundError:
+        return {"status": "ALREADY_ABSENT", "verified": True, "path": str(root)}
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or
+            stat.S_IMODE(info.st_mode) != 0o700):
+        return {"status": "PRESERVED_UNSAFE_ROOT", "verified": False, "path": str(root)}
+
+    unit_observed = benchmark_started or (receipt_dir / "command-start.json").exists()
+    run_state_path = receipt_dir / "run-state.json"
+    if run_state_path.exists():
+        try:
+            run_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"status": "PRESERVED_RUN_STATE_UNREADABLE", "verified": False,
+                    "path": str(root)}
+        unit_observed = unit_observed or (
+            run_state.get("unit") is not None and run_state.get("state") != "preflight_blocked")
+    unit_observed = unit_observed or (receipt_dir / "unit-cleanup.json").exists()
+    if unit_observed:
+        cleanup_path = receipt_dir / "unit-cleanup.json"
+        try:
+            cleanup_verified = json.loads(cleanup_path.read_text(encoding="utf-8")).get("verified") is True
+        except (OSError, json.JSONDecodeError):
+            cleanup_verified = False
+        if not cleanup_verified:
+            return {"status": "PRESERVED_CONTAINMENT_UNVERIFIED", "verified": False,
+                    "path": str(root)}
+
+    try:
+        shutil.rmtree(root)
+    except OSError as exc:
+        return {"status": "CLEANUP_FAILED", "verified": False,
+                "path": str(root), "error": f"{type(exc).__name__}: {exc}"}
+    removal_status = ("REMOVED_AFTER_VERIFIED_UNIT_CLEANUP" if unit_observed else
+                      "REMOVED_WITH_NO_UNIT_LAUNCHED")
+    return {"status": removal_status, "verified": not root.exists(), "path": str(root)}
+
+
+def host_context() -> dict[str, Any]:
+    ps = subprocess.run(["ps", "-eo", "pid,ppid,pcpu,etime,cputime,rss,args", "--sort=-pcpu"],
+                        capture_output=True, text=True, check=True, timeout=5).stdout.splitlines()[:24]
+    process_telemetry: list[dict[str, Any]] = []
+    for line in ps:
+        fields = line.split(None, 6)
+        if len(fields) < 6:
+            continue
+        try:
+            pid = int(fields[0])
+            ppid = int(fields[1])
+            rss_kib = int(fields[5])
+            cpu_percent = float(fields[2])
+        except ValueError:
+            continue
+        memory: dict[str, int] = {}
+        memory_error = None
+        try:
+            for entry in pathlib.Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+                values = entry.split()
+                if len(values) >= 2 and values[0] in ("Pss:", "Rss:", "Swap:"):
+                    memory[values[0][:-1].lower() + "_kib"] = int(values[1])
+        except (OSError, ValueError) as exc:
+            memory_error = f"{type(exc).__name__}: {exc}"
+        process_telemetry.append({
+            "pid": pid, "ppid": ppid, "cpu_percent": cpu_percent,
+            "elapsed": fields[3], "cpu_time": fields[4], "rss_kib": rss_kib,
+            "pss_kib": memory.get("pss_kib"), "swap_kib": memory.get("swap_kib"),
+            "memory_sample_complete": "pss_kib" in memory and "rss_kib" in memory,
+            "memory_sample_error": memory_error,
+            "command": fields[6] if len(fields) == 7 else "",
+        })
+    affinity = subprocess.run(["taskset", "-pc", str(os.getpid())], capture_output=True,
+                              text=True, timeout=5).stdout.strip()
+    units = subprocess.run(["systemctl", "--user", "list-units", "m4-contained-*", "--all",
+                            "--no-legend", "--plain"], capture_output=True, text=True,
+                           timeout=5)
+    if units.returncode != 0:
+        raise RuntimeError(f"cannot verify user M4 units: {units.stderr.strip()}")
+    active = [line for line in units.stdout.splitlines() if ".service" in line and "not-found" not in line]
+    return {"top_processes": ps, "top_process_telemetry": process_telemetry,
+            "process_memory_samples_complete": all(
+                sample["memory_sample_complete"] for sample in process_telemetry),
+            "operator_affinity": affinity, "preexisting_m4_units": active,
+            "unit_list_raw": units.stdout}
+
+
+def read_workload(stdout_path: pathlib.Path) -> dict[str, Any]:
+    # The executable emits one valid, pretty-printed JSON document across lines.
+    try:
+        value = json.loads(stdout_path.read_text(encoding="utf-8", errors="replace"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"invalid M4 compaction-contention JSON: {stdout_path}: {exc}") from exc
+    if isinstance(value, dict) and value.get("mode") == "m4_compaction_contention":
+        return value
+    raise RuntimeError(f"missing M4 compaction-contention result: {stdout_path}")
+
+
+def verify_analyzer_churn_trace(data: dict[str, Any], workload: dict[str, Any]) -> None:
+    expected_versions = workload.get("dictionary_churn_versions", 0)
+    trace = data.get("analyzer_churn_trace")
+    if expected_versions == 0:
+        if trace is not None:
+            raise RuntimeError("unexpected analyzer churn trace for this workload")
+        return
+    if (isinstance(expected_versions, bool) or not isinstance(expected_versions, int) or
+            expected_versions != 2 or not isinstance(trace, dict) or
+            trace.get("failures") != 0):
+        raise RuntimeError("missing or invalid bounded analyzer churn trace")
+
+    def valid_memory(sample: Any) -> bool:
+        fields = ("rss_kb", "pss_kb", "private_kb", "anonymous_kb")
+        return (isinstance(sample, dict) and sample.get("valid") is True and
+                all(isinstance(sample.get(key), int) and
+                    not isinstance(sample.get(key), bool) and sample[key] >= 0
+                    for key in fields))
+
+    versions = trace.get("versions")
+    if (not valid_memory(trace.get("baseline")) or
+            not isinstance(versions, list) or len(versions) != expected_versions):
+        raise RuntimeError("analyzer churn memory samples do not match the registered contract")
+    identities: set[str] = set()
+    for index, version in enumerate(versions):
+        if not isinstance(version, dict):
+            raise RuntimeError("invalid or incomplete analyzer churn generation")
+        identity = version.get("identity_sha256")
+        elapsed = version.get("initialization_ms")
+        if (version.get("index") != index or
+                not isinstance(identity, str) or len(identity) != 64 or
+                any(char not in "0123456789abcdef" for char in identity) or
+                identity in identities or
+                version.get("initialization_succeeded") is not True or
+                version.get("snapshot_used") is not True or
+                version.get("tokenization_succeeded") is not True or
+                isinstance(elapsed, bool) or not isinstance(elapsed, (int, float)) or
+                not math.isfinite(elapsed) or elapsed <= 0 or
+                not valid_memory(version.get("live_memory")) or
+                not valid_memory(version.get("released_memory"))):
+            raise RuntimeError("invalid or incomplete analyzer churn generation")
+        identities.add(identity)
+
+
+def verify_reader_through_flush(arm: dict[str, Any]) -> None:
+    trace = arm.get("reader_through_flush")
+    if not isinstance(trace, dict) or trace.get("flush_succeeded") is not True:
+        raise RuntimeError("reader-through-flush evidence is missing or flush failed")
+    start, end = trace.get("flush_start_boot_ns"), trace.get("flush_end_boot_ns")
+    if (isinstance(start, bool) or not isinstance(start, int) or start <= 0 or
+            isinstance(end, bool) or not isinstance(end, int) or end <= start):
+        raise RuntimeError("invalid reader-through-flush boundary timestamps")
+    readers = trace.get("readers")
+    if not isinstance(readers, list) or len(readers) != 2:
+        raise RuntimeError("reader-through-flush must contain both registered readers")
+    for reader_id, reader in enumerate(readers):
+        if not isinstance(reader, dict) or reader.get("reader_id") != reader_id:
+            raise RuntimeError("invalid reader-through-flush reader identity")
+        samples = reader.get("samples")
+        if not isinstance(samples, list) or not 5 <= len(samples) <= 512:
+            raise RuntimeError("reader-through-flush sample count is outside its bound")
+        before = overlap = started_during = after = 0
+        for sample in samples:
+            if not isinstance(sample, dict):
+                raise RuntimeError("invalid reader-through-flush sample")
+            query_start, query_end = sample.get("start_boot_ns"), sample.get("end_boot_ns")
+            wall, mutex_wait, execution_cpu = (sample.get("wall_ms"),
+                                                sample.get("mutex_wait_ms"),
+                                                sample.get("execution_cpu_ms"))
+            if (sample.get("ok") is not True or
+                    isinstance(query_start, bool) or not isinstance(query_start, int) or
+                    isinstance(query_end, bool) or not isinstance(query_end, int) or
+                    query_end <= query_start):
+                raise RuntimeError("invalid reader-through-flush query timing")
+            if (isinstance(wall, bool) or not isinstance(wall, (int, float)) or
+                    not math.isfinite(wall) or wall < 0):
+                raise RuntimeError("invalid reader query total latency")
+            if (isinstance(mutex_wait, bool) or
+                    not isinstance(mutex_wait, (int, float)) or
+                    not math.isfinite(mutex_wait) or mutex_wait < 0):
+                raise RuntimeError("invalid reader query mutex wait")
+            if (isinstance(execution_cpu, bool) or
+                    not isinstance(execution_cpu, (int, float)) or
+                    not math.isfinite(execution_cpu) or execution_cpu < 0):
+                raise RuntimeError("invalid reader query CPU time")
+            wall_ms = float(wall)
+            mutex_wait_ms = float(mutex_wait)
+            execution_cpu_ms = float(execution_cpu)
+            if (wall_ms <= 0 or mutex_wait_ms > wall_ms + 1e-3 or
+                    execution_cpu_ms > wall_ms + 1e-3):
+                raise RuntimeError("reader query substage exceeds total latency")
+            before += query_end <= start
+            overlap += query_start < end and query_end > start
+            started_during += start <= query_start < end
+            after += query_start >= end
+        if before < 2 or overlap < 1 or started_during < 1 or after < 2:
+            raise RuntimeError(
+                "reader did not produce timestamp-proven queries before, during, and after flush")
+    if trace.get("failures") != 0:
+        raise RuntimeError("reader-through-flush coverage or query failures were reported")
+
+
+def verify_reader_phase_log(data: dict[str, Any], phase_log: str) -> None:
+    events: dict[tuple[str, str, int], list[int]] = {}
+    for line in phase_log.splitlines():
+        match = re.fullmatch(r"M4_PHASE (\d+) (\S+) (\S+) (\d+)", line.strip())
+        if not match:
+            continue
+        timestamp, arm, phase, ordinal = match.groups()
+        events.setdefault((arm, phase, int(ordinal)), []).append(int(timestamp))
+    for arm in data.get("arm_order", []):
+        trace = next(item["reader_through_flush"] for item in data["arms"]
+                     if item.get("name") == arm)
+        start = trace["flush_start_boot_ns"]
+        end = trace["flush_end_boot_ns"]
+        ready = events.get((arm, "flush_readers_pre_ready", 0), [])
+        timeout = events.get((arm, "flush_readers_pre_timeout", 0), [])
+        starts = events.get((arm, "reader_through_flush_start", 0), [])
+        finishes = events.get((arm, "reader_through_flush_complete", 0), [])
+        coverage = [events.get((arm, "flush_reader_coverage", i), [])
+                    for i in range(2)]
+        if (len(ready) != 1 or timeout or len(starts) != 1 or len(finishes) != 1 or
+                any(len(samples) != 1 for samples in coverage) or
+                starts[0] < start or starts[0] - start > 1_000_000_000 or
+                finishes[0] < end or finishes[0] - end > 1_000_000_000):
+            raise RuntimeError("M4_PHASE log does not corroborate reader/flush boundaries")
+
+
+def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any],
+           phase_log: str | None = None) -> None:
+    allowed = {"PASS", "COMPLETED_WITH_WORKSPACE_UNCERTAINTY", "COMPLETED_WITH_WORKSPACE_WARNINGS"}
+    if result.get("status") not in allowed or result.get("workload_returncode") != 0:
+        raise RuntimeError(f"contained microbenchmark did not complete safely: {result.get('status')} / {result.get('reason')}")
+    cleanup = result.get("controller_cleanup") or result.get("unit_cleanup") or {}
+    if cleanup.get("verified") is not True:
+        raise RuntimeError("contained microbenchmark cleanup is unverified")
+    workload = contract["workload"]
+    docs, rounds = workload["documents"], workload["rounds"]
+    if (data.get("mode") != "m4_compaction_contention" or
+            data.get("documents") != docs or data.get("rounds") != rounds or
+            data.get("writers") != workload["writers"] or
+            data.get("ops_per_writer") != workload["ops_per_writer"] or
+            data.get("writer_operations") != rounds or
+            data.get("reader_queries") != workload["readers"] * workload["queries_per_reader"] or
+            data.get("coherence_errors") != 0 or data.get("failures") != 0):
+        raise RuntimeError("contention workload counts/coherence do not match the contract")
+    arms = data.get("arms")
+    timing_schema = data.get("timing_schema_version")
+    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
+        raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
+    if timing_schema in (8, 9, 10, 11, 12, 13):
+        expected_workload_mode = (
+            "background_compaction_pair"
+            if workload.get("mode") == "--m4-background-compaction-pair"
+            else "group_commit_pending_flush_reader_pair"
+            if workload.get("mode") == "--m4-group-commit-pending-flush-reader-pair"
+            else "group_commit_flush_reader_pair"
+            if workload.get("mode") == "--m4-group-commit-flush-reader-pair"
+            else "flush_reader_staging_pair"
+            if workload.get("mode") == "--m4-flush-reader-staging-pair"
+            else "writer_group_commit_snapshot_rebase"
+            if workload.get("mode") == "--m4-writer-group-commit-snapshot-rebase"
+            else "writer_group_commit_per_upsert"
+            if workload.get("mode") == "--m4-writer-group-commit-per-upsert"
+            else "writer_group_commit"
+            if workload.get("mode") == "--m4-writer-group-commit"
+            else "contention")
+        if data.get("workload_mode") != expected_workload_mode:
+            raise RuntimeError("workload mode does not match the registered profile")
+    expected_modes = set(workload.get("compaction_modes", ("default", "snapshot")))
+    if timing_schema in (None, 2, 3):
+        # Historical receipts predate the explicit ApplyBatch arm.
+        expected_modes.discard("apply_batch")
+    arm_order = data.get("arm_order")
+    if (workload.get("mode") == "--m4-background-compaction-pair" and
+            arm_order != workload.get("compaction_modes")):
+        raise RuntimeError("background-compaction arm order differs from the registered profile")
+    if (not isinstance(arms, list) or not isinstance(arm_order, list) or
+            [arm.get("name") for arm in arms] != arm_order or
+            len(arm_order) != len(expected_modes) or set(arm_order) != expected_modes):
+        raise RuntimeError("compaction arms or order do not match the registered workload")
+    def valid_series(values: Any, count: int) -> bool:
+        return (isinstance(values, list) and len(values) == count and
+                all(not isinstance(v, bool) and isinstance(v, (int, float)) and
+                    math.isfinite(v) and v >= 0 for v in values))
+    compaction_timing_fields = (
+        "total_ms", "total_cpu_ms", "state_mutex_wait_ms",
+        "state_mutex_wait_cpu_ms", "query_mutex_wait_ms",
+        "query_mutex_wait_cpu_ms", "pending_flush_ms", "pending_flush_cpu_ms",
+        "merge_prepare_ms", "merge_prepare_cpu_ms", "merge_build_ms",
+        "merge_build_cpu_ms", "publish_state_mutex_wait_ms",
+        "publish_state_mutex_wait_cpu_ms", "publish_query_mutex_wait_ms",
+        "publish_query_mutex_wait_cpu_ms", "publication_ms",
+        "publication_cpu_ms")
+    for arm in arms:
+        compaction = arm.get("compaction_diagnostics")
+        # Older operation receipts predate lock-stage compaction diagnostics;
+        # retain their exact recorded validity while checking new receipts.
+        if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13) and not isinstance(compaction, dict):
+            raise RuntimeError("missing compaction phase timing object")
+        if compaction is not None and not isinstance(compaction, dict):
+            raise RuntimeError("invalid compaction phase timing object")
+        if compaction is not None:
+            required_compaction_fields = compaction_timing_fields
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
+                required_compaction_fields += (
+                    "state_mutex_hold_ms", "state_mutex_hold_cpu_ms")
+            for key in required_compaction_fields:
+                value = compaction.get(key)
+                if (isinstance(value, bool) or
+                        not isinstance(value, (int, float)) or
+                        not math.isfinite(value) or value < 0):
+                    raise RuntimeError("missing/invalid compaction phase timing")
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
+                hold = compaction["state_mutex_hold_ms"]
+                if (hold + 1e-6 < compaction["publication_ms"] or
+                        hold > compaction["total_ms"] + 1e-6):
+                    raise RuntimeError(
+                        "compaction state-lock hold lies outside total/publication timing")
+            flush_stages = compaction.get("flush_stage_timing")
+            if flush_stages is not None:
+                stage_fields = (
+                    "segment_build_ms", "segment_build_cpu_ms",
+                    "segment_write_ms", "segment_write_cpu_ms",
+                    "segment_open_ms", "segment_open_cpu_ms",
+                    "query_mutex_wait_ms", "query_mutex_wait_cpu_ms",
+                    "stats_append_ms", "stats_append_cpu_ms",
+                    "tombstone_write_ms", "tombstone_write_cpu_ms",
+                    "manifest_write_ms", "manifest_write_cpu_ms",
+                    "wal_reset_ms", "wal_reset_cpu_ms", "gc_ms",
+                    "gc_cpu_ms", "delta_reset_ms", "delta_reset_cpu_ms")
+                stage_version = (
+                    flush_stages.get("schema_version")
+                    if isinstance(flush_stages, dict) else None
+                )
+                if (stage_version not in (1, 2) or
+                        (timing_schema in (5, 6, 7, 8, 9, 10, 11, 12, 13) and stage_version != 2)):
+                    raise RuntimeError("invalid optional flush-stage timing object")
+                if stage_version == 2:
+                    stage_fields += (
+                        "query_mutex_hold_ms", "query_mutex_hold_cpu_ms")
+                for key in stage_fields:
+                    value = flush_stages.get(key)
+                    if (isinstance(value, bool) or
+                            not isinstance(value, (int, float)) or
+                            not math.isfinite(value) or value < 0):
+                        raise RuntimeError("missing/invalid flush-stage timing")
+                stage_wall_sum = sum(flush_stages[key] for key in (
+                    "segment_build_ms", "segment_write_ms", "segment_open_ms",
+                    "query_mutex_wait_ms", "stats_append_ms",
+                    "tombstone_write_ms", "manifest_write_ms", "wal_reset_ms",
+                    "gc_ms", "delta_reset_ms"))
+                if stage_wall_sum > compaction["pending_flush_ms"] + 1e-3:
+                    raise RuntimeError("flush-stage timing exceeds pending-flush duration")
+                if (stage_version == 2 and
+                        flush_stages["query_mutex_hold_ms"] >
+                        compaction["pending_flush_ms"] + 1e-3):
+                    raise RuntimeError("flush query-lock hold exceeds pending-flush duration")
+        if timing_schema in (5, 6, 7, 8, 9, 10, 11, 12, 13):
+            explicit_flush = arm.get("post_writer_flush_diagnostics")
+            if not isinstance(explicit_flush, dict):
+                raise RuntimeError("missing post-writer flush diagnostics")
+            flush_fields = (
+                "total_ms", "total_cpu_ms", "state_mutex_wait_ms",
+                "state_mutex_wait_cpu_ms", "state_mutex_hold_ms",
+                "state_mutex_hold_cpu_ms", "query_mutex_wait_ms",
+                "query_mutex_wait_cpu_ms", "pending_flush_ms",
+                "pending_flush_cpu_ms")
+            for key in flush_fields:
+                value = explicit_flush.get(key)
+                if (isinstance(value, bool) or
+                        not isinstance(value, (int, float)) or
+                        not math.isfinite(value) or value < 0):
+                    raise RuntimeError("missing/invalid post-writer flush timing")
+            if (explicit_flush["state_mutex_hold_ms"] + 1e-6 <
+                    explicit_flush["pending_flush_ms"] or
+                    explicit_flush["state_mutex_hold_ms"] >
+                    explicit_flush["total_ms"] + 1e-6):
+                raise RuntimeError("post-writer flush lock timing lies outside total")
+            flush_stages = explicit_flush.get("flush_stage_timing")
+            if (not isinstance(flush_stages, dict) or
+                    flush_stages.get("schema_version") != 2):
+                raise RuntimeError("missing/invalid post-writer flush-stage timing")
+            stage_fields = (
+                "segment_build_ms", "segment_build_cpu_ms",
+                "segment_write_ms", "segment_write_cpu_ms",
+                "segment_open_ms", "segment_open_cpu_ms",
+                "query_mutex_wait_ms", "query_mutex_wait_cpu_ms",
+                "query_mutex_hold_ms", "query_mutex_hold_cpu_ms",
+                "stats_append_ms", "stats_append_cpu_ms",
+                "tombstone_write_ms", "tombstone_write_cpu_ms",
+                "manifest_write_ms", "manifest_write_cpu_ms",
+                "wal_reset_ms", "wal_reset_cpu_ms", "gc_ms",
+                "gc_cpu_ms", "delta_reset_ms", "delta_reset_cpu_ms")
+            for key in stage_fields:
+                value = flush_stages.get(key)
+                if (isinstance(value, bool) or
+                        not isinstance(value, (int, float)) or
+                        not math.isfinite(value) or value < 0):
+                    raise RuntimeError("missing/invalid post-writer flush-stage timing")
+            stage_wall_sum = sum(flush_stages[key] for key in (
+                "segment_build_ms", "segment_write_ms", "segment_open_ms",
+                "query_mutex_wait_ms", "stats_append_ms",
+                "tombstone_write_ms", "manifest_write_ms", "wal_reset_ms",
+                "gc_ms", "delta_reset_ms"))
+            if stage_wall_sum > explicit_flush["pending_flush_ms"] + 1e-3:
+                raise RuntimeError("post-writer flush stages exceed flush duration")
+            if (flush_stages["query_mutex_hold_ms"] >
+                    explicit_flush["pending_flush_ms"] + 1e-3):
+                raise RuntimeError(
+                    "post-writer flush query-lock hold exceeds flush duration")
+        api_calls = rounds
+        group_commit_arm = timing_schema in (8, 10, 11, 12, 13) and arm.get("name") in (
+            "group_commit", "group_commit_snapshot_rebase",
+            "group_commit_per_upsert")
+        if timing_schema in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
+            batch_api = arm.get("name") == "apply_batch"
+            expected_api = ("ApplyBatch" if batch_api else
+                            "UpsertGroupCommitSeparateWalFrames"
+                            if arm.get("name") == "group_commit_per_upsert" else
+                            "UpsertGroupCommit" if group_commit_arm else "Upsert")
+            expected_calls = workload["writers"] if batch_api else rounds
+            if (arm.get("writer_api") != expected_api or
+                    arm.get("writer_api_calls") != expected_calls or
+                    arm.get("logical_upserts") != rounds):
+                raise RuntimeError("writer API/count metadata does not match the contract")
+            api_calls = expected_calls
+        if group_commit_arm:
+            if (arm.get("writer_group_commit_per_upsert_records") is not
+                    (arm.get("name") == "group_commit_per_upsert")):
+                raise RuntimeError("per-Upsert WAL record mode metadata mismatch")
+            if (not valid_series(arm.get("writer_samples"), api_calls) or
+                    not valid_series(arm.get("writer_queue_wait_samples"), api_calls) or
+                    not valid_series(
+                        arm.get("writer_group_commit_size_samples"), api_calls)):
+                raise RuntimeError("missing/invalid group-commit latency/batch-size series")
+            group_sizes = arm["writer_group_commit_size_samples"]
+            if (max(group_sizes, default=0) < 2 or
+                    any(size < 1 or size > 4 or int(size) != size
+                        for size in group_sizes)):
+                raise RuntimeError("group-commit arm did not form valid multi-writer batches")
+            tracked_peak = arm.get("compaction_tracked_peak_bytes")
+            if (isinstance(tracked_peak, bool) or
+                    not isinstance(tracked_peak, int) or tracked_peak < 0):
+                raise RuntimeError("missing/invalid compaction tracked memory peak")
+            if (arm.get("writer_group_commit_max_batch_size") != 4 or
+                    arm.get("writer_group_commit_max_delay_us") != 500 or
+                    isinstance(arm.get("concurrent_wal_fsyncs"), bool) or
+                    not isinstance(arm.get("concurrent_wal_fsyncs"), int) or
+                    arm["concurrent_wal_fsyncs"] < 1):
+                raise RuntimeError("group-commit bounds or WAL sync count are invalid")
+            uncollected = (
+                "normalize_samples", "normalize_cpu_samples", "state_wait_samples",
+                "state_wait_cpu_samples", "state_hold_samples", "state_hold_cpu_samples",
+                "wal_encode_samples", "wal_encode_cpu_samples", "wal_append_samples",
+                "wal_append_cpu_samples", "wal_write_samples", "wal_fsync_samples",
+                "query_wait_samples", "apply_samples", "auto_flush_samples")
+            if any(arm.get(key) != [] for key in uncollected):
+                raise RuntimeError("group-commit arm mislabels non-per-call stages")
+        else:
+            if (timing_schema in (12, 13) and
+                    arm.get("writer_group_commit_per_upsert_records") is not False):
+                raise RuntimeError("non-group arm carries per-Upsert record mode")
+            required_writer_series = (
+                "writer_samples", "state_wait_samples", "state_wait_cpu_samples",
+                "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
+                "apply_samples", "auto_flush_samples")
+            for key in required_writer_series:
+                if not valid_series(arm.get(key), api_calls):
+                    raise RuntimeError(f"missing/invalid writer timing series: {key}")
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
+                for key in ("state_hold_samples", "state_hold_cpu_samples"):
+                    if not valid_series(arm.get(key), api_calls):
+                        raise RuntimeError(f"missing/invalid writer timing series: {key}")
+            if timing_schema in (6, 7, 8, 9, 10, 11, 12, 13):
+                for key in ("wal_write_samples", "wal_fsync_samples"):
+                    if not valid_series(arm.get(key), api_calls):
+                        raise RuntimeError(f"missing/invalid writer timing series: {key}")
+                if any(write + fsync > append + 1e-3 for write, fsync, append in zip(
+                        arm["wal_write_samples"], arm["wal_fsync_samples"],
+                        arm["wal_append_samples"], strict=True)):
+                    raise RuntimeError("WAL write/fsync substage exceeds append duration")
+            if timing_schema in (7, 8, 9, 10, 11, 12, 13):
+                tracked_peak = arm.get("compaction_tracked_peak_bytes")
+                if (isinstance(tracked_peak, bool) or
+                        not isinstance(tracked_peak, int) or tracked_peak < 0):
+                    raise RuntimeError("missing/invalid compaction tracked memory peak")
+            if timing_schema in (8, 9, 10, 11, 12, 13) and (
+                    arm.get("writer_queue_wait_samples") != [] or
+                    arm.get("writer_group_commit_size_samples") != []):
+                raise RuntimeError("non-group arm unexpectedly reports queue samples")
+            for key in ("normalize_samples", "normalize_cpu_samples",
+                        "wal_encode_samples", "wal_encode_cpu_samples"):
+                if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13) and not valid_series(arm.get(key), api_calls):
+                    raise RuntimeError(f"missing/invalid writer timing series: {key}")
+                if key in arm and not valid_series(arm[key], api_calls):
+                    raise RuntimeError(f"invalid optional writer timing series: {key}")
+        reader_count = workload["readers"] * workload["queries_per_reader"]
+        if (not valid_series(arm.get("reader_samples"), reader_count) or
+                not valid_series(arm.get("reader_mutex_wait_samples"), reader_count)):
+            raise RuntimeError("missing/invalid reader latency or mutex-wait series")
+        if (arm.get("writer_failures") != 0 or arm.get("reader_failures") != 0 or
+                arm.get("durability_failures") != 0 or arm.get("runs_after_flush", 0) < 1):
+            raise RuntimeError("writer, reader, durability, or reopen verification failed")
+        if workload.get("mode") in (
+                "--m4-flush-reader-staging-pair",
+                "--m4-group-commit-flush-reader-pair",
+                "--m4-group-commit-pending-flush-reader-pair"):
+            group_pair = workload.get("mode") in (
+                "--m4-group-commit-flush-reader-pair",
+                "--m4-group-commit-pending-flush-reader-pair")
+            expected_arms = ("default", "group_commit") if group_pair else (
+                "flush_baseline", "flush_candidate")
+            expected_staging = True if group_pair else arm.get("name") == "flush_candidate"
+            if (arm.get("name") not in expected_arms or
+                    arm.get("flush_metadata_outside_query_lock") is not expected_staging or
+                    arm.get("compaction_status") != "ok"):
+                raise RuntimeError("flush-staging arm identity or compaction result mismatch")
+            for key in ("total_bytes_written", "segment_bytes_written", "total_wal_fsyncs"):
+                value = arm.get(key)
+                if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                    raise RuntimeError(f"missing or invalid write-amplification counter: {key}")
+            verify_reader_through_flush(arm)
+            if workload.get("mode") == "--m4-group-commit-pending-flush-reader-pair":
+                pending_count = workload.get("pending_flush_documents")
+                trace = arm.get("reader_through_flush", {})
+                if trace.get("pending_delta_docs") != pending_count:
+                    raise RuntimeError("pending flush fixture count does not match the profile")
+                flush = arm.get("post_writer_flush_diagnostics", {})
+                stages = flush.get("flush_stage_timing", {})
+                if (flush.get("pending_flush_ms", 0) <= 0.1 or
+                        stages.get("segment_build_ms", 0) <= 0 or
+                        stages.get("segment_write_ms", 0) <= 0):
+                    raise RuntimeError("reader-through-flush interval did not perform segment work")
+        if (arm.get("name") in ("background_off", "background_on") and
+                arm.get("compaction_status") != "ok") or (
+                arm.get("name") == "default" and arm.get("compaction_status") != "ok") or (
+                arm.get("name") == "snapshot" and arm.get("compaction_status") not in
+                ("ok", "compaction snapshot superseded by concurrent state change")) or (
+                arm.get("name") == "snapshot_rebase" and
+                arm.get("compaction_status") != "ok") or (
+                arm.get("name") == "apply_batch" and
+                arm.get("compaction_status") != "ok") or (
+                arm.get("name") in ("group_commit", "group_commit_per_upsert") and
+                arm.get("compaction_status") != "ok"):
+            raise RuntimeError("unexpected compaction outcome")
+    if workload.get("mode") == "--m4-background-compaction-pair":
+        if (timing_schema != 13 or
+                data.get("workload_mode") != "background_compaction_pair"):
+            raise RuntimeError("background-compaction pair schema/mode mismatch")
+        expected_runs = docs // 1024
+        for arm in arms:
+            enabled = arm.get("name") == "background_on"
+            integer_metrics = (
+                "fixture_runs", "compaction_merges", "compaction_input_docs",
+                "compaction_output_docs", "runs_after_flush")
+            finite_metrics = ("background_wait_ms", "compaction_wall_total_ms")
+            if (arm.get("background_compaction_enabled") is not enabled or
+                    any(isinstance(arm.get(key), bool) or
+                        not isinstance(arm.get(key), int) or arm[key] < 0
+                        for key in integer_metrics) or
+                    arm["fixture_runs"] != expected_runs or
+                    arm["compaction_merges"] < 1 or
+                    arm["compaction_input_docs"] < 2 * 1024 or
+                    arm["compaction_output_docs"] <= 0 or
+                    arm["runs_after_flush"] > 4 or
+                    any(isinstance(arm.get(key), bool) or
+                        not isinstance(arm.get(key), (int, float)) or
+                        not math.isfinite(arm[key]) or arm[key] < 0
+                        for key in finite_metrics)):
+                raise RuntimeError("background-compaction arm did not meet the registered work contract")
+    if workload.get("mode") == "--m4-writer-group-commit-per-upsert":
+        control = next((arm for arm in arms if arm.get("name") == "default"), None)
+        candidate = next((arm for arm in arms
+                          if arm.get("name") == "group_commit_per_upsert"), None)
+        if (control is None or candidate is None or
+                candidate.get("concurrent_wal_fsyncs", 0) >=
+                control.get("concurrent_wal_fsyncs", 0)):
+            raise RuntimeError("per-Upsert group did not reduce concurrent WAL fsyncs")
+    if workload.get("mode") in (
+            "--m4-flush-reader-staging-pair",
+            "--m4-group-commit-flush-reader-pair",
+            "--m4-group-commit-pending-flush-reader-pair"):
+        if phase_log is None:
+            raise RuntimeError("reader-through-flush phase log is required")
+        verify_reader_phase_log(data, phase_log)
+    verify_analyzer_churn_trace(data, workload)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--validate-only", action="store_true",
+                        help="validate binary, dictionary, policy binding and command without host preflight or launch")
+    parser.add_argument("--workload-profile", choices=(
+                            "contention", "memory_probe", "memory_trace",
+                            "memory_trace_after_snapshot_fix",
+                            "memory_trace_scale2_after_snapshot_fix",
+                            "memory_churn_two_versions",
+                            "memory_churn_two_versions_eviction",
+                            "memory_churn_two_versions_memory_opt",
+                            "memory_churn_two_versions_trie_stream",
+                            "memory_churn_two_versions_inline_child",
+                            "memory_churn_two_versions_concurrent_open",
+                            "memory_churn_two_versions_concurrent_allocator",
+                            "writer_group_commit",
+                            "writer_group_commit_per_upsert",
+                            "writer_group_commit_snapshot_rebase",
+                            "flush_reader_staging_pair",
+                            "writer_group_commit_flush_reader_pair",
+                            "writer_group_commit_pending_flush_reader_pair",
+                            "background_compaction_pair_off_first",
+                            "background_compaction_pair_on_first"),
+                        default="contention", help="select a separately registered memory diagnostic profile")
+    args = parser.parse_args()
+    try:
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        contract = policy["lock_contention_microbench"]
+        workload_profile = args.workload_profile
+        profile_contract = (contract if workload_profile == "contention" else
+                            contract[workload_profile])
+        workload = profile_contract["workload"]
+        measurement_semantics = profile_contract.get(
+            "measurement_semantics", contract["measurement_semantics"])
+        resource_root = pathlib.Path(contract["resource_root"]).resolve(strict=True)
+        workspace_quota_proof = runner.verify_workspace_quota(
+            resource_root, contract["workspace_quota"])
+    except (OSError, json.JSONDecodeError, KeyError, ValueError, subprocess.SubprocessError) as exc:
+        raise SystemExit(f"cannot load M4 benchmark contract/resource root: {exc}") from exc
+    try:
+        binary = profile_binary(profile_contract)
+        runtime_library = profile_runtime_library(profile_contract, binary)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise SystemExit(f"invalid registered workload binary/runtime: {exc}") from exc
+    if not binary.is_file() or not DICTIONARY.is_dir():
+        raise SystemExit(f"missing required input: {binary}, {DICTIONARY}")
+    dictionary_sha = runner.directory_sha256(DICTIONARY)
+    binary_sha = sha256(binary)
+    now = dt.datetime.now(dt.UTC)
+    profile_suffix = ("" if workload_profile == "contention" else
+                      workload_profile.replace("_", "-") + "-")
+    operation_id = ("m4-lock-contention-microbench-" + profile_suffix +
+                    now.strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3))
+    operation_root = RESULTS / now.strftime("%Y%m%d") / operation_id
+    resource_workspace = resource_root / operation_id
+    workspace_root = resource_workspace / "workspace"
+    ctx = {
+        "schema_version": 1, "mode": runner.CONTENTION_MODE,
+        "approval_status": contract["approval_status"],
+        "approval_reference": contract["approval_reference"],
+        "execution_authorization_reference": profile_contract.get(
+            "execution_authorization_reference",
+            contract["execution_authorization_reference"]),
+        "risk_acceptance_reference": profile_contract.get(
+            "risk_acceptance_reference", contract["risk_acceptance_reference"]),
+        "resource_basis": measurement_semantics,
+        "policy_sha256": sha256(POLICY_PATH),
+        "operation_id": operation_id, "operation_root": str(operation_root.resolve()),
+        "resource_root": str(resource_root),
+        "purpose": contract["purpose"], "workload_profile": workload_profile,
+        "binary_path": str(binary.resolve()),
+        "binary_sha256": binary_sha, "approved_binary_sha256": binary_sha,
+        **({"runtime_library_path": str(runtime_library[0]),
+            "runtime_library_sha256": runtime_library[1],
+            "approved_runtime_library_sha256": runtime_library[1]}
+           if runtime_library is not None else {}),
+        "dictionary_path": str(DICTIONARY.resolve()),
+        "dictionary_tree_sha256": dictionary_sha,
+        "approved_dictionary_tree_sha256": dictionary_sha,
+        "workload": workload, "arm_role": "microbench",
+        "workspace_quota_proof": workspace_quota_proof,
+        **({"native_cache_root": str(workspace_root / "native-cache")}
+           if workload["mode"] == "--m4-background-compaction-pair" else {}),
+        "io_pressure_mode": contract["io_pressure_mode"],
+        **contract["resource_controls"],
+    }
+    runner.validate_contention_context(ctx)
+    workspace_root.mkdir(parents=True, exist_ok=False)
+    command = [str(binary.resolve()), str((workspace_root / "root").resolve()),
+               str(DICTIONARY.resolve()), workload["mode"],
+               str(workload["documents"]), str(workload["rounds"])]
+    if "arm_order" in workload:
+        command.append(workload["arm_order"])
+    if args.validate_only:
+        print(json.dumps({"status": "VALIDATED_NO_LAUNCH", "operation_id": operation_id,
+                          "workload_profile": workload_profile,
+                          "binary_sha256": binary_sha, "dictionary_tree_sha256": dictionary_sha,
+                          "workspace_quota_proof": workspace_quota_proof,
+                          "policy_sha256": ctx["policy_sha256"], "command": command,
+                          "resource_controls": contract["resource_controls"]}, sort_keys=True))
+        # Avoid leaving a scratch directory for validation-only.
+        workspace_root.rmdir()
+        resource_workspace.rmdir()
+        return 0
+
+    operation_root.mkdir(parents=True, exist_ok=False)
+    receipt_dir = operation_root / "microbench" / "containment"
+    plan: dict[str, Any] = {
+        "schema_version": 1, "operation_id": operation_id, "status": "PREFLIGHT",
+        "benchmark_started": False, "workload_profile": workload_profile,
+        "measurement_semantics": measurement_semantics,
+        "contract": contract, "policy_sha256": ctx["policy_sha256"],
+        "execution_authorization_reference": ctx["execution_authorization_reference"],
+        "risk_acceptance_reference": ctx["risk_acceptance_reference"],
+        "profile_id": profile_contract.get("profile_id", workload_profile),
+        "binary_path": str(binary.resolve()), "binary_sha256": binary_sha,
+        "native_cache_root": ctx.get("native_cache_root"),
+        **({"runtime_library_path": str(runtime_library[0]),
+            "runtime_library_sha256": runtime_library[1]}
+           if runtime_library is not None else {}),
+        "dictionary_path": str(DICTIONARY.resolve()), "dictionary_tree_sha256": dictionary_sha,
+        "workspace_quota_proof": workspace_quota_proof,
+        "command": command, "resource_controls": contract["resource_controls"],
+        "resource_workspace": str(resource_workspace), "evidence_class": contract["evidence_class"],
+    }
+    write_json(operation_root / "operation-plan.json", plan)
+    operation_tmp_root: pathlib.Path | None = None
+    native_temp_base = pathlib.Path(tempfile.gettempdir()).resolve(strict=True)
+    try:
+        plan["operator_host_context_before"] = host_context()
+        plan["start_host_snapshot"] = runner.host_snapshot(resource_root)
+        if plan["operator_host_context_before"]["preexisting_m4_units"]:
+            result = {"status": "PREFLIGHT_BLOCKED", "benchmark_started": False,
+                      "reason": "preexisting owned M4 units; refusing overlapping operation",
+                      "blocking_failures": [{"gate_id": "M4-MICROBENCH-NO-OVERLAP"}]}
+        else:
+            operation_tmp_root = pathlib.Path(tempfile.mkdtemp(
+                prefix=f"{operation_id}-tmp-", dir=native_temp_base))
+            plan["native_temp_base"] = str(native_temp_base)
+            plan["native_temp_root"] = str(operation_tmp_root)
+            env = os.environ.copy()
+            env.pop("M4_BRIDGE_TRACE", None)
+            env.pop("M4_REPO_TMP_DIR", None)
+            env["TMPDIR"] = str(operation_tmp_root)
+            if workload["mode"] == "--m4-background-compaction-pair":
+                env["M4_REPO_TMP_DIR"] = str(workspace_root / "native-cache")
+            result = runner.run_arm(
+                command, receipt_dir, resource_root, workspace_root, workspace_root,
+                contract["resource_controls"]["runtime_limit_seconds"], sample_interval_ms=100,
+                budget=runner.contention_budget(ctx), env=env, enforce_host_gates=True,
+                policy_context=ctx)
+            plan["benchmark_started"] = bool(result.get("benchmark_started"))
+            plan["contained_result"] = result
+            if result.get("workload_returncode") == 0:
+                data = read_workload(receipt_dir / "stdout.log")
+                plan["workload"] = data
+                verification_contract = {**contract, "workload": workload}
+                stderr_log = (receipt_dir / "stderr.log").read_text(
+                    encoding="utf-8", errors="replace")
+                verify(result, data, verification_contract, stderr_log)
+        plan["contained_result"] = result
+        plan["end_host_snapshot"] = runner.host_snapshot(resource_root)
+        plan["operator_host_context_after"] = host_context()
+        plan["status"] = result.get("status", "OPERATION_INCOMPLETE")
+        plan["measurement_validated"] = result.get("workload_returncode") == 0 and "workload" in plan
+    except BaseException as exc:
+        plan["status"] = "OPERATION_BLOCKED" if not plan["benchmark_started"] else "OPERATION_INCOMPLETE"
+        plan["failure"] = f"{type(exc).__name__}: {exc}"
+        try:
+            plan["end_host_snapshot"] = runner.host_snapshot(resource_root)
+            plan["operator_host_context_after"] = host_context()
+        except BaseException as telemetry_exc:
+            plan["end_snapshot_error"] = f"{type(telemetry_exc).__name__}: {telemetry_exc}"
+    finally:
+        try:
+            temp_cleanup = cleanup_operation_tmp_root(
+                operation_tmp_root, native_temp_base, receipt_dir,
+                bool(plan.get("benchmark_started")), operation_id)
+            plan["native_temp_cleanup"] = temp_cleanup
+            if not temp_cleanup.get("verified"):
+                plan["status"] = "OPERATION_INCOMPLETE"
+                plan["measurement_validated"] = False
+                plan["native_temp_cleanup_exit_failure"] = True
+        except BaseException as cleanup_exc:
+            plan["native_temp_cleanup"] = {
+                "status": "CLEANUP_ERROR", "verified": False,
+                "path": str(operation_tmp_root),
+                "error": f"{type(cleanup_exc).__name__}: {cleanup_exc}",
+            }
+            plan["status"] = "OPERATION_INCOMPLETE"
+            plan["measurement_validated"] = False
+            plan["native_temp_cleanup_exit_failure"] = True
+        write_json(operation_root / "operation-plan.json", plan)
+        checksums = []
+        for item in sorted(operation_root.rglob("*")):
+            if item.is_file() and item.name != "SHA256SUMS.txt":
+                checksums.append(f"{sha256(item)}  {item.relative_to(operation_root).as_posix()}")
+        (operation_root / "SHA256SUMS.txt").write_text("\n".join(checksums) + "\n", encoding="utf-8")
+        write_json(RESULTS / "latest-operation.json", {"operation_id": operation_id,
+                                                       "operation_root": str(operation_root),
+                                                       "status": plan["status"]})
+    if plan.get("failure") or plan.get("native_temp_cleanup_exit_failure"):
+        return 1
+    return 0 if plan.get("measurement_validated") else 2 if not plan.get("benchmark_started") else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

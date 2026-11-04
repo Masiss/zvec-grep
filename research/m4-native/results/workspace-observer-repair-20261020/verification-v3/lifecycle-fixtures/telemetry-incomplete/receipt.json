@@ -1,0 +1,14 @@
+{
+  "benchmark_started": false,
+  "failure_class": "TELEMETRY_FAILURE",
+  "failure_scope": "this arm only",
+  "measurement_quality": "INCOMPLETE",
+  "mission_status": "NOT_EVALUATED_BY_RUNNER",
+  "operation_outcome": "OPERATION_BLOCKED",
+  "policy_id": "m4-benchmark-operation-policy-v1",
+  "reason": "OSError: fixture telemetry missing",
+  "safety_outcome": "NOT_STARTED",
+  "schema_version": 1,
+  "status": "TELEMETRY_INCOMPLETE",
+  "unit": null
+}

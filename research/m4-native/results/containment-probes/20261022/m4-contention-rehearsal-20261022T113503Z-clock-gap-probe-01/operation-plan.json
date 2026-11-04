@@ -1,0 +1,40 @@
+{
+  "authorization_reference": "One fixed synthetic-only containment rehearsal; retain all preflight, cgroup, watchdog, telemetry, and cleanup guards; no native workload and no retry.",
+  "classification": "SYNTHETIC CONTAINMENT ONLY / NOT PERFORMANCE EVIDENCE",
+  "command": [
+    "/usr/sbin/python3",
+    "-c",
+    "<fixed REHEARSAL_CODE; embedded code hash below>"
+  ],
+  "monitor_clocks": [
+    "CLOCK_MONOTONIC",
+    "CLOCK_BOOTTIME (suspend-inclusive)"
+  ],
+  "operation_id": "m4-contention-rehearsal-20261022T113503Z-clock-gap-probe-01",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/containment-probes/20261022/m4-contention-rehearsal-20261022T113503Z-clock-gap-probe-01",
+  "policy_sha256": "59fb1f98ba25d2ec3975967f97b9772fdae97dde336e07f35ebf5738c98dacd1",
+  "purpose": "synthetic-containment-rehearsal",
+  "python_binary_sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b",
+  "rehearsal_code_sha256": "448a30c6ae6d3976318f1cc57b91c77f1b806a73b77507f44649e50eb2e73e7f",
+  "resource_controls": {
+    "cpu_max": "50000 100000",
+    "disk_reserve_bytes": 16777216,
+    "host_memory_reserve_bytes": 16777216,
+    "max_monitor_gap_seconds": 2,
+    "memory_max_bytes": 67108864,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 128,
+    "runtime_limit_seconds": 60,
+    "workspace_max_allocated_bytes": 16777216,
+    "workspace_max_apparent_bytes": 16777216
+  },
+  "resource_root": "/home/masis/src/zvec-grep/research/m4-native/.work/scratch/m4-contention-rehearsal-20261022T113503Z-clock-gap-probe-01/resource",
+  "runner_sha256": "8a2d1d78c25037b766f0d6e9803b3560006d3883caabcb886c036468720b4dd4",
+  "schema_version": 1,
+  "status": "PASS",
+  "workload": {
+    "hold_seconds": 1,
+    "payload_bytes": 32768,
+    "synthetic_only": true
+  }
+}

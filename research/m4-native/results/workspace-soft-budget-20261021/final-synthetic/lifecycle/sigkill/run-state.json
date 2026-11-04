@@ -1,0 +1,7 @@
+{
+  "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-57ca88fac15344e2.service",
+  "controller_pid": 732309,
+  "state": "delegated_and_armed",
+  "timestamp_utc": "2026-10-21T02:36:33.788483+00:00",
+  "unit": "m4-contained-57ca88fac15344e2.service"
+}

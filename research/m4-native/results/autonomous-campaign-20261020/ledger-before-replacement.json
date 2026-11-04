@@ -1,0 +1,72 @@
+{
+  "campaign_id": "m4-writer-tail-20261020",
+  "status": "STOPPED_AFTER_SLOT_1_NO_LAUNCH",
+  "engineering_authority": "Active owner GOAL-BOUNDED AUTONOMY mission; offline research and engineering effective immediately",
+  "resource_plan_approval": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)",
+  "benchmark_campaign_activated": true,
+  "max_pairs_after_resource_approval": 3,
+  "pairs_consumed": 1,
+  "conditional_pairs_remaining": 2,
+  "currently_authorized_real_pairs": 0,
+  "remaining_budget_slots": 2,
+  "currently_eligible_next_pairs": 0,
+  "currently_active_benchmark_arms": 0,
+  "campaign_stop_reason": "Slot1 launch configuration refused before native GO; section5 prerequisite of valid prior native pair evidence not met. A new ID after repair would be a disguised retry; no automatic use of slots2/3.",
+  "maximum_concurrent_heavy_operations": 1,
+  "proposed_per_pair_supervisor_timeout_seconds": 360,
+  "proposed_supervisor_timeout_mechanism": "GNU timeout --signal=TERM --kill-after=5s 355s; tool auto-background is not a hard deadline. Existing watchdog/systemd own the workload; verified cleanup still required after controller timeout.",
+  "proposed_total_measurement_supervisor_seconds": 1080,
+  "consumption_rule": "Each named operation consumes a slot when its unique operation directory is claimed or at its first resource preflight, whichever comes first, including no-launch/abort. No automatic retry, replacement slot, cap increase or extra pair. A formal guard refusal is not permission to relaunch the same refused operation under the next slot.",
+  "slots": [
+    {
+      "slot": 1,
+      "operation_id": "m4-contention-campaign-20261020-pair-1",
+      "status": "NO_LAUNCH_CPUQUOTA_PARSE_REFUSAL",
+      "job_id": "job-1335348-229",
+      "benchmark_started": false,
+      "second_arm_started": false,
+      "verified_cleanup": true,
+      "analysis": "research/m4-native/results/autonomous-campaign-20261020/pair-1-analysis.json",
+      "approved_context": "research/m4-native/results/autonomous-campaign-20261020/resource-plan.approved-pair-1.json",
+      "debit_reason": "First authorized attempt includes its prerequisite/no-launch outcome; debited conservatively before guard execution."
+    },
+    {
+      "slot": 2,
+      "operation_id": "m4-contention-campaign-20261020-pair-2",
+      "status": "NOT_ELIGIBLE_AFTER_SLOT_1_NO_LAUNCH"
+    },
+    {
+      "slot": 3,
+      "operation_id": "m4-contention-campaign-20261020-pair-3",
+      "status": "NOT_ELIGIBLE_AFTER_SLOT_1_NO_LAUNCH"
+    }
+  ],
+  "offline_work": [
+    {
+      "id": "OFF-1",
+      "outcome": "Extracted old RSS/PSS/swap/process CPU/writes and final root size; explicitly missing cgroup/task/workspace peaks"
+    },
+    {
+      "id": "OFF-2",
+      "outcome": "Native build source map: new per-generation shard, six native scalar indexes, HNSW, flush and durable metadata; no evidence for reader contention on an unpublished collection's schema mutex"
+    },
+    {
+      "id": "OFF-3",
+      "outcome": "Mapped post-M4 durable writes, mandatory outer WAL sync, immutable-segment repeat-sync candidate and snapshot-finalization work; no unsafe sync removal"
+    },
+    {
+      "id": "ENG-1",
+      "outcome": "Added explicit task cap/readback/events to existing contention budgets; synthetic and tiny owned-unit tests only"
+    },
+    {
+      "id": "OFF-4",
+      "outcome": "Added pure offline conservative stage/cgroup counter bounds and synthetic tests; no interpolation or compute/wait overclaim"
+    }
+  ],
+  "research_completion_condition": "Bounded campaign stopped at authorized condition; raw attempt and no-start verified cleanup retained, independent exact-integer CPUQuota fix validated, hypotheses evaluated, decision DEFER writer-tail. Substantive latency/root-cause research remains unresolved, not a performance success.",
+  "performance_conclusion": "INCONCLUSIVE: no native M4 stage or paired/order performance evidence",
+  "engineering_decision": "KEEP exact-integer CPUQuota launch fix and full durability sync; DEFER latency optimization",
+  "verification": "57 focused control/offline tests and fresh three-file ty check PASS; no M4 benchmark retry",
+  "next_action": "Owner decides whether to explicitly authorize a new attempt/retry after the serialization correction; do not repurpose remaining conditional slots automatically. Future approved attempt requires fresh provenance/capacity and actual kernel cap readback. No cap increase requested.",
+  "owner_authorization_reference": "research/m4-native/results/autonomous-campaign-20261020/owner-authorization.md (current explicit user authorization)"
+}

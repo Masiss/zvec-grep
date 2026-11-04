@@ -1,0 +1,21 @@
+{
+  "cleanup_complete": true,
+  "detail": "ValueError: incomplete process-tree telemetry",
+  "failure_class": "UNKNOWN",
+  "final_cleanup": {
+    "attempted": true,
+    "method": "cgroup.kill",
+    "success": true
+  },
+  "reason": "required_telemetry_missing",
+  "termination": {
+    "errors": [],
+    "kill_fallback": false,
+    "kill_pids": [],
+    "preserved_pids": [
+      397739
+    ],
+    "term_pids": []
+  },
+  "timestamp_utc": "2026-10-20T15:15:06.843927+00:00"
+}

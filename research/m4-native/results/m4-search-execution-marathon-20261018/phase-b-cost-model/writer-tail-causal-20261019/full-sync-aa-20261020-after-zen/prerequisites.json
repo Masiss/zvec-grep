@@ -1,0 +1,350 @@
+{
+  "timestamp_utc": "2026-10-20T05:12:55.214500+00:00",
+  "new_authorization": "Owner: ch\u1ea1y \u0111i, t\u00f4i t\u1eaft zen r\u1ed3i; one new attempt only",
+  "prerequisites_pass": true,
+  "binary": "/home/masis/src/zvec-grep/research/m4-native/results/durability-restore-20261020/m4_bridge_integration.full-sync",
+  "binary_sha256": "ef0221f0e6c6b9f19e337e3e04a935a9af7069b2e72f8799cbf3fe37a1212e7f",
+  "compile_inputs": {
+    "research/m4-native/tests/m4_bridge_integration.cc": true,
+    "research/m4-native/include/m4/index.h": true,
+    "research/m4-native/tests/../src/tokenizer.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/c_api.h": true,
+    "research/m4-native/src/index.cc": true,
+    "research/m4-native/src/format.h": true,
+    "research/m4-native/src/tokenizer.h": true,
+    "research/m4-native/src/util.h": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/jieba_tokenizer.h": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/QuerySegment.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/Logging.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/DictTrie.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/StringUtil.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/StdExtension.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/UnicodeFile.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/Unicode.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/limonp/limonp-v1.0.2/include/limonp/LocalVector.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/Trie.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/SegmentBase.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/PreFilter.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/FullSegment.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/MixSegment.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/MPSegment.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/SegmentTagged.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/PosTagger.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/HMMSegment.hpp": true,
+    ".local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/include/cppjieba/HMMModel.hpp": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/tokenizer.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/encoding/json/mod_json_plus.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/encoding/json/mod_json.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/db/status.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/pattern/expected.hpp": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/string_helper.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/string/string_concat_helper.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/string/string_view.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/string_helper_impl.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/export.h": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/token_filter.h": true,
+    "research/m4-native/src/format.cc": true,
+    "research/m4-native/src/../include/m4/index.h": true,
+    "research/m4-native/src/stream_merge.cc": true,
+    "research/m4-native/src/native_tokenizer_adapter.cc": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer.h": true,
+    "research/m4-native/src/native_global_config_link_shim.cc": true,
+    ".local/native/zvec-native-profile/src/include/zvec/db/config.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/pattern/singleton.h": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/jieba_tokenizer.cc": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/logger/logger.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/container/params.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/container/hypercube.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/container/cube.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/type_helper.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/utility/float_helper.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/internal/platform.h": true,
+    ".local/native/zvec-native-profile/src/include/zvec/ailego/pattern/factory.h": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer.cc": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/unicode_utils.h": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/standard_tokenizer_unicode.inc": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/unicode_utils.cc": true,
+    ".local/native/zvec-native-profile/src/db/index/column/fts_column/tokenizer/token_filter.cc": true,
+    ".local/native/zvec-native-profile/thirdparty/utf8proc/utf8proc-2.11.3/utf8proc.h": true
+  },
+  "runtime_libraries": {
+    "/home/masis/src/zvec-grep/.local/native/zvec-native-build/lib/libzvec_c_api.so": true,
+    "/usr/lib/libstdc++.so.6.0.36": true,
+    "/usr/lib/libm.so.6": true,
+    "/usr/lib/libgcc_s.so.1": true,
+    "/usr/lib/libc.so.6": true,
+    "/usr/lib/ld-linux-x86-64.so.2": true
+  },
+  "actual_ldd_libraries": {
+    "/home/masis/src/zvec-grep/.local/native/zvec-native-build/lib/libzvec_c_api.so": "6d55b9131766d943fbad1f77dbebc6a2db7951ce8d89ad46a92b7619cc92d950",
+    "/usr/lib/libstdc++.so.6.0.36": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e",
+    "/usr/lib/libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+    "/usr/lib/libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+    "/usr/lib/libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+    "/usr/lib/ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+  },
+  "manifest": [
+    {
+      "path": "REPORT.md",
+      "matches": true
+    },
+    {
+      "path": "after-verification-host.json",
+      "matches": true
+    },
+    {
+      "path": "bridge-change.before-whitespace.patch.gz",
+      "matches": true
+    },
+    {
+      "path": "build-before.json",
+      "matches": true
+    },
+    {
+      "path": "build-exit.txt",
+      "matches": true
+    },
+    {
+      "path": "build-provenance.before-whitespace.json",
+      "matches": true
+    },
+    {
+      "path": "build-provenance.json",
+      "matches": true
+    },
+    {
+      "path": "build.log",
+      "matches": true
+    },
+    {
+      "path": "configuration-and-change.tar.gz",
+      "matches": true
+    },
+    {
+      "path": "configure.log",
+      "matches": true
+    },
+    {
+      "path": "correctness-exit.txt",
+      "matches": true
+    },
+    {
+      "path": "correctness.log",
+      "matches": true
+    },
+    {
+      "path": "failed-test-unit/receipt.json",
+      "matches": true
+    },
+    {
+      "path": "failed-test-unit/systemd-final.txt",
+      "matches": true
+    },
+    {
+      "path": "failed-test-unit/unit-cleanup.json",
+      "matches": true
+    },
+    {
+      "path": "fault-test-format-diagnosis.json",
+      "matches": true
+    },
+    {
+      "path": "fault-tests-corrected-exit.txt",
+      "matches": true
+    },
+    {
+      "path": "fault-tests-corrected.log",
+      "matches": true
+    },
+    {
+      "path": "fault-tests-exit.txt",
+      "matches": true
+    },
+    {
+      "path": "fault-tests.log",
+      "matches": true
+    },
+    {
+      "path": "faults/commands.json",
+      "matches": true
+    },
+    {
+      "path": "faults/old-elision.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults/old-elision.trace",
+      "matches": true
+    },
+    {
+      "path": "faults/restored-stage.recovery.log",
+      "matches": true
+    },
+    {
+      "path": "faults/restored-stage.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults/restored-stage.trace",
+      "matches": true
+    },
+    {
+      "path": "faults/wal-sync-eio.recovery.log",
+      "matches": true
+    },
+    {
+      "path": "faults/wal-sync-eio.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults/wal-sync-eio.trace",
+      "matches": true
+    },
+    {
+      "path": "faults/wal-sync-sigkill.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults/wal-sync-sigkill.trace",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/commands.json",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/old-elision.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/old-elision.trace",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/published-wal.recovery.log",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/published-wal.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/published-wal.trace",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/restored-stage.recovery.log",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/restored-stage.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/restored-stage.trace",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/summary.json",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/wal-sync-eio.recovery.log",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/wal-sync-eio.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/wal-sync-eio.trace",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/wal-sync-sigkill.recovery.log",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/wal-sync-sigkill.stderr",
+      "matches": true
+    },
+    {
+      "path": "faults-corrected/wal-sync-sigkill.trace",
+      "matches": true
+    },
+    {
+      "path": "m4_bridge_integration.full-sync",
+      "matches": true
+    },
+    {
+      "path": "whitespace-build-exit.txt",
+      "matches": true
+    },
+    {
+      "path": "whitespace-build.log",
+      "matches": true
+    }
+  ],
+  "systemd_state": "running",
+  "failed_units": "",
+  "active_m4": [],
+  "lifecycle_source_matches_verified_tests": true,
+  "containment_probe": {
+    "cgroup_v2_mounted": true,
+    "cgroup2_mount": "47 45 0:29 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:7 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting",
+    "self_cgroup": "user.slice/user-1000.slice/user@1000.service/app.slice/kitty-1688559-2.scope",
+    "root_controllers": [
+      "cpuset",
+      "cpu",
+      "io",
+      "memory",
+      "hugetlb",
+      "pids",
+      "rdma",
+      "misc",
+      "dmem"
+    ],
+    "user_service_controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "systemd_run_available": true,
+    "systemctl_available": true,
+    "user_service_subtree_control": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "current_unit": [
+      "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/kitty-1688559-2.scope",
+      "Delegate=no",
+      "IOAccounting=no",
+      "KillMode=process"
+    ],
+    "current_leaf": {
+      "controllers": [
+        "memory",
+        "pids"
+      ],
+      "io_stat": false,
+      "io_max": false,
+      "io_pressure": true,
+      "memory_max_writable": true,
+      "memory_swap_max_writable": true,
+      "cgroup_kill_writable": true
+    },
+    "host_telemetry": {
+      "vmstat_swap": true,
+      "diskstats": true,
+      "host_memory_psi": true,
+      "host_io_psi": true
+    },
+    "systemd_runtime": [
+      "systemd 262 (262-1-arch)"
+    ]
+  },
+  "mount": "btrfs /dev/mapper/cryptroot /",
+  "resource_evaluations": 0,
+  "source_revision": "c54c5a36413ab6c46c1ba0490b785a343f9b02cb"
+}

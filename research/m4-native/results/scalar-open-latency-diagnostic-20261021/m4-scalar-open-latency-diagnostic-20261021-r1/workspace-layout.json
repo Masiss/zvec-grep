@@ -1,0 +1,6 @@
+{
+  "creation": "tempfile.mkdtemp exclusive unique directory; mode 0700",
+  "resource_root": "/var/tmp",
+  "workspace_parent": "/var/tmp/m4-scalar-open-latency-diagnostic-20261021-r1-o5j7_fa2",
+  "workspace_root": "/var/tmp/m4-scalar-open-latency-diagnostic-20261021-r1-o5j7_fa2/workspace"
+}

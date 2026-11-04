@@ -1,0 +1,167 @@
+diff --git a/src/core/framework/index_mapping.cc b/src/core/framework/index_mapping.cc
+index b5c793d..35051bd 100644
+--- a/src/core/framework/index_mapping.cc
++++ b/src/core/framework/index_mapping.cc
+@@ -268,6 +268,67 @@ void IndexMapping::refresh(uint64_t check_point) {
+     auto segment_start = reinterpret_cast<IndexFormat::SegmentMeta *>(
+         reinterpret_cast<uint8_t *>(header) +
+         (header->meta_footer_offset - footer->segments_meta_size));
++
++    // Only the active header can still receive writes. Previous headers are
++    // sealed; their segment CRCs and content CRC were computed when they were
++    // current. Recomputing those from a meta-only mapping would be unsafe.
++    if (header == header_) {
++      bool content_ok = true;
++      const uint8_t *content = nullptr;
++      size_t content_start = current_header_start_offset_ + header->content_offset;
++      if (footer->content_size > 0 &&
++          (content_start > file_.size() ||
++           footer->content_size > file_.size() - content_start)) {
++        content_ok = false;
++      }
++      if (content_ok && footer->content_size > 0) {
++        int opts = ailego::File::MMAP_SHARED;
++        if (huge_page_) {
++          opts |= ailego::File::MMAP_HUGE_PAGE;
++        }
++        content = reinterpret_cast<const uint8_t *>(ailego::File::MemoryMap(
++            file_.native_handle(),
++            content_start, footer->content_size, opts));
++        if (content == nullptr) {
++          content_ok = false;
++        }
++      }
++      if (content_ok) {
++        for (size_t i = 0; i < footer->segment_count; ++i) {
++          auto *segment = segment_start + i;
++          if (segment->data_index > footer->content_size ||
++              segment->data_size >
++                  footer->content_size - segment->data_index) {
++            content_ok = false;
++            break;
++          }
++          segment->data_crc =
++              segment->data_size == 0
++                  ? 0
++                  : ailego::Crc32c::Hash(content + segment->data_index,
++                                          segment->data_size, 0);
++        }
++      }
++      if (content_ok) {
++        footer->content_crc =
++            footer->content_size == 0
++                ? 0
++                : ailego::Crc32c::Hash(content, footer->content_size, 0);
++        header->reserved3_[0] = IndexFormat::CHECKSUM_CAPABILITY_V1;
++      } else {
++        // Never publish a partial seal as fully checksummed.
++        footer->content_crc = 0;
++        header->reserved3_[0] = 0;
++        checksum_valid_ = false;
++        LOG_ERROR("Failed to compute index checksums for %s", path_.c_str());
++      }
++      if (content != nullptr) {
++        ailego::File::MemoryUnmap(const_cast<uint8_t *>(content),
++                                  footer->content_size);
++      }
++      IndexFormat::UpdateMetaHeader(header);
++    }
++
+     footer->segments_meta_crc =
+         ailego::Crc32c::Hash(segment_start, footer->segments_meta_size, 0);
+     IndexFormat::UpdateMetaFooter(footer, check_point);
+diff --git a/src/core/utility/mmap_file_storage.cc b/src/core/utility/mmap_file_storage.cc
+index 7ebf4e4..8ff71f0 100644
+--- a/src/core/utility/mmap_file_storage.cc
++++ b/src/core/utility/mmap_file_storage.cc
+@@ -199,7 +199,8 @@ class MMapFileStorage : public IndexStorage {
+   //! Close storage
+   int close() override {
+     this->close_index();
+-    return 0;
++    checksum_valid_ = mapping_.checksum_valid();
++    return checksum_valid_ ? 0 : IndexError_InvalidChecksum;
+   }
+ 
+   //! Append a segment into storage
+@@ -298,6 +299,7 @@ class MMapFileStorage : public IndexStorage {
+   //! Refresh meta information (checksum, update time, etc.)
+   void refresh_index(uint64_t chkp) {
+     mapping_.refresh(chkp);
++    checksum_valid_ = mapping_.checksum_valid();
+     index_dirty_ = false;
+   }
+ 
+@@ -307,7 +309,12 @@ class MMapFileStorage : public IndexStorage {
+       this->refresh_index(0);
+     }
+     std::lock_guard<std::mutex> latch(mapping_mutex_);
+-    return mapping_.flush();
++    int ret = mapping_.flush();
++    if (ret != 0) {
++      return ret;
++    }
++    checksum_valid_ = mapping_.checksum_valid();
++    return checksum_valid_ ? 0 : IndexError_InvalidChecksum;
+   }
+ 
+   //! Close index storage
+@@ -339,6 +346,7 @@ class MMapFileStorage : public IndexStorage {
+ 
+  private:
+   uint32_t segment_meta_capacity_{1024 * 1024};
++  bool checksum_valid_{true};
+   bool copy_on_write_{false};
+   bool force_flush_{false};
+   bool memory_locked_{false};
+diff --git a/src/include/zvec/core/framework/index_format.h b/src/include/zvec/core/framework/index_format.h
+index c7213d0..1b7a446 100644
+--- a/src/include/zvec/core/framework/index_format.h
++++ b/src/include/zvec/core/framework/index_format.h
+@@ -29,6 +29,9 @@ struct IndexFormat {
+    */
+   enum { FORMAT_VERSION = 0x0002 };
+ 
++  //! W2b capability: all segment CRCs and content_crc are populated at seal.
++  static constexpr uint64_t CHECKSUM_CAPABILITY_V1 = 0x5A564543484B5331ULL;
++
+   /*! Index Format Meta Header
+    */
+   struct MetaHeader {
+diff --git a/src/include/zvec/core/framework/index_mapping.h b/src/include/zvec/core/framework/index_mapping.h
+index be564bc..f4bf90a 100644
+--- a/src/include/zvec/core/framework/index_mapping.h
++++ b/src/include/zvec/core/framework/index_mapping.h
+@@ -162,6 +162,11 @@ class IndexMapping {
+     return index_size_;
+   }
+ 
++  //! Retrieve whether the last seal produced complete checksums.
++  bool checksum_valid() const {
++    return checksum_valid_;
++  }
++
+   //! Retrieve magic number of index
+   uint32_t magic() const {
+     return (header_ ? header_->magic : 0);
+@@ -215,6 +220,7 @@ class IndexMapping {
+   bool full_mode_{false};
+   bool header_dirty_{false};
+   bool huge_page_{false};
++  bool checksum_valid_{true};
+   size_t seg_meta_capacity_{0u};
+   uint64_t current_header_start_offset_{0u};
+ };
+diff --git a/src/include/zvec/core/framework/index_unpacker.h b/src/include/zvec/core/framework/index_unpacker.h
+index 1320892..866f84d 100644
+--- a/src/include/zvec/core/framework/index_unpacker.h
++++ b/src/include/zvec/core/framework/index_unpacker.h
+@@ -286,7 +286,7 @@ class IndexUnpacker {
+     const void *data = nullptr;
+     uint32_t checksum = 0u;
+     size_t total = footer_.content_size;
+-    size_t offset = sizeof(header_);
++    size_t offset = header_.content_offset;
+ 
+     while (total >= block_size) {
+       if (read_data(current_header_start_offset_ + offset, &data, block_size) !=

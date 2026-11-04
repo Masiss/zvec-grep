@@ -1,0 +1,755 @@
+#!/usr/bin/env python3
+"""Regression tests for the shared research M4 operation/gate policy."""
+import importlib.util
+import json
+import pathlib
+import sys
+import tempfile
+import unittest
+from typing import Any
+
+HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import m4_containment_runner as runner  # noqa: E402
+
+SCRIPT = HERE / "run_lock_contention_microbench.py"
+spec = importlib.util.spec_from_file_location("m4_lock_contention_runner", SCRIPT)
+assert spec and spec.loader
+lock_runner = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(lock_runner)
+
+POLICY_PATH = HERE.parent / "docs" / "benchmark-policy.json"
+
+
+class BenchmarkPolicyTests(unittest.TestCase):
+    def test_contention_output_parser_accepts_pretty_printed_json(self):
+        payload = {"mode": "m4_compaction_contention", "arms": []}
+        with tempfile.TemporaryDirectory() as tmp:
+            stdout = pathlib.Path(tmp) / "stdout.log"
+            stdout.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            self.assertEqual(lock_runner.read_workload(stdout), payload)
+
+    def setUp(self):
+        self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+
+    def _valid_contention_receipt(self, include_compaction_timing=True,
+                                  timing_schema=4,
+                                  workload_profile="contention"):
+        root_contract = self.policy["lock_contention_microbench"]
+        contract = (root_contract if workload_profile == "contention" else
+                    {**root_contract, **root_contract[workload_profile]})
+        workload = contract["workload"]
+        rounds = workload["rounds"]
+        writer_series = (
+            "writer_samples", "state_wait_samples", "state_wait_cpu_samples",
+            "state_hold_samples", "state_hold_cpu_samples",
+            "wal_append_samples", "wal_append_cpu_samples", "query_wait_samples",
+            "apply_samples", "auto_flush_samples", "normalize_samples",
+            "normalize_cpu_samples", "wal_encode_samples", "wal_encode_cpu_samples")
+        if timing_schema >= 6:
+            writer_series += ("wal_write_samples", "wal_fsync_samples")
+        timing_fields = (
+            "total_ms", "total_cpu_ms", "state_mutex_wait_ms",
+            "state_mutex_wait_cpu_ms", "state_mutex_hold_ms",
+            "state_mutex_hold_cpu_ms", "query_mutex_wait_ms",
+            "query_mutex_wait_cpu_ms", "pending_flush_ms", "pending_flush_cpu_ms",
+            "merge_prepare_ms", "merge_prepare_cpu_ms", "merge_build_ms",
+            "merge_build_cpu_ms", "publish_state_mutex_wait_ms",
+            "publish_state_mutex_wait_cpu_ms", "publish_query_mutex_wait_ms",
+            "publish_query_mutex_wait_cpu_ms", "publication_ms",
+            "publication_cpu_ms")
+        arms = []
+        compaction_modes = list(workload.get(
+            "compaction_modes", ("default", "snapshot")))
+        if not include_compaction_timing:
+            compaction_modes = [name for name in compaction_modes
+                                if name != "apply_batch"]
+        for name in compaction_modes:
+            batch_api = name == "apply_batch"
+            group_api = timing_schema in (8, 10, 11, 12) and name in (
+                "group_commit", "group_commit_snapshot_rebase",
+                "group_commit_per_upsert")
+            api_calls = (workload["writers"] if include_compaction_timing and batch_api
+                         else rounds)
+            arm: dict[str, Any]
+            if group_api:
+                arm = {key: [] for key in (
+                    "normalize_samples", "normalize_cpu_samples",
+                    "state_wait_samples", "state_wait_cpu_samples",
+                    "state_hold_samples", "state_hold_cpu_samples",
+                    "wal_append_samples", "wal_append_cpu_samples",
+                    "wal_write_samples", "wal_fsync_samples",
+                    "wal_encode_samples", "wal_encode_cpu_samples",
+                    "query_wait_samples", "apply_samples", "auto_flush_samples")}
+                arm["writer_samples"] = [0.25] * api_calls
+                arm["writer_queue_wait_samples"] = [0.1] * api_calls
+                arm["writer_group_commit_size_samples"] = [4] * api_calls
+                arm["writer_group_commit_max_batch_size"] = 4
+                arm["writer_group_commit_max_delay_us"] = 500
+                arm["writer_group_commit_per_upsert_records"] = (
+                    name == "group_commit_per_upsert")
+                arm["concurrent_wal_fsyncs"] = 8
+            else:
+                arm = {key: [0.25] * api_calls for key in writer_series}
+                if timing_schema >= 8:
+                    arm["writer_queue_wait_samples"] = []
+                    arm["writer_group_commit_size_samples"] = []
+                    arm["writer_group_commit_max_batch_size"] = 0
+                    arm["writer_group_commit_max_delay_us"] = 0
+                    arm["writer_group_commit_per_upsert_records"] = False
+            if timing_schema >= 6 and not group_api:
+                arm["wal_write_samples"] = [0.01] * api_calls
+                arm["wal_fsync_samples"] = [0.01] * api_calls
+            if timing_schema >= 7:
+                arm["compaction_tracked_peak_bytes"] = 1024
+            if group_api:
+                arm["concurrent_wal_fsyncs"] = 8
+            elif timing_schema == 12 and name == "default":
+                arm["concurrent_wal_fsyncs"] = rounds
+            arm.update({
+                "name": name,
+                "compaction_status": "ok",
+                "writer_failures": 0,
+                "reader_failures": 0,
+                "durability_failures": 0,
+                "runs_after_flush": 1,
+                "reader_samples": [0.25] * (workload["readers"] * workload["queries_per_reader"]),
+                "reader_mutex_wait_samples": [0.0] * (workload["readers"] * workload["queries_per_reader"]),
+            })
+            if workload["mode"] == "--m4-background-compaction-pair":
+                arm.update({
+                    "fixture_runs": workload["documents"] // 1024,
+                    "background_compaction_enabled": name == "background_on",
+                    "background_wait_ms": 1.0,
+                    "compaction_merges": 3,
+                    "compaction_input_docs": workload["documents"],
+                    "compaction_output_docs": workload["documents"],
+                    "compaction_wall_total_ms": 2.0,
+                    "runs_after_flush": 4,
+                })
+            if workload["mode"] in (
+                    "--m4-flush-reader-staging-pair",
+                    "--m4-group-commit-flush-reader-pair",
+                    "--m4-group-commit-pending-flush-reader-pair"):
+                group_pair = workload["mode"] in (
+                    "--m4-group-commit-flush-reader-pair",
+                    "--m4-group-commit-pending-flush-reader-pair")
+                is_candidate = (True if group_pair else name == "flush_candidate")
+                flush_start, flush_end = 1_000_000_000, 1_020_000_000
+                arm.update({
+                    "flush_metadata_outside_query_lock": is_candidate,
+                    "total_bytes_written": 4096,
+                    "segment_bytes_written": 2048,
+                    "total_wal_fsyncs": 40,
+                    "reader_through_flush": {
+                        "pending_delta_docs": workload.get("pending_flush_documents", 0),
+                        "flush_start_boot_ns": flush_start,
+                        "flush_end_boot_ns": flush_end,
+                        "flush_succeeded": True,
+                        "failures": 0,
+                        "readers": [
+                            {"reader_id": reader, "samples": [
+                                {"start_boot_ns": 990_000_000, "end_boot_ns": 991_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                                {"start_boot_ns": 995_000_000, "end_boot_ns": 996_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                                {"start_boot_ns": 1_005_000_000, "end_boot_ns": 1_025_000_000,
+                                 "wall_ms": 20.0, "mutex_wait_ms": 5.0,
+                                 "execution_cpu_ms": 1.0, "ok": True},
+                                {"start_boot_ns": 1_021_000_000, "end_boot_ns": 1_022_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                                {"start_boot_ns": 1_023_000_000, "end_boot_ns": 1_024_000_000,
+                                 "wall_ms": 1.0, "mutex_wait_ms": 0.0,
+                                 "execution_cpu_ms": 0.2, "ok": True},
+                            ]} for reader in range(2)]},
+                })
+            if include_compaction_timing:
+                arm.update({
+                    "writer_api": ("ApplyBatch" if batch_api else
+                                   "UpsertGroupCommitSeparateWalFrames"
+                                   if name == "group_commit_per_upsert" else
+                                   "UpsertGroupCommit" if group_api else "Upsert"),
+                    "writer_api_calls": api_calls,
+                    "logical_upserts": rounds,
+                })
+                flush_stage_fields = (
+                    "segment_build_ms", "segment_build_cpu_ms",
+                    "segment_write_ms", "segment_write_cpu_ms",
+                    "segment_open_ms", "segment_open_cpu_ms",
+                    "query_mutex_wait_ms", "query_mutex_wait_cpu_ms",
+                    "stats_append_ms", "stats_append_cpu_ms",
+                    "tombstone_write_ms", "tombstone_write_cpu_ms",
+                    "manifest_write_ms", "manifest_write_cpu_ms",
+                    "wal_reset_ms", "wal_reset_cpu_ms", "gc_ms",
+                    "gc_cpu_ms", "delta_reset_ms", "delta_reset_cpu_ms")
+                if timing_schema >= 5:
+                    flush_stage_fields += (
+                        "query_mutex_hold_ms", "query_mutex_hold_cpu_ms")
+                arm["compaction_diagnostics"] = {
+                    **dict.fromkeys(timing_fields, 0.25),
+                    "flush_stage_timing": {
+                        "schema_version": 2 if timing_schema >= 5 else 1,
+                        **dict.fromkeys(flush_stage_fields, 0.01),
+                    },
+                }
+                if timing_schema >= 5:
+                    arm["post_writer_flush_diagnostics"] = {
+                        "total_ms": 0.5, "total_cpu_ms": 0.2,
+                        "state_mutex_wait_ms": 0.01,
+                        "state_mutex_wait_cpu_ms": 0.001,
+                        "state_mutex_hold_ms": 0.3,
+                        "state_mutex_hold_cpu_ms": 0.1,
+                        "query_mutex_wait_ms": 0.01,
+                        "query_mutex_wait_cpu_ms": 0.001,
+                        "pending_flush_ms": 0.2,
+                        "pending_flush_cpu_ms": 0.1,
+                        "flush_stage_timing": {
+                            "schema_version": 2,
+                            **dict.fromkeys(flush_stage_fields, 0.005),
+                        },
+                    }
+            arms.append(arm)
+        data = {
+            "mode": "m4_compaction_contention",
+            "documents": workload["documents"],
+            "rounds": rounds,
+            "writers": workload["writers"],
+            "ops_per_writer": workload["ops_per_writer"],
+            "writer_operations": rounds,
+            "reader_queries": workload["readers"] * workload["queries_per_reader"],
+            "coherence_errors": 0,
+            "failures": 0,
+            "arm_order": list(compaction_modes),
+            "arms": arms,
+        }
+        if include_compaction_timing:
+            data["timing_schema_version"] = timing_schema
+            if timing_schema in (8, 9, 10, 11, 12, 13):
+                data["workload_mode"] = (
+                    "background_compaction_pair"
+                    if workload["mode"] == "--m4-background-compaction-pair"
+                    else "group_commit_pending_flush_reader_pair"
+                    if workload["mode"] == "--m4-group-commit-pending-flush-reader-pair"
+                    else "group_commit_flush_reader_pair"
+                    if workload["mode"] == "--m4-group-commit-flush-reader-pair"
+                    else "flush_reader_staging_pair"
+                    if workload["mode"] == "--m4-flush-reader-staging-pair"
+                    else "writer_group_commit_snapshot_rebase"
+                    if workload["mode"] == "--m4-writer-group-commit-snapshot-rebase"
+                    else "writer_group_commit_per_upsert"
+                    if workload["mode"] == "--m4-writer-group-commit-per-upsert"
+                    else "writer_group_commit"
+                    if workload["mode"] == "--m4-writer-group-commit"
+                    else "contention")
+        result = {"status": "PASS", "workload_returncode": 0,
+                  "controller_cleanup": {"verified": True}}
+        return result, data, contract
+
+    def test_background_compaction_pair_verifies_both_orders_and_real_work(self):
+        for profile, expected_order in (
+                ("background_compaction_pair_off_first",
+                 ["background_off", "background_on"]),
+                ("background_compaction_pair_on_first",
+                 ["background_on", "background_off"])):
+            with self.subTest(profile=profile):
+                result, data, contract = self._valid_contention_receipt(
+                    timing_schema=13, workload_profile=profile)
+                self.assertEqual(data["arm_order"], expected_order)
+                lock_runner.verify(result, data, contract, "")
+
+    def test_background_compaction_pair_rejects_a_reversed_unregistered_order(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=13,
+            workload_profile="background_compaction_pair_off_first")
+        data["arms"].reverse()
+        data["arm_order"].reverse()
+        with self.assertRaisesRegex(RuntimeError, "arm order differs from the registered profile"):
+            lock_runner.verify(result, data, contract, "")
+
+    def test_background_compaction_pair_rejects_missing_work_or_wrong_arm(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=13,
+            workload_profile="background_compaction_pair_off_first")
+        data["arms"][1]["compaction_merges"] = 0
+        with self.assertRaisesRegex(RuntimeError, "did not meet the registered work contract"):
+            lock_runner.verify(result, data, contract, "")
+
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=13,
+            workload_profile="background_compaction_pair_off_first")
+        data["arms"][1]["background_compaction_enabled"] = False
+        with self.assertRaisesRegex(RuntimeError, "did not meet the registered work contract"):
+            lock_runner.verify(result, data, contract, "")
+
+    def test_flush_reader_staging_verifier_requires_timestamped_overlap(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=9, workload_profile="flush_reader_staging_pair")
+        phase_lines = []
+        for arm in data["arm_order"]:
+            trace = next(item["reader_through_flush"] for item in data["arms"]
+                         if item["name"] == arm)
+            start, end = trace["flush_start_boot_ns"], trace["flush_end_boot_ns"]
+            phase_lines.extend([
+                f"M4_PHASE {start - 100} {arm} flush_readers_pre_ready 0",
+                f"M4_PHASE {start + 100} {arm} reader_through_flush_start 0",
+                f"M4_PHASE {end + 100} {arm} reader_through_flush_complete 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 1",
+            ])
+        lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+        candidate = next(arm for arm in data["arms"]
+                         if arm["name"] == "flush_candidate")
+        for reader in candidate["reader_through_flush"]["readers"]:
+            for sample in reader["samples"]:
+                sample["start_boot_ns"] = 980_000_000
+                sample["end_boot_ns"] = 981_000_000
+        with self.assertRaisesRegex(RuntimeError, "timestamp-proven"):
+            lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+
+    def test_group_commit_flush_reader_pair_binds_queue_and_overlap_evidence(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=10,
+            workload_profile="writer_group_commit_flush_reader_pair")
+        phase_lines = []
+        for arm in data["arm_order"]:
+            trace = next(item["reader_through_flush"] for item in data["arms"]
+                         if item["name"] == arm)
+            start, end = trace["flush_start_boot_ns"], trace["flush_end_boot_ns"]
+            phase_lines.extend([
+                f"M4_PHASE {start - 100} {arm} flush_readers_pre_ready 0",
+                f"M4_PHASE {start + 100} {arm} reader_through_flush_start 0",
+                f"M4_PHASE {end + 100} {arm} reader_through_flush_complete 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 1",
+            ])
+        lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+        group = next(arm for arm in data["arms"] if arm["name"] == "group_commit")
+        self.assertEqual(group["writer_api"], "UpsertGroupCommit")
+        group["writer_group_commit_size_samples"] = [1] * len(
+            group["writer_group_commit_size_samples"])
+        with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
+            lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+
+    def test_pending_delta_group_pair_requires_real_flush_work(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=11,
+            workload_profile="writer_group_commit_pending_flush_reader_pair")
+        phase_lines = []
+        for arm in data["arm_order"]:
+            trace = next(item["reader_through_flush"] for item in data["arms"]
+                         if item["name"] == arm)
+            start, end = trace["flush_start_boot_ns"], trace["flush_end_boot_ns"]
+            phase_lines.extend([
+                f"M4_PHASE {start - 100} {arm} flush_readers_pre_ready 0",
+                f"M4_PHASE {start + 100} {arm} reader_through_flush_start 0",
+                f"M4_PHASE {end + 100} {arm} reader_through_flush_complete 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 0",
+                f"M4_PHASE {end + 200} {arm} flush_reader_coverage 1",
+            ])
+        lock_runner.verify(result, data, contract, "\n".join(phase_lines))
+        arm = data["arms"][0]
+        arm["reader_through_flush"]["pending_delta_docs"] = 0
+        with self.assertRaisesRegex(RuntimeError, "fixture count"):
+            lock_runner.verify(result, data, contract, "\\n".join(phase_lines))
+        arm["reader_through_flush"]["pending_delta_docs"] = 256
+        arm["post_writer_flush_diagnostics"]["flush_stage_timing"][
+            "segment_write_ms"] = 0
+        with self.assertRaisesRegex(RuntimeError, "segment work"):
+            lock_runner.verify(result, data, contract, "\\n".join(phase_lines))
+
+    def test_group_commit_verifier_checks_queue_and_sync_evidence(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=8, workload_profile="writer_group_commit")
+        lock_runner.verify(result, data, contract)
+        group = next(arm for arm in data["arms"] if arm["name"] == "group_commit")
+        group["writer_group_commit_size_samples"] = [1] * len(
+            group["writer_group_commit_size_samples"])
+        with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
+            lock_runner.verify(result, data, contract)
+
+    def test_per_upsert_group_commit_verifier_binds_record_semantics(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=12,
+            workload_profile="writer_group_commit_per_upsert")
+        lock_runner.verify(result, data, contract)
+        self.assertEqual(data["workload_mode"],
+                         "writer_group_commit_per_upsert")
+        group = next(arm for arm in data["arms"]
+                     if arm["name"] == "group_commit_per_upsert")
+        self.assertEqual(group["writer_api"],
+                         "UpsertGroupCommitSeparateWalFrames")
+        self.assertTrue(group["writer_group_commit_per_upsert_records"])
+        control = next(arm for arm in data["arms"] if arm["name"] == "default")
+        self.assertFalse(control["writer_group_commit_per_upsert_records"])
+        group["writer_group_commit_per_upsert_records"] = False
+        with self.assertRaisesRegex(RuntimeError, "record mode metadata"):
+            lock_runner.verify(result, data, contract)
+
+    def test_snapshot_rebase_group_commit_verifier_checks_both_arm_contracts(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=8,
+            workload_profile="writer_group_commit_snapshot_rebase")
+        lock_runner.verify(result, data, contract)
+        self.assertEqual(data["workload_mode"],
+                         "writer_group_commit_snapshot_rebase")
+        self.assertEqual(data["arm_order"],
+                         contract["workload"]["compaction_modes"])
+        group = next(arm for arm in data["arms"]
+                     if arm["name"] == "group_commit_snapshot_rebase")
+        self.assertEqual(group["writer_api"], "UpsertGroupCommit")
+        group["writer_group_commit_size_samples"] = [1] * len(
+            group["writer_group_commit_size_samples"])
+        with self.assertRaisesRegex(RuntimeError, "multi-writer batches"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_post_writer_flush_diagnostics(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        lock_runner.verify(result, data, contract)
+        data["arms"][0].pop("post_writer_flush_diagnostics")
+        with self.assertRaisesRegex(RuntimeError, "post-writer flush diagnostics"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_rejects_post_writer_flush_stages_outside_duration(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        flush = data["arms"][0]["post_writer_flush_diagnostics"]
+        flush["flush_stage_timing"]["segment_write_ms"] = 0.25
+        with self.assertRaisesRegex(RuntimeError, "post-writer flush stages exceed"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_bounded_wal_substages(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=6)
+        lock_runner.verify(result, data, contract)
+        data["arms"][0]["wal_fsync_samples"][0] = 1.0
+        with self.assertRaisesRegex(RuntimeError, "WAL write/fsync substage"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_compaction_memory_peak(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=7)
+        lock_runner.verify(result, data, contract)
+        data["arms"][0]["compaction_tracked_peak_bytes"] = -1
+        with self.assertRaisesRegex(RuntimeError, "compaction tracked memory peak"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_checks_new_compaction_timing_fields(self):
+        result, data, contract = self._valid_contention_receipt()
+        lock_runner.verify(result, data, contract)
+        data["arms"][0]["compaction_diagnostics"]["merge_build_ms"] = float("nan")
+        with self.assertRaisesRegex(RuntimeError, "compaction phase timing"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_bounds_flush_query_lock_hold(self):
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        stages = data["arms"][0]["compaction_diagnostics"]["flush_stage_timing"]
+        stages["query_mutex_hold_ms"] = 0.3
+        with self.assertRaisesRegex(RuntimeError, "flush query-lock hold"):
+            lock_runner.verify(result, data, contract)
+
+        result, data, contract = self._valid_contention_receipt(timing_schema=5)
+        stages = data["arms"][0]["post_writer_flush_diagnostics"]["flush_stage_timing"]
+        stages["query_mutex_hold_ms"] = 0.3
+        with self.assertRaisesRegex(RuntimeError, "query-lock hold exceeds"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_checks_optional_flush_stage_timing(self):
+        result, data, contract = self._valid_contention_receipt()
+        lock_runner.verify(result, data, contract)
+        stages = data["arms"][0]["compaction_diagnostics"]["flush_stage_timing"]
+        stages["segment_write_ms"] = float("nan")
+        with self.assertRaisesRegex(RuntimeError, "flush-stage timing"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_rejects_flush_stages_exceeding_pending_flush(self):
+        result, data, contract = self._valid_contention_receipt()
+        stages = data["arms"][0]["compaction_diagnostics"]["flush_stage_timing"]
+        stages["segment_build_ms"] = 0.25
+        with self.assertRaisesRegex(RuntimeError, "exceeds pending-flush"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_state_hold_series_for_schema4(self):
+        result, data, contract = self._valid_contention_receipt()
+        data["arms"][0].pop("state_hold_samples")
+        with self.assertRaisesRegex(RuntimeError, "writer timing series"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_binds_apply_batch_api_and_call_counts(self):
+        result, data, contract = self._valid_contention_receipt()
+        lock_runner.verify(result, data, contract)
+        batch = next(arm for arm in data["arms"] if arm["name"] == "apply_batch")
+        batch["writer_api_calls"] += 1
+        with self.assertRaisesRegex(RuntimeError, "writer API/count metadata"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_requires_batch_timing_per_api_call(self):
+        result, data, contract = self._valid_contention_receipt()
+        batch = next(arm for arm in data["arms"] if arm["name"] == "apply_batch")
+        batch["writer_samples"] = [0.25] * contract["workload"]["rounds"]
+        with self.assertRaisesRegex(RuntimeError, "writer timing series"):
+            lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_accepts_schema3_three_arm_receipt(self):
+        result, data, contract = self._valid_contention_receipt()
+        data["timing_schema_version"] = 3
+        data["arms"] = [arm for arm in data["arms"]
+                        if arm["name"] != "apply_batch"]
+        data["arm_order"] = [name for name in data["arm_order"]
+                             if name != "apply_batch"]
+        for arm in data["arms"]:
+            for key in ("writer_api", "writer_api_calls", "logical_upserts"):
+                arm.pop(key)
+        lock_runner.verify(result, data, contract)
+
+    def test_contention_verifier_keeps_historical_receipt_compatibility(self):
+        result, data, contract = self._valid_contention_receipt(False)
+        for arm in data["arms"]:
+            for key in ("normalize_samples", "normalize_cpu_samples",
+                        "wal_encode_samples", "wal_encode_cpu_samples"):
+                arm.pop(key)
+        lock_runner.verify(result, data, contract)
+
+    def test_existing_thresholds_are_unchanged_and_runner_uses_policy_source(self):
+        expected = {
+            "MemAvailable_kib_min": 5_477_762,
+            "var_tmp_bytes_min": 18_219_000_000,
+            "io_full_avg10_max": 4.46,
+            "load1_max": 3.14,
+        }
+        self.assertEqual(self.policy["resource_guards"], expected)
+        self.assertEqual(runner.RESOURCE_THRESHOLDS, expected)
+        self.assertEqual(runner.GUARDS, {
+            "memavailable_min_kib": expected["MemAvailable_kib_min"],
+            "var_tmp_free_min_bytes": expected["var_tmp_bytes_min"],
+            "io_full_avg10_max": expected["io_full_avg10_max"],
+            "load1_max": expected["load1_max"],
+        })
+        self.assertIn("not a universal", self.policy["authority"]["historical_envelope_source"])
+        self.assertIn("performance_eligible=false", self.policy["containment"]["test_fixture_override"])
+        self.assertTrue(all(item["owner_approval_required_to_change"]
+                            for item in self.policy["resource_guard_metadata"].values()))
+
+    def test_lock_microbench_contract_reduces_only_the_workload_reservation(self):
+        pair = self.policy["shared_collection_pair"]["resource_controls"]
+        micro = self.policy["lock_contention_microbench"]["resource_controls"]
+        self.assertEqual(micro["host_memory_reserve_bytes"], pair["host_memory_reserve_bytes"])
+        self.assertLess(micro["memory_max_bytes"], pair["memory_max_bytes"])
+        self.assertEqual(micro["memory_swap_max_bytes"], 0)
+        self.assertEqual(micro["disk_reserve_bytes"], pair["disk_reserve_bytes"])
+        self.assertEqual(micro["max_monitor_gap_seconds"], pair["max_monitor_gap_seconds"])
+        self.assertEqual(micro["host_memory_reserve_bytes"] + micro["memory_max_bytes"],
+                         3_758_096_384)
+        self.assertTrue(self.policy["lock_contention_microbench"]["no_automatic_retry"])
+
+    def test_memory_probe_is_a_non_comparable_same_caps_profile(self):
+        contract = self.policy["lock_contention_microbench"]
+        probe = contract["memory_probe"]
+        self.assertEqual(probe["profile_id"], "memory_probe")
+        self.assertEqual(probe["workload"]["documents"], 4096)
+        self.assertEqual({key: value for key, value in probe["workload"].items()
+                          if key != "documents"},
+                         {key: value for key, value in contract["workload"].items()
+                          if key != "documents"})
+        self.assertIn("non-comparable", probe["measurement_semantics"])
+        self.assertIn("not latency", probe["measurement_semantics"])
+        self.assertTrue(contract["no_automatic_retry"])
+
+    def test_lock_contention_policy_matches_wal_preserving_rebase(self):
+        contract = self.policy["lock_contention_microbench"]
+        semantics = contract["measurement_semantics"]
+        self.assertIn("does not flush pending writer deltas at publication", semantics)
+        self.assertIn("prior durable WAL sequence", semantics)
+        self.assertIn("WAL disabled", semantics)
+        self.assertNotIn("flushes pending writer deltas at publication", semantics)
+        markdown = (HERE.parent / "docs" / "benchmark-policy.md").read_text(encoding="utf-8")
+        self.assertIn("without synchronously flushing pending deltas at publication", markdown)
+
+    def test_host_pressure_thresholds_are_observations_not_operation_guards(self):
+        state = {
+            "meminfo_kib": {"MemAvailable_kib": 5_477_762},
+            "resource_root_free_bytes": 18_219_000_000,
+            "io_pressure": {"full": {"avg10": 4.52}},
+            "loadavg": [3.14],
+        }
+        decisions = {item["gate_id"]: item for item in runner.resource_guard_decisions(state)}
+        self.assertEqual(decisions["M4-RG-IOPSI"]["status"], "FAIL")
+        self.assertEqual(decisions["M4-RG-IOPSI"]["observed"], 4.52)
+        self.assertEqual(decisions["M4-RG-IOPSI"]["threshold"], 4.46)
+        self.assertIn("not a safety limit", decisions["M4-RG-IOPSI"]["evidence_class"])
+        self.assertIn("measurement context", decisions["M4-RG-IOPSI"]["failure_scope"])
+        self.assertFalse(decisions["M4-RG-IOPSI"]["enforced"])
+        self.assertIn("observation-only", decisions["M4-RG-IOPSI"]["disposition"])
+        self.assertEqual(runner.hard_gate_failures(state), [])
+        self.assertEqual(runner.legacy_hard_gate_failures(state), [])
+        state["resource_root_free_bytes"] = 0
+        self.assertTrue(any("M4-RG-DISK" in reason for reason in runner.hard_gate_failures(state)))
+        incomplete = {
+            "meminfo_kib": {"SwapFree_kib": 1024, "SwapTotal_kib": 2048},
+            "resource_root_free_bytes": 18_219_000_000,
+            "io_pressure": None,
+            "loadavg": [],
+        }
+        unknown = {item["gate_id"]: item for item in runner.resource_guard_decisions(incomplete)}
+        for gate_id in ("M4-RG-MEM", "M4-RG-IOPSI", "M4-RG-LOAD"):
+            self.assertEqual(unknown[gate_id]["status"], "UNKNOWN")
+            self.assertFalse(unknown[gate_id]["enforced"])
+        self.assertEqual(runner.hard_gate_failures(incomplete), [])
+
+    def test_write_amplification_pair_preserves_workspace_uncertainty_and_hard_containment(self):
+        contract = self.policy["immutable_write_amplification_pair"]
+        self.assertEqual(contract["purpose"], "immutable-write-amplification-pair")
+        self.assertEqual(contract["workload"]["files"], 1200)
+        self.assertEqual(contract["workload"]["runs"], 1)
+        self.assertEqual(contract["workload"]["control_arm"], "m4-batch")
+        self.assertEqual(contract["workload"]["candidate_arm"], "m4-batch")
+        self.assertEqual(contract["workload"]["control_max_total_runs"], 12)
+        self.assertEqual(contract["workload"]["candidate_max_total_runs"], 12)
+        self.assertEqual(contract["workload"]["control_max_delta_docs"], 1536)
+        self.assertEqual(contract["workload"]["candidate_max_delta_docs"], 1536)
+        self.assertEqual(contract["workload"]["control_max_runs_per_level"], 4)
+        self.assertEqual(contract["workload"]["candidate_max_runs_per_level"], 4)
+        self.assertEqual(contract["workload"]["control_stats_log_threshold"], 4 * 1024 * 1024)
+        self.assertEqual(contract["workload"]["candidate_stats_log_threshold"], 4 * 1024 * 1024)
+        self.assertEqual(contract["workload"]["control_mutation_batch_docs"], 256)
+        self.assertEqual(contract["workload"]["candidate_mutation_batch_docs"], 256)
+        self.assertFalse(contract["workload"]["control_coalesce_stats"])
+        self.assertFalse(contract["workload"]["candidate_coalesce_stats"])
+        self.assertFalse(contract["workload"]["control_wal_compression_lz4"])
+        self.assertTrue(contract["workload"]["candidate_wal_compression_lz4"])
+        self.assertEqual(contract["workload"]["control_wal_lz4_acceleration"], 1)
+        self.assertEqual(contract["workload"]["candidate_wal_lz4_acceleration"], 1)
+        acceleration_profile = contract["workload_profiles"]["lz4-acceleration-1-vs-4"]
+        self.assertTrue(acceleration_profile["control_wal_compression_lz4"])
+        self.assertTrue(acceleration_profile["candidate_wal_compression_lz4"])
+        self.assertEqual(acceleration_profile["control_wal_lz4_acceleration"], 1)
+        self.assertEqual(acceleration_profile["candidate_wal_lz4_acceleration"], 4)
+        self.assertTrue(contract["workload"]["wal_replay_probe"])
+        replay_probe = contract["wal_replay_probe_policy"]
+        self.assertIn("POSIX_FADV_DONTNEED", replay_probe["durability"])
+        self.assertIn("mincore", replay_probe["durability"])
+        self.assertIn("fully cold-machine start", replay_probe["limitation"])
+        self.assertEqual(contract["arm_orders"], [["control", "candidate"], ["candidate", "control"]])
+        self.assertIn("UNKNOWN/INCOMPLETE", contract["risk_acceptance_reference"])
+        self.assertIn("soft budgets", contract["workspace_policy"])
+        self.assertEqual(contract["resource_controls"]["memory_max_bytes"], 1024**3)
+        self.assertEqual(contract["resource_controls"]["memory_swap_max_bytes"], 256 * 1024**2)
+        self.assertEqual(contract["resource_controls"]["disk_reserve_bytes"], 18_219_000_000)
+        self.assertFalse(contract["workload"]["trace_fsync"])
+
+    def test_resource_only_contract_reclassifies_load_and_host_deltas_only_in_scope(self):
+        contract = self.policy["resource_only_exploratory_contract"]
+        self.assertIn("observation-only", contract["load1"])
+        self.assertIn("observation-only", self.policy["resource_guard_metadata"]["M4-RG-LOAD"]["enforcement"])
+        self.assertIn("not distress", contract["host_swap_reclaim"])
+        self.assertIn("OOM", contract["hard_stop_signals"])
+        self.assertIn("UNKNOWN/INCOMPLETE", contract["workspace"])
+        self.assertIn("never report a soft-budget observation as PASS", contract["workspace"])
+        self.assertIn("all M4 benchmark modes", contract["scope"])
+        self.assertIn("never stop signals", contract["hard_stop_signals"])
+        self.assertIn("host_pressure_disposition", self.policy)
+        self.assertEqual(self.policy["host_pressure_disposition"]["MemAvailable"],
+                         "telemetry-only; thresholds never block launch or abort an arm")
+        self.assertIn("never blocks launch", self.policy["host_pressure_disposition"]["missing_or_invalid_host_context"])
+        self.assertIn("optional host MemAvailable/PSI/load", self.policy["host_pressure_disposition"]["actual_safety_controls"])
+
+    def test_policy_separates_integrity_quality_baseline_pressure_and_correctness(self):
+        self.assertEqual(self.policy["measurement_quality"]["telemetry_integrity"]["gate_id"], "M4-MQ-INTEGRITY")
+        self.assertEqual(self.policy["measurement_quality"]["stability_envelope"]["gate_id"], "M4-MQ-STABILITY")
+        self.assertEqual(self.policy["baseline_pressure_guard"]["gate_id"], "M4-RG-MEMSWAP-BASELINE")
+        self.assertIn("candidate/operation remains NO-GO", self.policy["correctness_and_durability"]["failure_scope"])
+        self.assertEqual(set(self.policy["operation_outcomes"]), {
+            "SUCCESS", "PARTIAL", "OPERATION_BLOCKED", "OWNER_DECISION_REQUIRED", "SAFETY_STOP", "EXHAUSTED"
+        })
+        self.assertIn("infer whole-mission SUCCESS", self.policy["runner_mission_semantics"])
+
+    def test_markdown_is_explanatory_not_a_second_threshold_source(self):
+        markdown = (HERE.parent / "docs" / "benchmark-policy.md").read_text(encoding="utf-8")
+        self.assertIn("sole machine-readable source", markdown)
+        for value in ("5,477,762", "18,219,000,000", "4.46%", "3.14"):
+            self.assertNotIn(value, markdown)
+
+    def test_native_query_lock_split_pair_is_bounded_and_non_qualifying(self):
+        contract = self.policy["native_query_lock_split_pair"]
+        self.assertEqual(contract["approval_status"], "approved")
+        self.assertEqual(contract["evidence_class"], "EXPLORATORY / NON-QUALIFYING")
+        self.assertEqual(contract["arm_roles"], ["control", "treatment"])
+        self.assertTrue(contract["same_source_identity"])
+        self.assertFalse(contract["single_pair_only"])
+        self.assertEqual(contract["max_pairs"], 3)
+        self.assertTrue(contract["aa_pair"])
+        self.assertTrue(contract["counterbalanced_order"])
+        self.assertTrue(contract["no_automatic_retry"])
+        workload = contract["workload"]
+        self.assertEqual(workload["phases"], ["idle", "flush", "optimize"])
+        self.assertGreater(workload["documents"], 0)
+        self.assertEqual(workload["cycles"], 32)
+        self.assertEqual(workload["readers"], 8)
+        self.assertEqual(workload["batch_docs"], 64)
+        self.assertEqual(workload["min_samples_per_phase"], 256)
+        controls = contract["resource_controls"]
+        self.assertEqual(controls["disk_reserve_bytes"], 18219000000)
+        self.assertEqual(controls["memory_swap_max_bytes"], 0)
+        self.assertLessEqual(controls["runtime_limit_seconds"], 180)
+        self.assertIn("No causal", contract["measurement_semantics"])
+
+    def test_background_compaction_profiles_are_bounded_and_counterbalanced(self):
+        contract = self.policy["lock_contention_microbench"]
+        profiles = (
+            "background_compaction_pair_off_first",
+            "background_compaction_pair_on_first",
+        )
+        self.assertNotEqual(contract["workload"]["mode"],
+                            "--m4-background-compaction-pair")
+        expected = {
+            profiles[0]: ("background_off_first", ["background_off", "background_on"]),
+            profiles[1]: ("background_on_first", ["background_on", "background_off"]),
+        }
+        for name in profiles:
+            profile = contract[name]
+            workload = profile["workload"]
+            with self.subTest(profile=name):
+                self.assertEqual(workload["mode"], "--m4-background-compaction-pair")
+                self.assertEqual((workload["arm_order"], workload["compaction_modes"]),
+                                 expected[name])
+                self.assertIn("up to three", profile["execution_authorization_reference"])
+                self.assertEqual(profile["binary_relative_path"],
+                                 ".work/build/background-compaction-benchmark-20261029/m4_compaction_writer_contention")
+                self.assertRegex(profile["binary_sha256"], r"^[0-9a-f]{64}$")
+                self.assertEqual(profile["runtime_library_relative_path"],
+                                 ".local/native/zvec-native-build/lib/libzvec_c_api.so")
+                self.assertRegex(profile["runtime_library_sha256"], r"^[0-9a-f]{64}$")
+                self.assertEqual(workload["documents"], 8192)
+                self.assertEqual(workload["rounds"], 32)
+
+    def test_active_and_legacy_harnesses_load_the_json_source(self):
+        runner_source = (HERE / "m4_containment_runner.py").read_text(encoding="utf-8")
+        sync_pair = HERE.parent / "results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/run_sync_reduction_pair.py"
+        host_pair = sync_pair.with_name("run_host_carryover_aa.py")
+        legacy_paths = [
+            sync_pair.with_name("run_diag_aa_v2.py"),
+            sync_pair.with_name("run_matched_evaluator_pair.py"),
+        ]
+        self.assertIn("benchmark-policy.json", runner_source)
+        sync_source = sync_pair.read_text(encoding="utf-8")
+        self.assertIn("BENCHMARK_POLICY = containment.BENCHMARK_POLICY", sync_source)
+        self.assertIn("REPO_ROOT = HERE.parents[5]", sync_source)
+        expected_repo = HERE.parents[2]
+        self.assertEqual(sync_pair.parents[6].resolve(), expected_repo.resolve())
+        host_source = host_pair.read_text(encoding="utf-8")
+        self.assertIn("import run_sync_reduction_pair as runner", host_source)
+        self.assertIn("runner.THRESHOLDS", host_source)
+        for path in legacy_paths:
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(script=path.name):
+                self.assertIn('"benchmark-policy.json"', source)
+                self.assertIn("parents[4]", source)
+                self.assertEqual((path.resolve().parents[4] / "docs" / "benchmark-policy.json"),
+                                 POLICY_PATH.resolve())
+                self.assertNotIn('5_477_762', source)
+                self.assertNotIn('18_219_000_000', source)
+                self.assertNotIn('4.46', source)
+                self.assertNotIn('3.14', source)
+
+
+if __name__ == "__main__":
+    unittest.main()

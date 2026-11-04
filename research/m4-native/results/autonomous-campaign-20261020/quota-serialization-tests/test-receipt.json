@@ -1,0 +1,68 @@
+{
+  "purpose": "Independent focused research-control regression after consumed pair1 no-launch; not a retry, new A/A arm or native performance measurement",
+  "benchmark_pairs_consumed": 1,
+  "new_performance_operation": false,
+  "source_sha256": {
+    "research/m4-native/tools/m4_containment_runner.py": "da8c14b07e3ac3f6ebb9ddf370204ae0e00d2fcc57177355b86ea1a36f6d0669",
+    "research/m4-native/tools/test_m4_containment_runner.py": "8401c57bdcf59240234c8f6046fe946119f789cddcd8a403e92d53ee6e585346",
+    "research/m4-native/tools/test_m4_contention_policy.py": "8ebd0eadd848ac5d31d0b429f886dd7562743e848f89378d862e7d7bad15241e"
+  },
+  "checks": [
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_containment_runner.py",
+        "--output-dir",
+        "research/m4-native/results/autonomous-campaign-20261020/quota-serialization-tests/tiny-fixtures"
+      ],
+      "exit_code": 0,
+      "tests": 14,
+      "log": "test_m4_containment_runner.py.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_contention_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 24,
+      "log": "test_m4_contention_policy.py.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/tools/test_m4_benchmark_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 5,
+      "log": "test_m4_benchmark_policy.py.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_gate_policy.py"
+      ],
+      "exit_code": 0,
+      "tests": 7,
+      "log": "test_aa_gate_policy.py.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/m4-search-execution-marathon-20261018/phase-b-cost-model/writer-tail-causal-20261019/test_aa_containment_integration.py"
+      ],
+      "exit_code": 0,
+      "tests": 1,
+      "log": "test_aa_containment_integration.py.log"
+    },
+    {
+      "command": [
+        "/usr/sbin/python3",
+        "research/m4-native/results/autonomous-campaign-20261020/test_stage_counter_bounds.py"
+      ],
+      "exit_code": 0,
+      "tests": 6,
+      "log": "test_stage_counter_bounds.py.log"
+    }
+  ]
+}

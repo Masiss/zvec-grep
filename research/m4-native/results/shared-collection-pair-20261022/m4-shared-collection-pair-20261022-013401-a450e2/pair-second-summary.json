@@ -1,0 +1,2434 @@
+{
+  "arm_name": "pair-second",
+  "result": {
+    "approved_budget": {
+      "approval_reference": "Current explicit owner M4 mission: agent may design and run bounded exploratory benchmark iterations without per-milestone approval, inside existing hard limits.",
+      "cpu_max": "200000 100000",
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 0,
+      "pids_max": 128,
+      "workspace_max_allocated_bytes": 268435456,
+      "workspace_max_apparent_bytes": 536870912
+    },
+    "benchmark_started": true,
+    "bootstrap_exit_status": 0,
+    "cgroup_io_controller_available": false,
+    "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-b5229e28ae1f44bc.service",
+    "command_end": {
+      "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-b5229e28ae1f44bc.service",
+      "monotonic_ns": 60294967903044,
+      "pid": 710122,
+      "returncode": 0,
+      "timestamp_utc": "2026-10-22T01:34:38.216984+00:00"
+    },
+    "command_start": {
+      "cgroup_relative_path": "user.slice/user-1000.slice/user@1000.service/app.slice/m4-contained-b5229e28ae1f44bc.service",
+      "monotonic_ns": 60291436675765,
+      "pid": 710122,
+      "timestamp_utc": "2026-10-22T01:34:34.685755+00:00"
+    },
+    "controller_cleanup": null,
+    "diagnostic_decision": {
+      "approval_reference": "Current explicit owner M4 mission: agent may design and run bounded exploratory benchmark iterations without per-milestone approval, inside existing hard limits.",
+      "blocking_failures": [],
+      "continuation_allowed": true,
+      "continuation_reason": "approved workload capacity and containment plan, not an idle-envelope waiver or safety certification",
+      "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+      "historical_gate_decisions": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-MEM",
+          "metric": "MemAvailable",
+          "observed": 5563100,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 5477762,
+          "threshold_key": "MemAvailable_kib_min",
+          "unit": "KiB"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-DISK",
+          "metric": "resource-root available bytes",
+          "observed": 86603694080,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 18219000000,
+          "threshold_key": "var_tmp_bytes_min",
+          "unit": "bytes"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-IOPSI",
+          "metric": "host I/O PSI full avg10",
+          "observed": 3.69,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "selected_mode_disposition": "record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 4.46,
+          "threshold_key": "io_full_avg10_max",
+          "unit": "percent"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-LOAD",
+          "metric": "host load-1",
+          "observed": 4.22,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 3.14,
+          "threshold_key": "load1_max",
+          "unit": "load average"
+        }
+      ],
+      "historical_guard_failures": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-LOAD",
+          "metric": "host load-1",
+          "observed": 4.22,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 3.14,
+          "threshold_key": "load1_max",
+          "unit": "load average"
+        }
+      ],
+      "host_io_pressure_observation": {
+        "disposition": "observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate",
+        "full_avg10_percent": 3.69,
+        "full_avg300_percent": 1.06,
+        "full_avg60_percent": 1.87,
+        "some_avg10_percent": 3.77
+      },
+      "mode": "contention-aware",
+      "monotonic_ns": 60291204259345,
+      "operation_id": "m4-shared-collection-pair-20261022-013401-a450e2",
+      "phase": "pair-second",
+      "timestamp_utc": "2026-10-22T01:34:34.453345+00:00"
+    },
+    "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+    "failure_class": "NORMAL_EXIT_WITH_WORKSPACE_CAVEATS",
+    "failure_scope": "this arm only",
+    "final_process_status": "exit=0 and complete hard safety telemetry may complete exploratory operation with workspace caveats; INCOMPLETE is never PASS",
+    "gate_decisions": [
+      {
+        "enforced": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-MEM",
+        "metric": "MemAvailable",
+        "observed": 5563100,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 5477762,
+        "threshold_key": "MemAvailable_kib_min",
+        "unit": "KiB"
+      },
+      {
+        "enforced": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-DISK",
+        "metric": "resource-root available bytes",
+        "observed": 86603694080,
+        "operator": ">=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 18219000000,
+        "threshold_key": "var_tmp_bytes_min",
+        "unit": "bytes"
+      },
+      {
+        "enforced": false,
+        "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+        "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-IOPSI",
+        "metric": "host I/O PSI full avg10",
+        "observed": 3.69,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "PASS",
+        "threshold": 4.46,
+        "threshold_key": "io_full_avg10_max",
+        "unit": "percent"
+      },
+      {
+        "enforced": false,
+        "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+        "evidence_class": "historical successful-run envelope; not a universal safety limit",
+        "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+        "gate_id": "M4-RG-LOAD",
+        "metric": "host load-1",
+        "observed": 4.22,
+        "operator": "<=",
+        "owner_approval_required_to_change": true,
+        "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+        "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+        "status": "FAIL",
+        "threshold": 3.14,
+        "threshold_key": "load1_max",
+        "unit": "load average"
+      }
+    ],
+    "hard_guards": {
+      "io_full_avg10_max": 4.46,
+      "load1_max": 3.14,
+      "memavailable_min_kib": 5477762,
+      "var_tmp_free_min_bytes": 18219000000
+    },
+    "io_control": {
+      "fallback": "process-tree /proc/<pid>/io plus host /proc/diskstats; not a per-arm physical-write attribution",
+      "io_limit_applied": false,
+      "status": "UNAVAILABLE"
+    },
+    "limits_applied": {
+      "approval_reference": "Current explicit owner M4 mission: agent may design and run bounded exploratory benchmark iterations without per-milestone approval, inside existing hard limits.",
+      "cpu_max": "200000 100000",
+      "memory_max_bytes": "1073741824",
+      "memory_swap_max_bytes": "0",
+      "pids_max": "128",
+      "workspace_limits": "monitored-soft-budgets; warnings only; no kernel/filesystem quota"
+    },
+    "measurement_quality": "INCOMPLETE",
+    "memory_swap_pressure_limits": null,
+    "mission_status": "NOT_EVALUATED_BY_RUNNER",
+    "operation_outcome": "OPERATION_COMPLETE_WITH_WORKSPACE_CAVEATS",
+    "performance_eligible": false,
+    "policy_context": {
+      "approval_reference": "Current explicit owner M4 mission: agent may design and run bounded exploratory benchmark iterations without per-milestone approval, inside existing hard limits.",
+      "approval_status": "approved",
+      "approved_binary_sha256": "35b4d2a137f20875196c52e2973b4b13100f4565b46d45bdcff619d9c1c03d43",
+      "approved_dictionary_tree_sha256": "9c05e30b201663f0045db0cd9d810b831b7adba59055b1658353a1bd7ae5fa5c",
+      "arm_role": "immutable-shard",
+      "binary_path": "/home/masis/src/zvec-grep/research/m4-native/.work/build/m4-stage-trace-bridge-test/m4_bridge_integration",
+      "binary_sha256": "35b4d2a137f20875196c52e2973b4b13100f4565b46d45bdcff619d9c1c03d43",
+      "cpu_max": "200000 100000",
+      "dictionary_path": "/home/masis/src/zvec-grep/.local/native/zvec-native-profile/thirdparty/cppjieba/cppjieba-5.6.7/dict",
+      "dictionary_tree_sha256": "9c05e30b201663f0045db0cd9d810b831b7adba59055b1658353a1bd7ae5fa5c",
+      "disk_reserve_bytes": 18219000000,
+      "execution_authorization_reference": "Current owner mission authorizes fresh exploratory shared-collection versus immutable-shard pairs after implementation changes; one pair per unique operation, only after preflight, and no automatic retry of blocked/failed operations. Preserve correctness/durability and every existing resource/containment gate.",
+      "host_memory_reserve_bytes": 3221225472,
+      "io_pressure_mode": "observational-only",
+      "max_monitor_gap_seconds": 2,
+      "memory_max_bytes": 1073741824,
+      "memory_swap_max_bytes": 0,
+      "mode": "contention-aware",
+      "operation_id": "m4-shared-collection-pair-20261022-013401-a450e2",
+      "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/shared-collection-pair-20261022/m4-shared-collection-pair-20261022-013401-a450e2",
+      "pids_max": 128,
+      "policy_sha256": "7d2a5940f13e062e9c6ce330039bc47e32dc53395a23dcbe607f2132b6ccf240",
+      "purpose": "m4-shared-collection-pair",
+      "resource_basis": "owner-approved single exploratory pair; operation-specific 1-GiB cgroup and 3-GiB host reserve",
+      "resource_root": "/var/tmp",
+      "risk_acceptance_reference": "Current mission accepts exploratory measurement limits of shared /var/tmp Btrfs I/O without per-arm I/O throttling or physical-write attribution; record host pressure, do not claim causality, and do not stop unrelated workloads.",
+      "runtime_limit_seconds": 180,
+      "schema_version": 1,
+      "workload": {
+        "baseline_mode": "--incremental-fts-sustained-no-analyzer-cache",
+        "candidate_mode": "--shared-collection-performance",
+        "documents": 500,
+        "durability": "M4 fsync_wal plus native collection flush",
+        "m4_analyzer_cache": "disabled; fingerprint verification remains strict",
+        "queries_per_reader_per_round": 1,
+        "readers": 4,
+        "rounds": 5
+      },
+      "workspace_max_allocated_bytes": 268435456,
+      "workspace_max_apparent_bytes": 536870912
+    },
+    "policy_id": "m4-benchmark-operation-policy-v1",
+    "postflight_decision": {
+      "approval_reference": "Current explicit owner M4 mission: agent may design and run bounded exploratory benchmark iterations without per-milestone approval, inside existing hard limits.",
+      "blocking_failures": [],
+      "continuation_allowed": true,
+      "continuation_reason": "approved workload capacity and containment plan, not an idle-envelope waiver or safety certification",
+      "evidence_class": "EXPLORATORY / CONTENTION-AWARE / NON-QUALIFYING",
+      "historical_gate_decisions": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-MEM",
+          "metric": "MemAvailable",
+          "observed": 5336556,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 5477762,
+          "threshold_key": "MemAvailable_kib_min",
+          "unit": "KiB"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; retained-capacity preflight, not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-DISK",
+          "metric": "resource-root available bytes",
+          "observed": 86603694080,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot shows the unchanged reserve; cleanup only under an owner-approved SAFE inventory or new authorization",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 18219000000,
+          "threshold_key": "var_tmp_bytes_min",
+          "unit": "bytes"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal host-safety limit or per-arm I/O cap",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-IOPSI",
+          "metric": "host I/O PSI full avg10",
+          "observed": 3.97,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "selected_mode_disposition": "record host-wide PSI; not an admission or abort gate for this operation-bound exploratory pair",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "PASS",
+          "threshold": 4.46,
+          "threshold_key": "io_full_avg10_max",
+          "unit": "percent"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-LOAD",
+          "metric": "host load-1",
+          "observed": 4.12,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 3.14,
+          "threshold_key": "load1_max",
+          "unit": "load average"
+        }
+      ],
+      "historical_guard_failures": [
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard no-launch and runtime stop for the affected measurement operation",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-MEM",
+          "metric": "MemAvailable",
+          "observed": 5336556,
+          "operator": ">=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each later required sample meet the unchanged threshold; the measured baseline must also pass its independent pressure checks",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 5477762,
+          "threshold_key": "MemAvailable_kib_min",
+          "unit": "KiB"
+        },
+        {
+          "enforced_in_selected_mode": false,
+          "enforcement": "hard in qualification and legacy diagnostic; observation-only in resource_only_exploratory_contract; raw threshold comparison retained",
+          "evidence_class": "historical successful-run envelope; not a universal safety limit",
+          "failure_scope": "current arm or A/A operation only; does not complete or block the whole research mission",
+          "gate_id": "M4-RG-LOAD",
+          "metric": "host load-1",
+          "observed": 4.12,
+          "operator": "<=",
+          "owner_approval_required_to_change": true,
+          "recovery": "fresh snapshot and each required baseline/runtime sample meet the unchanged threshold",
+          "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+          "status": "FAIL",
+          "threshold": 3.14,
+          "threshold_key": "load1_max",
+          "unit": "load average"
+        }
+      ],
+      "host_io_pressure_observation": {
+        "disposition": "observational-only; elevated or arm-mismatched host pressure is a measurement limitation, not an admission/abort gate",
+        "full_avg10_percent": 3.97,
+        "full_avg300_percent": 1.11,
+        "full_avg60_percent": 2.04,
+        "some_avg10_percent": 4.35
+      },
+      "mode": "contention-aware",
+      "monotonic_ns": 60295104897832,
+      "operation_id": "m4-shared-collection-pair-20261022-013401-a450e2",
+      "phase": "runtime-second",
+      "timestamp_utc": "2026-10-22T01:34:38.353979+00:00"
+    },
+    "postflight_workspace": {
+      "allocated_semantics": "observed sum st_blocks*512, deduplicated hardlinks; Btrfs shared extents may be counted more than once",
+      "allocated_st_blocks_bytes_gross": 3305472,
+      "apparent_bytes": 11496089,
+      "complete_snapshot": false,
+      "directory_count": 17,
+      "entries_observed": 104,
+      "file_count": 87,
+      "generation_apparent_bytes": 11496053,
+      "generation_directory_names": [
+        "generation-5",
+        "generation-6"
+      ],
+      "independent_capacity_upper_bound": null,
+      "inventory_status": "COMPLETE_TRAVERSAL_NOT_ATOMIC",
+      "issue_count": 0,
+      "issues": [],
+      "limitations": "No atomic snapshot/quota backend. A traversal can miss creates/growth/mmap/replacements between observations; no upper bound or verified lifetime peak. One pass, no retry. Deadline is cooperative, not a bound on one blocked kernel syscall.",
+      "mutation_observer": "bounded per-pass inotify; not independent capacity proof; mmap/writeback not covered",
+      "reservation_credit_bytes": 0,
+      "root": "/var/tmp/m4-shared-collection-pair-20261022-013401-a450e2/pair-second",
+      "root_identity": [
+        37,
+        31021788
+      ],
+      "scan_complete": true,
+      "scan_duration_ns": 8916708,
+      "scan_errors": [],
+      "schema_version": 2,
+      "staging_named_apparent_bytes": 0,
+      "symlink_count": 0,
+      "verified_peak": null
+    },
+    "postflight_workspace_capacity": {
+      "continuation_allowed": true,
+      "errors": [],
+      "independent_capacity_upper_bound": null,
+      "inventory_status": "COMPLETE_TRAVERSAL_NOT_ATOMIC",
+      "measurement_quality": "COMPLETE_TRAVERSAL_NOT_PROOF",
+      "proof_semantics": "owner-approved monitored soft budgets only; NOT hard enforcement/capacity proof",
+      "reason": null,
+      "state": "SAMPLED_SOFT_BUDGET_NOT_EXCEEDED",
+      "warnings": []
+    },
+    "preflight": {
+      "cpu_pressure": {
+        "full": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0,
+          "total": 0.0
+        },
+        "some": {
+          "avg10": 0.03,
+          "avg300": 0.27,
+          "avg60": 0.62,
+          "total": 442523352.0
+        }
+      },
+      "diskstats": {
+        "dm-0": {
+          "io_in_progress": 0,
+          "io_ms": 2720820,
+          "major": 253,
+          "minor": 0,
+          "read_ms": 8983109,
+          "reads_completed": 15678772,
+          "sectors_read": 1699752376,
+          "sectors_written": 410212576,
+          "weighted_io_ms": 417120653,
+          "write_ms": 408137544,
+          "writes_completed": 7946787
+        },
+        "nvme0n1": {
+          "io_in_progress": 0,
+          "io_ms": 3749169,
+          "major": 259,
+          "minor": 0,
+          "read_ms": 7864771,
+          "reads_completed": 30187868,
+          "sectors_read": 1903766553,
+          "sectors_written": 681909874,
+          "weighted_io_ms": 253439534,
+          "write_ms": 245323451,
+          "writes_completed": 14101518
+        },
+        "nvme0n1p1": {
+          "io_in_progress": 0,
+          "io_ms": 52,
+          "major": 259,
+          "minor": 1,
+          "read_ms": 298,
+          "reads_completed": 773,
+          "sectors_read": 14192,
+          "sectors_written": 10,
+          "weighted_io_ms": 299,
+          "write_ms": 1,
+          "writes_completed": 12
+        },
+        "nvme0n1p2": {
+          "io_in_progress": 0,
+          "io_ms": 1774484,
+          "major": 259,
+          "minor": 2,
+          "read_ms": 3620058,
+          "reads_completed": 18351052,
+          "sectors_read": 203995896,
+          "sectors_written": 271697288,
+          "weighted_io_ms": 206523098,
+          "write_ms": 202903040,
+          "writes_completed": 7420729
+        },
+        "nvme0n1p3": {
+          "io_in_progress": 0,
+          "io_ms": 2239649,
+          "major": 259,
+          "minor": 3,
+          "read_ms": 4244406,
+          "reads_completed": 11835941,
+          "sectors_read": 1699753385,
+          "sectors_written": 410212576,
+          "weighted_io_ms": 46664815,
+          "write_ms": 42420409,
+          "writes_completed": 6680774
+        },
+        "zram0": {
+          "io_in_progress": 0,
+          "io_ms": 470464,
+          "major": 252,
+          "minor": 0,
+          "read_ms": 109682,
+          "reads_completed": 9617348,
+          "sectors_read": 76941032,
+          "sectors_written": 131486672,
+          "weighted_io_ms": 647775,
+          "write_ms": 538093,
+          "writes_completed": 15902187
+        }
+      },
+      "io_pressure": {
+        "full": {
+          "avg10": 3.69,
+          "avg300": 1.06,
+          "avg60": 1.87,
+          "total": 1435203753.0
+        },
+        "some": {
+          "avg10": 3.77,
+          "avg300": 1.23,
+          "avg60": 2.08,
+          "total": 1602064741.0
+        }
+      },
+      "loadavg": [
+        4.22,
+        2.57,
+        2.11
+      ],
+      "meminfo_kib": {
+        "MemAvailable_kib": 5563100,
+        "MemTotal_kib": 16051136,
+        "SwapFree_kib": 18210896,
+        "SwapTotal_kib": 24802296
+      },
+      "memory_pressure": {
+        "full": {
+          "avg10": 0.0,
+          "avg300": 0.01,
+          "avg60": 0.0,
+          "total": 224599136.0
+        },
+        "some": {
+          "avg10": 0.0,
+          "avg300": 0.01,
+          "avg60": 0.0,
+          "total": 237233863.0
+        }
+      },
+      "monotonic_ns": 60291204259345,
+      "resource_root_free_bytes": 86603694080,
+      "timestamp_utc": "2026-10-22T01:34:34.453345+00:00",
+      "vmstat": {
+        "allocstall_device": 3,
+        "allocstall_dma": 0,
+        "allocstall_dma32": 0,
+        "allocstall_movable": 373435,
+        "allocstall_normal": 95402,
+        "oom_kill": 7,
+        "pgscan_direct": 59829778,
+        "pgsteal_direct": 29213233,
+        "pswpin_pages": 35116192,
+        "pswpout_pages": 50397994
+      }
+    },
+    "process_returncode": 0,
+    "reason": "workspace accounting INCOMPLETE/UNKNOWN",
+    "safety_outcome": "NO_OBSERVED_HARD_SAFETY_FAILURE_WORKSPACE_NOT_CERTIFIED",
+    "schema_version": 1,
+    "source_of_authority": "Ten successful B3.1 arm-before receipts and their analysis preserved in the canonical M4 handoff and result artifacts; this is empirical successful-run evidence, not a universal host-safety standard",
+    "status": "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+    "test_fixture_mode": false,
+    "timestamp_utc": "2026-10-22T01:34:38.353470+00:00",
+    "unit": "m4-contained-b5229e28ae1f44bc.service",
+    "unit_cleanup": {
+      "stop_returncode": 5,
+      "unit_collected": true,
+      "verified": true
+    },
+    "watchdog_abort": null,
+    "watchdog_summary": {
+      "abort": null,
+      "cgroup_io_stat_available": false,
+      "final_cgroup": {
+        "cgroup_io_controller": false,
+        "controllers": [
+          "cpu",
+          "memory",
+          "pids"
+        ],
+        "cpu_pressure": {
+          "full": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 3637.0
+          },
+          "some": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 3642.0
+          }
+        },
+        "cpu_stat": {
+          "burst_usec": 0,
+          "core_sched.force_idle_usec": 0,
+          "nice_usec": 0,
+          "nr_bursts": 0,
+          "nr_periods": 38,
+          "nr_throttled": 0,
+          "system_usec": 546049,
+          "throttled_usec": 0,
+          "usage_usec": 3003367,
+          "user_usec": 2457318
+        },
+        "io_max": null,
+        "io_pressure": {
+          "full": {
+            "avg10": 0.9,
+            "avg300": 0.03,
+            "avg60": 0.16,
+            "total": 202330.0
+          },
+          "some": {
+            "avg10": 0.9,
+            "avg300": 0.03,
+            "avg60": 0.16,
+            "total": 202541.0
+          }
+        },
+        "io_stat": null,
+        "memory_current_bytes": 29429760,
+        "memory_events": {
+          "high": 0,
+          "low": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "sock_throttled": 0
+        },
+        "memory_peak_bytes": 578560000,
+        "memory_pressure": {
+          "full": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 0.0
+          },
+          "some": {
+            "avg10": 0.0,
+            "avg300": 0.0,
+            "avg60": 0.0,
+            "total": 0.0
+          }
+        },
+        "memory_swap_current_bytes": 0,
+        "memory_swap_events": {
+          "fail": 0,
+          "high": 0,
+          "max": 0
+        },
+        "memory_swap_peak_bytes": 0,
+        "pids": [
+          710112
+        ],
+        "pids_current": 1,
+        "pids_events": {
+          "max": 0
+        },
+        "populated": 1,
+        "process_io_sample_complete": true,
+        "process_memory_sample_complete": true,
+        "process_tree_pss_kib": 17982,
+        "process_tree_read_bytes": 4096,
+        "process_tree_rss_kib": 28000,
+        "process_tree_swap_kib": 0,
+        "process_tree_write_bytes": 60936192
+      },
+      "final_cgroup_sampling": "captured while transient unit remains active after ExecStart; systemd unit is stopped after this receipt is durable",
+      "hard_safety_telemetry_complete": true,
+      "max_observed_complete_traversal_allocated_bytes": 12845056,
+      "max_observed_complete_traversal_apparent_bytes": 28320225,
+      "measurement_quality": "INCOMPLETE",
+      "peak_cgroup_memory_current_bytes_sampled": 578560000,
+      "peak_cgroup_memory_peak_bytes_observed": 578560000,
+      "peak_cgroup_swap_current_bytes_sampled": 0,
+      "peak_cgroup_swap_peak_bytes_observed": 0,
+      "peak_sampled_generation_apparent_bytes": null,
+      "peak_sampled_staging_named_apparent_bytes": null,
+      "peak_sampled_workspace_allocated_st_blocks_bytes_gross": null,
+      "peak_sampled_workspace_apparent_bytes": null,
+      "policy_context_digest": "8f5fd46dbded7f907a15e60f295c423f0206c4c8d46aaa84a35628ac1ed29e62",
+      "policy_mode": "contention-aware",
+      "process_tree_samples_complete": true,
+      "safety_outcome": "WATCHDOG_COMPLETED_NO_ABORT",
+      "sample_interval_ms_requested": 100,
+      "samples": 27,
+      "sampling_scope": "external watchdog; workspace scans are sampled and may miss short-lived files",
+      "schema_version": 1,
+      "workspace_accounting_status": "UNKNOWN",
+      "workspace_samples_complete": false,
+      "workspace_shared_extent_inspection": {
+        "available": false,
+        "reason": "No extra recursive FIEMAP walk in bounded observer; extent sharing unknown, never capacity proof"
+      },
+      "workspace_snapshot_semantics": "sampled traversals, NOT atomic snapshots or verified lifetime peaks",
+      "workspace_soft_budget_warning_samples": 0,
+      "workspace_verified_peak": null
+    },
+    "workload_returncode": 0,
+    "workload_signal": null,
+    "workspace_capacity_status": null
+  },
+  "role": "immutable-shard",
+  "workload": {
+    "analyzer_cache_bypasses": 6,
+    "analyzer_cache_expired_weak_entries": 0,
+    "analyzer_cache_lookup_hits": 0,
+    "analyzer_cache_lookup_misses": 0,
+    "analyzer_cache_lookups": 0,
+    "analyzer_cache_wait_reuses": 0,
+    "analyzer_cache_waits": 0,
+    "analyzer_initialization_attempts": 6,
+    "analyzer_late_race_reuses": 0,
+    "analyzer_successful_initializations": 6,
+    "arm": "base-delta-vector-incremental-fts-no-analyzer-cache",
+    "base_analyzer_cache_hit": false,
+    "base_analyzer_cache_wait_reuse": false,
+    "base_analyzer_cache_waited": false,
+    "base_analyzer_dictionary_snapshot_used": true,
+    "base_analyzer_initialization_attempted": true,
+    "base_build_ms": 555.10249,
+    "base_fingerprint_calls": 2,
+    "base_fingerprint_dictionary_bytes": 11181892,
+    "base_fingerprint_sha256_bytes": 11182422,
+    "base_fingerprint_sha256_calls": 6,
+    "base_fingerprint_verification_skipped": false,
+    "base_m4_build_wall_ms": 416.92371,
+    "base_m4_build_writer_thread_cpu_ms": 394.42667,
+    "base_vector_build_wall_ms": 111.44166,
+    "base_vector_build_writer_thread_cpu_ms": 43.968833,
+    "coherence_errors": 0,
+    "commit_max_ms": 553.70752,
+    "commit_p50_ms": 484.12618,
+    "commit_p95_ms": 553.70752,
+    "commit_p99_ms": 553.70752,
+    "commit_samples_ms": [
+      466.2574,
+      523.78114,
+      553.70752,
+      484.12618,
+      464.30472
+    ],
+    "commit_write_bytes": [
+      9420800,
+      9801728,
+      9986048,
+      10551296,
+      9900032
+    ],
+    "compaction_physical_bytes": "NOT_MEASURED",
+    "compaction_wall_samples_ms": [
+      0,
+      0,
+      0,
+      98.510297,
+      0
+    ],
+    "compaction_writer_thread_cpu_samples_ms": [
+      0,
+      0,
+      0,
+      47.32495,
+      0
+    ],
+    "compactions": 1,
+    "current_shards": 2,
+    "current_stale_vector_rows": 6,
+    "docs": 500,
+    "generation_metadata_wall_samples_ms": [
+      2.415189,
+      4.141267,
+      3.19429,
+      2.999654,
+      3.155088
+    ],
+    "generation_metadata_writer_thread_cpu_samples_ms": [
+      0.486998,
+      1.47782,
+      1.359509,
+      0.740367,
+      1.205235
+    ],
+    "generation_publish_p50_ms": 3.659059,
+    "generation_publish_samples_ms": [
+      3.072938,
+      4.81079,
+      3.396074,
+      3.659059,
+      4.003214
+    ],
+    "logical_deletes_per_round": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "logical_mutation_count_per_round": [
+      7,
+      7,
+      7,
+      7,
+      7
+    ],
+    "logical_upserts_per_round": [
+      6,
+      6,
+      6,
+      6,
+      6
+    ],
+    "m4_apply_batch_calls_per_round": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "m4_apply_wall_samples_ms": [
+      12.813355,
+      13.260764,
+      10.966124,
+      10.935685,
+      11.353882
+    ],
+    "m4_apply_writer_thread_cpu_p50_ms": 0.429705,
+    "m4_apply_writer_thread_cpu_samples_ms": [
+      0.361648,
+      0.592974,
+      0.628059,
+      0.303798,
+      0.429705
+    ],
+    "m4_clone_wall_samples_ms": [
+      3.866158,
+      5.946724,
+      4.957684,
+      5.116249,
+      4.892547
+    ],
+    "m4_clone_writer_thread_cpu_p50_ms": 1.588486,
+    "m4_clone_writer_thread_cpu_samples_ms": [
+      0.571652,
+      1.936504,
+      1.823577,
+      1.588486,
+      1.462458
+    ],
+    "m4_copied_state_bytes_per_round": [
+      206322,
+      211437,
+      216377,
+      221327,
+      226175
+    ],
+    "m4_flush_wall_samples_ms": [
+      6.932797,
+      5.312368,
+      6.981184,
+      10.772894,
+      7.383149
+    ],
+    "m4_flush_writer_thread_cpu_p50_ms": 0.993895,
+    "m4_flush_writer_thread_cpu_samples_ms": [
+      0.799033,
+      1.367352,
+      0.993895,
+      1.656589,
+      0.988068
+    ],
+    "m4_mutations_applied_per_round": [
+      7,
+      7,
+      7,
+      7,
+      7
+    ],
+    "m4_open_analyzer_cache_hits": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "m4_open_analyzer_fingerprint_cpu_ms": [
+      24.605085,
+      36.277758,
+      26.044489,
+      27.046107,
+      27.1974
+    ],
+    "m4_open_analyzer_fingerprint_wall_ms": [
+      24.664695,
+      36.515653,
+      27.010412,
+      27.216044,
+      27.282426
+    ],
+    "m4_open_analyzer_init_cpu_ms": [
+      248.7999,
+      259.04148,
+      292.83639,
+      227.00418,
+      211.16448
+    ],
+    "m4_open_analyzer_init_wall_ms": [
+      251.60995,
+      260.60384,
+      294.77623,
+      228.05254,
+      212.97205
+    ],
+    "m4_open_analyzer_initialization_attempted": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "m4_open_analyzer_initialization_succeeded": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "m4_open_cache_expired_entries": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "m4_open_cache_misses": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "m4_open_cache_race_reuses": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "m4_open_cache_wait_reuses": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "m4_open_cache_waits": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "m4_open_dictionary_snapshots": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "m4_open_fingerprint_calls": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "m4_open_fingerprint_dictionary_bytes": [
+      11181892,
+      11181892,
+      11181892,
+      11181892,
+      11181892
+    ],
+    "m4_open_fingerprint_sha256_bytes": [
+      11182422,
+      11182422,
+      11182422,
+      11182422,
+      11182422
+    ],
+    "m4_open_fingerprint_sha256_calls": [
+      6,
+      6,
+      6,
+      6,
+      6
+    ],
+    "m4_open_fingerprint_verification_cpu_ms": [
+      22.44374,
+      26.476003,
+      28.97604,
+      25.076949,
+      22.431207
+    ],
+    "m4_open_fingerprint_verification_skipped": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "m4_open_fingerprint_verification_wall_ms": [
+      22.48507,
+      26.621201,
+      29.140991,
+      25.141801,
+      22.46782
+    ],
+    "m4_open_garbage_collect_wall_ms": [
+      0.025595,
+      0.025914,
+      0.030359,
+      0.02649,
+      0.024426
+    ],
+    "m4_open_live_key_map_wall_ms": [
+      0.021658,
+      0.02369,
+      0.02672,
+      0.024477,
+      0.02333
+    ],
+    "m4_open_manifest_analyzer_wall_ms": [
+      274.11221,
+      287.24951,
+      323.97404,
+      253.22157,
+      235.45929
+    ],
+    "m4_open_segment_bytes": [
+      147217,
+      150602,
+      154069,
+      157541,
+      159221
+    ],
+    "m4_open_segment_count": [
+      1,
+      2,
+      3,
+      4,
+      4
+    ],
+    "m4_open_segments_cpu_ms": [
+      0.268809,
+      0.310637,
+      0.351961,
+      0.33507,
+      0.314577
+    ],
+    "m4_open_segments_wall_ms": [
+      0.268727,
+      0.310531,
+      0.354653,
+      0.335052,
+      0.314553
+    ],
+    "m4_open_stats_wall_ms": [
+      0.671849,
+      0.730149,
+      0.801317,
+      0.772978,
+      0.726397
+    ],
+    "m4_open_tombstones_wall_ms": [
+      0.006954,
+      0.007722,
+      0.008568,
+      0.008621,
+      0.006538
+    ],
+    "m4_open_total_cpu_ms": [
+      296.86134,
+      322.91587,
+      349.13425,
+      280.32286,
+      261.91018
+    ],
+    "m4_open_wal_replay_wall_ms": [
+      0.003324,
+      0.003425,
+      0.003813,
+      0.003459,
+      0.00335
+    ],
+    "m4_open_wall_p50_ms": 299.78231,
+    "m4_open_wall_p95_ms": 352.23881,
+    "m4_open_wall_samples_ms": [
+      299.78231,
+      324.87908,
+      352.23881,
+      281.62561,
+      263.8488
+    ],
+    "m4_open_writer_thread_cpu_p50_ms": 296.86649,
+    "m4_open_writer_thread_cpu_p95_ms": 349.15583,
+    "m4_open_writer_thread_cpu_samples_ms": [
+      296.86649,
+      322.92475,
+      349.15583,
+      280.33554,
+      261.91566
+    ],
+    "m4_rows_indexed_per_round": [
+      6,
+      6,
+      6,
+      6,
+      6
+    ],
+    "m4_shared_segment_files_per_round": [
+      1,
+      2,
+      3,
+      4,
+      4
+    ],
+    "m4_update_strategy": "hardlink-immutable-runs-and-apply-mutation-delta",
+    "m4_update_wall_p50_ms": 323.40435,
+    "m4_update_wall_samples_ms": [
+      323.40435,
+      349.42444,
+      375.16782,
+      308.46755,
+      287.49206
+    ],
+    "m4_update_writer_thread_cpu_p50_ms": 298.60725,
+    "m4_update_writer_thread_cpu_samples_ms": [
+      298.60725,
+      326.84099,
+      352.61866,
+      283.89594,
+      264.80836
+    ],
+    "native_vector_build_wall_p50_ms": 91.160305,
+    "native_vector_build_wall_samples_ms": [
+      83.408733,
+      93.888985,
+      91.160305,
+      98.510297,
+      87.054957
+    ],
+    "native_vector_build_writer_thread_cpu_p50_ms": 33.26447,
+    "native_vector_build_writer_thread_cpu_samples_ms": [
+      33.26447,
+      27.61298,
+      36.88001,
+      47.32495,
+      26.298132
+    ],
+    "native_vector_document_conversion_wall_samples_ms": [
+      0.010916,
+      0.009874,
+      0.010013,
+      0.524525,
+      0.010521
+    ],
+    "native_vector_document_conversion_writer_thread_cpu_samples_ms": [
+      0.010877,
+      0.009866,
+      0.010022,
+      0.52444,
+      0.01052
+    ],
+    "native_vector_flush_wall_samples_ms": [
+      16.070001,
+      39.011976,
+      20.327735,
+      27.237562,
+      17.985354
+    ],
+    "native_vector_flush_writer_thread_cpu_samples_ms": [
+      0.946005,
+      1.703148,
+      1.358422,
+      2.871782,
+      1.437816
+    ],
+    "native_vector_open_wall_samples_ms": [
+      62.583084,
+      49.346213,
+      66.331369,
+      58.122729,
+      64.353732
+    ],
+    "native_vector_open_writer_thread_cpu_samples_ms": [
+      28.775748,
+      22.693583,
+      32.498649,
+      32.927693,
+      21.821449
+    ],
+    "native_vector_upsert_wall_samples_ms": [
+      3.268332,
+      2.674874,
+      2.376749,
+      10.168257,
+      2.454404
+    ],
+    "native_vector_upsert_writer_thread_cpu_samples_ms": [
+      3.243456,
+      2.664727,
+      2.369282,
+      10.108231,
+      2.440235
+    ],
+    "peak_cpu_percent": "NOT_MEASURED",
+    "peak_pss_kb": "NOT_MEASURED",
+    "pinned_retired_generations": 0,
+    "post_m4_sync_tree_wall_samples_ms": [
+      20.623563,
+      22.520192,
+      27.113588,
+      26.114175,
+      36.04262
+    ],
+    "post_m4_sync_tree_writer_thread_cpu_samples_ms": [
+      2.324412,
+      4.383295,
+      5.226169,
+      3.461841,
+      4.496408
+    ],
+    "published_generation_id": 6,
+    "queries": 20,
+    "reader_blocked_wait_ms": "NOT_MEASURED",
+    "reader_coordination_cpu_ms": 1.657444,
+    "reader_max_ms": 2.67987,
+    "reader_p50_ms": 1.212116,
+    "reader_p95_ms": 2.439367,
+    "reader_p99_ms": 2.67987,
+    "reader_query_cpu_samples_ms": [
+      0.467768,
+      0.558544,
+      0.56916,
+      0.547538,
+      0.932568,
+      0.767527,
+      0.911831,
+      0.869233,
+      1.450315,
+      1.579875,
+      1.658782,
+      1.758281,
+      1.158629,
+      1.148724,
+      1.158779,
+      1.091626,
+      0.731743,
+      0.656154,
+      0.704003,
+      0.747454
+    ],
+    "reader_query_cpu_total_ms": 19.468534,
+    "reader_samples_ms": [
+      0.507206,
+      0.672093,
+      0.785212,
+      0.834547,
+      1.170292,
+      1.212116,
+      1.399344,
+      1.662499,
+      1.970843,
+      2.125462,
+      2.439367,
+      2.67987,
+      1.301296,
+      1.403373,
+      1.601072,
+      1.725197,
+      0.78241,
+      0.850494,
+      1.02245,
+      1.15782
+    ],
+    "reader_stage_timeline_ms": [
+      {
+        "acquire_end_ms": 568.03367,
+        "acquire_release_ms": 568.02895,
+        "end_to_end_ms": 0.537723,
+        "m4_backend_query_lock_acquire_ms": 9.7e-05,
+        "m4_backend_query_lock_acquired_ms": 568.4605,
+        "m4_backend_query_lock_wait_start_ms": 568.4604,
+        "m4_search_end_ms": 568.52261,
+        "m4_search_ms": 0.062257,
+        "m4_search_start_ms": 568.46036,
+        "merge_end_ms": 568.53899,
+        "merge_ms": 0.016361,
+        "merge_start_ms": 568.52263,
+        "native_vector_search_ms": 0.340937,
+        "native_vector_stage_end_ms": 568.46028,
+        "native_vector_stage_ms": 0.414506,
+        "native_vector_stage_start_ms": 568.04578,
+        "reader": 3,
+        "reader_dispatch_wait_ms": 0.00472,
+        "reader_tid": 710224,
+        "round": 0,
+        "snapshot_pin_end_ms": 568.03478,
+        "snapshot_pin_ms": 0.001058,
+        "snapshot_pin_start_ms": 568.03373,
+        "snapshot_release_end_ms": 568.56668,
+        "snapshot_release_ms": 0.000109,
+        "snapshot_release_start_ms": 568.56657,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 568.09518,
+            "wait_ms": 0.000129,
+            "wait_start_ms": 568.09505
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 568.06428,
+        "acquire_release_ms": 568.02895,
+        "end_to_end_ms": 0.741833,
+        "m4_backend_query_lock_acquire_ms": 0.000143,
+        "m4_backend_query_lock_acquired_ms": 568.62318,
+        "m4_backend_query_lock_wait_start_ms": 568.62303,
+        "m4_search_end_ms": 568.71235,
+        "m4_search_ms": 0.089392,
+        "m4_search_start_ms": 568.62296,
+        "merge_end_ms": 568.73414,
+        "merge_ms": 0.021757,
+        "merge_start_ms": 568.71238,
+        "native_vector_search_ms": 0.456061,
+        "native_vector_stage_end_ms": 568.62292,
+        "native_vector_stage_ms": 0.531047,
+        "native_vector_stage_start_ms": 568.09187,
+        "reader": 2,
+        "reader_dispatch_wait_ms": 0.035327,
+        "reader_tid": 710223,
+        "round": 0,
+        "snapshot_pin_end_ms": 568.06465,
+        "snapshot_pin_ms": 0.000324,
+        "snapshot_pin_start_ms": 568.06433,
+        "snapshot_release_end_ms": 568.77079,
+        "snapshot_release_ms": 4.3e-05,
+        "snapshot_release_start_ms": 568.77074,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 568.14159,
+            "wait_ms": 7.8e-05,
+            "wait_start_ms": 568.14152
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 568.03341,
+        "acquire_release_ms": 568.02895,
+        "end_to_end_ms": 0.813236,
+        "m4_backend_query_lock_acquire_ms": 0.00015,
+        "m4_backend_query_lock_acquired_ms": 568.62407,
+        "m4_backend_query_lock_wait_start_ms": 568.62392,
+        "m4_search_end_ms": 568.79675,
+        "m4_search_ms": 0.172858,
+        "m4_search_start_ms": 568.62389,
+        "merge_end_ms": 568.8168,
+        "merge_ms": 0.020032,
+        "merge_start_ms": 568.79677,
+        "native_vector_search_ms": 0.499803,
+        "native_vector_stage_end_ms": 568.62385,
+        "native_vector_stage_ms": 0.570265,
+        "native_vector_stage_start_ms": 568.05359,
+        "reader": 1,
+        "reader_dispatch_wait_ms": 0.004455,
+        "reader_tid": 710222,
+        "round": 0,
+        "snapshot_pin_end_ms": 568.0346,
+        "snapshot_pin_ms": 0.001142,
+        "snapshot_pin_start_ms": 568.03346,
+        "snapshot_release_end_ms": 568.84219,
+        "snapshot_release_ms": 7.6e-05,
+        "snapshot_release_start_ms": 568.84211,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 568.10249,
+            "wait_ms": 0.000131,
+            "wait_start_ms": 568.10236
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 568.09174,
+        "acquire_release_ms": 568.02895,
+        "end_to_end_ms": 0.930574,
+        "m4_backend_query_lock_acquire_ms": 0.000132,
+        "m4_backend_query_lock_acquired_ms": 568.81801,
+        "m4_backend_query_lock_wait_start_ms": 568.81787,
+        "m4_search_end_ms": 568.90343,
+        "m4_search_ms": 0.085612,
+        "m4_search_start_ms": 568.81782,
+        "merge_end_ms": 568.92409,
+        "merge_ms": 0.020635,
+        "merge_start_ms": 568.90345,
+        "native_vector_search_ms": 0.624538,
+        "native_vector_stage_end_ms": 568.81777,
+        "native_vector_stage_ms": 0.703432,
+        "native_vector_stage_start_ms": 568.11434,
+        "reader": 0,
+        "reader_dispatch_wait_ms": 0.062786,
+        "reader_tid": 710221,
+        "round": 0,
+        "snapshot_pin_end_ms": 568.09222,
+        "snapshot_pin_ms": 0.00043,
+        "snapshot_pin_start_ms": 568.09179,
+        "snapshot_release_end_ms": 568.95953,
+        "snapshot_release_ms": 3.7e-05,
+        "snapshot_release_start_ms": 568.95949,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 568.16312,
+            "wait_ms": 0.000194,
+            "wait_start_ms": 568.16292
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1034.6718,
+        "acquire_release_ms": 1034.6687,
+        "end_to_end_ms": 1.19624,
+        "m4_backend_query_lock_acquire_ms": 0.000178,
+        "m4_backend_query_lock_acquired_ms": 1035.6819,
+        "m4_backend_query_lock_wait_start_ms": 1035.6817,
+        "m4_search_end_ms": 1035.8215,
+        "m4_search_ms": 0.14003,
+        "m4_search_start_ms": 1035.6815,
+        "merge_end_ms": 1035.8402,
+        "merge_ms": 0.018672,
+        "merge_start_ms": 1035.8216,
+        "native_vector_search_ms": 0.902009,
+        "native_vector_stage_end_ms": 1035.6815,
+        "native_vector_stage_ms": 0.989419,
+        "native_vector_stage_start_ms": 1034.6921,
+        "reader": 3,
+        "reader_dispatch_wait_ms": 0.003098,
+        "reader_tid": 710224,
+        "round": 1,
+        "snapshot_pin_end_ms": 1034.6723,
+        "snapshot_pin_ms": 0.000484,
+        "snapshot_pin_start_ms": 1034.6719,
+        "snapshot_release_end_ms": 1035.865,
+        "snapshot_release_ms": 8.6e-05,
+        "snapshot_release_start_ms": 1035.8649,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1034.7502,
+            "wait_ms": 0.00106,
+            "wait_start_ms": 1034.7491
+          },
+          {
+            "acquired_ms": 1035.4306,
+            "wait_ms": 7e-05,
+            "wait_start_ms": 1035.4305
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1034.7397,
+        "acquire_release_ms": 1034.6687,
+        "end_to_end_ms": 1.306083,
+        "m4_backend_query_lock_acquire_ms": 0.000127,
+        "m4_backend_query_lock_acquired_ms": 1035.6949,
+        "m4_backend_query_lock_wait_start_ms": 1035.6947,
+        "m4_search_end_ms": 1035.9325,
+        "m4_search_ms": 0.237802,
+        "m4_search_start_ms": 1035.6947,
+        "merge_end_ms": 1035.95,
+        "merge_ms": 0.017541,
+        "merge_start_ms": 1035.9325,
+        "native_vector_search_ms": 0.863165,
+        "native_vector_stage_end_ms": 1035.6946,
+        "native_vector_stage_ms": 0.940417,
+        "native_vector_stage_start_ms": 1034.7542,
+        "reader": 2,
+        "reader_dispatch_wait_ms": 0.070949,
+        "reader_tid": 710223,
+        "round": 1,
+        "snapshot_pin_end_ms": 1034.7401,
+        "snapshot_pin_ms": 0.000383,
+        "snapshot_pin_start_ms": 1034.7397,
+        "snapshot_release_end_ms": 1035.9748,
+        "snapshot_release_ms": 4.2e-05,
+        "snapshot_release_start_ms": 1035.9748,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1034.8035,
+            "wait_ms": 0.000167,
+            "wait_start_ms": 1034.8034
+          },
+          {
+            "acquired_ms": 1035.4962,
+            "wait_ms": 8.8e-05,
+            "wait_start_ms": 1035.4961
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1034.7401,
+        "acquire_release_ms": 1034.6687,
+        "end_to_end_ms": 1.501841,
+        "m4_backend_query_lock_acquire_ms": 0.00014,
+        "m4_backend_query_lock_acquired_ms": 1035.7111,
+        "m4_backend_query_lock_wait_start_ms": 1035.7109,
+        "m4_search_end_ms": 1036.1163,
+        "m4_search_ms": 0.405436,
+        "m4_search_start_ms": 1035.7108,
+        "merge_end_ms": 1036.1374,
+        "merge_ms": 0.021035,
+        "merge_start_ms": 1036.1163,
+        "native_vector_search_ms": 0.874227,
+        "native_vector_stage_end_ms": 1035.7108,
+        "native_vector_stage_ms": 0.956458,
+        "native_vector_stage_start_ms": 1034.7544,
+        "reader": 0,
+        "reader_dispatch_wait_ms": 0.071385,
+        "reader_tid": 710221,
+        "round": 1,
+        "snapshot_pin_end_ms": 1034.7406,
+        "snapshot_pin_ms": 0.00043,
+        "snapshot_pin_start_ms": 1034.7401,
+        "snapshot_release_end_ms": 1036.1706,
+        "snapshot_release_ms": 3.9e-05,
+        "snapshot_release_start_ms": 1036.1705,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1034.8038,
+            "wait_ms": 0.00015,
+            "wait_start_ms": 1034.8037
+          },
+          {
+            "acquired_ms": 1035.4363,
+            "wait_ms": 0.000113,
+            "wait_start_ms": 1035.4362
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1034.6982,
+        "acquire_release_ms": 1034.6687,
+        "end_to_end_ms": 1.715016,
+        "m4_backend_query_lock_acquire_ms": 0.000124,
+        "m4_backend_query_lock_acquired_ms": 1035.7718,
+        "m4_backend_query_lock_wait_start_ms": 1035.7716,
+        "m4_search_end_ms": 1036.3422,
+        "m4_search_ms": 0.570666,
+        "m4_search_start_ms": 1035.7716,
+        "merge_end_ms": 1036.3589,
+        "merge_ms": 0.016655,
+        "merge_start_ms": 1036.3423,
+        "native_vector_search_ms": 0.990978,
+        "native_vector_stage_end_ms": 1035.7715,
+        "native_vector_stage_ms": 1.062483,
+        "native_vector_stage_start_ms": 1034.709,
+        "reader": 1,
+        "reader_dispatch_wait_ms": 0.029446,
+        "reader_tid": 710222,
+        "round": 1,
+        "snapshot_pin_end_ms": 1034.6985,
+        "snapshot_pin_ms": 0.000352,
+        "snapshot_pin_start_ms": 1034.6982,
+        "snapshot_release_end_ms": 1036.3837,
+        "snapshot_release_ms": 4e-05,
+        "snapshot_release_start_ms": 1036.3837,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1034.7493,
+            "wait_ms": 0.000201,
+            "wait_start_ms": 1034.7491
+          },
+          {
+            "acquired_ms": 1035.4777,
+            "wait_ms": 0.000106,
+            "wait_start_ms": 1035.4776
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1559.0269,
+        "acquire_release_ms": 1558.9879,
+        "end_to_end_ms": 2.041909,
+        "m4_backend_query_lock_acquire_ms": 0.000352,
+        "m4_backend_query_lock_acquired_ms": 1560.7119,
+        "m4_backend_query_lock_wait_start_ms": 1560.7115,
+        "m4_search_end_ms": 1560.9746,
+        "m4_search_ms": 0.263553,
+        "m4_search_start_ms": 1560.7111,
+        "merge_end_ms": 1560.9949,
+        "merge_ms": 0.020267,
+        "merge_start_ms": 1560.9747,
+        "native_vector_search_ms": 1.535506,
+        "native_vector_stage_end_ms": 1560.711,
+        "native_vector_stage_ms": 1.649123,
+        "native_vector_stage_start_ms": 1559.0619,
+        "reader": 1,
+        "reader_dispatch_wait_ms": 0.038937,
+        "reader_tid": 710222,
+        "round": 2,
+        "snapshot_pin_end_ms": 1559.0273,
+        "snapshot_pin_ms": 0.00038,
+        "snapshot_pin_start_ms": 1559.0269,
+        "snapshot_release_end_ms": 1561.0298,
+        "snapshot_release_ms": 6.6e-05,
+        "snapshot_release_start_ms": 1561.0298,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1559.1253,
+            "wait_ms": 0.000541,
+            "wait_start_ms": 1559.1248
+          },
+          {
+            "acquired_ms": 1560.123,
+            "wait_ms": 0.000116,
+            "wait_start_ms": 1560.1229
+          },
+          {
+            "acquired_ms": 1560.4068,
+            "wait_ms": 9.9e-05,
+            "wait_start_ms": 1560.4067
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1559.0209,
+        "acquire_release_ms": 1558.9879,
+        "end_to_end_ms": 2.206447,
+        "m4_backend_query_lock_acquire_ms": 0.000102,
+        "m4_backend_query_lock_acquired_ms": 1560.7352,
+        "m4_backend_query_lock_wait_start_ms": 1560.7351,
+        "m4_search_end_ms": 1561.1258,
+        "m4_search_ms": 0.390859,
+        "m4_search_start_ms": 1560.735,
+        "merge_end_ms": 1561.1445,
+        "merge_ms": 0.018628,
+        "merge_start_ms": 1561.1258,
+        "native_vector_search_ms": 1.553529,
+        "native_vector_stage_end_ms": 1560.7349,
+        "native_vector_stage_ms": 1.679261,
+        "native_vector_stage_start_ms": 1559.0556,
+        "reader": 3,
+        "reader_dispatch_wait_ms": 0.032961,
+        "reader_tid": 710224,
+        "round": 2,
+        "snapshot_pin_end_ms": 1559.0215,
+        "snapshot_pin_ms": 0.000554,
+        "snapshot_pin_start_ms": 1559.0209,
+        "snapshot_release_end_ms": 1561.1944,
+        "snapshot_release_ms": 4e-05,
+        "snapshot_release_start_ms": 1561.1943,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1559.1253,
+            "wait_ms": 0.000241,
+            "wait_start_ms": 1559.1251
+          },
+          {
+            "acquired_ms": 1560.0832,
+            "wait_ms": 0.000118,
+            "wait_start_ms": 1560.0831
+          },
+          {
+            "acquired_ms": 1560.4057,
+            "wait_ms": 5.8e-05,
+            "wait_start_ms": 1560.4056
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1559.0417,
+        "acquire_release_ms": 1558.9879,
+        "end_to_end_ms": 2.528254,
+        "m4_backend_query_lock_acquire_ms": 0.000124,
+        "m4_backend_query_lock_acquired_ms": 1560.8203,
+        "m4_backend_query_lock_wait_start_ms": 1560.8202,
+        "m4_search_end_ms": 1561.4573,
+        "m4_search_ms": 0.637205,
+        "m4_search_start_ms": 1560.8201,
+        "merge_end_ms": 1561.4791,
+        "merge_ms": 0.02145,
+        "merge_start_ms": 1561.4576,
+        "native_vector_search_ms": 1.637302,
+        "native_vector_stage_end_ms": 1560.8201,
+        "native_vector_stage_ms": 1.750832,
+        "native_vector_stage_start_ms": 1559.0693,
+        "reader": 0,
+        "reader_dispatch_wait_ms": 0.053768,
+        "reader_tid": 710221,
+        "round": 2,
+        "snapshot_pin_end_ms": 1559.0425,
+        "snapshot_pin_ms": 0.000766,
+        "snapshot_pin_start_ms": 1559.0418,
+        "snapshot_release_end_ms": 1561.5162,
+        "snapshot_release_ms": 3.8e-05,
+        "snapshot_release_start_ms": 1561.5162,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1559.1254,
+            "wait_ms": 0.000315,
+            "wait_start_ms": 1559.1251
+          },
+          {
+            "acquired_ms": 1560.1848,
+            "wait_ms": 0.000104,
+            "wait_start_ms": 1560.1847
+          },
+          {
+            "acquired_ms": 1560.3094,
+            "wait_ms": 0.000113,
+            "wait_start_ms": 1560.3093
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 1558.9934,
+        "acquire_release_ms": 1558.9879,
+        "end_to_end_ms": 2.714323,
+        "m4_backend_query_lock_acquire_ms": 8e-05,
+        "m4_backend_query_lock_acquired_ms": 1560.8271,
+        "m4_backend_query_lock_wait_start_ms": 1560.8271,
+        "m4_search_end_ms": 1561.6531,
+        "m4_search_ms": 0.826057,
+        "m4_search_start_ms": 1560.827,
+        "merge_end_ms": 1561.6714,
+        "merge_ms": 0.018348,
+        "merge_start_ms": 1561.6531,
+        "native_vector_search_ms": 1.629036,
+        "native_vector_stage_end_ms": 1560.827,
+        "native_vector_stage_ms": 1.777051,
+        "native_vector_stage_start_ms": 1559.0499,
+        "reader": 2,
+        "reader_dispatch_wait_ms": 0.005413,
+        "reader_tid": 710223,
+        "round": 2,
+        "snapshot_pin_end_ms": 1558.9938,
+        "snapshot_pin_ms": 0.000432,
+        "snapshot_pin_start_ms": 1558.9934,
+        "snapshot_release_end_ms": 1561.7023,
+        "snapshot_release_ms": 4.3e-05,
+        "snapshot_release_start_ms": 1561.7022,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 1559.1253,
+            "wait_ms": 0.000619,
+            "wait_start_ms": 1559.1247
+          },
+          {
+            "acquired_ms": 1560.0808,
+            "wait_ms": 0.000345,
+            "wait_start_ms": 1560.0804
+          },
+          {
+            "acquired_ms": 1560.2699,
+            "wait_ms": 0.000987,
+            "wait_start_ms": 1560.2689
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2112.9128,
+        "acquire_release_ms": 2112.908,
+        "end_to_end_ms": 1.337708,
+        "m4_backend_query_lock_acquire_ms": 0.000167,
+        "m4_backend_query_lock_acquired_ms": 2114.0158,
+        "m4_backend_query_lock_wait_start_ms": 2114.0156,
+        "m4_search_end_ms": 2114.1879,
+        "m4_search_ms": 0.172337,
+        "m4_search_start_ms": 2114.0156,
+        "merge_end_ms": 2114.2119,
+        "merge_ms": 0.023937,
+        "merge_start_ms": 2114.1879,
+        "native_vector_search_ms": 0.977093,
+        "native_vector_stage_end_ms": 2114.0155,
+        "native_vector_stage_ms": 1.08085,
+        "native_vector_stage_start_ms": 2112.9346,
+        "reader": 1,
+        "reader_dispatch_wait_ms": 0.004788,
+        "reader_tid": 710222,
+        "round": 3,
+        "snapshot_pin_end_ms": 2112.9165,
+        "snapshot_pin_ms": 0.003723,
+        "snapshot_pin_start_ms": 2112.9128,
+        "snapshot_release_end_ms": 2114.2457,
+        "snapshot_release_ms": 0.000101,
+        "snapshot_release_start_ms": 2114.2456,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2112.9874,
+            "wait_ms": 0.000308,
+            "wait_start_ms": 2112.9871
+          },
+          {
+            "acquired_ms": 2113.6278,
+            "wait_ms": 0.000151,
+            "wait_start_ms": 2113.6277
+          },
+          {
+            "acquired_ms": 2113.7418,
+            "wait_ms": 0.000151,
+            "wait_start_ms": 2113.7417
+          },
+          {
+            "acquired_ms": 2113.8297,
+            "wait_ms": 0.000147,
+            "wait_start_ms": 2113.8296
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2112.9672,
+        "acquire_release_ms": 2112.908,
+        "end_to_end_ms": 1.501791,
+        "m4_backend_query_lock_acquire_ms": 0.000128,
+        "m4_backend_query_lock_acquired_ms": 2114.0929,
+        "m4_backend_query_lock_wait_start_ms": 2114.0928,
+        "m4_search_end_ms": 2114.3347,
+        "m4_search_ms": 0.241968,
+        "m4_search_start_ms": 2114.0927,
+        "merge_end_ms": 2114.3676,
+        "merge_ms": 0.032864,
+        "merge_start_ms": 2114.3347,
+        "native_vector_search_ms": 1.01243,
+        "native_vector_stage_end_ms": 2114.0926,
+        "native_vector_stage_ms": 1.11556,
+        "native_vector_stage_start_ms": 2112.9771,
+        "reader": 0,
+        "reader_dispatch_wait_ms": 0.059277,
+        "reader_tid": 710221,
+        "round": 3,
+        "snapshot_pin_end_ms": 2112.9677,
+        "snapshot_pin_ms": 0.000407,
+        "snapshot_pin_start_ms": 2112.9673,
+        "snapshot_release_end_ms": 2114.4098,
+        "snapshot_release_ms": 5.4e-05,
+        "snapshot_release_start_ms": 2114.4097,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2113.0294,
+            "wait_ms": 0.000111,
+            "wait_start_ms": 2113.0293
+          },
+          {
+            "acquired_ms": 2113.6283,
+            "wait_ms": 0.00011,
+            "wait_start_ms": 2113.6282
+          },
+          {
+            "acquired_ms": 2113.7514,
+            "wait_ms": 8.9e-05,
+            "wait_start_ms": 2113.7513
+          },
+          {
+            "acquired_ms": 2113.8555,
+            "wait_ms": 0.000115,
+            "wait_start_ms": 2113.8554
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2112.9125,
+        "acquire_release_ms": 2112.908,
+        "end_to_end_ms": 1.630944,
+        "m4_backend_query_lock_acquire_ms": 0.000122,
+        "m4_backend_query_lock_acquired_ms": 2114.095,
+        "m4_backend_query_lock_wait_start_ms": 2114.0949,
+        "m4_search_end_ms": 2114.4919,
+        "m4_search_ms": 0.3971,
+        "m4_search_start_ms": 2114.0948,
+        "merge_end_ms": 2114.5115,
+        "merge_ms": 0.019504,
+        "merge_start_ms": 2114.492,
+        "native_vector_search_ms": 1.034496,
+        "native_vector_stage_end_ms": 2114.0948,
+        "native_vector_stage_ms": 1.156185,
+        "native_vector_stage_start_ms": 2112.9386,
+        "reader": 3,
+        "reader_dispatch_wait_ms": 0.004549,
+        "reader_tid": 710224,
+        "round": 3,
+        "snapshot_pin_end_ms": 2112.9159,
+        "snapshot_pin_ms": 0.003307,
+        "snapshot_pin_start_ms": 2112.9126,
+        "snapshot_release_end_ms": 2114.5389,
+        "snapshot_release_ms": 3.5e-05,
+        "snapshot_release_start_ms": 2114.5389,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2113.0096,
+            "wait_ms": 5.3e-05,
+            "wait_start_ms": 2113.0096
+          },
+          {
+            "acquired_ms": 2113.6676,
+            "wait_ms": 0.000154,
+            "wait_start_ms": 2113.6674
+          },
+          {
+            "acquired_ms": 2113.8216,
+            "wait_ms": 0.000151,
+            "wait_start_ms": 2113.8214
+          },
+          {
+            "acquired_ms": 2113.958,
+            "wait_ms": 0.000122,
+            "wait_start_ms": 2113.9579
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2112.9127,
+        "acquire_release_ms": 2112.908,
+        "end_to_end_ms": 1.758507,
+        "m4_backend_query_lock_acquire_ms": 0.000117,
+        "m4_backend_query_lock_acquired_ms": 2114.3963,
+        "m4_backend_query_lock_wait_start_ms": 2114.3962,
+        "m4_search_end_ms": 2114.6133,
+        "m4_search_ms": 0.217224,
+        "m4_search_start_ms": 2114.3961,
+        "merge_end_ms": 2114.6357,
+        "merge_ms": 0.022264,
+        "merge_start_ms": 2114.6134,
+        "native_vector_search_ms": 1.345936,
+        "native_vector_stage_end_ms": 2114.3961,
+        "native_vector_stage_ms": 1.461467,
+        "native_vector_stage_start_ms": 2112.9346,
+        "reader": 2,
+        "reader_dispatch_wait_ms": 0.004688,
+        "reader_tid": 710223,
+        "round": 3,
+        "snapshot_pin_end_ms": 2112.9184,
+        "snapshot_pin_ms": 0.005723,
+        "snapshot_pin_start_ms": 2112.9127,
+        "snapshot_release_end_ms": 2114.6665,
+        "snapshot_release_ms": 4.3e-05,
+        "snapshot_release_start_ms": 2114.6664,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2113.0052,
+            "wait_ms": 0.000127,
+            "wait_start_ms": 2113.0051
+          },
+          {
+            "acquired_ms": 2113.6909,
+            "wait_ms": 0.000113,
+            "wait_start_ms": 2113.6908
+          },
+          {
+            "acquired_ms": 2113.8278,
+            "wait_ms": 0.000109,
+            "wait_start_ms": 2113.8277
+          },
+          {
+            "acquired_ms": 2114.0788,
+            "wait_ms": 0.000133,
+            "wait_start_ms": 2114.0787
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2597.325,
+        "acquire_release_ms": 2597.3207,
+        "end_to_end_ms": 0.811578,
+        "m4_backend_query_lock_acquire_ms": 0.000152,
+        "m4_backend_query_lock_acquired_ms": 2597.9632,
+        "m4_backend_query_lock_wait_start_ms": 2597.963,
+        "m4_search_end_ms": 2598.0872,
+        "m4_search_ms": 0.124435,
+        "m4_search_start_ms": 2597.9628,
+        "merge_end_ms": 2598.1051,
+        "merge_ms": 0.017836,
+        "merge_start_ms": 2598.0873,
+        "native_vector_search_ms": 0.548134,
+        "native_vector_stage_end_ms": 2597.9628,
+        "native_vector_stage_ms": 0.623169,
+        "native_vector_stage_start_ms": 2597.3396,
+        "reader": 3,
+        "reader_dispatch_wait_ms": 0.004359,
+        "reader_tid": 710224,
+        "round": 4,
+        "snapshot_pin_end_ms": 2597.3256,
+        "snapshot_pin_ms": 0.000494,
+        "snapshot_pin_start_ms": 2597.3251,
+        "snapshot_release_end_ms": 2598.1322,
+        "snapshot_release_ms": 7.5e-05,
+        "snapshot_release_start_ms": 2598.1322,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2597.3947,
+            "wait_ms": 0.000123,
+            "wait_start_ms": 2597.3946
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2597.3769,
+        "acquire_release_ms": 2597.3207,
+        "end_to_end_ms": 0.93451,
+        "m4_backend_query_lock_acquire_ms": 7.8e-05,
+        "m4_backend_query_lock_acquired_ms": 2597.9631,
+        "m4_backend_query_lock_wait_start_ms": 2597.963,
+        "m4_search_end_ms": 2598.2058,
+        "m4_search_ms": 0.242929,
+        "m4_search_start_ms": 2597.9629,
+        "merge_end_ms": 2598.2252,
+        "merge_ms": 0.019382,
+        "merge_start_ms": 2598.2058,
+        "native_vector_search_ms": 0.519133,
+        "native_vector_stage_end_ms": 2597.9628,
+        "native_vector_stage_ms": 0.57754,
+        "native_vector_stage_start_ms": 2597.3853,
+        "reader": 2,
+        "reader_dispatch_wait_ms": 0.05628,
+        "reader_tid": 710223,
+        "round": 4,
+        "snapshot_pin_end_ms": 2597.3773,
+        "snapshot_pin_ms": 0.000313,
+        "snapshot_pin_start_ms": 2597.377,
+        "snapshot_release_end_ms": 2598.2552,
+        "snapshot_release_ms": 4.2e-05,
+        "snapshot_release_start_ms": 2598.2551,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2597.4248,
+            "wait_ms": 0.000116,
+            "wait_start_ms": 2597.4247
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2597.3279,
+        "acquire_release_ms": 2597.3207,
+        "end_to_end_ms": 1.064828,
+        "m4_backend_query_lock_acquire_ms": 9.6e-05,
+        "m4_backend_query_lock_acquired_ms": 2597.967,
+        "m4_backend_query_lock_wait_start_ms": 2597.9669,
+        "m4_search_end_ms": 2598.3237,
+        "m4_search_ms": 0.356862,
+        "m4_search_start_ms": 2597.9668,
+        "merge_end_ms": 2598.3476,
+        "merge_ms": 0.023898,
+        "merge_start_ms": 2598.3237,
+        "native_vector_search_ms": 0.554163,
+        "native_vector_stage_end_ms": 2597.9667,
+        "native_vector_stage_ms": 0.627239,
+        "native_vector_stage_start_ms": 2597.3395,
+        "reader": 1,
+        "reader_dispatch_wait_ms": 0.007272,
+        "reader_tid": 710222,
+        "round": 4,
+        "snapshot_pin_end_ms": 2597.3283,
+        "snapshot_pin_ms": 0.00032,
+        "snapshot_pin_start_ms": 2597.328,
+        "snapshot_release_end_ms": 2598.3855,
+        "snapshot_release_ms": 6.4e-05,
+        "snapshot_release_start_ms": 2598.3854,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2597.3875,
+            "wait_ms": 0.000226,
+            "wait_start_ms": 2597.3873
+          }
+        ]
+      },
+      {
+        "acquire_end_ms": 2597.3255,
+        "acquire_release_ms": 2597.3207,
+        "end_to_end_ms": 1.186949,
+        "m4_backend_query_lock_acquire_ms": 5.4e-05,
+        "m4_backend_query_lock_acquired_ms": 2597.967,
+        "m4_backend_query_lock_wait_start_ms": 2597.9669,
+        "m4_search_end_ms": 2598.4647,
+        "m4_search_ms": 0.497849,
+        "m4_search_start_ms": 2597.9669,
+        "merge_end_ms": 2598.4814,
+        "merge_ms": 0.016624,
+        "merge_start_ms": 2598.4648,
+        "native_vector_search_ms": 0.548583,
+        "native_vector_stage_end_ms": 2597.9668,
+        "native_vector_stage_ms": 0.627223,
+        "native_vector_stage_start_ms": 2597.3396,
+        "reader": 0,
+        "reader_dispatch_wait_ms": 0.004832,
+        "reader_tid": 710221,
+        "round": 4,
+        "snapshot_pin_end_ms": 2597.3257,
+        "snapshot_pin_ms": 0.000138,
+        "snapshot_pin_start_ms": 2597.3255,
+        "snapshot_release_end_ms": 2598.5076,
+        "snapshot_release_ms": 3.3e-05,
+        "snapshot_release_start_ms": 2598.5076,
+        "vector_backend_query_lock_acquire_events": [
+          {
+            "acquired_ms": 2597.3947,
+            "wait_ms": 0.000111,
+            "wait_start_ms": 2597.3946
+          }
+        ]
+      }
+    ],
+    "reader_thread_cpu_samples_ms": [
+      5.309763,
+      5.1992,
+      5.123211,
+      5.493804
+    ],
+    "reader_thread_cpu_total_ms": 21.125978,
+    "reader_threads": 4,
+    "retained_generation_directories": 1,
+    "retained_root_logical_bytes": 11473185,
+    "retirement_p50_ms": 0.465107,
+    "retirement_samples_ms": [
+      0.578009,
+      0.465107,
+      0.395298,
+      3.103798,
+      0.393898
+    ],
+    "reuse_analyzer_cache": false,
+    "rounds": 5,
+    "skip_cached_analyzer_fingerprint_verification": false,
+    "snapshot_finalize_wall_samples_ms": [
+      0.075509,
+      0.261664,
+      0.472098,
+      0.130457,
+      0.211289
+    ],
+    "snapshot_finalize_writer_thread_cpu_samples_ms": [
+      0.075617,
+      0.26154,
+      0.472528,
+      0.130493,
+      0.211453
+    ],
+    "vector_compaction_wall_p50_ms": 0,
+    "vector_compaction_writer_thread_cpu_p50_ms": 0,
+    "vector_rows_written_per_round": [
+      6,
+      6,
+      6,
+      500,
+      6
+    ],
+    "vector_upsert_calls_per_round": [
+      1,
+      1,
+      1,
+      2,
+      1
+    ],
+    "whole_start_monotonic_ns": 60291445191558,
+    "writer_commit_thread_cpu_samples_ms": [
+      368.16656,
+      409.19807,
+      449.82051,
+      376.00941,
+      340.3221
+    ],
+    "writer_commit_thread_cpu_total_ms": 1943.5167,
+    "writer_stage_timeline_ms": [
+      {
+        "build_end_ms": 998.49555,
+        "build_start_ms": 568.05478,
+        "compacted": false,
+        "compaction_end_ms": -1,
+        "compaction_start_ms": -1,
+        "generation_metadata_end_ms": 654.38922,
+        "generation_metadata_start_ms": 651.97403,
+        "generation_wal_cpu_ms": 0.10432,
+        "generation_wal_end_ms": 568.53591,
+        "generation_wal_start_ms": 568.05511,
+        "m4_apply_end_ms": 970.85414,
+        "m4_apply_start_ms": 958.04079,
+        "m4_build_end_ms": 977.79408,
+        "m4_build_start_ms": 654.38973,
+        "m4_clone_end_ms": 658.25748,
+        "m4_clone_start_ms": 654.39132,
+        "m4_flush_end_ms": 977.78778,
+        "m4_flush_start_ms": 970.85498,
+        "m4_open_end_ms": 958.04033,
+        "m4_open_start_ms": 658.25802,
+        "manifest_publish_end_ms": 1001.5689,
+        "manifest_publish_start_ms": 998.49598,
+        "post_m4_sync_end_ms": 998.41783,
+        "post_m4_sync_start_ms": 977.79426,
+        "query_release_ms": 568.02895,
+        "retirement_end_ms": 1034.2608,
+        "retirement_start_ms": 1033.6827,
+        "round": 0,
+        "round_end_ms": 1034.2608,
+        "round_start_ms": 567.91081,
+        "snapshot_finalize_end_ms": 998.49433,
+        "snapshot_finalize_start_ms": 998.41882,
+        "snapshot_publish_end_ms": 1001.5702,
+        "snapshot_publish_start_ms": 1001.5696,
+        "vector_end_ms": 651.97349,
+        "vector_flush_end_ms": 651.47618,
+        "vector_flush_start_ms": 635.40618,
+        "vector_open_end_ms": 632.11944,
+        "vector_open_start_ms": 569.53635,
+        "vector_start_ms": 568.56475,
+        "writer_tid": 710122
+      },
+      {
+        "build_end_ms": 1505.8001,
+        "build_start_ms": 1034.7062,
+        "compacted": false,
+        "compaction_end_ms": -1,
+        "compaction_start_ms": -1,
+        "generation_metadata_end_ms": 1133.5837,
+        "generation_metadata_start_ms": 1129.4424,
+        "generation_wal_cpu_ms": 0.162225,
+        "generation_wal_end_ms": 1035.5035,
+        "generation_wal_start_ms": 1034.7065,
+        "m4_apply_end_ms": 1477.6782,
+        "m4_apply_start_ms": 1464.4175,
+        "m4_build_end_ms": 1483.0098,
+        "m4_build_start_ms": 1133.5853,
+        "m4_clone_end_ms": 1139.5368,
+        "m4_clone_start_ms": 1133.5901,
+        "m4_flush_end_ms": 1482.9982,
+        "m4_flush_start_ms": 1477.6858,
+        "m4_open_end_ms": 1464.4173,
+        "m4_open_start_ms": 1139.5382,
+        "manifest_publish_end_ms": 1510.611,
+        "manifest_publish_start_ms": 1505.8002,
+        "post_m4_sync_end_ms": 1505.5303,
+        "post_m4_sync_start_ms": 1483.0101,
+        "query_release_ms": 1034.6687,
+        "retirement_end_ms": 1558.4351,
+        "retirement_start_ms": 1557.97,
+        "round": 1,
+        "round_end_ms": 1558.4351,
+        "round_start_ms": 1034.3536,
+        "snapshot_finalize_end_ms": 1505.7983,
+        "snapshot_finalize_start_ms": 1505.5367,
+        "snapshot_publish_end_ms": 1510.6132,
+        "snapshot_publish_start_ms": 1510.612,
+        "vector_end_ms": 1129.4411,
+        "vector_flush_end_ms": 1128.4569,
+        "vector_flush_start_ms": 1089.445,
+        "vector_open_end_ms": 1086.7544,
+        "vector_open_start_ms": 1037.4082,
+        "vector_start_ms": 1035.5521,
+        "writer_tid": 710122
+      },
+      {
+        "build_end_ms": 2057.4609,
+        "build_start_ms": 1559.117,
+        "compacted": false,
+        "compaction_end_ms": -1,
+        "compaction_start_ms": -1,
+        "generation_metadata_end_ms": 1654.6958,
+        "generation_metadata_start_ms": 1651.5015,
+        "generation_wal_cpu_ms": 0.404691,
+        "generation_wal_end_ms": 1560.2147,
+        "generation_wal_start_ms": 1559.1173,
+        "m4_apply_end_ms": 2022.8713,
+        "m4_apply_start_ms": 2011.9051,
+        "m4_build_end_ms": 2029.8659,
+        "m4_build_start_ms": 1654.698,
+        "m4_clone_end_ms": 1659.663,
+        "m4_clone_start_ms": 1654.7054,
+        "m4_flush_end_ms": 2029.8566,
+        "m4_flush_start_ms": 2022.8754,
+        "m4_open_end_ms": 2011.9049,
+        "m4_open_start_ms": 1659.6661,
+        "manifest_publish_end_ms": 2060.8574,
+        "manifest_publish_start_ms": 2057.4613,
+        "post_m4_sync_end_ms": 2056.9797,
+        "post_m4_sync_start_ms": 2029.8661,
+        "query_release_ms": 1558.9879,
+        "retirement_end_ms": 2112.6548,
+        "retirement_start_ms": 2112.2595,
+        "round": 2,
+        "round_end_ms": 2112.6548,
+        "round_start_ms": 1558.6104,
+        "snapshot_finalize_end_ms": 2057.4571,
+        "snapshot_finalize_start_ms": 2056.985,
+        "snapshot_publish_end_ms": 2060.8611,
+        "snapshot_publish_start_ms": 2060.86,
+        "vector_end_ms": 1651.5006,
+        "vector_flush_end_ms": 1650.9867,
+        "vector_flush_start_ms": 1630.6589,
+        "vector_open_end_ms": 1628.2651,
+        "vector_open_start_ms": 1561.9337,
+        "vector_start_ms": 1560.3403,
+        "writer_tid": 710122
+      },
+      {
+        "build_end_ms": 2550.0279,
+        "build_start_ms": 2112.9505,
+        "compacted": true,
+        "compaction_end_ms": 2212.3117,
+        "compaction_start_ms": 2113.8014,
+        "generation_metadata_end_ms": 2215.3122,
+        "generation_metadata_start_ms": 2212.3125,
+        "generation_wal_cpu_ms": 0.179335,
+        "generation_wal_end_ms": 2113.5355,
+        "generation_wal_start_ms": 2112.9508,
+        "m4_apply_end_ms": 2512.9984,
+        "m4_apply_start_ms": 2502.0627,
+        "m4_build_end_ms": 2523.7804,
+        "m4_build_start_ms": 2215.3129,
+        "m4_clone_end_ms": 2220.4314,
+        "m4_clone_start_ms": 2215.3152,
+        "m4_flush_end_ms": 2523.7722,
+        "m4_flush_start_ms": 2512.9993,
+        "m4_open_end_ms": 2502.0624,
+        "m4_open_start_ms": 2220.4368,
+        "manifest_publish_end_ms": 2553.6871,
+        "manifest_publish_start_ms": 2550.028,
+        "post_m4_sync_end_ms": 2549.8948,
+        "post_m4_sync_start_ms": 2523.7806,
+        "query_release_ms": 2112.908,
+        "retirement_end_ms": 2597.0217,
+        "retirement_start_ms": 2593.9179,
+        "round": 3,
+        "round_end_ms": 2597.0217,
+        "round_start_ms": 2112.7952,
+        "snapshot_finalize_end_ms": 2550.0264,
+        "snapshot_finalize_start_ms": 2549.896,
+        "snapshot_publish_end_ms": 2553.693,
+        "snapshot_publish_start_ms": 2553.6897,
+        "vector_end_ms": 2212.3117,
+        "vector_flush_end_ms": 2211.1814,
+        "vector_flush_start_ms": 2183.9438,
+        "vector_open_end_ms": 2173.0949,
+        "vector_open_start_ms": 2114.9722,
+        "vector_start_ms": 2113.8014,
+        "writer_tid": 710122
+      },
+      {
+        "build_end_ms": 3012.5694,
+        "build_start_ms": 2597.3628,
+        "compacted": false,
+        "compaction_end_ms": -1,
+        "compaction_start_ms": -1,
+        "generation_metadata_end_ms": 2688.8174,
+        "generation_metadata_start_ms": 2685.6623,
+        "generation_wal_cpu_ms": 0.242449,
+        "generation_wal_end_ms": 2598.5618,
+        "generation_wal_start_ms": 2597.3631,
+        "m4_apply_end_ms": 2968.9183,
+        "m4_apply_start_ms": 2957.5644,
+        "m4_build_end_ms": 2976.3108,
+        "m4_build_start_ms": 2688.8188,
+        "m4_clone_end_ms": 2693.7148,
+        "m4_clone_start_ms": 2688.8222,
+        "m4_flush_end_ms": 2976.3026,
+        "m4_flush_start_ms": 2968.9194,
+        "m4_open_end_ms": 2957.5643,
+        "m4_open_start_ms": 2693.7155,
+        "manifest_publish_end_ms": 3016.5728,
+        "manifest_publish_start_ms": 3012.5695,
+        "post_m4_sync_end_ms": 3012.3536,
+        "post_m4_sync_start_ms": 2976.311,
+        "query_release_ms": 2597.3207,
+        "retirement_end_ms": 3061.6102,
+        "retirement_start_ms": 3061.2163,
+        "round": 4,
+        "round_end_ms": 3061.6102,
+        "round_start_ms": 2597.1214,
+        "snapshot_finalize_end_ms": 3012.5665,
+        "snapshot_finalize_start_ms": 3012.3552,
+        "snapshot_publish_end_ms": 3016.576,
+        "snapshot_publish_start_ms": 3016.5745,
+        "vector_end_ms": 2685.6606,
+        "vector_flush_end_ms": 2684.9489,
+        "vector_flush_start_ms": 2666.9635,
+        "vector_open_end_ms": 2664.492,
+        "vector_open_start_ms": 2600.1382,
+        "vector_start_ms": 2598.6056,
+        "writer_tid": 710122
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "controller_pid": 732309,
+  "gate_failures": [
+    "MemAvailable=5477761 >= 5477762 KiB (M4-RG-MEM)",
+    "resource-root available bytes=16532582400 >= 18219000000 bytes (M4-RG-DISK)"
+  ],
+  "state": "preflight_blocked",
+  "timestamp_utc": "2026-10-21T02:36:31.551180+00:00",
+  "unit": null
+}

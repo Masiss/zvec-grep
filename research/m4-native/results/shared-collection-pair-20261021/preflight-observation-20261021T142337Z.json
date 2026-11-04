@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "operation_id": "m4-shared-collection-pair-20261021-r1",
+  "status": "PREFLIGHT_BLOCKED",
+  "benchmark_started": false,
+  "authorization": "Owner approved the operation in the active conversation ('được, làm đi, tuỳ ý bạn'); no retry or altered threshold implied.",
+  "observation_timestamp_utc": "2026-10-21T14:23:37.939132+00:00",
+  "observation_scope": "Single read-only host snapshot before any workload/cgroup launch; not a complete operation receipt or a 10-second stability window.",
+  "approved_contract": {
+    "policy_id": "m4-benchmark-operation-policy-v1",
+    "policy_file": "research/m4-native/docs/benchmark-policy.json",
+    "workload": "same binary; randomized immutable-shard/shared-collection pair; 500 documents x 5 churn rounds per arm; 4 readers; 1 query per reader per round; strict fingerprint verification; M4 WAL fsync and native flush",
+    "resource_controls": {"memory_max_bytes": 1073741824, "memory_swap_max_bytes": 0, "cpu_max": "200000 100000", "pids_max": 128, "runtime_limit_seconds": 180, "host_memory_reserve_bytes": 3221225472, "disk_reserve_bytes": 18219000000, "io_full_avg10_max_percent": 4.46},
+    "memory_min_kib": 4194304
+  },
+  "host_snapshot": {
+    "MemAvailable_kib": 9133756,
+    "MemTotal_kib": 16051136,
+    "SwapFree_kib": 16530536,
+    "SwapTotal_kib": 24802296,
+    "loadavg": [1.35, 1.54, 1.66],
+    "io_pressure_full_avg10_percent": 4.48,
+    "io_pressure_full_avg60_percent": 3.95,
+    "io_pressure_full_avg300_percent": 3.6,
+    "memory_pressure_some_avg10_percent": 0.0,
+    "memory_pressure_full_avg10_percent": 0.0,
+    "var_tmp_free_bytes": 87438942208,
+    "vmstat": {"pswpin_pages": 32890083, "pswpout_pages": 46744052, "oom_kill": 7, "pgscan_direct": 55711414, "pgsteal_direct": 26819567}
+  },
+  "gate_decision": {
+    "blocking_gate": "M4-SHARED-PAIR-IO-PSI",
+    "observed_percent": 4.48,
+    "maximum_percent": 4.46,
+    "difference_percentage_points": 0.02,
+    "result": "FAIL",
+    "other_observed_guards": "proposed memory reserve and disk free floor passed in this snapshot; load is observational only",
+    "disposition": "Do not launch either arm. Preserve this refusal; no threshold/process change, poll-until-green, or automatic retry. Any new attempt requires fresh owner authorization and a new complete preflight."
+  },
+  "workloads_or_units_launched": 0,
+  "active_m4_units_at_observation": 0,
+  "source_or_policy_mutations_for_this_attempt": 0
+}

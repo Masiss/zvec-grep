@@ -1,0 +1,36 @@
+{
+  "actual_caps": {
+    "approval_reference": "/home/masis/src/zvec-grep/research/m4-native/results/autonomous-campaign-20261020/owner-rehearsal-continuation-authorization.md",
+    "cpu_max": "200000 100000",
+    "memory_max_bytes": "1073741824",
+    "memory_swap_max_bytes": "0",
+    "pids_max": "128",
+    "workspace_limits": "sampled-abort-only; no kernel/filesystem quota is available"
+  },
+  "benchmark_evidence": false,
+  "campaign_attempts_after": 2,
+  "campaign_attempts_before": 2,
+  "cleanup": {
+    "cgroup_absent": true,
+    "socket_absent": true,
+    "unit": "m4-contained-579ca03808454887.service",
+    "unit_state": "LoadState=not-found\nActiveState=inactive\n",
+    "workspace_empty": true
+  },
+  "independent_watchdog_context_digest": "39486a8575aa53f18d0e44a965c82c09d65c377337ccf5918074cacbf7fe8efe",
+  "limits": "fixed32KiB payload/1s hold; not native initialization/vector/durability correctness/performance or overload test",
+  "native_attempts_consumed": 0,
+  "proc_io_worker": {
+    "cancelled_write_bytes": 0,
+    "rchar": 1326832,
+    "read_bytes": 0,
+    "syscr": 142,
+    "syscw": 1,
+    "wchar": 32768,
+    "write_bytes": 49152
+  },
+  "runtime_samples": 12,
+  "status": "PASS",
+  "strict_runtime_contract_all_samples": true,
+  "synthetic_only": true
+}
