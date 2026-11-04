@@ -115,11 +115,11 @@ pub enum DaemonError {
     #[error("zvec-grep server is already running with PID {pid}")]
     AlreadyRunning { pid: u32 },
     #[error(
-        "legacy zvec-grep daemon (PID {pid}) has no daemonProtocolVersion and cannot serve this client; run `zg --server on` with the same --home to replace it"
+        "legacy zvec-grep daemon (PID {pid}) has no daemonProtocolVersion and cannot serve this client; use a compatible client, explicitly stop it with `zg --server off` before restarting, or bypass it with `--mode direct`"
     )]
     LegacyDaemon { pid: u32 },
     #[error(
-        "zvec-grep daemon (PID {pid}) uses daemonProtocolVersion {actual}, but this client requires {expected}; use a compatible client or explicitly stop the daemon before restarting"
+        "zvec-grep daemon (PID {pid}) uses daemonProtocolVersion {actual}, but this client requires {expected}; use a compatible client, explicitly stop it with `zg --server off` before restarting, or bypass it with `--mode direct`"
     )]
     ProtocolMismatch {
         pid: u32,

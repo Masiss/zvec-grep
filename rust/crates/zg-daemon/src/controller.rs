@@ -30,7 +30,7 @@ const STARTUP_FILE: &str = "startup.lock";
 const START_TIMEOUT: Duration = Duration::from_secs(10);
 const HTTP_TIMEOUT: Duration = Duration::from_secs(2);
 const SIGNAL_GRACE: Duration = Duration::from_secs(2);
-const DAEMON_PROTOCOL_VERSION: u32 = 1;
+const DAEMON_PROTOCOL_VERSION: u32 = 2;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum StopMode {
@@ -557,6 +557,18 @@ async fn stop_recorded_server(
     Ok(DaemonStatus::default())
 }
 
+fn validate_daemon_protocol(pid: u32, actual: Option<u32>) -> Result<(), DaemonError> {
+    match actual {
+        Some(DAEMON_PROTOCOL_VERSION) => Ok(()),
+        Some(actual) => Err(DaemonError::ProtocolMismatch {
+            pid,
+            actual,
+            expected: DAEMON_PROTOCOL_VERSION,
+        }),
+        None => Err(DaemonError::LegacyDaemon { pid }),
+    }
+}
+
 /// Returns current daemon status for a home directory.
 ///
 /// # Errors
@@ -567,17 +579,7 @@ pub async fn server_status(home: &Path) -> Result<DaemonStatus, DaemonError> {
     let Some(record) = read_running_instance(home).await? else {
         return Ok(DaemonStatus::default());
     };
-    match record.daemon_protocol_version {
-        Some(DAEMON_PROTOCOL_VERSION) => {}
-        Some(actual) => {
-            return Err(DaemonError::ProtocolMismatch {
-                pid: record.pid,
-                actual,
-                expected: DAEMON_PROTOCOL_VERSION,
-            });
-        }
-        None => return Err(DaemonError::LegacyDaemon { pid: record.pid }),
-    }
+    validate_daemon_protocol(record.pid, record.daemon_protocol_version)?;
     let address = record_address(&record, home).await?;
     let healthy = http_request(&address, "GET", "/healthz", Duration::from_secs(1), None)
         .await
@@ -925,9 +927,28 @@ mod tests {
 
     use super::{
         DaemonInstanceRecord, InstanceLock, STARTUP_FILE, StartupLock, StartupRecord, daemon_dir,
-        hostname, instance_path, read_instance_record,
+        hostname, instance_path, read_instance_record, validate_daemon_protocol,
     };
     use crate::{DaemonError, ServerConfig};
+
+    #[test]
+    fn daemon_protocol_accepts_only_current_version_and_explains_incompatibility() {
+        assert!(validate_daemon_protocol(7, Some(2)).is_ok());
+        assert!(matches!(
+            validate_daemon_protocol(7, None),
+            Err(DaemonError::LegacyDaemon { pid: 7 })
+        ));
+        for actual in [1, 3] {
+            assert!(matches!(
+                validate_daemon_protocol(7, Some(actual)),
+                Err(DaemonError::ProtocolMismatch {
+                    pid: 7,
+                    actual: found,
+                    expected: 2,
+                }) if found == actual
+            ));
+        }
+    }
 
     #[tokio::test]
     async fn instance_lock_replaces_an_incomplete_record_with_complete_states() {
