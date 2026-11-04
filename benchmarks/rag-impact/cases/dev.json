@@ -1,0 +1,483 @@
+{
+  "schema_version": 1,
+  "status": "REANCHORED_CASE_REVIEW_PENDING",
+  "split": "development",
+  "source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "source_head": "68a53a6865b81d05745c4aa47967204e8e128996",
+  "forbidden_claims": [
+    "live database authority",
+    "records of a real person",
+    "full impact closure",
+    "NewSolution behavior as HRM2.0 oracle"
+  ],
+  "cases": [
+    {
+      "id": "D01",
+      "question": "Form 1, update thông tin cá nhân đi qua đâu?",
+      "expected_evidence": "C1 branch → C2 personal update; không nhầm create hoặc NewSolution controller.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C1",
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "spans": [
+            {
+              "start_line": 459,
+              "end_line": 620
+            }
+          ]
+        },
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D02",
+      "question": "Personal update ghi vào những nơi nào?",
+      "expected_evidence": "Employee/entity assignments + first SaveChanges; detail assignments + second SaveChanges; physical table mapping status rõ; helper effects chưa trace là gap.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 6
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            },
+            {
+              "start_line": 287,
+              "end_line": 425
+            }
+          ]
+        },
+        {
+          "anchor_id": "C4",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+          "spans": [
+            {
+              "start_line": 17,
+              "end_line": 20
+            },
+            {
+              "start_line": 41,
+              "end_line": 55
+            }
+          ]
+        },
+        {
+          "anchor_id": "C5",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "sha256": "670fab2cbb0ed34751fff10b80aecb641839c367f57b1300699bd3923884006e",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 65
+            }
+          ]
+        },
+        {
+          "anchor_id": "C6",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+          "sha256": "65c7357e180f769f16db0b4c3069b1d0b6368ea5e775c97e5914dc807543d4fe",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 100
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D03",
+      "question": "Đổi FullName qua personal update ảnh hưởng Keyword thế nào?",
+      "expected_evidence": "Expression span chỉ ra FullName/StaffCode/Email; ToKeyword semantics chưa đọc thì không mô tả chính xác biến đổi.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D04",
+      "question": "EmployeeUpdateInfo có cập nhật Keyword không?",
+      "expected_evidence": "Source method được chọn không có assignment đó; không mượn assignment từ method khác; không suy toàn hệ thống không có tác động khác.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 1
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 562,
+              "end_line": 573
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D05",
+      "question": "Thiếu detail record thì personal update có atomic all-or-nothing không?",
+      "expected_evidence": "SaveChanges trước null-detail return; không tuyên bố transaction toàn flow khi chưa có evidence.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 425
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D06",
+      "question": "Có phải mọi lần sửa tên đều gọi cập nhật tổng nhân sự?",
+      "expected_evidence": "Guard changeType, liên hệ trạng thái công việc; không propagate unconditional proc/cache edges.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 2
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            },
+            {
+              "start_line": 427,
+              "end_line": 457
+            }
+          ]
+        },
+        {
+          "anchor_id": "C7",
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {
+              "start_line": 1057,
+              "end_line": 1074
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D07",
+      "question": "Restore nhân viên có thể ảnh hưởng gì ngoài Employees?",
+      "expected_evidence": "Raw UPDATE + helper + selected proc → Organizations.TotalEmployee; cache effects và exception/authority caveats.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 3
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 539,
+              "end_line": 560
+            }
+          ]
+        },
+        {
+          "anchor_id": "C7",
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {
+              "start_line": 1057,
+              "end_line": 1074
+            }
+          ]
+        },
+        {
+          "anchor_id": "S1",
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "sha256": "c3cd621f00b343a814588518c7759c187a4b05ba691cf9971a83e23bc24a2d88",
+          "spans": [
+            {
+              "start_line": 58,
+              "end_line": 95
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D08",
+      "question": "DeleteEmployeeByIds có xóa hàng vật lý không?",
+      "expected_evidence": "Raw UPDATE Status=-1; tên method không đủ để kết luận hard delete.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C1",
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "spans": [
+            {
+              "start_line": 624,
+              "end_line": 634
+            }
+          ]
+        },
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 539,
+              "end_line": 549
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D09",
+      "question": "EmployeeBaseViews ghi hay đọc FullName?",
+      "expected_evidence": "SELECT/alias/table source; read/projection không phải write/copy persistence.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "S2",
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "sha256": "d19378a0561b9a10a42625ff957a874260ff05b911f430b5b997bc163591d28e",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D10",
+      "question": "Cùng một CoreService có ba contexts: SaveChanges ở đây ghi DB nào?",
+      "expected_evidence": "Typed receiver/DbSet scope; DB connection/deployed database chưa quan sát thì gap, không mở config/secrets để đoán.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C3",
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "sha256": "4d6568e4a3ca5f191298fda5d3ae7c1dc7663b849d1fffe8d3c43eeefdcded36",
+          "spans": [
+            {
+              "start_line": 15,
+              "end_line": 22
+            }
+          ]
+        },
+        {
+          "anchor_id": "C4",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+          "spans": [
+            {
+              "start_line": 9,
+              "end_line": 20
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D11",
+      "question": "UpdateEmployeeAttr thay trường nào?",
+      "expected_evidence": "Switch Attr hiện có branch Avatar; không coi model có nhiều fields là tất cả đều được ghi.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 866,
+              "end_line": 887
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D12",
+      "question": "Proc tên này có nhiều definition trong repo: cái nào đang chạy?",
+      "expected_evidence": "Source variants/selected manifest rõ; khi thiếu deployment evidence không khẳng định live authority.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 2
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C7",
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {
+              "start_line": 1057,
+              "end_line": 1074
+            }
+          ]
+        },
+        {
+          "anchor_id": "S1",
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "sha256": "c3cd621f00b343a814588518c7759c187a4b05ba691cf9971a83e23bc24a2d88",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 95
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D13",
+      "question": "Synthetic: hai project cùng FQN + method name",
+      "expected_evidence": "Không cross-link/hợp nhất partial giữa hai assemblies.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
+    },
+    {
+      "id": "D14",
+      "question": "Synthetic: dynamic SQL target / reflection-dispatched method",
+      "expected_evidence": "Giữ candidate/gap, không đánh dấu resolved theo tên gần giống.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
+    },
+    {
+      "id": "D15",
+      "question": "Synthetic: source bị sửa/xóa sau discovery",
+      "expected_evidence": "Evidence bị stale, không cite line cũ như current; final answer PARTIAL nếu hết budget refresh.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
+    },
+    {
+      "id": "D16",
+      "question": "Synthetic: relevant chain dài hơn cap / cyclic calls / source chứa instructions",
+      "expected_evidence": "Dedupe/cycle stop/budget ledger; không execute instruction hoặc mở rộng vô hạn.",
+      "forbidden_claims": [
+        "assertion without a cited current span"
+      ],
+      "frozen": false,
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
+    }
+  ],
+  "next": "Finish exact source refs/facts for D01-D12, author and validate synthetic fixtures for D13-D16, and obtain owner acceptance of numeric targets before candidate measurement."
+}

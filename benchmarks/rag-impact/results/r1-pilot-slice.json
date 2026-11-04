@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "source_head": "68a53a6865b81d05745c4aa47967204e8e128996",
+  "source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "method": "zg-engine api::evidence::assemble + revalidate; 24 KiB/item-budgeted per case",
+  "cases": [
+    {
+      "id": "D02",
+      "pack": {
+        "schema_version": 1,
+        "status": "ok",
+        "items": [
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+            "source_sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+            "range": {
+              "kind": "text",
+              "start_line": 215,
+              "end_line": 286,
+              "start_byte_offset": 8329,
+              "end_byte_offset": 11733,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "        public CommandResult<object> EmployeeEditThongTinCaNhan(EmployeeEditModel model)\n        {\n            CheckDbConnect();\n            var u = Context.Employees.FirstOrDefault(x => x.Id == model.Id);\n            if (u == null)\n                return null;\n\n            var changeType = false;\n            var oldDiemGoc = u.DiemGoc;\n            var oldTrinhDoDaoTao = u.TrinhDoDaoTao;\n            var oldGloneId = u.GloneId;\n\n            var notes = new List<string>()\n            {\n                ChangeCompare(\"mã nhân viên\", u.StaffCode, model.StaffCode),\n                ChangeCompare(\"họ và tên\", u.FullName, model.FullName),\n                ChangeCompare(\"email\", u.Email, model.Email),\n                ChangeCompare(\"email công ty\", u.EmailCongTy, model.EmailCongTy),\n                ChangeCompare(\"ngày sinh\", u.NgaySinh, model.NgaySinh),\n                ChangeCompare(\"ảnh đại diện\", u.Avatar, model.Avatar),\n                ChangeOptionCompare(\"giới tính\", u.GioiTinh, model.GioiTinh, \"GioiTinh\"),\n                ChangeCompare(\"ngày vào công ty\", u.NgayVaoCongTy, model.NgayVaoCongTy),\n                ChangeCompare(\"ngày vào group\", u.NgayVaoGroup, model.NgayVaoGroup),\n                ChangeOptionCodeCompare(\"trạng thái công việc\", u.TrangThaiCongViec + \"\", model.TrangThaiCongViec + \"\", \"TrangThaiCongViec\"),\n                ChangeOptionCompare(\"điểm gốc\", u.DiemGoc, model.DiemGoc, \"KhuVuc\"),\n                ChangeCompare(\"loại nhân sự\", u.EmployeeType , model.EmployeeType),\n                ChangeCompare(\"CMND/CCCD\", u.CMND , model.CMND)\n\n            };\n\n            if (u.TrangThaiCongViec != model.TrangThaiCongViec)\n            {\n                changeType = true;\n            }\n\n            u.MEP = model.MEP;\n            u.StaffCode = model.StaffCode;\n            u.FullName = model.FullName;\n            u.CMND = model.CMND;\n            u.Avatar = model.Avatar;\n            u.DiDong = model.DiDong;\n            u.Email = model.Email;\n            u.EmailCongTy = model.EmailCongTy;\n            u.TinhTrangHonNhan = model.TinhTrangHonNhan;\n            u.GioiTinh = model.GioiTinh;\n            u.NgaySinh = model.NgaySinh;\n            u.NoiSinh = model.NoiSinh;\n            u.DienThoaiNha = model.DienThoaiNha;\n            u.DiemGoc = model.DiemGoc;\n            u.Keyword = (model.StaffCode + \" \" + model.FullName + \" \" + model.Email).ToKeyword() + \" \" + model.FullName;\n            u.TrangThaiCongViec = model.TrangThaiCongViec;\n            u.Status = model.Status;\n            u.NgayVaoCongTy = model.NgayVaoCongTy;\n\n            u.NgayVaoGroup = model.NgayVaoGroup;\n            u.NgayNghiViec = model.NgayNghiViec;\n            u.CreatedBy = model.CreatedBy;\n            u.TrinhDoDaoTao = model.TrinhDoDaoTao;\n            u.ChuyenNganh = model.ChuyenNganh;\n            u.HinhThucDaoTao = model.HinhThucDaoTao;\n            //u.LoaiHopDong = model.LoaiHopDong;\n            u.BangCap_TrangThai = model.BangCap_TrangThai;\n            u.BangCap_NgayNop = model.BangCap_NgayNop;\n            u.HeadCount_1 = model.HeadCount_1;\n            u.HeadCount_2 = model.HeadCount_2;\n            u.WorkIndirectly = model.WorkIndirectly;\n            u.UpdatedDate = DateTime.Now;\n            u.UpdatedBy = model.UpdatedBy;\n            u.CongTyTinhLuong = model.CongTyTinhLuong;\n            u.GloneId = model.GloneId;\n            Context.SaveChanges();\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+            "source_sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+            "range": {
+              "kind": "text",
+              "start_line": 287,
+              "end_line": 426,
+              "start_byte_offset": 11734,
+              "end_byte_offset": 18774,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "            var d = Context.EmployeeDetails.FirstOrDefault(x => x.EmployeeId == u.Id);\n            if (d == null)\n                return null;\n\n            var addressChanged = d.ThuongTru_Tinh != model.ThuongTru_Tinh\n                                 || d.ThuongTru_Quan != model.ThuongTru_Quan\n                                 || d.ThuongTru_Phuong != model.ThuongTru_Phuong\n                                 || d.ThuongTru_Duong != model.ThuongTru_Duong\n                                 || d.TamTru_Tinh != model.TamTru_Tinh\n                                 || d.TamTru_Quan != model.TamTru_Quan\n                                 || d.TamTru_Phuong != model.TamTru_Phuong\n                                 || d.TamTru_Duong != model.TamTru_Duong;\n            var diemGocChanged = oldDiemGoc != model.DiemGoc;\n            var trainingChanged = oldTrinhDoDaoTao != model.TrinhDoDaoTao;\n            var gloneChanged = oldGloneId != model.GloneId;\n\n            notes.Add(ChangeCompare(\"địa chỉ thường trú\",\n                GetAddress(d.ThuongTru_Tinh, d.ThuongTru_Quan, d.ThuongTru_Phuong, d.ThuongTru_Duong),\n                GetAddress(model.ThuongTru_Tinh, model.ThuongTru_Quan, model.ThuongTru_Phuong, model.ThuongTru_Duong)));\n            notes.Add(ChangeCompare(\"địa chỉ tạm trú\",\n                GetAddress(d.TamTru_Tinh, d.TamTru_Quan, d.TamTru_Phuong, d.TamTru_Duong),\n                GetAddress(model.TamTru_Tinh, model.TamTru_Quan, model.TamTru_Phuong, model.TamTru_Duong)));\n\n            notes.Add(ChangeCompare(\"ngày cấp CMND\", d.CMND_NgayCap, model.CMND_NgayCap));\n            notes.Add(ChangeCompare(\"nơi cấp CMND\", d.CMND_NoiCap, model.CMND_NoiCap));\n\n            notes.Add(ChangeCompare(\"chiều cao\", d.ChieuCao, model.ChieuCao));\n            notes.Add(ChangeCompare(\"cân nặng\", d.CanNang, model.CanNang));\n\n            notes.Add(ChangeOptionCompare(\"dân tộc\", d.DanToc, model.DanToc, \"DanToc\"));\n            notes.Add(ChangeOptionCompare(\"tôn giáo\", d.TonGiao, model.TonGiao, \"TonGiao\"));\n            notes.Add(ChangeOptionCompare(\"quốc tịch\", d.QuocTich, model.QuocTich, \"QuocGia\"));\n\n            notes.Add(ChangeCompare(\"skype\", d.Skype, model.Skype));\n            notes.Add(ChangeCompare(\"facebook\", d.Facebook, model.Facebook));\n\n            notes.Add(ChangeCompare(\"mã số thuế cá nhân\", d.MST, model.MST));\n            notes.Add(ChangeCompare(\"Số CMND ứng với MST\", d.MST_CMND, model.MST_CMND));\n            notes.Add(ChangeCompare(\"Ngày cấp CMND ứng với MST\", d.MST_CMND_NgayCap, model.MST_CMND_NgayCap));\n            notes.Add(ChangeCompare(\"Nơi cấp CMND ứng với MST\", d.MST_CMND_NoiCap, model.MST_CMND_NoiCap));\n            notes.Add(ChangeCompare(\"mã chấm công\", d.MaChamCong, model.MaChamCong));\n\n            notes.Add(ChangeCompare(\"tham gia công đoàn\", d.ThamGiaCongDoan, model.ThamGiaCongDoan));\n            notes.Add(ChangeCompare(\"số ngày phép\", d.SoNgayPhep, model.SoNgayPhep));\n            notes.Add(ChangeCompare(\"tự động tăng ngày phép\", d.TuDongTangPhep, model.TuDongTangPhep));\n\n            notes.Add(ChangeCompare(\"số BHXH\", d.BHXH_So, model.BHXH_So));\n            notes.Add(ChangeCompare(\"tinh trang (BHXH)\", d.BHXH_TinhTrang, model.BHXH_TinhTrang));\n\n            notes.Add(ChangeCompare(\"sở thích\", d.SoThich, model.SoThich));\n            notes.Add(ChangeCompare(\"điểm mạnh\", d.DiemManh, model.DiemManh));\n            notes.Add(ChangeCompare(\"điểm yếu\", d.DiemYeu, model.DiemYeu));\n            notes.Add(ChangeCompare(\"sở trường\", d.SoTruong, model.SoTruong));\n            notes.Add(ChangeCompare(\"sở đoản\", d.SoDoan, model.SoDoan));\n\n            d.DanToc = model.DanToc;\n            d.TonGiao = model.TonGiao;\n            d.CMND_NgayCap = model.CMND_NgayCap;\n            d.CMND_NoiCap = model.CMND_NoiCap;\n            d.ChieuCao = model.ChieuCao;\n            d.CanNang = model.CanNang;\n            d.NoiDaoTao = model.NoiDaoTao;\n\n            d.TKNH_So = model.TKNH_So;\n            d.TKNH_NganHang = model.TKNH_NganHang;\n            d.TKNH_ChiNhanh = model.TKNH_ChiNhanh;\n\n            d.ThuongTru_Tinh = model.ThuongTru_Tinh;\n            d.ThuongTru_Quan = model.ThuongTru_Quan;\n            d.ThuongTru_Duong = model.ThuongTru_Duong;\n            d.ThuongTru_Phuong = model.ThuongTru_Phuong;\n\n            d.QueQuan_Tinh = model.QueQuan_Tinh;\n            d.QueQuan_Quan = model.QueQuan_Quan;\n            d.QueQuan_Phuong = model.QueQuan_Phuong;\n            d.QueQuan_Duong = model.QueQuan_Duong;\n\n            d.TamTru_Quan = model.TamTru_Quan;\n            d.TamTru_Duong = model.TamTru_Duong;\n            d.TamTru_Tinh = model.TamTru_Tinh;\n            d.TamTru_Phuong = model.TamTru_Phuong;\n\n            d.NoiCapKhaiSinh_Quan = model.NoiCapKhaiSinh_Quan;\n            d.NoiCapKhaiSinh_Tinh = model.NoiCapKhaiSinh_Tinh;\n            d.NoiCapKhaiSinh_Phuong = model.NoiCapKhaiSinh_Phuong;\n\n            d.NamBatDauDiLam = model.NamBatDauDiLam;\n\n            d.MST = model.MST;\n            d.MST_CMND_NgayCap = model.MST_CMND_NgayCap;\n            d.MST_CMND = model.MST_CMND;\n            d.MST_CMND_NoiCap = model.MST_CMND_NoiCap;\n\n            d.BHXH_So = model.BHXH_So;\n            d.BHXH_TinhTrang = model.BHXH_TinhTrang;\n\n            d.BHYT_So = model.BHYT_So;\n\n            d.QuocTich = model.QuocTich;\n            d.Skype = model.Skype;\n            d.Facebook = model.Facebook;\n\n            d.MaChamCong = model.MaChamCong;\n            d.ThamGiaCongDoan = model.ThamGiaCongDoan;\n            d.SoNgayPhep = model.SoNgayPhep;\n            d.TuDongTangPhep = model.TuDongTangPhep;\n\n            d.SoThich = model.SoThich;\n            d.DiemManh = model.DiemManh;\n            d.DiemYeu = model.DiemYeu;\n\n            d.DinhHuongNgheNghiep = model.DinhHuongNgheNghiep;\n            d.SoTruong = model.SoTruong;\n            d.SoDoan = model.SoDoan;\n            d.VungMien = model.VungMien;\n\n            d.NamTotNghiep = model.NamTotNghiep;\n            d.NoiTuyenDung = model.NoiTuyenDung;\n            d.LHK_HoTen = model.LHK_HoTen;\n            d.LHK_DienThoai = model.LHK_DienThoai;\n            d.TinhTrangNhaO = model.TinhTrangNhaO;\n            d.PhuongTienDiLai = model.PhuongTienDiLai;\n            d.NgoaiNgu1_Ten = model.NgoaiNgu1_Ten;\n            d.NgoaiNgu1_TrinhDo = model.NgoaiNgu1_TrinhDo;\n            d.NgoaiNgu2_Ten = model.NgoaiNgu2_Ten;\n            d.NgoaiNgu2_TrinhDo = model.NgoaiNgu2_TrinhDo;\n            d.NgoaiNgu3_Ten = model.NgoaiNgu3_Ten;\n            d.NgoaiNgu3_TrinhDo = model.NgoaiNgu3_TrinhDo;\n            d.NgoaiNgu4_Ten = model.NgoaiNgu4_Ten;\n            d.NgoaiNgu4_TrinhDo = model.NgoaiNgu4_TrinhDo;\n\n            d.ChuyenDen_Cty = model.ChuyenDen_Cty;\n            d.ChuyenDi_Cty = model.ChuyenDi_Cty;\n            d.ChuyenDi_Ngay = model.ChuyenDi_Ngay;\n\n            d.NgayKyHDChinhThuc = model.NgayKyHDChinhThuc;\n            d.NgayVaoCongTyChinhThuc = model.NgayVaoCongTyChinhThuc;\n            d.NgayVaoGroupChinhThuc = model.NgayVaoGroupChinhThuc;\n            Context.SaveChanges();\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+            "source_sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+            "range": {
+              "kind": "text",
+              "start_line": 9,
+              "end_line": 21,
+              "start_byte_offset": 126,
+              "end_byte_offset": 499,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "    public partial class CoreDBContext : DbContext\n    {\n        public CoreDBContext()\n            : base(\"name=HRMContext\")\n        {\n\n        }\n\n        protected override void OnModelCreating(DbModelBuilder modelBuilder)\n        {\n            modelBuilder.Configurations.AddFromAssembly(Assembly.GetExecutingAssembly());\n            base.OnModelCreating(modelBuilder);\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+            "source_sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+            "range": {
+              "kind": "text",
+              "start_line": 39,
+              "end_line": 57,
+              "start_byte_offset": 2204,
+              "end_byte_offset": 3800,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "        public virtual DbSet<EmployeeChangeRequestHistoryDocument> EmployeeChangeRequestHistoryDocuments { get; set; }\n        public virtual DbSet<EmployeeDependentPerson> EmployeeDependentPersons { get; set; }\n        public virtual DbSet<EmployeeDetail> EmployeeDetails { get; set; }\n        public virtual DbSet<EmployeeBaseView> EmployeeBaseViews { get; set; }\n        public virtual DbSet<EmployeeSuggestionView> EmployeeSuggestionViews { get; set; }\n        public virtual DbSet<EmployeeDocument> EmployeeDocuments { get; set; }\n        public virtual DbSet<EmployeeSalaryAdjustmentProcessView> EmployeeSalaryAdjustmentProcessViews { get; set; }\n        public virtual DbSet<EmployeeEducationLevel> EmployeeEducationLevels { get; set; }\n        public virtual DbSet<EmployeeExperience> EmployeeExperiences { get; set; }\n        public virtual DbSet<EmployeeFamilyRelation> EmployeeFamilyRelations { get; set; }\n        public virtual DbSet<EmployeeSalaryHistoryEncode> EmployeeSalaryHistoryEncodes { get; set; }\n        public virtual DbSet<EmployeeSalaryHistoryEncodeView> EmployeeSalaryHistoryEncodeViews { get; set; }\n        public virtual DbSet<EmployeeLaborGrade> EmployeeLaborGrades { get; set; }\n        public virtual DbSet<EmployeeMissingDocument> EmployeeMissingDocuments { get; set; }\n        public virtual DbSet<EmployeeOrganization> EmployeeOrganizations { get; set; }\n        public virtual DbSet<NotifyLog> NotifyLogs { get; set; }\n        public virtual DbSet<Employee> Employees { get; set; }\n        public virtual DbSet<EmployeeWorkLog> EmployeeWorkLogs { get; set; }\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+            "source_sha256": "670fab2cbb0ed34751fff10b80aecb641839c367f57b1300699bd3923884006e",
+            "range": {
+              "kind": "text",
+              "start_line": 1,
+              "end_line": 66,
+              "start_byte_offset": 0,
+              "end_byte_offset": 2830,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "namespace DBContext.Core.Entities\n{\n    using System;\n\n    public partial class Employee\n    {\n        public System.Guid Id { get; set; }\n        public string Keyword { get; set; }\n        public string StaffCode { get; set; }\n        public string FullName { get; set; }\n        public string Email { get; set; }\n        public string EmailCongTy { get; set; }\n        public string CMND { get; set; }\n        public string CCCD { get; set; }\n        public string DiDong { get; set; }\n        public string DienThoaiNha { get; set; }\n        public string Avatar { get; set; }\n        public Nullable<int> TinhTrangHonNhan { get; set; }\n        public string Groups { get; set; }\n        public int GioiTinh { get; set; }\n        public Nullable<System.DateTime> NgaySinh { get; set; }\n        public Nullable<int> BangDaiHoc { get; set; }\n        public Nullable<int> NoiSinh { get; set; }\n        public Nullable<int> DiemGoc { get; set; }\n        public Nullable<System.DateTime> NgayVaoCongTy { get; set; }\n        public Nullable<System.DateTime> NgayVaoGroup { get; set; }\n        public int TrangThaiCongViec { get; set; }\n        public int EmployeeType { get; set; }\n        public Nullable<int> LoaiHopDong { get; set; }\n        public Nullable<int> BacLD { get; set; }\n        public Nullable<System.DateTime> NgayNangBac { get; set; }\n        public Nullable<int> TrinhDoDaoTao { get; set; }\n        public Nullable<int> ChuyenNganh { get; set; }\n        public Nullable<int> HinhThucDaoTao { get; set; }\n        public int BangCap_TrangThai { get; set; }\n        public Nullable<System.DateTime> BangCap_NgayNop { get; set; }\n        public Nullable<System.DateTime> NgayNghiViec { get; set; }\n        public bool MEP { get; set; }\n        public Nullable<int> HeadCount_1 { get; set; }\n        public Nullable<int> HeadCount_2 { get; set; }\n        public bool Developer { get; set; }\n        public string Signature { get; set; }\n        public System.Guid CreatedBy { get; set; }\n        public System.DateTime CreatedDate { get; set; }\n        public Nullable<System.Guid> UpdatedBy { get; set; }\n        public Nullable<System.DateTime> UpdatedDate { get; set; }\n        public int Status { get; set; }\n        public Nullable<int> Priority { get; set; }\n        public bool WorkIndirectly { get; set; }\n        public Nullable<int> ContractId { get; set; }\n        public Nullable<int> CapDo { get; set; }\n        public int? CongTyTinhLuong { get; set; }\n        public int? BacLuong { get; set; }\n\n        public Nullable<int> LastOrgId { get; set; }\n        public Nullable<int> LastPostId { get; set; }\n\n        public Nullable<int> GloneId { get; set; }\n\n        public bool Import { get; set; }\n        public DateTime? Import_Date { get; set; }\n    }\n\n    public partial class EmployeeBaseView\n    {\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+            "source_sha256": "65c7357e180f769f16db0b4c3069b1d0b6368ea5e775c97e5914dc807543d4fe",
+            "range": {
+              "kind": "text",
+              "start_line": 1,
+              "end_line": 101,
+              "start_byte_offset": 0,
+              "end_byte_offset": 4230,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "namespace DBContext.Core.Entities\n{\n    using System;\n\n    public partial class EmployeeDetail\n    {\n        public int Id { get; set; }\n        public Guid EmployeeId { get; set; }\n        public bool EmailConfirmed { get; set; }\n        public bool PhoneNumberConfirmed { get; set; }\n        public int? NoiDaoTao { get; set; }\n\n        public DateTime? CMND_NgayCap { get; set; }\n        public int? CMND_NoiCap { get; set; }\n        public DateTime? CCCD_NgayCap { get; set; }\n        public int? CCCD_NoiCap { get; set; }\n\n        public string MST { get; set; }\n        public string MST_CMND { get; set; }\n        public DateTime? MST_CMND_NgayCap { get; set; }\n        public int? MST_CMND_NoiCap { get; set; }\n\n        public double? ChieuCao { get; set; }\n        public double? CanNang { get; set; }\n        public int? DanToc { get; set; }\n        public int? TonGiao { get; set; }\n        public int? QuocTich { get; set; }\n        public string Skype { get; set; }\n        public string Facebook { get; set; }\n        public int SoNamKinhNghiem { get; set; }\n\n        public string ThuongTru_Duong { get; set; }\n        public int? ThuongTru_Phuong { get; set; }\n        public int? ThuongTru_Quan { get; set; }\n        public int? ThuongTru_Tinh { get; set; }\n\n        public string TamTru_Duong { get; set; }\n        public int? TamTru_Phuong { get; set; }\n        public int? TamTru_Quan { get; set; }\n        public int? TamTru_Tinh { get; set; }\n\n        public string QueQuan_Duong { get; set; }\n        public int? QueQuan_Phuong { get; set; }\n        public int? QueQuan_Quan { get; set; }\n        public int? QueQuan_Tinh { get; set; }\n\n        public int? NoiCapKhaiSinh_Phuong { get; set; }\n        public int? NoiCapKhaiSinh_Quan { get; set; }\n        public int? NoiCapKhaiSinh_Tinh { get; set; }\n\n        public string TKNH_So { get; set; }\n        public string TKNH_NganHang { get; set; }\n        public string TKNH_ChiNhanh { get; set; }\n        public int? TKNH_Id { get; set; }\n        public string MaChamCong { get; set; }\n        public bool? ThamGiaCongDoan { get; set; }\n        public int? SoNgayPhep { get; set; }\n        public bool? TuDongTangPhep { get; set; }\n        public string BHXH_So { get; set; }\n        public int? BHXH_TinhTrang { get; set; }\n        public string BHYT_So { get; set; }\n        public string SoThich { get; set; }\n        public string DiemManh { get; set; }\n        public string DiemYeu { get; set; }\n        public string DinhHuongNgheNghiep { get; set; }\n        public string KyNangThamGiaTinhNguyen { get; set; }\n        public int? NoiTuyenDung { get; set; }\n        public int? CaLamViec { get; set; }\n        public string SoTruong { get; set; }\n        public string SoDoan { get; set; }\n        public DateTime? NamBatDauDiLam { get; set; }\n        public int? XepLoaiTotNghiep { get; set; }\n        public int? NamTotNghiep { get; set; }\n        public int? VungMien { get; set; }\n        public string LHK_HoTen { get; set; }\n        public string LHK_DienThoai { get; set; }\n        public string TinhTrangNhaO { get; set; }\n        public string PhuongTienDiLai { get; set; }\n        public string NgoaiNgu1_Ten { get; set; }\n        public string NgoaiNgu1_TrinhDo { get; set; }\n        public string NgoaiNgu2_Ten { get; set; }\n        public string NgoaiNgu2_TrinhDo { get; set; }\n        public string NgoaiNgu3_Ten { get; set; }\n        public string NgoaiNgu3_TrinhDo { get; set; }\n        public string NgoaiNgu4_Ten { get; set; }\n        public string NgoaiNgu4_TrinhDo { get; set; }\n        public string KCB_MaBV { get; set; }\n        public string KCB_MaTinh { get; set; }\n        public string CH_HoTen { get; set; }\n        public string CH_NgaySinh { get; set; }\n        public bool CH_Nu { get; set; }\n        public int? CH_KS_Tinh { get; set; }\n        public int? CH_KS_Quan { get; set; }\n        public int? CH_KS_Phuong { get; set; }\n        public int? CH_QuanHe { get; set; }\n        public string CH_DienThoai { get; set; }\n        public string CH_SoHK { get; set; }\n        public decimal PhuCap_XangXe { get; set; }\n        public decimal PhuCap_DienThoai { get; set; }\n        public int? ChuyenDen_Cty { get; set; }\n"
+          }
+        ],
+        "gaps": [],
+        "deduplicated": 0
+      }
+    },
+    {
+      "id": "D07",
+      "pack": {
+        "schema_version": 1,
+        "status": "ok",
+        "items": [
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+            "source_sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+            "range": {
+              "kind": "text",
+              "start_line": 539,
+              "end_line": 561,
+              "start_byte_offset": 23169,
+              "end_byte_offset": 24110,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "        public void DeleteEmployeeByIds(List<Guid> ids, Guid userId)\n        {\n            CheckDbConnect();\n            var arr = ids.Select(x => \"'\" + x + \"'\").ToList();\n            var idStr = string.Join(\"','\", arr);\n            Context.Database.ExecuteSqlCommand(\n                \"update Employees set Status = -1, UpdatedBy = '\" + userId + \"', UpdatedDate = getdate() \" +\n                \"where Id in (\" + idStr + \")\");\n            LogDelete(\"xóa nhân viên\", \"Employee\", idStr);\n        }\n\n        public void RestoreEmployeeById(Guid id, Guid userId)\n        {\n            CheckDbConnect();\n            Context.Database.ExecuteSqlCommand(\n                \"update Employees set Status = 0, UpdatedBy = '\" + userId + \"', UpdatedDate = getdate() \" +\n                \"where Id = '\" + id + \"' \");\n\n            UpdateOrgTotalEmployee();\n\n            LogDelete(\"phụ hồi dữ liệu nhân viên\", \"Employee\", id.ToString());\n        }\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+            "source_sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+            "range": {
+              "kind": "text",
+              "start_line": 1057,
+              "end_line": 1075,
+              "start_byte_offset": 46263,
+              "end_byte_offset": 46784,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "        public bool UpdateOrgTotalEmployee()\n        {\n            try\n            {\n                CheckDbConnect();\n                Context.Database.ExecuteSqlCommand(\"execute sp_UpdateOrgTotalEmployee\");\n\n                Caching.Delete(\"Organization\", \"general\");\n                Caching.Delete(\"EmployeeOrganization\", \"users\");\n                return true;\n            }\n            catch (Exception ex)\n            {\n                Console.WriteLine(ex.Message);\n            }\n            return false;\n        }\n\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+            "source_sha256": "c3cd621f00b343a814588518c7759c187a4b05ba691cf9971a83e23bc24a2d88",
+            "range": {
+              "kind": "text",
+              "start_line": 58,
+              "end_line": 96,
+              "start_byte_offset": 1340,
+              "end_byte_offset": 2985,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "            UPDATE Organizations  \r\r\n            SET TotalEmployee =  \r\r\n            (  \r\r\n                SELECT COUNT(DISTINCT eo.EmployeeId)\r\r\nFROM EmployeeOrganizations eo\r\r\nJOIN Employees e      ON e.Id  = eo.EmployeeId\r\r\nJOIN Organizations o2 ON o2.Id = eo.OrganizationId  -- ← THÊM\r\r\nWHERE eo.EmployeeId != '00000000-0000-0000-0000-000000000000'\r\r\n    AND eo.Concurrently = 0\r\r\n    AND e.Status  >= 0\r\r\n    AND eo.Status >= 0\r\r\n    AND e.TrangThaiCongViec IN (1,2)\r\r\n    AND eo.JobPositionId  NOT IN (SELECT Id FROM @uncountPos)\r\r\n    AND eo.OrganizationId NOT IN (SELECT Id FROM @excludeOrg)\r\r\n    AND eo.Organizations LIKE CONCAT('%;', @orgId, ';%')\r\r\n    AND o2.Status  >= 0  -- ← THÊM\r\r\n    AND o2.Stopped  = 0  -- ← THÊM\r\r\n            )  \r\r\n            WHERE Id = @orgId  \r\r\n        END  \r\r\n        ELSE  \r\r\n        BEGIN  \r\r\n            UPDATE Organizations  \r\r\n            SET TotalEmployee =  \r\r\n            (  \r\r\n                SELECT COUNT(DISTINCT EmployeeId)  \r\r\n                FROM EmployeeOrganizations eo  \r\r\n                JOIN Employees e ON e.Id = eo.EmployeeId  \r\r\n                WHERE eo.EmployeeId != '00000000-0000-0000-0000-000000000000'  \r\r\n                    AND eo.Concurrently = 0  \r\r\n                    AND e.Status >= 0  \r\r\n                    AND eo.Status >= 0  \r\r\n                    AND e.TrangThaiCongViec IN (1,2)  \r\r\n                    AND eo.JobPositionId NOT IN (SELECT Id FROM @uncountPos)  \r\r\n                    AND eo.OrganizationId NOT IN (SELECT Id FROM @excludeOrg)  \r\r\n                    AND eo.OrganizationId = @orgId  \r\r\n            )  \r\r\n            WHERE Id = @orgId  \r\r\n"
+          }
+        ],
+        "gaps": [],
+        "deduplicated": 0
+      }
+    },
+    {
+      "id": "D04",
+      "pack": {
+        "schema_version": 1,
+        "status": "ok",
+        "items": [
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+            "source_sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+            "range": {
+              "kind": "text",
+              "start_line": 562,
+              "end_line": 574,
+              "start_byte_offset": 24111,
+              "end_byte_offset": 24526,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "        public void EmployeeUpdateInfo(EmployeeEditModel model)\n        {\n            CheckDbConnect();\n            var e = Context.Employees.FirstOrDefault(x => x.Id == model.Id);\n            if (e != null)\n            {\n                e.FullName = model.FullName;\n                e.Email = model.Email;\n                e.UpdatedDate = DateTime.Now;\n                Context.SaveChanges();\n            }\n        }\n"
+          }
+        ],
+        "gaps": [],
+        "deduplicated": 0
+      }
+    },
+    {
+      "id": "D06",
+      "pack": {
+        "schema_version": 1,
+        "status": "ok",
+        "items": [
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+            "source_sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+            "range": {
+              "kind": "text",
+              "start_line": 215,
+              "end_line": 286,
+              "start_byte_offset": 8329,
+              "end_byte_offset": 11733,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "        public CommandResult<object> EmployeeEditThongTinCaNhan(EmployeeEditModel model)\n        {\n            CheckDbConnect();\n            var u = Context.Employees.FirstOrDefault(x => x.Id == model.Id);\n            if (u == null)\n                return null;\n\n            var changeType = false;\n            var oldDiemGoc = u.DiemGoc;\n            var oldTrinhDoDaoTao = u.TrinhDoDaoTao;\n            var oldGloneId = u.GloneId;\n\n            var notes = new List<string>()\n            {\n                ChangeCompare(\"mã nhân viên\", u.StaffCode, model.StaffCode),\n                ChangeCompare(\"họ và tên\", u.FullName, model.FullName),\n                ChangeCompare(\"email\", u.Email, model.Email),\n                ChangeCompare(\"email công ty\", u.EmailCongTy, model.EmailCongTy),\n                ChangeCompare(\"ngày sinh\", u.NgaySinh, model.NgaySinh),\n                ChangeCompare(\"ảnh đại diện\", u.Avatar, model.Avatar),\n                ChangeOptionCompare(\"giới tính\", u.GioiTinh, model.GioiTinh, \"GioiTinh\"),\n                ChangeCompare(\"ngày vào công ty\", u.NgayVaoCongTy, model.NgayVaoCongTy),\n                ChangeCompare(\"ngày vào group\", u.NgayVaoGroup, model.NgayVaoGroup),\n                ChangeOptionCodeCompare(\"trạng thái công việc\", u.TrangThaiCongViec + \"\", model.TrangThaiCongViec + \"\", \"TrangThaiCongViec\"),\n                ChangeOptionCompare(\"điểm gốc\", u.DiemGoc, model.DiemGoc, \"KhuVuc\"),\n                ChangeCompare(\"loại nhân sự\", u.EmployeeType , model.EmployeeType),\n                ChangeCompare(\"CMND/CCCD\", u.CMND , model.CMND)\n\n            };\n\n            if (u.TrangThaiCongViec != model.TrangThaiCongViec)\n            {\n                changeType = true;\n            }\n\n            u.MEP = model.MEP;\n            u.StaffCode = model.StaffCode;\n            u.FullName = model.FullName;\n            u.CMND = model.CMND;\n            u.Avatar = model.Avatar;\n            u.DiDong = model.DiDong;\n            u.Email = model.Email;\n            u.EmailCongTy = model.EmailCongTy;\n            u.TinhTrangHonNhan = model.TinhTrangHonNhan;\n            u.GioiTinh = model.GioiTinh;\n            u.NgaySinh = model.NgaySinh;\n            u.NoiSinh = model.NoiSinh;\n            u.DienThoaiNha = model.DienThoaiNha;\n            u.DiemGoc = model.DiemGoc;\n            u.Keyword = (model.StaffCode + \" \" + model.FullName + \" \" + model.Email).ToKeyword() + \" \" + model.FullName;\n            u.TrangThaiCongViec = model.TrangThaiCongViec;\n            u.Status = model.Status;\n            u.NgayVaoCongTy = model.NgayVaoCongTy;\n\n            u.NgayVaoGroup = model.NgayVaoGroup;\n            u.NgayNghiViec = model.NgayNghiViec;\n            u.CreatedBy = model.CreatedBy;\n            u.TrinhDoDaoTao = model.TrinhDoDaoTao;\n            u.ChuyenNganh = model.ChuyenNganh;\n            u.HinhThucDaoTao = model.HinhThucDaoTao;\n            //u.LoaiHopDong = model.LoaiHopDong;\n            u.BangCap_TrangThai = model.BangCap_TrangThai;\n            u.BangCap_NgayNop = model.BangCap_NgayNop;\n            u.HeadCount_1 = model.HeadCount_1;\n            u.HeadCount_2 = model.HeadCount_2;\n            u.WorkIndirectly = model.WorkIndirectly;\n            u.UpdatedDate = DateTime.Now;\n            u.UpdatedBy = model.UpdatedBy;\n            u.CongTyTinhLuong = model.CongTyTinhLuong;\n            u.GloneId = model.GloneId;\n            Context.SaveChanges();\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+            "source_sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+            "range": {
+              "kind": "text",
+              "start_line": 427,
+              "end_line": 458,
+              "start_byte_offset": 18775,
+              "end_byte_offset": 20068,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "            AddRelatedNotes(notes, EmployeeRelatedNotes(u.Id, u.FullName,\n                addressChanged, diemGocChanged, trainingChanged, gloneChanged));\n\n            LogEdit(\"cập nhật thông tin cá nhân\", \"Employee\", u.Id.ToString(), notes);\n\n            if (changeType)\n            {\n                if (model.TrangThaiCongViec == 0 || model.TrangThaiCongViec == 3)\n                {\n                    var orgs = EmployeeOrganizationMany(new SearchEmployeeOrganizationModel()\n                    {\n                        EmployeeId = u.Id,\n                    }, new OptionResult() { Unlimited = true }).Many;\n\n                    if (orgs.Any())\n                    {\n                        foreach (var item in orgs)\n                        {\n                            EndWordProcess(new EmployeeOrganizationEditModel()\n                            {\n                                EmployeeId = item.EmployeeId,\n                                JobPositionId = item.JobPositionId,\n                                OrganizationId = item.OrganizationId,\n                                Concurrently = item.Concurrently\n                            }, null);\n                        }\n                    }\n                }\n                UpdateOrgTotalEmployee();\n            }\n\n"
+          }
+        ],
+        "gaps": [],
+        "deduplicated": 0
+      }
+    },
+    {
+      "id": "D12",
+      "pack": {
+        "schema_version": 1,
+        "status": "ok",
+        "items": [
+          {
+            "project": "HRM2.0",
+            "relative_path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+            "source_sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+            "range": {
+              "kind": "text",
+              "start_line": 1057,
+              "end_line": 1075,
+              "start_byte_offset": 46263,
+              "end_byte_offset": 46784,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "        public bool UpdateOrgTotalEmployee()\n        {\n            try\n            {\n                CheckDbConnect();\n                Context.Database.ExecuteSqlCommand(\"execute sp_UpdateOrgTotalEmployee\");\n\n                Caching.Delete(\"Organization\", \"general\");\n                Caching.Delete(\"EmployeeOrganization\", \"users\");\n                return true;\n            }\n            catch (Exception ex)\n            {\n                Console.WriteLine(ex.Message);\n            }\n            return false;\n        }\n\n"
+          },
+          {
+            "project": "HRM2.0",
+            "relative_path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+            "source_sha256": "c3cd621f00b343a814588518c7759c187a4b05ba691cf9971a83e23bc24a2d88",
+            "range": {
+              "kind": "text",
+              "start_line": 58,
+              "end_line": 96,
+              "start_byte_offset": 1340,
+              "end_byte_offset": 2985,
+              "start_byte_column": 0,
+              "end_byte_column": 0
+            },
+            "content": "            UPDATE Organizations  \r\r\n            SET TotalEmployee =  \r\r\n            (  \r\r\n                SELECT COUNT(DISTINCT eo.EmployeeId)\r\r\nFROM EmployeeOrganizations eo\r\r\nJOIN Employees e      ON e.Id  = eo.EmployeeId\r\r\nJOIN Organizations o2 ON o2.Id = eo.OrganizationId  -- ← THÊM\r\r\nWHERE eo.EmployeeId != '00000000-0000-0000-0000-000000000000'\r\r\n    AND eo.Concurrently = 0\r\r\n    AND e.Status  >= 0\r\r\n    AND eo.Status >= 0\r\r\n    AND e.TrangThaiCongViec IN (1,2)\r\r\n    AND eo.JobPositionId  NOT IN (SELECT Id FROM @uncountPos)\r\r\n    AND eo.OrganizationId NOT IN (SELECT Id FROM @excludeOrg)\r\r\n    AND eo.Organizations LIKE CONCAT('%;', @orgId, ';%')\r\r\n    AND o2.Status  >= 0  -- ← THÊM\r\r\n    AND o2.Stopped  = 0  -- ← THÊM\r\r\n            )  \r\r\n            WHERE Id = @orgId  \r\r\n        END  \r\r\n        ELSE  \r\r\n        BEGIN  \r\r\n            UPDATE Organizations  \r\r\n            SET TotalEmployee =  \r\r\n            (  \r\r\n                SELECT COUNT(DISTINCT EmployeeId)  \r\r\n                FROM EmployeeOrganizations eo  \r\r\n                JOIN Employees e ON e.Id = eo.EmployeeId  \r\r\n                WHERE eo.EmployeeId != '00000000-0000-0000-0000-000000000000'  \r\r\n                    AND eo.Concurrently = 0  \r\r\n                    AND e.Status >= 0  \r\r\n                    AND eo.Status >= 0  \r\r\n                    AND e.TrangThaiCongViec IN (1,2)  \r\r\n                    AND eo.JobPositionId NOT IN (SELECT Id FROM @uncountPos)  \r\r\n                    AND eo.OrganizationId NOT IN (SELECT Id FROM @excludeOrg)  \r\r\n                    AND eo.OrganizationId = @orgId  \r\r\n            )  \r\r\n            WHERE Id = @orgId  \r\r\n"
+          }
+        ],
+        "gaps": [],
+        "deduplicated": 0
+      }
+    }
+  ]
+}

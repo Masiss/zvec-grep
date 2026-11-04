@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-01",
+  "phase": "R1",
+  "status": "PASS_SYNTHETIC",
+  "command": "cargo test -p zg-engine --lib api::evidence",
+  "result": "8 passed; 0 failed",
+  "coverage": [
+    "unicode/codepoint boundaries",
+    "crlf and eof coordinates",
+    "locator mismatch",
+    "traversal, absolute path, symlink",
+    "stale hash, missing/renamed source",
+    "same relative name in two projects",
+    "snippet/item budget and dedup",
+    "empty result vs invalid-budget error",
+    "revalidation after source change"
+  ],
+  "pilot_validation": "PENDING_R0_CORPUS",
+  "pilot_blocker": "declared checkout /home/masis/itc/Ricons/HRM2.0 is absent"
+}
