@@ -277,6 +277,14 @@ pub fn revalidate(root: &Path, pack: &EvidencePack) -> Result<Vec<EvidenceGap>, 
         .map_err(|_| EvidenceError::InvalidRoot(root.to_path_buf()))?;
     let mut gaps = Vec::new();
     for item in &pack.items {
+        if item.project.trim().is_empty() {
+            gaps.push(item_gap(
+                EvidenceGapCode::InvalidProject,
+                item,
+                "project must not be empty during revalidation",
+            ));
+            continue;
+        }
         let path = match resolve_path(root, &root_canonical, &item.relative_path) {
             Ok(path) => path,
             Err(code) => {
@@ -315,16 +323,22 @@ pub fn revalidate(root: &Path, pack: &EvidencePack) -> Result<Vec<EvidenceGap>, 
             ));
             continue;
         };
-        if end > text.len()
-            || start > end
-            || !text.is_char_boundary(start)
-            || !text.is_char_boundary(end)
-            || text.get(start..end) != Some(item.content.as_str())
-        {
+        let expected_range = match range_for_offsets(text, start, end) {
+            Ok(range) => range,
+            Err(_) => {
+                gaps.push(item_gap(
+                    EvidenceGapCode::StaleCoordinates,
+                    item,
+                    "citation byte offsets are invalid for the current source",
+                ));
+                continue;
+            }
+        };
+        if expected_range != item.range || text.get(start..end) != Some(item.content.as_str()) {
             gaps.push(item_gap(
                 EvidenceGapCode::StaleCoordinates,
                 item,
-                "citation content does not match its source range",
+                "citation coordinates or content do not match the current source",
             ));
         }
     }
@@ -403,16 +417,16 @@ fn resolve_path(
 }
 
 fn range_for(text: &str, request: &EvidenceRequest) -> Result<ContentRange, EvidenceGapCode> {
-    if request.start_byte > request.end_byte
-        || request.end_byte > text.len()
-        || !text.is_char_boundary(request.start_byte)
-        || !text.is_char_boundary(request.end_byte)
-    {
+    let range = range_for_offsets(text, request.start_byte, request.end_byte)?;
+    let ContentRange::Text {
+        start_line,
+        end_line,
+        ..
+    } = &range
+    else {
         return Err(EvidenceGapCode::InvalidRange);
-    }
-    let starts = line_starts(text.as_bytes());
-    let (start_line, start_column) = position(&starts, request.start_byte);
-    let (end_line, end_column) = position(&starts, request.end_byte);
+    };
+    let (start_line, end_line) = (*start_line, *end_line);
     if request
         .expected_start_line
         .is_some_and(|line| line != start_line)
@@ -422,11 +436,29 @@ fn range_for(text: &str, request: &EvidenceRequest) -> Result<ContentRange, Evid
     {
         return Err(EvidenceGapCode::StaleCoordinates);
     }
+    Ok(range)
+}
+
+fn range_for_offsets(
+    text: &str,
+    start_byte: usize,
+    end_byte: usize,
+) -> Result<ContentRange, EvidenceGapCode> {
+    if start_byte > end_byte
+        || end_byte > text.len()
+        || !text.is_char_boundary(start_byte)
+        || !text.is_char_boundary(end_byte)
+    {
+        return Err(EvidenceGapCode::InvalidRange);
+    }
+    let starts = line_starts(text.as_bytes());
+    let (start_line, start_column) = position(&starts, start_byte);
+    let (end_line, end_column) = position(&starts, end_byte);
     Ok(ContentRange::Text {
         start_line,
         end_line,
-        start_byte_offset: request.start_byte,
-        end_byte_offset: request.end_byte,
+        start_byte_offset: start_byte,
+        end_byte_offset: end_byte,
         start_byte_column: start_column,
         end_byte_column: end_column,
     })
@@ -672,5 +704,63 @@ mod tests {
         fs::write(&path, "after").unwrap();
         let gaps = revalidate(dir.path(), &pack).unwrap();
         assert_eq!(gaps[0].code, EvidenceGapCode::StaleHash);
+    }
+
+    #[test]
+    fn revalidation_rejects_forged_line_and_column_coordinates() {
+        let dir = tempdir().unwrap();
+        let text = "first\r\nsecond\n";
+        fs::write(dir.path().join("coords.cs"), text).unwrap();
+        let pack = assemble(
+            dir.path(),
+            &[request("p", "coords.cs", &digest(text.as_bytes()), 7, 10)],
+            budget(),
+        )
+        .unwrap();
+        assert!(revalidate(dir.path(), &pack).unwrap().is_empty());
+
+        for field in ["start_line", "end_line", "start_column", "end_column"] {
+            let mut forged = pack.clone();
+            match (&mut forged.items[0].range, field) {
+                (ContentRange::Text { start_line, .. }, "start_line") => *start_line += 1,
+                (ContentRange::Text { end_line, .. }, "end_line") => *end_line += 1,
+                (
+                    ContentRange::Text {
+                        start_byte_column, ..
+                    },
+                    "start_column",
+                ) => *start_byte_column += 1,
+                (
+                    ContentRange::Text {
+                        end_byte_column, ..
+                    },
+                    "end_column",
+                ) => *end_byte_column += 1,
+                _ => unreachable!("test uses text ranges and known coordinate fields"),
+            }
+            let gaps = revalidate(dir.path(), &forged).unwrap();
+            assert_eq!(gaps.len(), 1, "forged {field} must yield one gap");
+            assert_eq!(
+                gaps[0].code,
+                EvidenceGapCode::StaleCoordinates,
+                "forged {field} must be stale"
+            );
+        }
+    }
+
+    #[test]
+    fn revalidation_rejects_empty_or_whitespace_project() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("project.cs"), "source").unwrap();
+        let mut pack = assemble(
+            dir.path(),
+            &[request("p", "project.cs", &digest(b"source"), 0, 6)],
+            budget(),
+        )
+        .unwrap();
+        pack.items[0].project = " \t ".into();
+        let gaps = revalidate(dir.path(), &pack).unwrap();
+        assert_eq!(gaps.len(), 1);
+        assert_eq!(gaps[0].code, EvidenceGapCode::InvalidProject);
     }
 }
