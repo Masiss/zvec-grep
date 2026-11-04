@@ -11,7 +11,15 @@ use crate::{
     },
 };
 
+pub(crate) trait SearchQueryGuard {}
+
+impl SearchQueryGuard for () {}
+
 pub(crate) trait SearchStorage: Send + Sync {
+    fn begin_query(&self) -> EngineResult<Box<dyn SearchQueryGuard + '_>> {
+        Ok(Box::new(()))
+    }
+
     fn list_file_paths(&self) -> EngineResult<Vec<(FileId, PathBuf)>>;
     fn list_file_attributes(&self) -> EngineResult<Vec<StoredFileAttributes>>;
     fn has_non_unicode_file_names(&self) -> EngineResult<bool>;

@@ -1,37 +1,48 @@
 # RAG Impact — R0/R1 artifacts
 
-Status: **R0 OPERATION_BLOCKED; R1 evidence contract implemented and tested
-with synthetic fixtures.**
+Status: **R0 IN PROGRESS; R1 contract and selected real-source slice PASS.**
 
-- R0 needs the read-only pilot checkout. The declared path is
-  `/home/masis/itc/Ricons/HRM2.0` (checkout root `/home/masis/itc/Ricons/`), but
-  neither path exists on this host. Source hashes, line ranges and
-  reviewer-selected held-out cases are therefore **not frozen**. Nothing here
-  invents them.
-- R1 is implemented in `rust/crates/zg-engine/src/api/evidence.rs`. It assembles
-  a bounded, hash-checked pack and revalidates citations before a final answer.
-  The pilot still has to exercise it once the checkout is restored.
+- The read-only pilot exists at `/home/masis/itc/Ricons/HRM2.0`; checkout root
+  `/home/masis/itc/Ricons/`, observed HEAD
+  `68a53a6865b81d05745c4aa47967204e8e128996`. The selected tracked anchors are
+  clean and byte-identical to the previously declared HEAD. Unrelated modified
+  and untracked checkout files are excluded.
+- Selected project/source hashes are recorded in `scope-manifest.json`.
+  H01–H08 were authored by an independent Sol 6.1 reviewer from selected source
+  anchors, then parent-validated against hashes, spans and snippets. Reviewer
+  was given excluded-topic themes to prevent overlap, so it was independent of
+  candidate tuning but not blind to all dev topics.
+- R1 is implemented in `rust/crates/zg-engine/src/api/evidence.rs`. The focused
+  8-test contract suite passes. A real-source pack for D02/D07 and negative
+  twins D04/D06/D12 passed assembly and revalidation; receipt:
+  `results/r1-pilot-slice.json`.
+- R0 remains incomplete: D01–D12 source refs/spans are pinned, but detailed
+  facts/claim limits need review; D13–D16 synthetic fixtures are not authored;
+  numeric targets in `docs/rag/implementation-plan.md` §9 need owner acceptance
+  before candidate measurement.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `scope-manifest.json` | Selected projects/anchors, exclusions, declared HEAD, blocker. Hashes are `null` until the checkout exists. |
-| `cases/dev.json` | The 16 proposed development cases from `docs/rag/hrm2-pilot.md`, marked unfrozen. |
-| `cases/heldout.json` | H01–H08 placeholders. A reviewer independent of tuning must author and freeze them. |
+| `scope-manifest.json` | Selected projects/anchors, current observed HEAD, source hashes, and D01–D12 source spans. |
+| `cases/dev.json` | The 16 development cases, re-anchored but still unfrozen pending exact gold refs and synthetic fixtures. |
+| `cases/heldout.json` | Reviewer-authored H01–H08 with source hashes/spans; no candidate measurement has run. |
+| `results/r1-pilot-slice.json` | Bounded real-source evidence packs and revalidation receipt for D02/D07 plus negative twins. |
 | `schema/evidence-pack.schema.json` | JSON shape for R1 evidence packs. |
 | `REPORT-CONTRACT.md` | Three conclusion classes and citation rules for an external agent. |
 
-## R0 completion checklist
+## R0 remaining checklist
 
-1. Restore/mount the read-only checkout at the declared path.
-2. Verify HEAD `d5e8fbcdd49b48c208887096993074464c793cd7` (or record the new
-   reviewed HEAD and re-anchor every path).
-3. Fill every source hash and exact span in `scope-manifest.json`.
-4. Revalidate the 16 development cases; record facts/spans and forbidden claims.
-5. Have an independent reviewer author and freeze H01–H08.
-6. Accept or adjust the numeric targets in `docs/rag/implementation-plan.md` §9
+1. Revalidate detailed facts/claim limits for D01–D12 against the observed
+   HEAD (source hashes and spans are already pinned).
+2. Author and test explicit synthetic fixtures for D13–D16; do not pass them on
+   descriptive expected text alone.
+3. Accept or adjust the numeric targets in `docs/rag/implementation-plan.md` §9
    **before** any candidate measurement.
+
+After those gates, R0 can be frozen. The R1 contract and current evidence-pack
+smoke test do not evaluate retrieval quality or performance.
 
 Do not use `NewSolution` or an unselected `_old` SQL definition as authority.
 No database, MSBuild/restore, code execution or live deployment inference.

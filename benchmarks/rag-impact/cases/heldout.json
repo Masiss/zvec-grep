@@ -1,65 +1,335 @@
 {
   "schema_version": 1,
-  "status": "OWNER_DECISION_REQUIRED",
+  "status": "FROZEN_REVIEWER_AUTHORED",
   "split": "held_out",
-  "rule": "A reviewer independent of candidate tuning selects 8 new variants covering all three question classes, guards, ambiguous binding, stale/unknown and reverse-read. Do not copy D01-D16 and change IDs.",
+  "source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "source_head": "68a53a6865b81d05745c4aa47967204e8e128996",
+  "review_metadata": {
+    "reviewer": "independent Sol 6.1 subagent",
+    "independent_of_candidate_tuning": true,
+    "read_dev_cases_or_candidate": false,
+    "selection": "source-first from selected tracked anchors only; reviewer did not inspect dev-case files or candidate artifacts; parent supplied prohibited-topic themes to avoid overlap, so this is independent of candidate tuning but not blind to all development topics; exact hashes and spans recorded",
+    "measurement_performed": false
+  },
+  "rule": "Eight source-first cases selected independently of candidate tuning. Do not use unselected files, infer deployment/live DB behavior, or turn a partial/unknown source boundary into a negative claim.",
   "cases": [
     {
       "id": "H01",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "In RenderEmployeeCommandViewData, does the permanent-address ward list always use the district ID?",
+      "conclusion_class": "supported",
+      "source_evidence": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "start_line": 70,
+          "end_line": 86,
+          "snippets": [
+            "if (detail.ThuongTru_Tinh.HasValue)",
+            "var allowNew = _coreService.CheckSettingForAddressMapping();",
+            "WardBaseList(detail.ThuongTru_Tinh.Value)",
+            "WardBaseList(detail.ThuongTru_Quan.Value)"
+          ]
+        }
+      ],
+      "expected_facts": [
+        "The branch requires non-null detail and a populated province field.",
+        "When allowNew is true, the province value is passed to WardBaseList.",
+        "Otherwise, the district value is used only when populated.",
+        "If the province is absent, this branch does not populate that ViewData key even if a district exists."
+      ],
+      "forbidden_claims": [
+        "The setting is currently enabled in production.",
+        "The called helper necessarily interprets every argument as a district ID.",
+        "This rendering branch updates stored employee addresses."
+      ],
+      "rationale": "Tests guarded read/render behavior without relying on personal-update routing or persistence."
     },
     {
       "id": "H02",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "Does the selected Export action actively populate and stream the commented employee spreadsheet?",
+      "conclusion_class": "supported",
+      "source_evidence": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "start_line": 642,
+          "end_line": 671,
+          "snippets": [
+            "option.Unlimited = true;",
+            "option.HasCount = false;",
+            "var result = _coreService.EmployeeViews(model, option);",
+            "var excel = new ExcelComponent(\"Export excel\");",
+            "//foreach (var item in result.Many)",
+            "//excel.Export(\"Danh_sach_NV_\" + DateTime.Now.ToString(\"ddMMyyyyHHmmss\"), HttpContext.Response);",
+            "return View();"
+          ]
+        }
+      ],
+      "expected_facts": [
+        "Active code changes the supplied options and invokes EmployeeViews.",
+        "The action constructs an ExcelComponent.",
+        "The shown header, row-writing, formatting and export calls are comments.",
+        "The action returns a view rather than invoking the shown excel.Export statement."
+      ],
+      "forbidden_claims": [
+        "Commented column names describe a currently generated workbook.",
+        "No export can occur anywhere else in the application.",
+        "The view or ExcelComponent constructor has no side effects.",
+        "These option assignments prove the helper's actual SQL or returned row count."
+      ],
+      "rationale": "Separates executable data flow from historical/commented implementation evidence."
     },
     {
       "id": "H03",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "Which service calls supply the three suggestion JSON responses, and can their names establish that LastOrgId comes directly from Employees.LastOrgId through EmployeeSuggestionViews?",
+      "conclusion_class": "partial",
+      "source_evidence": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "start_line": 678,
+          "end_line": 694,
+          "snippets": [
+            "var data = _coreService.EmployeeSuggestionViewList(model, option);",
+            "var result = _coreService.EmployeeSuggestionOne(model);",
+            "var data = _coreService.EmployeeSuggestionMany(model, option);"
+          ]
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+          "start_line": 17,
+          "end_line": 20,
+          "snippets": [
+            "modelBuilder.Configurations.AddFromAssembly(Assembly.GetExecutingAssembly());"
+          ]
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+          "start_line": 43,
+          "end_line": 43,
+          "snippets": [
+            "public virtual DbSet<EmployeeSuggestionView> EmployeeSuggestionViews { get; set; }"
+          ]
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "sha256": "670fab2cbb0ed34751fff10b80aecb641839c367f57b1300699bd3923884006e",
+          "start_line": 120,
+          "end_line": 146,
+          "snippets": [
+            "public partial class EmployeeSuggestionView",
+            "public int? LastOrgId { get; set; }"
+          ]
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "sha256": "670fab2cbb0ed34751fff10b80aecb641839c367f57b1300699bd3923884006e",
+          "start_line": 55,
+          "end_line": 56,
+          "snippets": [
+            "public Nullable<int> LastOrgId { get; set; }"
+          ]
+        }
+      ],
+      "expected_facts": [
+        "Suggestions calls EmployeeSuggestionViewList; SuggestionOne calls EmployeeSuggestionOne; SuggestionList calls EmployeeSuggestionMany.",
+        "Each action serializes its result as JSON with AllowGet.",
+        "The context declares EmployeeSuggestionView, and both cited CLR models expose LastOrgId.",
+        "Matching names alone do not bind these service calls to the DbSet or establish direct database-column projection.",
+        "The context loads configurations from its assembly."
+      ],
+      "forbidden_claims": [
+        "All three service methods necessarily query the same DbSet.",
+        "EmployeeSuggestionViews is proven to be a particular physical SQL view.",
+        "Its LastOrgId necessarily selects Employees.LastOrgId without expressions or joins.",
+        "A read-model property declaration proves a write destination."
+      ],
+      "rationale": "Tests ambiguous binding and reverse-read/data-flow limits outside the excluded view seam."
     },
     {
       "id": "H04",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "In delete mode, what prevents OrganizationPositionCommand from removing a position, and what happens when its ID is absent?",
+      "conclusion_class": "supported",
+      "source_evidence": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {"start_line": 925, "end_line": 946},
+            {"start_line": 967, "end_line": 967}
+          ],
+          "snippets": [
+            "var jp = Context.OrganizationPositions.FirstOrDefault(x => x.Id == model.Id);",
+            "if (Context.EmployeeOrganizations.Any(x =>",
+            "x.OrganizationId == jp.OrganizationId && x.JobPositionId == jp.JobPositionId)",
+            "Context.OrganizationPositions.Remove(jp);",
+            "return null;"
+          ]
+        }
+      ],
+      "expected_facts": [
+        "Mode 2 first resolves the position by model.Id.",
+        "A matching EmployeeOrganizations row for the resolved organization/job-position pair causes an early error result.",
+        "The predicate contains no additional employee-status or concurrency filter.",
+        "Without such a match, the position is removed, changes are saved, and a successful result is returned.",
+        "An absent position falls through to the method's final null."
+      ],
+      "forbidden_claims": [
+        "Only currently active employees participate in the guard.",
+        "The check is against model.OrganizationId rather than the resolved position's organization.",
+        "Missing IDs return successful deletion.",
+        "The application-level check proves race-free database enforcement."
+      ],
+      "rationale": "Captures a concrete guard, its exact lookup keys, and the missing-record path."
     },
     {
       "id": "H05",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "Does listing an existing bidding package in CreateFullOrganization always transfer it to the newly created organization?",
+      "conclusion_class": "supported",
+      "source_evidence": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {"start_line": 15, "end_line": 15},
+            {"start_line": 141, "end_line": 153}
+          ],
+          "snippets": [
+            "var p = Context.OrganizationBiddingPackages.FirstOrDefault(x => x.Id == item.Id);",
+            "if (p != null && p.OrganizationId == 0)",
+            "p.OrganizationId = d.Id;",
+            "Context.SaveChanges();"
+          ]
+        }
+      ],
+      "expected_facts": [
+        "The loop runs only when model.Packages is non-null.",
+        "Each item resolves an existing package by ID.",
+        "Assignment occurs only if the package exists and OrganizationId equals zero.",
+        "Missing packages and packages with nonzero organization IDs receive no assignment in this block."
+      ],
+      "forbidden_claims": [
+        "A package already belonging to another organization is transferred.",
+        "A missing package is created here.",
+        "Skipped items produce an explicit error in this block.",
+        "Zero's broader business meaning or database constraints are established."
+      ],
+      "rationale": "Tests a narrowly supported association guard rather than assuming request membership authorizes reassignment."
     },
     {
       "id": "H06",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "Do CreateFullOrganization and EditFullOrganization overwrite KhoangCach identically when their distance lookup finds an existing row?",
+      "conclusion_class": "supported",
+      "source_evidence": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {"start_line": 15, "end_line": 15},
+            {"start_line": 155, "end_line": 175},
+            {"start_line": 427, "end_line": 427},
+            {"start_line": 571, "end_line": 592}
+          ],
+          "snippets": [
+            "var od = Context.OrganizationDistances.FirstOrDefault(x => x.OrgId == d.Id && x.KhuVuc == item.KhuVuc) ??",
+            "KhoangCach = item.KhoangCach",
+            "od.KhoangCach = item.KhoangCach;"
+          ]
+        }
+      ],
+      "expected_facts": [
+        "Both blocks look up a distance by organization and region.",
+        "In creation, the KhoangCach assignment is inside the fallback initializer; an existing returned object does not receive that assignment.",
+        "In editing, assignment occurs after lookup/fallback, so it applies to an existing or newly constructed object.",
+        "Both blocks add objects whose Id is zero and call SaveChanges within the loop."
+      ],
+      "forbidden_claims": [
+        "Creation always overwrites an existing distance.",
+        "The two blocks have identical assignment semantics.",
+        "Source alone proves duplicate rows, deployed uniqueness constraints, or an observed production defect."
+      ],
+      "rationale": "Distinguishes initializer-only flow from an unconditional post-lookup assignment."
     },
     {
       "id": "H07",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "Can the selected hierarchy-rebuild code certify that every active organization tree is repaired while inactive descendants are never traversed?",
+      "conclusion_class": "partial",
+      "source_evidence": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {"start_line": 1010, "end_line": 1038},
+            {"start_line": 1041, "end_line": 1055}
+          ],
+          "snippets": [
+            "var Orgs = Context.Organizations.Where(x => x.Status >= 0 && x.Stopped == false).ToList();",
+            "var Parent = Orgs.FirstOrDefault(x => x.ParentId == null && x.Status >= 0 && x.Stopped == false);",
+            "UpdateOrgParentStrItem(item);",
+            "var Orgs = Context.Organizations.Where(x => x.ParentId == Parent.Id).ToList();",
+            "item.ParentStr = Parent.ParentStr + Parent.Id + \";\";"
+          ]
+        }
+      ],
+      "expected_facts": [
+        "The outer method materializes active, non-stopped organizations and selects one root using FirstOrDefault.",
+        "It does not explicitly iterate over all roots.",
+        "Recursive entry from an immediate child is conditional on finding children in the outer filtered list.",
+        "Once entered, the helper queries children by ParentId without repeating status/stopped filters.",
+        "Actual coverage depends on graph and entry conditions; source does not prove a single root or acyclic live graph."
+      ],
+      "forbidden_claims": [
+        "Every root is processed.",
+        "Every recursive query excludes inactive/stopped rows.",
+        "Inactive descendants are necessarily touched on every invocation.",
+        "Successful return alone proves complete hierarchy repair."
+      ],
+      "rationale": "Preserves filter differences across a recursive boundary without inventing runtime topology."
     },
     {
       "id": "H08",
-      "question": null,
-      "expected_evidence": null,
-      "forbidden_claims": [],
-      "frozen": false
+      "question": "Can this source establish the live portal hostname and prove that an MST-notification success response means every targeted employee received an email?",
+      "conclusion_class": "unknown",
+      "source_evidence": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "spans": [
+            {"start_line": 1244, "end_line": 1257},
+            {"start_line": 1274, "end_line": 1286},
+            {"start_line": 1290, "end_line": 1303}
+          ],
+          "snippets": [
+            "new SearchEmployeeModel() { MSTNull = true }",
+            "var email = _coreService.EmailTemplateOneByCode(\"00365\");",
+            "var domain = _settings.GetValue(\"general\", \"domain_portal\");",
+            "var link = domain + \"/employee/changerequestedit\";",
+            "System.IO.File.WriteAllText(fp, body);",
+            "if (emp.EmailCongTy.HasValue())",
+            "_coreService.EmailTaskCommand(new EmailTaskEditModel()",
+            "Receivers = emp.EmailCongTy,",
+            "Gửi thông báo cập nhật Mã số thuế đến nhân sự thành công."
+          ]
+        }
+      ],
+      "expected_facts": [
+        "The action requests MST-null records with unlimited results.",
+        "It reads template code 00365 and obtains domain from settings, not a hostname literal.",
+        "It writes a body file and conditionally invokes EmailTaskCommand for a populated company email.",
+        "The invocation's return value is not checked here.",
+        "A non-null empty collection can reach the final success-message return without processing recipients.",
+        "Current source does not establish deployed settings, template contents, worker execution, SMTP acceptance, or receipt."
+      ],
+      "forbidden_claims": [
+        "A concrete production hostname or currently valid template can be supplied from these lines.",
+        "Every targeted employee receives a task or email.",
+        "The success text confirms delivery.",
+        "The supplied source HEAD proves the running deployment or runtime data matches it."
+      ],
+      "rationale": "Separates source-level preparation/request behavior from live configuration and delivery evidence."
     }
   ],
-  "next": "Reviewer fills and freezes H01-H08 before candidate measurement; the agent must not author the holdout gold."
+  "next": "R0 remains incomplete until development cases and numeric targets are accepted. Do not run candidate measurements before owner acceptance of section 9 targets."
 }

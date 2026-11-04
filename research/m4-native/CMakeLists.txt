@@ -130,13 +130,16 @@ if(M4_CPPJIEBA_INCLUDE_OVERLAY)
 endif()
 
 # Bounded diagnostic for writer tail latency under concurrent compaction.
-# Intentionally not a CTest target; run only through the contained harness.
+# The benchmark workload is not a CTest target; only its pure path-mapping
+# self-test is registered and must not enter the measured workload.
 add_executable(m4_compaction_writer_contention
   tests/m4_compaction_writer_contention.cc)
 target_compile_options(m4_compaction_writer_contention PRIVATE
   -Wall -Wextra -Werror)
 target_link_libraries(m4_compaction_writer_contention PRIVATE
   m4_research Threads::Threads)
+add_test(NAME m4_background_compaction_cache_path_binding
+  COMMAND m4_compaction_writer_contention --self-test-native-cache-path)
 
 add_executable(m4_writer_preferred_mutex_test
   tests/writer_preferred_shared_mutex_test.cc)
@@ -246,6 +249,33 @@ if(M4_ZVEC_ROOT)
   )
   add_test(NAME m4_native_jieba_compatibility
     COMMAND m4_native_jieba_compatibility)
+
+  add_executable(m4_native_multifield_tokenizer_differential
+    tests/native_multifield_tokenizer_differential.cc)
+  target_include_directories(m4_native_multifield_tokenizer_differential PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${M4_ZVEC_ROOT}/src"
+    "${M4_ZVEC_ROOT}/src/include"
+  )
+  target_include_directories(m4_native_multifield_tokenizer_differential SYSTEM PRIVATE
+    "${M4_ZVEC_ROOT}/thirdparty/cppjieba/cppjieba-5.6.7/include"
+    "${M4_ZVEC_ROOT}/thirdparty/limonp/limonp-v1.0.2/include"
+  )
+  target_compile_definitions(m4_native_multifield_tokenizer_differential PRIVATE
+    M4_ZVEC_JIEBA_DICT_DIR=\"${M4_ZVEC_JIEBA_DICT_DIR}\"
+    M4_TEST_TMPDIR=\"${CMAKE_CURRENT_SOURCE_DIR}/.work/tmp\"
+  )
+  target_compile_options(m4_native_multifield_tokenizer_differential PRIVATE
+    -Wall -Wextra -Werror
+  )
+  target_link_libraries(m4_native_multifield_tokenizer_differential PRIVATE
+    m4_research
+  )
+  set_target_properties(m4_native_multifield_tokenizer_differential PROPERTIES
+    BUILD_RPATH "${M4_ZVEC_BUILD_ROOT}/lib"
+  )
+  add_test(NAME m4_native_multifield_tokenizer_differential
+    COMMAND m4_native_multifield_tokenizer_differential)
 
   add_executable(m4_analyzer_cache_lifecycle
     tests/analyzer_cache_lifecycle.cc)

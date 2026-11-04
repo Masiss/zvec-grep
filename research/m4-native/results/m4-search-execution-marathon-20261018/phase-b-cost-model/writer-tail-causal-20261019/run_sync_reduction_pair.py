@@ -168,27 +168,28 @@ def verify_full_sync(binary):
 
 
 def read_host(policy_context=None):
-    if policy_context is not None:
-        state = containment.host_snapshot(RESOURCE_ROOT)
-        return {"MemAvailable_kib": state["meminfo_kib"]["MemAvailable_kib"],
-                "load1": state["loadavg"][0], "io_full_avg10": state["io_pressure"]["full"]["avg10"],
-                "resource_root_available_bytes": state["resource_root_free_bytes"],
-                "contention_host_snapshot": state}
-    meminfo = pathlib.Path("/proc/meminfo").read_text().splitlines()
-    mem = parse_number(next(x.split()[1] for x in meminfo if x.startswith("MemAvailable:")), int)
-    load = parse_number(pathlib.Path("/proc/loadavg").read_text().split()[0], float)
-    io_full = next(x for x in pathlib.Path("/proc/pressure/io").read_text().splitlines() if x.startswith("full "))
-    io10 = parse_number(next(x.split("=", 1)[1] for x in io_full.split() if x.startswith("avg10=")), float)
-    disk = parse_number(subprocess.check_output(["df", "-B1", "--output=avail", str(RESOURCE_ROOT)], text=True).splitlines()[1].strip(), int)
-    swap = {x.split()[0].rstrip(":"): parse_number(x.split()[1], int) for x in meminfo if x.startswith(("SwapTotal:", "SwapFree:"))}
+    state = containment.host_snapshot(RESOURCE_ROOT)
+    mem = state.get("meminfo_kib", {})
+    load = state.get("loadavg") or []
+    io10 = ((state.get("io_pressure") or {}).get("full") or {}).get("avg10")
     package = subprocess.run(["pgrep", "-a", "-f", "(^|/)(pacman|yay)( |$)"], text=True, capture_output=True)
-    return {"time": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "MemAvailable_kib": mem,
-            "load1": load, "io_full_avg10": io10, "resource_root_available_bytes": disk,
-            "memory_psi": pathlib.Path("/proc/pressure/memory").read_text(), "swap_kib": swap,
+    try:
+        memory_psi = pathlib.Path("/proc/pressure/memory").read_text()
+    except OSError:
+        memory_psi = None
+    snapshot = {"time": state["timestamp_utc"],
+            "MemAvailable_kib": mem.get("MemAvailable_kib"),
+            "load1": load[0] if load else None, "io_full_avg10": io10,
+            "resource_root_available_bytes": state["resource_root_free_bytes"],
+            "memory_psi": memory_psi, "swap_kib": {k: v for k, v in mem.items()
+                if k in ("SwapTotal_kib", "SwapFree_kib")},
             "vmstat_swap_pages": read_vmstat_swap(), "diskstats": read_diskstats(),
             "resource_root_inode_report": subprocess.check_output(["df", "-Pi", str(RESOURCE_ROOT)], text=True).splitlines()[-1],
             "package_manager_processes": package.stdout.splitlines(),
             "top_processes": subprocess.check_output(["ps", "-eo", "pid,comm,%cpu,%mem,rss", "--sort=-%cpu"], text=True).splitlines()[:13]}
+    if policy_context is not None:
+        snapshot["contention_host_snapshot"] = state
+    return snapshot
 
 
 def preflight(arm, policy_context=None):
@@ -226,7 +227,8 @@ def preflight(arm, policy_context=None):
     failures = [{"metric": decision["threshold_key"], "observed": decision["observed"],
                  "threshold": decision["threshold"], "gate_id": decision["gate_id"],
                  "evidence_class": decision["evidence_class"]}
-                for decision in gate_decisions if decision["status"] == "FAIL"]
+                for decision in gate_decisions
+                if decision["status"] == "FAIL" and decision.get("enforced", False)]
     host["gate_decisions"] = gate_decisions
     host["resource_guard_failures"] = failures
     host["hard_safety_failures"] = failures  # compatibility field; policy class/source are explicit above
@@ -322,17 +324,12 @@ def sample_pss(proc, path, runtime_path, pressure_limits=None):
                     pressures.get("memory_full_avg10", "NA"), pressures.get("memory_full_total_us", "NA"),
                     json.dumps(diskstats, separators=(",", ":")), load1, resource_free, process_cpu_ticks,
                 ])
-                # Enforce the unchanged operation-level resource and baseline-pressure guards at runtime.
-                # These are benchmark-operation gates, not universal host-safety claims.
+                # Host MemAvailable, PSI and load are context telemetry only.
+                # Keep actual disk-reserve and approved swap-capacity stops.
                 io_full = float(pressures.get("io_full_avg10", "inf"))
-                if (meminfo.get("MemAvailable", 0) < THRESHOLDS["MemAvailable_kib_min"] or
-                        resource_free < THRESHOLDS["var_tmp_bytes_min"] or
-                        io_full > THRESHOLDS["io_full_avg10_max"] or
-                        load1 > THRESHOLDS["load1_max"] or
+                if (resource_free < THRESHOLDS["var_tmp_bytes_min"] or
                         (pressure_limits is not None and
-                         (meminfo.get("SwapFree", 0) < pressure_limits["swapfree_min_kib"] or
-                          float(pressures.get("memory_some_avg10", "inf")) > pressure_limits["memory_some_avg10_max"] or
-                          float(pressures.get("memory_full_avg10", "inf")) > pressure_limits["memory_full_avg10_max"]))):
+                         meminfo.get("SwapFree", 0) < pressure_limits["swapfree_min_kib"])):
                     policy_state = {
                         "meminfo_kib": {"MemAvailable_kib": meminfo.get("MemAvailable")},
                         "resource_root_free_bytes": resource_free,
@@ -344,10 +341,6 @@ def sample_pss(proc, path, runtime_path, pressure_limits=None):
                         "mission_status": "NOT_EVALUATED_BY_RUNNER", "gate_decisions": gate_decisions,
                         "baseline_pressure_failures": containment.pressure_baseline_failures({
                             "meminfo_kib": {"SwapFree_kib": meminfo.get("SwapFree")},
-                            "memory_pressure": {
-                                "some": {"avg10": pressures.get("memory_some_avg10")},
-                                "full": {"avg10": pressures.get("memory_full_avg10")},
-                            },
                         }, pressure_limits),
                         "monotonic_ns": now, "MemAvailable_kib": meminfo.get("MemAvailable", 0),
                         "resource_root_available_bytes": resource_free, "io_full_avg10": io_full,
@@ -396,8 +389,11 @@ def write_containment_compatibility_samples(out, receipt_dir):
         cg = sample["cgroup"]
         mem = host["meminfo_kib"]
         vm = host["vmstat"]
-        io = host["io_pressure"]
-        memory = host["memory_pressure"]
+        io = host.get("io_pressure") or {}
+        memory = host.get("memory_pressure") or {}
+        io_some, io_full = io.get("some") or {}, io.get("full") or {}
+        memory_some, memory_full = memory.get("some") or {}, memory.get("full") or {}
+        loadavg = host.get("loadavg") or []
         cpu = cg["cpu_stat"].get("usage_usec", "NA")
         runtime_rows.append({
             "monotonic_ns": sample["monotonic_ns"],
@@ -408,11 +404,11 @@ def write_containment_compatibility_samples(out, receipt_dir):
             "memavailable_kib": mem.get("MemAvailable_kib", "NA"),
             "swapfree_kib": mem.get("SwapFree_kib", "NA"),
             "pswpin_pages": vm.get("pswpin", "NA"), "pswpout_pages": vm.get("pswpout", "NA"),
-            "load1": host["loadavg"][0],
-            "io_some_avg10": io["some"]["avg10"], "io_full_avg10": io["full"]["avg10"],
-            "io_some_total_us": io["some"]["total"], "io_full_total_us": io["full"]["total"],
-            "memory_some_avg10": memory["some"]["avg10"], "memory_full_avg10": memory["full"]["avg10"],
-            "memory_some_total_us": memory["some"]["total"], "memory_full_total_us": memory["full"]["total"],
+            "load1": loadavg[0] if loadavg else None,
+            "io_some_avg10": io_some.get("avg10"), "io_full_avg10": io_full.get("avg10"),
+            "io_some_total_us": io_some.get("total"), "io_full_total_us": io_full.get("total"),
+            "memory_some_avg10": memory_some.get("avg10"), "memory_full_avg10": memory_full.get("avg10"),
+            "memory_some_total_us": memory_some.get("total"), "memory_full_total_us": memory_full.get("total"),
             "diskstats_json": json.dumps(host["diskstats"], sort_keys=True),
             "cgroup_memory_current_bytes": cg["memory_current_bytes"],
             "cgroup_memory_peak_bytes": cg["memory_peak_bytes"],
@@ -580,7 +576,8 @@ def main():
             preflight_path = PAIR / name / "preflight.json"
             receipt = read_json_file(receipt_path, "arm receipt") if receipt_path.is_file() else {}
             preflight_result = read_json_file(preflight_path, "arm preflight receipt") if preflight_path.is_file() else {}
-            failed_gates = [g.get("gate_id") for g in receipt.get("gate_decisions", []) if g.get("status") == "FAIL"]
+            failed_gates = [g.get("gate_id") for g in receipt.get("gate_decisions", [])
+                            if g.get("status") == "FAIL" and g.get("enforced", False)]
             failed_gates.extend(f.get("gate_id") for f in preflight_result.get("resource_guard_failures", [])
                                 if f.get("gate_id"))
             no_start = not receipt.get("benchmark_started", False) and not preflight_result.get("benchmark_started", False)

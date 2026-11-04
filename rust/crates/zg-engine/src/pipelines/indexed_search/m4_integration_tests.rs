@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::{
-        Condvar, Mutex,
-        atomic::{AtomicBool, Ordering},
+        Condvar, Mutex, RwLock,
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 #[cfg(test)]
@@ -41,7 +41,7 @@ use crate::{
     pipelines::{
         indexed_search::{
             pipeline::{SearchPlan, SearchPlanResult, search_workspace_index},
-            storage::SearchStorage,
+            storage::{SearchQueryGuard, SearchStorage},
         },
         indexing::{
             pipeline::{IndexEmbeddingRuntime, IndexingContext, index_workspace},
@@ -60,32 +60,173 @@ use crate::{
     },
 };
 
-const MAX_RESEARCH_FILE_FRAGMENTS: usize = 512;
+const MAX_RESEARCH_FILE_FRAGMENTS: usize = 4096;
 const MAX_RESEARCH_FILE_TEXT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_RESEARCH_SEARCH_CANDIDATES: usize = 4096;
 
 #[derive(Default)]
 struct PassGate {
-    state: Mutex<bool>,
+    state: Mutex<PassGateState>,
     changed: Condvar,
+    blocked_wait_us: AtomicU64,
+}
+
+#[derive(Default)]
+struct PassGateState {
+    // `writer_active` briefly closes reader admission while pre-commit readers
+    // drain. `commit_active` serializes writers but does not block readers whose
+    // view is protected by the complete pending-file mask.
+    writer_active: bool,
+    commit_active: bool,
+    active_readers: usize,
+}
+
+struct PassReadGuard<'a> {
+    gate: &'a PassGate,
+}
+
+struct PassCommitGuard<'a> {
+    gate: &'a PassGate,
+}
+
+struct PassPublicationGuard<'a> {
+    gate: &'a PassGate,
+}
+
+impl SearchQueryGuard for PassReadGuard<'_> {}
+
+impl Drop for PassReadGuard<'_> {
+    fn drop(&mut self) {
+        let mut state = self.gate.state.lock().expect("pass gate");
+        state.active_readers -= 1;
+        if state.active_readers == 0 {
+            self.gate.changed.notify_all();
+        }
+    }
+}
+
+impl Drop for PassCommitGuard<'_> {
+    fn drop(&mut self) {
+        self.gate.finish();
+    }
+}
+
+impl Drop for PassPublicationGuard<'_> {
+    fn drop(&mut self) {
+        let mut state = self.gate.state.lock().expect("pass gate");
+        state.writer_active = false;
+        self.gate.changed.notify_all();
+    }
+}
+
+impl PassCommitGuard<'_> {
+    fn close_readers(&self) -> PassPublicationGuard<'_> {
+        self.gate.close_readers()
+    }
 }
 
 impl PassGate {
-    fn begin(&self) {
-        *self.state.lock().expect("pass gate") = true;
+    fn begin(&self) -> PassCommitGuard<'_> {
+        let mut state = self.state.lock().expect("pass gate");
+        while state.commit_active {
+            state = self.changed.wait(state).expect("pass gate writer wait");
+        }
+        state.commit_active = true;
+        state.writer_active = true;
+        while state.active_readers != 0 {
+            state = self.changed.wait(state).expect("pass gate drain wait");
+        }
+        // The complete changed-file mask is installed before begin(). Drain
+        // readers that could have captured the old view, then admit new masked
+        // reads while the serialized writer commits native and sidecar state.
+        state.writer_active = false;
+        self.changed.notify_all();
+        PassCommitGuard { gate: self }
     }
 
-    fn wait(&self) {
-        let mut active = self.state.lock().expect("pass gate");
-        while *active {
-            active = self.changed.wait(active).expect("pass gate wait");
+    fn close_readers(&self) -> PassPublicationGuard<'_> {
+        let mut state = self.state.lock().expect("pass gate");
+        assert!(
+            state.commit_active,
+            "publication barrier requires an active writer"
+        );
+        assert!(!state.writer_active, "publication barrier cannot be nested");
+        state.writer_active = true;
+        while state.active_readers != 0 {
+            state = self
+                .changed
+                .wait(state)
+                .expect("pass gate publication drain wait");
         }
+        PassPublicationGuard { gate: self }
+    }
+
+    fn read(&self) -> PassReadGuard<'_> {
+        let started = std::time::Instant::now();
+        let mut state = self.state.lock().expect("pass gate");
+        let mut blocked = false;
+        while state.writer_active {
+            blocked = true;
+            state = self.changed.wait(state).expect("pass gate read wait");
+        }
+        state.active_readers += 1;
+        drop(state);
+        if blocked {
+            let elapsed_us = started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
+            self.blocked_wait_us
+                .fetch_add(elapsed_us, Ordering::Relaxed);
+        }
+        PassReadGuard { gate: self }
+    }
+
+    fn take_blocked_wait_us(&self) -> u64 {
+        self.blocked_wait_us.swap(0, Ordering::Relaxed)
     }
 
     fn finish(&self) {
-        *self.state.lock().expect("pass gate") = false;
+        let mut state = self.state.lock().expect("pass gate");
+        state.writer_active = false;
+        state.commit_active = false;
         self.changed.notify_all();
     }
+}
+
+#[cfg(test)]
+#[test]
+fn pass_gate_serializes_commits_but_admits_masked_readers() {
+    let gate = Arc::new(PassGate::default());
+    let first_commit = gate.begin();
+    let (attempted_tx, attempted_rx) = std::sync::mpsc::channel();
+    let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+    let second_gate = Arc::clone(&gate);
+    let second_writer = std::thread::spawn(move || {
+        attempted_tx.send(()).expect("signal second writer attempt");
+        let _second_commit = second_gate.begin();
+        entered_tx.send(()).expect("signal second writer entered");
+    });
+    attempted_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("second writer attempted");
+    assert!(
+        entered_rx.recv_timeout(Duration::from_millis(50)).is_err(),
+        "a second writer cannot overlap an active commit"
+    );
+
+    let reader_gate = Arc::clone(&gate);
+    let (reader_tx, reader_rx) = std::sync::mpsc::channel();
+    let reader = std::thread::spawn(move || {
+        let _read = reader_gate.read();
+        reader_tx.send(()).expect("signal masked reader entered");
+    });
+    reader_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("masked reader can proceed while a commit is active");
+    drop(first_commit);
+    entered_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("second writer enters after the first commit completes");
+    second_writer.join().expect("second writer exits");
+    reader.join().expect("reader exits");
 }
 
 struct PendingUpdate {
@@ -101,11 +242,23 @@ struct M4ResearchStorage {
     pending_updates: Mutex<Vec<PendingUpdate>>,
     pending_deletes: Mutex<Vec<FileId>>,
     pass_gate: PassGate,
+    pending_mask: RwLock<HashSet<FileId>>,
+    pending_read_revisions: Mutex<HashMap<FileId, u64>>,
     fail_after_pass_intent: AtomicBool,
     fail_after_native_commit: AtomicBool,
+    #[cfg(test)]
+    fail_after_mask_before_sidecar_stage: AtomicBool,
     fail_after_first_m4_publish: AtomicBool,
     #[cfg(test)]
     publication_pause: Mutex<Option<Arc<PublicationPause>>>,
+    #[cfg(test)]
+    commit_pause: Mutex<Option<Arc<PublicationPause>>>,
+    #[cfg(test)]
+    sidecar_publish_pause: Mutex<Option<Arc<PublicationPause>>>,
+    #[cfg(test)]
+    hydration_pause: Mutex<Option<Arc<PublicationPause>>>,
+    #[cfg(test)]
+    cancel_after_next_stage: Mutex<Option<tokio_util::sync::CancellationToken>>,
 }
 
 impl M4ResearchStorage {
@@ -151,11 +304,23 @@ impl M4ResearchStorage {
             pending_updates: Mutex::new(Vec::new()),
             pending_deletes: Mutex::new(Vec::new()),
             pass_gate: PassGate::default(),
+            pending_mask: RwLock::new(HashSet::new()),
+            pending_read_revisions: Mutex::new(HashMap::new()),
             fail_after_pass_intent: AtomicBool::new(false),
             fail_after_native_commit: AtomicBool::new(false),
+            #[cfg(test)]
+            fail_after_mask_before_sidecar_stage: AtomicBool::new(false),
             fail_after_first_m4_publish: AtomicBool::new(false),
             #[cfg(test)]
             publication_pause: Mutex::new(None),
+            #[cfg(test)]
+            commit_pause: Mutex::new(None),
+            #[cfg(test)]
+            sidecar_publish_pause: Mutex::new(None),
+            #[cfg(test)]
+            hydration_pause: Mutex::new(None),
+            #[cfg(test)]
+            cancel_after_next_stage: Mutex::new(None),
         })
     }
 
@@ -166,34 +331,78 @@ impl M4ResearchStorage {
         entries: &[IndexedFragment],
     ) -> EngineResult<()> {
         self.ensure_no_pending_pass()?;
-        let mut entries = entries.to_vec();
-        entries.sort_unstable_by(|left, right| left.fragment_id.cmp(&right.fragment_id));
-        let staged = make_staged(file.clone(), entities.to_vec(), &entries)?;
-        let docs = bounded_docs(&entries)?;
+        // Native staged replacement consumes projections in entity order. Keep
+        // the pipeline's canonical order for that boundary; sort only the
+        // independent sidecar representation used for deterministic publication.
+        let staged = make_staged(file.clone(), entities.to_vec(), entries)?;
+        let mut sidecar_entries = entries.to_vec();
+        sidecar_entries.sort_unstable_by(|left, right| left.fragment_id.cmp(&right.fragment_id));
+        let docs = bounded_docs(&sidecar_entries)?;
         let file_id = u64::from(file.id.get());
+        let inserted_mask = self
+            .pending_mask
+            .write()
+            .expect("pending file mask")
+            .insert(file.id);
 
-        let mut sidecar = self.sidecar.lock().expect("M4 adapter");
-        let state = sidecar
-            .file_state(file_id)
-            .map_err(EngineError::storage_failure)?;
-        let revision = state
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| EngineError::storage_failure("M4 revision exhausted"))?;
-        self.pass_gate.begin();
-        if let Err(error) = sidecar.stage_file(file_id, revision, &docs) {
-            self.pass_gate.finish();
-            return Err(EngineError::storage_failure(error));
+        let result = (|| {
+            #[cfg(test)]
+            if self
+                .fail_after_mask_before_sidecar_stage
+                .swap(false, Ordering::SeqCst)
+            {
+                return Err(EngineError::storage_failure(
+                    "injected failure after changed-file mask and before sidecar staging",
+                ));
+            }
+            let mut sidecar = self.sidecar.lock().expect("M4 adapter");
+            let state = sidecar
+                .file_state(file_id)
+                .map_err(EngineError::storage_failure)?;
+            let revision = state
+                .revision
+                .checked_add(1)
+                .ok_or_else(|| EngineError::storage_failure("M4 revision exhausted"))?;
+            if state.found != 0 && state.visibility == 2 {
+                self.pending_read_revisions
+                    .lock()
+                    .expect("pending read revisions")
+                    .entry(file.id)
+                    .or_insert(state.revision);
+            }
+            if let Err(error) = sidecar.stage_file(file_id, revision, &docs) {
+                return Err(EngineError::storage_failure(error));
+            }
+            self.pending_updates
+                .lock()
+                .expect("pending updates")
+                .push(PendingUpdate {
+                    file_id,
+                    revision,
+                    staged,
+                });
+            #[cfg(test)]
+            if let Some(signal) = self
+                .cancel_after_next_stage
+                .lock()
+                .expect("cancel-after-stage hook")
+                .take()
+            {
+                signal.cancel();
+            }
+            Ok(())
+        })();
+        if result.is_err() && inserted_mask {
+            self.pending_mask
+                .write()
+                .expect("pending file mask")
+                .remove(&file.id);
+            self.pending_read_revisions
+                .lock()
+                .expect("pending read revisions")
+                .remove(&file.id);
         }
-        self.pending_updates
-            .lock()
-            .expect("pending updates")
-            .push(PendingUpdate {
-                file_id,
-                revision,
-                staged,
-            });
-        Ok(())
+        result
     }
 
     fn stage_disk_replacement(&self, staged: DiskStagedBatches) -> EngineResult<()> {
@@ -227,7 +436,6 @@ impl M4ResearchStorage {
         limit: usize,
         filter: Option<&StorageSearchFilter>,
     ) -> EngineResult<Vec<StorageSearchHit>> {
-        self.pass_gate.wait();
         if limit == 0 {
             return Ok(Vec::new());
         }
@@ -238,6 +446,7 @@ impl M4ResearchStorage {
         }
 
         let mut scan = limit.max(32).min(MAX_RESEARCH_SEARCH_CANDIDATES);
+        let masked = self.pending_file_mask();
         let mut sidecar = self.sidecar.lock().expect("M4 adapter");
         loop {
             let raw = sidecar
@@ -247,6 +456,7 @@ impl M4ResearchStorage {
             let data = self.native.load_search_hits(&mapped)?;
             let visible = mapped
                 .into_iter()
+                .filter(|hit| !masked.contains(&hit.file_id))
                 .filter(|hit| self.matches_filter(hit, &data, filter))
                 .collect::<Vec<_>>();
             if visible.len() >= limit || raw.len() < scan || scan == MAX_RESEARCH_SEARCH_CANDIDATES
@@ -410,7 +620,10 @@ impl IndexStorage for M4ResearchStorage {
     fn delete_files(&self, file_ids: &[FileId]) -> EngineResult<()> {
         self.ensure_no_pending_pass()?;
         if !file_ids.is_empty() {
-            self.pass_gate.begin();
+            self.pending_mask
+                .write()
+                .expect("pending file mask")
+                .extend(file_ids.iter().copied());
             self.pending_deletes
                 .lock()
                 .expect("pending deletes")
@@ -420,52 +633,30 @@ impl IndexStorage for M4ResearchStorage {
     }
 
     fn finalize_writes(&self) -> EngineResult<()> {
+        let updates = std::mem::take(&mut *self.pending_updates.lock().expect("pending updates"));
+        let deletes = std::mem::take(&mut *self.pending_deletes.lock().expect("pending deletes"));
+        if updates
+            .len()
+            .checked_add(deletes.len())
+            .is_none_or(|count| count > MAX_PENDING_PASS_IDS)
+        {
+            return Err(EngineError::invalid_argument(
+                "research sidecar pass exceeds 65,536-file recovery limit",
+            ));
+        }
+        let pass_ids = updates
+            .iter()
+            .map(|pending| pending.file_id)
+            .chain(deletes.iter().map(|file_id| u64::from(file_id.get())))
+            .collect::<BTreeSet<_>>();
+        let pass_manifest = if pass_ids.is_empty() {
+            None
+        } else {
+            Some(encode_pending_pass(&pass_ids)?)
+        };
         let result = (|| {
-            let mut sidecar = self.sidecar.lock().expect("M4 adapter");
-            let updates =
-                std::mem::take(&mut *self.pending_updates.lock().expect("pending updates"));
-            let deletes =
-                std::mem::take(&mut *self.pending_deletes.lock().expect("pending deletes"));
-            if updates
-                .len()
-                .checked_add(deletes.len())
-                .is_none_or(|count| count > MAX_PENDING_PASS_IDS)
-            {
-                return Err(EngineError::invalid_argument(
-                    "research sidecar pass exceeds 65,536-file recovery limit",
-                ));
-            }
-            let pass_ids = updates
-                .iter()
-                .map(|pending| pending.file_id)
-                .chain(deletes.iter().map(|file_id| u64::from(file_id.get())))
-                .collect::<BTreeSet<_>>();
-            let pass_manifest = if pass_ids.is_empty() {
-                None
-            } else {
-                Some(encode_pending_pass(&pass_ids)?)
-            };
             if let Some(manifest) = pass_manifest.as_deref() {
                 persist_pending_pass(&self.sidecar_root, manifest)?;
-            }
-            if self.fail_after_pass_intent.swap(false, Ordering::SeqCst) {
-                return Err(EngineError::storage_failure(
-                    "injected crash after durable pass intent and before native mutation",
-                ));
-            }
-            let mut publish_after_commit = Vec::with_capacity(updates.len());
-            for pending in updates {
-                self.native.replace_file_from_staged(pending.staged)?;
-                publish_after_commit.push((pending.file_id, pending.revision));
-            }
-            if !deletes.is_empty() {
-                self.native.delete_files(&deletes)?;
-            }
-            self.native.finalize_writes()?;
-            if self.fail_after_native_commit.swap(false, Ordering::SeqCst) {
-                return Err(EngineError::storage_failure(
-                    "injected crash window after native commit and before M4 publication",
-                ));
             }
             #[cfg(test)]
             if let Some(pause) = self
@@ -477,10 +668,67 @@ impl IndexStorage for M4ResearchStorage {
                 pause.entered.wait();
                 pause.release.wait();
             }
+            if self.fail_after_pass_intent.swap(false, Ordering::SeqCst) {
+                return Err(EngineError::storage_failure(
+                    "injected crash after durable pass intent and before native mutation",
+                ));
+            }
+            if pass_manifest.is_some() {
+                let masked = self.pending_file_mask();
+                for raw_id in &pass_ids {
+                    let id = u32::try_from(*raw_id).map(FileId::new).map_err(|_| {
+                        EngineError::storage_failure("M4 pass file id exceeds native range")
+                    })?;
+                    if !masked.contains(&id) {
+                        return Err(EngineError::storage_failure(
+                            "M4 commit refused because a changed file is not masked from readers",
+                        ));
+                    }
+                }
+            }
+            // This drains queries that began before every pass ID was masked.
+            // New queries are admitted during commit and filter all changed IDs
+            // until the native and sidecar publication is complete.
+            let _commit_guard = pass_manifest.as_ref().map(|_| self.pass_gate.begin());
+            let mut publish_after_commit = Vec::with_capacity(updates.len());
+            for pending in updates {
+                self.native.replace_file_from_staged(pending.staged)?;
+                publish_after_commit.push((pending.file_id, pending.revision));
+            }
+            if !deletes.is_empty() {
+                self.native.delete_files(&deletes)?;
+            }
+            self.native.finalize_writes()?;
+            #[cfg(test)]
+            if let Some(pause) = self.commit_pause.lock().expect("commit pause").take() {
+                pause.entered.wait();
+                pause.release.wait();
+            }
+            if self.fail_after_native_commit.swap(false, Ordering::SeqCst) {
+                return Err(EngineError::storage_failure(
+                    "injected crash window after native commit and before M4 publication",
+                ));
+            }
+            // Sidecar publication is masked: every changed file is hidden from
+            // readers, so readers may continue while individual files publish.
+            // Only the final mask clear needs a short reader-admission barrier.
             for (published, (file_id, revision)) in publish_after_commit.iter().enumerate() {
+                let mut sidecar = self.sidecar.lock().expect("M4 adapter");
                 sidecar
                     .publish(*file_id, *revision)
                     .map_err(EngineError::storage_failure)?;
+                drop(sidecar);
+                #[cfg(test)]
+                if published == 0
+                    && let Some(pause) = self
+                        .sidecar_publish_pause
+                        .lock()
+                        .expect("sidecar publication pause")
+                        .take()
+                {
+                    pause.entered.wait();
+                    pause.release.wait();
+                }
                 if published == 0
                     && self
                         .fail_after_first_m4_publish
@@ -493,6 +741,7 @@ impl IndexStorage for M4ResearchStorage {
             }
             for file_id in deletes {
                 let id = u64::from(file_id.get());
+                let mut sidecar = self.sidecar.lock().expect("M4 adapter");
                 let revision = sidecar
                     .file_state(id)
                     .map_err(EngineError::storage_failure)?
@@ -504,18 +753,34 @@ impl IndexStorage for M4ResearchStorage {
                 sidecar
                     .delete(id, revision)
                     .map_err(EngineError::storage_failure)?;
+                drop(sidecar);
             }
             if pass_manifest.is_some() {
                 clear_pending_pass(&self.sidecar_root)?;
+                let _publication_barrier =
+                    _commit_guard.as_ref().map(PassCommitGuard::close_readers);
+                let mut masked = self.pending_mask.write().expect("pending file mask");
+                for file_id in pass_ids {
+                    masked.remove(&FileId::new(u32::try_from(file_id).map_err(|_| {
+                        EngineError::storage_failure("pending file id exceeds native range")
+                    })?));
+                }
+                self.pending_read_revisions
+                    .lock()
+                    .expect("pending read revisions")
+                    .clear();
             }
             Ok(())
         })();
-        self.pass_gate.finish();
         result
     }
 }
 
 impl M4ResearchStorage {
+    fn pending_file_mask(&self) -> HashSet<FileId> {
+        self.pending_mask.read().expect("pending file mask").clone()
+    }
+
     fn ensure_no_pending_pass(&self) -> EngineResult<()> {
         if pending_pass_path(&self.sidecar_root).exists() {
             return Err(EngineError::storage_failure(
@@ -527,28 +792,46 @@ impl M4ResearchStorage {
 }
 
 impl SearchStorage for M4ResearchStorage {
+    fn begin_query(&self) -> EngineResult<Box<dyn SearchQueryGuard + '_>> {
+        Ok(Box::new(self.pass_gate.read()))
+    }
+
     fn list_file_paths(&self) -> EngineResult<Vec<(FileId, PathBuf)>> {
-        self.pass_gate.wait();
-        self.ensure_no_pending_pass()?;
-        self.native.list_file_paths()
+        let masked = self.pending_file_mask();
+        Ok(self
+            .native
+            .list_file_paths()?
+            .into_iter()
+            .filter(|(file_id, _)| !masked.contains(file_id))
+            .collect())
     }
 
     fn list_file_attributes(&self) -> EngineResult<Vec<StoredFileAttributes>> {
-        self.pass_gate.wait();
-        self.ensure_no_pending_pass()?;
-        self.native.list_file_attributes()
+        let masked = self.pending_file_mask();
+        Ok(self
+            .native
+            .list_file_attributes()?
+            .into_iter()
+            .filter(|file| !masked.contains(&file.id))
+            .collect())
     }
 
     fn has_non_unicode_file_names(&self) -> EngineResult<bool> {
-        self.pass_gate.wait();
-        self.ensure_no_pending_pass()?;
         self.native.has_non_unicode_file_names()
     }
 
     fn load_search_hits(&self, hits: &[StorageSearchHit]) -> EngineResult<StoredSearchData> {
-        self.pass_gate.wait();
-        self.ensure_no_pending_pass()?;
+        #[cfg(test)]
+        if let Some(pause) = self.hydration_pause.lock().expect("hydration pause").take() {
+            pause.entered.wait();
+            pause.release.wait();
+        }
         let mut sidecar = self.sidecar.lock().expect("M4 adapter");
+        let prior_revisions = self
+            .pending_read_revisions
+            .lock()
+            .expect("pending read revisions")
+            .clone();
         let mut valid = Vec::with_capacity(hits.len());
         for hit in hits {
             let Some(revision) = hit.m4_revision else {
@@ -558,7 +841,10 @@ impl SearchStorage for M4ResearchStorage {
             let state = sidecar
                 .file_state(u64::from(hit.file_id.get()))
                 .map_err(EngineError::storage_failure)?;
-            if state.found != 0 && state.visibility == 2 && state.revision == revision {
+            let current_revision =
+                state.found != 0 && state.visibility == 2 && state.revision == revision;
+            let pre_stage_revision = prior_revisions.get(&hit.file_id) == Some(&revision);
+            if current_revision || pre_stage_revision {
                 valid.push(hit.clone());
             }
         }
@@ -571,7 +857,6 @@ impl SearchStorage for M4ResearchStorage {
         limit: usize,
         filter: Option<&StorageSearchFilter>,
     ) -> EngineResult<Vec<StorageSearchHit>> {
-        self.ensure_no_pending_pass()?;
         self.search_m4(query, limit, filter)
     }
 
@@ -582,15 +867,13 @@ impl SearchStorage for M4ResearchStorage {
         limit: usize,
         filter: Option<&StorageSearchFilter>,
     ) -> EngineResult<Vec<StorageSearchHit>> {
-        self.pass_gate.wait();
-        self.ensure_no_pending_pass()?;
-        self.native.search_vector(model, vector, limit, filter)
-    }
-}
-
-impl Drop for M4ResearchStorage {
-    fn drop(&mut self) {
-        self.pass_gate.finish();
+        let masked = self.pending_file_mask();
+        Ok(self
+            .native
+            .search_vector(model, vector, limit, filter)?
+            .into_iter()
+            .filter(|hit| !masked.contains(&hit.file_id))
+            .collect())
     }
 }
 
@@ -913,6 +1196,17 @@ async fn run_index_pass(
     model: &FixedEmbeddingModel,
     changes: &[WorkspaceChange],
 ) -> EngineResult<IndexResult> {
+    run_index_pass_with_signal(workspace, storage, scanner, model, changes, None).await
+}
+
+async fn run_index_pass_with_signal(
+    workspace: &Workspace,
+    storage: &M4ResearchStorage,
+    scanner: &NativeScanner,
+    model: &FixedEmbeddingModel,
+    changes: &[WorkspaceChange],
+    signal: Option<tokio_util::sync::CancellationToken>,
+) -> EngineResult<IndexResult> {
     let models: [&dyn IndexEmbeddingRuntime; 1] = [model];
     index_workspace(&IndexingContext {
         workspace_index: workspace,
@@ -921,10 +1215,112 @@ async fn run_index_pass(
         embedding_models: &models,
         embedding_concurrency: Some(1),
         on_progress: None,
-        signal: None,
+        signal,
         changes,
     })
     .await
+}
+
+/// Native-only deterministic workspace used by one-shot lifecycle measurements
+/// in `zg-daemon` tests. It shares the native IndexStore between the writer and
+/// concurrent readers and never loads a production embedding model.
+pub struct NativeLifecycleTestWorkspace {
+    workspace: Workspace,
+    index_root: PathBuf,
+    scanner: NativeScanner,
+    model: FixedEmbeddingModel,
+    storage: tokio::sync::RwLock<std::sync::Arc<IndexStore>>,
+    writer: tokio::sync::Mutex<()>,
+}
+
+impl NativeLifecycleTestWorkspace {
+    pub fn open(root: &Path, index_root: &Path) -> EngineResult<Self> {
+        let root = root
+            .canonicalize()
+            .map_err(|error| EngineError::storage_failure(error.to_string()))?;
+        std::fs::create_dir_all(index_root)
+            .map_err(|error| EngineError::storage_failure(error.to_string()))?;
+        let model = FixedEmbeddingModel::new();
+        let storage =
+            std::sync::Arc::new(IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
+                storage_path: index_root.to_path_buf(),
+                embeddings: vec![model.info.clone()],
+            })?);
+        Ok(Self {
+            workspace: Workspace {
+                name: "p1-native-lifecycle".into(),
+                root,
+                scan: ScanRules::default(),
+                index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+                created_epoch_ms: 1,
+                updated_epoch_ms: 1,
+            },
+            index_root: index_root.to_path_buf(),
+            scanner: NativeScanner::default(),
+            model,
+            storage: tokio::sync::RwLock::new(storage),
+            writer: tokio::sync::Mutex::new(()),
+        })
+    }
+
+    pub async fn index(&self, changes: &[WorkspaceChange]) -> EngineResult<IndexResult> {
+        let _writer = self.writer.lock().await;
+        let storage = std::sync::Arc::clone(&*self.storage.read().await);
+        let models: [&dyn IndexEmbeddingRuntime; 1] = [&self.model];
+        index_workspace(&IndexingContext {
+            workspace_index: &self.workspace,
+            storage: storage.as_ref(),
+            scanner: &self.scanner,
+            embedding_models: &models,
+            embedding_concurrency: Some(1),
+            on_progress: None,
+            signal: None,
+            changes,
+        })
+        .await
+    }
+
+    pub async fn search_paths(&self, query: &str) -> EngineResult<Vec<PathBuf>> {
+        let storage = self.storage.read().await;
+        let result = search_workspace_index(
+            &self.workspace.root,
+            plan(query, vec![crate::domain::GlobRule::from("**/*.rs")]),
+            storage.as_ref(),
+            &[],
+        )
+        .await?;
+        Ok(result
+            .hits
+            .into_iter()
+            .map(|hit| hit.file.relative_path.as_path().to_path_buf())
+            .collect())
+    }
+
+    pub async fn file_paths(&self) -> EngineResult<Vec<PathBuf>> {
+        let storage = std::sync::Arc::clone(&*self.storage.read().await);
+        let mut paths = storage
+            .list_files()?
+            .into_iter()
+            .map(|file| file.relative_path.as_path().to_path_buf())
+            .collect::<Vec<_>>();
+        paths.sort();
+        Ok(paths)
+    }
+
+    pub async fn reopen(&self) -> EngineResult<()> {
+        let _writer = self.writer.lock().await;
+        let mut storage = self.storage.write().await;
+        // Release the native storage lease before opening the same path again.
+        // The write guard above ensures no concurrent query still uses this store.
+        storage.close()?;
+        let replacement =
+            std::sync::Arc::new(IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
+                storage_path: self.index_root.clone(),
+                embeddings: vec![self.model.info.clone()],
+            })?);
+        *storage = replacement;
+        Ok(())
+    }
 }
 
 /// Test-only workspace driver used by `zg-daemon` to exercise the real runtime
@@ -1215,15 +1611,18 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
             .is_err(),
         "the interrupted pass must not acknowledge the cross-store update"
     );
-    assert!(
-        storage.load_search_hits(&pre_update_hits).is_err(),
-        "no cross-store result can be acquired while durable pass intent is pending"
-    );
-    assert!(
-        search(&storage, &root, "orchard", Vec::new())
-            .await
-            .is_err(),
-        "the incomplete workspace is fail-closed until recovery"
+    let filtered_old_hits = storage
+        .load_search_hits(&pre_update_hits)
+        .expect("unchanged-file hits remain hydratable while changed files are masked");
+    assert!(filtered_old_hits.fragments.len() < pre_update_hits.len());
+    let unaffected = search(&storage, &root, "orchard", Vec::new())
+        .await
+        .expect("unaffected files remain searchable during pending recovery");
+    assert_eq!(unaffected.hits.len(), 1);
+    assert_eq!(
+        unaffected.hits[0].file.relative_path.as_path(),
+        Path::new("tests/other.txt"),
+        "the changed file is hidden without taking the whole workspace offline"
     );
 
     drop(storage);
@@ -1292,6 +1691,53 @@ async fn real_index_and_search_pipelines_publish_filtered_hydratable_m4_results(
         .expect("published state");
     assert_eq!(active.visibility, 2);
     assert_eq!(active.expected, active.acknowledged);
+
+    std::fs::remove_file(root.join("docs-renamed.txt")).expect("delete renamed source");
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Delete(PathBuf::from("docs-renamed.txt"))],
+    )
+    .await
+    .expect("delete renamed file");
+    assert!(
+        search(&storage, &root, "orchard", Vec::new())
+            .await
+            .expect("query after delete")
+            .hits
+            .is_empty(),
+        "deleted file terms must no longer be visible"
+    );
+
+    std::fs::write(root.join("docs-renamed.txt"), "recreatedmarker")
+        .expect("recreate source at the same path");
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Upsert(PathBuf::from("docs-renamed.txt"))],
+    )
+    .await
+    .expect("index recreated file");
+    let recreated = search(&storage, &root, "recreatedmarker", Vec::new())
+        .await
+        .expect("query recreated file");
+    assert_eq!(recreated.hits.len(), 1);
+    assert_eq!(
+        recreated.hits[0].file.relative_path.as_path(),
+        Path::new("docs-renamed.txt")
+    );
+    assert!(
+        search(&storage, &root, "orchard", Vec::new())
+            .await
+            .expect("old deleted content remains absent")
+            .hits
+            .is_empty()
+    );
+
     storage
         .native
         .finalize_writes()
@@ -1345,11 +1791,14 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
             .is_err(),
         "a durable pass intent without native mutation is not an ACK"
     );
-    assert!(
+    assert_eq!(
         search(&storage, &root, "newalpha", Vec::new())
             .await
-            .is_err(),
-        "the durable pass marker prevents readers from observing a partial publication"
+            .expect("pending pass masks changed files without failing unrelated reads")
+            .hits
+            .len(),
+        0,
+        "the durable pass mask prevents readers from observing an uncommitted revision"
     );
 
     drop(storage);
@@ -1398,8 +1847,10 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
     assert!(
         search(&storage, &root, "newalpha", Vec::new())
             .await
-            .is_err(),
-        "repeated failure must keep the workspace fenced until recovery"
+            .expect("changed revisions remain masked after publication failure")
+            .hits
+            .is_empty(),
+        "repeated failure keeps changed files hidden without fencing unrelated queries"
     );
     drop(storage);
     let storage = M4ResearchStorage::open(&index_root, &model.info)
@@ -1412,6 +1863,16 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
             .len(),
         1
     );
+    for term in ["oldalpha", "oldbeta", "newalpha", "newbeta"] {
+        assert!(
+            search(&storage, &root, term, Vec::new())
+                .await
+                .expect("changed file remains hidden after recovery")
+                .hits
+                .is_empty(),
+            "failed cross-store publication exposed {term} before retry"
+        );
+    }
 
     run_index_pass(
         &workspace,
@@ -1435,28 +1896,242 @@ async fn interrupted_multi_file_publication_fails_closed_until_reopen_and_retry(
 }
 
 #[cfg(test)]
-#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
-async fn query_waits_for_atomic_cross_store_publication() {
+#[tokio::test]
+async fn cancellation_after_staging_fails_closed_across_reopen_and_rescan() {
     let temp = tempdir().expect("workspace");
     let root = temp.path().join("workspace");
     std::fs::create_dir_all(root.join("src")).expect("source directory");
     std::fs::write(root.join("src/a.rs"), "beforetoken").expect("source");
+    std::fs::write(root.join("stable.txt"), "stablemarker").expect("stable source");
+
+    let model = FixedEmbeddingModel::new();
+    let workspace = Workspace {
+        name: "m4-cancellation-recovery".into(),
+        root: root.clone(),
+        scan: ScanRules::default(),
+        index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+        created_epoch_ms: 1,
+        updated_epoch_ms: 1,
+    };
+    let scanner = NativeScanner::default();
     let index_root = temp.path().join("index");
-    let workspace =
-        Arc::new(M4ResearchWorkspace::open(&root, &index_root).expect("M4 research workspace"));
-    workspace
-        .index(&[WorkspaceChange::Rescan])
-        .await
-        .expect("initial index");
-    assert_eq!(workspace.search_count("beforetoken").await.unwrap(), 1);
+    std::fs::create_dir_all(&index_root).expect("index parent");
+    let storage = M4ResearchStorage::open(&index_root, &model.info).expect("open stores");
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("initial index");
 
     std::fs::write(root.join("src/a.rs"), "aftertoken").expect("updated source");
-    let (entered, release) = workspace.pause_next_publication();
-    let writer = Arc::clone(&workspace);
-    let writer = tokio::spawn(async move {
-        writer
-            .index(&[WorkspaceChange::Upsert(PathBuf::from("src/a.rs"))])
+    let signal = tokio_util::sync::CancellationToken::new();
+    *storage
+        .cancel_after_next_stage
+        .lock()
+        .expect("cancel-after-stage hook") = Some(signal.clone());
+    assert!(
+        run_index_pass_with_signal(
+            &workspace,
+            &storage,
+            &scanner,
+            &model,
+            &[WorkspaceChange::Upsert(PathBuf::from("src/a.rs"))],
+            Some(signal.clone()),
+        )
+        .await
+        .is_err(),
+        "cancellation after durable staging must stop before pass finalization"
+    );
+    assert!(signal.is_cancelled());
+    assert!(
+        search(&storage, &root, "beforetoken", Vec::new())
             .await
+            .expect("changed file remains masked after cancellation")
+            .hits
+            .is_empty()
+    );
+    assert_eq!(
+        search(&storage, &root, "stablemarker", Vec::new())
+            .await
+            .expect("unaffected files stay searchable after cancellation")
+            .hits
+            .len(),
+        1
+    );
+
+    drop(storage);
+    let storage = M4ResearchStorage::open(&index_root, &model.info)
+        .expect("shutdown/reopen discards the uncommitted staged revision");
+    for term in ["beforetoken", "aftertoken"] {
+        assert!(
+            search(&storage, &root, term, Vec::new())
+                .await
+                .expect("cancelled file stays fail-closed after reopen")
+                .hits
+                .is_empty(),
+            "cancelled update exposed {term} after restart"
+        );
+    }
+    assert_eq!(
+        search(&storage, &root, "stablemarker", Vec::new())
+            .await
+            .expect("stable file survives cancellation recovery")
+            .hits
+            .len(),
+        1
+    );
+
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("rescan recovers the cancelled source update");
+    assert_eq!(
+        search(&storage, &root, "aftertoken", Vec::new())
+            .await
+            .expect("rescanned update")
+            .hits
+            .len(),
+        1
+    );
+    assert!(
+        search(&storage, &root, "beforetoken", Vec::new())
+            .await
+            .expect("old term is retired by rescan")
+            .hits
+            .is_empty()
+    );
+}
+
+#[cfg(test)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+async fn publication_masks_changed_files_without_blocking_unaffected_queries() {
+    let temp = tempdir().expect("workspace");
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    std::fs::write(root.join("src/a.rs"), "beforetoken").expect("source");
+    std::fs::write(root.join("src/b.rs"), "deletetoken").expect("source to delete");
+    std::fs::write(root.join("src/c.rs"), "independenttoken").expect("unaffected source");
+    let index_root = temp.path().join("index");
+    std::fs::create_dir_all(&index_root).expect("index parent");
+    let model = Arc::new(FixedEmbeddingModel::new());
+    let workspace = Workspace {
+        name: "publication-mask-test".into(),
+        root: root.clone(),
+        scan: ScanRules::default(),
+        index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+        created_epoch_ms: 1,
+        updated_epoch_ms: 1,
+    };
+    let scanner = NativeScanner::default();
+    let storage = Arc::new(M4ResearchStorage::open(&index_root, &model.info).expect("open store"));
+    run_index_pass(
+        &workspace,
+        &storage,
+        &scanner,
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("initial index");
+    assert_eq!(
+        search(&storage, &root, "beforetoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        1
+    );
+    assert_eq!(
+        search(&storage, &root, "independenttoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        1
+    );
+
+    std::fs::write(root.join("src/a.rs"), "aftertoken").expect("updated source");
+    storage
+        .fail_after_mask_before_sidecar_stage
+        .store(true, Ordering::SeqCst);
+    assert!(
+        run_index_pass(
+            &workspace,
+            &storage,
+            &scanner,
+            &model,
+            &[WorkspaceChange::Upsert(PathBuf::from("src/a.rs"))],
+        )
+        .await
+        .is_err(),
+        "pre-publication staging failure must be observable to the caller"
+    );
+    assert_eq!(
+        search(&storage, &root, "beforetoken", Vec::new())
+            .await
+            .expect("failed preparation leaves prior revision searchable")
+            .hits
+            .len(),
+        1
+    );
+    assert_eq!(
+        search(&storage, &root, "aftertoken", Vec::new())
+            .await
+            .expect("failed preparation must not expose the new revision")
+            .hits
+            .len(),
+        0
+    );
+
+    std::fs::remove_file(root.join("src/b.rs")).expect("remove source to delete");
+    let pause = Arc::new(PublicationPause {
+        entered: Arc::new(std::sync::Barrier::new(2)),
+        release: Arc::new(std::sync::Barrier::new(2)),
+    });
+    let commit_pause = Arc::new(PublicationPause {
+        entered: Arc::new(std::sync::Barrier::new(2)),
+        release: Arc::new(std::sync::Barrier::new(2)),
+    });
+    let entered = Arc::clone(&pause.entered);
+    let release = Arc::clone(&pause.release);
+    let commit_entered = Arc::clone(&commit_pause.entered);
+    let commit_release = Arc::clone(&commit_pause.release);
+    let sidecar_publish_pause = Arc::new(PublicationPause {
+        entered: Arc::new(std::sync::Barrier::new(2)),
+        release: Arc::new(std::sync::Barrier::new(2)),
+    });
+    let sidecar_publish_entered = Arc::clone(&sidecar_publish_pause.entered);
+    let sidecar_publish_release = Arc::clone(&sidecar_publish_pause.release);
+    *storage.publication_pause.lock().expect("publication pause") = Some(pause);
+    *storage.commit_pause.lock().expect("commit pause") = Some(commit_pause);
+    *storage
+        .sidecar_publish_pause
+        .lock()
+        .expect("sidecar publication pause") = Some(sidecar_publish_pause);
+    let writer_storage = Arc::clone(&storage);
+    let writer_workspace = workspace.clone();
+    let writer_model = Arc::clone(&model);
+    let writer = tokio::spawn(async move {
+        run_index_pass(
+            &writer_workspace,
+            &writer_storage,
+            &scanner,
+            &writer_model,
+            &[
+                WorkspaceChange::Upsert(PathBuf::from("src/a.rs")),
+                WorkspaceChange::Delete(PathBuf::from("src/b.rs")),
+            ],
+        )
+        .await
     });
     tokio::task::spawn_blocking(move || entered.wait())
         .await
@@ -1468,28 +2143,338 @@ async fn query_waits_for_atomic_cross_store_publication() {
         "durable pass intent must precede native commit and M4 publication"
     );
 
-    let reader = Arc::clone(&workspace);
-    let reader = tokio::spawn(async move { reader.search_count("aftertoken").await });
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    assert!(
-        !reader.is_finished(),
-        "cross-store query must not acquire a mixed native/M4 snapshot during publication"
+    let reader_storage = Arc::clone(&storage);
+    let reader_root = root.clone();
+    let reader = tokio::spawn(async move {
+        search(
+            &reader_storage,
+            &reader_root,
+            "independenttoken",
+            Vec::new(),
+        )
+        .await
+        .map(|result| result.hits.len())
+    });
+    assert_eq!(
+        tokio::time::timeout(Duration::from_millis(500), reader)
+            .await
+            .expect("unaffected search must not wait for the whole publication pass")
+            .expect("query task")
+            .expect("query succeeds"),
+        1
+    );
+    assert_eq!(
+        search(&storage, &root, "beforetoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        0,
+        "old revision is hidden while the new revision is being committed"
+    );
+    assert_eq!(
+        search(&storage, &root, "aftertoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        0,
+        "new revision is not visible until both stores publish"
+    );
+    assert_eq!(
+        search(&storage, &root, "deletetoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        0,
+        "deleted revision is hidden during the publication pass"
     );
     tokio::task::spawn_blocking(move || release.wait())
         .await
-        .expect("release publication pause");
+        .expect("release preparation pause");
+    tokio::task::spawn_blocking(move || commit_entered.wait())
+        .await
+        .expect("commit fence reached");
+    {
+        let state = storage.pass_gate.state.lock().expect("pass gate");
+        assert!(
+            state.commit_active,
+            "writer owns the commit serialization gate"
+        );
+        assert!(
+            !state.writer_active,
+            "masked readers are admitted after pre-commit readers drain"
+        );
+    }
+    let fenced_storage = Arc::clone(&storage);
+    let fenced_root = root.clone();
+    let fenced_query = tokio::spawn(async move {
+        search(
+            &fenced_storage,
+            &fenced_root,
+            "independenttoken",
+            Vec::new(),
+        )
+        .await
+        .map(|result| result.hits.len())
+    });
+    assert_eq!(
+        tokio::time::timeout(Duration::from_millis(500), fenced_query)
+            .await
+            .expect("masked unaffected query must complete during native commit")
+            .expect("query task")
+            .expect("query succeeds"),
+        1
+    );
+    for term in ["beforetoken", "aftertoken", "deletetoken"] {
+        assert!(
+            search(&storage, &root, term, Vec::new())
+                .await
+                .expect("masked changed-file query during commit")
+                .hits
+                .is_empty(),
+            "changed or deleted file leaked during commit for term {term}"
+        );
+    }
+    tokio::task::spawn_blocking(move || commit_release.wait())
+        .await
+        .expect("release native commit pause");
+    tokio::task::spawn_blocking(move || sidecar_publish_entered.wait())
+        .await
+        .expect("partial sidecar publication reached");
+    {
+        let state = storage.pass_gate.state.lock().expect("pass gate");
+        assert!(
+            state.commit_active,
+            "writer remains serialized during publication"
+        );
+        assert!(
+            !state.writer_active,
+            "readers remain admitted during masked sidecar publication"
+        );
+    }
+    let boundary_storage = Arc::clone(&storage);
+    let boundary_root = root.clone();
+    let boundary_query = tokio::spawn(async move {
+        search(
+            &boundary_storage,
+            &boundary_root,
+            "independenttoken",
+            Vec::new(),
+        )
+        .await
+        .map(|result| result.hits.len())
+    });
+    assert_eq!(
+        tokio::time::timeout(Duration::from_millis(500), boundary_query)
+            .await
+            .expect("unaffected query is admitted during masked sidecar publication")
+            .expect("query task")
+            .expect("query succeeds"),
+        1
+    );
+    for term in ["beforetoken", "aftertoken", "deletetoken"] {
+        assert!(
+            search(&storage, &root, term, Vec::new())
+                .await
+                .expect("changed-file query during sidecar publication")
+                .hits
+                .is_empty(),
+            "changed or deleted file leaked during sidecar publication for term {term}"
+        );
+    }
+    tokio::task::spawn_blocking(move || sidecar_publish_release.wait())
+        .await
+        .expect("release sidecar publication pause");
     writer
         .await
         .expect("index task")
         .expect("publication succeeds");
-    assert_eq!(reader.await.expect("query task").unwrap(), 1);
-    assert_eq!(workspace.search_count("beforetoken").await.unwrap(), 0);
+    assert_eq!(
+        search(&storage, &root, "aftertoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        1
+    );
+    assert_eq!(
+        search(&storage, &root, "beforetoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        0
+    );
+    assert_eq!(
+        search(&storage, &root, "deletetoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        0,
+        "deleted revision stays absent after publication"
+    );
 
-    drop(workspace);
-    let reopened = M4ResearchWorkspace::open(&root, &index_root)
+    drop(storage);
+    let reopened = M4ResearchStorage::open(&index_root, &model.info)
         .expect("reopen after durable index acknowledgement");
-    assert_eq!(reopened.search_count("aftertoken").await.unwrap(), 1);
-    assert_eq!(reopened.search_count("beforetoken").await.unwrap(), 0);
+    assert_eq!(
+        search(&reopened, &root, "aftertoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        1
+    );
+    assert_eq!(
+        search(&reopened, &root, "beforetoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        0
+    );
+    assert_eq!(
+        search(&reopened, &root, "deletetoken", Vec::new())
+            .await
+            .unwrap()
+            .hits
+            .len(),
+        0
+    );
+}
+
+#[cfg(test)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn query_keeps_pre_stage_revision_through_hydration() {
+    let temp = tempdir().expect("workspace");
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    let source = root.join("src/a.rs");
+    std::fs::write(&source, "beforecoherenttoken").expect("initial source");
+    let index_root = temp.path().join("index");
+    std::fs::create_dir_all(&index_root).expect("index parent");
+    let model = Arc::new(FixedEmbeddingModel::new());
+    let workspace = Workspace {
+        name: "query-read-view-test".into(),
+        root: root.clone(),
+        scan: ScanRules::default(),
+        index: IndexState::Enabled(IndexDescriptor::single(model.info.clone())),
+        created_epoch_ms: 1,
+        updated_epoch_ms: 1,
+    };
+    let storage = Arc::new(M4ResearchStorage::open(&index_root, &model.info).expect("open store"));
+    run_index_pass(
+        &workspace,
+        &storage,
+        &NativeScanner::default(),
+        &model,
+        &[WorkspaceChange::Rescan],
+    )
+    .await
+    .expect("initial index");
+
+    let pause = Arc::new(PublicationPause {
+        entered: Arc::new(std::sync::Barrier::new(2)),
+        release: Arc::new(std::sync::Barrier::new(2)),
+    });
+    let entered = Arc::clone(&pause.entered);
+    let release = Arc::clone(&pause.release);
+    *storage.hydration_pause.lock().expect("hydration pause") = Some(pause);
+    let reader_storage = Arc::clone(&storage);
+    let reader_root = root.clone();
+    let reader = tokio::spawn(async move {
+        search(
+            &reader_storage,
+            &reader_root,
+            "beforecoherenttoken",
+            Vec::new(),
+        )
+        .await
+    });
+    tokio::task::spawn_blocking(move || entered.wait())
+        .await
+        .expect("query reached hydration after recall");
+
+    std::fs::write(&source, "aftercoherenttoken").expect("updated source");
+    let writer_storage = Arc::clone(&storage);
+    let writer_workspace = workspace.clone();
+    let writer_model = Arc::clone(&model);
+    let writer = tokio::spawn(async move {
+        run_index_pass(
+            &writer_workspace,
+            &writer_storage,
+            &NativeScanner::default(),
+            &writer_model,
+            &[WorkspaceChange::Upsert(PathBuf::from("src/a.rs"))],
+        )
+        .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let state = storage.pass_gate.state.lock().expect("pass gate");
+            let writer_waiting_for_reader = state.writer_active && state.active_readers == 1;
+            drop(state);
+            if writer_waiting_for_reader {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("writer reached the query/read-view fence");
+    let pending_mask_set_before_hydration = !storage.pending_file_mask().is_empty();
+    tokio::task::spawn_blocking(move || release.wait())
+        .await
+        .expect("release query hydration");
+
+    let reader_result = reader
+        .await
+        .expect("query task")
+        .expect("query before commit succeeds");
+    writer
+        .await
+        .expect("writer task")
+        .expect("update publishes");
+    assert!(
+        pending_mask_set_before_hydration,
+        "the staged file must be hidden from new reads before publication"
+    );
+    assert_eq!(
+        reader_result.hits.len(),
+        1,
+        "pre-stage query sees old revision"
+    );
+    let Content::Text(hydrated_content) = &reader_result.hits[0].entity.content else {
+        panic!("expected hydrated text content");
+    };
+    assert!(
+        hydrated_content.contains("beforecoherenttoken"),
+        "hydration stays on the pre-stage revision while publication waits for the reader"
+    );
+    assert!(
+        !hydrated_content.contains("aftercoherenttoken"),
+        "staged content must not leak into an in-flight read view"
+    );
+    assert_eq!(
+        search(&storage, &root, "aftercoherenttoken", Vec::new())
+            .await
+            .expect("query after commit")
+            .hits
+            .len(),
+        1,
+        "new revision becomes visible after commit"
+    );
+    assert_eq!(
+        search(&storage, &root, "beforecoherenttoken", Vec::new())
+            .await
+            .expect("old revision query after commit")
+            .hits
+            .len(),
+        0
+    );
 }
 
 #[cfg(test)]
@@ -1686,3 +2671,6 @@ async fn native_watcher_changes_drive_index_and_search_pipelines() {
         .expect("durability checkpoint");
     storage.native.close().expect("close native index");
 }
+
+#[cfg(test)]
+mod gate_b_lifecycle;

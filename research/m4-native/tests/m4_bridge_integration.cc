@@ -322,8 +322,6 @@ void RepairWal(const fs::path& root) {
       throw std::runtime_error("locate coordinator WAL prefix");
     valid_end = static_cast<uintmax_t>(position);
   }
-  if (in.bad())
-    throw std::runtime_error("read coordinator WAL");
   in.close();
   if (truncate) {
     fs::resize_file(path, valid_end);
@@ -465,7 +463,6 @@ void TestCoordinatorWalRecoveryIntegrity(const fs::path &root) {
   rejected_without_repair(cases / "complete-final-corruption", 3,
                           "complete final coordinator WAL corruption");
 
-  const fs::path valid_eof = cases / "valid-final-record-at-eof";
   const auto rejected_semantic_error = [&](
       const fs::path &path, std::initializer_list<const char *> records,
       const std::string &label) {
@@ -491,6 +488,7 @@ void TestCoordinatorWalRecoveryIntegrity(const fs::path &root) {
                           {"R 5", "R 6", "P 5"},
                           "out-of-order coordinator publish");
 
+  const fs::path valid_eof = cases / "valid-final-record-at-eof";
   seed(valid_eof, {"R 5", "P 5"});
   const fs::path valid_eof_wal = valid_eof / "coordinator.wal";
   std::string valid_eof_bytes = read_bytes(valid_eof_wal);
@@ -1303,9 +1301,10 @@ struct ReaderStageTimeline {
   m4::QueryDiagnostics m4_query_diagnostics;
   std::vector<NativeCallMetric> native_vector_calls;
 };
+constexpr size_t kContinuousReaderMinimumQueriesPerCycle = 16;
 struct ReaderStageEvent {
   using Clock = std::chrono::steady_clock;
-  size_t round{0}, reader{0};
+  size_t round{0}, reader{0}, query_index{0};
   uint64_t reader_tid{0};
   Clock::time_point acquire_release{}, acquire_end{}, pin_start{}, pin_end{};
   ReaderStageTimeline stages;
@@ -3575,7 +3574,8 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
                               size_t documents, size_t rounds,
                               bool incremental_m4 = false,
                               bool reuse_analyzer_cache = false,
-                              bool skip_cached_analyzer_fingerprint_verification = false) {
+                              bool skip_cached_analyzer_fingerprint_verification = false,
+                              bool continuous_reader_overlap = false) {
   if (documents < 64 || rounds == 0 || (fs::exists(root) && !fs::is_empty(root)))
     throw std::runtime_error("delta benchmark requires a fresh root, >=64 docs and >=1 round");
   fs::create_directories(root);
@@ -3644,13 +3644,14 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
     const size_t topk = std::min<size_t>(50, documents);
     (void)current->Hybrid(query, "request timeout", topk);
     size_t requested = 0, ready = 0, released = 0, completed = 0;
+    size_t writer_finished = 0;
     std::mutex sync_mutex, samples_mutex;
     std::condition_variable sync_cv;
     std::atomic<size_t> bad{0};
     std::vector<std::thread> readers;
     std::vector<std::chrono::steady_clock::time_point> query_release_times(rounds);
     std::vector<ReaderStageEvent> reader_stage_events;
-    reader_stage_events.reserve(rounds * 4);
+    reader_stage_events.reserve(rounds * 4 * (continuous_reader_overlap ? 128 : 1));
     for (size_t reader = 0; reader < 4; ++reader) readers.emplace_back([&, reader] {
       const double thread_cpu_start = CurrentThreadCpuMs();
       for (size_t round = 0; round < rounds; ++round) {
@@ -3663,11 +3664,16 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
           sync_cv.wait(lock, [&] { return released >= round + 1; });
           acquire_release = query_release_times[round];
         }
+        size_t query_index = 0;
+        bool cycle_finished = false;
+        do {
         ReaderStageEvent stage_event;
         stage_event.round = round;
         stage_event.reader = reader;
+        stage_event.query_index = query_index++;
         stage_event.reader_tid = CurrentThreadTid();
-        stage_event.acquire_release = acquire_release;
+        stage_event.acquire_release = stage_event.query_index == 0
+            ? acquire_release : std::chrono::steady_clock::now();
         stage_event.acquire_end = std::chrono::steady_clock::now();
         stage_event.pin_start = std::chrono::steady_clock::now();
         auto pin = std::atomic_load_explicit(&current, std::memory_order_acquire);
@@ -3694,6 +3700,12 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
           reader_query_cpu_ms.push_back(query_cpu);
           reader_stage_events.push_back(stage_event);
         }
+        {
+          std::lock_guard<std::mutex> lock(sync_mutex);
+          cycle_finished = !continuous_reader_overlap ||
+              (query_index >= kContinuousReaderMinimumQueriesPerCycle && writer_finished > round);
+        }
+        } while (!cycle_finished);
         {
           std::lock_guard<std::mutex> lock(sync_mutex);
           ++completed;
@@ -3883,6 +3895,11 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
       compaction_cpu.push_back(metrics.compaction_cpu_ms);
       compaction_flags.push_back(metrics.compacted ? 1 : 0);
       {
+        std::lock_guard<std::mutex> lock(sync_mutex);
+        writer_finished = round + 1;
+      }
+      sync_cv.notify_all();
+      {
         std::unique_lock<std::mutex> lock(sync_mutex);
         sync_cv.wait(lock, [&] { return completed == (round + 1) * 4; });
       }
@@ -3891,13 +3908,18 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
     }
     for (auto& reader : readers) reader.join();
     query_count = reader_latencies.size(); coherence_errors = bad.load();
+    std::vector<size_t> reader_samples_by_cycle(rounds * 4, 0);
+    for (const auto& event : reader_stage_events) {
+      if (event.round < rounds && event.reader < 4)
+        ++reader_samples_by_cycle[event.round * 4 + event.reader];
+    }
     const auto sum_cpu = [](const std::vector<double>& values) {
       double total = 0; for (double value : values) total += value; return total;
     };
     reader_query_cpu_total_ms = sum_cpu(reader_query_cpu_ms);
     reader_thread_cpu_total_ms = sum_cpu(reader_thread_cpu_ms);
     writer_commit_thread_cpu_total_ms = sum_cpu(writer_commit_cpu_ms);
-    if (coherence_errors != 0 || query_count != rounds * 4)
+    if (coherence_errors != 0 || query_count < rounds * 4)
       throw std::runtime_error("delta benchmark reader coherence failed");
     auto final = std::atomic_load_explicit(&current, std::memory_order_acquire);
     size_t stale_rows = 0;
@@ -3938,8 +3960,18 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
       << ",\"base_analyzer_dictionary_snapshot_used\":" << (base_metrics.m4_open_diagnostics.analyzer_dictionary_snapshot_used ? "true" : "false")
       << ",\"base_analyzer_initialization_attempted\":" << (base_metrics.m4_open_diagnostics.analyzer_initialization_attempted ? "true" : "false")
       << ",\"base_fingerprint_verification_skipped\":" << (base_metrics.m4_open_diagnostics.fingerprint_verification_skipped ? "true" : "false")
-      << ",\"docs\":" << documents
-      << ",\"rounds\":" << rounds << ",\"reader_threads\":4,\"queries\":" << query_count
+        << ",\"docs\":" << documents
+      << ",\"rounds\":" << rounds << ",\"reader_mode\":\""
+      << (continuous_reader_overlap ? "continuous-16-min-through-writer-cycle" : "one-query-per-writer-cycle")
+      << "\",\"reader_threads\":4,\"queries\":" << query_count
+      << ",\"reader_queries\":" << query_count
+      << ",\"reader_samples_by_cycle\":[";
+    for (size_t i = 0; i < reader_samples_by_cycle.size(); ++i) {
+      if (i) std::cout << ',';
+      std::cout << reader_samples_by_cycle[i];
+    }
+    std::cout << ']';
+    std::cout
       << ",\"base_build_ms\":" << base_wall
       << ",\"base_vector_build_wall_ms\":" << base_vector_wall
       << ",\"base_vector_build_writer_thread_cpu_ms\":" << base_vector_cpu
@@ -4074,7 +4106,8 @@ int RunDeltaVectorPerformance(const fs::path& root, const char* dictionary,
       const auto& e = reader_stage_events[i];
       if (i) std::cout << ',';
       std::cout << "{\"round\":" << e.round << ",\"reader\":" << e.reader
-        << ",\"reader_tid\":" << e.reader_tid
+      << ",\"query_index\":" << e.query_index
+      << ",\"reader_tid\":" << e.reader_tid
         << ",\"acquire_release_ms\":" << offset_ms(e.acquire_release)
         << ",\"acquire_end_ms\":" << offset_ms(e.acquire_end)
         << ",\"reader_dispatch_wait_ms\":" << duration_ms(e.acquire_release, e.acquire_end)
@@ -6107,7 +6140,8 @@ int RunSharedCollectionReusePrototype(const fs::path& root,
 }
 
 int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
-                                   size_t documents, size_t rounds) {
+                                   size_t documents, size_t rounds,
+                                   bool continuous_reader_overlap = false) {
   if (documents < 64 || rounds == 0 || (fs::exists(root) && !fs::is_empty(root)))
     throw std::runtime_error("shared-collection benchmark requires a fresh root, >=64 docs and >=1 round");
   fs::create_directories(root);
@@ -6166,11 +6200,13 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
   std::mutex sync_mutex;
   std::condition_variable sync_cv;
   size_t requested = 0, ready = 0, released = 0, completed = 0;
+  size_t writer_finished = 0;
   bool stop = false;
   std::atomic<size_t> coherence_errors{0};
   std::mutex sample_mutex;
+  std::vector<size_t> reader_samples_by_cycle(rounds * 4, 0);
   std::vector<std::thread> readers;
-  for (size_t reader = 0; reader < 4; ++reader) readers.emplace_back([&] {
+  for (size_t reader = 0; reader < 4; ++reader) readers.emplace_back([&, reader] {
     for (size_t round = 0; round < rounds; ++round) {
       {
         std::unique_lock<std::mutex> lock(sync_mutex);
@@ -6181,6 +6217,9 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
         sync_cv.wait(lock, [&] { return stop || released > round; });
         if (stop) return;
       }
+      bool cycle_finished = false;
+      size_t query_index = 0;
+      do {
       const auto query_start = std::chrono::steady_clock::now();
       const double query_cpu_start = CurrentThreadCpuMs();
       const auto pin_start = std::chrono::steady_clock::now();
@@ -6218,7 +6257,15 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
         reader_vector_stage_ms.push_back(stages.vector_ms);
         reader_fts_stage_ms.push_back(stages.fts_ms);
         reader_merge_stage_ms.push_back(stages.merge_ms);
+        ++reader_samples_by_cycle[round * 4 + reader];
       }
+      ++query_index;
+      {
+        std::lock_guard<std::mutex> lock(sync_mutex);
+        cycle_finished = !continuous_reader_overlap ||
+            ((writer_finished > round || stop) && query_index >= kContinuousReaderMinimumQueriesPerCycle);
+      }
+      } while (!cycle_finished);
       {
         std::lock_guard<std::mutex> lock(sync_mutex);
         ++completed;
@@ -6287,15 +6334,23 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
       gc_examined.push_back(gc_timing.generations_examined);
       writer_write_bytes_per_round.push_back(static_cast<double>(ProcessWriteBytes() - write_before));
     }
+    if (!committed || !collected) {
+      {
+        std::lock_guard<std::mutex> lock(sync_mutex);
+        stop = true;
+        writer_finished = round + 1;
+      }
+      sync_cv.notify_all();
+      break;
+    }
+    {
+      std::lock_guard<std::mutex> lock(sync_mutex);
+      writer_finished = round + 1;
+    }
+    sync_cv.notify_all();
     {
       std::unique_lock<std::mutex> lock(sync_mutex);
       sync_cv.wait(lock, [&] { return completed == (round + 1) * 4; });
-    }
-    if (!committed || !collected) {
-      std::lock_guard<std::mutex> lock(sync_mutex);
-      stop = true;
-      sync_cv.notify_all();
-      break;
     }
     rows = std::move(next_rows);
     if (NativeDocCount(native.value) != documents || fts->GetStats().live_docs != documents) {
@@ -6322,13 +6377,16 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
     coherence_errors.fetch_add(1, std::memory_order_relaxed);
   final_lease.Reset();
   const size_t failures = coherence_errors.load(std::memory_order_relaxed) +
-      (writer_cycle_ms.size() == rounds && reader_total_ms.size() == rounds * 4 ? 0 : 1);
+      (writer_cycle_ms.size() == rounds && reader_total_ms.size() >= rounds * 4 ? 0 : 1);
   const uint64_t process_write_bytes = ProcessWriteBytes() - process_write_start;
   const uint64_t root_bytes = DirectoryBytes(root);
   const auto fts_stats = fts->GetStats();
   std::cout << std::fixed << std::setprecision(3)
             << "{\"mode\":\"shared_collection\",\"documents\":" << documents
-            << ",\"rounds\":" << rounds << ",\"completed_rounds\":" << writer_cycle_ms.size()
+            << ",\"rounds\":" << rounds << ",\"reader_mode\":\""
+            << (continuous_reader_overlap ? "continuous-16-min-through-writer-cycle" : "one-query-per-writer-cycle")
+            << "\",\"reader_queries\":" << reader_total_ms.size()
+            << ",\"completed_rounds\":" << writer_cycle_ms.size()
             << ",\"generation\":" << final_generation
             << ",\"native_open_ms\":" << native_open_ms
             << ",\"native_open_cpu_ms\":" << native_open_cpu_ms
@@ -6386,6 +6444,7 @@ int RunSharedCollectionPerformance(const fs::path& root, const char* dictionary,
   write_samples("writer_gc_ms", writer_gc_ms);
   write_samples("writer_cycle_ms", writer_cycle_ms);
   write_samples("writer_write_bytes_per_round", writer_write_bytes_per_round);
+  write_counts("reader_samples_by_cycle", reader_samples_by_cycle);
   write_samples("reader_total_ms", reader_total_ms);
   write_samples("reader_thread_cpu_ms", reader_cpu_ms);
   write_samples("reader_pin_wall_ms", reader_pin_wall_ms);
@@ -6487,10 +6546,14 @@ int main(int argc, char** argv) {
       return 24;
     }
   }
-  if (argc == 6 && std::string(argv[3]) == "--shared-collection-performance") {
+  if ((argc == 6 || argc == 7) && std::string(argv[3]) == "--shared-collection-performance") {
     try {
+      const bool continuous_reader_overlap = argc == 7 &&
+          std::string(argv[6]) == "--continuous-readers";
+      if (argc == 7 && !continuous_reader_overlap)
+        throw std::runtime_error("unknown shared-reader profile flag");
       return RunSharedCollectionPerformance(argv[1], argv[2], std::stoull(argv[4]),
-                                            std::stoull(argv[5]));
+                                            std::stoull(argv[5]), continuous_reader_overlap);
     } catch (const std::exception& error) {
       std::cerr << "SHARED COLLECTION PERFORMANCE: " << error.what() << '\n';
       (void)zvec_shutdown();
@@ -6598,8 +6661,16 @@ int main(int argc, char** argv) {
     try { return RunDeltaVectorPerformance(argv[1], argv[2], std::stoull(argv[4]), std::stoull(argv[5]), true, true); }
     catch (const std::exception& e) { std::cerr << "INCREMENTAL FTS BENCH: " << e.what() << '\n'; return 12; }
   }
-  if (argc == 6 && std::string(argv[3]) == "--incremental-fts-sustained-no-analyzer-cache") {
-    try { return RunDeltaVectorPerformance(argv[1], argv[2], std::stoull(argv[4]), std::stoull(argv[5]), true, false, false); }
+  if ((argc == 6 || argc == 7) && std::string(argv[3]) == "--incremental-fts-sustained-no-analyzer-cache") {
+    try {
+      const bool continuous_reader_overlap = argc == 7 &&
+          std::string(argv[6]) == "--continuous-readers";
+      if (argc == 7 && !continuous_reader_overlap)
+        throw std::runtime_error("unknown immutable-reader profile flag");
+      return RunDeltaVectorPerformance(argv[1], argv[2], std::stoull(argv[4]),
+                                       std::stoull(argv[5]), true, false, false,
+                                       continuous_reader_overlap);
+    }
     catch (const std::exception& e) { std::cerr << "INCREMENTAL FTS BENCH: " << e.what() << '\n'; return 12; }
   }
   if (argc == 6 && std::string(argv[3]) == "--incremental-fts-sustained-cached-fingerprint") {
@@ -6667,7 +6738,7 @@ int main(int argc, char** argv) {
     catch (const std::exception& e) { std::cerr << "CHILD: " << e.what() << '\n'; return 91; }
   }
   if (argc != 3) {
-    std::cerr << "usage: m4_bridge_integration <fresh-root> <jieba-dict-dir> [--perf|--generation-lifecycle|--lock-sustained docs rounds|--generation-sustained docs rounds|--delta-vector-sustained docs rounds|--shared-collection-performance docs rounds|--reader-compaction-crossover|--reader-search-diagnostics|--reader-search-control|--incremental-fts-candidate|--incremental-fts-sustained docs rounds|--incremental-fts-sustained-no-analyzer-cache docs rounds|--incremental-fts-sustained-cached-fingerprint docs rounds|--native-vector-reference docs rounds|--native-hnsw-counter-fixture docs queries|--native-counter-coverage-fixture|--native-route-cost-model-fixture docs queries]\n";
+    std::cerr << "usage: m4_bridge_integration <fresh-root> <jieba-dict-dir> [--perf|--generation-lifecycle|--lock-sustained docs rounds|--generation-sustained docs rounds|--delta-vector-sustained docs rounds|--shared-collection-performance docs rounds [--continuous-readers]|--reader-compaction-crossover|--reader-search-diagnostics|--reader-search-control|--incremental-fts-candidate|--incremental-fts-sustained docs rounds|--incremental-fts-sustained-no-analyzer-cache docs rounds [--continuous-readers]|--incremental-fts-sustained-cached-fingerprint docs rounds|--native-vector-reference docs rounds|--native-hnsw-counter-fixture docs queries|--native-counter-coverage-fixture|--native-route-cost-model-fixture docs queries]\n";
     return 2;
   }
   const fs::path root(argv[1]); fs::create_directories(root);
@@ -6675,6 +6746,7 @@ int main(int argc, char** argv) {
   try {
     Need(zvec_initialize(nullptr), "initialize native zvec");
     AtomicManifest(root, 0);
+    TestCoordinatorWalRecoveryIntegrity(root);
     Native native = OpenVector(root / "vector", true);
     m4::Options options; options.fts_field = "text"; options.fts_tokenizer_name = "jieba"; options.jieba_dict_dir = argv[2]; options.fsync_wal = true;
     std::unique_ptr<m4::Index> fts; auto status = m4::Index::Open((root / "fts").string(), options, &fts);
@@ -6748,7 +6820,6 @@ int main(int argc, char** argv) {
       std::atomic<bool> compaction_done{false};
       std::atomic<bool> compaction_ok{false};
       std::thread compaction_writer([&] {
-    TestCoordinatorWalRecoveryIntegrity(root);
         compaction_ok.store(barrier_index->CompactNow().ok,
                             std::memory_order_release);
         compaction_done.store(true, std::memory_order_release);

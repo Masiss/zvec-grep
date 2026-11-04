@@ -43,7 +43,11 @@ impl Files {
 
     pub(super) fn open(root: &Path, read_only: bool) -> EngineResult<Self> {
         let mut files = Self {
-            collection: Arc::new(open_collection(&root.join("files"), &files_schema()?, read_only)?),
+            collection: Arc::new(open_collection(
+                &root.join("files"),
+                &files_schema()?,
+                read_only,
+            )?),
             ids: None,
         };
         if !read_only {

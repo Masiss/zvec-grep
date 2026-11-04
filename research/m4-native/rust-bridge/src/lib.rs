@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_char, c_int, CStr, CString},
+    ffi::{CStr, CString, c_char, c_int},
     marker::PhantomData,
     path::Path,
 };
@@ -38,6 +38,7 @@ struct RawIndex {
 unsafe extern "C" {
     fn m4_rust_file_open(root: *const c_char, error: *mut c_char, cap: usize) -> *mut RawIndex;
     fn m4_rust_file_close(index: *mut RawIndex);
+    fn m4_rust_file_compact_now(index: *mut RawIndex, error: *mut c_char, cap: usize) -> c_int;
     fn m4_rust_file_begin(
         index: *mut RawIndex,
         file_id: u64,
@@ -121,6 +122,11 @@ impl Adapter {
             raw,
             _not_send: PhantomData,
         })
+    }
+
+    /// Flush and compact the research sidecar after publication; never changes native-store state.
+    pub fn compact_now(&mut self) -> Result<(), String> {
+        self.call(|raw, error| unsafe { m4_rust_file_compact_now(raw, error, 1024) })
     }
 
     pub fn begin(&mut self, file_id: u64, revision: u64, expected: u32) -> Result<(), String> {

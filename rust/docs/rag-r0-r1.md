@@ -1,27 +1,36 @@
-# RAG R0/R1 — Freeze status and evidence contract
+# RAG R0/R1 — Pilot freeze and evidence contract
 
-Status: **R0 OPERATION_BLOCKED; R1 PASS for the synthetic contract slice.**
-Date: 2026-11-01. Follows `docs/rag/README.md`,
+Status: **R0 IN PROGRESS; R1 PASS for the contract and selected real-source slice.**
+Date: 2026-11-04. Follows `docs/rag/README.md`,
 `docs/rag/implementation-plan.md` and `docs/rag/hrm2-pilot.md`.
 
-## R0 — freeze
+## R0 — current freeze state
 
-The declared pilot is `/home/masis/itc/Ricons/HRM2.0` under checkout root
-`/home/masis/itc/Ricons/`. Neither path exists on this host. Without the
-read-only checkout I cannot:
+The declared pilot exists at `/home/masis/itc/Ricons/HRM2.0`, under Git root
+`/home/masis/itc/Ricons/`. Observed HEAD is
+`68a53a6865b81d05745c4aa47967204e8e128996`, different from the originally
+planned `d5e8fbcdd49b48c208887096993074464c793cd7`. All selected tracked anchor
+files are clean and byte-identical between those HEADs. The surrounding tree
+has unrelated dirty/untracked files, explicitly excluded from this pilot.
 
-- verify HEAD `d5e8fbcdd49b48c208887096993074464c793cd7`;
-- hash the selected `.csproj`/C#/SQL anchors;
-- verify the line ranges from the pilot notes;
-- freeze the 16 development cases or have a reviewer author H01–H08.
+`benchmarks/rag-impact/scope-manifest.json` records the observed root/HEAD,
+SHA-256 for every selected project/source anchor, and exact spans for D01–D12.
+It intentionally does not claim R0 frozen: detailed facts/claim limits for
+D01–D12 remain under review, D13–D16 synthetic fixtures are not authored, and
+the owner has not accepted or adjusted the numeric targets in
+`docs/rag/implementation-plan.md` §9. No candidate quality or performance
+measurement has been run.
 
-Artifacts are in `benchmarks/rag-impact/`: `scope-manifest.json` records the
-blocker with `null` hashes, `cases/dev.json` keeps the proposed cases marked
-unfrozen, and `cases/heldout.json` leaves the reviewer-owned holdout empty. No
-hash, gold span or expected answer was fabricated.
+An independent Sol 6.1 reviewer authored H01–H08 from selected source anchors;
+parent verification confirms all hashes, line spans and 45 quoted snippets.
+The reviewer did not read the dev-case file or candidate artifacts. Parent
+provided excluded-topic themes to avoid duplication, so the author was
+independent of candidate tuning but was not blind to all development topics.
+No candidate measurement was performed.
 
-**R0 gate: OPERATION_BLOCKED.** Restore the checkout, then fill hashes/spans and
-complete the case review before any candidate measurement.
+**R0 gate: INCOMPLETE.** Finish D01–D12 fact/claim-limit review and D13–D16
+synthetic fixtures, then obtain owner acceptance of §9 targets before candidate
+measurement.
 
 ## R1 — evidence/source pack
 
@@ -50,34 +59,51 @@ duplicate requests are collapsed.
 - Invalid UTF-8 and ranges that split a codepoint are gaps.
 - Snippet/item budget overflow is a gap; the pack never silently truncates.
 - A source changed after assembly fails `revalidate`.
-- Same relative names in different projects remain separate items.
+- Same relative names in different projects stay separate items.
 - Empty request list is `empty`; a zero budget is `EvidenceError::InvalidBudget`
   (query error, not an empty result).
 
-### Tests
+### Verification and pilot slice
 
-`cargo test -p zg-engine --lib api::evidence` — **8 passed**:
-
-- Unicode/codepoint boundaries and exact bytes;
-- CRLF and EOF coordinates, locator mismatch;
-- traversal, absolute path, symlink;
-- stale hash, missing/renamed source;
-- same name in two projects;
-- snippet/item budget and dedup;
-- empty result vs invalid-budget error;
-- revalidation after source change.
+- `cd rust && TMPDIR=/home/masis/src/zvec-grep/.tmp cargo test -p zg-engine --lib api::evidence`
+  — **8 passed, 0 failed**. Build emitted unrelated dead-code/unused-import
+  warnings in `storage`.
+- A temporary integration harness exercised D02, D07 and negative twins D04,
+  D06, D12 against the real selected HRM2.0 checkout, with 24 KiB per-case
+  evidence budgets. All five `assemble` packs were `ok`; all 14 evidence items
+  passed `revalidate`. Receipt: `benchmarks/rag-impact/results/r1-pilot-slice.json`.
+  The temporary harness was removed after execution.
+- A first pilot run exposed a malformed 65-character S1 hash in the manifest;
+  corrected against the source and re-ran successfully. This is recorded as
+  validation history, not hidden.
 
 ### Limits
 
 - This does not search, rank or parse C#/SQL; it validates evidence supplied by
   the caller or a later retrieval adapter.
-- It does not decide project inclusion; the R0 manifest must supply project
-  identity and scope.
-- The pilot has not exercised it. R1 pilot validation remains pending R0.
+- It does not decide project inclusion; R0 supplies project identity and scope.
+- These packs validate selected citations, not retrieval quality, answer quality,
+  performance, deployment state, database behavior, or complete impact.
 - No cache/version key is persisted yet; callers revalidate per final answer.
 
 ## Next
 
-1. Restore the read-only pilot and complete R0 freeze (hashes, spans, holdout).
-2. Run D02/D07 plus negative twins D04/D06/D12 through the evidence pack.
-3. Only then add the C# fact adapter (R2). Do not open a new optimization track.
+1. Finish exact refs/facts for development cases D01–D12 and synthetic fixture
+   definitions for D13–D16; keep them unfrozen until reviewed.
+2. Ask the owner to accept or adjust `implementation-plan.md` §9 targets.
+3. Do not run candidate quality/performance measurement until both R0 gates are
+   satisfied. Only then consider the scoped C# fact adapter (R2); no graph store,
+   background LLM, DB connection, build/restore or code execution.
+
+## Evidence
+
+- `benchmarks/rag-impact/scope-manifest.json`
+- `benchmarks/rag-impact/cases/dev.json`
+- `benchmarks/rag-impact/cases/heldout.json`
+- `benchmarks/rag-impact/results/r1-pilot-slice.json`
+- `benchmarks/rag-impact/results/r1-contract.json`
+- `benchmarks/rag-impact/README.md`
+- `docs/rag/implementation-plan.md`
+
+No R2 implementation or production rollout is authorized by this checkpoint.
+```

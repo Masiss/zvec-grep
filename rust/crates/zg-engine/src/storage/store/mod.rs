@@ -10,13 +10,100 @@ use std::{
 
 #[cfg(test)]
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
 #[cfg(test)]
 thread_local! {
     static STATE_LOCK_WAIT_TELEMETRY: Cell<(u64, u64, u64)> = const { Cell::new((0, 0, 0)) };
+    static STATE_LOCK_TRACE: RefCell<Option<StateLockTrace>> = const { RefCell::new(None) };
+    static STATE_LOCK_STAGE: Cell<&'static str> = const { Cell::new("other") };
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn monotonic_time_ns_for_test() -> u64 {
+    let elapsed = rustix::time::clock_gettime(rustix::time::ClockId::Monotonic);
+    u64::try_from(elapsed.tv_sec)
+        .unwrap_or(0)
+        .saturating_mul(1_000_000_000)
+        .saturating_add(u64::try_from(elapsed.tv_nsec).unwrap_or(0))
+}
+
+#[cfg(all(test, not(target_os = "linux")))]
+pub(crate) fn monotonic_time_ns_for_test() -> u64 {
+    0
+}
+
+#[cfg(test)]
+pub(crate) type StateLockSpan = (&'static str, &'static str, u128, u128);
+#[cfg(test)]
+pub(crate) type NativeFtsSpan = (u128, u128, u64);
+
+#[cfg(test)]
+struct StateLockTrace {
+    origin: Instant,
+    spans: Vec<StateLockSpan>,
+    dropped: usize,
+    native_fts_spans: Vec<NativeFtsSpan>,
+    native_fts_dropped: usize,
+    cap: usize,
+}
+
+#[cfg(test)]
+const STATE_LOCK_TRACE_CAP: usize = 4096;
+
+#[cfg(test)]
+struct StateLockStage(&'static str);
+
+#[cfg(test)]
+impl StateLockStage {
+    fn enter(stage: &'static str) -> Self {
+        Self(STATE_LOCK_STAGE.with(|current| current.replace(stage)))
+    }
+}
+
+#[cfg(test)]
+impl Drop for StateLockStage {
+    fn drop(&mut self) {
+        STATE_LOCK_STAGE.with(|current| current.set(self.0));
+    }
+}
+
+#[cfg(test)]
+fn record_state_lock_span(kind: &'static str, start: Instant, end: Instant) {
+    STATE_LOCK_TRACE.with(|trace| {
+        let mut trace = trace.borrow_mut();
+        let Some(trace) = trace.as_mut() else { return };
+        if trace.spans.len() >= trace.cap {
+            trace.dropped = trace.dropped.saturating_add(1);
+            return;
+        }
+        let stage = STATE_LOCK_STAGE.with(Cell::get);
+        trace.spans.push((
+            stage,
+            kind,
+            start.saturating_duration_since(trace.origin).as_nanos(),
+            end.saturating_duration_since(trace.origin).as_nanos(),
+        ));
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn record_native_fts_span_for_test(start: Instant, end: Instant, thread_cpu_ns: u64) {
+    STATE_LOCK_TRACE.with(|trace| {
+        let mut trace = trace.borrow_mut();
+        let Some(trace) = trace.as_mut() else { return };
+        if trace.native_fts_spans.len() >= trace.cap {
+            trace.native_fts_dropped = trace.native_fts_dropped.saturating_add(1);
+            return;
+        }
+        trace.native_fts_spans.push((
+            start.saturating_duration_since(trace.origin).as_nanos(),
+            end.saturating_duration_since(trace.origin).as_nanos(),
+            thread_cpu_ns,
+        ));
+    });
 }
 
 #[cfg(test)]
@@ -66,10 +153,17 @@ static STORES: OnceLock<StoreRegistry> = OnceLock::new();
 
 struct SharedStore {
     state: Mutex<StoreState>,
-    /// Serializes native maintenance (optimize) against close/retire so a
-    /// collection is never closed while an optimize is in flight. Lock order is
-    /// always maintenance -> state; nothing takes state then maintenance.
+    /// Serializes native maintenance (optimize/flush) against close/retire so a
+    /// collection is never closed while native maintenance is in flight. Lock
+    /// order is maintenance -> mutation_gate -> state; writers and finalization
+    /// acknowledgement take mutation_gate -> state. Queries take only state.
     maintenance: Mutex<()>,
+    /// Serializes writes against checkpoints while fragment flush runs without
+    /// the state lock, allowing read-only queries to proceed over stable data.
+    mutation_gate: Mutex<()>,
+    #[cfg(test)]
+    checkpoint_fragment_flush_pause:
+        Mutex<Option<(std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>)>>,
     #[cfg(test)]
     maintenance_started: AtomicBool,
     schema: Vec<EmbeddingModelInfo>,
@@ -110,6 +204,11 @@ struct MutationStats {
     files_replaced: u64,
     files_deleted: u64,
     files_snapshot_updated: u64,
+    /// Native rows written/deleted per collection (write-amplification audit).
+    entities_written: u64,
+    fragments_written: u64,
+    entities_deleted: u64,
+    fragments_deleted: u64,
 }
 
 /// Which native collections need `optimize()` after the accepted writes.
@@ -201,7 +300,20 @@ impl MaintenancePolicy {
 fn wall_clock_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+/// Process-wide physical write bytes (includes async `RocksDB` background work).
+fn io_write_bytes() -> u64 {
+    std::fs::read_to_string("/proc/self/io")
+        .ok()
+        .and_then(|text| {
+            text.lines()
+                .find_map(|line| line.strip_prefix("write_bytes:"))
+                .and_then(|value| value.trim().parse::<u64>().ok())
+        })
         .unwrap_or(0)
 }
 
@@ -392,6 +504,9 @@ impl IndexStore {
                 closed: false,
             }),
             maintenance: Mutex::new(()),
+            mutation_gate: Mutex::new(()),
+            #[cfg(test)]
+            checkpoint_fragment_flush_pause: Mutex::new(None),
             #[cfg(test)]
             maintenance_started: AtomicBool::new(false),
             schema,
@@ -474,9 +589,13 @@ impl IndexStore {
         let lock_started = Instant::now();
         let state = lock_state(&shared)?;
         #[cfg(test)]
-        record_state_lock_wait_for_test(
-            u64::try_from(lock_started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-        );
+        {
+            let acquired = Instant::now();
+            record_state_lock_wait_for_test(
+                u64::try_from(acquired.duration_since(lock_started).as_nanos()).unwrap_or(u64::MAX),
+            );
+            record_state_lock_span("read_wait", lock_started, acquired);
+        }
         assert_usable(&state)?;
         operation(&state)
     }
@@ -491,20 +610,108 @@ impl IndexStore {
             ));
         }
         let shared = self.shared()?;
+        let _mutation = shared
+            .mutation_gate
+            .lock()
+            .map_err(|_| EngineError::internal("storage mutation gate was poisoned"))?;
+        self.write_locked(&shared, operation)
+    }
+
+    /// Runs a write while the caller owns `SharedStore::mutation_gate`.
+    fn write_locked<T>(
+        &self,
+        shared: &SharedStore,
+        operation: impl FnOnce(&mut StoreState) -> EngineResult<T>,
+    ) -> EngineResult<T> {
+        if self.read_only {
+            return Err(EngineError::permission_denied(
+                "cannot write read-only workspace storage",
+            ));
+        }
         #[cfg(test)]
         let lock_started = Instant::now();
-        let mut state = lock_state(&shared)?;
+        let mut state = lock_state(shared)?;
         #[cfg(test)]
-        record_state_lock_wait_for_test(
-            u64::try_from(lock_started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-        );
+        let acquired = Instant::now();
+        #[cfg(test)]
+        {
+            record_state_lock_wait_for_test(
+                u64::try_from(acquired.duration_since(lock_started).as_nanos()).unwrap_or(u64::MAX),
+            );
+            record_state_lock_span("write_wait", lock_started, acquired);
+        }
         assert_usable(&state)?;
-        operation(&mut state)
+        let result = operation(&mut state);
+        #[cfg(test)]
+        {
+            drop(state);
+            record_state_lock_span("write_hold", acquired, Instant::now());
+        }
+        result
     }
 
     #[cfg(test)]
     pub(crate) fn take_state_lock_wait_telemetry_for_test(&self) -> (u64, u64, u64) {
         take_state_lock_wait_for_test()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_native_fts_query_telemetry_for_test(&self) -> (u64, u64) {
+        fragments::take_native_fts_query_telemetry_for_test()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_native_fts_spans_for_test(&self) -> (Vec<NativeFtsSpan>, usize) {
+        STATE_LOCK_TRACE.with(|trace| {
+            trace.borrow_mut().as_mut().map_or_else(
+                || (Vec::new(), 0),
+                |trace| {
+                    (
+                        std::mem::take(&mut trace.native_fts_spans),
+                        std::mem::take(&mut trace.native_fts_dropped),
+                    )
+                },
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn begin_state_lock_trace_for_test(&self, origin: Instant, cap: usize) {
+        STATE_LOCK_TRACE.with(|trace| {
+            *trace.borrow_mut() = Some(StateLockTrace {
+                origin,
+                spans: Vec::new(),
+                dropped: 0,
+                native_fts_spans: Vec::new(),
+                native_fts_dropped: 0,
+                cap: cap.min(STATE_LOCK_TRACE_CAP),
+            });
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_state_lock_trace_for_test(
+        &self,
+        finish: bool,
+    ) -> (Vec<StateLockSpan>, usize) {
+        STATE_LOCK_TRACE.with(|trace| {
+            let mut trace = trace.borrow_mut();
+            if finish {
+                trace
+                    .take()
+                    .map_or_else(|| (Vec::new(), 0), |trace| (trace.spans, trace.dropped))
+            } else {
+                trace.as_mut().map_or_else(
+                    || (Vec::new(), 0),
+                    |trace| {
+                        (
+                            std::mem::take(&mut trace.spans),
+                            std::mem::take(&mut trace.dropped),
+                        )
+                    },
+                )
+            }
+        })
     }
 
     pub(crate) fn is_read_only(&self) -> bool {
@@ -515,7 +722,7 @@ impl IndexStore {
         &self,
         file_id: FileId,
     ) -> EngineResult<Option<FileManifest>> {
-        self.read(|state| load_indexed_manifest(state, file_id))
+        self.read(|state| Ok(load_indexed_manifest(state, file_id)?.1))
     }
 
     pub(crate) fn fetch_fragment_vectors(
@@ -609,7 +816,9 @@ impl IndexStore {
                 .map_err(|_| EngineError::invalid_argument("entity count exceeds u64"))?,
         };
         file.validate()?;
-        self.write(|state| replace_file(state, &file, entities, entries))
+        #[cfg(test)]
+        let _stage = StateLockStage::enter("replace_file");
+        self.write(|state| replace_file(state, &file, entities, entries, &shared.storage_path))
     }
 
     pub(crate) fn replace_file_from_staged(
@@ -658,6 +867,8 @@ impl IndexStore {
                 .map_err(|_| EngineError::invalid_argument("entity count exceeds u64"))?,
         };
         file.validate()?;
+        #[cfg(test)]
+        let _stage = StateLockStage::enter("replace_staged");
         let result = self.write(|state| {
             state.files.validate(&file)?;
 
@@ -690,11 +901,17 @@ impl IndexStore {
             }
             state.mark_finalize(FinalizeState::FILES);
             let new_manifest = build_staged_file_manifest(&staged, &file, &directories)?;
-            let old_manifest = load_indexed_manifest(state, file.id)?;
+            let (had_file_record, old_manifest) = load_indexed_manifest(state, file.id)?;
             let incremental = match (&old_manifest, &new_manifest) {
                 (Some(old), Some(new)) => Some(build_incremental_plan(old, new)),
                 _ => None,
             };
+            persist_replacement_delete_intent(
+                state,
+                &shared.storage_path,
+                had_file_record,
+                incremental.as_ref(),
+            )?;
 
             // Fail closed: drop the previous published snapshot before the first
             // row mutation. A `NotIndexed` file stays searchable only while a
@@ -724,6 +941,17 @@ impl IndexStore {
                     state.fragments.delete_fragment_ids(model, fragment_ids)?;
                 }
                 state.entities.delete_ids(&plan.delete_entities)?;
+                state.mutation_stats.fragments_deleted =
+                    state.mutation_stats.fragments_deleted.saturating_add(
+                        plan.delete_fragments
+                            .values()
+                            .map(|ids| u64::try_from(ids.len()).unwrap_or(u64::MAX))
+                            .sum(),
+                    );
+                state.mutation_stats.entities_deleted = state
+                    .mutation_stats
+                    .entities_deleted
+                    .saturating_add(u64::try_from(plan.delete_entities.len()).unwrap_or(u64::MAX));
             } else {
                 state.fragments.delete_file(file.id)?;
                 state.entities.delete_file(file.id)?;
@@ -733,6 +961,10 @@ impl IndexStore {
             staged.for_each_entity_batch(|entities| {
                 let entity_docs =
                     select_entity_docs(Entities::prepare(entities)?, incremental.as_ref())?;
+                state.mutation_stats.entities_written = state
+                    .mutation_stats
+                    .entities_written
+                    .saturating_add(u64::try_from(entity_docs.len()).unwrap_or(u64::MAX));
                 state.entities.write(&entity_docs)?;
                 for entity in entities {
                     let mut encoder = fragments::ProjectionEncoder::new(
@@ -752,6 +984,10 @@ impl IndexStore {
                         }
                         let docs =
                             select_fragment_docs(encoder.prepare(&batch)?, incremental.as_ref())?;
+                        state.mutation_stats.fragments_written = state
+                            .mutation_stats
+                            .fragments_written
+                            .saturating_add(u64::try_from(docs.len()).unwrap_or(u64::MAX));
                         state.fragments.write(&docs)?;
                         #[cfg(test)]
                         if self
@@ -816,6 +1052,7 @@ impl IndexStore {
             error: error.to_owned(),
         };
         file.validate()?;
+        let shared = self.shared()?;
         self.write(|state| {
             state.files.validate(&file)?;
             // Persistent read/extraction failures are retried by reconciliation.
@@ -826,7 +1063,7 @@ impl IndexStore {
                 tracing::debug!(file_id = %file.id, "unchanged file failure write skipped");
                 return Ok(());
             }
-            replace_file(state, &file, &[], &[])
+            replace_file(state, &file, &[], &[], &shared.storage_path)
         })
     }
 
@@ -839,11 +1076,20 @@ impl IndexStore {
             return Ok(());
         }
         let shared = self.shared()?;
+        // Take the mutation gate before writing the durable marker so a
+        // checkpoint cannot clear it while the delete waits to mutate state.
+        let _mutation = shared
+            .mutation_gate
+            .lock()
+            .map_err(|_| EngineError::internal("storage mutation gate was poisoned"))?;
         // Durably record the deletion intent BEFORE any mutation: if this fails
         // the delete fails (fail-safe), so a crash can never persist tombstones
         // without a marker or silently lose the pending maintenance.
         persist_delete_marker(&shared.storage_path, true)?;
-        let result = self.write(|state| {
+
+        #[cfg(test)]
+        let _stage = StateLockStage::enter("delete_files");
+        self.write_locked(&shared, |state| {
             // Vector indexes retain deleted entries until native optimize removes
             // their tombstones from the HNSW search path.
             state.mark_finalize(FinalizeState::ENTITIES);
@@ -866,35 +1112,130 @@ impl IndexStore {
                     .saturating_add(u64::try_from(file_ids.len()).unwrap_or(u64::MAX));
             }
             result
-        });
-        result
+        })
     }
 
     /// Flush accepted writes, including any unfinished file's retry state.
     #[cfg(test)]
-pub(crate) fn checkpoint_only(&self) -> EngineResult<()> {
-    self.checkpoint()
-}
+    pub(crate) fn checkpoint_only(&self) -> EngineResult<()> {
+        self.checkpoint()
+    }
 
-pub(crate) fn checkpoint(&self) -> EngineResult<()> {
+    #[cfg(test)]
+    pub(crate) fn pause_next_fragment_checkpoint_for_test(
+        &self,
+    ) -> EngineResult<(std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>)> {
+        let shared = self.shared()?;
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let mut pause = shared
+            .checkpoint_fragment_flush_pause
+            .lock()
+            .map_err(|_| EngineError::internal("checkpoint test hook was poisoned"))?;
+        if pause.is_some() {
+            return Err(EngineError::internal(
+                "fragment checkpoint test hook is already installed",
+            ));
+        }
+        *pause = Some((started_tx, release_rx));
+        Ok((started_rx, release_tx))
+    }
+
+    pub(crate) fn checkpoint(&self) -> EngineResult<()> {
         if self.read_only {
             return Ok(());
         }
         let shared = self.shared()?;
-        self.write(|state| {
+        // Serialize flush against optimize/close and every mutation. The native
+        // Collection API is internally thread-safe, so queries may use cloned
+        // fragment handles while their durable flush runs outside `state`.
+        let _maintenance = shared
+            .maintenance
+            .lock()
+            .map_err(|_| EngineError::internal("maintenance lease was poisoned"))?;
+        let _mutation = shared
+            .mutation_gate
+            .lock()
+            .map_err(|_| EngineError::internal("storage mutation gate was poisoned"))?;
+        #[cfg(test)]
+        let _stage = StateLockStage::enter("checkpoint");
+
+        let fragment_handles = {
+            #[cfg(test)]
+            let lock_started = Instant::now();
+            let state = lock_state(&shared)?;
+            #[cfg(test)]
+            let acquired = Instant::now();
+            #[cfg(test)]
+            {
+                record_state_lock_wait_for_test(
+                    u64::try_from(acquired.duration_since(lock_started).as_nanos())
+                        .unwrap_or(u64::MAX),
+                );
+                record_state_lock_span("write_wait", lock_started, acquired);
+            }
+            assert_usable(&state)?;
             // Persist the deletion intent BEFORE flushing tombstone state.
-            persist_delete_marker(&shared.storage_path, state.fragments_delete_pending)?;
-            flush(state)
-        })
+            checkpoint_step("checkpoint_delete_marker", || {
+                persist_delete_marker(&shared.storage_path, state.fragments_delete_pending)
+            })?;
+            checkpoint_step("checkpoint_flush_directories", || state.directories.flush())?;
+            checkpoint_step("checkpoint_flush_entities", || state.entities.flush())?;
+            let handles = state.fragments.handles();
+            #[cfg(test)]
+            {
+                drop(state);
+                record_state_lock_span("write_hold", acquired, Instant::now());
+            }
+            #[cfg(not(test))]
+            drop(state);
+            handles
+        };
+
+        checkpoint_step("checkpoint_flush_fragments", || {
+            #[cfg(test)]
+            pause_checkpoint_fragment_flush_for_test(&shared)?;
+            for (_, collection) in &fragment_handles {
+                native(collection.flush(), "flush fragment collection")?;
+            }
+            Ok(())
+        })?;
+
+        #[cfg(test)]
+        let lock_started = Instant::now();
+        let state = lock_state(&shared)?;
+        #[cfg(test)]
+        let acquired = Instant::now();
+        #[cfg(test)]
+        {
+            record_state_lock_wait_for_test(
+                u64::try_from(acquired.duration_since(lock_started).as_nanos()).unwrap_or(u64::MAX),
+            );
+            record_state_lock_span("write_wait", lock_started, acquired);
+        }
+        assert_usable(&state)?;
+        let result = checkpoint_step("checkpoint_flush_files", || state.files.flush());
+        #[cfg(test)]
+        {
+            drop(state);
+            record_state_lock_span("write_hold", acquired, Instant::now());
+        }
+        result
     }
 
     /// Persist retry state, run native optimize for the snapshot of pending debt
     /// OUTSIDE the state lock so search and writers stay available, then
     /// acknowledge only the exact debt that was optimized.
     pub(crate) fn finalize_writes(&self) -> EngineResult<()> {
+        #[cfg(feature = "native-profile")]
+        let finalization_profile_started = std::env::var("ZVEC_GREP_NATIVE_PROFILE")
+            .is_ok_and(|value| value == "1")
+            .then(Instant::now);
+        let checkpoint_io_before = io_write_bytes();
         let checkpoint_started = Instant::now();
         self.checkpoint()?;
         let checkpoint_micros = elapsed_micros(checkpoint_started);
+        let checkpoint_write_bytes = io_write_bytes().saturating_sub(checkpoint_io_before);
         if self.read_only {
             return Ok(());
         }
@@ -910,10 +1251,8 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             let finalize = state.finalize;
             let probe_started = Instant::now();
             let fragments_incomplete = state.fragments.needs_optimize()?;
-            let fragments_completeness_before = state
-                .fragments
-                .completeness_summary()
-                .unwrap_or(f32::NAN);
+            let fragments_completeness_before =
+                state.fragments.completeness_summary().unwrap_or(f32::NAN);
             let optimize_probe_micros = elapsed_micros(probe_started);
             let mutation_stats = state.mutation_stats;
 
@@ -924,8 +1263,9 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             // age deadline, or a hard safety bound (never unbounded).
             let policy = self.maintenance_policy();
             let finalize_fragments_flag = finalize.contains(FinalizeState::FRAGMENTS);
-            let wants_fragments = finalize_fragments_flag || fragments_incomplete;
             let fragments_delete = state.fragments_delete_pending;
+            let wants_fragments =
+                finalize_fragments_flag || fragments_incomplete || fragments_delete;
             let debt = state
                 .fragments_debt
                 .saturating_sub(state.fragments_ack_epoch);
@@ -935,16 +1275,20 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             let aged = state.pending_since_ms != 0
                 && wall_clock_ms().saturating_sub(state.pending_since_ms) >= policy.max_age_ms;
             let run_fragments = wants_fragments
-                && (fragments_delete
-                    || policy.threshold == 0
-                    || debt >= policy.threshold
-                    || aged);
+                && (fragments_delete || policy.threshold == 0 || debt >= policy.threshold || aged);
             let deferred = wants_fragments && !run_fragments;
-            let fragments_optimize_reason = match (finalize_fragments_flag, fragments_incomplete) {
-                (true, true) => "both",
-                (true, false) => "finalize_flag",
-                (false, true) => "incomplete",
-                (false, false) => "none",
+            let fragments_optimize_reason = match (
+                finalize_fragments_flag,
+                fragments_incomplete,
+                fragments_delete,
+            ) {
+                (true, true, _) => "both",
+                (true, false, true) => "finalize_flag+delete",
+                (true, false, false) => "finalize_flag",
+                (false, true, true) => "incomplete+delete",
+                (false, true, false) => "incomplete",
+                (false, false, true) => "delete",
+                (false, false, false) => "none",
             };
             let defer_reason = if !deferred {
                 "none"
@@ -1023,6 +1367,10 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
         let mut entities_optimize_micros = 0;
         let mut files_optimize_micros = 0;
         let mut fragments_optimize_micros = 0;
+        let mut directories_optimize_write_bytes = 0;
+        let mut entities_optimize_write_bytes = 0;
+        let mut files_optimize_write_bytes = 0;
+        let mut fragments_optimize_write_bytes = 0;
         #[cfg(test)]
         if self.fail_next_optimize.swap(false, Ordering::SeqCst) {
             optimize_error = Some(EngineError::storage_failure(
@@ -1039,31 +1387,38 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             #[cfg(test)]
             shared.maintenance_started.store(true, Ordering::SeqCst);
             if let Some(handle) = &directories_handle {
+                let io_before = io_write_bytes();
                 let started = Instant::now();
                 if let Err(error) = native(handle.optimize(), "optimize directories") {
                     optimize_error = Some(error);
                 }
                 directories_optimize_micros = elapsed_micros(started);
+                directories_optimize_write_bytes = io_write_bytes().saturating_sub(io_before);
             }
-            if optimize_error.is_none() {
-                if let Some(handle) = &entities_handle {
-                    let started = Instant::now();
-                    if let Err(error) = native(handle.optimize(), "optimize entities") {
-                        optimize_error = Some(error);
-                    }
-                    entities_optimize_micros = elapsed_micros(started);
+            if optimize_error.is_none()
+                && let Some(handle) = &entities_handle
+            {
+                let io_before = io_write_bytes();
+                let started = Instant::now();
+                if let Err(error) = native(handle.optimize(), "optimize entities") {
+                    optimize_error = Some(error);
                 }
+                entities_optimize_micros = elapsed_micros(started);
+                entities_optimize_write_bytes = io_write_bytes().saturating_sub(io_before);
             }
-            if optimize_error.is_none() {
-                if let Some(handle) = &files_handle {
-                    let started = Instant::now();
-                    if let Err(error) = native(handle.optimize(), "optimize source files") {
-                        optimize_error = Some(error);
-                    }
-                    files_optimize_micros = elapsed_micros(started);
+            if optimize_error.is_none()
+                && let Some(handle) = &files_handle
+            {
+                let io_before = io_write_bytes();
+                let started = Instant::now();
+                if let Err(error) = native(handle.optimize(), "optimize source files") {
+                    optimize_error = Some(error);
                 }
+                files_optimize_micros = elapsed_micros(started);
+                files_optimize_write_bytes = io_write_bytes().saturating_sub(io_before);
             }
             if optimize_error.is_none() {
+                let io_before = io_write_bytes();
                 for (_, handle) in &fragment_handles {
                     let started = Instant::now();
                     match native(handle.optimize(), "optimize fragment collection") {
@@ -1075,6 +1430,7 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
                     }
                     fragments_optimize_micros += elapsed_micros(started);
                 }
+                fragments_optimize_write_bytes = io_write_bytes().saturating_sub(io_before);
             }
             #[cfg(test)]
             shared.maintenance_started.store(false, Ordering::SeqCst);
@@ -1090,10 +1446,22 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
         // mutations during Phase B advanced `mutation_epoch`; a failed or
         // incomplete optimize keeps the flags for the next round.
         let acknowledged;
+        #[cfg(feature = "native-profile")]
+        let epoch_unchanged_for_profile;
         {
+            let _mutation = shared
+                .mutation_gate
+                .lock()
+                .map_err(|_| EngineError::internal("storage mutation gate was poisoned"))?;
             let mut state = lock_state(&shared)?;
             let epoch_unchanged = state.mutation_epoch == snapshot_epoch;
-            let debt = state.fragments_debt.saturating_sub(state.fragments_ack_epoch);
+            #[cfg(feature = "native-profile")]
+            {
+                epoch_unchanged_for_profile = epoch_unchanged;
+            }
+            let debt = state
+                .fragments_debt
+                .saturating_sub(state.fragments_ack_epoch);
             #[cfg(test)]
             self.last_finalize_saw_closed
                 .store(state.closed, Ordering::SeqCst);
@@ -1135,6 +1503,7 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             if deferred {
                 tracing::info!(
                     checkpoint_micros,
+                    checkpoint_write_bytes,
                     optimize_probe_micros,
                     debt,
                     threshold = policy.threshold,
@@ -1144,6 +1513,10 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
                     finalize_fragments_flag,
                     fragments_optimize_reason,
                     fragments_completeness_before,
+                    entities_written = mutation_stats.entities_written,
+                    fragments_written = mutation_stats.fragments_written,
+                    entities_deleted = mutation_stats.entities_deleted,
+                    fragments_deleted = mutation_stats.fragments_deleted,
                     "index storage finalization deferred native optimize"
                 );
             } else if optimize_directories
@@ -1153,14 +1526,23 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             {
                 tracing::info!(
                     checkpoint_micros,
+                    checkpoint_write_bytes,
                     optimize_probe_micros,
                     directories_optimize_micros,
                     entities_optimize_micros,
                     files_optimize_micros,
                     fragments_optimize_micros,
+                    directories_optimize_write_bytes,
+                    entities_optimize_write_bytes,
+                    files_optimize_write_bytes,
+                    fragments_optimize_write_bytes,
                     files_replaced = mutation_stats.files_replaced,
                     files_deleted = mutation_stats.files_deleted,
                     files_snapshot_updated = mutation_stats.files_snapshot_updated,
+                    entities_written = mutation_stats.entities_written,
+                    fragments_written = mutation_stats.fragments_written,
+                    entities_deleted = mutation_stats.entities_deleted,
+                    fragments_deleted = mutation_stats.fragments_deleted,
                     optimize_directories,
                     optimize_entities,
                     optimize_files,
@@ -1177,10 +1559,15 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             } else {
                 tracing::info!(
                     checkpoint_micros,
+                    checkpoint_write_bytes,
                     optimize_probe_micros,
                     files_replaced = mutation_stats.files_replaced,
                     files_deleted = mutation_stats.files_deleted,
                     files_snapshot_updated = mutation_stats.files_snapshot_updated,
+                    entities_written = mutation_stats.entities_written,
+                    fragments_written = mutation_stats.fragments_written,
+                    entities_deleted = mutation_stats.entities_deleted,
+                    fragments_deleted = mutation_stats.fragments_deleted,
                     fragments_incomplete,
                     finalize_fragments_flag,
                     fragments_optimize_reason,
@@ -1188,6 +1575,48 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
                     "index storage finalization skipped native optimize"
                 );
             }
+        }
+
+        #[cfg(feature = "native-profile")]
+        if let Some(finalization_profile_started) = finalization_profile_started {
+            eprintln!(
+                "NATIVE_PROFILE event=store_finalize elapsed_micros={} checkpoint_micros={} checkpoint_write_bytes={} optimize_probe_micros={} directories_optimize_micros={} entities_optimize_micros={} files_optimize_micros={} fragments_optimize_micros={} directories_optimize_write_bytes={} entities_optimize_write_bytes={} files_optimize_write_bytes={} fragments_optimize_write_bytes={} files_replaced={} files_deleted={} files_snapshot_updated={} entities_written={} fragments_written={} entities_deleted={} fragments_deleted={} optimize_directories={} optimize_entities={} optimize_files={} optimize_fragments={} deferred={} defer_reason={} maintenance_threshold={} maintenance_max_age_ms={} fragments_incomplete={} finalize_fragments_flag={} fragments_optimize_reason={} fragments_completeness_before={:?} fragments_completeness_after={:?} acknowledged={} epoch_unchanged={} optimize_error_code={:?}",
+                elapsed_micros(finalization_profile_started),
+                checkpoint_micros,
+                checkpoint_write_bytes,
+                optimize_probe_micros,
+                directories_optimize_micros,
+                entities_optimize_micros,
+                files_optimize_micros,
+                fragments_optimize_micros,
+                directories_optimize_write_bytes,
+                entities_optimize_write_bytes,
+                files_optimize_write_bytes,
+                fragments_optimize_write_bytes,
+                mutation_stats.files_replaced,
+                mutation_stats.files_deleted,
+                mutation_stats.files_snapshot_updated,
+                mutation_stats.entities_written,
+                mutation_stats.fragments_written,
+                mutation_stats.entities_deleted,
+                mutation_stats.fragments_deleted,
+                optimize_directories,
+                optimize_entities,
+                optimize_files,
+                optimize_fragments,
+                deferred,
+                defer_reason,
+                policy.threshold,
+                policy.max_age_ms,
+                fragments_incomplete,
+                finalize_fragments_flag,
+                fragments_optimize_reason,
+                fragments_completeness_before,
+                fragments_completeness_after_optimize,
+                acknowledged,
+                epoch_unchanged_for_profile,
+                optimize_error.as_ref().map(|error| error.code()),
+            );
         }
 
         if let Some(error) = optimize_error {
@@ -1206,13 +1635,33 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
     }
 
     #[cfg(test)]
+    pub(crate) fn mutation_stats_for_test(
+        &self,
+    ) -> EngineResult<(u64, u64, u64, u64, u64, u64, u64)> {
+        let shared = self.shared()?;
+        let state = lock_state(&shared)?;
+        let m = state.mutation_stats;
+        Ok((
+            m.files_replaced,
+            m.files_deleted,
+            m.files_snapshot_updated,
+            m.entities_written,
+            m.fragments_written,
+            m.entities_deleted,
+            m.fragments_deleted,
+        ))
+    }
+
+    #[cfg(test)]
     pub(crate) fn finalize_debt_for_test(&self) -> EngineResult<(bool, u64)> {
         let shared = self.shared()?;
         let state = lock_state(&shared)?;
         let pending = state.finalize.contains(FinalizeState::DIRECTORIES)
             || state.finalize.contains(FinalizeState::ENTITIES)
             || state.finalize.contains(FinalizeState::FILES)
-            || state.finalize.contains(FinalizeState::FRAGMENTS);
+            || state.finalize.contains(FinalizeState::FRAGMENTS)
+            || state.fragments_delete_pending
+            || state.fragments.needs_optimize()?;
         Ok((pending, state.mutation_epoch))
     }
 
@@ -1276,7 +1725,8 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
             Ok(guard) => guard,
             Err(std::sync::TryLockError::WouldBlock) => {
                 #[cfg(test)]
-                self.close_waited_for_maintenance.store(true, Ordering::SeqCst);
+                self.close_waited_for_maintenance
+                    .store(true, Ordering::SeqCst);
                 shared
                     .maintenance
                     .lock()
@@ -1286,6 +1736,10 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
                 return Err(EngineError::internal("maintenance lease was poisoned"));
             }
         };
+        let _mutation = shared
+            .mutation_gate
+            .lock()
+            .map_err(|_| EngineError::internal("storage mutation gate was poisoned"))?;
         let mut state = lock_state(&shared)?;
         // Reject a write that acquired its Arc before close but is still waiting
         // for this lock. A successful close commits every accepted write.
@@ -1314,15 +1768,15 @@ pub(crate) fn checkpoint(&self) -> EngineResult<()> {
 fn load_indexed_manifest(
     state: &StoreState,
     file_id: FileId,
-) -> EngineResult<Option<FileManifest>> {
+) -> EngineResult<(bool, Option<FileManifest>)> {
     let Some(file) = state.files.fetch(&[file_id])?.remove(&file_id) else {
-        return Ok(None);
+        return Ok((false, None));
     };
     let FileIndexStatus::Indexed { entity_count, .. } = file.index_status else {
-        return Ok(None);
+        return Ok((true, None));
     };
     let Some(manifest) = state.manifests.load(file_id)? else {
-        return Ok(None);
+        return Ok((true, None));
     };
     if manifest.entities.len() != entity_count as usize
         || manifest
@@ -1330,9 +1784,27 @@ fn load_indexed_manifest(
             .iter()
             .any(|entry| !state.fragments.supports_model(&entry.model))
     {
-        return Ok(None);
+        return Ok((true, None));
     }
-    Ok(Some(manifest))
+    Ok((true, Some(manifest)))
+}
+
+fn persist_replacement_delete_intent(
+    state: &mut StoreState,
+    storage_path: &std::path::Path,
+    had_file_record: bool,
+    incremental: Option<&IncrementalPlan>,
+) -> EngineResult<()> {
+    let deletes_fragments =
+        incremental.map_or(had_file_record, |plan| plan.has_fragment_deletions());
+    if deletes_fragments {
+        // PK deletes and full replacements leave native tombstones too. Persist
+        // before dropping the manifest or mutating rows so reopen cannot lose
+        // the force-maintenance intent when completeness remains 1.0.
+        persist_delete_marker(storage_path, true)?;
+        state.fragments_delete_pending = true;
+    }
+    Ok(())
 }
 
 // Cross-table writes stay under the store's single writer lock.
@@ -1341,6 +1813,7 @@ fn replace_file(
     file: &FileRecord,
     entities: &[Entity],
     entries: &[IndexedFragment],
+    storage_path: &std::path::Path,
 ) -> EngineResult<()> {
     state.files.validate(file)?;
     state.entities.validate_ownership(entities, file.id)?;
@@ -1354,11 +1827,12 @@ fn replace_file(
     let entity_docs = Entities::prepare(entities)?;
     let fragment_docs = Fragments::prepare(file, entities, entries, &directories)?;
     let new_manifest = build_file_manifest(file, entities, entries, &directories)?;
-    let old_manifest = load_indexed_manifest(state, file.id)?;
+    let (had_file_record, old_manifest) = load_indexed_manifest(state, file.id)?;
     let incremental = match (&old_manifest, &new_manifest) {
         (Some(old), Some(new)) => Some(build_incremental_plan(old, new)),
         _ => None,
     };
+    persist_replacement_delete_intent(state, storage_path, had_file_record, incremental.as_ref())?;
 
     // Fail closed: drop the previous published snapshot before the first row
     // mutation so an interrupted apply cannot expose a spliced generation.
@@ -1379,6 +1853,17 @@ fn replace_file(
                 state.fragments.delete_fragment_ids(model, fragment_ids)?;
             }
             state.entities.delete_ids(&plan.delete_entities)?;
+            state.mutation_stats.fragments_deleted =
+                state.mutation_stats.fragments_deleted.saturating_add(
+                    plan.delete_fragments
+                        .values()
+                        .map(|ids| u64::try_from(ids.len()).unwrap_or(u64::MAX))
+                        .sum(),
+                );
+            state.mutation_stats.entities_deleted = state
+                .mutation_stats
+                .entities_deleted
+                .saturating_add(u64::try_from(plan.delete_entities.len()).unwrap_or(u64::MAX));
             let mut entity_writes = Vec::new();
             for doc in entity_docs {
                 if plan.entity_doc_keys.contains(super::zvec::doc_key(&doc)?) {
@@ -1402,6 +1887,17 @@ fn replace_file(
             }
             state.entities.write(&entity_writes)?;
             state.fragments.write(&fragment_writes)?;
+            state.mutation_stats.entities_written = state
+                .mutation_stats
+                .entities_written
+                .saturating_add(u64::try_from(entity_writes.len()).unwrap_or(u64::MAX));
+            state.mutation_stats.fragments_written =
+                state.mutation_stats.fragments_written.saturating_add(
+                    fragment_writes
+                        .values()
+                        .map(|docs| u64::try_from(docs.len()).unwrap_or(u64::MAX))
+                        .sum(),
+                );
             if !state.manifests.publish(&mut manifest)? {
                 state.manifests.delete(file.id)?;
             }
@@ -1414,6 +1910,17 @@ fn replace_file(
             state.entities.delete_file(file.id)?;
             state.entities.write(&entity_docs)?;
             state.fragments.write(&fragment_docs)?;
+            state.mutation_stats.entities_written = state
+                .mutation_stats
+                .entities_written
+                .saturating_add(u64::try_from(entity_docs.len()).unwrap_or(u64::MAX));
+            state.mutation_stats.fragments_written =
+                state.mutation_stats.fragments_written.saturating_add(
+                    fragment_docs
+                        .values()
+                        .map(|docs| u64::try_from(docs.len()).unwrap_or(u64::MAX))
+                        .sum(),
+                );
             if let Some(mut manifest) = manifest {
                 if !state.manifests.publish(&mut manifest)? {
                     state.manifests.delete(file.id)?;
@@ -1837,10 +2344,50 @@ fn load_search_hits(
 }
 
 fn flush(state: &StoreState) -> EngineResult<()> {
-    state.directories.flush()?;
-    state.entities.flush()?;
-    state.fragments.flush()?;
-    state.files.flush()
+    checkpoint_step("checkpoint_flush_directories", || state.directories.flush())?;
+    checkpoint_step("checkpoint_flush_entities", || state.entities.flush())?;
+    checkpoint_step("checkpoint_flush_fragments", || state.fragments.flush())?;
+    checkpoint_step("checkpoint_flush_files", || state.files.flush())
+}
+
+#[cfg(test)]
+fn pause_checkpoint_fragment_flush_for_test(shared: &SharedStore) -> EngineResult<()> {
+    let pause = shared
+        .checkpoint_fragment_flush_pause
+        .lock()
+        .map_err(|_| EngineError::internal("checkpoint test hook was poisoned"))?
+        .take();
+    let Some((started, release)) = pause else {
+        return Ok(());
+    };
+    started
+        .send(())
+        .map_err(|_| EngineError::internal("checkpoint test hook observer disconnected"))?;
+    release
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .map_err(|error| {
+            EngineError::internal(format!("checkpoint test hook release failed: {error}"))
+        })
+}
+
+fn checkpoint_step(
+    name: &'static str,
+    operation: impl FnOnce() -> EngineResult<()>,
+) -> EngineResult<()> {
+    #[cfg(test)]
+    let trace_started =
+        STATE_LOCK_TRACE.with(|trace| trace.borrow().as_ref().map(|_| Instant::now()));
+    #[cfg(test)]
+    let _stage = StateLockStage::enter(name);
+    #[cfg(not(test))]
+    let _ = name;
+
+    let result = operation();
+    #[cfg(test)]
+    if let Some(started) = trace_started {
+        record_state_lock_span("checkpoint_step", started, Instant::now());
+    }
+    result
 }
 
 fn elapsed_micros(started: Instant) -> u64 {

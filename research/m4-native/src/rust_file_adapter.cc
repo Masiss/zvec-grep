@@ -284,6 +284,26 @@ m4_rust_file_open(const char *root, char *error_out, size_t error_capacity) {
 }
 extern "C" void m4_rust_file_close(m4_rust_file_index *index) { delete index; }
 
+extern "C" int m4_rust_file_compact_now(m4_rust_file_index *h, char *error_out,
+                                        size_t error_capacity) {
+  try {
+    if (!h)
+      throw std::invalid_argument("null adapter handle");
+    std::lock_guard<std::mutex> lock(h->mutex);
+    EnsureHealthy(h);
+    const m4::Status status = h->index->CompactNow();
+    if (!status.ok)
+      throw std::runtime_error(status.message);
+    return 0;
+  } catch (const std::exception &e) {
+    SetError(error_out, error_capacity, e.what());
+    return -1;
+  } catch (...) {
+    SetError(error_out, error_capacity, "unknown compaction failure");
+    return -1;
+  }
+}
+
 extern "C" int m4_rust_file_begin(m4_rust_file_index *h, uint64_t file_id,
                                   uint64_t revision, uint32_t expected_docs,
                                   char *error_out, size_t error_capacity) {

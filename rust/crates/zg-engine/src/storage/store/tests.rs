@@ -1,4 +1,6 @@
 use super::super::types::StoragePathFilter;
+#[cfg(feature = "m4-research-integration")]
+use super::super::types::{StorageSearchHit, StorageSearchPath};
 use super::*;
 use crate::domain::SourcePath;
 use crate::domain::model::Metric;
@@ -7,6 +9,8 @@ use crate::domain::{
     FileRecord, FileSnapshot, FragmentId, Range, SymbolType, TableCell, TableCellRole,
     TableContent,
 };
+#[cfg(feature = "m4-research-integration")]
+use m4_rust_bridge_research::Adapter;
 
 /// Test input keeps canonical entities and model outputs separate, as the writer does.
 #[derive(Clone)]
@@ -83,6 +87,387 @@ fn store_state_lock_wait_telemetry_is_thread_local_and_resettable() {
 }
 
 #[test]
+fn native_query_waits_for_held_state_lock_then_executes_fts() {
+    use std::sync::{TryLockError, mpsc};
+    use std::time::Duration;
+
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    let shared = storage.shared().expect("shared storage");
+    let guard = lock_state(&shared).expect("hold writer state lock");
+    let (started_tx, started_rx) = mpsc::channel();
+    let (finished_tx, finished_rx) = mpsc::channel();
+    std::thread::scope(|scope| {
+        let storage = &storage;
+        let shared = &shared;
+        scope.spawn(move || {
+            let _ = storage.take_state_lock_wait_telemetry_for_test();
+            let _ = storage.take_native_fts_query_telemetry_for_test();
+            storage.begin_state_lock_trace_for_test(Instant::now(), 64);
+            let held = matches!(shared.state.try_lock(), Err(TryLockError::WouldBlock));
+            started_tx.send(held).expect("reader started");
+            let result = storage.search_fts("orchard", 5, None);
+            let lock = storage.take_state_lock_wait_telemetry_for_test();
+            let native = storage.take_native_fts_query_telemetry_for_test();
+            let native_spans = storage.take_native_fts_spans_for_test();
+            let lock_spans = storage.take_state_lock_trace_for_test(true);
+            finished_tx
+                .send((result.is_ok(), lock, native, native_spans, lock_spans))
+                .expect("reader result");
+        });
+        let held = started_rx.recv_timeout(Duration::from_secs(5));
+        let completed_while_locked = finished_rx.recv_timeout(Duration::from_millis(50));
+        drop(guard);
+        assert!(held.expect("reader reached held lock"));
+        assert!(matches!(
+            completed_while_locked,
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+        let (
+            success,
+            (lock_count, _, _),
+            (fts_count, _),
+            (fts_spans, fts_dropped),
+            (lock_spans, lock_dropped),
+        ) = finished_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("reader completed after release");
+        assert!(success);
+        assert!(lock_count >= 1);
+        assert_eq!(
+            fts_count, 1,
+            "native FTS call occurs after the lock is acquired"
+        );
+        assert_eq!(fts_dropped, 0);
+        assert_eq!(fts_spans.len(), 1);
+        assert_eq!(lock_dropped, 0);
+        let read_wait_end = lock_spans
+            .iter()
+            .find(|(_, kind, _, _)| *kind == "read_wait")
+            .expect("query state-lock wait trace")
+            .3;
+        assert!(
+            fts_spans[0].0 >= read_wait_end,
+            "native FTS interval must start after the measured state-lock wait"
+        );
+        #[cfg(target_os = "linux")]
+        {
+            assert!(
+                fts_spans[0].2 > 0,
+                "native FTS thread CPU time must be measured"
+            );
+            assert!(
+                u128::from(fts_spans[0].2) <= fts_spans[0].1 - fts_spans[0].0,
+                "thread CPU time cannot exceed the wall interval"
+            );
+        }
+    });
+    storage.close().expect("close storage");
+}
+
+#[test]
+fn bounded_state_lock_trace_correlates_writer_and_query() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    let origin = Instant::now();
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let (writer_tx, writer_rx) = mpsc::channel();
+    let (reader_started_tx, reader_started_rx) = mpsc::channel();
+    let (reader_tx, reader_rx) = mpsc::channel();
+    std::thread::scope(|scope| {
+        let writer = &storage;
+        scope.spawn(move || {
+            writer.begin_state_lock_trace_for_test(origin, 64);
+            let _stage = StateLockStage::enter("controlled_writer");
+            let result = writer.write(|_| {
+                entered_tx.send(()).expect("writer entered");
+                release_rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .map_err(|error| {
+                        EngineError::internal(format!("writer release failed: {error}"))
+                    })?;
+                Ok(())
+            });
+            writer_tx
+                .send((result.is_ok(), writer.take_state_lock_trace_for_test(true)))
+                .expect("writer result");
+        });
+        entered_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("writer lock held");
+        let reader = &storage;
+        scope.spawn(move || {
+            reader.begin_state_lock_trace_for_test(origin, 64);
+            reader_started_tx.send(()).expect("reader started");
+            let result = reader.list_files();
+            reader_tx
+                .send((result.is_ok(), reader.take_state_lock_trace_for_test(true)))
+                .expect("reader result");
+        });
+        let started = reader_started_rx.recv_timeout(Duration::from_secs(5));
+        let early = reader_rx.recv_timeout(Duration::from_millis(50));
+        release_tx.send(()).expect("release writer");
+        started.expect("reader ready");
+        assert!(matches!(early, Err(mpsc::RecvTimeoutError::Timeout)));
+        let (writer_ok, (writer_spans, writer_dropped)) = writer_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("writer finished");
+        let (reader_ok, (reader_spans, reader_dropped)) = reader_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("reader finished");
+        assert!(writer_ok && reader_ok);
+        assert_eq!((writer_dropped, reader_dropped), (0, 0));
+        let hold = writer_spans
+            .iter()
+            .find(|(stage, kind, _, _)| *stage == "controlled_writer" && *kind == "write_hold")
+            .expect("writer hold span");
+        let wait = reader_spans
+            .iter()
+            .find(|(_, kind, _, _)| *kind == "read_wait")
+            .expect("reader wait span");
+        assert!(
+            wait.2 < hold.3 && hold.2 < wait.3,
+            "lock intervals must overlap"
+        );
+    });
+    storage.close().expect("close storage");
+}
+
+#[test]
+fn state_lock_trace_reports_dropped_spans_when_capped() {
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    storage.begin_state_lock_trace_for_test(Instant::now(), 1);
+    storage.list_files().expect("first read");
+    storage.list_files().expect("second read");
+    let (spans, dropped) = storage.take_state_lock_trace_for_test(true);
+    assert_eq!(spans.len(), 1);
+    assert_eq!(dropped, 1);
+    storage.close().expect("close storage");
+}
+
+#[test]
+fn native_fts_spans_share_the_lock_trace_origin_and_are_bounded() {
+    use std::time::Duration;
+
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    let origin = Instant::now();
+    storage.begin_state_lock_trace_for_test(origin, 1);
+
+    record_native_fts_span_for_test(
+        origin + Duration::from_millis(2),
+        origin + Duration::from_millis(8),
+        4_000_000,
+    );
+    record_native_fts_span_for_test(
+        origin + Duration::from_millis(3),
+        origin + Duration::from_millis(9),
+        5_000_000,
+    );
+    let (fts_spans, fts_dropped) = storage.take_native_fts_spans_for_test();
+    assert_eq!(fts_spans, vec![(2_000_000, 8_000_000, 4_000_000)]);
+    assert_eq!(fts_dropped, 1);
+
+    record_state_lock_span(
+        "read_wait",
+        origin + Duration::from_millis(10),
+        origin + Duration::from_millis(12),
+    );
+    let (lock_spans, lock_dropped) = storage.take_state_lock_trace_for_test(true);
+    assert_eq!(
+        lock_spans,
+        vec![("other", "read_wait", 10_000_000, 12_000_000)]
+    );
+    assert_eq!(lock_dropped, 0);
+    storage.close().expect("close storage");
+}
+
+#[test]
+fn checkpoint_trace_splits_marker_and_each_collection_flush() {
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    storage.begin_state_lock_trace_for_test(Instant::now(), 32);
+    storage.checkpoint_only().expect("checkpoint");
+    let (spans, dropped) = storage.take_state_lock_trace_for_test(true);
+
+    let steps: Vec<_> = spans
+        .iter()
+        .filter(|(_, kind, _, _)| *kind == "checkpoint_step")
+        .map(|(stage, _, _, _)| *stage)
+        .collect();
+    assert_eq!(dropped, 0);
+    assert_eq!(
+        steps,
+        vec![
+            "checkpoint_delete_marker",
+            "checkpoint_flush_directories",
+            "checkpoint_flush_entities",
+            "checkpoint_flush_fragments",
+            "checkpoint_flush_files",
+        ]
+    );
+    storage.close().expect("close storage");
+}
+
+#[test]
+fn checkpoint_fragment_flush_releases_state_for_queries_and_serializes_writes() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    let (file, fixture) = file_at(&storage, "src/checkpoint.rs");
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&fixture))
+        .expect("write fixture");
+    assert!(
+        !storage
+            .search_fts("orchard", 5, None)
+            .expect("initial FTS query")
+            .is_empty()
+    );
+
+    let (flush_started_rx, release_flush_tx) = storage
+        .pause_next_fragment_checkpoint_for_test()
+        .expect("install flush pause");
+    let origin = Instant::now();
+    let (checkpoint_tx, checkpoint_rx) = mpsc::channel();
+    let (reader_tx, reader_rx) = mpsc::channel();
+    let (writer_started_tx, writer_started_rx) = mpsc::channel();
+    let (writer_tx, writer_rx) = mpsc::channel();
+
+    std::thread::scope(|scope| {
+        let checkpoint = &storage;
+        scope.spawn(move || {
+            checkpoint.begin_state_lock_trace_for_test(origin, 64);
+            let succeeded = checkpoint.checkpoint_only().is_ok();
+            let trace = checkpoint.take_state_lock_trace_for_test(true);
+            checkpoint_tx
+                .send((succeeded, trace))
+                .expect("checkpoint result");
+        });
+
+        flush_started_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("fragment flush reached outside state lock");
+        let shared = storage.shared().expect("shared store");
+        assert!(matches!(
+            shared.mutation_gate.try_lock(),
+            Err(std::sync::TryLockError::WouldBlock)
+        ));
+
+        let reader = &storage;
+        scope.spawn(move || {
+            let found = reader
+                .search_fts("orchard", 5, None)
+                .is_ok_and(|hits| !hits.is_empty());
+            reader_tx.send(found).expect("reader result");
+        });
+        assert!(
+            reader_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("query completes before fragment flush is released"),
+            "query sees the stable pre-checkpoint data"
+        );
+
+        let writer = &storage;
+        let failed_file = file.clone();
+        scope.spawn(move || {
+            writer_started_tx.send(()).expect("writer started");
+            let succeeded = writer
+                .mark_file_failed(&failed_file, "test failure")
+                .is_ok();
+            writer_tx.send(succeeded).expect("writer result");
+        });
+        writer_started_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("writer attempted during flush");
+        assert!(matches!(
+            writer_rx.recv_timeout(Duration::from_millis(50)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+
+        release_flush_tx.send(()).expect("release fragment flush");
+        let (checkpoint_ok, (spans, dropped)) = checkpoint_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("checkpoint completes");
+        assert!(checkpoint_ok);
+        assert_eq!(dropped, 0);
+        let fragment_flush = spans
+            .iter()
+            .find(|(stage, kind, _, _)| {
+                *stage == "checkpoint_flush_fragments" && *kind == "checkpoint_step"
+            })
+            .expect("fragment flush trace");
+        assert!(
+            spans
+                .iter()
+                .filter(|(stage, kind, _, _)| { *stage == "checkpoint" && *kind == "write_hold" })
+                .all(|(_, _, start, end)| {
+                    *end <= fragment_flush.2 || *start >= fragment_flush.3
+                }),
+            "state mutex is released for the whole fragment flush"
+        );
+        assert!(
+            writer_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("waiting writer completes after checkpoint")
+        );
+    });
+
+    storage
+        .checkpoint_only()
+        .expect("persist following mutation");
+    assert!(
+        storage
+            .search_fts("orchard", 5, None)
+            .expect("query after failure update")
+            .is_empty()
+    );
+    storage.close().expect("close storage");
+    let reopened = open(temporary.path(), false);
+    assert!(
+        reopened
+            .search_fts("orchard", 5, None)
+            .expect("query after reopen")
+            .is_empty(),
+        "the concurrent checkpoint and following mutation remain consistent after reopen"
+    );
+    reopened.close().expect("close reopened storage");
+}
+
+#[test]
+fn slow_fts_service_telemetry_does_not_count_as_state_lock_wait() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let temporary = tempfile::tempdir().expect("workspace");
+    let storage = open(temporary.path(), false);
+    let _ = storage.take_state_lock_wait_telemetry_for_test();
+    let _ = storage.take_native_fts_query_telemetry_for_test();
+    let (sender, receiver) = mpsc::channel::<()>();
+    let timed_out = fragments::timed_native_fts_query_for_test(|| {
+        matches!(
+            receiver.recv_timeout(Duration::from_millis(30)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        )
+    });
+    drop(sender);
+    let (calls, service_ns) = storage.take_native_fts_query_telemetry_for_test();
+    let (lock_calls, lock_ns, _) = storage.take_state_lock_wait_telemetry_for_test();
+    assert!(timed_out);
+    assert_eq!(calls, 1);
+    assert!(service_ns >= 25_000_000, "synthetic service was delayed");
+    assert_eq!((lock_calls, lock_ns), (0, 0));
+    storage.close().expect("close storage");
+}
+
+#[test]
 fn gate_a_checkpoint_only_runs_on_clean_storage() {
     let temporary = tempfile::tempdir().expect("workspace");
     let storage = open(temporary.path(), false);
@@ -92,10 +477,7 @@ fn gate_a_checkpoint_only_runs_on_clean_storage() {
 }
 
 #[test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "Gate A reopen consistency sequence"
-)]
+#[allow(clippy::too_many_lines, reason = "Gate A reopen consistency sequence")]
 fn gate_a_vector_search_correct_after_reopen() {
     let temporary = tempfile::tempdir().expect("workspace");
     let storage = open(temporary.path(), false);
@@ -117,10 +499,7 @@ fn gate_a_vector_search_correct_after_reopen() {
 }
 
 #[test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "Gate A delete consistency sequence"
-)]
+#[allow(clippy::too_many_lines, reason = "Gate A delete consistency sequence")]
 fn gate_a_deleted_vector_not_searchable_after_checkpoint() {
     let temporary = tempfile::tempdir().expect("workspace");
     let storage = open(temporary.path(), false);
@@ -128,15 +507,11 @@ fn gate_a_deleted_vector_not_searchable_after_checkpoint() {
     storage
         .replace_fixture_file(&file, std::slice::from_ref(&fixture))
         .expect("stored vector");
-    storage
-        .checkpoint_only()
-        .expect("commit without optimize");
+    storage.checkpoint_only().expect("commit without optimize");
     storage
         .delete_file(file.id)
         .expect("delete committed vector");
-    storage
-        .checkpoint_only()
-        .expect("checkpoint deletion");
+    storage.checkpoint_only().expect("checkpoint deletion");
     let hits = storage
         .search_vector("fixture/fixture-model", &[1.0, 0.0, 0.0], 5, None)
         .expect("post-deletion search");
@@ -166,7 +541,9 @@ fn gate_a_crash_recovery_sees_checkpoint_state_not_partial() {
         .expect("search before reopen");
     assert!(!before.is_empty(), "committed vector visible before reopen");
 
-    storage.close().expect("simulate graceful stop before crash point");
+    storage
+        .close()
+        .expect("simulate graceful stop before crash point");
     let reopened = open(temporary.path(), true);
     let after = reopened
         .search_vector("fixture/fixture-model", &[1.0, 0.0, 0.0], 10, None)
@@ -176,7 +553,10 @@ fn gate_a_crash_recovery_sees_checkpoint_state_not_partial() {
         before.len(),
         "reopen must not lose checkpointed content"
     );
-    assert!(!after.is_empty(), "checkpointed content must survive reopen");
+    assert!(
+        !after.is_empty(),
+        "checkpointed content must survive reopen"
+    );
 
     // A second fence write/delete isn't needed here; any remaining state stays within
     // defer and is safely visible only after optimize is later allowed.
@@ -215,14 +595,13 @@ fn gate_b_one_hundred_commit_before_optimize_stays_searchable() {
         "at least one pending vector per committed debtor"
     );
 
-    storage.finalize_writes().expect("native optimize checkpointed debt");
+    storage
+        .finalize_writes()
+        .expect("native optimize checkpointed debt");
     let after = storage
         .search_vector("fixture/fixture-model", &[1.0, 0.0, 0.0], 100, None)
         .expect("search after deferred optimize");
-    assert!(
-        after.len() >= 100,
-        "all debtor vectors survive optimize"
-    );
+    assert!(after.len() >= 100, "all debtor vectors survive optimize");
 
     storage.close().expect("close after gate B");
 }
@@ -339,9 +718,7 @@ fn gate_e_a_b_deferred_benchmark_square_fixture() {
         let write_wall_us = began.elapsed().as_micros();
 
         // Rotate probe targets so a bounded probe count still spreads over the corpus.
-        let probe_targets: Vec<usize> = (0..probes)
-            .map(|step| (step * 7919) % total)
-            .collect();
+        let probe_targets: Vec<usize> = (0..probes).map(|step| (step * 7919) % total).collect();
 
         let run_probes = |phase: &str| {
             let mut latencies = Vec::with_capacity(probe_targets.len());
@@ -380,9 +757,7 @@ p50_us={} p95_us={} p99_us={}",
                 .fragment_completeness_summary_for_test()
                 .expect("pre-optimize completeness");
             run_probes("pre_optimize");
-            println!(
-                "GATE_E_META mode=deferred completeness_before_optimize={completeness}"
-            );
+            println!("GATE_E_META mode=deferred completeness_before_optimize={completeness}");
             let optimize_began = std::time::Instant::now();
             storage.finalize_writes().expect("deferred final optimize");
             println!(
@@ -461,10 +836,7 @@ fn gate_c_repeated_checkpoints_until_one_final_optimize() {
 }
 
 #[test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "Gate A search boundary sequence"
-)]
+#[allow(clippy::too_many_lines, reason = "Gate A search boundary sequence")]
 fn gate_a_vector_search_callable_after_checkpoint_only() {
     let temporary = tempfile::tempdir().expect("workspace");
     let storage = open(temporary.path(), false);
@@ -479,9 +851,14 @@ fn gate_a_vector_search_callable_after_checkpoint_only() {
     let hits = storage
         .search_vector("fixture/fixture-model", &[1.0, 0.0, 0.0], 5, None)
         .expect("post-checkpoint search");
-    assert!(!hits.is_empty(), "vector should be searchable after checkpoint");
+    assert!(
+        !hits.is_empty(),
+        "vector should be searchable after checkpoint"
+    );
 
-    storage.delete_file(file.id).expect("delete committed vector");
+    storage
+        .delete_file(file.id)
+        .expect("delete committed vector");
     storage
         .checkpoint_only()
         .expect("checkpoint after deletion");
@@ -1307,6 +1684,66 @@ fn fixture(
         vector,
     };
     (file, entry)
+}
+
+#[cfg(feature = "m4-research-integration")]
+fn m4_sidecar_file_version(
+    storage: &IndexStore,
+    text: &str,
+    fragment_count: u32,
+) -> (
+    FileRecord,
+    Vec<Entity>,
+    Vec<super::super::types::IndexedFragment>,
+    Vec<String>,
+) {
+    let (file, mut fixture) = fixture(
+        Some(storage),
+        "m4-sidecar-integration",
+        text,
+        vec![1.0, 0.0, 0.0],
+    );
+    fixture.entity.fragments = (0..fragment_count)
+        .map(|ordinal| EntityFragment {
+            id: FragmentId::new(&fixture.entity.id, ordinal),
+            range: Range::Full,
+        })
+        .collect();
+    let (entities, mut entries) = fixture_records(&[fixture]);
+    let embedding_fingerprint = crate::utils::sha256_hex(text.as_bytes());
+    for entry in &mut entries {
+        entry.embedding_fingerprint = Some(embedding_fingerprint.clone());
+    }
+    entries.sort_unstable_by(|left, right| {
+        (
+            left.model.as_str(),
+            left.embedding_fingerprint.as_deref().unwrap_or(""),
+            left.fragment_id.as_str(),
+        )
+            .cmp(&(
+                right.model.as_str(),
+                right.embedding_fingerprint.as_deref().unwrap_or(""),
+                right.fragment_id.as_str(),
+            ))
+    });
+    let docs = entries.iter().map(|entry| entry.fts_text.clone()).collect();
+    (file, entities, entries, docs)
+}
+
+#[cfg(feature = "m4-research-integration")]
+fn replace_file_via_staging(
+    storage: &IndexStore,
+    file: &FileRecord,
+    entities: &[Entity],
+    entries: &[super::super::types::IndexedFragment],
+) -> crate::EngineResult<()> {
+    let mut staged =
+        crate::storage::staging::DiskStagedBatches::create(file.clone(), entities.to_vec())?;
+    for batch in entries.chunks(crate::storage::staging::STAGING_BATCH_FRAGMENTS) {
+        staged.append(batch.to_vec())?;
+    }
+    storage.replace_file_from_staged(staged)?;
+    storage.finalize_writes()
 }
 
 #[test]
@@ -3349,8 +3786,8 @@ mod gate_f {
             if dwall == 0 {
                 continue;
             }
-            let dticks = (pair[1].utime + pair[1].stime)
-                .saturating_sub(pair[0].utime + pair[0].stime);
+            let dticks =
+                (pair[1].utime + pair[1].stime).saturating_sub(pair[0].utime + pair[0].stime);
             // CLK_TCK is 100 on Linux, so one tick is 10ms of CPU.
             let cpu_pct = dticks.saturating_mul(10) * 100 / dwall as u64;
             summary.max_window_cpu_pct = summary.max_window_cpu_pct.max(cpu_pct);
@@ -3443,7 +3880,7 @@ mod gate_f {
     }
 
     #[test]
-    #[ignore = "Gate F bounded-debt sweep; driven by the runner with GATE_F_* env" ]
+    #[ignore = "Gate F bounded-debt sweep; driven by the runner with GATE_F_* env"]
     #[allow(clippy::too_many_lines)]
     fn gate_f_bounded_debt_sweep() {
         let mode = std::env::var("GATE_F_MODE").unwrap_or_else(|_| "sweep".into());
@@ -3479,8 +3916,7 @@ mod gate_f {
         let probe_every = env_usize("GATE_F_PROBE_EVERY", (mutations / 20).max(1));
         let probes = env_usize("GATE_F_PROBES_PER_EPOCH", 50);
         let limit_mb = env_u64("GATE_F_RESOURCE_LIMIT_MB", 0);
-        let label = std::env::var("GATE_F_LABEL")
-            .unwrap_or_else(|_| format!("debt{max_debt}"));
+        let label = std::env::var("GATE_F_LABEL").unwrap_or_else(|_| format!("debt{max_debt}"));
 
         let storage = open_dim(&workdir, dim);
 
@@ -3512,13 +3948,13 @@ dim={dim} probe_every={probe_every} probes_per_epoch={probes} resource_limit_mb=
         let sweep_began = std::time::Instant::now();
 
         let run_epoch = |phase: &str,
-                             epoch_index: usize,
-                             completed: usize,
-                             storage: &IndexStore,
-                             known: &[(Vec<f32>, FileId)],
-                             probes: usize,
-                             recall_ok: &mut usize,
-                             recall_total: &mut usize| {
+                         epoch_index: usize,
+                         completed: usize,
+                         storage: &IndexStore,
+                         known: &[(Vec<f32>, FileId)],
+                         probes: usize,
+                         recall_ok: &mut usize,
+                         recall_total: &mut usize| {
             let mut latencies = Vec::with_capacity(probes);
             for step in 0..probes {
                 let target = (epoch_index * 7919 + step * 131) % known.len();
@@ -3593,10 +4029,7 @@ p99_us={} completeness={completeness}",
 
                 if limit_mb > 0 {
                     let sample = sample_once(0);
-                    let pressure = std::cmp::max(
-                        sample.pss_kb.unwrap_or(0),
-                        sample.rss_kb,
-                    );
+                    let pressure = std::cmp::max(sample.pss_kb.unwrap_or(0), sample.rss_kb);
                     if pressure / 1024 >= limit_mb {
                         aborted = true;
                         println!(
@@ -3648,7 +4081,11 @@ max_single_optimize_us={max_optimize_us} peak_rss_kb={} peak_pss_kb={} peak_swap
 cpu_ticks={} max_window_cpu_pct={} majflt={} io_read_bytes={} io_write_bytes={} \
 storage_bytes={storage_bytes} recall5={recall_ok}/{recall_total} final_completeness={final_completeness} \
 samples={}",
-            if aborted { epoch * probe_every } else { mutations },
+            if aborted {
+                epoch * probe_every
+            } else {
+                mutations
+            },
             optimizes.len(),
             summary.peak_rss_kb,
             summary.peak_pss_kb,
@@ -3794,7 +4231,10 @@ mod gate_g {
             }
         }
 
-        if std::env::var("GATE_G_IDLE_GATE").map(|v| v == "1").unwrap_or(false) {
+        if std::env::var("GATE_G_IDLE_GATE")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+        {
             let threshold = std::env::var("GATE_G_IDLE_PSI_CPU")
                 .ok()
                 .and_then(|v| v.parse::<f64>().ok())
@@ -3914,9 +4354,8 @@ mod gate_h {
             .expect("attach vector index");
         schema.add_field(&field).expect("add vector field");
         let options = zvec_rust::CollectionOptions::new().expect("collection options");
-        let collection =
-            zvec_rust::Collection::create_and_open(&path_str, &schema, Some(&options))
-                .expect("open h3 collection");
+        let collection = zvec_rust::Collection::create_and_open(&path_str, &schema, Some(&options))
+            .expect("open h3 collection");
 
         // The probe vector is identical to pk "h3-0" so recall@1 is checkable.
         let probe = vector(0xABCD, dim, 0);
@@ -3971,8 +4410,8 @@ mod gate_h {
                         while !stop_flag.load(Ordering::Relaxed) {
                             let is_during = optimizing.load(Ordering::Relaxed);
                             let began = Instant::now();
-                            let query =
-                                zvec_rust::SearchQuery::new("embedding", &probe, 10).expect("query");
+                            let query = zvec_rust::SearchQuery::new("embedding", &probe, 10)
+                                .expect("query");
                             match collection.query(&query) {
                                 Ok(hits) => {
                                     if is_during {
@@ -4033,7 +4472,11 @@ mod gate_h {
                         .map(|index| f64::from(index.completeness))
                 })
                 .unwrap_or(f64::NAN);
-            let doc_count = collection.stats().ok().map(|stats| stats.doc_count).unwrap_or(0);
+            let doc_count = collection
+                .stats()
+                .ok()
+                .map(|stats| stats.doc_count)
+                .unwrap_or(0);
 
             println!(
                 "GATE_H_H3 label={label} round={round} docs={doc_count} \
@@ -4042,8 +4485,14 @@ during_count={during_count} during_p50_us={} during_p95_us={} during_p99_us={} d
 idle_p50_us={} idle_p95_us={} idle_p99_us={} idle_max_us={} \
 recall_at_1={recall_ok}/{recall_total} errors={} \
 completeness_before={completeness_before} completeness_after={completeness_after}",
-                during.0, during.1, during.2, during.3,
-                idle.0, idle.1, idle.2, idle.3,
+                during.0,
+                during.1,
+                during.2,
+                during.3,
+                idle.0,
+                idle.1,
+                idle.2,
+                idle.3,
                 errors.load(Ordering::Relaxed),
             );
         }
@@ -4064,8 +4513,8 @@ completeness_before={completeness_before} completeness_after={completeness_after
     fn gate_h_h1_mutex_blocking() {
         let _ = crate::storage::zvec::initialize();
         let dim = env_usize("GATE_H_DIM", 64);
-        let store_path = std::env::var("GATE_H_STORE")
-            .expect("GATE_H_STORE must point to a debt snapshot copy");
+        let store_path =
+            std::env::var("GATE_H_STORE").expect("GATE_H_STORE must point to a debt snapshot copy");
         let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
             storage_path: std::path::PathBuf::from(&store_path),
             embeddings: vec![schema_dim(dim)],
@@ -4103,7 +4552,9 @@ completeness_before={completeness_before} completeness_after={completeness_after
 
             let began = Instant::now();
             optimizing.store(true, Ordering::Relaxed);
-            storage.finalize_writes().expect("native optimize under store mutex");
+            storage
+                .finalize_writes()
+                .expect("native optimize under store mutex");
             let optimize_us = began.elapsed().as_micros();
             optimizing.store(false, Ordering::Relaxed);
             std::thread::sleep(Duration::from_millis(150));
@@ -4121,7 +4572,13 @@ idle_count={idle_count} idle_p50_us={ip50} idle_p95_us={ip95} idle_p99_us={ip99}
 errors={}",
                 errors.load(Ordering::Relaxed),
             );
-            (optimize_us, (dp50, dp95, dp99, dmax), (ip50, ip95, ip99, imax), during_count, idle_count)
+            (
+                optimize_us,
+                (dp50, dp95, dp99, dmax),
+                (ip50, ip95, ip99, imax),
+                during_count,
+                idle_count,
+            )
         });
         let _ = (optimize_us, during, idle, during_count, idle_count);
         storage.close().expect("close H1 store");
@@ -4153,12 +4610,17 @@ errors={}",
         let path_str = path.to_str().expect("utf8").to_owned();
 
         let mut schema = zvec_rust::CollectionSchema::new("gate_i").expect("schema");
-        let mut field =
-            zvec_rust::FieldSchema::new("embedding", zvec_rust::DataType::VectorFp32, false, dim as u32)
-                .expect("vector field");
+        let mut field = zvec_rust::FieldSchema::new(
+            "embedding",
+            zvec_rust::DataType::VectorFp32,
+            false,
+            dim as u32,
+        )
+        .expect("vector field");
         field
             .set_index_params(
-                &zvec_rust::IndexParams::hnsw(zvec_rust::MetricType::Cosine, 50, 500).expect("hnsw"),
+                &zvec_rust::IndexParams::hnsw(zvec_rust::MetricType::Cosine, 50, 500)
+                    .expect("hnsw"),
             )
             .expect("attach index");
         schema.add_field(&field).expect("add field");
@@ -4264,7 +4726,8 @@ errors={}",
                             zvec_rust::SearchQuery::new("embedding", &probe, 5).expect("query");
                         match collection.query(&query) {
                             Ok(hits) => {
-                                if hits.first().and_then(|doc| doc.get_pk()) != Some(probe_pk.as_str())
+                                if hits.first().and_then(|doc| doc.get_pk())
+                                    != Some(probe_pk.as_str())
                                 {
                                     violations += 1;
                                 }
@@ -4307,7 +4770,8 @@ errors={}",
         }
         let mut updated_ok = 0usize;
         let mut updated_total = 0usize;
-        let mut updated_last: std::collections::HashMap<&str, &Vec<f32>> = std::collections::HashMap::new();
+        let mut updated_last: std::collections::HashMap<&str, &Vec<f32>> =
+            std::collections::HashMap::new();
         for (pk, vec) in &mutations.updated {
             updated_last.insert(pk.as_str(), vec);
         }
@@ -4332,7 +4796,11 @@ errors={}",
         let mut idle = mutations.idle.clone();
         let (mdp50, mdp95, _, mdmax) = summarize(&mut during);
         let (mip50, mip95, _, mimax) = summarize(&mut idle);
-        let doc_count = collection.stats().ok().map(|stats| stats.doc_count).unwrap_or(0);
+        let doc_count = collection
+            .stats()
+            .ok()
+            .map(|stats| stats.doc_count)
+            .unwrap_or(0);
 
         println!(
             "GATE_H_I label={label} optimize_us={optimize_us} ops={} mut_errors={} \
@@ -4383,9 +4851,8 @@ search_violations={violations} query_errors={query_errors}",
                 )
                 .expect("attach index");
             schema.add_field(&field).expect("add field");
-            let collection =
-                zvec_rust::Collection::create_and_open(&path, &schema, Some(&options))
-                    .expect("create lifecycle collection");
+            let collection = zvec_rust::Collection::create_and_open(&path, &schema, Some(&options))
+                .expect("create lifecycle collection");
             let mut offset = 0;
             while offset < docs {
                 let take = (docs - offset).min(1000);
@@ -4405,18 +4872,27 @@ search_violations={violations} query_errors={query_errors}",
             let completeness = collection
                 .stats()
                 .ok()
-                .and_then(|s| s.indexes.iter().find(|i| i.name == "embedding").map(|i| i.completeness))
+                .and_then(|s| {
+                    s.indexes
+                        .iter()
+                        .find(|i| i.name == "embedding")
+                        .map(|i| i.completeness)
+                })
                 .unwrap_or(f64::NAN as f32);
             println!("GATE_H_IL mode=build docs={docs} completeness_before={completeness}");
             collection.close().expect("close build");
             return;
         }
 
-        let collection = zvec_rust::Collection::open(&path, Some(&options)).expect("open lifecycle");
+        let collection =
+            zvec_rust::Collection::open(&path, Some(&options)).expect("open lifecycle");
         if mode == "optimize" {
             let began = Instant::now();
             collection.optimize().expect("optimize (may be killed)");
-            println!("GATE_H_IL mode=optimize optimize_us={} (not killed)", began.elapsed().as_micros());
+            println!(
+                "GATE_H_IL mode=optimize optimize_us={} (not killed)",
+                began.elapsed().as_micros()
+            );
             collection.close().expect("close optimize");
             return;
         }
@@ -4425,7 +4901,12 @@ search_violations={violations} query_errors={query_errors}",
         let before = collection
             .stats()
             .ok()
-            .and_then(|s| s.indexes.iter().find(|i| i.name == "embedding").map(|i| i.completeness))
+            .and_then(|s| {
+                s.indexes
+                    .iter()
+                    .find(|i| i.name == "embedding")
+                    .map(|i| i.completeness)
+            })
             .unwrap_or(f32::NAN);
         if !(before >= 1.0) {
             collection.optimize().expect("retry optimize after kill");
@@ -4433,7 +4914,12 @@ search_violations={violations} query_errors={query_errors}",
         let after = collection
             .stats()
             .ok()
-            .and_then(|s| s.indexes.iter().find(|i| i.name == "embedding").map(|i| i.completeness))
+            .and_then(|s| {
+                s.indexes
+                    .iter()
+                    .find(|i| i.name == "embedding")
+                    .map(|i| i.completeness)
+            })
             .unwrap_or(f32::NAN);
         let doc_count = collection.stats().ok().map(|s| s.doc_count).unwrap_or(0);
         let probe = vector(SEED, dim, 0);
@@ -4533,7 +5019,12 @@ mod gate_j {
         while offset < docs {
             let take = (docs - offset).min(1000);
             let batch: Vec<zvec_rust::Doc> = (offset..offset + take)
-                .map(|index| make_doc(&format!("seed-{index}"), &vector(0x5EED_C0DE, dim, index as u64)))
+                .map(|index| {
+                    make_doc(
+                        &format!("seed-{index}"),
+                        &vector(0x5EED_C0DE, dim, index as u64),
+                    )
+                })
                 .collect();
             let refs: Vec<&zvec_rust::Doc> = batch.iter().collect();
             collection.insert(&refs).expect("seed insert");
@@ -4748,7 +5239,10 @@ inserted_searchable={inserted_searchable}/{b_inserted}",
                     .expect("create");
             seed(&collection, dim, docs);
             collection.flush().expect("flush");
-            println!("GATE_J_LIFECYCLE mode=build docs={docs} completeness={}", completeness(&collection));
+            println!(
+                "GATE_J_LIFECYCLE mode=build docs={docs} completeness={}",
+                completeness(&collection)
+            );
             collection.close().expect("close build");
             return;
         }
@@ -4783,7 +5277,11 @@ inserted_searchable={inserted_searchable}/{b_inserted}",
             .query(&query)
             .map(|hits| hits.first().and_then(|doc| doc.get_pk()) == Some("seed-0"))
             .unwrap_or(false);
-        let doc_count = collection.stats().ok().map(|stats| stats.doc_count).unwrap_or(0);
+        let doc_count = collection
+            .stats()
+            .ok()
+            .map(|stats| stats.doc_count)
+            .unwrap_or(0);
         println!(
             "GATE_J_LIFECYCLE mode=verify completeness_before={before} optimize_us={optimize_us} \
 completeness_after={after} doc_count={doc_count} recall_seed0_top1={recall}"
@@ -4849,7 +5347,9 @@ mod gate_k {
         let mut idle_ref = Vec::new();
         for _ in 0..40 {
             let began = Instant::now();
-            let _ = storage.search_vector(model, &probe, 5, None).expect("idle search");
+            let _ = storage
+                .search_vector(model, &probe, 5, None)
+                .expect("idle search");
             idle_ref.push(began.elapsed().as_micros());
         }
         idle_ref.sort_unstable();
@@ -4866,7 +5366,9 @@ mod gate_k {
                 while !stop.load(Ordering::Relaxed) {
                     let is_during = optimizing.load(Ordering::Relaxed);
                     let began = Instant::now();
-                    let _ = storage.search_vector(model, &probe, 5, None).expect("search");
+                    let _ = storage
+                        .search_vector(model, &probe, 5, None)
+                        .expect("search");
                     let elapsed = began.elapsed().as_micros();
                     if is_during {
                         during.push(elapsed);
@@ -4902,7 +5404,9 @@ mod gate_k {
 
             optimizing.store(true, Ordering::Relaxed);
             let began = Instant::now();
-            storage.finalize_writes().expect("optimize under lock split");
+            storage
+                .finalize_writes()
+                .expect("optimize under lock split");
             let finalize_us = began.elapsed().as_micros();
             optimizing.store(false, Ordering::Relaxed);
             std::thread::sleep(Duration::from_millis(150));
@@ -4964,7 +5468,10 @@ completeness={completeness} late_searchable={late_searchable}/{} late_in_index={
         );
 
         // Search must not be blocked for the optimize wall.
-        assert!(during.len() > 0, "searcher never observed the optimize window");
+        assert!(
+            during.len() > 0,
+            "searcher never observed the optimize window"
+        );
         assert!(wrote > 0, "writer never committed during optimize");
         assert!(
             during_p95 < finalize_us.max(1),
@@ -5028,7 +5535,10 @@ completeness_after_retry={completeness_after_retry}",
             error.code(),
         );
 
-        assert!(pending_after_failure, "failure must keep the debt recoverable");
+        assert!(
+            pending_after_failure,
+            "failure must keep the debt recoverable"
+        );
         assert!(!pending_after_retry, "retry must clear the debt");
         assert!(completeness_after_retry >= 1.0, "retry must converge");
         storage.close().expect("close store");
@@ -5126,7 +5636,12 @@ close_ok={close_ok} finalize_ok={finalize_ok} reopened_hits={}",
         let stat = std::fs::read_to_string("/proc/self/stat").unwrap_or_default();
         let rest = stat.rsplit_once(')').map(|(_, rest)| rest).unwrap_or("");
         let fields: Vec<&str> = rest.split_whitespace().collect();
-        let at = |i: usize| fields.get(i).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+        let at = |i: usize| {
+            fields
+                .get(i)
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(0)
+        };
         at(10).saturating_add(at(11))
     }
 
@@ -5166,12 +5681,10 @@ close_ok={close_ok} finalize_ok={finalize_ok} reopened_hits={}",
                     .expect("cycle write");
             }
             storage.finalize_writes().expect("cycle optimize");
-            let _ = storage.search_vector(model, &probe, 5, None).expect("cycle search");
-            series.push((
-                cycle,
-                proc_kb("VmRSS").unwrap_or(0),
-                pss_kb().unwrap_or(0),
-            ));
+            let _ = storage
+                .search_vector(model, &probe, 5, None)
+                .expect("cycle search");
+            series.push((cycle, proc_kb("VmRSS").unwrap_or(0), pss_kb().unwrap_or(0)));
         }
         let cpu_after = cpu_ticks();
         let hwm = proc_kb("VmHWM").unwrap_or(0);
@@ -5193,9 +5706,7 @@ close_ok={close_ok} finalize_ok={finalize_ok} reopened_hits={}",
     #[ignore = "Gate K store-level crash/reopen; env-driven with GATE_K_MODE/PATH"]
     fn gate_k_lifecycle() {
         let mode = std::env::var("GATE_K_MODE").unwrap_or_else(|_| "verify".into());
-        let path = std::path::PathBuf::from(
-            std::env::var("GATE_K_PATH").expect("GATE_K_PATH"),
-        );
+        let path = std::path::PathBuf::from(std::env::var("GATE_K_PATH").expect("GATE_K_PATH"));
         let docs = env_usize("GATE_K_DOCS", 6000);
         let model = "fixture/fixture-model";
         let probe = vec![1.0_f32, 0.0, 0.0];
@@ -5217,7 +5728,9 @@ close_ok={close_ok} finalize_ok={finalize_ok} reopened_hits={}",
                 .fragment_completeness_summary_for_test()
                 .unwrap_or(f32::NAN);
             storage.close().expect("close build");
-            println!("GATE_K_LIFE mode=build docs={docs} completeness_before_optimize={completeness}");
+            println!(
+                "GATE_K_LIFE mode=build docs={docs} completeness_before_optimize={completeness}"
+            );
             return;
         }
 
@@ -5236,7 +5749,9 @@ close_ok={close_ok} finalize_ok={finalize_ok} reopened_hits={}",
             .unwrap_or(f32::NAN);
         let (pending, _) = storage.finalize_debt_for_test().expect("debt");
         if before < 1.0 || pending {
-            storage.finalize_writes().expect("retry optimize after kill");
+            storage
+                .finalize_writes()
+                .expect("retry optimize after kill");
         }
         let after = storage
             .fragment_completeness_summary_for_test()
@@ -5296,9 +5811,15 @@ mod step2 {
         let hits = storage
             .search_vector(model, &probe, 5, None)
             .expect("pre-optimize search");
-        assert_eq!(after_defer, base, "below-threshold debt must defer optimize");
+        assert_eq!(
+            after_defer, base,
+            "below-threshold debt must defer optimize"
+        );
         assert!(pending, "debt must stay pending after defer");
-        assert!(!hits.is_empty(), "staged data must be searchable before optimize");
+        assert!(
+            !hits.is_empty(),
+            "staged data must be searchable before optimize"
+        );
 
         for index in 10..50 {
             insert(&storage, &format!("d-{index}"), &probe);
@@ -5399,14 +5920,22 @@ completeness_after={completeness_after} ghost={ghost}"
         let gone_id;
         {
             let storage = open(&path, false);
-            storage.set_maintenance_policy_for_test(1_000_000, 3_600_000);
+            storage.set_maintenance_policy_for_test(0, 3_600_000);
             insert(&storage, "keep-1", &[1.0, 0.0, 0.0]);
             let (file, entry) = fixture(Some(&storage), "gone-1", "gone body", gone.clone());
             gone_id = file.id;
             storage
                 .replace_fixture_file(&file, std::slice::from_ref(&entry))
                 .expect("insert gone");
-            // Persist the delete marker without running maintenance.
+            storage.finalize_writes().expect("finalize seed rows");
+            let completeness_before_delete = storage
+                .fragment_completeness_summary_for_test()
+                .unwrap_or(f32::NAN);
+            assert!(completeness_before_delete >= 1.0);
+
+            // Persist only the delete marker: completeness is already 1.0, so
+            // reopen must recover deletion maintenance from the marker itself.
+            storage.set_maintenance_policy_for_test(1_000_000, 3_600_000);
             storage.delete_files(&[gone_id]).expect("delete");
             storage.checkpoint_only().expect("checkpoint marker");
             storage.close().expect("close before reopen");
@@ -5414,16 +5943,127 @@ completeness_after={completeness_after} ghost={ghost}"
         let reopened = open(&path, false);
         reopened.set_maintenance_policy_for_test(1_000_000, 3_600_000);
         let (pending, _) = reopened.finalize_debt_for_test().expect("debt");
+        let optimize_before = optimize_calls(&reopened).fragments;
         reopened.finalize_writes().expect("reopen maintenance");
+        let optimize_after = optimize_calls(&reopened).fragments;
         let (pending_after, _) = reopened.finalize_debt_for_test().expect("debt2");
         let ghost = reopened
             .search_vector(model, &gone, 5, None)
             .expect("search deleted")
             .iter()
             .any(|hit| hit.file_id == gone_id);
-        println!("STEP2_REOPEN pending={pending} pending_after={pending_after} ghost={ghost}");
-        assert!(!pending_after, "reopen must complete pending delete maintenance");
-        assert!(!ghost, "deleted fragment must not survive reopen maintenance");
+        println!(
+            "STEP2_REOPEN pending={pending} pending_after={pending_after} optimize_before={optimize_before} optimize_after={optimize_after} ghost={ghost}"
+        );
+        assert!(
+            pending,
+            "delete marker must restore pending maintenance after reopen"
+        );
+        assert!(
+            optimize_after > optimize_before,
+            "reopen must run fragment optimize for the delete marker"
+        );
+        assert!(
+            !pending_after,
+            "reopen must complete pending delete maintenance"
+        );
+        assert!(
+            !ghost,
+            "deleted fragment must not survive reopen maintenance"
+        );
+        reopened.close().expect("close");
+    }
+
+    #[test]
+    #[ignore = "Step 2: incremental primary-key deletes retain maintenance intent across reopen"]
+    fn step2_reopen_detects_incremental_pk_delete_debt() {
+        let temporary = tempfile::tempdir().expect("workspace");
+        let path = temporary.path().to_owned();
+        let marker = path.join("storage").join("maintenance.delete");
+        let model = "fixture/fixture-model";
+        let stable_vector = vec![1.0_f32, 0.0, 0.0];
+        let removed_vector = vec![0.0_f32, 1.0, 0.0];
+        let removed_id;
+        {
+            let storage = open(&path, false);
+            let (file, stable) = fixture(Some(&storage), "pk-delete", "stable body", stable_vector);
+            let (_, removed) = fixture(
+                Some(&storage),
+                "pk-delete",
+                "removed body",
+                removed_vector.clone(),
+            );
+            removed_id = removed.entity.fragments[0].id.clone();
+            let (entities, entries) = fixture_records(&[stable.clone(), removed]);
+            storage
+                .replace_file(&file, &entities, &entries)
+                .expect("initial indexed generation");
+            storage.set_maintenance_policy_for_test(0, 3_600_000);
+            storage.finalize_writes().expect("finalize seed rows");
+            assert!(
+                storage
+                    .fragment_completeness_summary_for_test()
+                    .unwrap_or(f32::NAN)
+                    >= 1.0,
+                "seed index must be complete before deletion"
+            );
+            assert!(
+                !marker.exists(),
+                "seed optimize must leave no delete marker"
+            );
+
+            let (entities, entries) = fixture_records(&[stable]);
+            storage
+                .replace_file(&file, &entities, &entries)
+                .expect("incremental replacement removes one fragment by primary key");
+            assert!(
+                marker.exists(),
+                "incremental primary-key deletion must persist maintenance intent before checkpoint"
+            );
+            storage.set_maintenance_policy_for_test(1_000_000, 3_600_000);
+            storage.checkpoint_only().expect("checkpoint PK deletion");
+            storage.close().expect("close before reopen");
+        }
+
+        let reopened = open(&path, false);
+        reopened.set_maintenance_policy_for_test(1_000_000, 3_600_000);
+        let (pending, _) = reopened.finalize_debt_for_test().expect("recovered debt");
+        let optimize_before = optimize_calls(&reopened).fragments;
+        reopened
+            .finalize_writes()
+            .expect("recover PK deletion maintenance");
+        let optimize_after = optimize_calls(&reopened).fragments;
+        let (pending_after, _) = reopened
+            .finalize_debt_for_test()
+            .expect("debt after recovery");
+        let hits = reopened
+            .search_vector(model, &removed_vector, 20, None)
+            .expect("search after reopen maintenance");
+        println!(
+            "STEP2_PK_REOPEN pending={pending} pending_after={pending_after} optimize_before={optimize_before} optimize_after={optimize_after}"
+        );
+        assert!(
+            pending,
+            "PK deletion marker must restore pending maintenance"
+        );
+        assert!(
+            optimize_after > optimize_before,
+            "PK deletion must force optimize after reopen"
+        );
+        assert!(
+            !pending_after,
+            "successful optimize must acknowledge PK deletion debt"
+        );
+        assert!(
+            !hits
+                .iter()
+                .any(|hit| hit.document_id == removed_id.as_str()),
+            "deleted primary key must not be returned after reopen maintenance"
+        );
+        assert!(
+            !marker.exists(),
+            "acknowledged maintenance must clear the marker"
+        );
         reopened.close().expect("close");
     }
 
@@ -5460,7 +6100,8 @@ completeness_after={completeness_after} ghost={ghost}"
         let probe = vec![1.0_f32, 0.0, 0.0];
         let batches = env_usize("STEP2_BATCHES", 100);
         let per_batch = env_usize("STEP2_PER", 5);
-        let threshold = std::env::var("ZVEC_GREP_MAINTENANCE_THRESHOLD").unwrap_or_else(|_| "?".into());
+        let threshold =
+            std::env::var("ZVEC_GREP_MAINTENANCE_THRESHOLD").unwrap_or_else(|_| "?".into());
 
         let began = std::time::Instant::now();
         let mut n = 0usize;
@@ -5511,13 +6152,18 @@ pending={pending} completeness={completeness}"
         let base = optimize_calls(&storage).fragments;
 
         for _ in 0..20 {
-            storage.update_file_snapshot(&file).expect("metadata update");
+            storage
+                .update_file_snapshot(&file)
+                .expect("metadata update");
         }
         let debt = storage.fragment_debt_for_test().expect("debt");
         storage.finalize_writes().expect("finalize after metadata");
         let after = optimize_calls(&storage).fragments;
         println!("STEP2_META base={base} after={after} fragment_debt={debt}");
-        assert_eq!(debt, 0, "metadata-only updates must not accrue fragment debt");
+        assert_eq!(
+            debt, 0,
+            "metadata-only updates must not accrue fragment debt"
+        );
         assert_eq!(
             after, base,
             "metadata-only updates must not trigger fragment maintenance"
@@ -5589,8 +6235,14 @@ pending={pending} completeness={completeness}"
             "STEP2_FAILSAFE delete_err={} marker_exists={marker_exists} still_searchable={still_searchable}",
             delete_error.is_err()
         );
-        assert!(delete_error.is_err(), "marker publish failure must fail the delete");
-        assert!(!marker_exists, "no marker must be left behind on failed publish");
+        assert!(
+            delete_error.is_err(),
+            "marker publish failure must fail the delete"
+        );
+        assert!(
+            !marker_exists,
+            "no marker must be left behind on failed publish"
+        );
         assert!(still_searchable, "delete must not have partially applied");
         storage.close().expect("close");
     }
@@ -5614,13 +6266,26 @@ pending={pending} completeness={completeness}"
         }
         let storage = open(&path, false);
         storage.set_maintenance_policy_for_test(50, 1);
+        let (pending_after_reopen, _) = storage.finalize_debt_for_test().expect("reopened debt");
+        assert!(
+            pending_after_reopen,
+            "native incompleteness must restore insert debt after reopen"
+        );
+        let optimize_before = optimize_calls(&storage).fragments;
         std::thread::sleep(Duration::from_millis(20));
         storage.finalize_writes().expect("recover");
+        let optimize_after = optimize_calls(&storage).fragments;
         let (pending, _) = storage.finalize_debt_for_test().expect("debt2");
         let completeness = storage
             .fragment_completeness_summary_for_test()
             .unwrap_or(f32::NAN);
-        println!("STEP2_RESTART pending_after={pending} completeness={completeness}");
+        println!(
+            "STEP2_RESTART pending_after={pending} optimize_before={optimize_before} optimize_after={optimize_after} completeness={completeness}"
+        );
+        assert!(
+            optimize_after > optimize_before,
+            "restart age deadline must run fragment optimize"
+        );
         assert!(!pending, "restart + age deadline must recover insert debt");
         assert!(completeness >= 1.0, "completeness converges after recovery");
         storage.close().expect("close");
@@ -5679,7 +6344,10 @@ mod audit {
         println!("AUDIT_F2 f2={f2} f3={f3} pending_after_2={pending_after_2}");
         // F2 hypothesis NOT confirmed: the concurrent replace genuinely leaves the
         // fragment index incomplete, so the extra optimize is required, not redundant.
-        assert!(pending_after_2, "concurrent mutation must not be acknowledged");
+        assert!(
+            pending_after_2,
+            "concurrent mutation must not be acknowledged"
+        );
         storage.close().expect("close");
     }
 
@@ -5732,8 +6400,12 @@ mod audit {
             let gone_id = {
                 let storage = open(&path, false);
                 storage.set_maintenance_policy_for_test(0, 3_600_000);
-                let (file, entry) =
-                    fixture(Some(&storage), &format!("race-gone-{iteration}"), "race gone", gone.clone());
+                let (file, entry) = fixture(
+                    Some(&storage),
+                    &format!("race-gone-{iteration}"),
+                    "race gone",
+                    gone.clone(),
+                );
                 let id = file.id;
                 storage
                     .replace_fixture_file(&file, std::slice::from_ref(&entry))
@@ -5779,7 +6451,203 @@ mod audit {
 finalize_errors={finalize_errors}"
         );
         assert_eq!(ghosts, 0, "no ghost after close/finalize race + reopen");
-        assert_eq!(lingering_markers, 0, "marker cleared after recovered maintenance");
+        assert_eq!(
+            lingering_markers, 0,
+            "marker cleared after recovered maintenance"
+        );
         assert_eq!(finalize_errors, 0, "recovery finalize must succeed");
     }
+}
+
+// ---------------------------------------------------------------------------
+// Write-amplification instrumentation validation (Gate 2, engine level).
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod wa_gate {
+    use super::*;
+
+    #[test]
+    #[ignore = "Gate2 WA: counters accurate; M2 skips unchanged fragments"]
+    fn wa_counts_new_then_unchanged() {
+        let temporary = tempfile::tempdir().expect("workspace");
+        let storage = open(temporary.path(), false);
+
+        let (file, entry) = fixture(Some(&storage), "wa-0", "wa body", vec![1.0, 0.0, 0.0]);
+        storage
+            .replace_fixture_file(&file, std::slice::from_ref(&entry))
+            .expect("insert");
+        let (fr1, _fd, _fs, ew1, fw1, ed1, fdel1) =
+            storage.mutation_stats_for_test().expect("stats1");
+
+        // Same-content rewrite: M2 incremental plan has no changes -> no new
+        // entity/fragment writes.
+        storage
+            .replace_fixture_file(&file, std::slice::from_ref(&entry))
+            .expect("rewrite");
+        let (fr2, _fd, _fs, ew2, fw2, _ed2, _fdel2) =
+            storage.mutation_stats_for_test().expect("stats2");
+
+        println!(
+            "WA_GATE new: files_replaced={fr1} entities_written={ew1} fragments_written={fw1} \
+entities_deleted={ed1} fragments_deleted={fdel1}"
+        );
+        println!(
+            "WA_GATE after_rewrite: files_replaced={fr2} entities_written={ew2} fragments_written={fw2}"
+        );
+
+        assert!(fr1 >= 1 && ew1 >= 1 && fw1 >= 1, "new file must write rows");
+        assert!(fr2 > fr1, "rewrite still replaces the file record");
+        // NOTE: M2 unchanged-skip is NOT asserted here. Driving `replace_file`
+        // directly keeps the file record `NotIndexed`, so `load_indexed_manifest`
+        // returns None and every call takes the full-replacement path. M2 skip is
+        // proven by production evidence (files_unchanged=103,911 vs entities≈0 for
+        // unchanged files) and the incremental-plan source, not by this micro-test.
+
+        storage.finalize_writes().expect("finalize");
+        let hits = storage
+            .search_vector("fixture/fixture-model", &[1.0, 0.0, 0.0], 5, None)
+            .expect("search");
+        assert!(
+            !hits.is_empty(),
+            "search still correct after instrumentation"
+        );
+        storage.close().expect("close");
+    }
+}
+
+#[cfg(feature = "m4-research-integration")]
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Cross-store crash/reopen contract stays in one executable test"
+)]
+fn m4_sidecar_cross_store_crash_reopen_retry_hydrates_with_native_store() {
+    if let Some(root) = std::env::var_os("M4_RUST_STORE_CRASH_ROOT") {
+        let root = std::path::PathBuf::from(root);
+        let storage = open(&root, false);
+        let (file, entities, entries, docs) =
+            m4_sidecar_file_version(&storage, "newtoken refreshed content", 3);
+        let mut sidecar = Adapter::open(&root.join("m4-sidecar")).expect("open M4 sidecar");
+        sidecar
+            .stage_file(u64::from(file.id.get()), 2, &docs)
+            .expect("stage M4 revision");
+        replace_file_via_staging(&storage, &file, &entities, &entries)
+            .expect("commit durable native file revision");
+        std::process::exit(73);
+    }
+
+    let home = tempfile::tempdir().expect("workspace");
+    let root = home.path();
+    let storage = open(root, false);
+    let (old_file, old_entities, old_entries, old_docs) =
+        m4_sidecar_file_version(&storage, "oldtoken old content", 1);
+    let file_id = u64::from(old_file.id.get());
+    let mut sidecar = Adapter::open(&root.join("m4-sidecar")).expect("open M4 sidecar");
+    sidecar
+        .stage_file(file_id, 1, &old_docs)
+        .expect("stage initial M4 revision");
+    sidecar
+        .publish_after_native_commit(file_id, 1, || {
+            replace_file_via_staging(&storage, &old_file, &old_entities, &old_entries)
+                .map_err(|error| error.to_string())
+        })
+        .expect("commit initial native and M4 revision");
+    drop(sidecar);
+    storage.close().expect("close before crash child");
+
+    let status = std::process::Command::new(std::env::current_exe().expect("test executable"))
+        .arg("m4_sidecar_cross_store_crash_reopen_retry_hydrates_with_native_store")
+        .arg("--nocapture")
+        .env("M4_RUST_STORE_CRASH_ROOT", root)
+        .status()
+        .expect("run crash child");
+    assert_eq!(status.code(), Some(73));
+
+    let storage = open(root, false);
+    let (new_file, new_entities, new_entries, new_docs) =
+        m4_sidecar_file_version(&storage, "newtoken refreshed content", 3);
+    assert_eq!(new_file.id, old_file.id);
+    let native_hits = storage
+        .search_fts("newtoken", 10, None)
+        .expect("native store committed before crash");
+    assert_eq!(native_hits.len(), 3);
+    let mut sidecar = Adapter::open(&root.join("m4-sidecar")).expect("reopen M4 sidecar");
+    let state = sidecar.file_state(file_id).expect("read staged file state");
+    assert_eq!(
+        (state.revision, state.visibility, state.acknowledged),
+        (2, 1, 3)
+    );
+    assert!(sidecar.search("newtoken", 10, 128).unwrap().is_empty());
+
+    sidecar
+        .stage_file(file_id, 2, &new_docs)
+        .expect("retry M4 staging from source");
+    sidecar
+        .publish_after_native_commit(file_id, 2, || {
+            replace_file_via_staging(&storage, &new_file, &new_entities, &new_entries)
+                .map_err(|error| error.to_string())
+        })
+        .expect("publish after retrying native commit");
+
+    let manifest = storage
+        .load_embedding_manifest(new_file.id)
+        .expect("load canonical manifest")
+        .expect("published native manifest");
+    let m4_hits = sidecar.search("newtoken", 10, 128).expect("M4 query");
+    assert_eq!(m4_hits.len(), 3);
+    let hydrated_hits = m4_hits
+        .iter()
+        .map(|hit| {
+            let fragment = &manifest.fragments[hit.ordinal as usize];
+            StorageSearchHit {
+                document_id: fragment.fragment_id.clone(),
+                entity_id: EntityId::from_string(fragment.entity_id.clone()),
+                file_id: new_file.id,
+                path: StorageSearchPath::Fts,
+                score: f64::from(hit.score),
+                m4_revision: Some(hit.revision),
+            }
+        })
+        .collect::<Vec<_>>();
+    let hydrated = storage
+        .load_search_hits(&hydrated_hits)
+        .expect("hydrate M4 hits through native IndexStore");
+    assert_eq!(hydrated.entities.len(), 1);
+    assert_eq!(hydrated.fragments.len(), 3);
+    storage.close().expect("close after recovered publish");
+    drop(sidecar);
+
+    let reader = open(root, true);
+    let mut sidecar = Adapter::open(&root.join("m4-sidecar")).expect("reopen published M4 sidecar");
+    let m4_hits = sidecar
+        .search("newtoken", 10, 128)
+        .expect("reopened M4 query");
+    assert_eq!(m4_hits.len(), 3);
+    let manifest = reader
+        .load_embedding_manifest(new_file.id)
+        .expect("load reopened manifest")
+        .expect("reopened published manifest");
+    let hits = m4_hits
+        .iter()
+        .map(|hit| {
+            let fragment = &manifest.fragments[hit.ordinal as usize];
+            StorageSearchHit {
+                document_id: fragment.fragment_id.clone(),
+                entity_id: EntityId::from_string(fragment.entity_id.clone()),
+                file_id: new_file.id,
+                path: StorageSearchPath::Fts,
+                score: f64::from(hit.score),
+                m4_revision: Some(hit.revision),
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        reader
+            .load_search_hits(&hits)
+            .expect("hydrate after both stores reopen")
+            .fragments
+            .len(),
+        3
+    );
+    reader.close().expect("close recovered reader");
 }

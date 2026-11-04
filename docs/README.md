@@ -9,8 +9,15 @@ interfaces.
 > zvec-grep is a work in progress. Commands and configuration may change before
 > the first stable release.
 
-These guides describe the TypeScript / Node.js implementation. For Rust development
-and implementation details, see the [Rust README](../rust/README.md).
+These user guides primarily describe the TypeScript / Node.js implementation. For a
+repository-wide engineering map spanning TypeScript, the Rust rewrite, storage,
+interfaces, verification, and research boundaries, see the
+[Engineering guide](./technical/README.md). For Rust development commands, see the
+[Rust README](../rust/README.md).
+
+For the proposed lightweight RAG evidence upgrade for external agents, including
+HRM2.0 pilot scope, bounded self-check loops, implementation phases and gates,
+see the [RAG upgrade plan](./rag/README.md) (Vietnamese; not implemented behavior).
 
 ## Start here
 

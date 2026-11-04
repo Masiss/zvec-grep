@@ -6,14 +6,14 @@ set -Eeuo pipefail
 readonly MOUNTPOINT="/"
 readonly WORKSPACE_SUBVOL="/home/masis/src/zvec-grep/research/m4-native/.work/m4-native-workspace-quota"
 readonly ATTESTATION_PATH="/var/tmp/m4-native-workspace-quota-pwd.attestation.json"
-readonly CAP="128M"
-readonly CAP_BYTES="134217728"
+readonly CAP="160M"
+readonly CAP_BYTES="167772160"
 
 usage() {
   printf 'Usage: %s [--apply]\n' "$0"
   printf 'Target: %s\n' "$WORKSPACE_SUBVOL"
   printf 'Default is read-only preflight. --apply creates this persistent subvolume\n'
-  printf 'and applies a 128 MiB referenced-byte cap; it never runs a benchmark.\n'
+  printf 'and applies a 160 MiB referenced-byte cap; it never runs a benchmark.\n'
 }
 
 APPLY=0
@@ -78,7 +78,7 @@ if grep -Eiq '^[[:space:]]*Enabled:[[:space:]]+no' <<<"$quota_status"; then
   btrfs quota enable --simple "$MOUNTPOINT"
   quota_status=$(btrfs quota status "$MOUNTPOINT")
 else
-  printf '\nThis will create only the selected persistent subvolume and set its 128 MiB cap.\n'
+  printf '\nThis will create only the selected persistent subvolume and set its 160 MiB cap.\n'
   printf 'It will not alter existing qgroups or run a benchmark.\n'
   read -r -p 'Type CREATE-M4-QUOTA-WORKSPACE to continue: ' confirmation
   if [[ "$confirmation" != CREATE-M4-QUOTA-WORKSPACE ]]; then

@@ -1,0 +1,1875 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d139615..8fbbb31 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -232,7 +232,8 @@ if(BUILD_CPP_EXAMPLES)
+   add_subdirectory(examples/c++ EXCLUDE_FROM_ALL)
+ endif()
+ 
+-cc_directories(tests)
++# Profiling build: omit tests (GMock is not installed in this environment).
++# cc_directories(tests)
+ 
+ add_custom_target(clang_tidy_deps DEPENDS ARROW.BUILD glog gflags Lz4.BUILD)
+ 
+diff --git a/src/binding/c/CMakeLists.txt b/src/binding/c/CMakeLists.txt
+index 91b1e23..34b7b09 100644
+--- a/src/binding/c/CMakeLists.txt
++++ b/src/binding/c/CMakeLists.txt
+@@ -39,6 +39,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
+ # C API library source files
+ set(ZVEC_C_API_SOURCES
+     c_api.cc
++    integrity_verify.cc
+ )
+ 
+ # C API library header files
+diff --git a/src/binding/c/c_api.cc b/src/binding/c/c_api.cc
+index bf91508..62614c7 100644
+--- a/src/binding/c/c_api.cc
++++ b/src/binding/c/c_api.cc
+@@ -6842,7 +6842,13 @@ zvec_error_code_t zvec_collection_optimize(zvec_collection_t *collection) {
+       "Exception occurred",
+       auto coll_ptr =
+           reinterpret_cast<std::shared_ptr<zvec::Collection> *>(collection);
+-      zvec::Status status = (*coll_ptr)->optimize();
++      // Research-only switch used by the segment-only benchmark. The public
++      // API remains full-merge by default and keeps the existing ABI.
++      const char *segment_only = std::getenv("ZVEC_RESEARCH_SEGMENT_ONLY");
++      zvec::OptimizeOptions options;
++      options.merge_segments_ =
++          segment_only == nullptr || std::strcmp(segment_only, "1") != 0;
++      zvec::Status status = (*coll_ptr)->optimize(options);
+       return handle_status(status);)
+ }
+ 
+diff --git a/src/binding/c/exported_symbols.lds b/src/binding/c/exported_symbols.lds
+index 636f685..3357344 100644
+--- a/src/binding/c/exported_symbols.lds
++++ b/src/binding/c/exported_symbols.lds
+@@ -67,6 +67,7 @@
+     zvec_collection_update_with_results;
+     zvec_collection_upsert;
+     zvec_collection_upsert_with_results;
++    zvec_collection_verify_integrity;
+     zvec_config_data_create;
+     zvec_config_data_destroy;
+     zvec_config_data_get_brute_force_by_keys_ratio;
+@@ -235,6 +236,11 @@
+     zvec_initialize;
+     zvec_int64_array_create;
+     zvec_int64_array_destroy;
++    zvec_integrity_abi_version;
++    zvec_integrity_report_complete;
++    zvec_integrity_report_free;
++    zvec_integrity_report_json;
++    zvec_integrity_report_ok;
+     zvec_is_initialized;
+     zvec_iterator_options_create;
+     zvec_iterator_options_destroy;
+diff --git a/src/binding/c/exported_symbols.txt b/src/binding/c/exported_symbols.txt
+index 6481d97..4a90600 100644
+--- a/src/binding/c/exported_symbols.txt
++++ b/src/binding/c/exported_symbols.txt
+@@ -66,6 +66,7 @@ _zvec_collection_update
+ _zvec_collection_update_with_results
+ _zvec_collection_upsert
+ _zvec_collection_upsert_with_results
++_zvec_collection_verify_integrity
+ _zvec_config_data_create
+ _zvec_config_data_destroy
+ _zvec_config_data_get_brute_force_by_keys_ratio
+@@ -234,6 +235,11 @@ _zvec_index_type_to_string
+ _zvec_initialize
+ _zvec_int64_array_create
+ _zvec_int64_array_destroy
++_zvec_integrity_abi_version
++_zvec_integrity_report_complete
++_zvec_integrity_report_free
++_zvec_integrity_report_json
++_zvec_integrity_report_ok
+ _zvec_is_initialized
+ _zvec_iterator_options_create
+ _zvec_iterator_options_destroy
+diff --git a/src/core/framework/index_mapping.cc b/src/core/framework/index_mapping.cc
+index b5c793d..c5f461c 100644
+--- a/src/core/framework/index_mapping.cc
++++ b/src/core/framework/index_mapping.cc
+@@ -268,6 +268,105 @@ void IndexMapping::refresh(uint64_t check_point) {
+     auto segment_start = reinterpret_cast<IndexFormat::SegmentMeta *>(
+         reinterpret_cast<uint8_t *>(header) +
+         (header->meta_footer_offset - footer->segments_meta_size));
++
++    // Recompute checksums with this header's own content base. The active
++    // header is rewritten on every refresh. Sealed headers are only revisited
++    // when they lack a capability marker or still contain a zero segment CRC,
++    // which closes the late-segment CRC gap without rehashing every seal.
++    auto recompute_header_checksums = [&](
++                                          IndexFormat::MetaHeader *target_header,
++                                          uint64_t header_start_offset,
++                                          bool force) {
++      auto *target_footer = reinterpret_cast<IndexFormat::MetaFooter *>(
++          reinterpret_cast<uint8_t *>(target_header) +
++          target_header->meta_footer_offset);
++      auto *target_segments = reinterpret_cast<IndexFormat::SegmentMeta *>(
++          reinterpret_cast<uint8_t *>(target_header) +
++          (target_header->meta_footer_offset -
++           target_footer->segments_meta_size));
++
++      bool needs = force;
++      if (!needs && target_header->reserved3_[0] !=
++                        IndexFormat::CHECKSUM_CAPABILITY_V1) {
++        needs = true;
++      }
++      if (!needs && target_footer->content_size > 0 &&
++          target_footer->content_crc == 0) {
++        needs = true;
++      }
++      if (!needs) {
++        for (size_t i = 0; i < target_footer->segment_count; ++i) {
++          const auto *segment = target_segments + i;
++          if (segment->data_size > 0 && segment->data_crc == 0) {
++            needs = true;
++            break;
++          }
++        }
++      }
++      if (!needs) {
++        return;
++      }
++
++      bool content_ok = true;
++      const uint8_t *content = nullptr;
++      const size_t content_start =
++          header_start_offset + target_header->content_offset;
++      if (target_footer->content_size > 0 &&
++          (content_start > file_.size() ||
++           target_footer->content_size > file_.size() - content_start)) {
++        content_ok = false;
++      }
++      if (content_ok && target_footer->content_size > 0) {
++        int opts = ailego::File::MMAP_SHARED;
++        if (huge_page_) {
++          opts |= ailego::File::MMAP_HUGE_PAGE;
++        }
++        content = reinterpret_cast<const uint8_t *>(ailego::File::MemoryMap(
++            file_.native_handle(), content_start, target_footer->content_size,
++            opts));
++        if (content == nullptr) {
++          content_ok = false;
++        }
++      }
++      if (content_ok) {
++        for (size_t i = 0; i < target_footer->segment_count; ++i) {
++          auto *segment = target_segments + i;
++          if (segment->data_index > target_footer->content_size ||
++              segment->data_size >
++                  target_footer->content_size - segment->data_index) {
++            content_ok = false;
++            break;
++          }
++          segment->data_crc =
++              segment->data_size == 0
++                  ? 0
++                  : ailego::Crc32c::Hash(content + segment->data_index,
++                                          segment->data_size, 0);
++        }
++      }
++      if (content_ok) {
++        target_footer->content_crc =
++            target_footer->content_size == 0
++                ? 0
++                : ailego::Crc32c::Hash(content, target_footer->content_size, 0);
++        target_header->reserved3_[0] =
++            IndexFormat::CHECKSUM_CAPABILITY_V1;
++      } else {
++        // Never publish a partial seal as fully checksummed.
++        target_footer->content_crc = 0;
++        target_header->reserved3_[0] = 0;
++        checksum_valid_ = false;
++        LOG_ERROR("Failed to compute index checksums for %s", path_.c_str());
++      }
++      if (content != nullptr) {
++        ailego::File::MemoryUnmap(const_cast<uint8_t *>(content),
++                                  target_footer->content_size);
++      }
++      IndexFormat::UpdateMetaHeader(target_header);
++    };
++
++    recompute_header_checksums(header, item.first, header == header_);
++
+     footer->segments_meta_crc =
+         ailego::Crc32c::Hash(segment_start, footer->segments_meta_size, 0);
+     IndexFormat::UpdateMetaFooter(footer, check_point);
+diff --git a/src/core/utility/mmap_file_storage.cc b/src/core/utility/mmap_file_storage.cc
+index 7ebf4e4..8ff71f0 100644
+--- a/src/core/utility/mmap_file_storage.cc
++++ b/src/core/utility/mmap_file_storage.cc
+@@ -199,7 +199,8 @@ class MMapFileStorage : public IndexStorage {
+   //! Close storage
+   int close() override {
+     this->close_index();
+-    return 0;
++    checksum_valid_ = mapping_.checksum_valid();
++    return checksum_valid_ ? 0 : IndexError_InvalidChecksum;
+   }
+ 
+   //! Append a segment into storage
+@@ -298,6 +299,7 @@ class MMapFileStorage : public IndexStorage {
+   //! Refresh meta information (checksum, update time, etc.)
+   void refresh_index(uint64_t chkp) {
+     mapping_.refresh(chkp);
++    checksum_valid_ = mapping_.checksum_valid();
+     index_dirty_ = false;
+   }
+ 
+@@ -307,7 +309,12 @@ class MMapFileStorage : public IndexStorage {
+       this->refresh_index(0);
+     }
+     std::lock_guard<std::mutex> latch(mapping_mutex_);
+-    return mapping_.flush();
++    int ret = mapping_.flush();
++    if (ret != 0) {
++      return ret;
++    }
++    checksum_valid_ = mapping_.checksum_valid();
++    return checksum_valid_ ? 0 : IndexError_InvalidChecksum;
+   }
+ 
+   //! Close index storage
+@@ -339,6 +346,7 @@ class MMapFileStorage : public IndexStorage {
+ 
+  private:
+   uint32_t segment_meta_capacity_{1024 * 1024};
++  bool checksum_valid_{true};
+   bool copy_on_write_{false};
+   bool force_flush_{false};
+   bool memory_locked_{false};
+diff --git a/src/db/collection.cc b/src/db/collection.cc
+index 080fdc4..a6fc40a 100644
+--- a/src/db/collection.cc
++++ b/src/db/collection.cc
+@@ -12,9 +12,11 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
++#include <algorithm>
+ #include <atomic>
+ #include <condition_variable>
+ #include <cstdint>
++#include <cstdlib>
+ #include <filesystem>
+ #include <limits>
+ #include <memory>
+@@ -40,6 +42,7 @@
+ #include "db/common/constants.h"
+ #include "db/common/file_helper.h"
+ #include "db/common/global_resource.h"
++#include "db/common/native_timeline.h"
+ #include "db/common/profiler.h"
+ #include "db/common/typedef.h"
+ #include "db/common/utils.h"
+@@ -233,7 +236,7 @@ class CollectionImpl : public Collection {
+   std::vector<SegmentTask::Ptr> build_compact_task(
+       const CollectionSchema::Ptr &schema,
+       const std::vector<Segment::Ptr> &segments, int concurrency,
+-      const IndexFilter::Ptr filter);
++      const IndexFilter::Ptr filter, bool merge_segments);
+ 
+   Status execute_compact_task(std::vector<SegmentTask::Ptr> &tasks) const;
+ 
+@@ -314,7 +317,8 @@ class CollectionImpl : public Collection {
+   // operation waiting for a running optimize never becomes a pending
+   // exclusive acquirer of the schema lock (which would block new readers).
+   // Lock order: maintenance -> schema -> write -> SegmentManager; never
+-  // acquire maintenance_mtx_ after any of the others.
++  // acquire maintenance_mtx_ after any of the others. flush() also uses the
++  // maintenance gate so it cannot overlap schema DDL or optimize.
+   mutable std::mutex maintenance_mtx_;
+ 
+   std::atomic<SegmentID> segment_id_allocator_;
+@@ -493,14 +497,63 @@ Status CollectionImpl::destroy() {
+ Status CollectionImpl::flush() {
+   CHECK_COLLECTION_READONLY_RETURN_STATUS;
+ 
+-  // The exclusive schema lock also excludes all readers, which the writing
+-  // segment's flush() relies on (it runs finish_memory_components() without
+-  // the segment lock).
+-  std::lock_guard lock(schema_handle_mtx_);
++  native_timeline::Span flush_span("collection_flush", "total", this);
++  native_timeline::Span maintenance_wait_span("collection_flush_stage",
++                                              "maintenance_lock_wait", this);
++  std::lock_guard maintenance_lock(maintenance_mtx_);
++  maintenance_wait_span.finish();
++
++  // The vector index interface does not promise that flush() is safe beside
++  // search(). Keep the old reader exclusion for vector collections. For
++  // non-vector collections, shared schema/write locks exclude DDL and writers
++  // while allowing read-only queries to proceed during component I/O.
++  if (!schema_->vector_fields().empty()) {
++    native_timeline::Span schema_wait_span("collection_flush_stage",
++                                           "schema_handle_lock_wait", this);
++    std::unique_lock<std::shared_mutex> schema_lock(schema_handle_mtx_);
++    schema_wait_span.finish();
++    native_timeline::Span schema_hold_span("collection_flush_stage",
++                                           "schema_handle_lock_held", this);
++    CHECK_DESTROY_RETURN_STATUS(destroyed_, false);
++    CHECK_CLOSED_RETURN_STATUS(closed_, false);
++    native_timeline::Span write_wait_span("collection_flush_stage",
++                                          "write_lock_wait", this);
++    std::shared_lock<std::shared_mutex> write_lock(write_mtx_);
++    write_wait_span.finish();
++    native_timeline::Span write_hold_span("collection_flush_stage",
++                                          "write_lock_held", this);
++    native_timeline::Span work_span("collection_flush_stage", "flush_unsafe",
++                                    this);
++    auto result = flush_unsafe();
++    work_span.finish();
++    write_hold_span.finish();
++    schema_hold_span.finish();
++    flush_span.finish();
++    return result;
++  }
++
++  native_timeline::Span schema_wait_span("collection_flush_stage",
++                                         "schema_handle_lock_wait", this);
++  std::shared_lock<std::shared_mutex> schema_lock(schema_handle_mtx_);
++  schema_wait_span.finish();
++  native_timeline::Span schema_hold_span("collection_flush_stage",
++                                         "schema_handle_lock_held", this);
+   CHECK_DESTROY_RETURN_STATUS(destroyed_, false);
+   CHECK_CLOSED_RETURN_STATUS(closed_, false);
+-
+-  return flush_unsafe();
++  native_timeline::Span write_wait_span("collection_flush_stage",
++                                        "write_lock_wait", this);
++  std::shared_lock<std::shared_mutex> write_lock(write_mtx_);
++  write_wait_span.finish();
++  native_timeline::Span write_hold_span("collection_flush_stage",
++                                        "write_lock_held", this);
++  native_timeline::Span work_span("collection_flush_stage", "flush_unsafe",
++                                  this);
++  auto result = flush_unsafe();
++  work_span.finish();
++  write_hold_span.finish();
++  schema_hold_span.finish();
++  flush_span.finish();
++  return result;
+ }
+ 
+ Status CollectionImpl::flush_unsafe() {
+@@ -946,9 +999,9 @@ Status CollectionImpl::optimize(const OptimizeOptions &options) {
+ 
+   // Phase 2: lock-free optimize. Readers and writers proceed freely.
+   auto delete_store_clone = delete_store_->clone();
+-  auto tasks =
+-      build_compact_task(schema_, persist_segments, options.concurrency_,
+-                         delete_store_clone->make_filter());
++  auto tasks = build_compact_task(
++      schema_, persist_segments, options.concurrency_,
++      delete_store_clone->make_filter(), options.merge_segments_);
+   auto s = execute_compact_task(tasks);
+   CHECK_RETURN_STATUS(s);
+ 
+@@ -1084,10 +1137,33 @@ Status CollectionImpl::optimize(const OptimizeOptions &options) {
+   return Status::OK();
+ }
+ 
++// Research-only segment fan-out bound. Reads ZVEC_RESEARCH_MAX_SEGMENTS once
++// (0 = disabled, the production default). When enabled, a non-purge optimize
++// keeps the persisted segment count at or below the bound by building indexes
++// in place for unready segments and merging only the smallest segments needed
++// to respect the bound. This bounds the per-optimize merge working set to the
++// merged group instead of the whole collection. It does not change the default
++// grouping, the on-disk format, or any production caller.
++static int research_max_segments_from_env() {
++  static const int value = [] {
++    const char *raw = std::getenv("ZVEC_RESEARCH_MAX_SEGMENTS");
++    if (raw == nullptr || *raw == '\0') {
++      return 0;
++    }
++    char *end = nullptr;
++    long parsed = std::strtol(raw, &end, 10);
++    if (end == raw || parsed < 0) {
++      return 0;
++    }
++    return static_cast<int>(parsed);
++  }();
++  return value;
++}
++
+ std::vector<SegmentTask::Ptr> CollectionImpl::build_compact_task(
+     const CollectionSchema::Ptr &schema,
+     const std::vector<Segment::Ptr> &segments, int concurrency,
+-    const IndexFilter::Ptr filter) {
++    const IndexFilter::Ptr filter, bool merge_segments) {
+   std::vector<SegmentTask::Ptr> tasks;
+   if (segments.empty()) return tasks;
+ 
+@@ -1101,6 +1177,71 @@ std::vector<SegmentTask::Ptr> CollectionImpl::build_compact_task(
+       current_live_doc_count <
+       current_physical_doc_count * (1 - COMPACT_DELETE_RATIO_THRESHOLD);
+ 
++  // Research-only: bounded fan-out (see research_max_segments_from_env). A
++  // non-purge optimize gets its index built in place per segment, and only the
++  // smallest segments are merged, just enough to keep the persisted count at
++  // or below the bound.
++  const int research_max_segments = research_max_segments_from_env();
++  if (research_max_segments > 0 && !purge_deleted_docs) {
++    std::vector<SegmentTask::Ptr> bounded_tasks;
++
++    const int projected_count = static_cast<int>(segments.size());
++    const int segments_to_eliminate = projected_count - research_max_segments;
++
++    std::vector<Segment::Ptr> merge_group;
++    if (segments_to_eliminate > 0) {
++      // Merging g segments into one reduces the persisted count by g - 1.
++      size_t group_size = static_cast<size_t>(segments_to_eliminate) + 1;
++      std::vector<Segment::Ptr> by_size = segments;
++      std::sort(by_size.begin(), by_size.end(),
++                [](const Segment::Ptr &a, const Segment::Ptr &b) {
++                  return a->doc_count() < b->doc_count();
++                });
++      if (group_size > by_size.size()) {
++        group_size = by_size.size();
++      }
++      merge_group.assign(by_size.begin(), by_size.begin() + group_size);
++      // CompactTask consumes inputs in ascending min_doc_id order.
++      std::sort(merge_group.begin(), merge_group.end(),
++                [](const Segment::Ptr &a, const Segment::Ptr &b) {
++                  return a->meta()->min_doc_id() < b->meta()->min_doc_id();
++                });
++    }
++
++    auto in_merge_group = [&merge_group](const Segment::Ptr &segment) {
++      for (const auto &member : merge_group) {
++        if (member == segment) {
++          return true;
++        }
++      }
++      return false;
++    };
++
++    if (merge_group.size() >= 2) {
++      bounded_tasks.emplace_back(SegmentTask::CreateCompactTask(CompactTask{
++          path_, schema, merge_group, allocate_segment_id_for_tmp_segment(),
++          nullptr, !options_.enable_mmap_, concurrency}));
++    }
++    for (const auto &segment : segments) {
++      if (!segment->all_vector_index_ready() && !in_merge_group(segment)) {
++        bounded_tasks.emplace_back(SegmentTask::CreateCreateVectorIndexTask(
++            CreateVectorIndexTask{segment, "", nullptr, concurrency}));
++      }
++    }
++    return bounded_tasks;
++  }
++
++  if (!merge_segments && !purge_deleted_docs) {
++    std::vector<SegmentTask::Ptr> tasks;
++    for (const auto &segment : segments) {
++      if (!segment->all_vector_index_ready()) {
++        tasks.emplace_back(SegmentTask::CreateCreateVectorIndexTask(
++            CreateVectorIndexTask{segment, "", nullptr, concurrency}));
++      }
++    }
++    return tasks;
++  }
++
+   auto max_doc_count_per_segment = schema->max_doc_count_per_segment();
+ 
+   std::vector<Segment::Ptr> current_group;
+@@ -1808,12 +1949,20 @@ Status CollectionImpl::delete_by_filter(const std::string &filter) {
+ }
+ 
+ Result<DocPtrList> CollectionImpl::query(const SearchQuery &query) const {
++  const bool trace_fts = query.target_.get_fts_clause() != nullptr;
++  native_timeline::Span query_span("collection_query", "total", this, -1,
++                                   trace_fts);
++  native_timeline::Span schema_lock_span(
++      "collection_query_stage", "schema_handle_lock", this, -1, trace_fts);
+   std::shared_lock lock(schema_handle_mtx_);
++  schema_lock_span.finish();
+ 
+   CHECK_DESTROY_RETURN_STATUS_EXPECTED(destroyed_, false);
+   CHECK_CLOSED_RETURN_STATUS_EXPECTED(closed_, false);
+ 
+-  return query_unsafe(query);
++  auto result = query_unsafe(query);
++  query_span.finish();
++  return result;
+ }
+ 
+ Result<DocPtrList> CollectionImpl::query(const MultiQuery &query) const {
+@@ -1848,6 +1997,7 @@ CollectionImpl::query_result_snapshot_impl(const Query &query) const {
+ 
+ Result<DocPtrList> CollectionImpl::query_unsafe(
+     const SearchQuery &query) const {
++  const bool trace_fts = query.target_.get_fts_clause() != nullptr;
+   // When field_name_ is set, use get_field to retrieve the schema uniformly.
+   // validate checks that the field type matches the query type
+   // (FTS query requires an FTS field, vector query requires a vector field).
+@@ -1855,23 +2005,42 @@ Result<DocPtrList> CollectionImpl::query_unsafe(
+   const FieldSchema *field_schema =
+       field_name.empty() ? nullptr : schema_->get_field(field_name);
+   bool need_sanitize = false;
+-  auto s = query.validate(field_schema, &need_sanitize);
++  Status s;
++  {
++    native_timeline::Span validate_span("collection_query_stage",
++                                        "query_validate", this, -1, trace_fts);
++    s = query.validate(field_schema, &need_sanitize);
++  }
+   CHECK_RETURN_STATUS_EXPECTED(s);
+ 
+-  auto segments = get_all_segments();
++  std::vector<Segment::Ptr> segments;
++  {
++    native_timeline::Span segments_span(
++        "collection_query_stage", "get_all_segments", this, -1, trace_fts);
++    segments = get_all_segments();
++  }
+   if (segments.empty()) {
+     return DocPtrList();
+   }
+ 
+   if (!need_sanitize) {
+-    return sql_engine_->execute(schema_, query, segments);
++    native_timeline::Span execute_span(
++        "collection_query_stage", "sql_engine_execute", this, -1, trace_fts);
++    auto result = sql_engine_->execute(schema_, query, segments);
++    execute_span.finish();
++    return result;
+   }
+ 
+   // Sparse needs sanitization: make a mutable copy and sort indices in place.
+   SearchQuery sanitized_query = query;
+   auto ss = sanitize_sparse_vector(sanitized_query.target_, field_schema);
+   CHECK_RETURN_STATUS_EXPECTED(ss);
+-  return sql_engine_->execute(schema_, std::move(sanitized_query), segments);
++  native_timeline::Span execute_span("collection_query_stage",
++                                     "sql_engine_execute", this, -1, trace_fts);
++  auto result =
++      sql_engine_->execute(schema_, std::move(sanitized_query), segments);
++  execute_span.finish();
++  return result;
+ }
+ 
+ Result<DocPtrList> CollectionImpl::query_unsafe(const MultiQuery &query) const {
+diff --git a/src/db/common/rocksdb_context.cc b/src/db/common/rocksdb_context.cc
+index 24176e8..67f58cc 100644
+--- a/src/db/common/rocksdb_context.cc
++++ b/src/db/common/rocksdb_context.cc
+@@ -50,6 +50,11 @@ Status RocksdbContext::create(Args args) {
+ 
+   create_opts_.create_if_missing = true;
+   prepare_options(std::move(args.merge_op));
++  if (args.disable_auto_compaction) {
++    // The destination is written once, flushed and closed, then reopened
++    // read-only. Level-style background compaction in that window is redundant.
++    create_opts_.disable_auto_compactions = true;
++  }
+ 
+   rocksdb::DB *db;
+   rocksdb::Status s = rocksdb::DB::Open(create_opts_, args.db_path, &db);
+diff --git a/src/db/common/rocksdb_context.h b/src/db/common/rocksdb_context.h
+index 654fa55..86efcab 100644
+--- a/src/db/common/rocksdb_context.h
++++ b/src/db/common/rocksdb_context.h
+@@ -39,6 +39,9 @@ struct RocksdbContext {
+     std::unordered_map<std::string, std::shared_ptr<rocksdb::MergeOperator>>
+         per_cf_merge_ops;
+     bool enable_hash_skiplist = false;
++    // Build-once/publish destination DBs (written, flushed, closed, then
++    // reopened read-only) can skip auto-compaction. Default false.
++    bool disable_auto_compaction = false;
+   };
+   std::unique_ptr<rocksdb::DB> db_{nullptr};
+   std::string db_path_;
+diff --git a/src/db/index/column/inverted_column/inverted_column_indexer.h b/src/db/index/column/inverted_column/inverted_column_indexer.h
+index 1770be5..fcba6fc 100644
+--- a/src/db/index/column/inverted_column/inverted_column_indexer.h
++++ b/src/db/index/column/inverted_column/inverted_column_indexer.h
+@@ -148,6 +148,10 @@ class InvertedColumnIndexer {
+    * \return Status indicating success or failure of the insert operation
+    */
+   Status insert(uint32_t id, const std::string &value);
++  // Batch variant used by the reduce path: same Merge operands/order as
++  // repeated `insert(id, value)`, written in a single WriteBatch. Research-only.
++  Status insert_batch(const std::vector<uint32_t> &ids,
++                      const std::vector<std::string> &values);
+ 
+ 
+   /*!
+diff --git a/src/db/index/column/inverted_column/inverted_column_indexer_write.cc b/src/db/index/column/inverted_column/inverted_column_indexer_write.cc
+index 43d59c0..cba2422 100644
+--- a/src/db/index/column/inverted_column/inverted_column_indexer_write.cc
++++ b/src/db/index/column/inverted_column/inverted_column_indexer_write.cc
+@@ -114,6 +114,53 @@ Status InvertedColumnIndexer::insert(uint32_t id,
+ }
+ 
+ 
++Status InvertedColumnIndexer::insert_batch(
++    const std::vector<uint32_t> &ids,
++    const std::vector<std::string> &values) {
++  if (read_only_) {
++    return Status::PermissionDenied();
++  }
++  if (ids.size() != values.size()) {
++    return Status::InvalidArgument("insert_batch size mismatch");
++  }
++  if (ids.empty()) {
++    return Status::OK();
++  }
++
++  rocksdb::WriteBatch batch;
++  rocksdb::Status s;
++  uint32_t batch_max_id = ids[0];
++  for (size_t i = 0; i < ids.size(); ++i) {
++    std::string encoded_id = std::string{1}.append(
++        reinterpret_cast<const char *>(&ids[i]), sizeof(uint32_t));
++    std::string encoded_value = encode(values[i]);
++    s = batch.Merge(cf_terms_, encoded_value, encoded_id);
++    if (!s.ok()) {
++      LOG_ERROR("insert_batch Merge failed id[%u] reason[%s]", ids[i],
++                s.ToString().c_str());
++      return Status::InternalError();
++    }
++    if (cf_reversed_terms_) {
++      s = batch.Merge(cf_reversed_terms_, encode_reversed(values[i]), encoded_id);
++      if (!s.ok()) {
++        LOG_ERROR("insert_batch Merge reversed failed id[%u] reason[%s]", ids[i],
++                  s.ToString().c_str());
++        return Status::InternalError();
++      }
++    }
++    if (ids[i] > batch_max_id) batch_max_id = ids[i];
++  }
++
++  s = ctx_.db_->Write(ctx_.write_opts_, &batch);
++  if (!s.ok()) {
++    LOG_ERROR("insert_batch Write failed reason[%s]", s.ToString().c_str());
++    return Status::InternalError();
++  }
++  update_max_id(batch_max_id);
++  return Status::OK();
++}
++
++
+ Status InvertedColumnIndexer::insert(uint32_t id, bool value) {
+   if (read_only_) {
+     return Status::PermissionDenied();
+diff --git a/src/db/index/segment/segment.cc b/src/db/index/segment/segment.cc
+index eb847ff..d015b0e 100644
+--- a/src/db/index/segment/segment.cc
++++ b/src/db/index/segment/segment.cc
+@@ -13,9 +13,12 @@
+ // limitations under the License.
+ 
+ #include "segment.h"
++#include <time.h>
+ #include <algorithm>
+ #include <cstddef>
+ #include <cstdint>
++#include <cstdio>
++#include <cstdlib>
+ #include <limits>
+ #include <map>
+ #include <memory>
+@@ -65,6 +68,64 @@
+ 
+ namespace zvec {
+ 
++namespace {
++#if defined(__linux__)
++uint64_t native_trace_clock_ns(clockid_t clock_id) {
++  timespec value{};
++  if (::clock_gettime(clock_id, &value) != 0 || value.tv_sec < 0 ||
++      value.tv_nsec < 0) {
++    return 0;
++  }
++  return static_cast<uint64_t>(value.tv_sec) * 1000000000ULL +
++         static_cast<uint64_t>(value.tv_nsec);
++}
++
++bool native_flush_timeline_enabled() {
++  static const bool enabled = []() {
++    const char *value = std::getenv("M4_NATIVE_FLUSH_TIMELINE");
++    return value != nullptr && value[0] == '1' && value[1] == 0;
++  }();
++  return enabled;
++}
++
++template <typename Operation>
++auto trace_native_flush_stage(const char *stage, int segment_id,
++                              Operation operation) -> decltype(operation()) {
++  if (!native_flush_timeline_enabled()) {
++    return operation();
++  }
++  const uint64_t wall_start_ns = native_trace_clock_ns(CLOCK_MONOTONIC);
++  const uint64_t cpu_start_ns = native_trace_clock_ns(CLOCK_THREAD_CPUTIME_ID);
++  auto result = operation();
++  const uint64_t cpu_end_ns = native_trace_clock_ns(CLOCK_THREAD_CPUTIME_ID);
++  const uint64_t wall_end_ns = native_trace_clock_ns(CLOCK_MONOTONIC);
++  const bool clock_ok = wall_start_ns != 0 && wall_end_ns != 0 &&
++                        cpu_start_ns != 0 && cpu_end_ns != 0;
++  const uint64_t wall_ns =
++      wall_end_ns >= wall_start_ns ? wall_end_ns - wall_start_ns : 0;
++  const uint64_t thread_cpu_ns =
++      cpu_end_ns >= cpu_start_ns ? cpu_end_ns - cpu_start_ns : 0;
++  std::fprintf(
++      stderr,
++      "NATIVE_PROFILE event=segment_flush_stage stage=%s segment_id=%d "
++      "wall_start_ns=%llu wall_end_ns=%llu wall_ns=%llu thread_cpu_ns=%llu "
++      "clock_ok=%d\n",
++      stage, segment_id, static_cast<unsigned long long>(wall_start_ns),
++      static_cast<unsigned long long>(wall_end_ns),
++      static_cast<unsigned long long>(wall_ns),
++      static_cast<unsigned long long>(thread_cpu_ns), clock_ok ? 1 : 0);
++  std::fflush(stderr);
++  return result;
++}
++#else
++template <typename Operation>
++auto trace_native_flush_stage(const char *, int, Operation operation)
++    -> decltype(operation()) {
++  return operation();
++}
++#endif
++}  // namespace
++
+ void global_init() {
+   static std::once_flag once;
+   // run once
+@@ -276,6 +337,8 @@ class SegmentImpl : public Segment,
+   Status close();
+   Status cleanup();
+   bool ready_for_dump_block();
++  Status flush_locked();
++  Status flush_impl(bool segment_lock_held);
+ 
+   // Helper functions for Open()
+   Status load_persist_scalar_blocks();
+@@ -579,10 +642,10 @@ Status SegmentImpl::create(const SegmentOptions &options, uint64_t min_doc_id) {
+ }
+ 
+ Status SegmentImpl::close() {
+-  // Exclusive: flush() below rewrites the stores readers read; destroy()
+-  // reaches here without the lock.
++  // Exclusive: close() flushes and then releases the stores readers read;
++  // destroy() reaches here without the lock.
+   std::lock_guard<std::shared_mutex> lock(seg_mtx_);
+-  flush();
++  flush_locked();
+   if (invert_indexers_) {
+     invert_indexers_.reset();
+   }
+@@ -904,7 +967,7 @@ Status SegmentImpl::internal_insert(Doc &doc) {
+   doc.set_doc_id(g_doc_id);
+ 
+   if (ready_for_dump_block()) {
+-    auto s = flush();
++    auto s = flush_locked();
+     CHECK_RETURN_STATUS(s);
+   }
+ 
+@@ -2138,7 +2201,7 @@ Status SegmentImpl::dump() {
+   if (sealed_) {
+     return Status::NotSupported("Segment has been dumped.");
+   }
+-  auto s = flush();
++  auto s = flush_locked();
+   CHECK_RETURN_STATUS(s);
+ 
+   if (invert_indexers_) {
+@@ -2162,9 +2225,17 @@ void SegmentImpl::remove_writing_forward_block() {
+ }
+ 
+ Status SegmentImpl::flush() {
+-  // Requires seg_mtx_ (Insert's buffer-full path, dump, close) or the
+-  // collection's exclusive schema lock (CollectionImpl::flush): finish_/
+-  // init_memory_components() below do not lock.
++  return flush_impl(false);
++}
++
++Status SegmentImpl::flush_locked() {
++  return flush_impl(true);
++}
++
++Status SegmentImpl::flush_impl(bool segment_lock_held) {
++  // The collection writer lock prevents mutations during a collection flush.
++  // Public flushes leave seg_mtx_ available during component I/O, then take it
++  // exclusively for the metadata/store swap. Internal callers already hold it.
+   CHECK_SEGMENT_READONLY_RETURN_STATUS;
+ 
+   if (wal_file_ == nullptr || !wal_file_->has_record()) {
+@@ -2172,7 +2243,9 @@ Status SegmentImpl::flush() {
+   }
+ 
+   if (wal_file_) {
+-    if (wal_file_->flush() != 0) {
++    const auto ret = trace_native_flush_stage(
++        "wal_flush", id(), [&]() { return wal_file_->flush(); });
++    if (ret != 0) {
+       LOG_ERROR("WAL flush failed: segment[%d]", id());
+       return Status::InternalError("Failed to flush WAL: segment[", id(), "]");
+     }
+@@ -2181,26 +2254,30 @@ Status SegmentImpl::flush() {
+   Status s;
+ 
+   if (memory_store_) {
+-    s = memory_store_->flush();
++    s = trace_native_flush_stage("memory_store", id(),
++                                 [&]() { return memory_store_->flush(); });
+     CHECK_RETURN_STATUS(s);
+   }
+ 
+   // flush scalar indexer
+   if (invert_indexers_) {
+-    s = invert_indexers_->flush();
++    s = trace_native_flush_stage("inverted_indexers", id(),
++                                 [&]() { return invert_indexers_->flush(); });
+     CHECK_RETURN_STATUS(s);
+   }
+ 
+   // flush FTS indexers
+   if (has_fts_) {
+-    s = flush_fts_indexers();
++    s = trace_native_flush_stage("fts_indexers", id(),
++                                 [&]() { return flush_fts_indexers(); });
+     CHECK_RETURN_STATUS(s);
+   }
+ 
+   // flush vector indexer
+   for (const auto &indexer : memory_vector_indexers_) {
+     if (indexer.second) {
+-      s = indexer.second->flush();
++      s = trace_native_flush_stage("vector_indexer", id(),
++                                   [&]() { return indexer.second->flush(); });
+       CHECK_RETURN_STATUS(s);
+     }
+   }
+@@ -2208,16 +2285,23 @@ Status SegmentImpl::flush() {
+   // flush quant vector indexer
+   for (const auto &indexer : quant_memory_vector_indexers_) {
+     if (indexer.second) {
+-      s = indexer.second->flush();
++      s = trace_native_flush_stage("quant_vector_indexer", id(),
++                                   [&]() { return indexer.second->flush(); });
+       CHECK_RETURN_STATUS(s);
+     }
+   }
+ 
+   if (id_map_) {
+-    s = id_map_->flush();
++    s = trace_native_flush_stage("id_map", id(),
++                                 [&]() { return id_map_->flush(); });
+     CHECK_RETURN_STATUS(s);
+   }
+ 
++  std::unique_lock<std::shared_mutex> segment_lock;
++  if (!segment_lock_held) {
++    segment_lock = std::unique_lock<std::shared_mutex>(seg_mtx_);
++  }
++
+   auto block = segment_meta_->writing_forward_block().value();
+ 
+   uint32_t delete_snapshot_path_suffix = UINT32_MAX;
+@@ -2230,14 +2314,17 @@ Status SegmentImpl::flush() {
+           version_manager_->delete_snapshot_path_suffix() + 1;
+       std::string delete_store_path = FileHelper::MakeFilePath(
+           path_, FileID::DELETE_FILE, delete_snapshot_path_suffix);
+-      s = delete_store_->flush(delete_store_path);
++      s = trace_native_flush_stage("delete_store", id(), [&]() {
++        return delete_store_->flush(delete_store_path);
++      });
+       CHECK_RETURN_STATUS(s);
+     }
+   }
+ 
+   if (memory_store_) {
+     // update segment meta with memory components
+-    s = finish_memory_components();
++    s = trace_native_flush_stage("finish_memory_components", id(),
++                                 [&]() { return finish_memory_components(); });
+     CHECK_RETURN_STATUS(s);
+ 
+     // set a new mem block
+@@ -2248,12 +2335,15 @@ Status SegmentImpl::flush() {
+   }
+ 
+   // update version and flush
+-  s = update_version(delete_snapshot_path_suffix);
++  s = trace_native_flush_stage("update_version", id(), [&]() {
++    return update_version(delete_snapshot_path_suffix);
++  });
+   CHECK_RETURN_STATUS(s);
+ 
+   // clear WAL file
+   if (wal_file_) {
+-    auto ret = wal_file_->remove();
++    auto ret = trace_native_flush_stage("wal_remove", id(),
++                                        [&]() { return wal_file_->remove(); });
+     if (ret != 0) {
+       LOG_ERROR("WAL cleanup failed: unable to remove file, segment[%d]", id());
+       return Status::InternalError("Failed to remove WAL file: segment[", id(),
+diff --git a/src/db/index/segment/segment_helper.cc b/src/db/index/segment/segment_helper.cc
+index c8fa1c3..6d0978b 100644
+--- a/src/db/index/segment/segment_helper.cc
++++ b/src/db/index/segment/segment_helper.cc
+@@ -127,8 +127,9 @@ Status SegmentHelper::ExecuteCompactTask(CompactTask &task) {
+   uint64_t max_doc_id{0};
+   uint32_t doc_count{0};
+   std::vector<BlockMeta> block_metas;
+-  Status s = ReduceScalar(schema, input_segments, output_segment_path, columns,
+-                          filter, task.forward_use_parquet_, block_id_generator,
++  Status s = ReduceScalar(schema, collection_path, input_segments,
++                          output_segment_path, columns, filter,
++                          task.forward_use_parquet_, block_id_generator,
+                           &delete_row_id_bitmap, &block_metas, &min_doc_id,
+                           &max_doc_id, &doc_count);
+   CHECK_RETURN_STATUS(s);
+@@ -171,8 +172,233 @@ Status SegmentHelper::ExecuteCompactTask(CompactTask &task) {
+   return Status::OK();
+ }
+ 
++namespace {
++
++// Research-only: reuse the base input segment's forward block and scalar index
++// during a non-purge merge, appending only the tail segments. Off by default
++// (byte-for-byte original behavior). See
++// rust/docs/m3.2-incremental-native-index-design.md.
++bool scalar_reuse_from_env() {
++  static const bool enabled = [] {
++    const char *raw = std::getenv("ZVEC_RESEARCH_SCALAR_REUSE");
++    return raw != nullptr && raw[0] != '\0' && raw[0] != '0';
++  }();
++  return enabled;
++}
++
++// Attempts the reuse fast path. On any unmet precondition sets *reused=false and
++// returns OK so the caller falls back to the full reduce. Once the base files
++// are copied it commits to reuse and reports hard errors.
++Status ReduceScalarReuse(
++    const CollectionSchema::Ptr &schema, const std::string &collection_path,
++    const std::vector<Segment::Ptr> &input_segments,
++    const std::string &output_segment_path, bool forward_use_parquet,
++    std::function<BlockID()> &block_id_generator,
++    const std::vector<std::string> &all_reduce_columns,
++    std::vector<BlockMeta> *output_block_metas, uint64_t *min_doc_id,
++    uint64_t *max_doc_id, uint32_t *doc_count, bool *reused) {
++  *reused = false;
++  const auto &base = input_segments.front();
++
++  // Collect the base segment's forward blocks (the reused prefix). Require each
++  // to carry every reduced column so no schema-evolution block is skipped.
++  std::vector<const BlockMeta *> base_blocks;
++  for (const auto &b : base->meta()->persisted_blocks()) {
++    if (b.type() != BlockType::SCALAR) {
++      continue;
++    }
++    for (const auto &col : all_reduce_columns) {
++      if (!b.contain_column(col)) {
++        return Status::OK();
++      }
++    }
++    base_blocks.push_back(&b);
++  }
++  if (base_blocks.empty()) {
++    return Status::OK();
++  }
++  uint32_t base_rows = 0;
++  for (auto *b : base_blocks) {
++    base_rows += b->doc_count();
++  }
++  if (base_rows == 0) {
++    return Status::OK();
++  }
++
++  // Require contiguous, strictly increasing, non-overlapping doc-id ranges so
++  // the base rows form a prefix of the merged segment's local row ids.
++  uint64_t prev_max = 0;
++  bool first = true;
++  for (const auto &seg : input_segments) {
++    uint64_t mn = seg->meta()->min_doc_id();
++    if (!first && mn <= prev_max) {
++      return Status::OK();
++    }
++    prev_max = seg->meta()->max_doc_id();
++    first = false;
++  }
++
++  std::vector<FieldSchema> invert_fields;
++  for (auto &field : schema->fields()) {
++    if (!field->is_vector_field() && field->index_params() &&
++        field->index_params()->type() == IndexType::INVERT) {
++      invert_fields.push_back(*field);
++    }
++  }
++
++  BlockID delta_forward_id = block_id_generator();
++  BlockID invert_id{0};
++  if (!invert_fields.empty()) {
++    invert_id = block_id_generator();
++  }
++
++  // Copy every base forward block with a fresh local block id, preserving order
++  // so the copied blocks stay the local-row prefix of the merged segment.
++  for (auto *bb : base_blocks) {
++    BlockID id = block_id_generator();
++    auto src_forward = FileHelper::MakeForwardBlockPath(
++        collection_path, base->id(), bb->id(), forward_use_parquet);
++    auto dst_forward =
++        FileHelper::MakeForwardBlockPath(output_segment_path, id,
++                                         forward_use_parquet);
++    if (!FileHelper::CopyFile(src_forward, dst_forward)) {
++      return Status::InternalError(
++          "scalar reuse: copy base forward block failed: ", src_forward);
++    }
++    BlockMeta meta = *bb;
++    meta.set_id(id);
++    output_block_metas->push_back(meta);
++  }
++
++  // The base scalar index is sealed (immutable BitPacked postings, read_only),
++  // so it cannot be appended to in place. Rebuild it fully from all input rows
++  // (the ReduceScalarIndex fallback) while still reusing the base forward block.
++  InvertedIndexer::Ptr invert_indexer;
++  if (!invert_fields.empty()) {
++    auto invert_path =
++        FileHelper::MakeInvertIndexPath(output_segment_path, invert_id);
++    invert_indexer = InvertedIndexer::CreateAndOpen(
++        schema->name(), invert_path, true, invert_fields, false);
++    if (invert_indexer == nullptr) {
++      return Status::InternalError("scalar reuse: open scalar indexer failed");
++    }
++  }
++
++  auto delta_path = FileHelper::MakeForwardBlockPath(
++      output_segment_path, delta_forward_id, forward_use_parquet);
++  std::shared_ptr<ForwardWriter> forward_writer =
++      forward_use_parquet ? ForwardWriter::CreateParquetWriter(delta_path)
++                          : ForwardWriter::CreateArrowIPCWriter(delta_path);
++
++  // Base rows are already present in the copied forward block; scan them only
++  // to feed the rebuilt scalar index. Tail rows are appended to both.
++  uint32_t offset = 0;
++  uint32_t delta_count = 0;
++  uint64_t dmin = std::numeric_limits<uint64_t>::max();
++  uint64_t dmax = 0;
++
++  for (size_t i = 0; i < input_segments.size(); ++i) {
++    bool is_base = (i == 0);
++    // Base rows are already in the copied forward block; scan them only when a
++    // scalar index must be rebuilt from all rows.
++    if (is_base && invert_indexer == nullptr) {
++      continue;
++    }
++    auto reader = input_segments[i]->scan(all_reduce_columns);
++    if (reader == nullptr) {
++      return Status::InternalError("scalar reuse: scan segment failed");
++    }
++    while (true) {
++      auto batch = reader->Next();
++      if (!batch.ok()) {
++        return Status::InternalError("scalar reuse: reader next failed: ",
++                                     batch.status().message());
++      }
++      auto batch_value = batch.ValueOrDie();
++      if (!batch_value) {
++        break;
++      }
++      if (batch_value->num_rows() == 0) {
++        continue;
++      }
++
++      if (!is_base) {
++        auto doc_id_col = batch_value->GetColumnByName(GLOBAL_DOC_ID);
++        if (doc_id_col == nullptr) {
++          return Status::InternalError(
++              "scalar reuse: tail batch missing global doc id column");
++        }
++        auto doc_id_array =
++            std::dynamic_pointer_cast<arrow::UInt64Array>(doc_id_col);
++        if (doc_id_array == nullptr) {
++          return Status::InternalError(
++              "scalar reuse: global doc id column type mismatch");
++        }
++        for (int64_t r = 0; r < doc_id_array->length(); ++r) {
++          uint64_t value = doc_id_array->Value(r);
++          dmin = std::min(dmin, value);
++          dmax = std::max(dmax, value);
++        }
++
++        auto as = forward_writer->insert_batch(batch_value);
++        if (!as.ok()) {
++          return Status::InternalError("scalar reuse: forward insert failed: ",
++                                       as.message());
++        }
++        delta_count += batch_value->num_rows();
++      }
++
++      if (invert_indexer) {
++        auto s = SegmentHelper::ReduceScalarIndex(invert_indexer, batch_value,
++                                                  offset);
++        CHECK_RETURN_STATUS(s);
++      }
++      offset += batch_value->num_rows();
++    }
++  }
++
++  auto fwd_status = forward_writer->finalize();
++  if (!fwd_status.ok()) {
++    return Status::InternalError("scalar reuse: forward finalize failed: ",
++                                 fwd_status.message());
++  }
++
++  if (delta_count > 0) {
++    BlockMeta delta_meta;
++    delta_meta.set_id(delta_forward_id);
++    delta_meta.set_type(BlockType::SCALAR);
++    delta_meta.set_min_doc_id(dmin);
++    delta_meta.set_max_doc_id(dmax);
++    delta_meta.set_doc_count(delta_count);
++    delta_meta.set_columns(all_reduce_columns);
++    output_block_metas->push_back(delta_meta);
++  } else {
++    ailego::FileHelper::RemovePath(delta_path.c_str());
++  }
++
++  if (invert_indexer) {
++    auto s = invert_indexer->flush();
++    CHECK_RETURN_STATUS(s);
++    s = invert_indexer->seal();
++    CHECK_RETURN_STATUS(s);
++
++    BlockMeta meta;
++    meta.set_id(invert_id);
++    meta.set_type(BlockType::SCALAR_INDEX);
++    output_block_metas->push_back(meta);
++  }
++
++  *min_doc_id = base->meta()->min_doc_id();
++  *max_doc_id = (delta_count > 0) ? dmax : base->meta()->max_doc_id();
++  *doc_count = base_rows + delta_count;
++  *reused = true;
++  return Status::OK();
++}
++
++}  // namespace
++
+ Status SegmentHelper::ReduceScalar(
+-    const CollectionSchema::Ptr schema,
++    const CollectionSchema::Ptr schema, const std::string &collection_path,
+     const std::vector<Segment::Ptr> &input_segments,
+     const std::string &output_segment_path,
+     const std::vector<std::string> &columns, const IndexFilter::Ptr &filter,
+@@ -180,6 +406,31 @@ Status SegmentHelper::ReduceScalar(
+     roaring::Roaring *delete_row_id_bitmap,
+     std::vector<BlockMeta> *output_block_metas, uint64_t *min_doc_id,
+     uint64_t *max_doc_id, uint32_t *doc_count) {
++  std::vector<std::string> all_reduce_columns{GLOBAL_DOC_ID, USER_ID};
++  for (auto &column : columns) {
++    all_reduce_columns.push_back(column);
++  }
++
++  // Research-only fast path: reuse the base input segment's forward block(s),
++  // appending only the tail. Falls through to the full reduce whenever any
++  // precondition is unmet.
++  if (scalar_reuse_from_env() && filter == nullptr &&
++      input_segments.size() >= 2) {
++    bool reused = false;
++    Status rs = ReduceScalarReuse(
++        schema, collection_path, input_segments, output_segment_path,
++        forward_use_parquet, block_id_generator, all_reduce_columns,
++        output_block_metas, min_doc_id, max_doc_id, doc_count, &reused);
++    if (!rs.ok()) {
++      return rs;
++    }
++    if (reused) {
++      LOG_INFO("ReduceScalar reuse applied. segments[%zu] doc_count[%u]",
++               input_segments.size(), *doc_count);
++      return Status::OK();
++    }
++  }
++
+   // forward
+   auto forward_block_id = block_id_generator();
+   auto forward_path = FileHelper::MakeForwardBlockPath(
+@@ -221,11 +472,6 @@ Status SegmentHelper::ReduceScalar(
+   uint32_t row_id_offset{0U};
+   *doc_count = 0;
+ 
+-  std::vector<std::string> all_reduce_columns{GLOBAL_DOC_ID, USER_ID};
+-  for (auto &column : columns) {
+-    all_reduce_columns.push_back(column);
+-  }
+-
+   for (auto &segment : input_segments) {
+     auto reader = segment->scan(all_reduce_columns);
+     if (reader == nullptr) {
+@@ -318,6 +564,17 @@ Status SegmentHelper::ReduceScalar(
+   return Status::OK();
+ }
+ 
++namespace {
++// Research-only A/B flag: batch scalar-index inserts in the reduce path.
++bool scalar_batch_enabled() {
++  static const bool enabled = [] {
++    const char *value = std::getenv("ZVEC_SCALAR_BATCH");
++    return value != nullptr && std::string(value) == "1";
++  }();
++  return enabled;
++}
++}  // namespace
++
+ Status SegmentHelper::ReduceScalarIndex(
+     InvertedIndexer::Ptr invert_indexer,
+     const std::shared_ptr<arrow::RecordBatch> &batch, uint32_t doc_id_offset) {
+@@ -387,18 +644,29 @@ Status SegmentHelper::ReduceScalarIndex(
+       }
+       case arrow::Type::UINT32: {
+         auto typed_array = std::static_pointer_cast<arrow::UInt32Array>(array);
++        std::vector<uint32_t> batch_ids;
++        std::vector<std::string> batch_values;
+         for (int64_t j = 0; j < typed_array->length(); ++j) {
+           if (!typed_array->IsNull(j)) {
+             uint32_t value = typed_array->Value(j);
+             std::string value_str(reinterpret_cast<const char *>(&value),
+                                   sizeof(value));
+-            s = indexer->insert(j + doc_id_offset, value_str);
+-            CHECK_RETURN_STATUS(s);
++            if (scalar_batch_enabled()) {
++              batch_ids.push_back(static_cast<uint32_t>(j + doc_id_offset));
++              batch_values.push_back(std::move(value_str));
++            } else {
++              s = indexer->insert(j + doc_id_offset, value_str);
++              CHECK_RETURN_STATUS(s);
++            }
+           } else {
+             s = indexer->insert_null(j + doc_id_offset);
+             CHECK_RETURN_STATUS(s);
+           }
+         }
++        if (scalar_batch_enabled() && !batch_ids.empty()) {
++          s = indexer->insert_batch(batch_ids, batch_values);
++          CHECK_RETURN_STATUS(s);
++        }
+         break;
+       }
+       case arrow::Type::UINT64: {
+@@ -451,16 +719,27 @@ Status SegmentHelper::ReduceScalarIndex(
+       }
+       case arrow::Type::STRING: {
+         auto typed_array = std::static_pointer_cast<arrow::StringArray>(array);
++        std::vector<uint32_t> batch_ids;
++        std::vector<std::string> batch_values;
+         for (int64_t j = 0; j < typed_array->length(); ++j) {
+           if (!typed_array->IsNull(j)) {
+             std::string value_str = typed_array->GetString(j);
+-            s = indexer->insert(j + doc_id_offset, value_str);
+-            CHECK_RETURN_STATUS(s);
++            if (scalar_batch_enabled()) {
++              batch_ids.push_back(static_cast<uint32_t>(j + doc_id_offset));
++              batch_values.push_back(std::move(value_str));
++            } else {
++              s = indexer->insert(j + doc_id_offset, value_str);
++              CHECK_RETURN_STATUS(s);
++            }
+           } else {
+             s = indexer->insert_null(j + doc_id_offset);
+             CHECK_RETURN_STATUS(s);
+           }
+         }
++        if (scalar_batch_enabled() && !batch_ids.empty()) {
++          s = indexer->insert_batch(batch_ids, batch_values);
++          CHECK_RETURN_STATUS(s);
++        }
+         break;
+       }
+       case arrow::Type::LIST: {
+@@ -941,16 +1220,29 @@ arrow::Status SegmentHelper::FilterRecordBatch(
+     std::shared_ptr<arrow::RecordBatch> *filterd,
+     roaring::Roaring *delete_row_id_bitmap, uint64_t *min_doc_id,
+     uint64_t *max_doc_id) {
++  // The first scanned column is the uint64 global document id. Read the typed
++  // array directly; per-row `GetScalar` materializes a Scalar object for every
++  // row of every merged batch, which is pure overhead in the forward merge.
++  auto doc_ids =
++      std::dynamic_pointer_cast<arrow::UInt64Array>(batch->column(0));
++  auto read_doc_id = [&](int64_t index, uint64_t *doc_id) -> arrow::Status {
++    if (doc_ids) {
++      *doc_id = doc_ids->Value(index);
++      return arrow::Status::OK();
++    }
++    auto scalar = batch->column(0)->GetScalar(index);
++    if (!scalar.ok()) {
++      return scalar.status();
++    }
++    *doc_id = std::dynamic_pointer_cast<arrow::UInt64Scalar>(*scalar)->value;
++    return arrow::Status::OK();
++  };
++
+   if (!filter) {
+     *filterd = batch;
+     for (int64_t i = 0; i < batch->num_rows(); ++i) {
+-      // column 0 is doc_id
+-      auto result = batch->column(0)->GetScalar(i);
+-      if (!result.ok()) {
+-        return result.status();
+-      }
+-      uint64_t doc_id =
+-          std::dynamic_pointer_cast<arrow::UInt64Scalar>(*result)->value;
++      uint64_t doc_id{0};
++      ARROW_RETURN_NOT_OK(read_doc_id(i, &doc_id));
+       *min_doc_id = std::min(*min_doc_id, doc_id);
+       *max_doc_id = std::max(*max_doc_id, doc_id);
+     }
+@@ -959,12 +1251,8 @@ arrow::Status SegmentHelper::FilterRecordBatch(
+ 
+   std::vector<uint64_t> selected_indices;
+   for (int64_t i = 0; i < batch->num_rows(); ++i) {
+-    auto result = batch->column(0)->GetScalar(i);
+-    if (!result.ok()) {
+-      return result.status();
+-    }
+-    uint64_t doc_id =
+-        std::dynamic_pointer_cast<arrow::UInt64Scalar>(*result)->value;
++    uint64_t doc_id{0};
++    ARROW_RETURN_NOT_OK(read_doc_id(i, &doc_id));
+     if (!filter->is_filtered(doc_id)) {
+       selected_indices.push_back(i);
+       *min_doc_id = std::min(*min_doc_id, doc_id);
+@@ -978,6 +1266,15 @@ arrow::Status SegmentHelper::FilterRecordBatch(
+     return arrow::Status::OK();
+   }
+ 
++  // No deletions in this batch: reuse the source batch instead of copying every
++  // column through Take. A small delete set usually leaves most batches
++  // untouched, so this avoids a per-batch full-column materialization during
++  // compaction without changing the output rows.
++  if (static_cast<int64_t>(selected_indices.size()) == batch->num_rows()) {
++    *filterd = batch;
++    return arrow::Status::OK();
++  }
++
+   arrow::UInt64Builder builder;
+   ARROW_RETURN_NOT_OK(builder.AppendValues(selected_indices));
+   std::shared_ptr<arrow::Array> selection_array;
+@@ -1038,7 +1335,8 @@ Status SegmentHelper::ReduceFts(const CollectionSchema::Ptr &schema,
+   auto dst_ctx = std::make_shared<RocksdbContext>();
+   Status s = dst_ctx->create(
+       RocksdbContext::Args{dst_fts_path, cf_names, nullptr, per_cf_merge_ops,
+-                           /*enable_hash_skiplist=*/true});
++                           /*enable_hash_skiplist=*/true,
++                           /*disable_auto_compaction=*/true});
+   if (!s.ok()) {
+     LOG_ERROR("ReduceFts: create destination FTS RocksDB failed at [%s]: %s",
+               dst_fts_path.c_str(), s.message().c_str());
+diff --git a/src/db/index/segment/segment_helper.h b/src/db/index/segment/segment_helper.h
+index 2c48179..138d88e 100644
+--- a/src/db/index/segment/segment_helper.h
++++ b/src/db/index/segment/segment_helper.h
+@@ -256,6 +256,7 @@ class SegmentHelper {
+ 
+  public:
+   static Status ReduceScalar(const CollectionSchema::Ptr schema,
++                             const std::string &collection_path,
+                              const std::vector<Segment::Ptr> &input_segments,
+                              const std::string &output_segment_path,
+                              const std::vector<std::string> &columns,
+diff --git a/src/db/index/storage/memory_forward_store.cc b/src/db/index/storage/memory_forward_store.cc
+index db06f83..0220a88 100644
+--- a/src/db/index/storage/memory_forward_store.cc
++++ b/src/db/index/storage/memory_forward_store.cc
+@@ -297,15 +297,37 @@ arrow::Result<TablePtr> MemForwardStore::convert_to_table(
+ }
+ 
+ Status MemForwardStore::flush() {
+-  std::lock_guard lock(cache_mtx_);
+-  return flush_locked();
++  std::lock_guard flush_lock(flush_mtx_);
++
++  std::vector<RecordBatchPtr> pending;
++  std::size_t first_batch = 0;
++  {
++    std::unique_lock cache_lock(cache_mtx_);
++    if (cache_.empty() && batches_.empty()) {
++      return Status::OK();
++    }
++
++    auto status = append_cache_batch_locked();
++    if (!status.ok()) {
++      return status;
++    }
++
++    first_batch = flushed_batches_;
++    if (first_batch > batches_.size()) {
++      return Status::InternalError("flushed batch count exceeds batch count");
++    }
++    pending.assign(batches_.begin() + first_batch, batches_.end());
++  }
++
++  // The RecordBatches are immutable and owned by batches_, so the expensive
++  // file writes can proceed without blocking fetch()/scan() readers.
++  return flush_batch_snapshot(pending, first_batch);
+ }
+ 
+-Status MemForwardStore::flush_locked() {
+-  if (cache_.empty() && batches_.empty()) {
++Status MemForwardStore::append_cache_batch_locked() {
++  if (cache_.empty()) {
+     return Status::OK();
+   }
+-
+   if (!writer_) {
+     return Status::InternalError(
+         "forward store writer not open, cannot flush [", path_, "]");
+@@ -322,17 +344,29 @@ Status MemForwardStore::flush_locked() {
+     batches_.push_back(cache_batch);
+     cache_.clear();
+   }
++  return Status::OK();
++}
++
++Status MemForwardStore::flush_batch_snapshot(
++    const std::vector<RecordBatchPtr> &pending, std::size_t first_batch) {
++  if (pending.empty()) {
++    return Status::OK();
++  }
++  if (!writer_) {
++    return Status::InternalError(
++        "forward store writer not open, cannot flush [", path_, "]");
++  }
+ 
+   bool has_incr = false;
+-  size_t start_index = flushed_batches_;
++  std::size_t start_index = 0;
+ 
+-  while (start_index < batches_.size()) {
+-    std::vector<std::shared_ptr<arrow::RecordBatch>> batches_to_merge;
++  while (start_index < pending.size()) {
++    std::vector<RecordBatchPtr> batches_to_merge;
+     int64_t total_rows = 0;
+-    size_t end_index = start_index;
++    std::size_t end_index = start_index;
+ 
+-    while (end_index < batches_.size()) {
+-      auto &current_batch = batches_[end_index];
++    while (end_index < pending.size()) {
++      const auto &current_batch = pending[end_index];
+       int64_t current_rows = current_batch->num_rows();
+ 
+       if (current_rows >= kMaxRecordBatchNumRows) {
+@@ -353,40 +387,38 @@ Status MemForwardStore::flush_locked() {
+       end_index++;
+     }
+ 
+-    if (!batches_to_merge.empty()) {
+-      std::shared_ptr<arrow::RecordBatch> batch_to_write;
+-
+-      if (batches_to_merge.size() == 1) {
+-        batch_to_write = batches_to_merge[0];
+-      } else {
+-        std::shared_ptr<arrow::Table> table;
+-        auto status =
+-            arrow::Table::FromRecordBatches(batches_to_merge).Value(&table);
+-        if (!status.ok()) {
+-          return Status::InternalError("failed to merge batches: ",
+-                                       status.ToString());
+-        }
+-
+-        result = table->CombineChunksToBatch();
+-        if (!result.ok()) {
+-          return Status::InternalError("failed to combine chunks: ",
+-                                       result.status().ToString());
+-        }
+-        batch_to_write = result.ValueOrDie();
+-      }
++    if (batches_to_merge.empty()) {
++      break;
++    }
+ 
+-      auto status = writer_->write(*batch_to_write);
++    std::shared_ptr<arrow::RecordBatch> batch_to_write;
++    if (batches_to_merge.size() == 1) {
++      batch_to_write = batches_to_merge[0];
++    } else {
++      std::shared_ptr<arrow::Table> table;
++      auto status =
++          arrow::Table::FromRecordBatches(batches_to_merge).Value(&table);
+       if (!status.ok()) {
+-        return Status::InternalError("failed to write RecordBatch to file: ",
++        return Status::InternalError("failed to merge batches: ",
+                                      status.ToString());
+       }
+ 
+-      flushed_batches_ = end_index;
+-      has_incr = true;
+-    } else {
+-      break;
++      auto result = table->CombineChunksToBatch();
++      if (!result.ok()) {
++        return Status::InternalError("failed to combine chunks: ",
++                                     result.status().ToString());
++      }
++      batch_to_write = result.ValueOrDie();
++    }
++
++    auto status = writer_->write(*batch_to_write);
++    if (!status.ok()) {
++      return Status::InternalError("failed to write RecordBatch to file: ",
++                                   status.ToString());
+     }
+ 
++    flushed_batches_ = first_batch + end_index;
++    has_incr = true;
+     start_index = end_index;
+   }
+ 
+@@ -397,9 +429,30 @@ Status MemForwardStore::flush_locked() {
+   return Status::OK();
+ }
+ 
++Status MemForwardStore::flush_locked() {
++  if (cache_.empty() && batches_.empty()) {
++    return Status::OK();
++  }
++
++  auto status = append_cache_batch_locked();
++  if (!status.ok()) {
++    return status;
++  }
++
++  const std::size_t first_batch = flushed_batches_;
++  if (first_batch > batches_.size()) {
++    return Status::InternalError("flushed batch count exceeds batch count");
++  }
++  std::vector<RecordBatchPtr> pending(batches_.begin() + first_batch,
++                                      batches_.end());
++  return flush_batch_snapshot(pending, first_batch);
++}
++
+ Status MemForwardStore::close() {
+-  // Exclusive: flush_locked() and the clears below rewrite cache_/batches_.
+-  std::lock_guard lock(cache_mtx_);
++  // Serialize close with snapshot writes, then exclude readers while clearing
++  // the in-memory batches and cache.
++  std::lock_guard flush_lock(flush_mtx_);
++  std::lock_guard cache_lock(cache_mtx_);
+   if (!cache_.empty() || !batches_.empty()) {
+     flush_locked();
+   }
+diff --git a/src/db/index/storage/memory_forward_store.h b/src/db/index/storage/memory_forward_store.h
+index fbb54bc..2132747 100644
+--- a/src/db/index/storage/memory_forward_store.h
++++ b/src/db/index/storage/memory_forward_store.h
+@@ -13,6 +13,7 @@
+ // limitations under the License.
+ #pragma once
+ 
++#include <cstddef>
+ #include <iostream>
+ #include <memory>
+ #include <mutex>
+@@ -171,11 +172,24 @@ class MemForwardStore : public BaseForwardStore {
+   /// \return true if all columns are valid, false otherwise
+   bool validate(const std::vector<std::string> &columns) const;
+ 
+-  /// flush() without locking; callers must hold cache_mtx_ exclusively
++ private:
++  /// Flushes pending batches while the caller holds flush_mtx_ and
++  /// cache_mtx_ exclusively (used by close()).
+   Status flush_locked();
+ 
+- private:
+-  /// Guards cache_, batches_ and num_rows_, which insert(), flush() and close()
++  /// Append the current cache to batches_; caller holds cache_mtx_ exclusively.
++  Status append_cache_batch_locked();
++
++  /// Writes an immutable snapshot of pending batches; caller holds
++  /// flush_mtx_ but not cache_mtx_.
++  Status flush_batch_snapshot(const std::vector<RecordBatchPtr> &pending,
++                              std::size_t first_batch);
++
++  /// Serializes writer access and updates to flushed_batches_. Always acquired
++  /// before cache_mtx_ by flush()/close().
++  std::mutex flush_mtx_;
++
++  /// Guards cache_, batches_ and num_rows_ which insert(), flush() and close()
+   /// rewrite. Read-only accessors take it shared so readers do not serialize.
+   std::shared_mutex cache_mtx_;
+ 
+diff --git a/src/db/index/storage/wal/wal_file.h b/src/db/index/storage/wal/wal_file.h
+index 6e17f73..671ffec 100644
+--- a/src/db/index/storage/wal/wal_file.h
++++ b/src/db/index/storage/wal/wal_file.h
+@@ -13,6 +13,7 @@
+ // limitations under the License.
+ #pragma once
+ 
++#include <cstdint>
+ #include <memory>
+ #include <string>
+ 
+diff --git a/src/db/sqlengine/planner/fts_recall_node.cc b/src/db/sqlengine/planner/fts_recall_node.cc
+index 6a94ebe..2b2efe8 100644
+--- a/src/db/sqlengine/planner/fts_recall_node.cc
++++ b/src/db/sqlengine/planner/fts_recall_node.cc
+@@ -16,6 +16,7 @@
+ #include <arrow/api.h>
+ #include <zvec/ailego/logger/logger.h>
+ #include <zvec/db/config.h>
++#include "db/common/native_timeline.h"
+ #include "db/sqlengine/common/util.h"
+ 
+ namespace cp = arrow::compute;
+@@ -29,7 +30,10 @@ FtsRecallNode::FtsRecallNode(Segment::Ptr segment, QueryInfo::Ptr query_info,
+       doc_filter_(std::move(doc_filter)),
+       fetched_columns_(query_info_->get_all_fetched_scalar_field_names()),
+       batch_size_(batch_size) {
++  native_timeline::Span schema_fetch_span("fts_recall_stage", "schema_fetch",
++                                          segment_.get(), segment_->id());
+   auto table = segment_->fetch(fetched_columns_, std::vector<int>{});
++  schema_fetch_span.finish();
+   // Append BM25 score column so downstream fill_doc_score() surfaces it to
+   // the Python Doc.score, matching the vector-recall path.
+   schema_ = Util::append_field(*table->schema(), FIELD_SCORE, arrow::float32());
+@@ -75,7 +79,11 @@ arrow::AsyncGenerator<std::optional<cp::ExecBatch>> FtsRecallNode::gen() {
+           std::nullopt);
+     }
+ 
++    native_timeline::Span result_fetch_span("fts_recall_stage", "result_fetch",
++                                            self->segment_.get(),
++                                            self->segment_->id());
+     auto table = self->segment_->fetch(self->fetched_columns_, indices);
++    result_fetch_span.finish();
+     if (!table) {
+       return arrow::Future<std::optional<cp::ExecBatch>>::MakeFinished(
+           arrow::Status::UnknownError("fetch table failed"));
+@@ -108,7 +116,14 @@ arrow::AsyncGenerator<std::optional<cp::ExecBatch>> FtsRecallNode::gen() {
+ }
+ 
+ Result<FtsIndexResults::Ptr> FtsRecallNode::prepare() {
+-  auto filter_status = doc_filter_->compute_filter();
++  native_timeline::Span prepare_span("fts_recall_stage", "prepare",
++                                     segment_.get(), segment_->id());
++  Status filter_status;
++  {
++    native_timeline::Span filter_span("fts_recall_stage", "filter_compute",
++                                      segment_.get(), segment_->id());
++    filter_status = doc_filter_->compute_filter();
++  }
+   if (!filter_status.ok()) {
+     return tl::make_unexpected(filter_status);
+   }
+@@ -131,13 +146,19 @@ Result<FtsIndexResults::Ptr> FtsRecallNode::prepare() {
+   // skipped during scoring and we still return up to topk results.
+   params.filter = doc_filter_->empty() ? nullptr : doc_filter_;
+ 
++  native_timeline::Span fts_search_span("fts_recall_stage", "fts_search",
++                                        segment_.get(), segment_->id());
+   auto results =
+       segment_->fts_search(fts_cond->field_name, *fts_cond->fts_ast, params);
++  fts_search_span.finish();
+   if (!results) {
+     return tl::make_unexpected(results.error());
+   }
+ 
+-  return std::make_shared<FtsIndexResults>(std::move(results.value()));
++  auto fts_results =
++      std::make_shared<FtsIndexResults>(std::move(results.value()));
++  prepare_span.finish();
++  return fts_results;
+ }
+ 
+ }  // namespace zvec::sqlengine
+diff --git a/src/include/zvec/c_api.h b/src/include/zvec/c_api.h
+index 2998d2a..f95d136 100644
+--- a/src/include/zvec/c_api.h
++++ b/src/include/zvec/c_api.h
+@@ -4495,6 +4495,80 @@ zvec_metric_type_to_string(zvec_metric_type_t metric_type);
+     .name = ZVEC_STRING(name_str), .data_type = type, .value = value_union \
+   }
+ 
++// =============================================================================
++// Read-only deep integrity verification
++// =============================================================================
++
++/**
++ * @brief Verification return codes.
++ */
++typedef enum {
++  ZVEC_INTEGRITY_PASS = 0,
++  ZVEC_INTEGRITY_CORRUPT = 1,
++  ZVEC_INTEGRITY_INCOMPLETE = 2,
++  ZVEC_INTEGRITY_INVALID_ARG = 3
++} zvec_integrity_code_t;
++
++/** Verify RocksDB column families (SST, MANIFEST, metadata). */
++#define ZVEC_INTEGRITY_ROCKSDB 0x1u
++/** Verify Proxima header/footer/segment-table structure. */
++#define ZVEC_INTEGRITY_PROXIMA_STRUCTURE 0x2u
++/** Verify Proxima content and per-segment CRCs. */
++#define ZVEC_INTEGRITY_PROXIMA_CONTENT 0x4u
++/** Return INCOMPLETE when requested coverage is not complete. */
++#define ZVEC_INTEGRITY_REQUIRE_COMPLETE 0x8u
++/** Internal: verify a staged generation without probing storage.lock. */
++#define ZVEC_INTEGRITY_SKIP_STABILITY 0x10u
++/** Light seal check: required layout plus Proxima structure only. */
++#define ZVEC_INTEGRITY_LIGHT 0x20u
++/** Verifier C ABI version. */
++#define ZVEC_INTEGRITY_ABI_VERSION 1u
++
++/**
++ * @brief Opaque integrity report.
++ *
++ * Released with zvec_integrity_report_free(). The JSON pointer returned by
++ * zvec_integrity_report_json() stays valid until then.
++ */
++typedef struct zvec_integrity_report zvec_integrity_report;
++
++/**
++ * @brief Verify a sealed collection read-only.
++ *
++ * Flags with value 0 select RocksDB, Proxima structure and Proxima content.
++ * The verifier takes a shared advisory lock on the owning storage generation
++ * when a storage.lock file is present and refuses a generation held by an
++ * active writer. It never creates, repairs or rewrites storage.
++ *
++ * @param collection_path Collection or generation storage directory.
++ * @param flags Bitwise combination of ZVEC_INTEGRITY_* flags.
++ * @param out Receives an owned report on PASS/CORRUPT/INCOMPLETE.
++ * @return ZVEC_INTEGRITY_PASS, ZVEC_INTEGRITY_CORRUPT,
++ *         ZVEC_INTEGRITY_INCOMPLETE or ZVEC_INTEGRITY_INVALID_ARG.
++ */
++ZVEC_EXPORT int ZVEC_CALL zvec_collection_verify_integrity(
++    const char *collection_path, unsigned int flags,
++    zvec_integrity_report **out);
++
++/** @brief Verifier C ABI version implemented by this library. */
++ZVEC_EXPORT unsigned int ZVEC_CALL zvec_integrity_abi_version(void);
++
++/** @brief 1 when no corruption was detected, otherwise 0. */
++ZVEC_EXPORT int ZVEC_CALL
++zvec_integrity_report_ok(const zvec_integrity_report *report);
++
++/** @brief 1 when every present artifact category was verified, else 0. */
++ZVEC_EXPORT int ZVEC_CALL
++zvec_integrity_report_complete(const zvec_integrity_report *report);
++
++/** @brief Borrowed JSON report; valid until the report is freed. */
++ZVEC_EXPORT const char *ZVEC_CALL
++zvec_integrity_report_json(const zvec_integrity_report *report);
++
++/** @brief Release a report returned by the verifier. */
++ZVEC_EXPORT void ZVEC_CALL
++zvec_integrity_report_free(zvec_integrity_report *report);
++
+ #ifdef __cplusplus
+ }  // extern "C"
+ #endif
+diff --git a/src/include/zvec/core/framework/index_format.h b/src/include/zvec/core/framework/index_format.h
+index c7213d0..1b7a446 100644
+--- a/src/include/zvec/core/framework/index_format.h
++++ b/src/include/zvec/core/framework/index_format.h
+@@ -29,6 +29,9 @@ struct IndexFormat {
+    */
+   enum { FORMAT_VERSION = 0x0002 };
+ 
++  //! W2b capability: all segment CRCs and content_crc are populated at seal.
++  static constexpr uint64_t CHECKSUM_CAPABILITY_V1 = 0x5A564543484B5331ULL;
++
+   /*! Index Format Meta Header
+    */
+   struct MetaHeader {
+diff --git a/src/include/zvec/core/framework/index_mapping.h b/src/include/zvec/core/framework/index_mapping.h
+index be564bc..f4bf90a 100644
+--- a/src/include/zvec/core/framework/index_mapping.h
++++ b/src/include/zvec/core/framework/index_mapping.h
+@@ -162,6 +162,11 @@ class IndexMapping {
+     return index_size_;
+   }
+ 
++  //! Retrieve whether the last seal produced complete checksums.
++  bool checksum_valid() const {
++    return checksum_valid_;
++  }
++
+   //! Retrieve magic number of index
+   uint32_t magic() const {
+     return (header_ ? header_->magic : 0);
+@@ -215,6 +220,7 @@ class IndexMapping {
+   bool full_mode_{false};
+   bool header_dirty_{false};
+   bool huge_page_{false};
++  bool checksum_valid_{true};
+   size_t seg_meta_capacity_{0u};
+   uint64_t current_header_start_offset_{0u};
+ };
+diff --git a/src/include/zvec/core/framework/index_unpacker.h b/src/include/zvec/core/framework/index_unpacker.h
+index 1320892..866f84d 100644
+--- a/src/include/zvec/core/framework/index_unpacker.h
++++ b/src/include/zvec/core/framework/index_unpacker.h
+@@ -286,7 +286,7 @@ class IndexUnpacker {
+     const void *data = nullptr;
+     uint32_t checksum = 0u;
+     size_t total = footer_.content_size;
+-    size_t offset = sizeof(header_);
++    size_t offset = header_.content_offset;
+ 
+     while (total >= block_size) {
+       if (read_data(current_header_start_offset_ + offset, &data, block_size) !=
+diff --git a/src/include/zvec/db/options.h b/src/include/zvec/db/options.h
+index 48138c6..ed33a1a 100644
+--- a/src/include/zvec/db/options.h
++++ b/src/include/zvec/db/options.h
+@@ -59,6 +59,9 @@ struct CreateIndexOptions {
+ 
+ struct OptimizeOptions {
+   int concurrency_{0};
++  // Research-only mode: build indexes for unready segments without merging
++  // persisted segments. Production callers retain the default full merge.
++  bool merge_segments_{true};
+ };
+ 
+ struct AddColumnOptions {
+diff --git a/thirdparty/arrow/CMakeLists.txt b/thirdparty/arrow/CMakeLists.txt
+index fecd780..4b243ec 100644
+--- a/thirdparty/arrow/CMakeLists.txt
++++ b/thirdparty/arrow/CMakeLists.txt
+@@ -32,6 +32,26 @@ include(ProcessorCount)
+ 
+ ProcessorCount(NPROC)
+ 
++# Number of parallel jobs for Arrow's nested ExternalProject build.
++#
++# Arrow's translation units are the heaviest in the tree (compute/parquet/acero),
++# so this nested build is deliberately a separate knob from the outer build's -j.
++# Inheriting NPROC can oversubscribe memory on small hosts, while pinning it too
++# low turns Arrow into the critical path and stalls the (much wider) outer build.
++# Default: half the processors, clamped to [2, 8]. Override without editing this
++# file via -DZVEC_ARROW_JOBS=<n> at configure time.
++set(ZVEC_ARROW_JOBS "" CACHE STRING
++    "Parallel jobs for the nested Arrow build (empty = auto)")
++if(NOT ZVEC_ARROW_JOBS)
++    math(EXPR ZVEC_ARROW_JOBS "${NPROC} / 2")
++    if(ZVEC_ARROW_JOBS LESS 2)
++        set(ZVEC_ARROW_JOBS 2)
++    elseif(ZVEC_ARROW_JOBS GREATER 8)
++        set(ZVEC_ARROW_JOBS 8)
++    endif()
++endif()
++message(STATUS "ZVEC_ARROW_JOBS = ${ZVEC_ARROW_JOBS}")
++
+ set(ARROW_CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+ if(NOT ARROW_CMAKE_BUILD_TYPE)
+     set(ARROW_CMAKE_BUILD_TYPE Release)
+@@ -178,7 +198,7 @@ else ()
+             DOWNLOAD_COMMAND ""
+             BUILD_IN_SOURCE false
+             CONFIGURE_COMMAND env ${CONFIGURE_ENV_LIST} "${CMAKE_COMMAND}" ${CMAKE_CACHE_ARGS} ${_ARROW_COMPILER_LAUNCHER_ARGS} ${_ARROW_COMPILER_ARGS} ${_ARROW_SIZE_FLAGS} -DCMAKE_BUILD_TYPE=${ARROW_CMAKE_BUILD_TYPE} -DCMAKE_DEBUG_POSTFIX= -DARROW_BUILD_SHARED=OFF -DARROW_ACERO=ON -DARROW_FILESYSTEM=ON -DARROW_DATASET=OFF -DARROW_PARQUET=ON -DARROW_COMPUTE=ON -DARROW_WITH_ZLIB=OFF -DARROW_DEPENDENCY_SOURCE=BUNDLED -DARROW_MIMALLOC=OFF -DCMAKE_INSTALL_LIBDIR=lib "<SOURCE_DIR>/cpp"
+-            BUILD_COMMAND "${CMAKE_COMMAND}" --build . --target all -- -j ${NPROC}
++            BUILD_COMMAND "${CMAKE_COMMAND}" --build . --target all -- -j ${ZVEC_ARROW_JOBS}
+             INSTALL_COMMAND "${CMAKE_COMMAND}" --install "<BINARY_DIR>" --prefix=${EXTERNAL_BINARY_DIR}/usr/local
+             BYPRODUCTS ${LIB_PARQUET} ${LIB_ARROW} ${LIB_COMPUTE} ${LIB_ACERO} ${LIB_ARROW_DEPENDS}
+             LOG_DOWNLOAD ON

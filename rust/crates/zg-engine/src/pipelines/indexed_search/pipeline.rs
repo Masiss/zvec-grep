@@ -182,16 +182,13 @@ pub(crate) async fn search_workspace_index(
     let limit = plan.limit.unwrap_or(DEFAULT_LIMIT);
     let plan_duration = plan_started.elapsed();
 
-    let filter_started = Instant::now();
-    let filter = search_plan_to_storage_filter(workspace_root, &plan, storage)?;
-    let filter_duration = filter_started.elapsed();
-    let has_searchable_files = !filter_matches_no_files(filter.as_ref());
-
+    // Query embedding can involve an external model runtime. Complete it before
+    // acquiring the storage read view so an in-flight request cannot pin the
+    // publication fence while waiting on inference.
     let embedding_started = Instant::now();
-    let vectors = if has_searchable_files
-        && routes
-            .iter()
-            .any(|route| route.mode == SearchRouteMode::Vector)
+    let vectors = if routes
+        .iter()
+        .any(|route| route.mode == SearchRouteMode::Vector)
     {
         let model = embedding_models.first().ok_or_else(|| {
             EngineError::unsupported("vector search requires a configured embedding model")
@@ -201,6 +198,15 @@ pub(crate) async fn search_workspace_index(
         HashMap::new()
     };
     let embedding_duration = embedding_started.elapsed();
+
+    // Keep one read view across recall and hydration. The publication writer
+    // drains these views before committing native and M4 state, preventing a
+    // candidate from one revision being hydrated from another.
+    let _query_guard = storage.begin_query()?;
+    let filter_started = Instant::now();
+    let filter = search_plan_to_storage_filter(workspace_root, &plan, storage)?;
+    let filter_duration = filter_started.elapsed();
+    let has_searchable_files = !filter_matches_no_files(filter.as_ref());
 
     let recall_started = Instant::now();
     let mut candidates = HashMap::new();

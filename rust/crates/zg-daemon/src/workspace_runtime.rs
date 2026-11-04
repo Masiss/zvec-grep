@@ -73,6 +73,10 @@ struct WorkspaceRuntime {
     watcher_active: AtomicBool,
     dirty_revision: AtomicU64,
     indexed_revision: AtomicU64,
+    #[cfg(test)]
+    watcher_observation: Mutex<Option<(u64, std::time::Instant)>>,
+    #[cfg(test)]
+    index_completion: Mutex<Option<(u64, std::time::Instant)>>,
     freshness: Mutex<Freshness>,
     refresh: tokio::sync::Mutex<()>,
 }
@@ -714,6 +718,10 @@ impl WorkspaceRuntimeManager {
                 watcher_active: AtomicBool::new(false),
                 dirty_revision: AtomicU64::new(1),
                 indexed_revision: AtomicU64::new(0),
+                #[cfg(test)]
+                watcher_observation: Mutex::new(None),
+                #[cfg(test)]
+                index_completion: Mutex::new(None),
                 freshness: Mutex::new(Freshness::default()),
                 refresh: tokio::sync::Mutex::new(()),
             })
@@ -758,6 +766,8 @@ impl WorkspaceRuntimeManager {
         runtime
             .indexed_revision
             .fetch_max(revision, Ordering::AcqRel);
+        #[cfg(test)]
+        record_test_index_completion(&runtime, revision);
         let result = if reconfigure {
             self.configure_watcher(Arc::clone(&runtime), Some((job.id, template)))
                 .await
@@ -1169,6 +1179,14 @@ fn log_full_rescan_request(
         origin, wait, reused = submitted.reused, "full rescan requested");
 }
 
+#[cfg(test)]
+fn record_test_index_completion(runtime: &WorkspaceRuntime, revision: u64) {
+    let mut completion = lock(&runtime.index_completion);
+    if completion.is_none_or(|(completed_revision, _)| revision >= completed_revision) {
+        *completion = Some((revision, std::time::Instant::now()));
+    }
+}
+
 async fn watch_loop(
     weak_inner: Weak<RuntimeManagerInner>,
     weak_runtime: Weak<WorkspaceRuntime>,
@@ -1206,8 +1224,20 @@ async fn watch_loop(
         let Some(activity) = RuntimeActivity::begin(&runtime, false) else {
             break;
         };
+        #[cfg(test)]
+        let observed_at = std::time::Instant::now();
         runtime.invalidate_status();
-        runtime.dirty_revision.fetch_add(1, Ordering::AcqRel);
+        let _revision = runtime
+            .dirty_revision
+            .fetch_add(1, Ordering::AcqRel)
+            .wrapping_add(1);
+        #[cfg(test)]
+        {
+            let mut observation = lock(&runtime.watcher_observation);
+            if observation.is_none() {
+                *observation = Some((_revision, observed_at));
+            }
+        }
         let mut options = lock(&runtime.index_template).clone();
         // One-operation consent must never authorize later watcher jobs.
         options.allow_remote = false;
@@ -1243,6 +1273,8 @@ async fn watch_loop(
             if completed.job.state != JobState::Succeeded {
                 return;
             }
+            #[cfg(test)]
+            record_test_index_completion(&runtime, _revision);
             if let Err(error) = manager.ensure_watching(Arc::clone(&runtime)).await {
                 warn!(%error, "watch successor could not activate pending configuration");
             }
@@ -1377,7 +1409,7 @@ mod tests {
     use tempfile::tempdir;
     use tokio::sync::mpsc;
     use zg_engine::{
-        EngineError, M4ResearchWorkspace,
+        EngineError, M4ResearchWorkspace, NativeLifecycleTestWorkspace,
         api::index::{IndexOptions, IndexResult, options::WorkspaceChange as IndexChange},
         api::info::InfoOptions,
     };

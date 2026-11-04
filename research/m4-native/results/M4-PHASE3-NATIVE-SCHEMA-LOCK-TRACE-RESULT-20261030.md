@@ -1,23 +1,25 @@
 # Phase 3 native schema-lock owner trace — fresh1 result (2026-10-30)
 
+> **Corrections (2026-10-30):** The body below first called the 502.642 ms query/flush overlap a shared-lock anomaly; source join shows an exclusive vector flush. It also said the flush-internal delay was unexplained. The segment substage records were retained in `stderr.log`, not the dedicated `native-profile.jsonl`: the `fts_indexers` span is 454.728 ms of the 502.792 ms `flush_unsafe` interval. The exact RocksDB subcall remains unresolved. See the [lock-mode reanalysis](M4-PHASE3-FLUSH-LOCK-MODE-REANALYSIS-20261030.md) and [corrected FTS flush/source-surface audit](M4-PHASE3-FTS-FLUSH-REANALYSIS-20261030.md).
+
 ## Outcome
 
-**The one authorized diagnostic ran once and completed with caveats.** The test returned 0 (`1 passed`), but the runner status is `DIAGNOSTIC_COMPLETED_WITH_CAVEATS` / `COMPLETED_WITH_WORKSPACE_UNCERTAINTY`; `performance_eligible=false`. This identifies a strong lock owner for most of the reproduced stalls, but one >100 ms query wait remains unexplained. Phase 3 remains **PARTIAL**; this run does not qualify performance or authorize a fix, another run, or production changes.
+**The one authorized diagnostic ran once and completed with caveats.** The test returned 0 (`1 passed`), but the runner status is `DIAGNOSTIC_COMPLETED_WITH_CAVEATS` / `COMPLETED_WITH_WORKSPACE_UNCERTAINTY`; `performance_eligible=false`. It identifies `optimize_seal` as the owner for three >100 ms query waits. A source/workload reanalysis now attributes the 502.642 ms flush-correlated query wait (and two shorter ones) to the exclusive flush branch on the vector-bearing fragments collection; the original trace event did not record lock mode. The dominant component is now identified as FTS-indexer flush (454.728 ms); per-CF RocksDB wait attribution remains open. Phase 3 remains **PARTIAL**; this run does not qualify performance or authorize a fix, another run, or production changes.
 
 ## Main finding: `optimize_seal` owns the lock for most long waits
 
 The new trace records **251** `Collection::query` total spans. **Four** exceeded 100 ms; the maximum was 502.958 ms. Calling-thread CPU for these four was only 0.232–0.278 ms. For each, almost all elapsed time was in `collection_query_stage:schema_handle_lock`; setup, query validation, segment lookup, and SQL execution were small.
 
-| Query total | Query thread | Shared-lock wait | Matching same-object lock interval |
+| Query total | Query thread | Query shared-lock wait | Matching same-object lock interval |
 |---:|---:|---:|---|
 | 230.995 ms | 10543 | 230.416 ms | `optimize_seal_exclusive_hold`, thread 9785; overlaps 230.405 ms (99.995%) |
 | 210.666 ms | 9998 | 210.371 ms | `optimize_seal_exclusive_hold`, thread 9785; overlaps 210.198 ms (99.917%) |
 | 183.575 ms | 11374 | 182.970 ms | `optimize_seal_exclusive_hold`, thread 9785; overlaps 182.958 ms (99.994%) |
-| 502.958 ms | 9998 | 502.642 ms | `collection_flush_stage:schema_handle_lock_held`, thread 9785; overlaps 502.631 ms (99.998%); no exclusive wait/hold span overlaps |
+| 502.958 ms | 9998 | 502.642 ms | `collection_flush_stage:schema_handle_lock_held`, thread 9785; overlaps 502.631 ms (99.998%); source/workload join identifies vector-flush unique lock |
 
 For the first three rows, the query and exclusive-holder spans have the same collection object ID, distinct thread IDs, and near-complete interval overlap. Under the observed `schema_handle_mtx_` shared-vs-exclusive modes, this directly accounts for those waits: **`optimize_seal`'s exclusive critical section is the owner observed blocking those queries.** Its exclusive-hold spans had p50 87.960 ms and max 235.186 ms.
 
-The fourth query is not attributed. Its shared-lock wait overlaps a flush's shared-lock hold, but the query also requests a shared lock. No instrumented exclusive waiter or holder on that object overlaps this wait, so the flush overlap alone does not explain the block. Two additional query waits of 55.105 ms and 36.086 ms likewise overlap only flush shared-hold spans. These three waits remain unresolved; do not label flush as their cause.
+Source/workload reanalysis shows the fourth query is blocked by the vector-collection flush branch’s unique schema lock. Its 502.642 ms wait overlaps 502.631 ms of the generic same-object flush-held span. The two additional query waits of 55.105 ms and 36.086 ms overlap 55.076 ms and 36.060 ms of flush-held spans and map to the same exclusive branch. The native event mode is not recorded; see the [source-joined reanalysis](M4-PHASE3-FLUSH-LOCK-MODE-REANALYSIS-20261030.md).
 
 The trace also found **five `fetch_shared_wait` spans above 10 ms** (127.638, 76.505, 67.393, 54.930, and 53.906 ms). Each overlaps a same-object `optimize_seal_exclusive_hold` from thread 9785 by 99.85–99.97%. Thus the exclusive seal interval affects fetches as well as direct collection queries.
 
@@ -45,4 +47,4 @@ All recorded `query_unsafe_setup` spans were at most 0.010 ms; `query_validate` 
 
 The main demonstrated blocker is **excessive exclusive-lock hold time in `optimize_seal`**. A reasonable research follow-up is to inspect whether sealing work can be moved outside the exclusive schema-lock critical section, preserving publication/schema invariants, and validate correctness before any new measurement. Do not implement that change speculatively under this trace authorization.
 
-The three query waits that overlap only a flush shared hold still need explanation; the present trace contains no overlapping exclusive span for them. The single fresh-run authorization is now consumed. Any code change or additional trace requires a new owner instruction. No M4 arm, pair comparison, performance claim, or production action was performed.
+The query-lock waits in this trace are attributed to three `optimize_seal` exclusive holds and one vector-collection flush exclusive hold; two additional shorter waits overlap that same flush branch. The nested `fts_indexers` stage accounts for 90.44% of the long flush span. The internal 0.43–0.67 s `flush_unsafe` delay remains unexplained. The single fresh-run authorization is consumed. Any code change or additional trace requires a new owner instruction. No M4 arm, pair comparison, performance claim, or production action was performed.

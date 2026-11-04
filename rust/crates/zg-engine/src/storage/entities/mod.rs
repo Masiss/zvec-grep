@@ -32,7 +32,11 @@ impl Entities {
 
     pub(super) fn open(path: &Path, read_only: bool) -> EngineResult<Self> {
         Ok(Self {
-            collection: Arc::new(open_collection(&path.join("entities"), &schema()?, read_only)?),
+            collection: Arc::new(open_collection(
+                &path.join("entities"),
+                &schema()?,
+                read_only,
+            )?),
         })
     }
 

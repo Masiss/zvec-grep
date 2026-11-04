@@ -21,19 +21,19 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <cstring>
-#include <cstdlib>
 #include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <set>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <thread>
 
 #include "format.h"
 #include "util.h"
@@ -435,6 +435,11 @@ Status MergeSegmentsStreaming(const std::string& path,
     return Status::Error("no inputs");
   }
   if (!stats) return Status::Error("null stats");
+  if ((options.format_version != 2 && options.format_version != 3) ||
+      (options.format_version == 2 && options.section_encoding != 2) ||
+      (options.format_version == 3 && options.section_encoding != 2)) {
+    return Status::Error("unsupported streaming segment format");
+  }
   const uint32_t bs = options.block_size == 0 ? 128 : options.block_size;
   MemoryTracker mem(options.memory_limit_bytes);
   *stats = StreamMergeStats{};
@@ -492,7 +497,8 @@ Status MergeSegmentsStreaming(const std::string& path,
     if (!s.ok) return s;
   }
 
-  // Keys borrow from immutable input Segment term strings; inputs outlive this map.
+  // Keys borrow from immutable input Segment term strings; inputs outlive this
+  // map.
   std::unordered_map<std::string_view, uint32_t> term_to_id;
   std::vector<FtsDictEntry> fts_dict;
   std::vector<size_t> term_pos(inputs.size(), 0);
@@ -747,6 +753,13 @@ Status MergeSegmentsStreaming(const std::string& path,
       record.Varint(doc.id - prev_doc_id);
       prev_doc_id = doc.id;
       record.Varint(doc.dl);
+      if (options.format_version >= 3) {
+        record.Varint(doc.field_lengths.size());
+        for (const auto &[field, length] : doc.field_lengths) {
+          record.String(field);
+          record.Varint(length);
+        }
+      }
       record.String(doc.pk);
       std::vector<uint32_t> new_ids;
       new_ids.reserve(doc.term_ids.size());
@@ -963,9 +976,9 @@ Status MergeSegmentsStreaming(const std::string& path,
   if (!s.ok) return s;
   std::string header(kHeaderSize, '\0');
   PutU32(&header, 0, kMagic);
-  PutU32(&header, 4, kVersionV2);
+  PutU32(&header, 4, options.format_version);
   PutU32(&header, 8, bs);
-  PutU32(&header, 12, 0);
+  PutU32(&header, 12, options.section_encoding);
   PutU64(&header, 16, options.run_id);
   PutU64(&header, 24, options.level);
   PutU64(&header, 32, first_doc);

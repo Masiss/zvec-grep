@@ -89,9 +89,10 @@ fn file_mutation_publication_refill_and_rollback() {
     adapter.publish(FILE_ID, 2).unwrap();
     let hits = adapter.search("currentrevision", 512, 512).unwrap();
     assert_eq!(hits.len(), 300);
-    assert!(hits
-        .iter()
-        .all(|hit| hit.file_id == FILE_ID && hit.revision == 2));
+    assert!(
+        hits.iter()
+            .all(|hit| hit.file_id == FILE_ID && hit.revision == 2)
+    );
     let mut ordinals = hits.iter().map(|hit| hit.ordinal).collect::<Vec<_>>();
     ordinals.sort_unstable();
     assert_eq!(ordinals, (0..300).collect::<Vec<_>>());
@@ -134,6 +135,31 @@ fn file_mutation_publication_refill_and_rollback() {
         remaining.iter().any(|hit| hit.file_id == FILE_ID + 1),
         "other files remain visible"
     );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn compact_now_preserves_published_files_across_reopen() {
+    let root = root("compact");
+    let mut adapter = Adapter::open(&root).unwrap();
+    publish_docs(
+        &mut adapter,
+        FILE_ID,
+        1,
+        &[
+            "compactterm first".to_owned(),
+            "compactterm second".to_owned(),
+        ],
+    );
+    adapter.compact_now().unwrap();
+    assert_eq!(adapter.search("compactterm", 10, 128).unwrap().len(), 2);
+    drop(adapter);
+
+    let mut reopened = Adapter::open(&root).unwrap();
+    let hits = reopened.search("compactterm", 10, 128).unwrap();
+    assert_eq!(hits.len(), 2);
+    assert!(hits.iter().all(|hit| hit.revision == 1));
+    drop(reopened);
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -216,10 +242,12 @@ fn crash_after_durable_batch_recovers_unpublished_then_retry_publishes() {
     let mut final_open = Adapter::open(&root).unwrap();
     assert_eq!(final_open.search("newone", 1, 64).unwrap()[0].revision, 2);
     final_open.delete(FILE_ID, 3).unwrap();
-    assert!(final_open
-        .search("recoverterm", 10, 128)
-        .unwrap()
-        .is_empty());
+    assert!(
+        final_open
+            .search("recoverterm", 10, 128)
+            .unwrap()
+            .is_empty()
+    );
     drop(final_open);
     fs::remove_dir_all(root).unwrap();
 }
@@ -233,10 +261,12 @@ fn malformed_state_fails_closed_and_oversized_input_is_rejected() {
     adapter.begin(FILE_ID, 1, 1).unwrap();
     let oversized = vec![b'x'; (2 << 20) + 1];
     let text = String::from_utf8(oversized).unwrap();
-    assert!(adapter
-        .append(FILE_ID, 1, 0, &[text])
-        .unwrap_err()
-        .contains("2 MiB"));
+    assert!(
+        adapter
+            .append(FILE_ID, 1, 0, &[text])
+            .unwrap_err()
+            .contains("2 MiB")
+    );
     assert!(adapter.publish(FILE_ID, 1).is_err());
     drop(adapter);
 

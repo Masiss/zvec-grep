@@ -21,6 +21,7 @@ typedef struct m4_rust_file_state {
 } m4_rust_file_state;
 m4_rust_file_index *m4_rust_file_open(const char *, char *, size_t);
 void m4_rust_file_close(m4_rust_file_index *);
+int m4_rust_file_compact_now(m4_rust_file_index *, char *, size_t);
 int m4_rust_file_begin(m4_rust_file_index *, uint64_t, uint64_t, uint32_t,
                        char *, size_t);
 int m4_rust_file_append(m4_rust_file_index *, uint64_t, uint64_t, uint32_t,

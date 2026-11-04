@@ -36,14 +36,25 @@ def read_vmstat():
 
 
 def read_pressure():
-    result = {}
+    """Collect optional host context; absent/malformed PSI remains unknown, not a workload gate."""
+    result = {f"{kind}_{level}_{field}": None
+              for kind in ("io", "memory") for level in ("some", "full")
+              for field in ("avg10", "total_us")}
     for kind in ("io", "memory"):
-        for line in pathlib.Path(f"/proc/pressure/{kind}").read_text().splitlines():
+        try:
+            lines = pathlib.Path(f"/proc/pressure/{kind}").read_text().splitlines()
+        except OSError:
+            continue
+        for line in lines:
             parts = line.split()
-            values = dict(token.split("=", 1) for token in parts[1:])
-            if parts[0] in ("some", "full"):
+            if not parts or parts[0] not in ("some", "full"):
+                continue
+            try:
+                values = dict(token.split("=", 1) for token in parts[1:] if "=" in token)
                 result[f"{kind}_{parts[0]}_avg10"] = parse_numeric(values["avg10"], float)
                 result[f"{kind}_{parts[0]}_total_us"] = parse_numeric(values["total"], int)
+            except (KeyError, RuntimeError):
+                continue
     return result
 
 
@@ -59,9 +70,13 @@ def read_diskstats():
 def sample():
     sample_start_ns = time.monotonic_ns()
     mem = read_meminfo()
+    try:
+        load1 = parse_numeric(pathlib.Path("/proc/loadavg").read_text().split()[0], float)
+    except (OSError, IndexError, RuntimeError):
+        load1 = None
     row = {
-        "load1": parse_numeric(pathlib.Path("/proc/loadavg").read_text().split()[0], float),
-        "memavailable_kib": mem.get("MemAvailable", 0),
+        "load1": load1,
+        "memavailable_kib": mem.get("MemAvailable"),
         "swapfree_kib": mem.get("SwapFree", 0),
         "swaptotal_kib": mem.get("SwapTotal", 0),
         **read_vmstat(), **read_pressure(),

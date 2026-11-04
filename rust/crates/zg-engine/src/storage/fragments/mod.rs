@@ -33,10 +33,79 @@ use crate::{
     utils::{sha256_hex, sha256_hex_parts},
 };
 
+#[cfg(test)]
+thread_local! {
+    static NATIVE_FTS_QUERY_TELEMETRY: std::cell::Cell<(u64, u64)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+#[cfg(all(test, target_os = "linux"))]
+fn native_fts_thread_cpu_ns_for_test() -> u64 {
+    let elapsed = rustix::time::clock_gettime(rustix::time::ClockId::ThreadCPUTime);
+    u64::try_from(elapsed.tv_sec)
+        .unwrap_or(0)
+        .saturating_mul(1_000_000_000)
+        .saturating_add(u64::try_from(elapsed.tv_nsec).unwrap_or(0))
+}
+
+#[cfg(all(test, not(target_os = "linux")))]
+fn native_fts_thread_cpu_ns_for_test() -> u64 {
+    0
+}
+
+#[cfg(test)]
+fn record_native_fts_query_for_test(elapsed_ns: u64) {
+    NATIVE_FTS_QUERY_TELEMETRY.with(|telemetry| {
+        let (count, total_ns) = telemetry.get();
+        telemetry.set((count.saturating_add(1), total_ns.saturating_add(elapsed_ns)));
+    });
+}
+
+#[cfg(test)]
+pub(super) fn timed_native_fts_query_for_test<T>(operation: impl FnOnce() -> T) -> T {
+    let started = std::time::Instant::now();
+    let thread_cpu_started_ns = native_fts_thread_cpu_ns_for_test();
+    let result = operation();
+    let thread_cpu_elapsed_ns =
+        native_fts_thread_cpu_ns_for_test().saturating_sub(thread_cpu_started_ns);
+    let finished = std::time::Instant::now();
+    record_native_fts_query_for_test(
+        u64::try_from(finished.saturating_duration_since(started).as_nanos()).unwrap_or(u64::MAX),
+    );
+    crate::storage::record_native_fts_span_for_test(started, finished, thread_cpu_elapsed_ns);
+    result
+}
+
+#[cfg(test)]
+pub(super) fn take_native_fts_query_telemetry_for_test() -> (u64, u64) {
+    NATIVE_FTS_QUERY_TELEMETRY.with(|telemetry| telemetry.replace((0, 0)))
+}
+
 const MAX_TOP_K: usize = 100_000;
 
 pub(super) struct Fragments {
     indexes: BTreeMap<String, Arc<Collection>>,
+}
+
+fn validate_delete_result(
+    batch: &[FragmentId],
+    result: zvec_rust::WriteResult,
+) -> EngineResult<()> {
+    if result.results.len() != batch.len() {
+        return Err(EngineError::storage_failure(
+            "zvec delete selected model fragments: incomplete write result",
+        ));
+    }
+    for (id, status) in batch.iter().zip(result.results) {
+        if !status.success && status.code != zvec_rust::ErrorCode::NotFound {
+            return Err(EngineError::storage_failure(format!(
+                "zvec delete selected model fragment {}: {}: {}",
+                id.as_str(),
+                status.code,
+                status.message
+            )));
+        }
+    }
+    Ok(())
 }
 
 impl Fragments {
@@ -147,15 +216,9 @@ impl Fragments {
             if batch.is_empty() {
                 continue;
             }
-            let filter = batch
-                .iter()
-                .map(|id| format!("document_id = '{}'", id.as_str()))
-                .collect::<Vec<_>>()
-                .join(" OR ");
-            native(
-                index.delete_by_filter(&filter),
-                "delete selected model fragments",
-            )?;
+            let keys = batch.iter().map(|id| id.as_str()).collect::<Vec<_>>();
+            let result = native(index.delete(&keys), "delete selected model fragments")?;
+            validate_delete_result(batch, result)?;
         }
         Ok(())
     }
@@ -234,7 +297,11 @@ impl Fragments {
         )?;
         let mut hits = Vec::new();
         for index in self.indexes.values() {
-            for (rank, doc) in native(index.query(&request), "search full-text index")?
+            #[cfg(test)]
+            let query_result = timed_native_fts_query_for_test(|| index.query(&request));
+            #[cfg(not(test))]
+            let query_result = index.query(&request);
+            for (rank, doc) in native(query_result, "search full-text index")?
                 .into_iter()
                 .enumerate()
             {
@@ -292,8 +359,8 @@ impl Fragments {
             .get(model)
             .map(|collection| &**collection)
             .ok_or_else(|| {
-            EngineError::invalid_argument(format!("unknown embedding model {model:?}"))
-        })
+                EngineError::invalid_argument(format!("unknown embedding model {model:?}"))
+            })
     }
 
     #[cfg(test)]
@@ -310,9 +377,7 @@ impl Fragments {
     }
 
     /// Native completeness of a set of fragment handles (no state lock needed).
-    pub(super) fn handles_completeness(
-        handles: &[(String, Arc<Collection>)],
-    ) -> EngineResult<f32> {
+    pub(super) fn handles_completeness(handles: &[(String, Arc<Collection>)]) -> EngineResult<f32> {
         let mut minimum = 1.0_f32;
         for (_, collection) in handles {
             let stats = native(collection.stats(), "inspect fragment indexes")?;

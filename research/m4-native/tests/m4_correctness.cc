@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "../src/format.h"
+#include "../src/index_test_access.h"
 #include "../src/tokenizer.h"
 #include "../src/util.h"
 #include "m4/index.h"
@@ -160,15 +161,25 @@ void TestSha256BlockBoundaries() {
   Check(m4::Sha256("abc") ==
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
         "SHA-256 short known vector");
-  check_repeated_a(55, "9f4390f8d30c2dd92ec9f095b65e2b9ae9b0a925a5258e241c9f1e910f734318");
-  check_repeated_a(56, "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a");
-  check_repeated_a(63, "7d3e74a05d7db15bce4ad9ec0658ea98e3f06eeecf16b4c6fff2da457ddc2f34");
-  check_repeated_a(64, "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb");
-  check_repeated_a(65, "635361c48bb9eab14198e76ea8ab7f1a41685d6ad62aa9146d301d4f17eb0ae0");
-  check_repeated_a(127, "c57e9278af78fa3cab38667bef4ce29d783787a2f731d4e12200270f0c32320a");
-  check_repeated_a(128, "6836cf13bac400e9105071cd6af47084dfacad4e5e302c94bfed24e013afb73e");
-  check_repeated_a(129, "c12cb024a2e5551cca0e08fce8f1c5e314555cc3fef6329ee994a3db752166ae");
-  check_repeated_a(1u << 20, "9bc1b2a288b26af7257a36277ae3816a7d4f16e89c1e7e77d0a5c48bad62b360");
+  check_repeated_a(
+      55, "9f4390f8d30c2dd92ec9f095b65e2b9ae9b0a925a5258e241c9f1e910f734318");
+  check_repeated_a(
+      56, "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a");
+  check_repeated_a(
+      63, "7d3e74a05d7db15bce4ad9ec0658ea98e3f06eeecf16b4c6fff2da457ddc2f34");
+  check_repeated_a(
+      64, "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb");
+  check_repeated_a(
+      65, "635361c48bb9eab14198e76ea8ab7f1a41685d6ad62aa9146d301d4f17eb0ae0");
+  check_repeated_a(
+      127, "c57e9278af78fa3cab38667bef4ce29d783787a2f731d4e12200270f0c32320a");
+  check_repeated_a(
+      128, "6836cf13bac400e9105071cd6af47084dfacad4e5e302c94bfed24e013afb73e");
+  check_repeated_a(
+      129, "c12cb024a2e5551cca0e08fce8f1c5e314555cc3fef6329ee994a3db752166ae");
+  check_repeated_a(
+      1u << 20,
+      "9bc1b2a288b26af7257a36277ae3816a7d4f16e89c1e7e77d0a5c48bad62b360");
 }
 
 struct RefDoc {
@@ -187,19 +198,22 @@ struct RefHit {
   double score{0.0};
 };
 
-std::vector<Token> Tok(const std::string& text) { return m4::Tokenize(text); }
+std::vector<Token> Tok(const std::string &text) { return m4::Tokenize(text); }
 
-std::unordered_map<std::string, std::vector<uint32_t>> Positions(
-    const std::vector<Token>& tokens) {
+std::unordered_map<std::string, std::vector<uint32_t>>
+Positions(const std::vector<Token> &tokens) {
   std::unordered_map<std::string, std::vector<uint32_t>> pos;
-  for (const auto& t : tokens) pos[t.term].push_back(t.pos);
+  for (const auto &t : tokens)
+    pos[t.term].push_back(t.pos);
   return pos;
 }
 
-bool PhraseOk(const std::vector<std::vector<uint32_t>>& positions) {
-  if (positions.empty()) return false;
+bool PhraseOk(const std::vector<std::vector<uint32_t>> &positions) {
+  if (positions.empty())
+    return false;
   std::vector<std::unordered_set<uint32_t>> sets;
-  for (const auto& p : positions) sets.emplace_back(p.begin(), p.end());
+  for (const auto &p : positions)
+    sets.emplace_back(p.begin(), p.end());
   for (uint32_t start : positions[0]) {
     bool ok = true;
     for (size_t i = 1; i < sets.size(); ++i) {
@@ -208,7 +222,8 @@ bool PhraseOk(const std::vector<std::vector<uint32_t>>& positions) {
         break;
       }
     }
-    if (ok) return true;
+    if (ok)
+      return true;
   }
   return false;
 }
@@ -219,18 +234,19 @@ struct RefQuery {
   std::vector<std::vector<std::string>> phrases;
 };
 
-RefQuery MakeRefQuery(const std::vector<std::string>& terms, bool and_mode,
-                      const std::vector<std::vector<std::string>>& phrases = {}) {
+RefQuery
+MakeRefQuery(const std::vector<std::string> &terms, bool and_mode,
+             const std::vector<std::vector<std::string>> &phrases = {}) {
   RefQuery q;
-  for (const auto& t : terms) {
+  for (const auto &t : terms) {
     if (std::find(q.terms.begin(), q.terms.end(), t) == q.terms.end()) {
       q.terms.push_back(t);
     }
   }
   q.and_mode = and_mode || !phrases.empty();
   q.phrases = phrases;
-  for (const auto& ph : phrases) {
-    for (const auto& t : ph) {
+  for (const auto &ph : phrases) {
+    for (const auto &t : ph) {
       if (std::find(q.terms.begin(), q.terms.end(), t) == q.terms.end()) {
         q.terms.push_back(t);
       }
@@ -239,45 +255,48 @@ RefQuery MakeRefQuery(const std::vector<std::string>& terms, bool and_mode,
   return q;
 }
 
-std::vector<RefHit> RefSearchFts(const RefState& ref, const RefQuery& q,
+std::vector<RefHit> RefSearchFts(const RefState &ref, const RefQuery &q,
                                  uint32_t top_k, double k1, double b) {
   const double n = static_cast<double>(ref.docs.size());
-  if (n <= 0 || q.terms.empty()) return {};
+  if (n <= 0 || q.terms.empty())
+    return {};
   const double avg_dl =
       ref.total_tokens == 0 ? 1.0 : static_cast<double>(ref.total_tokens) / n;
   std::unordered_map<std::string, uint64_t> df;
-  for (const auto& [pk, d] : ref.docs) {
+  for (const auto &[pk, d] : ref.docs) {
     (void)pk;
     std::unordered_set<std::string> uniq;
-    for (const auto& t : Tok(d.text)) uniq.insert(t.term);
-    for (const auto& t : uniq) ++df[t];
+    for (const auto &t : Tok(d.text))
+      uniq.insert(t.term);
+    for (const auto &t : uniq)
+      ++df[t];
   }
   std::vector<RefHit> hits;
-  for (const auto& [pk, d] : ref.docs) {
+  for (const auto &[pk, d] : ref.docs) {
     const auto tokens = Tok(d.text);
     const auto pos = Positions(tokens);
     bool all = true;
     double score = 0.0;
-    for (const auto& term : q.terms) {
+    for (const auto &term : q.terms) {
       const auto it = pos.find(term);
       if (it == pos.end()) {
         all = false;
-        if (q.and_mode) break;
+        if (q.and_mode)
+          break;
         continue;
       }
       const double tf = static_cast<double>(it->second.size());
       const double dl = static_cast<double>(tokens.size());
       const double dfv = static_cast<double>(df[term]);
-      const double idf =
-          std::log((n - dfv + 0.5) / (dfv + 0.5) + 1.0);
-      score += idf * tf * (k1 + 1.0) /
-               (tf + k1 * (1.0 - b + b * dl / avg_dl));
+      const double idf = std::log((n - dfv + 0.5) / (dfv + 0.5) + 1.0);
+      score += idf * tf * (k1 + 1.0) / (tf + k1 * (1.0 - b + b * dl / avg_dl));
     }
-    if (q.and_mode && !all) continue;
+    if (q.and_mode && !all)
+      continue;
     bool phrase_ok = true;
-    for (const auto& ph : q.phrases) {
+    for (const auto &ph : q.phrases) {
       std::vector<std::vector<uint32_t>> pp;
-      for (const auto& t : ph) {
+      for (const auto &t : ph) {
         const auto it = pos.find(t);
         if (it == pos.end()) {
           phrase_ok = false;
@@ -290,41 +309,48 @@ std::vector<RefHit> RefSearchFts(const RefState& ref, const RefQuery& q,
         break;
       }
     }
-    if (!phrase_ok) continue;
-    if (score > 0.0) hits.push_back(RefHit{pk, score});
+    if (!phrase_ok)
+      continue;
+    if (score > 0.0)
+      hits.push_back(RefHit{pk, score});
   }
-  std::sort(hits.begin(), hits.end(), [](const RefHit& a, const RefHit& b) {
-    if (a.score != b.score) return a.score > b.score;
+  std::sort(hits.begin(), hits.end(), [](const RefHit &a, const RefHit &b) {
+    if (a.score != b.score)
+      return a.score > b.score;
     return a.pk < b.pk;
   });
-  if (hits.size() > top_k) hits.resize(top_k);
+  if (hits.size() > top_k)
+    hits.resize(top_k);
   return hits;
 }
 
-void CheckFts(const Index& index, const RefState& ref, const std::string& query,
-              const RefQuery& rq, uint32_t top_k, const std::string& label) {
+void CheckFts(const Index &index, const RefState &ref, const std::string &query,
+              const RefQuery &rq, uint32_t top_k, const std::string &label) {
   m4::SearchResult res;
   m4::Status s = index.SearchFts(query, top_k, &res);
   Check(s.ok, label + ": search status");
-  if (!s.ok) return;
-  auto want_all = RefSearchFts(ref, rq, std::numeric_limits<uint32_t>::max(),
-                               1.2, 0.75);
+  if (!s.ok)
+    return;
+  auto want_all =
+      RefSearchFts(ref, rq, std::numeric_limits<uint32_t>::max(), 1.2, 0.75);
   const size_t expected_n = std::min<size_t>(top_k, want_all.size());
-  Check(res.hits.size() == expected_n,
-        label + ": hit count " + std::to_string(res.hits.size()) + " vs " +
-            std::to_string(expected_n));
+  Check(res.hits.size() == expected_n, label + ": hit count " +
+                                           std::to_string(res.hits.size()) +
+                                           " vs " + std::to_string(expected_n));
   std::unordered_map<std::string, double> ref_score;
-  for (const auto& h : want_all) ref_score[h.pk] = h.score;
+  for (const auto &h : want_all)
+    ref_score[h.pk] = h.score;
   std::set<std::string> got_pks;
-  for (const auto& h : res.hits) got_pks.insert(h.pk);
-  for (const auto& h : res.hits) {
+  for (const auto &h : res.hits)
+    got_pks.insert(h.pk);
+  for (const auto &h : res.hits) {
     const auto it = ref_score.find(h.pk);
     Check(it != ref_score.end(), label + ": unexpected pk " + h.pk);
   }
   // Every reference hit strictly better than the returned cutoff must appear.
   if (!res.hits.empty()) {
     const double cutoff = res.hits.back().score;
-    for (const auto& h : want_all) {
+    for (const auto &h : want_all) {
       if (h.score > cutoff + 1e-3 && got_pks.count(h.pk) == 0) {
         Check(false, label + ": missing better hit " + h.pk);
       }
@@ -332,21 +358,26 @@ void CheckFts(const Index& index, const RefState& ref, const std::string& query,
   }
 }
 
-std::set<std::string> RefInvert(const RefState& ref, const std::string& field,
-                                const std::string& value, CompareOp op) {
+std::set<std::string> RefInvert(const RefState &ref, const std::string &field,
+                                const std::string &value, CompareOp op) {
   std::set<std::string> out;
-  auto match = [&](const std::string& v) {
+  auto match = [&](const std::string &v) {
     switch (op) {
-      case CompareOp::EQ: return v == value;
-      case CompareOp::LT: return v < value;
-      case CompareOp::LE: return v <= value;
-      case CompareOp::GT: return v > value;
-      case CompareOp::GE: return v >= value;
+    case CompareOp::EQ:
+      return v == value;
+    case CompareOp::LT:
+      return v < value;
+    case CompareOp::LE:
+      return v <= value;
+    case CompareOp::GT:
+      return v > value;
+    case CompareOp::GE:
+      return v >= value;
     }
     return false;
   };
-  for (const auto& [pk, d] : ref.docs) {
-    for (const auto& v : d.values) {
+  for (const auto &[pk, d] : ref.docs) {
+    for (const auto &v : d.values) {
       if (v.field == field && match(v.value)) {
         out.insert(pk);
         break;
@@ -356,32 +387,36 @@ std::set<std::string> RefInvert(const RefState& ref, const std::string& field,
   return out;
 }
 
-void CheckInvert(const Index& index, const RefState& ref,
-                 const std::string& field, const std::string& value,
-                 CompareOp op, const std::string& label) {
+void CheckInvert(const Index &index, const RefState &ref,
+                 const std::string &field, const std::string &value,
+                 CompareOp op, const std::string &label) {
   m4::SearchResult res;
   m4::Status s = index.SearchInvert(field, value, op, &res);
   Check(s.ok, label + ": invert status");
-  if (!s.ok) return;
+  if (!s.ok)
+    return;
   std::set<std::string> got;
-  for (const auto& h : res.hits) got.insert(h.pk);
+  for (const auto &h : res.hits)
+    got.insert(h.pk);
   auto want = RefInvert(ref, field, value, op);
   Check(got == want, label + ": invert set size " + std::to_string(got.size()) +
                          " vs " + std::to_string(want.size()));
   if (got != want) {
     std::fprintf(stderr, "  got-only:");
-    for (const auto& p : got) {
-      if (want.count(p) == 0) std::fprintf(stderr, " %s", p.c_str());
+    for (const auto &p : got) {
+      if (want.count(p) == 0)
+        std::fprintf(stderr, " %s", p.c_str());
     }
     std::fprintf(stderr, "\n  want-only:");
-    for (const auto& p : want) {
-      if (got.count(p) == 0) std::fprintf(stderr, " %s", p.c_str());
+    for (const auto &p : want) {
+      if (got.count(p) == 0)
+        std::fprintf(stderr, " %s", p.c_str());
     }
     std::fprintf(stderr, "\n");
   }
 }
 
-void AddDoc(RefState* ref, const std::string& pk, const Document& doc) {
+void AddDoc(RefState *ref, const std::string &pk, const Document &doc) {
   auto it = ref->docs.find(pk);
   if (it != ref->docs.end()) {
     ref->total_tokens -= Tok(it->second.text).size();
@@ -391,36 +426,38 @@ void AddDoc(RefState* ref, const std::string& pk, const Document& doc) {
   ref->total_tokens += Tok(doc.text).size();
 }
 
-void DeleteDoc(RefState* ref, const std::string& pk) {
+void DeleteDoc(RefState *ref, const std::string &pk) {
   auto it = ref->docs.find(pk);
-  if (it == ref->docs.end()) return;
+  if (it == ref->docs.end())
+    return;
   ref->total_tokens -= Tok(it->second.text).size();
   ref->docs.erase(it);
 }
 
-std::string RandomText(std::mt19937* rng, int vocab) {
+std::string RandomText(std::mt19937 *rng, int vocab) {
   std::uniform_int_distribution<int> len(0, 30);
   std::uniform_int_distribution<int> word(0, vocab - 1);
   std::string out;
   const int n = len(*rng);
   for (int i = 0; i < n; ++i) {
-    if (i) out.push_back(' ');
+    if (i)
+      out.push_back(' ');
     out += "w" + std::to_string(word(*rng));
   }
   return out;
 }
 
-Document RandomDoc(std::mt19937* rng, int vocab) {
+Document RandomDoc(std::mt19937 *rng, int vocab) {
   Document d;
   d.text = RandomText(rng, vocab);
-  const char* statuses[] = {"active", "pending", "done"};
-  const char* regions[] = {"a", "b", "c"};
+  const char *statuses[] = {"active", "pending", "done"};
+  const char *regions[] = {"a", "b", "c"};
   d.values.push_back(ScalarValue{"status", statuses[(*rng)() % 3]});
   d.values.push_back(ScalarValue{"region", regions[(*rng)() % 3]});
   return d;
 }
 
-void RunRandomized(const std::string& dir) {
+void RunRandomized(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 64;
@@ -436,7 +473,8 @@ void RunRandomized(const std::string& dir) {
     std::unique_ptr<Index> index;
     m4::Status s = Index::Open(dir, opt, &index);
     Check(s.ok, "open randomized index: " + s.message);
-    if (!s.ok) return;
+    if (!s.ok)
+      return;
 
     const int base = 1200;
     for (int i = 0; i < base; ++i) {
@@ -483,16 +521,15 @@ void RunRandomized(const std::string& dir) {
     s = index->Flush();
     Check(s.ok, "final mutation flush: " + s.message);
 
-    auto verify = [&](const std::string& phase) {
+    auto verify = [&](const std::string &phase) {
       for (const std::string term : {"w0", "w7", "w42", "w119"}) {
         CheckFts(*index, ref, term, MakeRefQuery({term}, false), 10,
                  phase + " term " + term);
         CheckFts(*index, ref, term + " AND w1",
-                 MakeRefQuery({term, "w1"}, true), 10,
-                 phase + " AND " + term);
+                 MakeRefQuery({term, "w1"}, true), 10, phase + " AND " + term);
       }
-      CheckFts(*index, ref, "w3 w5 w9",
-               MakeRefQuery({"w3", "w5", "w9"}, false), 10, phase + " OR");
+      CheckFts(*index, ref, "w3 w5 w9", MakeRefQuery({"w3", "w5", "w9"}, false),
+               10, phase + " OR");
       CheckInvert(*index, ref, "status", "active", CompareOp::EQ,
                   phase + " invert eq");
       CheckInvert(*index, ref, "status", "pending", CompareOp::LT,
@@ -513,7 +550,8 @@ void RunRandomized(const std::string& dir) {
     std::unique_ptr<Index> index;
     m4::Status s = Index::Open(dir, opt, &index);
     Check(s.ok, "reopen randomized: " + s.message);
-    if (!s.ok) return;
+    if (!s.ok)
+      return;
     CheckFts(*index, ref, "w11", MakeRefQuery({"w11"}, false), 10,
              "reopened term");
     CheckInvert(*index, ref, "status", "done", CompareOp::EQ,
@@ -521,13 +559,13 @@ void RunRandomized(const std::string& dir) {
   }
 }
 
-void TestTypedUint32Scalar(const std::string& dir) {
+void TestTypedUint32Scalar(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options options;
   options.fsync_wal = false;
   std::map<std::string, uint32_t> reference;
-  auto put = [&](Index& index, const std::string& pk,
-                 const std::optional<uint32_t>& value) {
+  auto put = [&](Index &index, const std::string &pk,
+                 const std::optional<uint32_t> &value) {
     Document doc;
     doc.text = "scalar fixture";
     if (value) {
@@ -538,31 +576,37 @@ void TestTypedUint32Scalar(const std::string& dir) {
     }
     Check(index.Upsert(pk, doc).ok, "typed u32 upsert " + pk);
   };
-  auto verify = [&](Index& index, const std::string& phase) {
+  auto verify = [&](Index &index, const std::string &phase) {
     const uint32_t max_value = std::numeric_limits<uint32_t>::max();
     for (uint32_t value : {0u, 1u, 9u, 10u, 42u, 2147483648u, max_value}) {
       m4::SearchResult result;
       const auto status = index.SearchInvertUint32("file_id", value, &result);
       Check(status.ok, phase + " typed u32 EQ status");
       std::set<std::string> actual;
-      for (const auto& hit : result.hits) actual.insert(hit.pk);
+      for (const auto &hit : result.hits)
+        actual.insert(hit.pk);
       std::set<std::string> expected;
-      for (const auto& [pk, stored] : reference) {
-        if (stored == value) expected.insert(pk);
+      for (const auto &[pk, stored] : reference) {
+        if (stored == value)
+          expected.insert(pk);
       }
       Check(actual == expected, phase + " typed u32 EQ PK set");
       Check(actual.size() == result.hits.size(), phase + " EQ no duplicates");
     }
-    for (const auto& values : std::vector<std::vector<uint32_t>>{
-             {}, {0u}, {1u, 1u, max_value, 42u, 42u},
+    for (const auto &values : std::vector<std::vector<uint32_t>>{
+             {},
+             {0u},
+             {1u, 1u, max_value, 42u, 42u},
              {0u, 9u, 10u, 2147483648u, max_value}}) {
       m4::SearchResult result;
-      const auto status = index.SearchInvertUint32In("file_id", values, &result);
+      const auto status =
+          index.SearchInvertUint32In("file_id", values, &result);
       Check(status.ok, phase + " typed u32 IN status");
       std::set<std::string> actual;
-      for (const auto& hit : result.hits) actual.insert(hit.pk);
+      for (const auto &hit : result.hits)
+        actual.insert(hit.pk);
       std::set<std::string> expected;
-      for (const auto& [pk, stored] : reference) {
+      for (const auto &[pk, stored] : reference) {
         if (std::find(values.begin(), values.end(), stored) != values.end()) {
           expected.insert(pk);
         }
@@ -574,7 +618,8 @@ void TestTypedUint32Scalar(const std::string& dir) {
 
   std::unique_ptr<Index> index;
   Check(Index::Open(dir, options, &index).ok, "typed u32 open");
-  if (!index) return;
+  if (!index)
+    return;
   put(*index, "pk-zero", 0u);
   put(*index, "pk-one", 1u);
   put(*index, "pk-nine", 9u);
@@ -594,7 +639,8 @@ void TestTypedUint32Scalar(const std::string& dir) {
                                      ordered_in.hits[1].pk,
                                      ordered_in.hits[2].pk} ==
                 std::vector<std::string>{"pk-one", "pk-dup-a", "pk-dup-b"},
-        "typed u32 IN preserves exact PK order with single-lookup result construction");
+        "typed u32 IN preserves exact PK order with single-lookup result "
+        "construction");
 
   put(*index, "pk-one", std::numeric_limits<uint32_t>::max());
   Check(index->Delete("pk-nine").ok, "typed u32 delete");
@@ -607,16 +653,17 @@ void TestTypedUint32Scalar(const std::string& dir) {
   index.reset();
 
   Check(Index::Open(dir, options, &index).ok, "typed u32 reopen");
-  if (index) verify(*index, "typed u32 after reopen");
+  if (index)
+    verify(*index, "typed u32 after reopen");
 }
 
-void TestTypedArrayUint32(const std::string& dir) {
+void TestTypedArrayUint32(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options options;
   options.fsync_wal = false;
   using Values = std::optional<std::vector<uint32_t>>;
   std::map<std::string, Values> reference;
-  auto put = [&](Index& index, const std::string& pk, Values values) {
+  auto put = [&](Index &index, const std::string &pk, Values values) {
     Document doc;
     if (values) {
       doc.array_uint32_values.push_back({"ancestor_directory_ids", *values});
@@ -624,25 +671,28 @@ void TestTypedArrayUint32(const std::string& dir) {
     reference[pk] = std::move(values);
     Check(index.Upsert(pk, doc).ok, "typed array u32 upsert " + pk);
   };
-  auto verify = [&](Index& index, const std::string& phase) {
+  auto verify = [&](Index &index, const std::string &phase) {
     const uint32_t max_value = std::numeric_limits<uint32_t>::max();
     const std::vector<std::vector<uint32_t>> queries = {
-        {}, {17u}, {17u, 18u}, {17u, 17u, 18u}, {0u, max_value},
+        {},          {17u}, {17u, 18u}, {17u, 17u, 18u}, {0u, max_value},
         {max_value}, {999u}};
     for (bool negate : {false, true}) {
-      for (const auto& operands : queries) {
+      for (const auto &operands : queries) {
         m4::SearchResult result;
-        const auto status = negate
-            ? index.SearchArrayUint32NotContainsAny(
-                  "ancestor_directory_ids", operands, &result)
-            : index.SearchArrayUint32ContainsAny(
-                  "ancestor_directory_ids", operands, &result);
-        Check(status.ok, phase + " typed array query status: " + status.message);
+        const auto status =
+            negate ? index.SearchArrayUint32NotContainsAny(
+                         "ancestor_directory_ids", operands, &result)
+                   : index.SearchArrayUint32ContainsAny(
+                         "ancestor_directory_ids", operands, &result);
+        Check(status.ok,
+              phase + " typed array query status: " + status.message);
         std::set<std::string> actual;
-        for (const auto& hit : result.hits) actual.insert(hit.pk);
+        for (const auto &hit : result.hits)
+          actual.insert(hit.pk);
         std::set<std::string> expected;
-        for (const auto& [pk, stored] : reference) {
-          if (!stored) continue;
+        for (const auto &[pk, stored] : reference) {
+          if (!stored)
+            continue;
           bool overlaps = false;
           for (uint32_t operand : operands) {
             if (std::find(stored->begin(), stored->end(), operand) !=
@@ -651,11 +701,13 @@ void TestTypedArrayUint32(const std::string& dir) {
               break;
             }
           }
-          if (negate ? !overlaps : overlaps) expected.insert(pk);
+          if (negate ? !overlaps : overlaps)
+            expected.insert(pk);
         }
-        auto describe = [](const std::set<std::string>& pks) {
+        auto describe = [](const std::set<std::string> &pks) {
           std::string out;
-          for (const auto& pk : pks) out += (out.empty() ? "" : ",") + pk;
+          for (const auto &pk : pks)
+            out += (out.empty() ? "" : ",") + pk;
           return out;
         };
         Check(actual == expected,
@@ -667,33 +719,35 @@ void TestTypedArrayUint32(const std::string& dir) {
       }
     }
     m4::SearchResult too_many;
-    Check(!index.SearchArrayUint32ContainsAny(
-                    "ancestor_directory_ids", std::vector<uint32_t>(33, 17u),
-                    &too_many)
+    Check(!index
+               .SearchArrayUint32ContainsAny("ancestor_directory_ids",
+                                             std::vector<uint32_t>(33, 17u),
+                                             &too_many)
                .ok,
           phase + " ArrayUint32 operand limit");
   };
 
   std::unique_ptr<Index> index;
   Check(Index::Open(dir, options, &index).ok, "typed array u32 open");
-  if (!index) return;
+  if (!index)
+    return;
   put(*index, "root-empty", std::vector<uint32_t>{});
   put(*index, "src-child", std::vector<uint32_t>{17u, 1u, 17u});
   put(*index, "src-deep", std::vector<uint32_t>{17u, 18u, 18u});
   put(*index, "other", std::vector<uint32_t>{42u, 0u});
-  put(*index, "boundary", std::vector<uint32_t>{
-                                std::numeric_limits<uint32_t>::max(), 0u});
+  put(*index, "boundary",
+      std::vector<uint32_t>{std::numeric_limits<uint32_t>::max(), 0u});
   put(*index, "empty-other", std::vector<uint32_t>{});
   put(*index, "missing", std::nullopt);
   verify(*index, "typed array before WAL replay");
   index.reset();
 
   Check(Index::Open(dir, options, &index).ok, "typed array u32 WAL reopen");
-  if (!index) return;
+  if (!index)
+    return;
   verify(*index, "typed array after WAL replay");
-  put(*index, "src-deep", std::vector<uint32_t>{42u,
-                                                   std::numeric_limits<uint32_t>::max(),
-                                                   42u});
+  put(*index, "src-deep",
+      std::vector<uint32_t>{42u, std::numeric_limits<uint32_t>::max(), 42u});
   Check(index->Delete("other").ok, "typed array delete");
   reference.erase("other");
   verify(*index, "typed array after update/delete");
@@ -711,7 +765,8 @@ void TestTypedArrayUint32(const std::string& dir) {
   index.reset();
 
   Check(Index::Open(dir, options, &index).ok, "typed array u32 reopen");
-  if (index) verify(*index, "typed array after reopen");
+  if (index)
+    verify(*index, "typed array after reopen");
 }
 
 struct BooleanRow {
@@ -722,92 +777,104 @@ struct BooleanRow {
   std::optional<std::string> file_name{};
 };
 
-std::optional<bool> EvalBooleanRef(const m4::FilterExpr& expr,
-                                   const BooleanRow& row) {
+std::optional<bool> EvalBooleanRef(const m4::FilterExpr &expr,
+                                   const BooleanRow &row) {
   using m4::FilterKind;
   switch (expr.op) {
-    case FilterKind::ALL: return true;
-    case FilterKind::NONE: return false;
-    case FilterKind::STRING_EQ:
-      if (expr.field == "file_name") {
-        if (!row.file_name) return std::nullopt;
-        return *row.file_name == expr.string_value;
-      }
-      if (!row.status) return std::nullopt;
-      return *row.status == expr.string_value;
-    case FilterKind::STRING_PREFIX:
-    case FilterKind::STRING_SUFFIX:
-      if (!row.file_name) return std::nullopt;
-      if (expr.op == FilterKind::STRING_PREFIX) {
-        return row.file_name->size() >= expr.string_value.size() &&
-               row.file_name->compare(0, expr.string_value.size(),
-                                      expr.string_value) == 0;
-      }
+  case FilterKind::ALL:
+    return true;
+  case FilterKind::NONE:
+    return false;
+  case FilterKind::STRING_EQ:
+    if (expr.field == "file_name") {
+      if (!row.file_name)
+        return std::nullopt;
+      return *row.file_name == expr.string_value;
+    }
+    if (!row.status)
+      return std::nullopt;
+    return *row.status == expr.string_value;
+  case FilterKind::STRING_PREFIX:
+  case FilterKind::STRING_SUFFIX:
+    if (!row.file_name)
+      return std::nullopt;
+    if (expr.op == FilterKind::STRING_PREFIX) {
       return row.file_name->size() >= expr.string_value.size() &&
-             row.file_name->compare(row.file_name->size() -
-                                        expr.string_value.size(),
-                                    expr.string_value.size(),
+             row.file_name->compare(0, expr.string_value.size(),
                                     expr.string_value) == 0;
-    case FilterKind::UINT32_EQ:
-      if (!row.file_id) return std::nullopt;
-      return *row.file_id == expr.uint32_value;
-    case FilterKind::UINT32_IN:
-      if (!row.file_id) return std::nullopt;
-      return std::find(expr.uint32_values.begin(), expr.uint32_values.end(),
-                       *row.file_id) != expr.uint32_values.end();
-    case FilterKind::ARRAY_UINT32_CONTAINS_ANY:
-    case FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY: {
-      if (expr.uint32_values.empty()) {
-        if (expr.op == FilterKind::ARRAY_UINT32_CONTAINS_ANY) return false;
-        return row.directories.has_value();
-      }
-      if (!row.directories) return std::nullopt;
-      bool any = false;
-      for (uint32_t value : expr.uint32_values) {
-        any = any || std::find(row.directories->begin(), row.directories->end(),
-                               value) != row.directories->end();
-      }
-      return expr.op == FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY ? !any : any;
     }
-    case FilterKind::NOT: {
-      if (expr.children.size() != 1) return std::nullopt;
-      const auto value = EvalBooleanRef(expr.children.front(), row);
-      return value ? std::optional<bool>(!*value) : std::nullopt;
+    return row.file_name->size() >= expr.string_value.size() &&
+           row.file_name->compare(
+               row.file_name->size() - expr.string_value.size(),
+               expr.string_value.size(), expr.string_value) == 0;
+  case FilterKind::UINT32_EQ:
+    if (!row.file_id)
+      return std::nullopt;
+    return *row.file_id == expr.uint32_value;
+  case FilterKind::UINT32_IN:
+    if (!row.file_id)
+      return std::nullopt;
+    return std::find(expr.uint32_values.begin(), expr.uint32_values.end(),
+                     *row.file_id) != expr.uint32_values.end();
+  case FilterKind::ARRAY_UINT32_CONTAINS_ANY:
+  case FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY: {
+    if (expr.uint32_values.empty()) {
+      if (expr.op == FilterKind::ARRAY_UINT32_CONTAINS_ANY)
+        return false;
+      return row.directories.has_value();
     }
-    case FilterKind::AND:
-    case FilterKind::OR: {
-      const bool is_and = expr.op == FilterKind::AND;
-      bool unknown = false;
-      for (const auto& child : expr.children) {
-        const auto value = EvalBooleanRef(child, row);
-        if (!value) {
-          unknown = true;
-        } else if (is_and && !*value) {
-          return false;
-        } else if (!is_and && *value) {
-          return true;
-        }
+    if (!row.directories)
+      return std::nullopt;
+    bool any = false;
+    for (uint32_t value : expr.uint32_values) {
+      any = any || std::find(row.directories->begin(), row.directories->end(),
+                             value) != row.directories->end();
+    }
+    return expr.op == FilterKind::ARRAY_UINT32_NOT_CONTAINS_ANY ? !any : any;
+  }
+  case FilterKind::NOT: {
+    if (expr.children.size() != 1)
+      return std::nullopt;
+    const auto value = EvalBooleanRef(expr.children.front(), row);
+    return value ? std::optional<bool>(!*value) : std::nullopt;
+  }
+  case FilterKind::AND:
+  case FilterKind::OR: {
+    const bool is_and = expr.op == FilterKind::AND;
+    bool unknown = false;
+    for (const auto &child : expr.children) {
+      const auto value = EvalBooleanRef(child, row);
+      if (!value) {
+        unknown = true;
+      } else if (is_and && !*value) {
+        return false;
+      } else if (!is_and && *value) {
+        return true;
       }
-      if (unknown) return std::nullopt;
-      return is_and;
     }
+    if (unknown)
+      return std::nullopt;
+    return is_and;
+  }
   }
   return std::nullopt;
 }
 
-void TestBooleanFilters(const std::string& dir) {
+void TestBooleanFilters(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options options;
   options.fsync_wal = false;
   std::map<std::string, BooleanRow> rows;
-  auto put = [&](Index& index, const std::string& pk, BooleanRow row) {
+  auto put = [&](Index &index, const std::string &pk, BooleanRow row) {
     Document doc;
     doc.text = row.text;
     if (row.file_id) {
       doc.values.push_back(ScalarValue::Unsigned32("file_id", *row.file_id));
     }
-    if (row.status) doc.values.push_back({"status", *row.status});
-    if (row.file_name) doc.values.push_back({"file_name", *row.file_name});
+    if (row.status)
+      doc.values.push_back({"status", *row.status});
+    if (row.file_name)
+      doc.values.push_back({"file_name", *row.file_name});
     if (row.directories) {
       doc.array_uint32_values.push_back(
           {"ancestor_directory_ids", *row.directories});
@@ -817,118 +884,134 @@ void TestBooleanFilters(const std::string& dir) {
   };
   std::unique_ptr<Index> index;
   Check(Index::Open(dir, options, &index).ok, "Boolean filter open");
-  if (!index) return;
-  put(*index, "array-hit", {1u, std::vector<uint32_t>{17u}, "active",
-                             "needle needle needle"});
-  put(*index, "empty-array", {1u, std::vector<uint32_t>{}, "inactive",
-                               "needle"});
+  if (!index)
+    return;
+  put(*index, "array-hit",
+      {1u, std::vector<uint32_t>{17u}, "active", "needle needle needle"});
+  put(*index, "empty-array",
+      {1u, std::vector<uint32_t>{}, "inactive", "needle"});
   put(*index, "missing-array", {2u, std::nullopt, "active", "needle"});
-  put(*index, "other-array", {2u, std::vector<uint32_t>{42u}, std::nullopt,
-                               "needle needle"});
-  put(*index, "missing-scalars", {std::nullopt, std::nullopt, std::nullopt,
-                                   "needle"});
-  put(*index, "file-main", {3u, std::vector<uint32_t>{}, "active", "needle",
-                              "main.rs"});
-  put(*index, "bare-main", {3u, std::vector<uint32_t>{}, "active", "needle",
-                             "main"});
-  put(*index, "file-case", {3u, std::vector<uint32_t>{}, "active", "needle",
-                              "Main.rs"});
-  put(*index, "file-under", {3u, std::vector<uint32_t>{}, "active", "needle",
-                              "under_.rs"});
-  put(*index, "file-percent", {3u, std::vector<uint32_t>{}, "active", "needle",
-                                "literal%.rs"});
-  put(*index, "file-decoy", {3u, std::vector<uint32_t>{}, "active", "needle",
-                              "literalX.rs"});
-  put(*index, "file-unicode", {3u, std::vector<uint32_t>{}, "active", "needle",
-                                "果园.rs"});
-  put(*index, "file-empty", {3u, std::vector<uint32_t>{}, "active", "needle",
-                              ""});
+  put(*index, "other-array",
+      {2u, std::vector<uint32_t>{42u}, std::nullopt, "needle needle"});
+  put(*index, "missing-scalars",
+      {std::nullopt, std::nullopt, std::nullopt, "needle"});
+  put(*index, "file-main",
+      {3u, std::vector<uint32_t>{}, "active", "needle", "main.rs"});
+  put(*index, "bare-main",
+      {3u, std::vector<uint32_t>{}, "active", "needle", "main"});
+  put(*index, "file-case",
+      {3u, std::vector<uint32_t>{}, "active", "needle", "Main.rs"});
+  put(*index, "file-under",
+      {3u, std::vector<uint32_t>{}, "active", "needle", "under_.rs"});
+  put(*index, "file-percent",
+      {3u, std::vector<uint32_t>{}, "active", "needle", "literal%.rs"});
+  put(*index, "file-decoy",
+      {3u, std::vector<uint32_t>{}, "active", "needle", "literalX.rs"});
+  put(*index, "file-unicode",
+      {3u, std::vector<uint32_t>{}, "active", "needle", "果园.rs"});
+  put(*index, "file-empty",
+      {3u, std::vector<uint32_t>{}, "active", "needle", ""});
 
-  const auto array = m4::FilterExpr::ArrayContainsAny("ancestor_directory_ids",
-                                                      {17u});
+  const auto array =
+      m4::FilterExpr::ArrayContainsAny("ancestor_directory_ids", {17u});
   const auto uid = m4::FilterExpr::Uint32Eq("file_id", 1u);
   const auto status = m4::FilterExpr::StringEq("status", "active");
   const std::vector<std::pair<std::string, m4::FilterExpr>> expressions = {
-      {"nested AND/OR", m4::FilterExpr::And({
-          array, m4::FilterExpr::Or({uid, m4::FilterExpr::Not(status)})})},
-      {"AND skips ALL identities", m4::FilterExpr::And({
-          m4::FilterExpr::All(), uid, m4::FilterExpr::All()})},
-      {"OR skips NONE identities", m4::FilterExpr::Or({
-          m4::FilterExpr::None(), uid, m4::FilterExpr::None()})},
-      {"AND absorbs NONE", m4::FilterExpr::And({
-          m4::FilterExpr::None(), uid})},
-      {"OR absorbs ALL", m4::FilterExpr::Or({
-          m4::FilterExpr::All(), uid})},
-      {"NOT AND constants", m4::FilterExpr::Not(m4::FilterExpr::And({
-          m4::FilterExpr::All(), uid}))},
-      {"NOT OR constants", m4::FilterExpr::Not(m4::FilterExpr::Or({
-          m4::FilterExpr::None(), uid}))},
-      {"NOT of conjunction", m4::FilterExpr::Not(
-          m4::FilterExpr::And({array, uid}))},
-      {"NOT of disjunction", m4::FilterExpr::Not(
-          m4::FilterExpr::Or({array, status}))},
-      {"nested double NOT", m4::FilterExpr::Not(
-          m4::FilterExpr::Not(m4::FilterExpr::Or({uid, status})))},
-      {"typed IN and array", m4::FilterExpr::And({
-          m4::FilterExpr::Uint32In("file_id", {1u, 2u}),
-          m4::FilterExpr::ArrayNotContainsAny("ancestor_directory_ids",
-                                               {17u})})},
+      {"nested AND/OR",
+       m4::FilterExpr::And(
+           {array, m4::FilterExpr::Or({uid, m4::FilterExpr::Not(status)})})},
+      {"AND skips ALL identities",
+       m4::FilterExpr::And(
+           {m4::FilterExpr::All(), uid, m4::FilterExpr::All()})},
+      {"OR skips NONE identities",
+       m4::FilterExpr::Or(
+           {m4::FilterExpr::None(), uid, m4::FilterExpr::None()})},
+      {"AND absorbs NONE", m4::FilterExpr::And({m4::FilterExpr::None(), uid})},
+      {"OR absorbs ALL", m4::FilterExpr::Or({m4::FilterExpr::All(), uid})},
+      {"NOT AND constants",
+       m4::FilterExpr::Not(m4::FilterExpr::And({m4::FilterExpr::All(), uid}))},
+      {"NOT OR constants",
+       m4::FilterExpr::Not(m4::FilterExpr::Or({m4::FilterExpr::None(), uid}))},
+      {"NOT of conjunction",
+       m4::FilterExpr::Not(m4::FilterExpr::And({array, uid}))},
+      {"NOT of disjunction",
+       m4::FilterExpr::Not(m4::FilterExpr::Or({array, status}))},
+      {"nested double NOT", m4::FilterExpr::Not(m4::FilterExpr::Not(
+                                m4::FilterExpr::Or({uid, status})))},
+      {"typed IN and array",
+       m4::FilterExpr::And({m4::FilterExpr::Uint32In("file_id", {1u, 2u}),
+                            m4::FilterExpr::ArrayNotContainsAny(
+                                "ancestor_directory_ids", {17u})})},
       {"filename prefix", m4::FilterExpr::StringPrefix("file_name", "main")},
       {"filename suffix", m4::FilterExpr::StringSuffix("file_name", ".rs")},
-      {"filename case-sensitive suffix", m4::FilterExpr::StringSuffix("file_name", ".RS")},
-      {"filename literal underscore", m4::FilterExpr::StringPrefix("file_name", "under_")},
-      {"filename literal percent", m4::FilterExpr::StringSuffix("file_name", "%.rs")},
-      {"filename unicode prefix", m4::FilterExpr::StringPrefix("file_name", "果园")},
-      {"filename unicode suffix", m4::FilterExpr::StringSuffix("file_name", "园.rs")},
+      {"filename case-sensitive suffix",
+       m4::FilterExpr::StringSuffix("file_name", ".RS")},
+      {"filename literal underscore",
+       m4::FilterExpr::StringPrefix("file_name", "under_")},
+      {"filename literal percent",
+       m4::FilterExpr::StringSuffix("file_name", "%.rs")},
+      {"filename unicode prefix",
+       m4::FilterExpr::StringPrefix("file_name", "果园")},
+      {"filename unicode suffix",
+       m4::FilterExpr::StringSuffix("file_name", "园.rs")},
       {"filename empty prefix", m4::FilterExpr::StringPrefix("file_name", "")},
       {"filename empty suffix", m4::FilterExpr::StringSuffix("file_name", "")},
       {"filename exact empty", m4::FilterExpr::StringEq("file_name", "")},
-      {"filename not exact empty", m4::FilterExpr::Not(
-          m4::FilterExpr::StringEq("file_name", ""))},
-      {"filename Boolean composition", m4::FilterExpr::And({
-          m4::FilterExpr::StringPrefix("file_name", "main"),
-          m4::FilterExpr::StringSuffix("file_name", ".rs")})},
-      {"overlapping prefix/suffix composition", m4::FilterExpr::And({
-          m4::FilterExpr::StringPrefix("file_name", "main"),
-          m4::FilterExpr::StringSuffix("file_name", "main")})},
+      {"filename not exact empty",
+       m4::FilterExpr::Not(m4::FilterExpr::StringEq("file_name", ""))},
+      {"filename Boolean composition",
+       m4::FilterExpr::And({m4::FilterExpr::StringPrefix("file_name", "main"),
+                            m4::FilterExpr::StringSuffix("file_name", ".rs")})},
+      {"overlapping prefix/suffix composition",
+       m4::FilterExpr::And(
+           {m4::FilterExpr::StringPrefix("file_name", "main"),
+            m4::FilterExpr::StringSuffix("file_name", "main")})},
       {"empty Uint32 IN", m4::FilterExpr::Uint32In("file_id", {})},
       {"empty AND", m4::FilterExpr::And({})},
       {"empty OR", m4::FilterExpr::Or({})},
       {"NOT empty AND", m4::FilterExpr::Not(m4::FilterExpr::And({}))},
-      {"array NOT ANY empty operand", m4::FilterExpr::ArrayNotContainsAny(
-          "ancestor_directory_ids", {})},
-      {"NOT array ANY empty operand", m4::FilterExpr::Not(
-          m4::FilterExpr::ArrayContainsAny("ancestor_directory_ids", {}))},
-      {"NOT array NOT-ANY empty operand", m4::FilterExpr::Not(
-          m4::FilterExpr::ArrayNotContainsAny("ancestor_directory_ids", {}))},
+      {"array NOT ANY empty operand",
+       m4::FilterExpr::ArrayNotContainsAny("ancestor_directory_ids", {})},
+      {"NOT array ANY empty operand",
+       m4::FilterExpr::Not(
+           m4::FilterExpr::ArrayContainsAny("ancestor_directory_ids", {}))},
+      {"NOT array NOT-ANY empty operand",
+       m4::FilterExpr::Not(
+           m4::FilterExpr::ArrayNotContainsAny("ancestor_directory_ids", {}))},
   };
-  auto verify = [&](const std::string& phase) {
-    for (const auto& [label, expr] : expressions) {
+  auto verify = [&](const std::string &phase) {
+    for (const auto &[label, expr] : expressions) {
       m4::SearchResult actual;
       const auto query_status = index->SearchFilter(expr, &actual);
-      Check(query_status.ok, phase + " " + label + " status: " +
-                                 query_status.message);
+      Check(query_status.ok,
+            phase + " " + label + " status: " + query_status.message);
       std::set<std::string> expected;
-      for (const auto& [pk, row] : rows) {
+      for (const auto &[pk, row] : rows) {
         const auto value = EvalBooleanRef(expr, row);
-        if (value && *value) expected.insert(pk);
+        if (value && *value)
+          expected.insert(pk);
       }
       std::set<std::string> pks;
-      for (const auto& hit : actual.hits) pks.insert(hit.pk);
+      for (const auto &hit : actual.hits)
+        pks.insert(hit.pk);
       Check(pks == expected, phase + " " + label + " PK set");
       Check(pks.size() == actual.hits.size(),
             phase + " " + label + " no duplicate docs");
     }
     m4::SearchResult direct_not_any;
     m4::SearchResult generic_not;
-    Check(index->SearchArrayUint32NotContainsAny(
-              "ancestor_directory_ids", {17u}, &direct_not_any).ok,
+    Check(index
+              ->SearchArrayUint32NotContainsAny("ancestor_directory_ids", {17u},
+                                                &direct_not_any)
+              .ok,
           phase + " direct NOT CONTAIN_ANY status");
     Check(index->SearchFilter(m4::FilterExpr::Not(array), &generic_not).ok,
           phase + " generic NOT predicate status");
     std::set<std::string> direct_pks, generic_pks;
-    for (const auto& hit : direct_not_any.hits) direct_pks.insert(hit.pk);
-    for (const auto& hit : generic_not.hits) generic_pks.insert(hit.pk);
+    for (const auto &hit : direct_not_any.hits)
+      direct_pks.insert(hit.pk);
+    for (const auto &hit : generic_not.hits)
+      generic_pks.insert(hit.pk);
     Check(direct_pks == generic_pks,
           phase + " non-empty NOT(predicate) matches native NOT CONTAIN_ANY");
     Check(direct_pks.count("empty-array") == 1 &&
@@ -936,35 +1019,45 @@ void TestBooleanFilters(const std::string& dir) {
               direct_pks.count("missing-scalars") == 0,
           phase + " negative array includes empty, excludes missing");
     m4::SearchResult generic_empty_not, direct_empty_not;
-    Check(index->SearchFilter(m4::FilterExpr::Not(
-              m4::FilterExpr::ArrayContainsAny("ancestor_directory_ids", {})),
-              &generic_empty_not).ok,
-          phase + " generic NOT(empty CONTAIN_ANY) status");
-    Check(index->SearchArrayUint32NotContainsAny(
-              "ancestor_directory_ids", {}, &direct_empty_not).ok,
+    Check(
+        index
+            ->SearchFilter(m4::FilterExpr::Not(m4::FilterExpr::ArrayContainsAny(
+                               "ancestor_directory_ids", {})),
+                           &generic_empty_not)
+            .ok,
+        phase + " generic NOT(empty CONTAIN_ANY) status");
+    Check(index
+              ->SearchArrayUint32NotContainsAny("ancestor_directory_ids", {},
+                                                &direct_empty_not)
+              .ok,
           phase + " direct empty NOT CONTAIN_ANY status");
     std::set<std::string> generic_empty_pks, direct_empty_pks;
-    for (const auto& hit : generic_empty_not.hits) generic_empty_pks.insert(hit.pk);
-    for (const auto& hit : direct_empty_not.hits) direct_empty_pks.insert(hit.pk);
+    for (const auto &hit : generic_empty_not.hits)
+      generic_empty_pks.insert(hit.pk);
+    for (const auto &hit : direct_empty_not.hits)
+      direct_empty_pks.insert(hit.pk);
     Check(generic_empty_pks.size() == rows.size() &&
               direct_empty_pks.size() < generic_empty_pks.size() &&
               generic_empty_pks.count("missing-array") == 1 &&
               direct_empty_pks.count("missing-array") == 0 &&
               direct_empty_pks.count("empty-array") == 1,
-          phase + " generic NOT false differs from NOT CONTAIN_ANY IS NOT NULL");
+          phase +
+              " generic NOT false differs from NOT CONTAIN_ANY IS NOT NULL");
 
     const auto filter = m4::FilterExpr::StringPrefix("file_name", "main");
-    auto identical = [](const m4::SearchResult& a, const m4::SearchResult& b) {
-      if (a.hits.size() != b.hits.size() || a.examined != b.examined) return false;
+    auto identical = [](const m4::SearchResult &a, const m4::SearchResult &b) {
+      if (a.hits.size() != b.hits.size() || a.examined != b.examined)
+        return false;
       for (size_t i = 0; i < a.hits.size(); ++i) {
         if (a.hits[i].pk != b.hits[i].pk ||
             a.hits[i].doc_id != b.hits[i].doc_id ||
-            a.hits[i].score != b.hits[i].score) return false;
+            a.hits[i].score != b.hits[i].score)
+          return false;
       }
       return true;
     };
-    for (const std::string query : {"needle OR active", "needle AND active",
-                                    "\"needle needle\""}) {
+    for (const std::string query :
+         {"needle OR active", "needle AND active", "\"needle needle\""}) {
       m4::SearchResult off, on;
       m4::QueryDiagnostics diag;
       diag.collect_counters = true;
@@ -985,8 +1078,8 @@ void TestBooleanFilters(const std::string& dir) {
       Check(diag.topk_finalize_pops == diag.sorted_hits &&
                 diag.sorted_hits == on.hits.size(),
             phase + " diagnostics finalization accounting: " + query);
-      Check(diag.liveness_lookups == diag.candidates +
-                                        diag.dead_postings_filtered,
+      Check(diag.liveness_lookups ==
+                diag.candidates + diag.dead_postings_filtered,
             phase + " diagnostics liveness accounting: " + query);
       Check(diag.filter_checks ==
                 diag.filter_rejections + diag.liveness_lookups,
@@ -1007,24 +1100,27 @@ void TestBooleanFilters(const std::string& dir) {
       m4::QueryDiagnostics counter_diag;
       counter_diag.capture_timing = false;
       Check(index->SearchFtsFiltered(query, 5, filter, &counters_only,
-                                     &counter_diag).ok &&
+                                     &counter_diag)
+                    .ok &&
                 identical(off, counters_only) &&
                 counter_diag.score_evaluations > 0 &&
                 counter_diag.query_parse_ms == 0.0 &&
                 counter_diag.execution_ms == 0.0 &&
                 counter_diag.mutex_wait_ms == 0.0,
-            phase + " counters-only mode is correct and skips timing: " + query);
+            phase +
+                " counters-only mode is correct and skips timing: " + query);
       m4::QueryDiagnostics timing_diag;
       timing_diag.collect_counters = false;
-      Check(index->SearchFtsFiltered(query, 5, filter, &timing_only,
-                                     &timing_diag).ok &&
-                identical(off, timing_only) &&
-                timing_diag.score_evaluations == 0 &&
-                timing_diag.postings_scanned == 0 &&
-                timing_diag.liveness_lookups == 0 &&
-                timing_diag.query_parse_ms >= 0.0 &&
-                timing_diag.execution_ms >= 0.0,
-            phase + " timing-only mode skips operation counters: " + query);
+      Check(
+          index->SearchFtsFiltered(query, 5, filter, &timing_only, &timing_diag)
+                  .ok &&
+              identical(off, timing_only) &&
+              timing_diag.score_evaluations == 0 &&
+              timing_diag.postings_scanned == 0 &&
+              timing_diag.liveness_lookups == 0 &&
+              timing_diag.query_parse_ms >= 0.0 &&
+              timing_diag.execution_ms >= 0.0,
+          phase + " timing-only mode skips operation counters: " + query);
     }
 
     const auto all_filter = m4::FilterExpr::All();
@@ -1032,12 +1128,17 @@ void TestBooleanFilters(const std::string& dir) {
     m4::QueryDiagnostics all_diag;
     all_diag.collect_counters = true;
     all_diag.capture_timing = true;
-    const bool plain_all_ok = index->SearchFts("needle OR active", 5,
-                                               &all_plain).ok;
-    const bool all_ok = index->SearchFtsFiltered("needle OR active", 5,
-                                                 all_filter, &all_filtered).ok;
-    const bool measured_all_ok = index->SearchFtsFiltered(
-        "needle OR active", 5, all_filter, &all_measured, &all_diag).ok;
+    const bool plain_all_ok =
+        index->SearchFts("needle OR active", 5, &all_plain).ok;
+    const bool all_ok = index
+                            ->SearchFtsFiltered("needle OR active", 5,
+                                                all_filter, &all_filtered)
+                            .ok;
+    const bool measured_all_ok =
+        index
+            ->SearchFtsFiltered("needle OR active", 5, all_filter,
+                                &all_measured, &all_diag)
+            .ok;
     Check(plain_all_ok && all_ok && measured_all_ok &&
               identical(all_plain, all_filtered) &&
               identical(all_plain, all_measured),
@@ -1057,8 +1158,10 @@ void TestBooleanFilters(const std::string& dir) {
   const auto top_filter = m4::FilterExpr::StringPrefix("file_name", "main");
   Check(index->SearchFts("needle", 1, &unfiltered_top1).ok,
         "Boolean filter unfiltered top-k");
-  Check(index->SearchFtsFiltered("needle", 1, top_filter, &filtered_top1,
-                                 &diagnostics).ok,
+  Check(index
+            ->SearchFtsFiltered("needle", 1, top_filter, &filtered_top1,
+                                &diagnostics)
+            .ok,
         "Boolean filter before top-k");
   Check(!unfiltered_top1.hits.empty() &&
             unfiltered_top1.hits.front().pk == "array-hit",
@@ -1071,15 +1174,19 @@ void TestBooleanFilters(const std::string& dir) {
             diagnostics.filter_like_strings_scanned > 0 &&
             diagnostics.filter_like_candidate_capacity_bytes >=
                 2 * sizeof(m4::DocId),
-        "filename filter telemetry reports candidates, scanned strings, and buffer capacity");
+        "filename filter telemetry reports candidates, scanned strings, and "
+        "buffer capacity");
   Check(diagnostics.mutex_wait_ms >= 0 && diagnostics.mutex_wait_cpu_ms >= 0 &&
             diagnostics.filter_ms >= 0 && diagnostics.filter_cpu_ms >= 0 &&
-            diagnostics.query_parse_ms >= 0 && diagnostics.query_parse_cpu_ms >= 0 &&
+            diagnostics.query_parse_ms >= 0 &&
+            diagnostics.query_parse_cpu_ms >= 0 &&
             diagnostics.setup_ms >= diagnostics.query_parse_ms &&
             diagnostics.setup_cpu_ms >= diagnostics.query_parse_cpu_ms &&
-            diagnostics.execution_ms >= 0 && diagnostics.execution_cpu_ms >= 0 &&
-            diagnostics.finalize_ms >= 0 && diagnostics.finalize_cpu_ms >= 0,
-        "query phase diagnostics report nonnegative wall/CPU and nested setup/parse timings");
+            diagnostics.execution_ms >= 0 &&
+            diagnostics.execution_cpu_ms >= 0 && diagnostics.finalize_ms >= 0 &&
+            diagnostics.finalize_cpu_ms >= 0,
+        "query phase diagnostics report nonnegative wall/CPU and nested "
+        "setup/parse timings");
 
   m4::Options cache_options = options;
   cache_options.cache_filter_candidates = true;
@@ -1089,48 +1196,57 @@ void TestBooleanFilters(const std::string& dir) {
   Check(Index::Open(cache_dir, cache_options, &cached_index).ok,
         "filter-candidate cache index open");
   if (cached_index) {
-    auto to_document = [](const BooleanRow& row) {
+    auto to_document = [](const BooleanRow &row) {
       Document doc;
       doc.text = row.text;
       if (row.file_id)
         doc.values.push_back(ScalarValue::Unsigned32("file_id", *row.file_id));
-      if (row.status) doc.values.push_back({"status", *row.status});
-      if (row.file_name) doc.values.push_back({"file_name", *row.file_name});
+      if (row.status)
+        doc.values.push_back({"status", *row.status});
+      if (row.file_name)
+        doc.values.push_back({"file_name", *row.file_name});
       if (row.directories)
         doc.array_uint32_values.push_back(
             {"ancestor_directory_ids", *row.directories});
       return doc;
     };
-    for (const auto& [pk, row] : rows)
+    for (const auto &[pk, row] : rows)
       Check(cached_index->Upsert(pk, to_document(row)).ok,
             "filter-candidate cache seed " + pk);
-    auto same_hits = [](const m4::SearchResult& a, const m4::SearchResult& b) {
-      if (a.hits.size() != b.hits.size()) return false;
+    auto same_hits = [](const m4::SearchResult &a, const m4::SearchResult &b) {
+      if (a.hits.size() != b.hits.size())
+        return false;
       std::vector<std::pair<std::string, double>> a_hits, b_hits;
-      for (const auto& hit : a.hits) a_hits.emplace_back(hit.pk, hit.score);
-      for (const auto& hit : b.hits) b_hits.emplace_back(hit.pk, hit.score);
+      for (const auto &hit : a.hits)
+        a_hits.emplace_back(hit.pk, hit.score);
+      for (const auto &hit : b.hits)
+        b_hits.emplace_back(hit.pk, hit.score);
       std::sort(a_hits.begin(), a_hits.end());
       std::sort(b_hits.begin(), b_hits.end());
       return a_hits == b_hits;
     };
-    auto same_ordered_hits = [](const m4::SearchResult& a,
-                                const m4::SearchResult& b) {
-      if (a.hits.size() != b.hits.size()) return false;
+    auto same_ordered_hits = [](const m4::SearchResult &a,
+                                const m4::SearchResult &b) {
+      if (a.hits.size() != b.hits.size())
+        return false;
       for (size_t i = 0; i < a.hits.size(); ++i)
         if (a.hits[i].pk != b.hits[i].pk ||
             a.hits[i].doc_id != b.hits[i].doc_id ||
-            a.hits[i].score != b.hits[i].score) return false;
+            a.hits[i].score != b.hits[i].score)
+          return false;
       return true;
     };
-    auto check_cache_query = [&](const std::string& phase, bool expect_hit,
+    auto check_cache_query = [&](const std::string &phase, bool expect_hit,
                                  size_t expected_candidates) {
       m4::SearchResult uncached, cached;
       m4::QueryDiagnostics cache_diag;
       cache_diag.collect_counters = true;
-      const bool plain_ok = index->SearchFtsFiltered(
-          "needle", 5, top_filter, &uncached).ok;
-      const bool cache_ok = cached_index->SearchFtsFiltered(
-          "needle", 5, top_filter, &cached, &cache_diag).ok;
+      const bool plain_ok =
+          index->SearchFtsFiltered("needle", 5, top_filter, &uncached).ok;
+      const bool cache_ok =
+          cached_index
+              ->SearchFtsFiltered("needle", 5, top_filter, &cached, &cache_diag)
+              .ok;
       Check(plain_ok && cache_ok && same_hits(uncached, cached),
             phase + " cached/uncached filtered search parity");
       Check(cache_diag.filter_cache_hit == expect_hit &&
@@ -1141,36 +1257,40 @@ void TestBooleanFilters(const std::string& dir) {
     m4::SearchResult cache_warm;
     m4::QueryDiagnostics first_cache_diag;
     first_cache_diag.collect_counters = true;
-    Check(cached_index->SearchFtsFiltered("needle", 5, top_filter,
-              &cache_warm, &first_cache_diag).ok &&
+    Check(cached_index
+                  ->SearchFtsFiltered("needle", 5, top_filter, &cache_warm,
+                                      &first_cache_diag)
+                  .ok &&
               !first_cache_diag.filter_cache_hit &&
               first_cache_diag.filter_candidates == 2,
           "filter-candidate cache first query populates cache");
-    const auto cache_repeat =
-        check_cache_query("filter cache repeat", true, 2);
+    const auto cache_repeat = check_cache_query("filter cache repeat", true, 2);
     Check(same_ordered_hits(cache_warm, cache_repeat),
           "filter-candidate cache preserves within-index hit order and DocIds");
     const BooleanRow cache_added{3u, std::vector<uint32_t>{}, "active",
                                  "needle", "main-cache.rs"};
     put(*index, "cache-invalidation", cache_added);
-    Check(cached_index->Upsert("cache-invalidation",
-                               to_document(cache_added)).ok,
-          "filter-candidate cache mutation invalidates cache");
+    Check(
+        cached_index->Upsert("cache-invalidation", to_document(cache_added)).ok,
+        "filter-candidate cache mutation invalidates cache");
     const auto cache_after_mutation =
         check_cache_query("filter cache after mutation", false, 3);
     const auto cache_after_repopulation =
         check_cache_query("filter cache after repopulation", true, 3);
-    Check(same_ordered_hits(cache_after_mutation, cache_after_repopulation),
-          "filter-candidate cache preserves post-mutation hit order and DocIds");
+    Check(
+        same_ordered_hits(cache_after_mutation, cache_after_repopulation),
+        "filter-candidate cache preserves post-mutation hit order and DocIds");
   }
 
-  put(*index, "array-hit", {2u, std::vector<uint32_t>{17u, 17u}, "active",
-                             "needle", "main.updated.rs"});
+  put(*index, "array-hit",
+      {2u, std::vector<uint32_t>{17u, 17u}, "active", "needle",
+       "main.updated.rs"});
   Check(index->Delete("other-array").ok, "Boolean filter delete");
   rows.erase("other-array");
   verify("update/delete");
-  put(*index, "other-array", {2u, std::vector<uint32_t>{42u}, "inactive",
-                               "needle", "under_.reinserted.rs"});
+  put(*index, "other-array",
+      {2u, std::vector<uint32_t>{42u}, "inactive", "needle",
+       "under_.reinserted.rs"});
   verify("reinsert");
   Check(index->Flush().ok, "Boolean filter flush");
   verify("flush");
@@ -1189,19 +1309,23 @@ void TestBooleanFilters(const std::string& dir) {
   Check(index->SearchFilter(m4::FilterExpr::All(), &before_reopen).ok,
         "Boolean filter snapshot before WAL replay");
   m4::DocId wal_id = 0;
-  for (const auto& hit : before_reopen.hits) {
-    if (hit.pk == "wal-tail") wal_id = hit.doc_id;
+  for (const auto &hit : before_reopen.hits) {
+    if (hit.pk == "wal-tail")
+      wal_id = hit.doc_id;
   }
   index.reset();
   Check(Index::Open(dir, options, &index).ok, "Boolean filter WAL replay open");
-  if (!index) return;
-  put(*index, "after-wal", {4u, std::vector<uint32_t>{42u}, "active", "needle"});
+  if (!index)
+    return;
+  put(*index, "after-wal",
+      {4u, std::vector<uint32_t>{42u}, "active", "needle"});
   m4::SearchResult after_reopen;
   Check(index->SearchFilter(m4::FilterExpr::All(), &after_reopen).ok,
         "Boolean filter post-WAL snapshot");
   m4::DocId next_id = 0;
-  for (const auto& hit : after_reopen.hits) {
-    if (hit.pk == "after-wal") next_id = hit.doc_id;
+  for (const auto &hit : after_reopen.hits) {
+    if (hit.pk == "after-wal")
+      next_id = hit.doc_id;
   }
   Check(wal_id != 0 && next_id > wal_id,
         "WAL replay preserves DocId non-reuse high-water invariant");
@@ -1211,28 +1335,99 @@ void TestBooleanFilters(const std::string& dir) {
   verify("post-WAL reopen preparation");
   index.reset();
   Check(Index::Open(dir, options, &index).ok, "Boolean filter final reopen");
-  if (index) verify("reopen");
+  if (index)
+    verify("reopen");
 }
 
-void TestStringPrefixRangeSearch(const std::string& dir) {
+void TestIndexSearchFilterQueuesBehindWaitingWriter(const std::string &dir) {
+  fs::remove_all(dir);
+  m4::Options options;
+  options.wal_enabled = false;
+  std::unique_ptr<Index> index;
+  Check(Index::Open(dir, options, &index).ok, "queued-writer index open");
+  if (!index)
+    return;
+
+  // Hold an already-admitted query reader on the exact mutex used by Index.
+  // This makes the writer/read admission order deterministic without adding a
+  // production pause hook to SearchFilter.
+  auto &query_mutex = m4::detail::IndexTestAccess::QueryMutex(*index);
+  query_mutex.lock_shared();
+
+  std::atomic<bool> writer_done{false};
+  std::atomic<bool> writer_ok{false};
+  m4::WriteDiagnostics write_diagnostics;
+  m4::Document document;
+  document.text = "queued writer document";
+  std::thread writer([&] {
+    const auto status =
+        index->Upsert("queued-writer", document, &write_diagnostics);
+    writer_ok.store(status.ok, std::memory_order_release);
+    writer_done.store(true, std::memory_order_release);
+  });
+
+  const auto wait_until = [](const auto &predicate) {
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (!predicate()) {
+      if (std::chrono::steady_clock::now() >= deadline)
+        return false;
+      std::this_thread::yield();
+    }
+    return true;
+  };
+  const bool writer_queued =
+      wait_until([&] { return query_mutex.WaitingWritersForTesting() == 1; });
+
+  std::atomic<bool> reader_done{false};
+  std::atomic<bool> reader_ok{false};
+  m4::SearchResult reader_result;
+  std::thread later_reader([&] {
+    const auto status =
+        index->SearchFilter(m4::FilterExpr::All(), &reader_result);
+    reader_ok.store(status.ok, std::memory_order_release);
+    reader_done.store(true, std::memory_order_release);
+  });
+  const bool reader_queued =
+      wait_until([&] { return query_mutex.WaitingReadersForTesting() == 1; });
+  const bool both_queued = writer_queued && reader_queued &&
+                           !writer_done.load(std::memory_order_acquire) &&
+                           !reader_done.load(std::memory_order_acquire);
+
+  query_mutex.unlock_shared();
+  writer.join();
+  later_reader.join();
+
+  Check(both_queued,
+        "public Upsert and SearchFilter queue behind an active query reader");
+  Check(writer_ok.load(std::memory_order_acquire),
+        "queued public Upsert succeeds");
+  Check(write_diagnostics.query_mutex_wait_ms > 0.0,
+        "public Upsert reports waiting for the query mutex");
+  Check(reader_ok.load(std::memory_order_acquire),
+        "queued public SearchFilter succeeds");
+  Check(reader_result.hits.size() == 1,
+        "SearchFilter queued behind a writer observes the writer's update");
+}
+
+void TestStringPrefixRangeSearch(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options options;
   options.fsync_wal = false;
   options.max_delta_docs = 1024;
   std::unique_ptr<Index> index;
-  Check(Index::Open(dir, options, &index).ok,
-        "string-prefix range index open");
-  if (!index) return;
+  Check(Index::Open(dir, options, &index).ok, "string-prefix range index open");
+  if (!index)
+    return;
 
   constexpr size_t kDocs = 1024;
   constexpr size_t kSelected = 32;
   for (size_t i = 0; i < kDocs; ++i) {
     Document doc;
     doc.text = "needle marker";
-    doc.values.push_back({"file_name",
-                          i < kSelected
-                              ? "src/selected/file-" + std::to_string(i)
-                              : "src/other/file-" + std::to_string(i)});
+    doc.values.push_back(
+        {"file_name", i < kSelected ? "src/selected/file-" + std::to_string(i)
+                                    : "src/other/file-" + std::to_string(i)});
     Check(index->Upsert(std::to_string(i), std::move(doc)).ok,
           "string-prefix range upsert");
     if (i == 511 || i + 1 == kDocs) {
@@ -1242,16 +1437,20 @@ void TestStringPrefixRangeSearch(const std::string& dir) {
   Check(index->GetStats().runs == 2,
         "string-prefix range fixture uses two immutable segments");
 
-  const auto filter = m4::FilterExpr::StringPrefix("file_name", "src/selected/");
-  auto verify = [&](const std::string& phase,
-                    const std::set<std::string>& expected) {
+  const auto filter =
+      m4::FilterExpr::StringPrefix("file_name", "src/selected/");
+  auto verify = [&](const std::string &phase,
+                    const std::set<std::string> &expected) {
     m4::SearchResult result;
     m4::QueryDiagnostics diagnostics;
     diagnostics.collect_counters = true;
-    const bool ok = index->SearchFtsFiltered("needle", kSelected + 4,
-                                             filter, &result, &diagnostics).ok;
+    const bool ok = index
+                        ->SearchFtsFiltered("needle", kSelected + 4, filter,
+                                            &result, &diagnostics)
+                        .ok;
     std::set<std::string> actual;
-    for (const auto& hit : result.hits) actual.insert(hit.pk);
+    for (const auto &hit : result.hits)
+      actual.insert(hit.pk);
     Check(ok && actual == expected,
           phase + " string-prefix results equal expected PKs");
     Check(diagnostics.filter_like_strings_scanned < 128,
@@ -1259,7 +1458,8 @@ void TestStringPrefixRangeSearch(const std::string& dir) {
   };
 
   std::set<std::string> expected;
-  for (size_t i = 0; i < kSelected; ++i) expected.insert(std::to_string(i));
+  for (size_t i = 0; i < kSelected; ++i)
+    expected.insert(std::to_string(i));
   verify("initial", expected);
 
   Document moved_out;
@@ -1281,10 +1481,11 @@ void TestStringPrefixRangeSearch(const std::string& dir) {
   verify("compacted", expected);
   index.reset();
   Check(Index::Open(dir, options, &index).ok, "string-prefix reopen");
-  if (index) verify("reopened", expected);
+  if (index)
+    verify("reopened", expected);
 }
 
-void TestPhrase(const std::string& dir) {
+void TestPhrase(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 1000;
@@ -1292,7 +1493,7 @@ void TestPhrase(const std::string& dir) {
   m4::Status s = Index::Open(dir, opt, &index);
   Check(s.ok, "phrase open");
   RefState ref;
-  auto put = [&](const std::string& pk, const std::string& text) {
+  auto put = [&](const std::string &pk, const std::string &text) {
     Document d;
     d.text = text;
     AddDoc(&ref, pk, d);
@@ -1303,18 +1504,14 @@ void TestPhrase(const std::string& dir) {
   put("c", "beta gamma");
   put("d", "alpha beta");
   CheckFts(*index, ref, "\"alpha beta\"",
-           MakeRefQuery({}, false, {{"alpha", "beta"}}), 10,
-           "phrase ab delta");
+           MakeRefQuery({}, false, {{"alpha", "beta"}}), 10, "phrase ab delta");
   CheckFts(*index, ref, "\"beta gamma\"",
-           MakeRefQuery({}, false, {{"beta", "gamma"}}), 10,
-           "phrase bg delta");
+           MakeRefQuery({}, false, {{"beta", "gamma"}}), 10, "phrase bg delta");
   Check(index->Flush().ok, "phrase flush");
   CheckFts(*index, ref, "\"alpha beta\"",
-           MakeRefQuery({}, false, {{"alpha", "beta"}}), 10,
-           "phrase ab v1");
+           MakeRefQuery({}, false, {{"alpha", "beta"}}), 10, "phrase ab v1");
   CheckFts(*index, ref, "\"beta gamma\"",
-           MakeRefQuery({}, false, {{"beta", "gamma"}}), 10,
-           "phrase bg v1");
+           MakeRefQuery({}, false, {{"beta", "gamma"}}), 10, "phrase bg v1");
   put("e", "alpha beta gamma alpha beta");
   Check(index->Flush().ok, "phrase second flush");
   Check(index->CompactNow().ok, "phrase compaction");
@@ -1323,12 +1520,11 @@ void TestPhrase(const std::string& dir) {
   CheckFts(*index, ref, "\"beta gamma\"",
            MakeRefQuery({}, false, {{"beta", "gamma"}}), 10, "phrase bg");
   CheckFts(*index, ref, "\"alpha beta\" \"beta gamma\"",
-           MakeRefQuery({}, false,
-                        {{"alpha", "beta"}, {"beta", "gamma"}}),
-           10, "multiple phrases v2");
+           MakeRefQuery({}, false, {{"alpha", "beta"}, {"beta", "gamma"}}), 10,
+           "multiple phrases v2");
 }
 
-void TestAtomicPublicationSyncFailures(const std::string& root) {
+void TestAtomicPublicationSyncFailures(const std::string &root) {
   const std::vector<std::string> initialization_faults = {
       "metadata_file_fsync", "manifest_directory_fsync"};
   m4::Options options;
@@ -1336,7 +1532,7 @@ void TestAtomicPublicationSyncFailures(const std::string& root) {
   options.max_delta_bytes = 1ull << 30;
   options.wal_enabled = true;
   options.fsync_wal = true;
-  for (const auto& fault : initialization_faults) {
+  for (const auto &fault : initialization_faults) {
     const std::string dir = root + "/initial-" + fault;
     fs::remove_all(dir);
     std::unique_ptr<Index> index;
@@ -1381,15 +1577,16 @@ void TestAtomicPublicationSyncFailures(const std::string& root) {
   ::unsetenv("M4_FAULT");
 
   const std::vector<std::string> faults = {
-      "segment_file_fsync", "segment_directory_fsync",
-      "metadata_file_fsync", "manifest_directory_fsync"};
-  for (const auto& fault : faults) {
+      "segment_file_fsync", "segment_directory_fsync", "metadata_file_fsync",
+      "manifest_directory_fsync"};
+  for (const auto &fault : faults) {
     const std::string dir = root + "/" + fault;
     fs::remove_all(dir);
     std::unique_ptr<Index> index;
     Check(Index::Open(dir, options, &index).ok,
           "durability-fault open " + fault);
-    if (!index) continue;
+    if (!index)
+      continue;
     Document document;
     document.text = "atomic publication durable alpha";
     RefState ref;
@@ -1603,7 +1800,7 @@ void TestWalRecordBounds(const std::string &dir) {
   constexpr size_t kRecordLimit = 2u << 20;
   const std::string pk = "record-cap";
   const size_t text_size = kRecordLimit - 32;
-  const auto encoded_upsert_size = [&](const std::string& text) {
+  const auto encoded_upsert_size = [&](const std::string &text) {
     m4::BufWriter payload;
     payload.U8(1);
     payload.U64(0);
@@ -1626,7 +1823,8 @@ void TestWalRecordBounds(const std::string &dir) {
     std::unique_ptr<Index> index;
     Check(Index::Open(dir, options, &index).ok,
           "record-cap boundary index open");
-    if (!index) return;
+    if (!index)
+      return;
     Check(index->Upsert(pk, boundary).ok,
           "Upsert at exact application record boundary is accepted");
     const fs::path wal_path = fs::path(dir) / "wal.log";
@@ -1634,8 +1832,8 @@ void TestWalRecordBounds(const std::string &dir) {
     std::string before_rejection{std::istreambuf_iterator<char>(input),
                                  std::istreambuf_iterator<char>()};
     Check(before_rejection.size() >= 24 &&
-              m4::BufReader(before_rejection.data(), before_rejection.size()).U32() ==
-                  0x4D345731,
+              m4::BufReader(before_rejection.data(), before_rejection.size())
+                      .U32() == 0x4D345731,
           "boundary Upsert is represented by a complete sequenced WAL frame");
     Document too_large = boundary;
     too_large.text.push_back('!');
@@ -1645,8 +1843,9 @@ void TestWalRecordBounds(const std::string &dir) {
     Check(index->GetStats().live_docs == 1,
           "oversized Upsert leaves query-visible state unchanged");
     std::ifstream after_input(wal_path, std::ios::binary);
-    const std::string after_rejection{std::istreambuf_iterator<char>(after_input),
-                                      std::istreambuf_iterator<char>()};
+    const std::string after_rejection{
+        std::istreambuf_iterator<char>(after_input),
+        std::istreambuf_iterator<char>()};
     Check(after_rejection == before_rejection,
           "oversized Upsert writes no WAL bytes and consumes no sequence");
 
@@ -1661,33 +1860,35 @@ void TestWalRecordBounds(const std::string &dir) {
     }();
     std::vector<m4::Mutation> atomic_batch;
     atomic_batch.emplace_back(m4::MutationKind::UPSERT, "batch-small", small);
-    atomic_batch.emplace_back(m4::MutationKind::UPSERT, "batch-large", too_large);
+    atomic_batch.emplace_back(m4::MutationKind::UPSERT, "batch-large",
+                              too_large);
     const m4::Status batch_status = index->ApplyBatch(atomic_batch);
     Check(!batch_status.ok,
           "atomic batch rejects oversized child before WAL append");
     Check(index->GetStats().live_docs == 2,
           "oversized atomic batch applies none of its prefix");
     std::ifstream after_batch_input(wal_path, std::ios::binary);
-    const std::string after_batch{std::istreambuf_iterator<char>(after_batch_input),
-                                  std::istreambuf_iterator<char>()};
+    const std::string after_batch{
+        std::istreambuf_iterator<char>(after_batch_input),
+        std::istreambuf_iterator<char>()};
     Check(after_batch == after_valid,
           "rejected atomic batch leaves the durable WAL unchanged");
   }
   {
     std::unique_ptr<Index> reopened;
     const m4::Status status = Index::Open(dir, options, &reopened);
-    Check(status.ok, "exact-boundary and post-rejection WAL reopens: " +
-                         status.message);
+    Check(status.ok,
+          "exact-boundary and post-rejection WAL reopens: " + status.message);
     if (reopened) {
       Check(reopened->GetStats().live_docs == 2,
             "reopen recovers boundary record and later valid record exactly");
     }
   }
 
-  const auto write_legacy_frame = [](const fs::path& path,
-                                     const std::string& payload) {
+  const auto write_legacy_frame = [](const fs::path &path,
+                                     const std::string &payload) {
     m4::BufWriter frame;
-    frame.U32(0x4D34574C);  // Legacy M4WL, with its historical FNV checksum.
+    frame.U32(0x4D34574C); // Legacy M4WL, with its historical FNV checksum.
     frame.U32(static_cast<uint32_t>(payload.size()));
     frame.U64(1);
     frame.U32(static_cast<uint32_t>(m4::Fnv1a(payload.data(), payload.size()) &
@@ -1699,31 +1900,33 @@ void TestWalRecordBounds(const std::string &dir) {
     output.flush();
     return output.good();
   };
-  const auto prepare_empty_index = [&](const std::string& path) {
+  const auto prepare_empty_index = [&](const std::string &path) {
     fs::remove_all(path);
     std::unique_ptr<Index> index;
     const m4::Status status = Index::Open(path, options, &index);
     Check(status.ok, "legacy WAL fixture index open: " + status.message);
   };
-  const auto wal_contents = [](const fs::path& path) {
+  const auto wal_contents = [](const fs::path &path) {
     std::ifstream input(path, std::ios::binary);
     return std::string{std::istreambuf_iterator<char>(input),
                        std::istreambuf_iterator<char>()};
   };
-  const auto check_legacy_rejected_and_retained = [&](const std::string& path,
-                                                       const std::string& payload,
-                                                       const std::string& reason) {
-    prepare_empty_index(path);
-    const fs::path wal_path = fs::path(path) / "wal.log";
-    Check(write_legacy_frame(wal_path, payload), reason + " fixture written");
-    const std::string durable_bytes = wal_contents(wal_path);
-    std::unique_ptr<Index> rejected;
-    const m4::Status status = Index::Open(path, options, &rejected);
-    Check(!status.ok && !rejected && status.message.find(reason) != std::string::npos,
-          reason + " fails closed with a clear recovery error");
-    Check(wal_contents(wal_path) == durable_bytes,
-          reason + " leaves the durable legacy WAL unchanged");
-  };
+  const auto check_legacy_rejected_and_retained =
+      [&](const std::string &path, const std::string &payload,
+          const std::string &reason) {
+        prepare_empty_index(path);
+        const fs::path wal_path = fs::path(path) / "wal.log";
+        Check(write_legacy_frame(wal_path, payload),
+              reason + " fixture written");
+        const std::string durable_bytes = wal_contents(wal_path);
+        std::unique_ptr<Index> rejected;
+        const m4::Status status = Index::Open(path, options, &rejected);
+        Check(!status.ok && !rejected &&
+                  status.message.find(reason) != std::string::npos,
+              reason + " fails closed with a clear recovery error");
+        Check(wal_contents(wal_path) == durable_bytes,
+              reason + " leaves the durable legacy WAL unchanged");
+      };
 
   std::string malformed_payload;
   {
@@ -1738,9 +1941,8 @@ void TestWalRecordBounds(const std::string &dir) {
     payload.Bytes(overflow_length, sizeof(overflow_length));
     malformed_payload = payload.data();
   }
-  check_legacy_rejected_and_retained(dir + "-malformed-varint",
-                                    malformed_payload,
-                                    "bad upsert wal record");
+  check_legacy_rejected_and_retained(
+      dir + "-malformed-varint", malformed_payload, "bad upsert wal record");
 
   std::string oversized_payload;
   {
@@ -1754,8 +1956,7 @@ void TestWalRecordBounds(const std::string &dir) {
     oversized_payload = payload.data();
   }
   check_legacy_rejected_and_retained(dir + "-legacy-oversized",
-                                    oversized_payload,
-                                    "2 MiB record limit");
+                                     oversized_payload, "2 MiB record limit");
 }
 
 void TestWalSequenceChecksumBoundary(const std::string &dir) {
@@ -2225,16 +2426,24 @@ void TestAtomicMutationBatch(const std::string &root) {
     m4::WriteDiagnostics diagnostics;
     const auto status = index->ApplyBatch(batch, &diagnostics);
     Check(status.ok, "batch diagnostics apply: " + status.message);
-    const double timings[] = {
-        diagnostics.normalize_ms, diagnostics.normalize_cpu_ms,
-        diagnostics.state_mutex_wait_ms, diagnostics.state_mutex_wait_cpu_ms,
-        diagnostics.state_mutex_hold_ms, diagnostics.state_mutex_hold_cpu_ms,
-        diagnostics.wal_encode_ms, diagnostics.wal_encode_cpu_ms,
-        diagnostics.wal_append_ms, diagnostics.wal_append_cpu_ms,
-        diagnostics.wal_write_ms, diagnostics.wal_fsync_ms,
-        diagnostics.query_mutex_wait_ms, diagnostics.query_mutex_wait_cpu_ms,
-        diagnostics.apply_ms, diagnostics.apply_cpu_ms,
-        diagnostics.auto_flush_ms, diagnostics.auto_flush_cpu_ms};
+    const double timings[] = {diagnostics.normalize_ms,
+                              diagnostics.normalize_cpu_ms,
+                              diagnostics.state_mutex_wait_ms,
+                              diagnostics.state_mutex_wait_cpu_ms,
+                              diagnostics.state_mutex_hold_ms,
+                              diagnostics.state_mutex_hold_cpu_ms,
+                              diagnostics.wal_encode_ms,
+                              diagnostics.wal_encode_cpu_ms,
+                              diagnostics.wal_append_ms,
+                              diagnostics.wal_append_cpu_ms,
+                              diagnostics.wal_write_ms,
+                              diagnostics.wal_fsync_ms,
+                              diagnostics.query_mutex_wait_ms,
+                              diagnostics.query_mutex_wait_cpu_ms,
+                              diagnostics.apply_ms,
+                              diagnostics.apply_cpu_ms,
+                              diagnostics.auto_flush_ms,
+                              diagnostics.auto_flush_cpu_ms};
     for (double timing : timings) {
       Check(std::isfinite(timing) && timing >= 0.0,
             "batch diagnostics are finite and nonnegative");
@@ -2244,8 +2453,11 @@ void TestAtomicMutationBatch(const std::string &root) {
           "WAL write and fsync timings are contained in append duration");
     m4::WriteDiagnostics disabled;
     disabled.capture_timing = false;
-    Check(index->ApplyBatch({{m4::MutationKind::UPSERT, "untimed",
-                              doc("untimed batch")}}, &disabled).ok,
+    Check(index
+              ->ApplyBatch(
+                  {{m4::MutationKind::UPSERT, "untimed", doc("untimed batch")}},
+                  &disabled)
+              .ok,
           "untimed batch apply");
     Check(disabled.state_mutex_hold_ms == 0.0 &&
               disabled.wal_append_ms == 0.0 && disabled.wal_write_ms == 0.0 &&
@@ -2253,9 +2465,10 @@ void TestAtomicMutationBatch(const std::string &root) {
           "disabled batch diagnostics stay zero");
     m4::WriteDiagnostics disabled_upsert;
     disabled_upsert.capture_timing = false;
-    Check(index->Upsert("untimed-upsert", doc("untimed writer"),
-                        &disabled_upsert).ok,
-          "untimed Upsert");
+    Check(
+        index->Upsert("untimed-upsert", doc("untimed writer"), &disabled_upsert)
+            .ok,
+        "untimed Upsert");
     Check(!disabled_upsert.capture_timing &&
               disabled_upsert.wal_append_ms == 0.0 &&
               disabled_upsert.wal_write_ms == 0.0 &&
@@ -2266,7 +2479,8 @@ void TestAtomicMutationBatch(const std::string &root) {
     Check(index->Flush(&flush_diagnostics).ok,
           "explicit flush diagnostics flush pending batch");
     const double flush_timings[] = {
-        flush_diagnostics.total_ms, flush_diagnostics.total_cpu_ms,
+        flush_diagnostics.total_ms,
+        flush_diagnostics.total_cpu_ms,
         flush_diagnostics.state_mutex_wait_ms,
         flush_diagnostics.state_mutex_wait_cpu_ms,
         flush_diagnostics.state_mutex_hold_ms,
@@ -2301,12 +2515,13 @@ void TestAtomicMutationBatch(const std::string &root) {
       Check(std::isfinite(timing) && timing >= 0.0,
             "explicit flush diagnostics are finite and nonnegative");
     }
-    Check(flush_diagnostics.total_ms >= flush_diagnostics.pending_flush_ms &&
-              flush_diagnostics.state_mutex_hold_ms >=
-                  flush_diagnostics.pending_flush_ms &&
-              flush_diagnostics.flush_query_mutex_hold_ms <=
-                  flush_diagnostics.pending_flush_ms,
-          "explicit flush phase and query-lock hold lie within outer durations");
+    Check(
+        flush_diagnostics.total_ms >= flush_diagnostics.pending_flush_ms &&
+            flush_diagnostics.state_mutex_hold_ms >=
+                flush_diagnostics.pending_flush_ms &&
+            flush_diagnostics.flush_query_mutex_hold_ms <=
+                flush_diagnostics.pending_flush_ms,
+        "explicit flush phase and query-lock hold lie within outer durations");
 
     m4::CompactionDiagnostics disabled_flush;
     disabled_flush.capture_timing = false;
@@ -2321,7 +2536,7 @@ void TestAtomicMutationBatch(const std::string &root) {
           "disabled explicit flush diagnostics stay zero");
   }
 
-  auto seed = [&](const std::string& dir) {
+  auto seed = [&](const std::string &dir) {
     fs::remove_all(dir);
     std::unique_ptr<Index> index;
     const auto opened = Index::Open(dir, options, &index);
@@ -2345,7 +2560,8 @@ void TestAtomicMutationBatch(const std::string &root) {
     Check(index->GetStats().live_docs == 2, "pre-WAL batch leaves old count");
     index.reset();
     Check(Index::Open(dir, options, &index).ok, "batch before-wal recovery");
-    Check(index->GetStats().live_docs == 2, "pre-WAL batch absent after recovery");
+    Check(index->GetStats().live_docs == 2,
+          "pre-WAL batch absent after recovery");
   }
 
   // Mutation-count and encoded-byte caps are enforced before WAL publication.
@@ -2356,10 +2572,13 @@ void TestAtomicMutationBatch(const std::string &root) {
     Check(Index::Open(dir, options, &index).ok, "batch bounds reopen");
     std::vector<m4::Mutation> too_many;
     for (int i = 0; i < 257; ++i)
-      too_many.emplace_back(m4::MutationKind::UPSERT, "cap-" + std::to_string(i), doc("bounded"));
+      too_many.emplace_back(m4::MutationKind::UPSERT,
+                            "cap-" + std::to_string(i), doc("bounded"));
     Check(!index->ApplyBatch(too_many).ok, "batch mutation count cap");
-    Check(!index->ApplyBatch({{m4::MutationKind::UPSERT, "oversize",
-                               doc(std::string((8u << 20) + 1, 'x'))}}).ok,
+    Check(!index
+               ->ApplyBatch({{m4::MutationKind::UPSERT, "oversize",
+                              doc(std::string((8u << 20) + 1, 'x'))}})
+               .ok,
           "batch encoded byte cap");
     Check(index->GetStats().live_docs == 2 && index->GetStats().wal_fsyncs == 0,
           "rejected batches do not publish or sync");
@@ -2367,20 +2586,22 @@ void TestAtomicMutationBatch(const std::string &root) {
 
   // A process crash immediately after durable publication, and another after
   // the first in-memory operation, must both recover the complete batch.
-  for (const std::string failpoint : {"batch_after_wal_sync",
-                                      "batch_after_first_apply"}) {
+  for (const std::string failpoint :
+       {"batch_after_wal_sync", "batch_after_first_apply"}) {
     const std::string dir = root + "/" + failpoint;
     seed(dir);
     pid_t child = ::fork();
     if (child == 0) {
       ::setenv("M4_FAULT", failpoint.c_str(), 1);
       std::unique_ptr<Index> index;
-      if (!Index::Open(dir, options, &index).ok) ::_exit(10);
+      if (!Index::Open(dir, options, &index).ok)
+        ::_exit(10);
       const auto status = index->ApplyBatch(batch);
       ::_exit(status.ok ? 11 : 12);
     }
     int child_status = 0;
-    const bool waited = child > 0 && ::waitpid(child, &child_status, 0) == child;
+    const bool waited =
+        child > 0 && ::waitpid(child, &child_status, 0) == child;
     Check(waited, failpoint + " child wait");
     Check(waited && WIFEXITED(child_status) &&
               WEXITSTATUS(child_status) ==
@@ -2390,7 +2611,8 @@ void TestAtomicMutationBatch(const std::string &root) {
     std::unique_ptr<Index> recovered;
     const auto opened = Index::Open(dir, options, &recovered);
     Check(opened.ok, failpoint + " recovery open: " + opened.message);
-    if (!opened.ok) continue;
+    if (!opened.ok)
+      continue;
     Check(recovered->GetStats().live_docs == 2,
           failpoint + " recovers final live count");
     m4::SearchResult all;
@@ -2398,7 +2620,7 @@ void TestAtomicMutationBatch(const std::string &root) {
           failpoint + " all-doc query");
     std::set<std::string> pks;
     std::set<m4::DocId> ids;
-    for (const auto& hit : all.hits) {
+    for (const auto &hit : all.hits) {
       pks.insert(hit.pk);
       ids.insert(hit.doc_id);
     }
@@ -2427,10 +2649,13 @@ void TestAtomicMutationBatch(const std::string &root) {
     Check(index->ApplyBatch(first).ok, "torn-tail first batch");
     index.reset();
     {
-      std::ofstream wal(fs::path(dir) / "wal.log", std::ios::binary | std::ios::app);
-      wal.write("1W4", 3); // A torn prefix of the sequence-bound raw-frame magic.
+      std::ofstream wal(fs::path(dir) / "wal.log",
+                        std::ios::binary | std::ios::app);
+      wal.write("1W4",
+                3); // A torn prefix of the sequence-bound raw-frame magic.
     }
-    Check(Index::Open(dir, options, &index).ok, "torn-tail replay repairs suffix");
+    Check(Index::Open(dir, options, &index).ok,
+          "torn-tail replay repairs suffix");
     Check(index->GetStats().live_docs == 2, "torn-tail retains complete batch");
     Check(index->ApplyBatch({{m4::MutationKind::UPSERT, "c", doc("gamma")}}).ok,
           "append after torn-tail repair");
@@ -2468,11 +2693,11 @@ void TestAtomicMutationBatch(const std::string &root) {
         }
       }
     });
-    while (!started.load(std::memory_order_acquire)) std::this_thread::yield();
+    while (!started.load(std::memory_order_acquire))
+      std::this_thread::yield();
     Check(index->ApplyBatch(many).ok, "visibility atomic batch");
     const auto write_stats = index->GetStats();
-    Check(write_stats.wal_fsyncs == 3,
-          "full durable batch uses one WAL sync");
+    Check(write_stats.wal_fsyncs == 3, "full durable batch uses one WAL sync");
     Check(write_stats.wal_bytes_appended > 0 &&
               write_stats.wal_bytes_appended == write_stats.wal_bytes,
           "WAL append-byte counter matches bytes retained before checkpoint");
@@ -2511,14 +2736,17 @@ void TestAtomicMutationBatch(const std::string &root) {
     for (int i = 0; i < 4; ++i) {
       writers.emplace_back([&, i] {
         ready.fetch_add(1, std::memory_order_release);
-        while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+        while (!start.load(std::memory_order_acquire))
+          std::this_thread::yield();
         if (!index->Upsert("group-" + std::to_string(i), doc("group token")).ok)
           writer_errors.fetch_add(1, std::memory_order_relaxed);
       });
     }
-    while (ready.load(std::memory_order_acquire) != 4) std::this_thread::yield();
+    while (ready.load(std::memory_order_acquire) != 4)
+      std::this_thread::yield();
     start.store(true, std::memory_order_release);
-    for (auto& writer : writers) writer.join();
+    for (auto &writer : writers)
+      writer.join();
     reader_done.store(true, std::memory_order_release);
     reader.join();
     Check(writer_errors.load() == 0, "group-commit writers succeed");
@@ -2558,31 +2786,36 @@ void TestAtomicMutationBatch(const std::string &root) {
       for (int i = 0; i < 2; ++i) {
         writers.emplace_back([&, i] {
           ready.fetch_add(1, std::memory_order_release);
-          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
-          const std::string text = std::string(2048, i == 0 ? 'x' : 'y') +
-                                   " group token";
+          while (!start.load(std::memory_order_acquire))
+            std::this_thread::yield();
+          const std::string text =
+              std::string(2048, i == 0 ? 'x' : 'y') + " group token";
           if (!index->Upsert("separate-" + std::to_string(i), doc(text)).ok)
             writer_errors.fetch_add(1, std::memory_order_relaxed);
         });
       }
-      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      while (ready.load(std::memory_order_acquire) != 2)
+        std::this_thread::yield();
       start.store(true, std::memory_order_release);
-      const auto deadline = std::chrono::steady_clock::now() +
-                            std::chrono::seconds(5);
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(5);
       std::error_code ec;
       const fs::path applied = fs::path(barrier) / "first-upsert-applied";
-      while (!fs::exists(applied, ec) && std::chrono::steady_clock::now() < deadline)
+      while (!fs::exists(applied, ec) &&
+             std::chrono::steady_clock::now() < deadline)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       const bool paused_after_first = fs::exists(applied, ec);
       m4::SearchResult prefix;
-      const bool prefix_read = index->SearchFilter(m4::FilterExpr::All(), &prefix).ok;
+      const bool prefix_read =
+          index->SearchFilter(m4::FilterExpr::All(), &prefix).ok;
       Check(paused_after_first && prefix_read && prefix.hits.size() == 1,
             "separate-frame group exposes one complete Upsert before the next");
       fs::create_directories(barrier, ec);
       std::ofstream release(fs::path(barrier) / "continue", std::ios::binary);
       release << "continue\n";
       release.close();
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       ::unsetenv("M4_TEST_WRITER_GROUP_STEP_BARRIER");
       Check(writer_errors.load() == 0, "per-Upsert group callers succeed");
       const auto stats = index->GetStats();
@@ -2592,12 +2825,12 @@ void TestAtomicMutationBatch(const std::string &root) {
       const std::string contents((std::istreambuf_iterator<char>(wal)),
                                  std::istreambuf_iterator<char>());
       size_t compressed_frames = 0;
-      for (size_t pos = 0; (pos = contents.find("2W4M", pos)) != std::string::npos;
-           pos += 4) {
+      for (size_t pos = 0;
+           (pos = contents.find("2W4M", pos)) != std::string::npos; pos += 4) {
         ++compressed_frames;
       }
-      Check(compressed_frames == 2,
-            "separate-record group writes two individually compressed WAL frames");
+      Check(compressed_frames == 2, "separate-record group writes two "
+                                    "individually compressed WAL frames");
       index.reset();
       Check(Index::Open(dir, grouped, &index).ok,
             "separate-record compressed group replay open");
@@ -2628,7 +2861,8 @@ void TestAtomicMutationBatch(const std::string &root) {
     const bool opened = Index::Open(dir, grouped, &index).ok;
     Check(opened, "saturated writer-group open");
     if (opened) {
-      constexpr int kWriters = 24;  // queue holds at most 8 plus the active group
+      constexpr int kWriters =
+          24; // queue holds at most 8 plus the active group
       std::atomic<int> ready{0};
       std::atomic<int> completed{0};
       std::atomic<int> errors{0};
@@ -2642,26 +2876,31 @@ void TestAtomicMutationBatch(const std::string &root) {
           completed.fetch_add(1, std::memory_order_release);
         });
       }
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(5);
       std::error_code ec;
       const fs::path applied = fs::path(barrier) / "first-upsert-applied";
-      while ((!fs::exists(applied, ec) || ready.load(std::memory_order_acquire) != kWriters) &&
+      while ((!fs::exists(applied, ec) ||
+              ready.load(std::memory_order_acquire) != kWriters) &&
              std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
-      const bool saturated = fs::exists(applied, ec) &&
+      const bool saturated =
+          fs::exists(applied, ec) &&
           ready.load(std::memory_order_acquire) == kWriters &&
           completed.load(std::memory_order_acquire) == 0;
-      Check(saturated, "bounded writer queue applies backpressure at saturation");
+      Check(saturated,
+            "bounded writer queue applies backpressure at saturation");
       fs::create_directories(barrier, ec);
       std::ofstream release(fs::path(barrier) / "continue", std::ios::binary);
       release << "continue\\n";
       release.close();
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       ::unsetenv("M4_TEST_WRITER_GROUP_STEP_BARRIER");
       Check(errors.load() == 0 && completed.load() == kWriters,
             "saturated writer queue eventually returns every durable ACK");
-      index.reset();  // orderly shutdown after all callers have received ACKs
+      index.reset(); // orderly shutdown after all callers have received ACKs
       Check(Index::Open(dir, grouped, &index).ok,
             "saturated writer-group recovery open");
       if (index) {
@@ -2693,14 +2932,17 @@ void TestAtomicMutationBatch(const std::string &root) {
       for (const std::string text : {"first-token", "second-token"}) {
         writers.emplace_back([&, text] {
           ready.fetch_add(1, std::memory_order_release);
-          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          while (!start.load(std::memory_order_acquire))
+            std::this_thread::yield();
           if (!index->Upsert("same-pk", doc(text)).ok)
             errors.fetch_add(1, std::memory_order_relaxed);
         });
       }
-      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      while (ready.load(std::memory_order_acquire) != 2)
+        std::this_thread::yield();
       start.store(true, std::memory_order_release);
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       Check(errors.load() == 0 && index->GetStats().live_docs == 1 &&
                 index->GetStats().wal_fsyncs == 1,
             "duplicate-PK group preserves one live version with shared fsync");
@@ -2735,15 +2977,20 @@ void TestAtomicMutationBatch(const std::string &root) {
       for (int i = 0; i < 2; ++i) {
         writers.emplace_back([&, i] {
           ready.fetch_add(1, std::memory_order_release);
-          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
-          if (!index->Upsert("auto-flush-" + std::to_string(i),
-                             doc("auto flush token")).ok)
+          while (!start.load(std::memory_order_acquire))
+            std::this_thread::yield();
+          if (!index
+                   ->Upsert("auto-flush-" + std::to_string(i),
+                            doc("auto flush token"))
+                   .ok)
             errors.fetch_add(1, std::memory_order_relaxed);
         });
       }
-      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      while (ready.load(std::memory_order_acquire) != 2)
+        std::this_thread::yield();
       start.store(true, std::memory_order_release);
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       Check(errors.load() == 0 && index->GetStats().live_docs == 2 &&
                 index->GetStats().wal_fsyncs == 1,
             "auto-flush after a grouped sync publishes every Upsert");
@@ -2760,7 +3007,7 @@ void TestAtomicMutationBatch(const std::string &root) {
   // Once all individual frames share a durable fsync, crashes before or during
   // publication must recover only complete records, and after-sync recovery
   // must restore the entire group even if only its first record was applied.
-  for (const auto& crash_case : std::vector<std::pair<std::string, int>>{
+  for (const auto &crash_case : std::vector<std::pair<std::string, int>>{
            {"writer_group_before_wal_sync", 92},
            {"writer_group_after_wal_sync", 90},
            {"writer_group_after_first_apply", 91}}) {
@@ -2775,25 +3022,30 @@ void TestAtomicMutationBatch(const std::string &root) {
       grouped.writer_group_commit_per_upsert_records = true;
       grouped.wal_compression_lz4 = true;
       std::unique_ptr<Index> index;
-      if (!Index::Open(dir, grouped, &index).ok) ::_exit(10);
+      if (!Index::Open(dir, grouped, &index).ok)
+        ::_exit(10);
       std::atomic<int> ready{0};
       std::atomic<bool> start{false};
       std::vector<std::thread> writers;
       for (int i = 0; i < 2; ++i) {
         writers.emplace_back([&, i] {
           ready.fetch_add(1, std::memory_order_release);
-          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          while (!start.load(std::memory_order_acquire))
+            std::this_thread::yield();
           (void)index->Upsert("crash-" + std::to_string(i),
                               doc(std::string(2048, 'z') + " durable"));
         });
       }
-      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      while (ready.load(std::memory_order_acquire) != 2)
+        std::this_thread::yield();
       start.store(true, std::memory_order_release);
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       ::_exit(12);
     }
     int child_status = 0;
-    const bool waited = child > 0 && ::waitpid(child, &child_status, 0) == child;
+    const bool waited =
+        child > 0 && ::waitpid(child, &child_status, 0) == child;
     Check(waited && WIFEXITED(child_status) &&
               WEXITSTATUS(child_status) == crash_case.second,
           crash_case.first + " reaches its group-commit crash boundary");
@@ -2805,7 +3057,8 @@ void TestAtomicMutationBatch(const std::string &root) {
       if (crash_case.first == "writer_group_before_wal_sync") {
         Check(live <= 2, "pre-sync crash replays only complete group records");
       } else {
-        Check(live == 2, "post-sync crash replays the entire individual-frame group");
+        Check(live == 2,
+              "post-sync crash replays the entire individual-frame group");
       }
     }
   }
@@ -2813,8 +3066,8 @@ void TestAtomicMutationBatch(const std::string &root) {
   // The per-Upsert mode must not silently provide a durability guarantee when
   // WAL fsync or WAL itself is disabled; retain the existing direct-path rules.
   for (const bool wal_enabled : {true, false}) {
-    const std::string dir = root +
-        (wal_enabled ? "/writer-group-no-fsync" : "/writer-group-no-wal");
+    const std::string dir = root + (wal_enabled ? "/writer-group-no-fsync"
+                                                : "/writer-group-no-wal");
     fs::remove_all(dir);
     m4::Options grouped = options;
     grouped.wal_enabled = wal_enabled;
@@ -2825,7 +3078,8 @@ void TestAtomicMutationBatch(const std::string &root) {
     std::unique_ptr<Index> index;
     Check(Index::Open(dir, grouped, &index).ok,
           wal_enabled ? "no-fsync group open" : "no-WAL group open");
-    if (!index) continue;
+    if (!index)
+      continue;
     std::atomic<int> ready{0};
     std::atomic<bool> start{false};
     std::atomic<int> errors{0};
@@ -2833,23 +3087,30 @@ void TestAtomicMutationBatch(const std::string &root) {
     for (int i = 0; i < 2; ++i) {
       writers.emplace_back([&, i] {
         ready.fetch_add(1, std::memory_order_release);
-        while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
-        if (!index->Upsert("non-durable-" + std::to_string(i),
-                           doc("non durable token")).ok)
+        while (!start.load(std::memory_order_acquire))
+          std::this_thread::yield();
+        if (!index
+                 ->Upsert("non-durable-" + std::to_string(i),
+                          doc("non durable token"))
+                 .ok)
           errors.fetch_add(1, std::memory_order_relaxed);
       });
     }
-    while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+    while (ready.load(std::memory_order_acquire) != 2)
+      std::this_thread::yield();
     start.store(true, std::memory_order_release);
-    for (auto& writer : writers) writer.join();
+    for (auto &writer : writers)
+      writer.join();
     const auto stats = index->GetStats();
     Check(errors.load() == 0 && stats.live_docs == 2 && stats.wal_fsyncs == 0,
-          wal_enabled ? "fsync-disabled mode makes no durability claim or hidden sync"
-                      : "WAL-disabled mode makes no durability claim or hidden sync");
+          wal_enabled
+              ? "fsync-disabled mode makes no durability claim or hidden sync"
+              : "WAL-disabled mode makes no durability claim or hidden sync");
     if (!wal_enabled) {
       Check(stats.wal_bytes == 0, "WAL-disabled mode appends no WAL records");
     } else {
-      Check(stats.wal_bytes > 0, "fsync-disabled direct path retains WAL append accounting");
+      Check(stats.wal_bytes > 0,
+            "fsync-disabled direct path retains WAL append accounting");
     }
   }
 
@@ -2874,23 +3135,28 @@ void TestAtomicMutationBatch(const std::string &root) {
       for (int i = 0; i < 2; ++i) {
         writers.emplace_back([&, i] {
           ready.fetch_add(1, std::memory_order_release);
-          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          while (!start.load(std::memory_order_acquire))
+            std::this_thread::yield();
           const auto status = index->Upsert(
               "append-prefix-" + std::to_string(i), doc("append prefix"));
-          if (status.ok) successes.fetch_add(1, std::memory_order_relaxed);
+          if (status.ok)
+            successes.fetch_add(1, std::memory_order_relaxed);
           else if (status.message.find("durable prefix") != std::string::npos)
             prefix_failures.fetch_add(1, std::memory_order_relaxed);
         });
       }
-      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      while (ready.load(std::memory_order_acquire) != 2)
+        std::this_thread::yield();
       start.store(true, std::memory_order_release);
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       ::unsetenv("M4_FAULT");
       m4::SearchResult visible;
       Check(successes.load() == 1 && prefix_failures.load() == 1 &&
                 index->SearchFilter(m4::FilterExpr::All(), &visible).ok &&
                 visible.hits.size() == 1,
-            "append failure returns one successful durable prefix and one unappended suffix");
+            "append failure returns one successful durable prefix and one "
+            "unappended suffix");
       Check(!index->Upsert("append-after-error", doc("blocked")).ok,
             "append-prefix error blocks further mutation until reopen");
       index.reset();
@@ -2922,17 +3188,22 @@ void TestAtomicMutationBatch(const std::string &root) {
       for (int i = 0; i < 2; ++i) {
         writers.emplace_back([&, i] {
           ready.fetch_add(1, std::memory_order_release);
-          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
-          const auto status = index->Upsert(
-              "apply-prefix-" + std::to_string(i), doc("apply prefix"));
-          if (status.ok) successes.fetch_add(1, std::memory_order_relaxed);
-          else if (status.message.find("suffix is durable") != std::string::npos)
+          while (!start.load(std::memory_order_acquire))
+            std::this_thread::yield();
+          const auto status = index->Upsert("apply-prefix-" + std::to_string(i),
+                                            doc("apply prefix"));
+          if (status.ok)
+            successes.fetch_add(1, std::memory_order_relaxed);
+          else if (status.message.find("suffix is durable") !=
+                   std::string::npos)
             reopen_failures.fetch_add(1, std::memory_order_relaxed);
         });
       }
-      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      while (ready.load(std::memory_order_acquire) != 2)
+        std::this_thread::yield();
       start.store(true, std::memory_order_release);
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       ::unsetenv("M4_FAULT");
       m4::SearchResult visible;
       Check(successes.load() == 1 && reopen_failures.load() == 1 &&
@@ -2940,8 +3211,11 @@ void TestAtomicMutationBatch(const std::string &root) {
                 visible.hits.size() == 1,
             "post-sync apply failure exposes only a complete visible prefix");
       Check(!index->ApplyBatch({{m4::MutationKind::UPSERT, "apply-blocked",
-                                 doc("blocked")}}).ok && !index->Flush().ok,
-            "post-sync apply failure blocks new batches/checkpoints until reopen");
+                                 doc("blocked")}})
+                    .ok &&
+                !index->Flush().ok,
+            "post-sync apply failure blocks new batches/checkpoints until "
+            "reopen");
       index.reset();
       Check(Index::Open(dir, options, &index).ok,
             "post-sync apply failure resolves through WAL reopen");
@@ -2970,24 +3244,32 @@ void TestAtomicMutationBatch(const std::string &root) {
       for (int i = 0; i < 2; ++i) {
         writers.emplace_back([&, i] {
           ready.fetch_add(1, std::memory_order_release);
-          while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+          while (!start.load(std::memory_order_acquire))
+            std::this_thread::yield();
           const auto status = index->Upsert("uncertain-" + std::to_string(i),
                                             doc("uncertain token"));
-          if (!status.ok && status.message.find("outcome uncertain") != std::string::npos)
+          if (!status.ok &&
+              status.message.find("outcome uncertain") != std::string::npos)
             failures.fetch_add(1, std::memory_order_relaxed);
         });
       }
-      while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+      while (ready.load(std::memory_order_acquire) != 2)
+        std::this_thread::yield();
       start.store(true, std::memory_order_release);
-      for (auto& writer : writers) writer.join();
+      for (auto &writer : writers)
+        writer.join();
       ::unsetenv("M4_FAULT");
-      Check(failures.load() == 2, "shared-fsync failure marks both ACKs uncertain");
+      Check(failures.load() == 2,
+            "shared-fsync failure marks both ACKs uncertain");
       Check(!index->Upsert("after-failure", doc("blocked")).ok &&
                 !index->Delete("uncertain-0").ok &&
-                !index->ApplyBatch({{m4::MutationKind::UPSERT, "blocked-batch",
-                                     doc("blocked")}}).ok &&
+                !index
+                     ->ApplyBatch({{m4::MutationKind::UPSERT, "blocked-batch",
+                                    doc("blocked")}})
+                     .ok &&
                 !index->Flush().ok && !index->CompactNow().ok,
-            "uncertain durable/apply state blocks all further mutations and checkpoints");
+            "uncertain durable/apply state blocks all further mutations and "
+            "checkpoints");
       index.reset();
       Check(Index::Open(dir, options, &index).ok,
             "fsync-failure state can be resolved by reopening WAL");
@@ -3006,16 +3288,20 @@ void TestAtomicMutationBatch(const std::string &root) {
       grouped.writer_group_commit_max_batch_size = 2;
       grouped.writer_group_commit_max_delay_us = 50000;
       std::unique_ptr<Index> index;
-      if (!Index::Open(dir, grouped, &index).ok) ::_exit(10);
-      if (!index->Upsert("group-crash", doc("durable group" )).ok) ::_exit(11);
+      if (!Index::Open(dir, grouped, &index).ok)
+        ::_exit(10);
+      if (!index->Upsert("group-crash", doc("durable group")).ok)
+        ::_exit(11);
       ::_exit(12);
     }
     int child_status = 0;
-    const bool waited = child > 0 && ::waitpid(child, &child_status, 0) == child;
+    const bool waited =
+        child > 0 && ::waitpid(child, &child_status, 0) == child;
     Check(waited && WIFEXITED(child_status) && WEXITSTATUS(child_status) == 86,
           "group-commit crash occurs after WAL sync");
     std::unique_ptr<Index> recovered;
-    Check(Index::Open(dir, options, &recovered).ok, "group-commit crash reopen");
+    Check(Index::Open(dir, options, &recovered).ok,
+          "group-commit crash reopen");
     if (recovered) {
       m4::SearchResult result;
       Check(recovered->GetStats().live_docs == 3 &&
@@ -3042,8 +3328,10 @@ void TestAtomicMutationBatch(const std::string &root) {
         m4::SearchResult filtered_fts;
         if (!index->SearchFilter(m4::FilterExpr::All(), &all).ok ||
             !index->SearchFts("race", 10, &fts).ok ||
-            !index->SearchFtsFiltered("race", 10, m4::FilterExpr::All(),
-                                      &filtered_fts).ok ||
+            !index
+                 ->SearchFtsFiltered("race", 10, m4::FilterExpr::All(),
+                                     &filtered_fts)
+                 .ok ||
             all.hits.size() > 1 || fts.hits.size() > 1 ||
             filtered_fts.hits.size() > 1 ||
             (!fts.hits.empty() && fts.hits[0].pk != "race") ||
@@ -3073,7 +3361,8 @@ void TestAtomicMutationBatch(const std::string &root) {
         }
       });
     }
-    for (auto& writer : writers) writer.join();
+    for (auto &writer : writers)
+      writer.join();
     Check(writer_errors.load() == 0, "same-PK concurrent writers succeed");
     Check(index->GetStats().live_docs <= 1,
           "same-PK concurrent writers preserve one live version");
@@ -3086,15 +3375,15 @@ void TestAtomicMutationBatch(const std::string &root) {
     Check(reader_errors.load() == 0,
           "active readers see consistent snapshots through compaction");
     index.reset();
-    Check(Index::Open(dir, options, &index).ok,
-          "same-PK race reopen after GC");
+    Check(Index::Open(dir, options, &index).ok, "same-PK race reopen after GC");
     m4::SearchResult all;
-    Check(index->SearchFilter(m4::FilterExpr::All(), &all).ok && all.hits.empty(),
+    Check(index->SearchFilter(m4::FilterExpr::All(), &all).ok &&
+              all.hits.empty(),
           "same-PK final tombstone survives GC and recovery");
   }
 }
 
-void TestStatsEventCoalescing(const std::string& root) {
+void TestStatsEventCoalescing(const std::string &root) {
   RefState ref;
   std::vector<m4::Mutation> batch;
   batch.reserve(128);
@@ -3115,15 +3404,16 @@ void TestStatsEventCoalescing(const std::string& root) {
     options.coalesce_stats_events = coalesce;
     options.stats_log_threshold = 1ull << 30;
     std::unique_ptr<Index> index;
-    Check(Index::Open(dir, options, &index).ok,
-          "stats event coalescing open");
+    Check(Index::Open(dir, options, &index).ok, "stats event coalescing open");
     Check(index->ApplyBatch(batch).ok, "stats event coalescing batch");
     Check(index->Flush().ok, "stats event coalescing flush");
     const auto before_reopen = index->GetStats();
     Check(before_reopen.live_docs == batch.size(),
           "stats event coalescing live-doc count");
-    if (coalesce) coalesced_log_bytes = before_reopen.stats_log_bytes;
-    else legacy_log_bytes = before_reopen.stats_log_bytes;
+    if (coalesce)
+      coalesced_log_bytes = before_reopen.stats_log_bytes;
+    else
+      legacy_log_bytes = before_reopen.stats_log_bytes;
     index.reset();
 
     // Reopen with coalescing disabled to prove the on-disk delta stream is
@@ -3133,9 +3423,8 @@ void TestStatsEventCoalescing(const std::string& root) {
           "stats event coalescing reopen in legacy mode");
     Check(index->GetStats().live_docs == batch.size(),
           "stats event coalescing replayed live docs");
-    CheckFts(*index, ref, "sharedtoken",
-             MakeRefQuery({"sharedtoken"}, false), 10,
-             "stats event coalescing replayed document frequency");
+    CheckFts(*index, ref, "sharedtoken", MakeRefQuery({"sharedtoken"}, false),
+             10, "stats event coalescing replayed document frequency");
   }
   Check(coalesced_log_bytes < legacy_log_bytes / 2,
         "coalesced stats log is less than half legacy size: " +
@@ -3145,8 +3434,8 @@ void TestStatsEventCoalescing(const std::string& root) {
   uint64_t legacy_zero_net_log_bytes = 0;
   uint64_t coalesced_zero_net_log_bytes = 0;
   for (bool coalesce : {false, true}) {
-    const std::string dir = root + (coalesce ? "/zero-net-coalesced"
-                                             : "/zero-net-legacy");
+    const std::string dir =
+        root + (coalesce ? "/zero-net-coalesced" : "/zero-net-legacy");
     fs::remove_all(dir);
     m4::Options options;
     options.coalesce_stats_events = coalesce;
@@ -3167,8 +3456,7 @@ void TestStatsEventCoalescing(const std::string& root) {
     AddDoc(&zero_net_ref, "zero-net", replacement);
     Check(index->Delete("zero-net").ok, "zero-net stats first delete");
     DeleteDoc(&zero_net_ref, "zero-net");
-    Check(index->Upsert("zero-net", old_doc).ok,
-          "zero-net stats reinsert");
+    Check(index->Upsert("zero-net", old_doc).ok, "zero-net stats reinsert");
     AddDoc(&zero_net_ref, "zero-net", old_doc);
     Check(index->Delete("zero-net").ok, "zero-net stats final delete");
     DeleteDoc(&zero_net_ref, "zero-net");
@@ -3176,8 +3464,10 @@ void TestStatsEventCoalescing(const std::string& root) {
     Check(index->GetStats().live_docs == 0,
           "zero-net stats final live-doc count");
     const uint64_t log_bytes = index->GetStats().stats_log_bytes;
-    if (coalesce) coalesced_zero_net_log_bytes = log_bytes;
-    else legacy_zero_net_log_bytes = log_bytes;
+    if (coalesce)
+      coalesced_zero_net_log_bytes = log_bytes;
+    else
+      legacy_zero_net_log_bytes = log_bytes;
     index.reset();
 
     options.coalesce_stats_events = false;
@@ -3241,7 +3531,7 @@ void TestStatsEventCoalescing(const std::string& root) {
         "coalesced crash output preserves stats after legacy-setting reopen");
 }
 
-void TestBoundedRuns(const std::string& dir) {
+void TestBoundedRuns(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 8;
@@ -3259,17 +3549,17 @@ void TestBoundedRuns(const std::string& dir) {
     d.text = RandomText(&rng, 30);
     AddDoc(&ref, pk, d);
     Check(index->Upsert(pk, d).ok, "bounded upsert");
-    if (i % 9 == 0) index->Flush();
+    if (i % 9 == 0)
+      index->Flush();
   }
   Check(index->Flush().ok, "bounded flush");
   const auto st = index->GetStats();
   Check(st.runs <= opt.max_total_runs,
         "runs bounded: " + std::to_string(st.runs));
-  CheckFts(*index, ref, "w4", MakeRefQuery({"w4"}, false), 10,
-           "bounded query");
+  CheckFts(*index, ref, "w4", MakeRefQuery({"w4"}, false), 10, "bounded query");
 }
 
-void TestStatIndependentBounds(const std::string& dir) {
+void TestStatIndependentBounds(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 32;
@@ -3282,7 +3572,8 @@ void TestStatIndependentBounds(const std::string& dir) {
     Document d;
     const int tf = (i % 7) + 1;
     d.text.clear();
-    for (int k = 0; k < tf; ++k) d.text += "growth ";
+    for (int k = 0; k < tf; ++k)
+      d.text += "growth ";
     d.text += "filler" + std::to_string(i % 10);
     AddDoc(&ref, pk, d);
     Check(index->Upsert(pk, d).ok, "bounds upsert");
@@ -3303,14 +3594,13 @@ void TestStatIndependentBounds(const std::string& dir) {
            "bounds after corpus growth");
 }
 
-
-void TestHybrid(const std::string& dir) {
+void TestHybrid(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   std::unique_ptr<Index> index;
   m4::Status s = Index::Open(dir, opt, &index);
   Check(s.ok, "hybrid open");
-  auto put = [&](const std::string& pk, const std::string& text) {
+  auto put = [&](const std::string &pk, const std::string &text) {
     Document d;
     d.text = text;
     Check(index->Upsert(pk, d).ok, "hybrid upsert");
@@ -3335,7 +3625,7 @@ void TestHybrid(const std::string& dir) {
     Check(out.hits[i - 1].score >= out.hits[i].score, "hybrid sorted");
   }
   // Vector-only e cannot appear before a strong fused result.
-  for (const auto& h : out.hits) {
+  for (const auto &h : out.hits) {
     Check(vec.count(h.pk) != 0, "hybrid pk domain");
   }
 
@@ -3343,8 +3633,7 @@ void TestHybrid(const std::string& dir) {
   out.examined = 99;
   s = index->SearchHybrid("no_such_term", 2, 0.5, vec, &out);
   Check(s.ok, "hybrid vector-only status");
-  Check(out.hits.size() == 2 && out.hits[0].pk == "e" &&
-            out.hits[1].pk == "b",
+  Check(out.hits.size() == 2 && out.hits[0].pk == "e" && out.hits[1].pk == "b",
         "hybrid returns vector-only candidates when FTS has no hits");
   Check(out.examined == 0, "hybrid clears stale examined count");
 
@@ -3355,8 +3644,7 @@ void TestHybrid(const std::string& dir) {
         "hybrid top-k zero clears prior results");
 }
 
-
-void TestCompactionBudget(const std::string& dir) {
+void TestCompactionBudget(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 1000;
@@ -3370,7 +3658,8 @@ void TestCompactionBudget(const std::string& dir) {
     Document d;
     d.text = "term" + std::to_string(i) + " common";
     Check(index->Upsert("k" + std::to_string(i), d).ok, "budget upsert");
-    if (i == 149) Check(index->Flush().ok, "budget flush 1");
+    if (i == 149)
+      Check(index->Flush().ok, "budget flush 1");
   }
   Check(index->Flush().ok, "budget flush 2");
   const uint64_t runs_before = index->GetStats().runs;
@@ -3386,8 +3675,7 @@ void TestCompactionBudget(const std::string& dir) {
   Check(!r.hits.empty(), "budget index still searchable");
 }
 
-
-void TestSnapshotCompactionPrototype(const std::string& dir) {
+void TestSnapshotCompactionPrototype(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 1000;
@@ -3408,8 +3696,7 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
             std::isfinite(write_diagnostics.wal_fsync_ms) &&
             write_diagnostics.wal_write_ms >= 0.0 &&
             write_diagnostics.wal_fsync_ms >= 0.0 &&
-            write_diagnostics.wal_write_ms +
-                    write_diagnostics.wal_fsync_ms <=
+            write_diagnostics.wal_write_ms + write_diagnostics.wal_fsync_ms <=
                 write_diagnostics.wal_append_ms + 1e-3 &&
             std::isfinite(write_diagnostics.state_mutex_hold_cpu_ms) &&
             write_diagnostics.state_mutex_hold_cpu_ms >= 0.0,
@@ -3423,18 +3710,19 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
 
   const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
   fs::remove_all(barrier);
-  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) ==
+            0,
         "snapshot prototype set stream-merge barrier");
   std::atomic<bool> compaction_done{false};
   m4::Status compaction_status;
   m4::CompactionDiagnostics concurrent_compaction_diagnostics;
   concurrent_compaction_diagnostics.capture_timing = true;
   std::thread compactor([&] {
-    compaction_status = index->CompactNowSnapshotPrototype(
-        &concurrent_compaction_diagnostics);
+    compaction_status =
+        index->CompactNowSnapshotPrototype(&concurrent_compaction_diagnostics);
     compaction_done.store(true);
   });
-  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+  auto wait_for = [](const fs::path &path, const std::atomic<bool> &done,
                      std::chrono::seconds timeout) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     std::error_code ec;
@@ -3446,8 +3734,8 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
   };
   const bool run_ready = wait_for(barrier / "merge-read-ready", compaction_done,
                                   std::chrono::seconds(5));
-  Check(run_ready,
-        "snapshot prototype pauses after reading an FTS term with state lock released");
+  Check(run_ready, "snapshot prototype pauses after reading an FTS term with "
+                   "state lock released");
   if (run_ready) {
     const m4::Status overlapping = index->CompactNowSnapshotPrototype();
     Check(!overlapping.ok &&
@@ -3465,8 +3753,8 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
       writer_status = index->Delete("b");
       writer_done.store(true);
     });
-    const auto writer_deadline = std::chrono::steady_clock::now() +
-                                 std::chrono::seconds(2);
+    const auto writer_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (!writer_done.load() &&
            std::chrono::steady_clock::now() < writer_deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -3485,7 +3773,8 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
     std::ofstream release(barrier / "writer-finished", std::ios::binary);
     release << "done\n";
   }
-  if (writer.joinable()) writer.join();
+  if (writer.joinable())
+    writer.join();
   compactor.join();
   ::unsetenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
   Check(!compaction_status.ok &&
@@ -3521,12 +3810,13 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
             compaction_diagnostics.state_mutex_hold_ms <=
                 compaction_diagnostics.total_ms &&
             compaction_diagnostics.state_mutex_hold_cpu_ms >= 0.0,
-        "snapshot compaction diagnostics cover prepare, unlocked build, and publication");
+        "snapshot compaction diagnostics cover prepare, unlocked build, and "
+        "publication");
   Check(index->GetStats().runs == 1,
         "stable snapshot prototype publishes one merged run");
   m4::SearchResult result;
-  Check(index->SearchFts("alpha", 5, &result).ok &&
-            result.hits.size() == 1 && result.hits[0].pk == "a",
+  Check(index->SearchFts("alpha", 5, &result).ok && result.hits.size() == 1 &&
+            result.hits[0].pk == "a",
         "stable compaction preserves the remaining live document");
   Check(index->SearchFts("beta", 5, &result).ok && result.hits.empty(),
         "stable compaction preserves the concurrent deletion");
@@ -3542,8 +3832,9 @@ void TestSnapshotCompactionPrototype(const std::string& dir) {
         "snapshot prototype deletion survives reopen");
 }
 
-void TestFlushPublicationAndRecovery(const std::string& dir) {
-  auto seed_unflushed = [](const std::string& path, const m4::Options& options) {
+void TestFlushPublicationAndRecovery(const std::string &dir) {
+  auto seed_unflushed = [](const std::string &path,
+                           const m4::Options &options) {
     fs::remove_all(path);
     std::unique_ptr<Index> index;
     Check(Index::Open(path, options, &index).ok, "flush crash seed open");
@@ -3557,8 +3848,7 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Document replacement;
     replacement.text = "newword common";
     replacement.values.push_back({"kind", "live"});
-    Check(index->Upsert("same", replacement).ok,
-          "flush seed replace same pk");
+    Check(index->Upsert("same", replacement).ok, "flush seed replace same pk");
     Check(index->Delete("doomed").ok, "flush seed delete pk");
     Document keep;
     keep.text = "keepword common";
@@ -3566,15 +3856,19 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Check(index->Upsert("keep", keep).ok, "flush seed keep pk");
     index.reset();
   };
-  auto verify_reopened = [](const std::string& path, const std::string& label,
-                            const m4::Options& options) {
+  auto verify_reopened = [](const std::string &path, const std::string &label,
+                            const m4::Options &options) {
     std::unique_ptr<Index> reopened;
     Check(Index::Open(path, options, &reopened).ok, label + ": reopen");
-    if (!reopened) return;
+    if (!reopened)
+      return;
     RefState ref;
-    ref.docs.emplace("same", RefDoc{"same", "newword common", {{"kind", "live"}}});
-    ref.docs.emplace("keep", RefDoc{"keep", "keepword common", {{"kind", "live"}}});
-    ref.total_tokens = Tok("newword common").size() + Tok("keepword common").size();
+    ref.docs.emplace("same",
+                     RefDoc{"same", "newword common", {{"kind", "live"}}});
+    ref.docs.emplace("keep",
+                     RefDoc{"keep", "keepword common", {{"kind", "live"}}});
+    ref.total_tokens =
+        Tok("newword common").size() + Tok("keepword common").size();
     const auto stats = reopened->GetStats();
     Check(stats.live_docs == 2, label + ": live docs");
     Check(stats.live_tokens == ref.total_tokens, label + ": live token count");
@@ -3585,7 +3879,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     m4::SearchResult result;
     Check(reopened->SearchFts("oldword", 10, &result).ok && result.hits.empty(),
           label + ": replaced version absent");
-    Check(reopened->SearchFts("deadword", 10, &result).ok && result.hits.empty(),
+    Check(reopened->SearchFts("deadword", 10, &result).ok &&
+              result.hits.empty(),
           label + ": deleted doc absent");
   };
 
@@ -3614,7 +3909,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   RefState retry_ref;
   retry_ref.docs.emplace("first", RefDoc{"first", "alpha common", {}});
   retry_ref.docs.emplace("second", RefDoc{"second", "beta common", {}});
-  retry_ref.total_tokens = Tok("alpha common").size() + Tok("beta common").size();
+  retry_ref.total_tokens =
+      Tok("alpha common").size() + Tok("beta common").size();
   Check(retry_index->GetStats().live_docs == 2,
         "flush retry stats not duplicated");
   CheckFts(*retry_index, retry_ref, "common", MakeRefQuery({"common"}, false),
@@ -3626,15 +3922,15 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   Check(retry_reopened && retry_reopened->GetStats().live_docs == 2,
         "flush retry durable stats");
 
-  auto seed_delete_index = [&](const std::string& path, int count) {
+  auto seed_delete_index = [&](const std::string &path, int count) {
     fs::remove_all(path);
     m4::Options seed_options;
     seed_options.max_delta_docs = 128;
     seed_options.max_delta_bytes = 1ull << 30;
     std::unique_ptr<Index> seed;
-    Check(Index::Open(path, seed_options, &seed).ok,
-          "delete-bound seed open");
-    if (!seed) return;
+    Check(Index::Open(path, seed_options, &seed).ok, "delete-bound seed open");
+    if (!seed)
+      return;
     for (int i = 0; i < count; ++i) {
       Document document;
       document.text = "deleteonly common item" + std::to_string(i);
@@ -3650,8 +3946,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   delete_count_options.max_delta_docs = 2;
   delete_count_options.max_delta_bytes = 1ull << 30;
   std::unique_ptr<Index> delete_count_index;
-  Check(Index::Open(delete_count_dir, delete_count_options,
-                    &delete_count_index).ok,
+  Check(Index::Open(delete_count_dir, delete_count_options, &delete_count_index)
+            .ok,
         "delete-count bound reopen");
   if (delete_count_index) {
     Check(delete_count_index->Delete("delete-0").ok,
@@ -3662,7 +3958,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Check(delete_count_index->Delete("delete-1").ok,
           "delete at count bound preserves durable acknowledgment");
     const auto at_delete_count_bound = delete_count_index->GetStats();
-    Check(at_delete_count_bound.wal_bytes > after_first_count_delete.wal_bytes &&
+    Check(at_delete_count_bound.wal_bytes >
+                  after_first_count_delete.wal_bytes &&
               at_delete_count_bound.live_docs == 1,
           "delete count bound waits for the next mutation to flush");
     Check(delete_count_index->Delete("delete-2").ok,
@@ -3677,7 +3974,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   delete_count_index.reset();
   std::unique_ptr<Index> delete_count_reopened;
   Check(Index::Open(delete_count_dir, delete_count_options,
-                    &delete_count_reopened).ok &&
+                    &delete_count_reopened)
+                .ok &&
             delete_count_reopened &&
             delete_count_reopened->GetStats().live_docs == 0,
         "delete-only count-bound state survives reopen");
@@ -3688,8 +3986,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   delete_bytes_options.max_delta_docs = 128;
   delete_bytes_options.max_delta_bytes = 1;
   std::unique_ptr<Index> delete_bytes_index;
-  Check(Index::Open(delete_bytes_dir, delete_bytes_options,
-                    &delete_bytes_index).ok,
+  Check(Index::Open(delete_bytes_dir, delete_bytes_options, &delete_bytes_index)
+            .ok,
         "delete-bytes bound reopen");
   if (delete_bytes_index) {
     Check(delete_bytes_index->Delete("delete-0").ok,
@@ -3701,7 +3999,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   delete_bytes_index.reset();
   std::unique_ptr<Index> delete_bytes_reopened;
   Check(Index::Open(delete_bytes_dir, delete_bytes_options,
-                    &delete_bytes_reopened).ok &&
+                    &delete_bytes_reopened)
+                .ok &&
             delete_bytes_reopened &&
             delete_bytes_reopened->GetStats().live_docs == 0,
         "delete-byte-threshold WAL survives reopen");
@@ -3713,7 +4012,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   failed_autoflush_options.max_delta_bytes = 1ull << 30;
   std::unique_ptr<Index> failed_autoflush_index;
   Check(Index::Open(failed_autoflush_dir, failed_autoflush_options,
-                    &failed_autoflush_index).ok,
+                    &failed_autoflush_index)
+            .ok,
         "failed auto-flush bound reopen");
   if (failed_autoflush_index) {
     Check(::setenv("M4_FAULT", "flush_fail_after_stats_append", 1) == 0,
@@ -3721,8 +4021,7 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     Check(failed_autoflush_index->Delete("delete-0").ok,
           "threshold delete preserves its durable per-call acknowledgment");
     const auto after_first_delete = failed_autoflush_index->GetStats();
-    Check(after_first_delete.wal_bytes > 0 &&
-              after_first_delete.live_docs == 1,
+    Check(after_first_delete.wal_bytes > 0 && after_first_delete.live_docs == 1,
           "failed threshold delete remains durable and query-visible");
     Check(failed_autoflush_index->Delete("missing").ok,
           "no-op delete does not retry a pending auto-flush");
@@ -3753,9 +4052,9 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
           "failed preflush rejects extra WAL and delta growth");
     Document blocked_document;
     blocked_document.text = "blocked mutation";
-    Check(!failed_autoflush_index->Upsert("blocked-upsert", blocked_document)
-               .ok,
-          "over-limit pending delta rejects Upsert before WAL append");
+    Check(
+        !failed_autoflush_index->Upsert("blocked-upsert", blocked_document).ok,
+        "over-limit pending delta rejects Upsert before WAL append");
     const auto after_blocked_upsert = failed_autoflush_index->GetStats();
     Check(after_blocked_upsert.wal_bytes == after_first_delete.wal_bytes &&
               after_blocked_upsert.wal_bytes_appended ==
@@ -3789,7 +4088,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   failed_autoflush_index.reset();
   std::unique_ptr<Index> failed_autoflush_reopened;
   Check(Index::Open(failed_autoflush_dir, failed_autoflush_options,
-                    &failed_autoflush_reopened).ok &&
+                    &failed_autoflush_reopened)
+                .ok &&
             failed_autoflush_reopened &&
             failed_autoflush_reopened->GetStats().live_docs == 0,
         "failed auto-flush recovery state survives reopen");
@@ -3801,29 +4101,32 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
       m4::Options crash_options;
       crash_options.coalesce_stats_events = coalesce_stats;
       crash_options.flush_metadata_outside_query_lock = staged;
-      for (const char* fault : {"flush_after_stats_append", "flush_before_manifest",
-                                "flush_after_manifest", "flush_after_wal_reset"}) {
+      for (const char *fault :
+           {"flush_after_stats_append", "flush_before_manifest",
+            "flush_after_manifest", "flush_after_wal_reset"}) {
         const std::string label =
             std::string(coalesce_stats ? "coalesced-" : "legacy-") +
             (staged ? "staged-" : "baseline-") + fault;
-      const std::string path = dir + "/crash-" + label;
-      seed_unflushed(path, crash_options);
-      const pid_t child = ::fork();
-    Check(child >= 0, std::string("fork ") + fault);
-    if (child == 0) {
-      ::setenv("M4_FAULT", fault, 1);
-      std::unique_ptr<Index> child_index;
-      if (!Index::Open(path, crash_options, &child_index).ok) ::_exit(120);
-      const m4::Status status = child_index->Flush();
-      ::_exit(status.ok ? 121 : 122);
-    }
-    if (child < 0) continue;
-    int status = 0;
-    Check(::waitpid(child, &status, 0) == child,
-          std::string("wait flush crash child ") + fault);
-    Check(WIFEXITED(status) && WEXITSTATUS(status) >= 92 &&
-              WEXITSTATUS(status) <= 95,
-          std::string("flush crash reached expected boundary ") + fault);
+        const std::string path = dir + "/crash-" + label;
+        seed_unflushed(path, crash_options);
+        const pid_t child = ::fork();
+        Check(child >= 0, std::string("fork ") + fault);
+        if (child == 0) {
+          ::setenv("M4_FAULT", fault, 1);
+          std::unique_ptr<Index> child_index;
+          if (!Index::Open(path, crash_options, &child_index).ok)
+            ::_exit(120);
+          const m4::Status status = child_index->Flush();
+          ::_exit(status.ok ? 121 : 122);
+        }
+        if (child < 0)
+          continue;
+        int status = 0;
+        Check(::waitpid(child, &status, 0) == child,
+              std::string("wait flush crash child ") + fault);
+        Check(WIFEXITED(status) && WEXITSTATUS(status) >= 92 &&
+                  WEXITSTATUS(status) <= 95,
+              std::string("flush crash reached expected boundary ") + fault);
         verify_reopened(path, "flush recovery " + label, crash_options);
       }
     }
@@ -3854,7 +4157,7 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     flush_status = concurrent->Flush();
     flush_done.store(true);
   });
-  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+  auto wait_for = [](const fs::path &path, const std::atomic<bool> &done,
                      std::chrono::seconds timeout) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     std::error_code ec;
@@ -3864,8 +4167,8 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     }
     return fs::exists(path, ec);
   };
-  const bool staged = wait_for(barrier / "segment-ready", flush_done,
-                               std::chrono::seconds(5));
+  const bool staged =
+      wait_for(barrier / "segment-ready", flush_done, std::chrono::seconds(5));
   Check(staged, "flush reaches unlocked metadata staging barrier");
   std::atomic<bool> reader_done{false};
   bool reader_ok = false;
@@ -3877,9 +4180,10 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
                   result.hits.size() == 1 && result.hits[0].pk == "same";
       reader_done.store(true);
     });
-    const auto reader_deadline = std::chrono::steady_clock::now() +
-                                 std::chrono::seconds(2);
-    while (!reader_done.load() && std::chrono::steady_clock::now() < reader_deadline)
+    const auto reader_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!reader_done.load() &&
+           std::chrono::steady_clock::now() < reader_deadline)
       std::this_thread::yield();
     Check(reader_done.load() && reader_ok,
           "reader completes on old in-memory state during metadata staging");
@@ -3907,15 +4211,15 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
       delete_status = concurrent->Delete("base");
       writer_done.store(true);
     });
-    const auto writer_deadline = std::chrono::steady_clock::now() +
-                                 std::chrono::seconds(2);
+    const auto writer_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while ((!writer_attempted.load() || !overlapping_flush_attempted.load()) &&
            std::chrono::steady_clock::now() < writer_deadline)
       std::this_thread::yield();
     Check(writer_attempted.load() && overlapping_flush_attempted.load(),
           "writer and overlapping flush reach the serialized boundary");
-    const auto blocked_deadline = std::chrono::steady_clock::now() +
-                                  std::chrono::milliseconds(50);
+    const auto blocked_deadline =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
     while ((!writer_done.load() || !overlapping_flush_done.load()) &&
            std::chrono::steady_clock::now() < blocked_deadline)
       std::this_thread::yield();
@@ -3927,9 +4231,12 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
     release << "done\n";
   }
   flusher.join();
-  if (reader.joinable()) reader.join();
-  if (writer.joinable()) writer.join();
-  if (overlapping_flusher.joinable()) overlapping_flusher.join();
+  if (reader.joinable())
+    reader.join();
+  if (writer.joinable())
+    writer.join();
+  if (overlapping_flusher.joinable())
+    overlapping_flusher.join();
   ::unsetenv("M4_TEST_FLUSH_PUBLICATION_BARRIER");
   Check(flush_status.ok, "flush publication succeeds");
   if (staged) {
@@ -3939,12 +4246,14 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
           "same-PK update and delete after flush succeed");
     Check(concurrent->Flush().ok, "post-publication writer flush succeeds");
     m4::SearchResult result;
-    Check(concurrent->SearchFts("versionword", 5, &result).ok && result.hits.empty(),
+    Check(concurrent->SearchFts("versionword", 5, &result).ok &&
+              result.hits.empty(),
           "old same-PK version is absent");
     Check(concurrent->SearchFts("finalword", 5, &result).ok &&
               result.hits.size() == 1 && result.hits[0].pk == "same",
           "same-PK replacement is visible");
-    Check(concurrent->SearchFts("baseword", 5, &result).ok && result.hits.empty(),
+    Check(concurrent->SearchFts("baseword", 5, &result).ok &&
+              result.hits.empty(),
           "concurrent delete is visible");
   }
   concurrent.reset();
@@ -3962,7 +4271,7 @@ void TestFlushPublicationAndRecovery(const std::string& dir) {
   }
 }
 
-void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
+void TestSnapshotCompactionConcurrentFlush(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.tombstone_compact_ratio = 2.0;
@@ -3983,11 +4292,13 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
   opt.rebuild_on_flush = true;
   const m4::Status reopen_status = Index::Open(dir, opt, &index);
   Check(reopen_status.ok, "snapshot flush reopen with forced rebuild enabled");
-  if (!reopen_status.ok) return;
+  if (!reopen_status.ok)
+    return;
 
   const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
   fs::remove_all(barrier);
-  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) ==
+            0,
         "snapshot flush set stream-merge barrier");
   std::atomic<bool> compaction_done{false};
   m4::Status compaction_status;
@@ -3995,7 +4306,7 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
     compaction_status = index->CompactNowSnapshotPrototype();
     compaction_done.store(true);
   });
-  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+  auto wait_for = [](const fs::path &path, const std::atomic<bool> &done,
                      std::chrono::seconds timeout) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     std::error_code ec;
@@ -4021,8 +4332,8 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
         writers_done.fetch_add(1);
       });
     }
-    const auto writer_deadline = std::chrono::steady_clock::now() +
-                                 std::chrono::seconds(2);
+    const auto writer_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (writers_done.load() != writer_statuses.size() &&
            std::chrono::steady_clock::now() < writer_deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -4037,15 +4348,16 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
       std::ofstream release(barrier / "writer-finished", std::ios::binary);
       release << "timeout\n";
     }
-    for (auto& writer : writers) writer.join();
+    for (auto &writer : writers)
+      writer.join();
     if (writers_done.load() == writer_statuses.size()) {
-      for (const auto& writer_status : writer_statuses) {
+      for (const auto &writer_status : writer_statuses) {
         Check(writer_status.ok, "snapshot concurrent upsert succeeds");
       }
       const m4::Status flush_status = index->Flush();
       Check(flush_status.ok, "concurrent upserts flush during snapshot build");
       m4::SearchResult result;
-      for (const auto* term : {"alpha", "beta", "gamma", "delta"}) {
+      for (const auto *term : {"alpha", "beta", "gamma", "delta"}) {
         Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
               std::string("concurrent flush query-visible term ") + term);
       }
@@ -4061,13 +4373,14 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
             compaction_status.message.find("superseded") != std::string::npos,
         "concurrent flush prevents stale snapshot publication: " +
             (compaction_status.ok ? "ok" : compaction_status.message));
-  Check(index->GetStats().runs == 3,
-        "stale compaction preserves both old runs and the concurrent flush run");
+  Check(
+      index->GetStats().runs == 3,
+      "stale compaction preserves both old runs and the concurrent flush run");
   Check(!fs::exists(fs::path(dir) / "run-3.seg") &&
             fs::exists(fs::path(dir) / "run-4.seg"),
         "stale output cleanup preserves the writer's reserved run ID");
   m4::SearchResult result;
-  for (const auto* term : {"alpha", "beta", "gamma", "delta"}) {
+  for (const auto *term : {"alpha", "beta", "gamma", "delta"}) {
     Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
           std::string("post-abort query-visible term ") + term);
   }
@@ -4078,13 +4391,13 @@ void TestSnapshotCompactionConcurrentFlush(const std::string& dir) {
         "snapshot concurrent flush reopen");
   Check(reopened->GetStats().runs == 3,
         "snapshot concurrent flush manifest survives reopen");
-  for (const auto* term : {"alpha", "beta", "gamma", "delta"}) {
+  for (const auto *term : {"alpha", "beta", "gamma", "delta"}) {
     Check(reopened->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
           std::string("snapshot concurrent flush reopen term ") + term);
   }
 }
 
-void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
+void TestSnapshotCompactionRebasesConcurrentFlush(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 3;
@@ -4108,18 +4421,19 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
 
   const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
   fs::remove_all(barrier);
-  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) ==
+            0,
         "snapshot rebase set stream-merge barrier");
   std::atomic<bool> compaction_done{false};
   m4::Status compaction_status;
   m4::CompactionDiagnostics rebase_diagnostics;
   rebase_diagnostics.capture_timing = true;
   std::thread compactor([&] {
-    compaction_status = index->CompactNowSnapshotRebasePrototype(
-        &rebase_diagnostics);
+    compaction_status =
+        index->CompactNowSnapshotRebasePrototype(&rebase_diagnostics);
     compaction_done.store(true);
   });
-  auto wait_for = [](const fs::path& path, const std::atomic<bool>& done,
+  auto wait_for = [](const fs::path &path, const std::atomic<bool> &done,
                      std::chrono::seconds timeout) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     std::error_code ec;
@@ -4147,8 +4461,8 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
       mutation_status = index->ApplyBatch(batch);
       writer_done.store(true);
     });
-    const auto deadline = std::chrono::steady_clock::now() +
-                          std::chrono::seconds(2);
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (!writer_done.load() && std::chrono::steady_clock::now() < deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -4181,8 +4495,7 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
         rebase_diagnostics.flush_stats_append_ms +
         rebase_diagnostics.flush_tombstone_write_ms +
         rebase_diagnostics.flush_manifest_write_ms +
-        rebase_diagnostics.flush_wal_reset_ms +
-        rebase_diagnostics.flush_gc_ms +
+        rebase_diagnostics.flush_wal_reset_ms + rebase_diagnostics.flush_gc_ms +
         rebase_diagnostics.flush_delta_reset_ms;
     Check(rebase_diagnostics.flush_segment_build_ms == 0.0 &&
               rebase_diagnostics.flush_segment_write_ms == 0.0 &&
@@ -4239,7 +4552,7 @@ void TestSnapshotCompactionRebasesConcurrentFlush(const std::string& dir) {
         "snapshot rebase WAL tail replays after publication");
 }
 
-void TestSnapshotCompactionRebaseAfterWalReplay(const std::string& dir) {
+void TestSnapshotCompactionRebaseAfterWalReplay(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 16;
@@ -4278,7 +4591,8 @@ void TestSnapshotCompactionRebaseAfterWalReplay(const std::string& dir) {
         "snapshot rebase reopens with original durable WAL checkpoint");
   Check(index->GetStats().runs == 1 && index->GetStats().live_docs == 2 &&
             index->GetStats().dead_docs == 1,
-        "reopened rebase replays WAL instead of trusting the in-memory replay seq");
+        "reopened rebase replays WAL instead of trusting the in-memory replay "
+        "seq");
   Check(index->SearchFts("oldbeta", 5, &result).ok && result.hits.empty(),
         "reopened rebase does not resurrect the replaced document");
   Check(index->SearchFts("newversion", 5, &result).ok &&
@@ -4286,14 +4600,13 @@ void TestSnapshotCompactionRebaseAfterWalReplay(const std::string& dir) {
         "reopened rebase preserves the replacement document");
 }
 
-void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
+void TestSnapshotCompactionRebasePreManifestRecovery(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 1;
   opt.tombstone_compact_ratio = 2.0;
   std::unique_ptr<Index> index;
-  Check(Index::Open(dir, opt, &index).ok,
-        "snapshot rebase recovery open");
+  Check(Index::Open(dir, opt, &index).ok, "snapshot rebase recovery open");
   Document alpha;
   alpha.text = "alpha";
   Check(index->Upsert("a", alpha).ok, "snapshot rebase recovery upsert alpha");
@@ -4305,7 +4618,8 @@ void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
 
   const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
   fs::remove_all(barrier);
-  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) == 0,
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) ==
+            0,
         "snapshot rebase recovery set stream-merge barrier");
   Check(::setenv("M4_FAULT", "after_compaction_tombstone", 1) == 0,
         "snapshot rebase recovery inject pre-manifest fault");
@@ -4315,8 +4629,8 @@ void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
     compaction_status = index->CompactNowSnapshotRebasePrototype();
     compaction_done.store(true);
   });
-  const auto ready_deadline = std::chrono::steady_clock::now() +
-                              std::chrono::seconds(5);
+  const auto ready_deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
   std::error_code ec;
   while (!fs::exists(barrier / "merge-read-ready", ec) &&
          !compaction_done.load() &&
@@ -4335,11 +4649,12 @@ void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
       Document gamma;
       gamma.text = "gamma";
       upsert_status = index->Upsert("c", gamma);
-      if (upsert_status.ok) delete_status = index->Delete("b");
+      if (upsert_status.ok)
+        delete_status = index->Delete("b");
       writer_done.store(true);
     });
-    const auto writer_deadline = std::chrono::steady_clock::now() +
-                                 std::chrono::seconds(2);
+    const auto writer_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (!writer_done.load() &&
            std::chrono::steady_clock::now() < writer_deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -4389,7 +4704,7 @@ void TestSnapshotCompactionRebasePreManifestRecovery(const std::string& dir) {
         "recovery garbage-collects the unmanifested compaction output");
 }
 
-void TestSnapshotCompactionBudget(const std::string& dir) {
+void TestSnapshotCompactionBudget(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 1000;
@@ -4406,8 +4721,7 @@ void TestSnapshotCompactionBudget(const std::string& dir) {
   }
   Check(index->Flush().ok, "snapshot budget initial flush");
   for (int i = 0; i < 80; ++i) {
-    Check(index->Delete("k" + std::to_string(i)).ok,
-          "snapshot budget delete");
+    Check(index->Delete("k" + std::to_string(i)).ok, "snapshot budget delete");
   }
 
   const m4::Status status = index->CompactNowSnapshotPrototype();
@@ -4416,21 +4730,21 @@ void TestSnapshotCompactionBudget(const std::string& dir) {
   Check(index->GetStats().runs == 1 && index->GetStats().live_docs == 20,
         "snapshot budget refusal preserves the run and live-doc state");
   m4::SearchResult result;
-  Check(index->SearchFts("common", 100, &result).ok &&
-            result.hits.size() == 20,
+  Check(index->SearchFts("common", 100, &result).ok && result.hits.size() == 20,
         "snapshot budget refusal leaves the index searchable");
   Check(!fs::exists(fs::path(dir) / "run-2.seg"),
         "snapshot budget refusal creates no output segment");
 }
 
-void TestSnapshotCompactionFaults(const std::string& dir) {
+void TestSnapshotCompactionFaults(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.tombstone_compact_ratio = 2.0;
   std::unique_ptr<Index> index;
   m4::Status status = Index::Open(dir, opt, &index);
   Check(status.ok, "snapshot fault open");
-  if (!status.ok) return;
+  if (!status.ok)
+    return;
   Document alpha;
   alpha.text = "alpha";
   Document beta;
@@ -4443,7 +4757,8 @@ void TestSnapshotCompactionFaults(const std::string& dir) {
   ::setenv("M4_FAULT", "before_manifest", 1);
   status = index->CompactNowSnapshotPrototype();
   ::unsetenv("M4_FAULT");
-  Check(!status.ok && status.message.find("before manifest") != std::string::npos,
+  Check(!status.ok &&
+            status.message.find("before manifest") != std::string::npos,
         "snapshot compaction pre-manifest fault is reported");
   Check(index->GetStats().runs == 2,
         "snapshot pre-manifest failure keeps old runs active");
@@ -4456,7 +4771,8 @@ void TestSnapshotCompactionFaults(const std::string& dir) {
   index.reset();
   status = Index::Open(dir, opt, &index);
   Check(status.ok, "snapshot reopen after pre-manifest fault");
-  if (!status.ok) return;
+  if (!status.ok)
+    return;
   Check(index->GetStats().runs == 2,
         "snapshot reopen after pre-manifest fault restores old manifest");
   Check(!fs::exists(fs::path(dir) / "run-3.seg"),
@@ -4465,18 +4781,185 @@ void TestSnapshotCompactionFaults(const std::string& dir) {
   ::setenv("M4_FAULT", "after_manifest", 1);
   status = index->CompactNowSnapshotPrototype();
   ::unsetenv("M4_FAULT");
-  Check(!status.ok && status.message.find("after manifest") != std::string::npos,
+  Check(!status.ok &&
+            status.message.find("after manifest") != std::string::npos,
         "snapshot post-manifest fault is reported");
   index.reset();
   status = Index::Open(dir, opt, &index);
   Check(status.ok, "snapshot reopen after post-manifest fault");
-  if (!status.ok) return;
+  if (!status.ok)
+    return;
   Check(index->GetStats().runs == 1,
         "snapshot post-manifest reopen keeps the published replacement");
   Check(index->SearchFts("alpha", 5, &result).ok && result.hits.size() == 1,
         "snapshot post-manifest reopen preserves alpha");
   Check(index->SearchFts("beta", 5, &result).ok && result.hits.size() == 1,
         "snapshot post-manifest reopen preserves beta");
+}
+
+void TestBackgroundCompaction(const std::string &dir) {
+  fs::remove_all(dir);
+  m4::Options options;
+  options.max_total_runs = 2;
+  options.max_delta_docs = 16;
+  options.tombstone_compact_ratio = 2.0;
+  options.background_compaction_enabled = true;
+  std::unique_ptr<Index> index;
+  m4::Status status = Index::Open(dir, options, &index);
+  Check(status.ok, "background compaction open");
+  if (!status.ok)
+    return;
+
+  auto upsert_and_flush = [&](const std::string &pk, const std::string &text,
+                              const std::string &label) {
+    Document document;
+    document.text = text;
+    Check(index->Upsert(pk, document).ok, label + " upsert");
+    Check(index->Flush().ok,
+          label + " flush returns without waiting for merge");
+    Check(index->WaitForBackgroundCompaction().ok,
+          label + " background pass drains");
+  };
+  upsert_and_flush("a", "alpha", "background first run");
+  upsert_and_flush("b", "beta", "background second run");
+  Check(index->GetStats().runs == 2 && index->GetStats().compactions == 0,
+        "background scheduler leaves runs alone below pressure threshold");
+
+  const fs::path barrier = fs::path(dir) / "stream-merge-barrier";
+  fs::remove_all(barrier);
+  Check(::setenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER", barrier.c_str(), 1) ==
+            0,
+        "background compaction set merge barrier");
+  Document delta;
+  delta.text = "delta";
+  Check(index->Upsert("d", delta).ok, "background third-run upsert");
+  status = index->Flush();
+  Check(status.ok, "background flush returns while compaction is pending");
+
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(4);
+  std::error_code ec;
+  while (!fs::exists(barrier / "merge-read-ready", ec) &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  const bool merge_paused = fs::exists(barrier / "merge-read-ready", ec);
+  Check(merge_paused, "background merge reaches unlocked build barrier");
+  if (merge_paused) {
+    m4::SearchResult result;
+    for (const auto *term : {"alpha", "beta", "delta"}) {
+      Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+            std::string("reader proceeds during background merge: ") + term);
+    }
+    Document concurrent;
+    concurrent.text = "gamma";
+    Check(index->Upsert("c", concurrent).ok,
+          "writer proceeds during background merge");
+    Check(index->SearchFts("gamma", 5, &result).ok && result.hits.size() == 1,
+          "concurrent delta is query-visible before merge publication");
+  }
+  {
+    std::ofstream release(barrier / "writer-finished", std::ios::binary);
+    release << (merge_paused ? "done\n" : "timeout\n");
+  }
+  status = index->WaitForBackgroundCompaction();
+  ::unsetenv("M4_TEST_SNAPSHOT_MERGE_READ_BARRIER");
+  Check(status.ok, "background snapshot-rebase compaction completes: " +
+                       (status.ok ? std::string("ok") : status.message));
+  Check(index->GetStats().runs == 2 && index->GetStats().compactions >= 1,
+        "background compaction restores the configured run bound");
+  m4::SearchResult result;
+  for (const auto *term : {"alpha", "beta", "delta"}) {
+    Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+          std::string("background compaction retains input term: ") + term);
+  }
+  Check(index->SearchFts("gamma", 5, &result).ok && result.hits.size() == 1,
+        "background rebase retains the concurrent WAL-backed delta");
+  ec.clear();
+  Check(fs::file_size(fs::path(dir) / "wal.log", ec) > 0 && !ec,
+        "background rebase retains unflushed WAL records");
+
+  Check(index->Flush().ok, "background rebase tail flush");
+  Check(index->WaitForBackgroundCompaction().ok,
+        "background tail compaction drains");
+  index.reset();
+  std::unique_ptr<Index> reopened;
+  status = Index::Open(dir, options, &reopened);
+  Check(status.ok, "background compaction reopen");
+  if (!status.ok)
+    return;
+  Check(reopened->WaitForBackgroundCompaction().ok,
+        "background startup maintenance drains after reopen");
+  Check(reopened->GetStats().runs <= options.max_total_runs,
+        "background reopen retains bounded run count");
+  for (const auto *term : {"alpha", "beta", "delta", "gamma"}) {
+    Check(reopened->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+          std::string("background compaction reopen term: ") + term);
+  }
+}
+
+void TestBackgroundCompactionFault(const std::string &dir) {
+  fs::remove_all(dir);
+  m4::Options options;
+  options.max_total_runs = 2;
+  options.max_delta_docs = 16;
+  options.tombstone_compact_ratio = 2.0;
+  options.background_compaction_enabled = true;
+  std::unique_ptr<Index> index;
+  m4::Status status = Index::Open(dir, options, &index);
+  Check(status.ok, "background compaction fault open");
+  if (!status.ok)
+    return;
+
+  auto upsert_and_flush = [&](const std::string &pk, const std::string &text) {
+    Document document;
+    document.text = text;
+    Check(index->Upsert(pk, document).ok, "background fault seed upsert");
+    Check(index->Flush().ok, "background fault seed flush");
+    Check(index->WaitForBackgroundCompaction().ok,
+          "background fault seed maintenance drains");
+  };
+  upsert_and_flush("a", "alpha");
+  upsert_and_flush("b", "beta");
+  Document gamma;
+  gamma.text = "gamma";
+  Check(index->Upsert("c", gamma).ok, "background fault pressure upsert");
+  ::setenv("M4_FAULT", "before_manifest", 1);
+  status = index->Flush();
+  Check(status.ok,
+        "durable flush succeeds before asynchronous compaction fault");
+  const m4::Status maintenance_status = index->WaitForBackgroundCompaction();
+  ::unsetenv("M4_FAULT");
+  Check(!maintenance_status.ok && maintenance_status.message.find(
+                                      "before manifest") != std::string::npos,
+        "background compaction surfaces pre-manifest failure: " +
+            (maintenance_status.ok ? std::string("ok")
+                                   : maintenance_status.message));
+  Check(index->GetStats().runs == 3,
+        "background pre-manifest failure keeps old runs active");
+  Check(fs::exists(fs::path(dir) / "run-4.seg"),
+        "background pre-manifest failure leaves unreferenced output");
+  m4::SearchResult result;
+  for (const auto *term : {"alpha", "beta", "gamma"}) {
+    Check(index->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+          std::string("background pre-manifest input remains searchable: ") +
+              term);
+  }
+
+  index.reset();
+  std::unique_ptr<Index> reopened;
+  status = Index::Open(dir, options, &reopened);
+  Check(status.ok, "background fault recovery reopen");
+  if (!status.ok)
+    return;
+  status = reopened->WaitForBackgroundCompaction();
+  Check(status.ok, "background startup retries remaining maintenance");
+  Check(reopened->GetStats().runs == 2,
+        "background recovery compacts the old manifest runs");
+  for (const auto *term : {"alpha", "beta", "gamma"}) {
+    Check(reopened->SearchFts(term, 5, &result).ok && result.hits.size() == 1,
+          std::string("background recovery preserves term: ") + term);
+  }
 }
 
 void TestEmptyMergeTombstoneCrash(const std::string &dir) {
@@ -4552,7 +5035,7 @@ void TestWandUsesListWideUpperBound(const std::string &dir) {
         "WAND sees a high-scoring hit in a later posting block");
 }
 
-void TestCompactionPositionBudget(const std::string& dir) {
+void TestCompactionPositionBudget(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.compaction_memory_limit_bytes = (4ull << 20) + (16ull << 10);
@@ -4562,7 +5045,8 @@ void TestCompactionPositionBudget(const std::string& dir) {
   std::string text;
   text.reserve(20'000 * 7);
   for (size_t i = 0; i < 20'000; ++i) {
-    if (!text.empty()) text.push_back(' ');
+    if (!text.empty())
+      text.push_back(' ');
     text += "needle";
   }
   Document large;
@@ -4585,7 +5069,7 @@ void TestCompactionPositionBudget(const std::string& dir) {
         "position-budget abort leaves old postings searchable");
 }
 
-void TestCompactionFaults(const std::string& dir) {
+void TestCompactionFaults(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 1000;
@@ -4594,8 +5078,7 @@ void TestCompactionFaults(const std::string& dir) {
   std::unique_ptr<Index> index;
   m4::Status s = Index::Open(dir, opt, &index);
   Check(s.ok, "fault open");
-  auto add = [&](const std::string& prefix, const std::string& term,
-                 int n) {
+  auto add = [&](const std::string &prefix, const std::string &term, int n) {
     for (int i = 0; i < n; ++i) {
       Document d;
       d.text = term + " " + std::to_string(i);
@@ -4607,7 +5090,7 @@ void TestCompactionFaults(const std::string& dir) {
   add("b", "beta", 40);
   Check(index->Flush().ok, "fault flush beta");
 
-  auto count = [&](const char* term) {
+  auto count = [&](const char *term) {
     m4::SearchResult r;
     Check(index->SearchFts(term, 100, &r).ok, "fault search");
     return r.hits.size();
@@ -4638,7 +5121,8 @@ void TestCompactionFaults(const std::string& dir) {
   std::unique_ptr<Index> reopened;
   s = Index::Open(dir, opt, &reopened);
   Check(s.ok, "fault reopen after manifest: " + s.message);
-  if (!s.ok) return;
+  if (!s.ok)
+    return;
   Check(reopened->GetStats().runs == 1, "fault after manifest publishes run");
   m4::SearchResult r;
   Check(reopened->SearchFts("alpha", 100, &r).ok, "fault reopen search");
@@ -4647,8 +5131,8 @@ void TestCompactionFaults(const std::string& dir) {
   Check(r.hits.size() == 40, "fault reopen keeps beta docs");
 }
 
-
-void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
+void TestChurnOracle(const std::string &dir, bool debt_policy = false,
+                     bool background_compaction = false) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 64;
@@ -4659,18 +5143,20 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
   opt.stats_log_threshold = 1024;
   opt.fsync_wal = false;
   opt.debt_policy_enabled = debt_policy;
+  opt.background_compaction_enabled = background_compaction;
   opt.debt_compact_ratio = 0.02;
   opt.debt_min_runs = 3;
   opt.debt_max_merge_docs = 100000;
   std::unique_ptr<Index> index;
   m4::Status s = Index::Open(dir, opt, &index);
   Check(s.ok, "churn open: " + s.message);
-  if (!s.ok) return;
+  if (!s.ok)
+    return;
 
   RefState ref;
   std::mt19937 rng(424242);
   std::vector<std::string> live;
-  auto put = [&](const std::string& pk, const Document& d) {
+  auto put = [&](const std::string &pk, const Document &d) {
     AddDoc(&ref, pk, d);
     Check(index->Upsert(pk, d).ok, "churn upsert");
   };
@@ -4683,7 +5169,7 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
     d.values.push_back(ScalarValue{"region", (rng() % 2) ? "a" : "b"});
     return d;
   };
-  auto add_new = [&](const std::string& pk) {
+  auto add_new = [&](const std::string &pk) {
     Document d = make_doc();
     put(pk, d);
     live.push_back(pk);
@@ -4703,29 +5189,34 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
     live.push_back("phrase");
   }
   Check(index->Flush().ok, "churn base flush");
+  if (background_compaction) {
+    Check(index->WaitForBackgroundCompaction().ok,
+          "churn base background maintenance drains");
+  }
 
-  auto check_state = [&](const std::string& label) {
+  auto check_state = [&](const std::string &label) {
     const auto st = index->GetStats();
     Check(st.live_docs == ref.docs.size(),
-          label + ": live docs stats " + std::to_string(st.live_docs) +
-              " vs " + std::to_string(ref.docs.size()));
+          label + ": live docs stats " + std::to_string(st.live_docs) + " vs " +
+              std::to_string(ref.docs.size()));
     Check(st.live_tokens == ref.total_tokens,
           label + ": live tokens stats " + std::to_string(st.live_tokens) +
               " vs " + std::to_string(ref.total_tokens));
     CheckFts(*index, ref, "common", MakeRefQuery({"common"}, false), 10,
              label + " common");
     m4::SearchResult all_common;
-    Check(index->SearchFts("common", static_cast<uint32_t>(ref.docs.size() + 10),
-                           &all_common).ok,
+    Check(index
+              ->SearchFts("common", static_cast<uint32_t>(ref.docs.size() + 10),
+                          &all_common)
+              .ok,
           label + " common status");
     Check(all_common.hits.size() == ref.docs.size(),
           label + " common exact count " +
               std::to_string(all_common.hits.size()) + " vs " +
               std::to_string(ref.docs.size()));
-    CheckFts(*index, ref, "w7", MakeRefQuery({"w7"}, false), 10,
-             label + " w7");
-    CheckFts(*index, ref, "w7 AND common",
-             MakeRefQuery({"w7", "common"}, true), 10, label + " AND");
+    CheckFts(*index, ref, "w7", MakeRefQuery({"w7"}, false), 10, label + " w7");
+    CheckFts(*index, ref, "w7 AND common", MakeRefQuery({"w7", "common"}, true),
+             10, label + " AND");
     CheckFts(*index, ref, "\"alpha beta\"",
              MakeRefQuery({}, false, {{"alpha", "beta"}}), 10,
              label + " phrase");
@@ -4744,7 +5235,7 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
     for (size_t i = 1; i < h.hits.size(); ++i) {
       Check(h.hits[i - 1].score >= h.hits[i].score, label + " hybrid sorted");
     }
-    for (const auto& hit : h.hits) {
+    for (const auto &hit : h.hits) {
       Check(vec.count(hit.pk) != 0 || ref.docs.count(hit.pk) != 0,
             label + " hybrid pk");
     }
@@ -4782,7 +5273,12 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
       put(fixture, d);
     }
     Check(index->Flush().ok, "churn flush " + std::to_string(cycle));
-    if (cycle % 2 == 0) check_state("churn cycle " + std::to_string(cycle));
+    if (background_compaction) {
+      Check(index->WaitForBackgroundCompaction().ok,
+            "churn background maintenance drains " + std::to_string(cycle));
+    }
+    if (cycle % 2 == 0)
+      check_state("churn cycle " + std::to_string(cycle));
   }
 
   // Force a transaction-boundary failure after substantial churn; the old
@@ -4803,12 +5299,13 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
   // snapshot should remain after the final GC.
   int segment_files = 0;
   int tombstone_files = 0;
-  for (const auto& e : fs::directory_iterator(dir)) {
+  for (const auto &e : fs::directory_iterator(dir)) {
     const std::string name = e.path().filename().string();
     if (name.rfind("run-", 0) == 0 && e.path().extension() == ".seg") {
       ++segment_files;
     }
-    if (name.rfind("tombstones-", 0) == 0) ++tombstone_files;
+    if (name.rfind("tombstones-", 0) == 0)
+      ++tombstone_files;
     Check(name.find(".tmp.") == std::string::npos,
           "churn no unpublished temp file");
   }
@@ -4819,7 +5316,8 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
   std::unique_ptr<Index> reopened;
   s = Index::Open(dir, opt, &reopened);
   Check(s.ok, "churn reopen: " + s.message);
-  if (!s.ok) return;
+  if (!s.ok)
+    return;
   const auto reopen_st = reopened->GetStats();
   Check(reopen_st.live_docs == ref.docs.size(), "churn reopen live docs");
   Check(reopen_st.dead_docs == 0, "churn reopen dead docs");
@@ -4831,7 +5329,7 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
   // WAL replay after churn: mutate without flushing, destroy the index, and
   // reopen from the last manifest plus the uncommitted WAL tail.
   for (int i = 0; i < 30; ++i) {
-    const std::string& pk = live[rng() % live.size()];
+    const std::string &pk = live[rng() % live.size()];
     Document d = make_doc();
     AddDoc(&ref, pk, d);
     Check(reopened->Upsert(pk, d).ok, "churn WAL update");
@@ -4853,7 +5351,8 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
   std::unique_ptr<Index> wal_reopened;
   s = Index::Open(dir, opt, &wal_reopened);
   Check(s.ok, "churn WAL reopen: " + s.message);
-  if (!s.ok) return;
+  if (!s.ok)
+    return;
   Check(wal_reopened->GetStats().live_docs == ref.docs.size(),
         "churn WAL live docs");
   CheckFts(*wal_reopened, ref, "common", MakeRefQuery({"common"}, false), 10,
@@ -4861,9 +5360,13 @@ void TestChurnOracle(const std::string& dir, bool debt_policy = false) {
   CheckInvert(*wal_reopened, ref, "status", "active", CompareOp::EQ,
               "churn WAL invert");
   Check(wal_reopened->Flush().ok, "churn WAL flush");
+  if (background_compaction) {
+    Check(wal_reopened->WaitForBackgroundCompaction().ok,
+          "churn WAL background maintenance drains");
+  }
 }
 
-void TestManifestFallback(const std::string& dir) {
+void TestManifestFallback(const std::string &dir) {
   fs::remove_all(dir);
   m4::Options opt;
   opt.max_delta_docs = 1000;
@@ -4905,6 +5408,8 @@ int main(int argc, char *argv[]) {
   TestTypedUint32Scalar(root + "/typed-u32");
   TestTypedArrayUint32(root + "/typed-array-u32");
   TestBooleanFilters(root + "/boolean-filters");
+  TestIndexSearchFilterQueuesBehindWaitingWriter(
+      root + "/queued-writer-search-filter");
   TestStringPrefixRangeSearch(root + "/string-prefix-range");
   TestPhrase(root + "/phrase");
   TestCrashWal(root + "/wal");
@@ -4929,6 +5434,8 @@ int main(int argc, char *argv[]) {
       root + "/snapshot-rebase-pre-manifest-recovery");
   TestSnapshotCompactionBudget(root + "/snapshot-budget");
   TestSnapshotCompactionFaults(root + "/snapshot-faults");
+  TestBackgroundCompaction(root + "/background-compaction");
+  TestBackgroundCompactionFault(root + "/background-compaction-fault");
   TestEmptyMergeTombstoneCrash(root + "/empty-merge-tombstone-crash");
   TestWandUsesListWideUpperBound(root + "/wand-list-bound");
   TestCompactionPositionBudget(root + "/position-budget");
@@ -4936,6 +5443,7 @@ int main(int argc, char *argv[]) {
   TestCompactionFaults(root + "/faults");
   TestChurnOracle(root + "/churn");
   TestChurnOracle(root + "/churn-policy", true);
+  TestChurnOracle(root + "/churn-background", false, true);
 
   if (g_failures == 0)
     fs::remove_all(root);

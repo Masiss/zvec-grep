@@ -54,6 +54,6 @@ A separate unmeasured resource hypothesis remains: `Wal::Replay` reads the entir
 
 ---
 
-Audit is an evidence reconciliation, not mission completion. Keep M4 open; next work should examine replay buffering and debt-drained compaction cost without changing defaults.
+Audit is an evidence reconciliation, not mission completion. Keep M4 open. The replay-buffering question has since received one bounded measurement; see [WAL replay memory analysis](immutable-write-amplification/ANALYSIS-20261025-wal-replay-memory.md) and [current handoff](HANDOFF-20261025.md). It supports the encoded-plus-decoded memory model, but without an owner-defined maximum WAL/recovery-memory budget it does not justify a streaming rewrite or a safety claim. Leave the replay implementation unchanged; continue other already-authorized M4 work, including debt-drained compaction cost, without changing defaults.
 
 <!-- END -->

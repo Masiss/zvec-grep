@@ -50,6 +50,35 @@ def profile_binary(profile_contract: dict[str, Any]) -> pathlib.Path:
     return binary
 
 
+def profile_runtime_library(profile_contract: dict[str, Any],
+                            binary: pathlib.Path) -> tuple[pathlib.Path, str] | None:
+    relative = profile_contract.get("runtime_library_relative_path")
+    if relative is None:
+        return None
+    if not isinstance(relative, str) or pathlib.Path(relative).is_absolute():
+        raise ValueError("profile runtime-library path must be repository-relative")
+    repo_root = BASE.parents[1].resolve()
+    library = (repo_root / relative).resolve(strict=True)
+    try:
+        library.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError("profile runtime-library path escapes the repository") from exc
+    expected_sha = profile_contract.get("runtime_library_sha256")
+    if not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+        raise ValueError("profile runtime library requires a pinned SHA-256")
+    if sha256(library) != expected_sha:
+        raise ValueError("profile runtime library differs from its registered SHA-256")
+    resolved = subprocess.run(["ldd", str(binary)], check=False,
+                              capture_output=True, text=True)
+    if resolved.returncode != 0:
+        raise ValueError("cannot inspect profile benchmark runtime dependencies")
+    match = re.search(r"^\s*libzvec_c_api\.so\s+=>\s+(\S+)",
+                      resolved.stdout, re.MULTILINE)
+    if not match or pathlib.Path(match.group(1)).resolve() != library:
+        raise ValueError("benchmark does not resolve the registered libzvec_c_api.so")
+    return library, expected_sha
+
+
 def write_json(path: pathlib.Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -313,11 +342,13 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         raise RuntimeError("contention workload counts/coherence do not match the contract")
     arms = data.get("arms")
     timing_schema = data.get("timing_schema_version")
-    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+    if timing_schema not in (None, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
         raise RuntimeError(f"unsupported timing schema version: {timing_schema}")
-    if timing_schema in (8, 9, 10, 11, 12):
+    if timing_schema in (8, 9, 10, 11, 12, 13):
         expected_workload_mode = (
-            "group_commit_pending_flush_reader_pair"
+            "background_compaction_pair"
+            if workload.get("mode") == "--m4-background-compaction-pair"
+            else "group_commit_pending_flush_reader_pair"
             if workload.get("mode") == "--m4-group-commit-pending-flush-reader-pair"
             else "group_commit_flush_reader_pair"
             if workload.get("mode") == "--m4-group-commit-flush-reader-pair"
@@ -337,6 +368,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         # Historical receipts predate the explicit ApplyBatch arm.
         expected_modes.discard("apply_batch")
     arm_order = data.get("arm_order")
+    if (workload.get("mode") == "--m4-background-compaction-pair" and
+            arm_order != workload.get("compaction_modes")):
+        raise RuntimeError("background-compaction arm order differs from the registered profile")
     if (not isinstance(arms, list) or not isinstance(arm_order, list) or
             [arm.get("name") for arm in arms] != arm_order or
             len(arm_order) != len(expected_modes) or set(arm_order) != expected_modes):
@@ -358,13 +392,13 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
         compaction = arm.get("compaction_diagnostics")
         # Older operation receipts predate lock-stage compaction diagnostics;
         # retain their exact recorded validity while checking new receipts.
-        if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) and not isinstance(compaction, dict):
+        if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13) and not isinstance(compaction, dict):
             raise RuntimeError("missing compaction phase timing object")
         if compaction is not None and not isinstance(compaction, dict):
             raise RuntimeError("invalid compaction phase timing object")
         if compaction is not None:
             required_compaction_fields = compaction_timing_fields
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
                 required_compaction_fields += (
                     "state_mutex_hold_ms", "state_mutex_hold_cpu_ms")
             for key in required_compaction_fields:
@@ -373,7 +407,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         not isinstance(value, (int, float)) or
                         not math.isfinite(value) or value < 0):
                     raise RuntimeError("missing/invalid compaction phase timing")
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
                 hold = compaction["state_mutex_hold_ms"]
                 if (hold + 1e-6 < compaction["publication_ms"] or
                         hold > compaction["total_ms"] + 1e-6):
@@ -396,7 +430,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                     if isinstance(flush_stages, dict) else None
                 )
                 if (stage_version not in (1, 2) or
-                        (timing_schema in (5, 6, 7, 8, 9, 10, 11, 12) and stage_version != 2)):
+                        (timing_schema in (5, 6, 7, 8, 9, 10, 11, 12, 13) and stage_version != 2)):
                     raise RuntimeError("invalid optional flush-stage timing object")
                 if stage_version == 2:
                     stage_fields += (
@@ -418,7 +452,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         flush_stages["query_mutex_hold_ms"] >
                         compaction["pending_flush_ms"] + 1e-3):
                     raise RuntimeError("flush query-lock hold exceeds pending-flush duration")
-        if timing_schema in (5, 6, 7, 8, 9, 10, 11, 12):
+        if timing_schema in (5, 6, 7, 8, 9, 10, 11, 12, 13):
             explicit_flush = arm.get("post_writer_flush_diagnostics")
             if not isinstance(explicit_flush, dict):
                 raise RuntimeError("missing post-writer flush diagnostics")
@@ -472,10 +506,10 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 raise RuntimeError(
                     "post-writer flush query-lock hold exceeds flush duration")
         api_calls = rounds
-        group_commit_arm = timing_schema in (8, 10, 11, 12) and arm.get("name") in (
+        group_commit_arm = timing_schema in (8, 10, 11, 12, 13) and arm.get("name") in (
             "group_commit", "group_commit_snapshot_rebase",
             "group_commit_per_upsert")
-        if timing_schema in (4, 5, 6, 7, 8, 9, 10, 11, 12):
+        if timing_schema in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
             batch_api = arm.get("name") == "apply_batch"
             expected_api = ("ApplyBatch" if batch_api else
                             "UpsertGroupCommitSeparateWalFrames"
@@ -520,7 +554,7 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             if any(arm.get(key) != [] for key in uncollected):
                 raise RuntimeError("group-commit arm mislabels non-per-call stages")
         else:
-            if (timing_schema == 12 and
+            if (timing_schema in (12, 13) and
                     arm.get("writer_group_commit_per_upsert_records") is not False):
                 raise RuntimeError("non-group arm carries per-Upsert record mode")
             required_writer_series = (
@@ -530,11 +564,11 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
             for key in required_writer_series:
                 if not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+            if timing_schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
                 for key in ("state_hold_samples", "state_hold_cpu_samples"):
                     if not valid_series(arm.get(key), api_calls):
                         raise RuntimeError(f"missing/invalid writer timing series: {key}")
-            if timing_schema in (6, 7, 8, 9, 10, 11, 12):
+            if timing_schema in (6, 7, 8, 9, 10, 11, 12, 13):
                 for key in ("wal_write_samples", "wal_fsync_samples"):
                     if not valid_series(arm.get(key), api_calls):
                         raise RuntimeError(f"missing/invalid writer timing series: {key}")
@@ -542,18 +576,18 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         arm["wal_write_samples"], arm["wal_fsync_samples"],
                         arm["wal_append_samples"], strict=True)):
                     raise RuntimeError("WAL write/fsync substage exceeds append duration")
-            if timing_schema in (7, 8, 9, 10, 11, 12):
+            if timing_schema in (7, 8, 9, 10, 11, 12, 13):
                 tracked_peak = arm.get("compaction_tracked_peak_bytes")
                 if (isinstance(tracked_peak, bool) or
                         not isinstance(tracked_peak, int) or tracked_peak < 0):
                     raise RuntimeError("missing/invalid compaction tracked memory peak")
-            if timing_schema in (8, 9, 10, 11, 12) and (
+            if timing_schema in (8, 9, 10, 11, 12, 13) and (
                     arm.get("writer_queue_wait_samples") != [] or
                     arm.get("writer_group_commit_size_samples") != []):
                 raise RuntimeError("non-group arm unexpectedly reports queue samples")
             for key in ("normalize_samples", "normalize_cpu_samples",
                         "wal_encode_samples", "wal_encode_cpu_samples"):
-                if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) and not valid_series(arm.get(key), api_calls):
+                if timing_schema in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13) and not valid_series(arm.get(key), api_calls):
                     raise RuntimeError(f"missing/invalid writer timing series: {key}")
                 if key in arm and not valid_series(arm[key], api_calls):
                     raise RuntimeError(f"invalid optional writer timing series: {key}")
@@ -594,7 +628,9 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                         stages.get("segment_build_ms", 0) <= 0 or
                         stages.get("segment_write_ms", 0) <= 0):
                     raise RuntimeError("reader-through-flush interval did not perform segment work")
-        if (arm.get("name") == "default" and arm.get("compaction_status") != "ok") or (
+        if (arm.get("name") in ("background_off", "background_on") and
+                arm.get("compaction_status") != "ok") or (
+                arm.get("name") == "default" and arm.get("compaction_status") != "ok") or (
                 arm.get("name") == "snapshot" and arm.get("compaction_status") not in
                 ("ok", "compaction snapshot superseded by concurrent state change")) or (
                 arm.get("name") == "snapshot_rebase" and
@@ -604,6 +640,31 @@ def verify(result: dict[str, Any], data: dict[str, Any], contract: dict[str, Any
                 arm.get("name") in ("group_commit", "group_commit_per_upsert") and
                 arm.get("compaction_status") != "ok"):
             raise RuntimeError("unexpected compaction outcome")
+    if workload.get("mode") == "--m4-background-compaction-pair":
+        if (timing_schema != 13 or
+                data.get("workload_mode") != "background_compaction_pair"):
+            raise RuntimeError("background-compaction pair schema/mode mismatch")
+        expected_runs = docs // 1024
+        for arm in arms:
+            enabled = arm.get("name") == "background_on"
+            integer_metrics = (
+                "fixture_runs", "compaction_merges", "compaction_input_docs",
+                "compaction_output_docs", "runs_after_flush")
+            finite_metrics = ("background_wait_ms", "compaction_wall_total_ms")
+            if (arm.get("background_compaction_enabled") is not enabled or
+                    any(isinstance(arm.get(key), bool) or
+                        not isinstance(arm.get(key), int) or arm[key] < 0
+                        for key in integer_metrics) or
+                    arm["fixture_runs"] != expected_runs or
+                    arm["compaction_merges"] < 1 or
+                    arm["compaction_input_docs"] < 2 * 1024 or
+                    arm["compaction_output_docs"] <= 0 or
+                    arm["runs_after_flush"] > 4 or
+                    any(isinstance(arm.get(key), bool) or
+                        not isinstance(arm.get(key), (int, float)) or
+                        not math.isfinite(arm[key]) or arm[key] < 0
+                        for key in finite_metrics)):
+                raise RuntimeError("background-compaction arm did not meet the registered work contract")
     if workload.get("mode") == "--m4-writer-group-commit-per-upsert":
         control = next((arm for arm in arms if arm.get("name") == "default"), None)
         candidate = next((arm for arm in arms
@@ -642,7 +703,9 @@ def main() -> int:
                             "writer_group_commit_snapshot_rebase",
                             "flush_reader_staging_pair",
                             "writer_group_commit_flush_reader_pair",
-                            "writer_group_commit_pending_flush_reader_pair"),
+                            "writer_group_commit_pending_flush_reader_pair",
+                            "background_compaction_pair_off_first",
+                            "background_compaction_pair_on_first"),
                         default="contention", help="select a separately registered memory diagnostic profile")
     args = parser.parse_args()
     try:
@@ -661,8 +724,9 @@ def main() -> int:
         raise SystemExit(f"cannot load M4 benchmark contract/resource root: {exc}") from exc
     try:
         binary = profile_binary(profile_contract)
-    except (OSError, ValueError) as exc:
-        raise SystemExit(f"invalid registered workload binary: {exc}") from exc
+        runtime_library = profile_runtime_library(profile_contract, binary)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise SystemExit(f"invalid registered workload binary/runtime: {exc}") from exc
     if not binary.is_file() or not DICTIONARY.is_dir():
         raise SystemExit(f"missing required input: {binary}, {DICTIONARY}")
     dictionary_sha = runner.directory_sha256(DICTIONARY)
@@ -675,13 +739,15 @@ def main() -> int:
     operation_root = RESULTS / now.strftime("%Y%m%d") / operation_id
     resource_workspace = resource_root / operation_id
     workspace_root = resource_workspace / "workspace"
-    workspace_root.mkdir(parents=True, exist_ok=False)
     ctx = {
         "schema_version": 1, "mode": runner.CONTENTION_MODE,
         "approval_status": contract["approval_status"],
         "approval_reference": contract["approval_reference"],
-        "execution_authorization_reference": contract["execution_authorization_reference"],
-        "risk_acceptance_reference": contract["risk_acceptance_reference"],
+        "execution_authorization_reference": profile_contract.get(
+            "execution_authorization_reference",
+            contract["execution_authorization_reference"]),
+        "risk_acceptance_reference": profile_contract.get(
+            "risk_acceptance_reference", contract["risk_acceptance_reference"]),
         "resource_basis": measurement_semantics,
         "policy_sha256": sha256(POLICY_PATH),
         "operation_id": operation_id, "operation_root": str(operation_root.resolve()),
@@ -689,22 +755,32 @@ def main() -> int:
         "purpose": contract["purpose"], "workload_profile": workload_profile,
         "binary_path": str(binary.resolve()),
         "binary_sha256": binary_sha, "approved_binary_sha256": binary_sha,
+        **({"runtime_library_path": str(runtime_library[0]),
+            "runtime_library_sha256": runtime_library[1],
+            "approved_runtime_library_sha256": runtime_library[1]}
+           if runtime_library is not None else {}),
         "dictionary_path": str(DICTIONARY.resolve()),
         "dictionary_tree_sha256": dictionary_sha,
         "approved_dictionary_tree_sha256": dictionary_sha,
         "workload": workload, "arm_role": "microbench",
         "workspace_quota_proof": workspace_quota_proof,
+        **({"native_cache_root": str(workspace_root / "native-cache")}
+           if workload["mode"] == "--m4-background-compaction-pair" else {}),
         "io_pressure_mode": contract["io_pressure_mode"],
         **contract["resource_controls"],
     }
     runner.validate_contention_context(ctx)
+    workspace_root.mkdir(parents=True, exist_ok=False)
     command = [str(binary.resolve()), str((workspace_root / "root").resolve()),
                str(DICTIONARY.resolve()), workload["mode"],
                str(workload["documents"]), str(workload["rounds"])]
+    if "arm_order" in workload:
+        command.append(workload["arm_order"])
     if args.validate_only:
         print(json.dumps({"status": "VALIDATED_NO_LAUNCH", "operation_id": operation_id,
                           "workload_profile": workload_profile,
                           "binary_sha256": binary_sha, "dictionary_tree_sha256": dictionary_sha,
+                          "workspace_quota_proof": workspace_quota_proof,
                           "policy_sha256": ctx["policy_sha256"], "command": command,
                           "resource_controls": contract["resource_controls"]}, sort_keys=True))
         # Avoid leaving a scratch directory for validation-only.
@@ -719,8 +795,16 @@ def main() -> int:
         "benchmark_started": False, "workload_profile": workload_profile,
         "measurement_semantics": measurement_semantics,
         "contract": contract, "policy_sha256": ctx["policy_sha256"],
+        "execution_authorization_reference": ctx["execution_authorization_reference"],
+        "risk_acceptance_reference": ctx["risk_acceptance_reference"],
+        "profile_id": profile_contract.get("profile_id", workload_profile),
         "binary_path": str(binary.resolve()), "binary_sha256": binary_sha,
+        "native_cache_root": ctx.get("native_cache_root"),
+        **({"runtime_library_path": str(runtime_library[0]),
+            "runtime_library_sha256": runtime_library[1]}
+           if runtime_library is not None else {}),
         "dictionary_path": str(DICTIONARY.resolve()), "dictionary_tree_sha256": dictionary_sha,
+        "workspace_quota_proof": workspace_quota_proof,
         "command": command, "resource_controls": contract["resource_controls"],
         "resource_workspace": str(resource_workspace), "evidence_class": contract["evidence_class"],
     }
@@ -741,7 +825,10 @@ def main() -> int:
             plan["native_temp_root"] = str(operation_tmp_root)
             env = os.environ.copy()
             env.pop("M4_BRIDGE_TRACE", None)
+            env.pop("M4_REPO_TMP_DIR", None)
             env["TMPDIR"] = str(operation_tmp_root)
+            if workload["mode"] == "--m4-background-compaction-pair":
+                env["M4_REPO_TMP_DIR"] = str(workspace_root / "native-cache")
             result = runner.run_arm(
                 command, receipt_dir, resource_root, workspace_root, workspace_root,
                 contract["resource_controls"]["runtime_limit_seconds"], sample_interval_ms=100,

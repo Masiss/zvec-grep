@@ -15,7 +15,9 @@ mod lexical;
 mod models;
 mod pipelines;
 #[cfg(feature = "m4-research-integration")]
-pub use pipelines::indexed_search::m4_integration_tests::M4ResearchWorkspace;
+pub use pipelines::indexed_search::m4_integration_tests::{
+    M4ResearchWorkspace, NativeLifecycleTestWorkspace,
+};
 mod service;
 mod storage;
 mod utils;

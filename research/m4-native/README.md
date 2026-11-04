@@ -2,6 +2,8 @@
 
 ## Active research status — resumed exploratory mission
 
+**Latest cross-track handoff (2026-10-27):** the Gate B 64-file query-drop diagnostic completed both arms but remains workspace-caveated and query p95 is not comparable; the observed dropped offers were queue-full. Gate 3 has no eligible performance comparison, the one-pair authorization is consumed, and production remains **NO-GO**. See [current mission handoff](results/HANDOFF-20261027.md), [active execution checkpoint](results/ACTIVE-EXECUTION.md), and [query-drop report](results/M4-GATE-B-QUERY-DROP-CAUSE-20261027.md). The WAL replay-memory result remains a separate exploratory track; see [its 2026-10-25 analysis](results/immutable-write-amplification/ANALYSIS-20261025-wal-replay-memory.md) and the historical [2026-10-25 handoff](results/HANDOFF-20261025.md).
+
 ### Concurrent allocator-accounting follow-up — 2026-10-23
 
 A distinct one-shot two-version analyzer profile with `mallinfo2()` instrumentation completed PASS / COMPLETE. After both analyzers were released, live allocator bytes returned to within 4,112 B of baseline while PSS remained +43,592 KiB; free-arena bytes rose +44,650,480 B, within 12,272 B of that PSS residual in bytes. This supports allocator-retained freed pages as the likely source of the post-release residency in this run, not a similar volume of live malloc-tracked cache data. One exploratory sample only—not leak proof, performance/capacity evidence, or production behavior. `memory.peak` 359,325,696 B with zero swap/OOM; workspace sampling is not proof of no unseen activity. See [`results/lock-contention-microbench/ANALYSIS-20261022.md`](results/lock-contention-microbench/ANALYSIS-20261022.md) and the checksummed operation bundle referenced there.
@@ -392,11 +394,20 @@ native `standard` and `jieba` tokenizer implementations plus the native
 requires an explicit dictionary path. It does not modify native sources, the
 production ABI, or any production index.
 
+`tests/native_multifield_tokenizer_differential.cc` compares one native
+collection with `standard`/`lowercase` title and `jieba`/`lowercase` body
+fields against one shared M4 `Index`. It checks token, position, byte-offset,
+field-selected FTS/hybrid hit-set parity, shared document/tombstone lifecycle,
+flush, compaction, reopen, and multi-field WAL replay. The research API,
+segment format, and WAL support are opt-in and versioned; the prototype does
+not migrate existing indexes or claim BM25 score parity. The earlier
+field-wise/two-index baseline is retained as a historical report.
+
 ```sh
 cmake -S research/m4-native -B research/m4-native/.work/build/p1 \
   -DCMAKE_BUILD_TYPE=Release \
   -DM4_ZVEC_ROOT="$PWD/.local/native/zvec-native-profile"
-cmake --build research/m4-native/.work/build/p1 --target m4_correctness m4_native_fts_differential m4_native_bm25_isolation -j4
+cmake --build research/m4-native/.work/build/p1 --target m4_correctness m4_native_fts_differential m4_native_bm25_isolation m4_native_multifield_tokenizer_differential -j4
 research/m4-native/.work/build/p1/m4_correctness
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   research/m4-native/.work/build/p1/m4_native_bm25_isolation
@@ -646,7 +657,33 @@ cmake --build research/m4-native/.work/build/p1 --target m4_native_jieba_compati
 LD_LIBRARY_PATH="$PWD/.local/native/zvec-native-build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   ctest --test-dir research/m4-native/.work/build/p1 --output-on-failure \
   -R '^m4_native_jieba_compatibility$'
+
+# Native multi-field/tokenizer parity (research only; includes one shared M4 index)
+cmake --build research/m4-native/.work/build/p1 --target m4_native_multifield_tokenizer_differential -j4
+ctest --test-dir research/m4-native/.work/build/p1 --output-on-failure \
+  -R '^m4_native_multifield_tokenizer_differential$'
 ```
+
+The multi-field API is an opt-in research prototype: configure `Options::fts_fields`
+with a tokenizer and dictionary per field, use `Document::fts_fields` for
+field-specific text, and select a field with `SearchFts(field, ...)` or
+`SearchHybrid(field, ...)`. Omitted configured fields are empty; the legacy
+`Document::text` and field-less query overloads use `Options::fts_field`.
+Multi-field indexes use a versioned segment/WAL representation and retain the
+shared document IDs, tombstones, flush, compaction and recovery path. Existing
+single-field v1/v2 segments remain readable under their matching analyzer
+configuration; changing an existing index to a multi-field analyzer identity
+is rejected rather than migrated in place. This remains research-only; no
+production migration is approved.
+
+Background compaction is also an opt-in research feature (`Options::background_compaction_enabled`,
+default off). A single coalescing worker is requested after flush and on open;
+WAL-backed merges use snapshot rebase, while indexes without WAL keep the writer
+state lock for the merge. `WaitForBackgroundCompaction()` drains queued work and
+reports the last pass status. Tests cover reader/writer progress during an
+unlocked merge, WAL-tail preservation, pre-manifest failure/reopen, and the
+independent churn oracle. No performance qualification or production claim is
+made.
 
 ## Run
 
@@ -714,10 +751,10 @@ state. Use a real filesystem (`M4_BENCH_ROOT=/var/tmp/...`) and
 ## Non-goals / next steps
 
 - No production migration, no old-format reader, no reindex of user data.
-- The M4 index core does not provide general concurrent mutation/read safety.
-  The bridge test adds a coordinator lock around complete cross-component
-  snapshots; broader concurrent use still needs a read snapshot / writer
-  handoff.
+- M4 remains research-only and does not claim general production concurrency
+  semantics. The background-compaction prototype has a specific WAL-backed
+  snapshot-rebase path; WAL-disabled compaction serializes writers, and neither
+  establishes broader cross-component snapshot guarantees.
 - Direct v2 compaction removes the temp-section copy. Its remaining costs are
   the O(vocabulary) term/value dictionary held until the end of each section
   and the single-output-file fsync; both are charged against the budget.
@@ -726,14 +763,16 @@ state. Use a real filesystem (`M4_BENCH_ROOT=/var/tmp/...`) and
   filtered FTS candidates are gated before top-k. Prefix/suffix use a full scan
   of scalar `file_name` dictionary values; no new index or format was added.
   This is not generic SQL LIKE: M4 rejects negative LIKE, matching native's
-  current parser rejection. The format has dictionaries per field and is ready
-  for multiple fields.
+  current parser rejection. A shared multi-field format is now implemented as
+  a research prototype; score/order parity is still not established.
 - The optional structural debt policy (default off) cuts 1M mean p95
   186.0→73.8 ms (max 236.6→89.6) and leaves runs at 2, with +12.7% churn
   writes and lower CPU; 500k is 51.8→31.3 ms at +20% writes. It is a GO for
   research, not a production policy.
-- The single-field BM25 mutation mismatch is now attributed to different
-  statistics lifecycles, but ranking parity is still **not** established. A
-  production rollout would also need broader tokenizer/analyzer parity,
-  multiple fields, additional numeric/array scalar encodings, background compaction
-  scheduling, and a migration/backfill plan. None of that is approved here.
+- The single-field BM25 mutation mismatch is attributed to different statistics
+  lifecycles, but ranking parity is still **not** established. Multi-field
+  lifecycle/tokenizer coverage and background compaction scheduling now exist
+  only as research prototypes; broader analyzer/score parity, compaction
+  performance qualification, any remaining scalar encodings, and a
+  migration/backfill plan remain open. Production integration remains
+  unapproved.

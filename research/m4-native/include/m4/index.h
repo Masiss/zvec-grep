@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -42,7 +43,12 @@ struct ArrayUint32Value {
 };
 
 struct Document {
+  // Legacy shorthand for Options::fts_field. When the same key is present in
+  // fts_fields, the named value takes precedence.
   std::string text;
+  // Per-field FTS text for a multi-field index. Omitted configured fields are
+  // indexed as empty strings; unknown field names are rejected.
+  std::map<std::string, std::string> fts_fields;
   // Scalar values are stored as length-prefixed keys. String values remain
   // unchanged; typed factories may provide opaque keys without changing the
   // posting layout.
@@ -59,8 +65,7 @@ struct Mutation {
   Mutation() : kind(MutationKind::UPSERT) {}
   Mutation(MutationKind mutation_kind, std::string primary_key,
            Document mutation_document = {})
-      : kind(mutation_kind),
-        pk(std::move(primary_key)),
+      : kind(mutation_kind), pk(std::move(primary_key)),
         document(std::move(mutation_document)) {}
 
   MutationKind kind;
@@ -68,8 +73,21 @@ struct Mutation {
   Document document;
 };
 
+struct FtsFieldOptions {
+  std::string name;
+  std::string tokenizer_name{"standard"};
+  std::string jieba_dict_dir;
+};
+
 struct Options {
+  // Default field for the legacy query/write shorthand. It must name a
+  // configured field when fts_fields is non-empty.
   std::string fts_field{"body"};
+
+  // Empty preserves the historical single-field options below. When set,
+  // each configured field has an independent analyzer and BM25 statistics,
+  // while documents, DocIds, tombstones, WAL and compaction remain shared.
+  std::vector<FtsFieldOptions> fts_fields;
 
   // Research analyzer configuration. Jieba requires an explicit dictionary
   // directory. The analyzer/filter configuration and content digests of the
@@ -98,6 +116,11 @@ struct Options {
   // Compact a run/level earlier when tombstones dominate. This bounds disk
   // amplification by a constant factor.
   double tombstone_compact_ratio{0.30};
+
+  // Research-only opt-in: run post-flush compaction on one coalescing worker
+  // instead of the flush caller. WAL-backed merges use snapshot rebase so
+  // writers can proceed during the merge build. Disabled by default.
+  bool background_compaction_enabled{false};
 
   // Research-only structural debt policy. Disabled by default so the S4
   // baseline is unchanged. When enabled, at most one bounded merge is
@@ -132,10 +155,10 @@ struct Options {
   // Research-only opt-in writer group-commit prototype. Concurrent Upserts
   // wait for a bounded group. By default the group is one atomic ApplyBatch
   // transaction; the separate-record mode writes one WAL frame per Upsert,
-  // shares one WAL fsync, then applies each Upsert with its own reader boundary.
-  // That mode preserves per-call ACK waits but permits readers to observe
-  // successive prefixes of the already durable group. If WAL or fsync is
-  // disabled it falls back to serialized direct Upserts. Oversized requests
+  // shares one WAL fsync, then applies each Upsert with its own reader
+  // boundary. That mode preserves per-call ACK waits but permits readers to
+  // observe successive prefixes of the already durable group. If WAL or fsync
+  // is disabled it falls back to serialized direct Upserts. Oversized requests
   // bypass the bounded queue and use direct Upsert. 0 disables the queue;
   // enabled values are 2..256.
   uint32_t writer_group_commit_max_batch_size{0};
@@ -147,7 +170,8 @@ struct Options {
   bool flush_metadata_outside_query_lock{true};
 
   // Research-only, bounded one-entry cache for immutable query-filter
-  // candidates. Disabled by default; any document/liveness mutation invalidates it.
+  // candidates. Disabled by default; any document/liveness mutation invalidates
+  // it.
   bool cache_filter_candidates{false};
 
   // Research harness only: force a full merge on every flush. Used to
@@ -178,7 +202,7 @@ struct Hit {
 
 struct SearchResult {
   std::vector<Hit> hits;
-  uint64_t examined{0};  // postings examined (including tombstoned candidates)
+  uint64_t examined{0}; // postings examined (including tombstoned candidates)
 };
 
 // Research-only write telemetry. Strictly opt-in; a null pointer adds no
@@ -263,17 +287,17 @@ struct QueryDiagnostics {
   // before the call to measure the other independently.
   bool collect_counters{true};
   bool capture_timing{true};
-  uint64_t runs_read{0};            // unique runs touched by the query
-  uint64_t run_term_parts{0};       // segment cursors opened (term x run)
-  uint64_t postings_scanned{0};     // posting positions entered by cursors
+  uint64_t runs_read{0};        // unique runs touched by the query
+  uint64_t run_term_parts{0};   // segment cursors opened (term x run)
+  uint64_t postings_scanned{0}; // posting positions entered by cursors
   uint64_t cursor_next_calls{0};
   uint64_t cursor_advance_calls{0};
   uint64_t dead_postings_filtered{0};
   uint64_t liveness_lookups{0};
   uint64_t filter_checks{0};
   uint64_t filter_rejections{0};
-  uint64_t candidates{0};           // live candidates offered to ranking
-  uint64_t score_evaluations{0};    // BM25 term contributions evaluated
+  uint64_t candidates{0};        // live candidates offered to ranking
+  uint64_t score_evaluations{0}; // BM25 term contributions evaluated
   uint64_t upper_bound_evaluations{0};
   uint64_t wand_pivots{0};
   uint64_t topk_insertions{0};
@@ -283,11 +307,12 @@ struct QueryDiagnostics {
   uint64_t topk_pops{0};
   uint64_t topk_finalize_pops{0};
   uint64_t sorted_hits{0};
-  uint64_t filter_candidates{0};    // Boolean-filter candidate set size
+  uint64_t filter_candidates{0}; // Boolean-filter candidate set size
   bool filter_cache_hit{false};
-  uint64_t filter_candidate_bytes{0};  // Final DocId buffer lower bound only
-  uint64_t filter_like_strings_scanned{0};  // per-run/delta field values visited
-  uint64_t filter_like_candidate_capacity_bytes{0};  // sum of LIKE leaf DocId capacities
+  uint64_t filter_candidate_bytes{0}; // Final DocId buffer lower bound only
+  uint64_t filter_like_strings_scanned{0}; // per-run/delta field values visited
+  uint64_t filter_like_candidate_capacity_bytes{
+      0}; // sum of LIKE leaf DocId capacities
   // Coarse logical DocId payload bound; excludes vector slack and Hit/PK data.
   uint64_t filter_docid_temp_payload_upper_bound_bytes{0};
   uint64_t examined{0};
@@ -411,19 +436,20 @@ struct IndexStats {
   uint64_t segments_bytes{0};
   uint64_t tombstone_bytes{0};
   uint64_t stats_log_bytes{0};
-  uint64_t wal_bytes{0};  // current on-disk WAL size
-  uint64_t wal_bytes_appended{0};  // complete WAL frames submitted since Open
-  uint64_t wal_fsyncs{0};  // successful WAL sync calls since this Index opened
-  uint64_t wal_lz4_attempts{0};  // eligible frames passed to the codec
+  uint64_t wal_bytes{0};          // current on-disk WAL size
+  uint64_t wal_bytes_appended{0}; // complete WAL frames submitted since Open
+  uint64_t wal_fsyncs{0}; // successful WAL sync calls since this Index opened
+  uint64_t wal_lz4_attempts{0}; // eligible frames passed to the codec
   uint64_t wal_lz4_attempted_input_bytes{0};
-  uint64_t wal_lz4_compressed_frames{0};  // accepted smaller compressed frames
-  uint64_t wal_lz4_input_bytes{0};  // original bytes in accepted frames
-  uint64_t wal_lz4_output_bytes{0};  // compressed payload bytes in accepted frames
-  double wal_lz4_compress_cpu_ms{0.0};  // current process-thread CPU time
+  uint64_t wal_lz4_compressed_frames{0}; // accepted smaller compressed frames
+  uint64_t wal_lz4_input_bytes{0};       // original bytes in accepted frames
+  uint64_t wal_lz4_output_bytes{
+      0}; // compressed payload bytes in accepted frames
+  double wal_lz4_compress_cpu_ms{0.0}; // current process-thread CPU time
   uint64_t fsyncs{0};
   uint64_t compactions{0};
   uint64_t compacted_docs{0};
-  uint64_t bytes_written{0};       // accounted segment/metadata writes; excludes WAL
+  uint64_t bytes_written{0}; // accounted segment/metadata writes; excludes WAL
   uint64_t segment_bytes_written{0};
   uint64_t run_ids_created{0};
   // Compaction telemetry. Cumulative over the index lifetime.
@@ -435,110 +461,131 @@ struct IndexStats {
   std::vector<uint32_t> runs_per_level;
 };
 
+namespace detail {
+struct IndexTestAccess;
+}
+
 class Index {
- public:
-  static Status Open(const std::string& directory, const Options& options,
-                     std::unique_ptr<Index>* out,
-                     OpenDiagnostics* diagnostics = nullptr);
+public:
+  static Status Open(const std::string &directory, const Options &options,
+                     std::unique_ptr<Index> *out,
+                     OpenDiagnostics *diagnostics = nullptr);
   ~Index();
 
-  Index(const Index&) = delete;
-  Index& operator=(const Index&) = delete;
+  Index(const Index &) = delete;
+  Index &operator=(const Index &) = delete;
 
   // Upsert keyed by a stable primary key. An existing key is tombstoned and a
   // new global DocId is appended; no existing posting is rewritten. The
   // serialized mutation is capped at 2 MiB and oversized inputs are rejected
   // before WAL append or query-visible mutation.
-  Status Upsert(const std::string& pk, const Document& document);
-  Status Upsert(const std::string& pk, const Document& document,
-                WriteDiagnostics* diagnostics);
+  Status Upsert(const std::string &pk, const Document &document);
+  Status Upsert(const std::string &pk, const Document &document,
+                WriteDiagnostics *diagnostics);
 
   // Tombstone the live version of |pk|. Postings are untouched until a
   // bounded compaction rewrites the owning run.
-  Status Delete(const std::string& pk);
+  Status Delete(const std::string &pk);
 
   // Atomically apply 1..256 mutations as one WAL transaction. The batch is
   // fully durable on return when fsync_wal is enabled. Each serialized child
   // mutation is capped at 2 MiB and the encoded batch at 8 MiB; oversized
   // inputs are rejected before WAL append or query-visible mutation.
-  Status ApplyBatch(const std::vector<Mutation>& mutations);
+  Status ApplyBatch(const std::vector<Mutation> &mutations);
   // Research-only per-call stage timing; null diagnostics add no timers.
-  Status ApplyBatch(const std::vector<Mutation>& mutations,
-                    WriteDiagnostics* diagnostics);
+  Status ApplyBatch(const std::vector<Mutation> &mutations,
+                    WriteDiagnostics *diagnostics);
 
   // Seal the active delta into an immutable run, commit a manifest, then apply
   // the compaction policy. Cost is O(change), not O(collection).
   Status Flush();
   // Research-only stage timing for an explicit flush; null adds no timers.
-  Status Flush(CompactionDiagnostics* diagnostics);
+  Status Flush(CompactionDiagnostics *diagnostics);
+  // Wait until all compaction requests currently queued/running have drained.
+  // Returns the most recently completed pass status; no-op when disabled.
+  Status WaitForBackgroundCompaction();
 
   // Research/maintenance hook: merge all runs and drop tombstones. Cost is
   // O(live collection); used by tests and compaction benchmarks.
   Status CompactNow();
-  Status CompactNow(CompactionDiagnostics* diagnostics);
+  Status CompactNow(CompactionDiagnostics *diagnostics);
 
   // Explicit, non-production prototype: snapshot inputs, release the writer
-  // state lock during the merge, then abort publication if the snapshot changed.
+  // state lock during the merge, then abort publication if the snapshot
+  // changed.
   Status CompactNowSnapshotPrototype();
-  Status CompactNowSnapshotPrototype(CompactionDiagnostics* diagnostics);
+  Status CompactNowSnapshotPrototype(CompactionDiagnostics *diagnostics);
 
   // Explicit research prototype: merge the captured runs while writers proceed,
-  // flush concurrent deltas before publication, and retain post-snapshot deletes.
+  // flush concurrent deltas before publication, and retain post-snapshot
+  // deletes.
   Status CompactNowSnapshotRebasePrototype();
-  Status CompactNowSnapshotRebasePrototype(CompactionDiagnostics* diagnostics);
+  Status CompactNowSnapshotRebasePrototype(CompactionDiagnostics *diagnostics);
 
   // BM25 top-k. Query supports whitespace terms, uppercase AND/OR, and quoted
   // phrases. Default is OR with WAND.
-  Status SearchFts(const std::string& query, uint32_t top_k,
-                   SearchResult* out,
-                   QueryDiagnostics* diagnostics = nullptr) const;
+  Status SearchFts(const std::string &query, uint32_t top_k, SearchResult *out,
+                   QueryDiagnostics *diagnostics = nullptr) const;
+  // Query an explicitly named configured FTS field.
+  Status SearchFts(const std::string &field, const std::string &query,
+                   uint32_t top_k, SearchResult *out,
+                   QueryDiagnostics *diagnostics = nullptr) const;
   // Boolean-filtered BM25; filter candidates are admitted before top-k heap
   // updates, not applied to an already truncated result list.
-  Status SearchFtsFiltered(const std::string& query, uint32_t top_k,
-                           const FilterExpr& filter, SearchResult* out,
-                           QueryDiagnostics* diagnostics = nullptr) const;
+  Status SearchFtsFiltered(const std::string &query, uint32_t top_k,
+                           const FilterExpr &filter, SearchResult *out,
+                           QueryDiagnostics *diagnostics = nullptr) const;
+  Status SearchFtsFiltered(const std::string &field, const std::string &query,
+                           uint32_t top_k, const FilterExpr &filter,
+                           SearchResult *out,
+                           QueryDiagnostics *diagnostics = nullptr) const;
   // Evaluate a typed Boolean filter and return live candidates in DocId order.
-  Status SearchFilter(const FilterExpr& filter, SearchResult* out) const;
+  Status SearchFilter(const FilterExpr &filter, SearchResult *out) const;
 
   // Scalar inverted lookup. Returns live docs in ascending DocId order.
-  Status SearchInvert(const std::string& field, const std::string& value,
-                      CompareOp op, SearchResult* out) const;
+  Status SearchInvert(const std::string &field, const std::string &value,
+                      CompareOp op, SearchResult *out) const;
 
   // Typed Uint32 point/set lookups. These use exact opaque keys, never the
   // generic string-lexicographic range comparisons. IN over an empty list
   // returns an empty result.
-  Status SearchInvertUint32(const std::string& field, uint32_t value,
-                            SearchResult* out) const;
-  Status SearchInvertUint32In(const std::string& field,
-                              const std::vector<uint32_t>& values,
-                              SearchResult* out) const;
+  Status SearchInvertUint32(const std::string &field, uint32_t value,
+                            SearchResult *out) const;
+  Status SearchInvertUint32In(const std::string &field,
+                              const std::vector<uint32_t> &values,
+                              SearchResult *out) const;
 
   // Typed ArrayUint32 membership. CONTAIN_ANY on an empty operand list is
   // empty; NOT CONTAIN ANY returns the non-null (present) field universe.
   // Native-compatible query validation limits operands to 32.
-  Status SearchArrayUint32ContainsAny(const std::string& field,
-                                      const std::vector<uint32_t>& values,
-                                      SearchResult* out) const;
-  Status SearchArrayUint32NotContainsAny(
-      const std::string& field, const std::vector<uint32_t>& values,
-      SearchResult* out) const;
+  Status SearchArrayUint32ContainsAny(const std::string &field,
+                                      const std::vector<uint32_t> &values,
+                                      SearchResult *out) const;
+  Status SearchArrayUint32NotContainsAny(const std::string &field,
+                                         const std::vector<uint32_t> &values,
+                                         SearchResult *out) const;
 
   // Hybrid contract: the vector branch is supplied by the caller (HNSW is
   // intentionally untouched by M4). FTS and vector scores are min-max
   // normalized and linearly blended, matching the existing rank-merge
   // semantics.
-  Status SearchHybrid(const std::string& query, uint32_t top_k, double alpha,
-                      const std::unordered_map<std::string, float>&
-                          vector_scores,
-                      SearchResult* out) const;
+  Status
+  SearchHybrid(const std::string &query, uint32_t top_k, double alpha,
+               const std::unordered_map<std::string, float> &vector_scores,
+               SearchResult *out) const;
+  Status
+  SearchHybrid(const std::string &field, const std::string &query,
+               uint32_t top_k, double alpha,
+               const std::unordered_map<std::string, float> &vector_scores,
+               SearchResult *out) const;
 
   IndexStats GetStats() const;
 
-
- private:
+private:
+  friend struct detail::IndexTestAccess;
   class Impl;
-  explicit Index(Impl* impl);
+  explicit Index(Impl *impl);
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace m4
+} // namespace m4

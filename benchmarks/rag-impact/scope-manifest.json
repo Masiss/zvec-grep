@@ -1,11 +1,13 @@
 {
   "schema_version": 1,
-  "status": "OPERATION_BLOCKED",
-  "blocker": "Pilot checkout /home/masis/itc/Ricons/HRM2.0 is absent on this host; /home/masis/itc/Ricons does not exist. Source hashes, line ranges and reviewer-selected held-out cases cannot be frozen without the read-only checkout.",
+  "status": "R0_REANCHORED_SOURCE_CASES_ANNOTATED_PENDING_GATES",
+  "blocker": "The declared checkout is present and selected project/source hashes plus D01-D12 line spans are pinned to observed HEAD 68a53a6865b81d05745c4aa47967204e8e128996. Detailed D01-D12 fact/claim-limit review, D13-D16 synthetic fixtures and owner acceptance of numeric targets remain pending.",
   "pilot": {
     "declared_root": "/home/masis/itc/Ricons/HRM2.0",
     "declared_git_head": "d5e8fbcdd49b48c208887096993074464c793cd7",
-    "observed_root": null
+    "observed_root": "/home/masis/itc/Ricons/HRM2.0",
+    "observed_git_root": "/home/masis/itc/Ricons",
+    "observed_git_head": "68a53a6865b81d05745c4aa47967204e8e128996"
   },
   "device": {
     "policy": "read-only",
@@ -18,69 +20,87 @@
       "id": "P1",
       "path": "Webs/HRM/HRM.csproj",
       "role": ".NET 4.6.1 web entry; references Service.Core and DBContext.Core",
-      "sha256": null
+      "sha256": "59b1003f99b1d71396121886e89e4e4163c9be3e43a7c387c72566404859607a"
     },
     {
       "id": "P2",
       "path": "Services/HRIS/Service.Core/Service.Core.csproj",
       "role": "service compile set",
-      "sha256": null
+      "sha256": "ecbec0c936740098a0d069827bb8eb1563207d8fc6a92f10344415c6b9c20015"
     },
     {
       "id": "P3",
       "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
       "role": "EF6 context compile set",
-      "sha256": null
+      "sha256": "b064ab1249c6715b8a89396adffde8bcb71bb63b6d6b70d6d103dfca99e318b5"
     }
   ],
   "source_anchors": [
     {
       "id": "C1",
       "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
-      "sha256": null
+      "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf"
     },
     {
       "id": "C2",
       "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
-      "sha256": null
+      "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5"
     },
     {
       "id": "C3",
       "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
-      "sha256": null
+      "sha256": "4d6568e4a3ca5f191298fda5d3ae7c1dc7663b849d1fffe8d3c43eeefdcded36"
     },
     {
       "id": "C4",
       "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
-      "sha256": null
+      "sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9"
     },
     {
       "id": "C5",
       "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
-      "sha256": null
+      "sha256": "670fab2cbb0ed34751fff10b80aecb641839c367f57b1300699bd3923884006e"
     },
     {
       "id": "C6",
       "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
-      "sha256": null
+      "sha256": "65c7357e180f769f16db0b4c3069b1d0b6368ea5e775c97e5914dc807543d4fe"
     },
     {
       "id": "C7",
       "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
-      "sha256": null
+      "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d"
     },
     {
       "id": "S1",
       "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
-      "sha256": null,
+      "sha256": "c3cd621f00b343a814588518c7759c187a4b05ba691cf9971a83e23bc24a2d88",
       "authority": "selected source variant only; not deployment proof"
     },
     {
       "id": "S2",
       "path": "DB/Views/EmployeeBaseViews.sql",
-      "sha256": null
+      "sha256": "d19378a0561b9a10a42625ff957a874260ff05b911f430b5b997bc163591d28e"
     }
   ],
+  "case_spans": {
+    "D01": [{"anchor": "C1", "spans": [[459, 620]]}, {"anchor": "C2", "spans": [[215, 285]]}],
+    "D02": [{"anchor": "C2", "spans": [[215, 285], [287, 425]]}, {"anchor": "C4", "spans": [[17, 20], [41, 55]]}, {"anchor": "C5", "spans": [[1, 65]]}, {"anchor": "C6", "spans": [[1, 100]]}],
+    "D03": [{"anchor": "C2", "spans": [[215, 285]]}],
+    "D04": [{"anchor": "C2", "spans": [[562, 573]]}],
+    "D05": [{"anchor": "C2", "spans": [[215, 425]]}],
+    "D06": [{"anchor": "C2", "spans": [[215, 285], [427, 457]]}, {"anchor": "C7", "spans": [[1057, 1074]]}],
+    "D07": [{"anchor": "C2", "spans": [[539, 560]]}, {"anchor": "C7", "spans": [[1057, 1074]]}, {"anchor": "S1", "spans": [[58, 95]]}],
+    "D08": [{"anchor": "C1", "spans": [[624, 634]]}, {"anchor": "C2", "spans": [[539, 549]]}],
+    "D09": [{"anchor": "S2", "spans": [[1, 10]]}],
+    "D10": [{"anchor": "C3", "spans": [[15, 22]]}, {"anchor": "C4", "spans": [[9, 20]]}],
+    "D11": [{"anchor": "C2", "spans": [[866, 887]]}],
+    "D12": [{"anchor": "C7", "spans": [[1057, 1074]]}, {"anchor": "S1", "spans": [[1, 95]]}],
+    "D13": {"fixture": null, "status": "not_authored"},
+    "D14": {"fixture": null, "status": "not_authored"},
+    "D15": {"fixture": null, "status": "not_authored"},
+    "D16": {"fixture": null, "status": "not_authored"}
+  },
   "exclusions": [
     {
       "path": "NewSolution",
@@ -101,7 +121,13 @@
     "numeric_targets": "see rust/docs/rag/implementation-plan.md section 9; not yet accepted"
   },
   "notes": [
-    "Do not invent hashes or line ranges.",
-    "Re-run this manifest against the checkout before R0 can pass."
+    "Hashes are from current tracked source at observed HEAD 68a53a6865b81d05745c4aa47967204e8e128996.",
+    "Selected anchor paths were clean; the surrounding checkout has unrelated modified/untracked files, excluded from this pilot scope.",
+    "The selected source files compare byte-identically between declared HEAD d5e8fbcdd49b48c208887096993074464c793cd7 and observed HEAD.",
+    "Do not use untracked HRM2.0/Database snapshots or evidence docs at checkout root.",
+    "Exact source spans for D01-D12 are in case_spans and mirrored into dev.json; detailed facts/claim-limit review remains pending.",
+    "D13-D16 are synthetic and require authored fixtures plus expected outcomes before they can freeze.",
+    "Held-out cases are in cases/heldout.json and were authored by a reviewer independent of candidate tuning.",
+    "Numeric targets remain proposed until owner acceptance; no candidate measurement before acceptance."
   ]
 }

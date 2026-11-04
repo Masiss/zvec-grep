@@ -8,13 +8,17 @@ use crate::{EngineError, EngineResult};
 
 pub(super) const WRITE_BATCH: usize = 1024;
 const DEFAULT_NATIVE_THREADS: u32 = 2;
+const DEFAULT_NATIVE_MEMORY_LIMIT_BYTES: u64 = 512 * 1024 * 1024;
+// Contained research operations may lower this internal target without changing
+// the default or the external cgroup hard limit.
+const NATIVE_MEMORY_LIMIT_ENV: &str = "ZVEC_GREP_NATIVE_MEMORY_LIMIT_BYTES";
 static INITIALIZED: OnceLock<Result<(), String>> = OnceLock::new();
 
 pub(super) fn initialize() -> EngineResult<()> {
     match INITIALIZED.get_or_init(|| {
         let config = zvec_rust::ConfigBuilder::new()
             .num_threads(native_thread_count())
-            .memory_limit(512 * 1024 * 1024)
+            .memory_limit(native_memory_limit_bytes()?)
             .build();
         zvec_rust::initialize(Some(&config)).map_err(|error| error.to_string())
     }) {
@@ -34,6 +38,29 @@ fn native_thread_count_from(value: Option<&str>) -> u32 {
         .and_then(|value| value.parse::<u32>().ok())
         .filter(|&value| value > 0)
         .unwrap_or(DEFAULT_NATIVE_THREADS)
+}
+
+fn native_memory_limit_bytes() -> Result<u64, String> {
+    match std::env::var(NATIVE_MEMORY_LIMIT_ENV) {
+        Ok(value) => native_memory_limit_bytes_from(Some(&value)),
+        Err(std::env::VarError::NotPresent) => Ok(DEFAULT_NATIVE_MEMORY_LIMIT_BYTES),
+        Err(error) => Err(format!("read {NATIVE_MEMORY_LIMIT_ENV}: {error}")),
+    }
+}
+
+fn native_memory_limit_bytes_from(value: Option<&str>) -> Result<u64, String> {
+    let Some(value) = value else {
+        return Ok(DEFAULT_NATIVE_MEMORY_LIMIT_BYTES);
+    };
+    let bytes = value
+        .parse::<u64>()
+        .map_err(|error| format!("invalid {NATIVE_MEMORY_LIMIT_ENV}: {error}"))?;
+    if bytes == 0 {
+        return Err(format!(
+            "{NATIVE_MEMORY_LIMIT_ENV} must be greater than zero"
+        ));
+    }
+    Ok(bytes)
 }
 
 pub(super) fn open_collection(
@@ -206,7 +233,10 @@ pub(super) fn native<T>(result: zvec_rust::Result<T>, operation: &str) -> Engine
 
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_NATIVE_THREADS, native_thread_count_from};
+    use super::{
+        DEFAULT_NATIVE_MEMORY_LIMIT_BYTES, DEFAULT_NATIVE_THREADS, native_memory_limit_bytes_from,
+        native_thread_count_from,
+    };
 
     #[test]
     fn native_thread_count_defaults_when_unset_or_invalid() {
@@ -222,5 +252,23 @@ mod tests {
     fn native_thread_count_accepts_positive_override() {
         assert_eq!(native_thread_count_from(Some("1")), 1);
         assert_eq!(native_thread_count_from(Some("4")), 4);
+    }
+
+    #[test]
+    fn native_memory_limit_defaults_and_accepts_positive_override() {
+        assert_eq!(
+            native_memory_limit_bytes_from(None).expect("default memory limit"),
+            DEFAULT_NATIVE_MEMORY_LIMIT_BYTES
+        );
+        assert_eq!(
+            native_memory_limit_bytes_from(Some("402653184")).expect("memory override"),
+            402_653_184
+        );
+    }
+
+    #[test]
+    fn native_memory_limit_rejects_invalid_and_zero_overrides() {
+        assert!(native_memory_limit_bytes_from(Some("0")).is_err());
+        assert!(native_memory_limit_bytes_from(Some("not-a-number")).is_err());
     }
 }

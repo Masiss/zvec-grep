@@ -1,7 +1,9 @@
 {
   "schema_version": 1,
-  "status": "UNFROZEN_CORPUS_MISSING",
+  "status": "REANCHORED_CASE_REVIEW_PENDING",
   "split": "development",
+  "source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "source_head": "68a53a6865b81d05745c4aa47967204e8e128996",
   "forbidden_claims": [
     "live database authority",
     "records of a real person",
@@ -17,7 +19,31 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C1",
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "spans": [
+            {
+              "start_line": 459,
+              "end_line": 620
+            }
+          ]
+        },
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D02",
@@ -27,7 +53,66 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 6
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            },
+            {
+              "start_line": 287,
+              "end_line": 425
+            }
+          ]
+        },
+        {
+          "anchor_id": "C4",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+          "spans": [
+            {
+              "start_line": 17,
+              "end_line": 20
+            },
+            {
+              "start_line": 41,
+              "end_line": 55
+            }
+          ]
+        },
+        {
+          "anchor_id": "C5",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "sha256": "670fab2cbb0ed34751fff10b80aecb641839c367f57b1300699bd3923884006e",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 65
+            }
+          ]
+        },
+        {
+          "anchor_id": "C6",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+          "sha256": "65c7357e180f769f16db0b4c3069b1d0b6368ea5e775c97e5914dc807543d4fe",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 100
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D03",
@@ -37,7 +122,20 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D04",
@@ -47,7 +145,25 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 1
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 562,
+              "end_line": 573
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D05",
@@ -57,7 +173,20 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 425
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D06",
@@ -67,7 +196,40 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 2
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 215,
+              "end_line": 285
+            },
+            {
+              "start_line": 427,
+              "end_line": 457
+            }
+          ]
+        },
+        {
+          "anchor_id": "C7",
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {
+              "start_line": 1057,
+              "end_line": 1074
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D07",
@@ -77,7 +239,47 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 3
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 539,
+              "end_line": 560
+            }
+          ]
+        },
+        {
+          "anchor_id": "C7",
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {
+              "start_line": 1057,
+              "end_line": 1074
+            }
+          ]
+        },
+        {
+          "anchor_id": "S1",
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "sha256": "c3cd621f00b343a814588518c7759c187a4b05ba691cf9971a83e23bc24a2d88",
+          "spans": [
+            {
+              "start_line": 58,
+              "end_line": 95
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D08",
@@ -87,7 +289,31 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C1",
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "sha256": "a049182db93de257a2ecbaaad1fc54f8ee82bb4aeaac99a8de6a89044d65cfbf",
+          "spans": [
+            {
+              "start_line": 624,
+              "end_line": 634
+            }
+          ]
+        },
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 539,
+              "end_line": 549
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D09",
@@ -97,7 +323,20 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "S2",
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "sha256": "d19378a0561b9a10a42625ff957a874260ff05b911f430b5b997bc163591d28e",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 10
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D10",
@@ -107,7 +346,31 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C3",
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "sha256": "4d6568e4a3ca5f191298fda5d3ae7c1dc7663b849d1fffe8d3c43eeefdcded36",
+          "spans": [
+            {
+              "start_line": 15,
+              "end_line": 22
+            }
+          ]
+        },
+        {
+          "anchor_id": "C4",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "sha256": "0ed25b53c6782b247ef7e660a30401ab720dc1a201de546882388108317bd1c9",
+          "spans": [
+            {
+              "start_line": 9,
+              "end_line": 20
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D11",
@@ -117,7 +380,20 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "source_refs": [
+        {
+          "anchor_id": "C2",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5",
+          "spans": [
+            {
+              "start_line": 866,
+              "end_line": 887
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D12",
@@ -127,7 +403,36 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "pilot_validation": {
+        "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
+        "pack_status": "ok",
+        "items": 2
+      },
+      "source_refs": [
+        {
+          "anchor_id": "C7",
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "sha256": "48ca48b5563a850056ca50f7599e8d6d89d376f930d39efe4d6a4e70b935e78d",
+          "spans": [
+            {
+              "start_line": 1057,
+              "end_line": 1074
+            }
+          ]
+        },
+        {
+          "anchor_id": "S1",
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "sha256": "c3cd621f00b343a814588518c7759c187a4b05ba691cf9971a83e23bc24a2d88",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 95
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "D13",
@@ -137,7 +442,8 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
     },
     {
       "id": "D14",
@@ -147,7 +453,8 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
     },
     {
       "id": "D15",
@@ -157,7 +464,8 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
     },
     {
       "id": "D16",
@@ -167,8 +475,9 @@
         "assertion without a cited current span"
       ],
       "frozen": false,
-      "reason": "source checkout absent"
+      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
+      "source_refs": []
     }
   ],
-  "next": "Freeze file hashes and exact spans from a read-only checkout, then have a reviewer approve all 16 before any candidate measurement."
+  "next": "Finish exact source refs/facts for D01-D12, author and validate synthetic fixtures for D13-D16, and obtain owner acceptance of numeric targets before candidate measurement."
 }

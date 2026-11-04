@@ -2,9 +2,9 @@
 
 ## Status
 
-**Gate 1 measurement/containment infrastructure: PASS for the bounded diagnostic setup. Gate 2 selective-publication correctness: PASS for tested research cases, not exhaustive qualification. Gate 3: NOT RUN — current operation authorization is exhausted. Gate 4: OPEN — native 512 MiB headroom remains unqualified. Gate 5: OUT OF SCOPE without a separate production decision. Overall: PARTIAL / OWNER_DECISION_REQUIRED; no production GO.**
+**Current status (2026-10-27): Gate 1 measurement/containment infrastructure PASS for the bounded setup. Gate 2 selective-publication correctness PASS for selected research cases, not exhaustive qualification. Gate 3: NOT RUN—the one additional diagnostic authorization was consumed by a no-launch qgroup-headroom refusal. Gate 4 OPEN—numeric qualification thresholds and full-corpus memory envelope remain unresolved. Gate 5 OUT OF SCOPE without a separate production decision. Overall: PARTIAL / OPERATION_BLOCKED / OWNER_DECISION_REQUIRED; no production GO.**
 
-No benchmark workload was launched in this update. A no-launch preflight passed, but the active policy states the 2026-10-26 authorization covered one fresh 64-file diagnostic pair and that the 2026-10-27 Technical Lead direction authorizes infrastructure implementation, not a new operation. The prior one-pair authorization has already been consumed. Do not infer launch authority from the successful preflight.
+The earlier successful no-launch preflight below is historical and is not current. After Gate 2 follow-up, operation `m4-rust-lifecycle-pair-20261027-030722-1b7f7407` was refused by its fresh `--validate-only` qgroup check before workspace materialization or arm launch; no comparison was produced. The one-time authorization is consumed and must not be retried. See [`M4-GATE-B-PREFLIGHT-REFUSAL-20261027.md`](M4-GATE-B-PREFLIGHT-REFUSAL-20261027.md) for preserved evidence.
 
 ## Gate 1 — measurement integrity and capacity certification
 
@@ -33,8 +33,8 @@ The research Rust lifecycle harness now offers queries at fixed wall-clock deadl
 
 Regression evidence:
 
-- Python containment/pair-analysis suite: **24 passed, 0 failed**. The synthetic offered-load test uses known native/M4 p95s and reversed arm ordering, then separately injects queue drops, cap-denied starts, missed schedules, failures, sampling caps, a 25,001 µs lag against a 25 ms interval, too few completions, and a cross-arm queue-cap mismatch; every invalid trace is rejected without relabeling or suppressing the bad counters.
-- Rust M4 integration binary: **9 passed, 0 failed, 1 ignored**. The ignored test is the contained measurement workload and was not run. Added offered-deadline/cap and counted-drop regressions pass.
+- Python containment/pair-analysis suite: **26 passed, 0 failed**. The synthetic offered-load test uses known native/M4 p95s and reversed arm ordering, then separately injects queue drops, cap-denied starts, missed schedules, failures, sampling caps, a 25,001 µs lag against a 25 ms interval, too few completions, and a cross-arm queue-cap mismatch; every invalid trace is rejected without relabeling or suppressing the bad counters.
+- Rust M4 integration binary: **10 passed, 0 failed, 1 ignored**. The ignored test is the contained measurement workload and was not run. Added offered-deadline/cap and counted-drop regressions pass.
 
 A separate `cargo test --no-default-features` invocation failed at test compilation because it omitted the optional `m4-research-integration` feature (`m4-rust-bridge-research` unresolved). This was a command-configuration error, not evidence of a source failure; the already-built feature-enabled test binary was run directly with the required native library path and passed the focused suite above. No additional build was forced into the nearly quota-constrained workspace.
 
@@ -42,16 +42,17 @@ A separate `cargo test --no-default-features` invocation failed at test compilat
 
 The current research integration tests exercise the selected durable pass-intent + selective file hiding + short cross-store commit fence design:
 
-- During preparation, changed files are hidden while an unaffected-file query completes within the test bound; old and new revisions of the changed file are both hidden.
+- During preparation, changed files are hidden while an unaffected-file query completes within the test bound; old and new revisions of the changed file are both hidden. The same test now covers a deleted file hidden during a simultaneous update/delete pass and still absent after publication and reopen.
 - A query overlapping the cross-store commit boundary waits, then observes the published revision after release; reopen preserves the new searchable revision and does not restore the old one.
+- A deterministic pre-publication staging-error injection verifies that a newly inserted in-memory mask is rolled back, the prior published revision remains searchable, the uncommitted new revision stays hidden, and a retry succeeds.
 - Interrupted multi-file publication fails closed through reopen and retry.
 - Existing watcher-driven indexing/search, filtering/refill, hydration, pass-manifest bounds and percentile/queue regressions also pass.
 
-This is correctness evidence for the research pipeline, not power-loss qualification, a proof over every interleaving, rollback to an old revision, or production integration. Gate A remains PASS only in research scope; the selective-fence architecture remains unqualified for production.
+This is correctness evidence for the research pipeline, not power-loss qualification, a proof over every interleaving, rollback after an interrupted cross-store commit, or production integration. Gate A remains PASS only in research scope; the selective-fence architecture remains unqualified for production.
 
 ## Gate 3–5 blockers and next authorized action
 
-1. **No fresh operation authority.** The machine policy records `single_pair_only: true`, the 2026-10-26 owner authorization for one fresh 64-file diagnostic pair, and says the 2026-10-27 infrastructure direction does not itself authorize another run. Do not launch or retry. A fresh explicit operation authorization is needed for another bounded pair.
+1. **Operation blocked; authorization consumed.** The one new 64-file diagnostic authorization was consumed when `m4-rust-lifecycle-pair-20261027-030722-1b7f7407` failed its qgroup headroom preflight. Do not retry or modify limits/reserves. Another operation requires fresh explicit owner authorization, restored natural headroom, and a successful immediate no-launch preflight.
 2. **Qualification thresholds are not preregistered.** The 64-file workload can only diagnose the measurement path; it cannot establish representative performance. Before qualification, the owner must approve numeric acceptance limits for throughput/lifecycle regression, query wait/latency, memory, and resource efficiency. Do not invent thresholds.
 3. **Memory/full-corpus envelope remains open.** A prior contained native diagnostic reached the existing **512 MiB** cgroup ceiling. This update neither raises that limit nor demonstrates a safe full-corpus memory result. Any implementation-side remedy must preserve the frozen comparison and pass correctness tests before a new authorized operation.
 4. **Resource attribution limitation.** Without cgroup I/O counters, keep physical-I/O conclusions descriptive and host-scoped unless a policy-approved measurement path supplies per-arm attribution.

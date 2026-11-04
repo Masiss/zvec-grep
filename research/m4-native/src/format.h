@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -37,6 +38,9 @@ struct BuildPosting {
 struct BuildDoc {
   DocId id{0};
   uint32_t dl{0};
+  // Populated by segment format v3; v1/v2 readers map dl to the segment's
+  // single FTS field when loading old data.
+  std::map<std::string, uint32_t> field_lengths;
   std::string pk;
   std::vector<uint32_t> term_ids;
 };
@@ -56,6 +60,9 @@ struct SegmentBuild {
   uint64_t level{0};
   uint64_t total_tokens{0};
   uint32_t block_size{128};
+  uint32_t format_version{1};
+  uint32_t section_encoding{0};
+  std::string fts_field{"body"};
   std::vector<std::string> terms;                    // sorted
   std::vector<std::vector<BuildPosting>> postings;   // parallel to terms
   std::vector<BuildDoc> docs;                        // sorted by id
@@ -116,6 +123,7 @@ struct InvertFieldRef {
 struct DocMeta {
   DocId id{0};
   uint32_t dl{0};
+  std::map<std::string, uint32_t> field_lengths;
   std::string pk;
   std::vector<uint32_t> term_ids;
 };
@@ -133,6 +141,8 @@ struct StreamMergeOptions {
   uint64_t run_id{0};
   uint64_t level{0};
   uint32_t block_size{128};
+  uint32_t format_version{2};
+  uint32_t section_encoding{2};
   std::string fts_field{"body"};
   uint64_t memory_limit_bytes{128ull << 20};
   // Caller-owned immutable snapshots already allocated before this merge.
@@ -174,6 +184,8 @@ class Segment {
   uint64_t last_doc_id() const { return last_doc_id_; }
   uint64_t doc_count() const { return docs_.size(); }
   uint64_t total_tokens() const { return total_tokens_; }
+  uint32_t format_version() const { return format_version_; }
+  const std::string &fts_field() const { return fts_field_; }
   uint32_t block_size() const { return block_size_; }
   const std::string& path() const { return path_; }
   uint64_t file_size() const { return file_size_; }
@@ -210,6 +222,9 @@ class Segment {
   uint64_t first_doc_id_{0};
   uint64_t last_doc_id_{0};
   uint64_t total_tokens_{0};
+  uint32_t format_version_{1};
+  uint32_t section_encoding_{0};
+  std::string fts_field_;
   uint32_t block_size_{128};
 
   std::vector<DocMeta> docs_;

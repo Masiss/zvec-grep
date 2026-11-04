@@ -1,0 +1,48 @@
+diff --git a/db/blob/blob_file_meta.h b/db/blob/blob_file_meta.h
+index d7c8a1243..2e47726f8 100644
+--- a/db/blob/blob_file_meta.h
++++ b/db/blob/blob_file_meta.h
+@@ -6,6 +6,7 @@
+ #pragma once
+ 
+ #include <cassert>
++#include <cstdint>
+ #include <iosfwd>
+ #include <memory>
+ #include <string>
+diff --git a/include/rocksdb/trace_record.h b/include/rocksdb/trace_record.h
+index c00f5cafb..9551ad5b7 100644
+--- a/include/rocksdb/trace_record.h
++++ b/include/rocksdb/trace_record.h
+@@ -5,6 +5,7 @@
+ 
+ #pragma once
+ 
++#include <cstdint>
+ #include <memory>
+ #include <string>
+ #include <vector>
+diff --git a/include/rocksdb/trace_record_result.h b/include/rocksdb/trace_record_result.h
+index 0cd0004a6..629f06710 100644
+--- a/include/rocksdb/trace_record_result.h
++++ b/include/rocksdb/trace_record_result.h
+@@ -5,6 +5,7 @@
+ 
+ #pragma once
+ 
++#include <cstdint>
+ #include <string>
+ #include <vector>
+ 
+diff --git a/include/rocksdb/utilities/checkpoint.h b/include/rocksdb/utilities/checkpoint.h
+index 6509f38d9..e2bdcb8f6 100644
+--- a/include/rocksdb/utilities/checkpoint.h
++++ b/include/rocksdb/utilities/checkpoint.h
+@@ -7,6 +7,7 @@
+ 
+ #pragma once
+ 
++#include <cstdint>
+ #include <string>
+ #include <vector>
+ 

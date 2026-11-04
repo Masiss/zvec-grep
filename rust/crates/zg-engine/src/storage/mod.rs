@@ -13,3 +13,5 @@ pub(crate) mod types;
 mod zvec;
 
 pub(crate) use store::IndexStore;
+#[cfg(test)]
+pub(crate) use store::{monotonic_time_ns_for_test, record_native_fts_span_for_test};

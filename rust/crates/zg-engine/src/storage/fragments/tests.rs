@@ -5,6 +5,34 @@ use crate::domain::{
 };
 use std::path::PathBuf;
 
+#[test]
+fn native_fts_query_telemetry_is_thread_local_and_resettable() {
+    let _ = take_native_fts_query_telemetry_for_test();
+    record_native_fts_query_for_test(7);
+    record_native_fts_query_for_test(11);
+    assert_eq!(take_native_fts_query_telemetry_for_test(), (2, 18));
+    assert_eq!(take_native_fts_query_telemetry_for_test(), (0, 0));
+    std::thread::spawn(|| {
+        record_native_fts_query_for_test(3);
+        assert_eq!(take_native_fts_query_telemetry_for_test(), (1, 3));
+    })
+    .join()
+    .expect("telemetry thread");
+    assert_eq!(take_native_fts_query_telemetry_for_test(), (0, 0));
+}
+
+#[test]
+fn native_fts_query_call_is_counted_separately() {
+    let root = tempfile::tempdir().expect("temp root");
+    let storage = metadata_store(root.path());
+    let _ = take_native_fts_query_telemetry_for_test();
+    storage
+        .search_fts("needle", 5, None)
+        .expect("native FTS query");
+    let (calls, _) = take_native_fts_query_telemetry_for_test();
+    assert_eq!(calls, 1);
+}
+
 fn file(id: u32, path: impl Into<PathBuf>) -> FileRecord {
     FileRecord {
         id: FileId::new(id),
@@ -664,4 +692,104 @@ fn query_limits_and_nul_text_preserve_native_boundaries() {
     assert!(top_k(MAX_TOP_K + 1).is_err());
     assert_eq!(index_text("before\0after"), "before after");
     assert!(matches!(index_text("plain"), Cow::Borrowed(_)));
+}
+
+#[test]
+fn deleting_fragment_ids_by_primary_key_is_idempotent() {
+    let temporary = tempfile::tempdir().expect("temporary storage");
+    let store = metadata_store(temporary.path());
+    let (source, entities, entries) = metadata_fragments(0, "owner");
+    write_fixture(&store, &source, &entities, &entries);
+    store.flush().expect("flush fixture");
+
+    let existing = entries[0].fragment_id.clone();
+    let missing = FragmentId::new(&entries[0].entity_id, 999);
+    store
+        .delete_fragment_ids(
+            "fixture/fixture",
+            &[existing.clone(), missing, existing.clone()],
+        )
+        .expect("missing and repeated keys are harmless");
+
+    let keys = entries
+        .iter()
+        .map(|entry| entry.fragment_id.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let remaining =
+        fetch_map(&store.indexes["fixture/fixture"], &keys).expect("read remaining fragments");
+    assert!(!remaining.contains_key(existing.as_str()));
+    assert!(remaining.contains_key(entries[1].fragment_id.as_str()));
+}
+
+#[test]
+fn partial_primary_key_delete_failure_is_reported_after_prior_success() {
+    let temporary = tempfile::tempdir().expect("temporary storage");
+    let store = metadata_store(temporary.path());
+    let (source, entities, entries) = metadata_fragments(0, "partial-delete");
+    write_fixture(&store, &source, &entities, &entries);
+    store.flush().expect("flush fixture");
+
+    let fragment_ids = [
+        entries[0].fragment_id.clone(),
+        entries[1].fragment_id.clone(),
+    ];
+    let first_key = fragment_ids[0].as_str();
+    let failed_key = fragment_ids[1].as_str();
+
+    let message = if std::env::var_os("ZVEC_TEST_FAULT_INJECT_DELETE").is_some() {
+        // The LD_PRELOAD test interposer calls real zvec for the first PK,
+        // substitutes a missing PK for the second, then changes that native
+        // result code to InternalError at the C ABI boundary.
+        let error = store
+            .delete_fragment_ids("fixture/fixture", &fragment_ids)
+            .expect_err("the native C-ABI fault injector must report InternalError");
+        let message = error.to_string();
+        assert!(
+            message.contains("native-fault-injected-missing-pk"),
+            "the interposer did not supply its native placeholder result: {message}"
+        );
+        message
+    } else {
+        // The ordinary Rust test path exercises the production validator
+        // without requiring the optional Linux native interposer.
+        let mut first_result = store.indexes["fixture/fixture"]
+            .delete(&[first_key])
+            .expect("apply first native delete");
+        assert_eq!(first_result.results.len(), 1);
+        let first_status = first_result.results.remove(0);
+        assert!(first_status.success);
+
+        let injected = zvec_rust::WriteResult {
+            success_count: 1,
+            error_count: 1,
+            results: vec![
+                first_status,
+                zvec_rust::DocWriteResult {
+                    success: false,
+                    code: zvec_rust::ErrorCode::InternalError,
+                    message: "injected partial-delete failure".into(),
+                },
+            ],
+        };
+        let error = validate_delete_result(&fragment_ids, injected)
+            .expect_err("a non-NotFound per-document failure must abort the replacement");
+        let message = error.to_string();
+        assert!(
+            message.contains("injected partial-delete failure"),
+            "{message}"
+        );
+        message
+    };
+
+    assert!(message.contains(failed_key), "{message}");
+    assert!(message.contains("InternalError"), "{message}");
+
+    let keys = fragment_ids
+        .iter()
+        .map(|id| id.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let remaining =
+        fetch_map(&store.indexes["fixture/fixture"], &keys).expect("read partial delete state");
+    assert!(!remaining.contains_key(first_key));
+    assert!(remaining.contains_key(failed_key));
 }

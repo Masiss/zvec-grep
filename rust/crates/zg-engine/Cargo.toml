@@ -10,6 +10,8 @@ publish.workspace = true
 [features]
 default = []
 m4-research-integration = ["dep:m4-rust-bridge-research"]
+# Local lifecycle profiling only; opt-in and guarded by ZVEC_GREP_NATIVE_PROFILE.
+native-profile = []
 # CUDA and Vulkan require their native toolchains at build time. Platform
 # release builds enable the matching feature, while unsupported requests keep
 # the same warning-and-CPU-fallback behavior as main.
@@ -71,6 +73,9 @@ ort = { version = "=2.0.0-rc.13", default-features = false, features = ["directm
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+rustix = { version = "1.1.4", features = ["time"] }
 
 [lints]
 workspace = true

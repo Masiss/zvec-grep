@@ -1,5 +1,5 @@
 {
-  "operation_id": "m4-lock-contention-microbench-writer-group-commit-pending-flush-reader-pair-20261023-063533-5cd60e",
-  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261023/m4-lock-contention-microbench-writer-group-commit-pending-flush-reader-pair-20261023-063533-5cd60e",
+  "operation_id": "m4-lock-contention-microbench-background-compaction-pair-off-first-20261029-143036-3cc4b4",
+  "operation_root": "/home/masis/src/zvec-grep/research/m4-native/results/lock-contention-microbench/20261029/m4-lock-contention-microbench-background-compaction-pair-off-first-20261029-143036-3cc4b4",
   "status": "PASS"
 }

@@ -21,6 +21,7 @@ namespace {
 constexpr uint32_t kMagic = 0x4D345347;  // "M4SG"
 constexpr uint32_t kVersion = 1;
 constexpr uint32_t kVersionV2 = 2;
+constexpr uint32_t kVersionV3 = 3;
 constexpr size_t kHeaderSize = 120;
 
 struct FtsFooterV2 {
@@ -214,7 +215,7 @@ FtsBuildResult BuildFtsSection(const SegmentBuild& build) {
   }
 
   BufWriter head;
-  head.String(build.terms.empty() ? std::string("body") : std::string("body"));
+  head.String(build.fts_field);
   head.Varint(build.terms.size());
   head.Varint(block_cursor);
   for (size_t t = 0; t < build.terms.size(); ++t) {
@@ -305,6 +306,13 @@ std::string BuildDocsSection(const SegmentBuild& build) {
     w.Varint(d.id - prev_id);
     prev_id = d.id;
     w.Varint(d.dl);
+    if (build.format_version >= 3) {
+      w.Varint(d.field_lengths.size());
+      for (const auto &[field, length] : d.field_lengths) {
+        w.String(field);
+        w.Varint(length);
+      }
+    }
     w.String(d.pk);
     w.Varint(d.term_ids.size());
     uint32_t prev_tid = 0;
@@ -341,6 +349,11 @@ Status WriteSegment(const std::string& path, SegmentBuild build,
   }
 
   const std::string docs = BuildDocsSection(build);
+  if (build.format_version != 1 && build.format_version != 3) {
+    if (error)
+      *error = "unsupported direct segment format version";
+    return Status::Error("unsupported direct segment format version");
+  }
   const FtsBuildResult fts = BuildFtsSection(build);
   const std::string invert = BuildInvertSection(build);
   (void)fts.block_count;
@@ -356,9 +369,9 @@ Status WriteSegment(const std::string& path, SegmentBuild build,
                                   file.size() - kHeaderSize);
 
   PutU32At(&file, 0, kMagic);
-  PutU32At(&file, 4, kVersion);
+  PutU32At(&file, 4, build.format_version);
   PutU32At(&file, 8, build.block_size);
-  PutU32At(&file, 12, 0);
+  PutU32At(&file, 12, build.section_encoding);
   PutU64At(&file, 16, build.run_id);
   PutU64At(&file, 24, build.level);
   PutU64At(&file, 32, build.docs.front().id);
@@ -417,10 +430,18 @@ Status Segment::Open(const std::string& path, SegmentPtr* out,
     return Status::Error("bad segment magic");
   }
   const uint32_t version = ReadU32At(p, 4);
-  if (version != kVersion && version != kVersionV2) {
+  const uint32_t section_encoding = ReadU32At(p, 12);
+  if (version != kVersion && version != kVersionV2 && version != kVersionV3) {
     if (error) *error = "bad segment version";
     return Status::Error("bad segment version");
   }
+  if (version == kVersionV3 && section_encoding != 0 && section_encoding != 2) {
+    if (error)
+      *error = "unsupported v3 section encoding";
+    return Status::Error("unsupported v3 section encoding");
+  }
+  seg->format_version_ = version;
+  seg->section_encoding_ = section_encoding;
   seg->block_size_ = ReadU32At(p, 8);
   if (seg->block_size_ == 0 || seg->block_size_ > 4096) {
     if (error) *error = "bad block size";
@@ -452,6 +473,17 @@ Status Segment::Open(const std::string& path, SegmentPtr* out,
     return Status::Error("segment checksum mismatch");
   }
 
+  // All supported FTS section encodings begin with the legacy field name.
+  {
+    BufReader fr(p + fts_off, fts_size);
+    seg->fts_field_ = fr.String();
+    if (!fr.ok() || seg->fts_field_.empty()) {
+      if (error)
+        *error = "invalid FTS field header";
+      return Status::Error("invalid FTS field header");
+    }
+  }
+
   // Docs.
   {
     BufReader r(p + docs_off, docs_size);
@@ -466,7 +498,37 @@ Status Segment::Open(const std::string& path, SegmentPtr* out,
       DocMeta d;
       d.id = prev + r.Varint();
       prev = d.id;
-      d.dl = static_cast<uint32_t>(r.Varint());
+      const uint64_t doc_length = r.Varint();
+      if (doc_length > std::numeric_limits<uint32_t>::max()) {
+        if (error)
+          *error = "document length exceeds format limit";
+        return Status::Error("document length exceeds format limit");
+      }
+      d.dl = static_cast<uint32_t>(doc_length);
+      if (version >= kVersionV3) {
+        const uint64_t field_count = r.Varint();
+        if (!r.ok() || field_count > 100000ull) {
+          if (error)
+            *error = "invalid v3 document field-length map";
+          return Status::Error("invalid v3 document field-length map");
+        }
+        for (uint64_t field_index = 0; field_index < field_count;
+             ++field_index) {
+          std::string field = r.String();
+          const uint64_t length = r.Varint();
+          if (!r.ok() || field.empty() ||
+              length > std::numeric_limits<uint32_t>::max() ||
+              !d.field_lengths
+                   .emplace(std::move(field), static_cast<uint32_t>(length))
+                   .second) {
+            if (error)
+              *error = "invalid v3 document field length";
+            return Status::Error("invalid v3 document field length");
+          }
+        }
+      } else {
+        d.field_lengths.emplace(seg->fts_field_, d.dl);
+      }
       d.pk = r.String();
       const uint64_t nt = r.Varint();
       d.term_ids.reserve(nt);
@@ -484,8 +546,11 @@ Status Segment::Open(const std::string& path, SegmentPtr* out,
     }
   }
 
-  // FTS (single prototype field).
-  if (version == kVersionV2) {
+  // FTS dictionary. Version 3 uses the same field-keyed terms; the section
+  // encoding flag selects the legacy direct or streaming layout.
+  const bool v2_sections =
+      version == kVersionV2 || (version == kVersionV3 && section_encoding == 2);
+  if (v2_sections) {
     if (fts_size < sizeof(FtsFooterV2)) {
       if (error) *error = "v2 fts too small";
       return Status::Error("v2 fts too small");
@@ -579,7 +644,7 @@ Status Segment::Open(const std::string& path, SegmentPtr* out,
   }
 
   // Invert fields.
-  if (version == kVersionV2) {
+  if (v2_sections) {
     if (invert_size < sizeof(InvertFooterV2)) {
       if (error) *error = "v2 invert too small";
       return Status::Error("v2 invert too small");

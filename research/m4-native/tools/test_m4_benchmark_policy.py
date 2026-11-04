@@ -116,6 +116,17 @@ class BenchmarkPolicyTests(unittest.TestCase):
                 "reader_samples": [0.25] * (workload["readers"] * workload["queries_per_reader"]),
                 "reader_mutex_wait_samples": [0.0] * (workload["readers"] * workload["queries_per_reader"]),
             })
+            if workload["mode"] == "--m4-background-compaction-pair":
+                arm.update({
+                    "fixture_runs": workload["documents"] // 1024,
+                    "background_compaction_enabled": name == "background_on",
+                    "background_wait_ms": 1.0,
+                    "compaction_merges": 3,
+                    "compaction_input_docs": workload["documents"],
+                    "compaction_output_docs": workload["documents"],
+                    "compaction_wall_total_ms": 2.0,
+                    "runs_after_flush": 4,
+                })
             if workload["mode"] in (
                     "--m4-flush-reader-staging-pair",
                     "--m4-group-commit-flush-reader-pair",
@@ -216,9 +227,11 @@ class BenchmarkPolicyTests(unittest.TestCase):
         }
         if include_compaction_timing:
             data["timing_schema_version"] = timing_schema
-            if timing_schema in (8, 9, 10, 11, 12):
+            if timing_schema in (8, 9, 10, 11, 12, 13):
                 data["workload_mode"] = (
-                    "group_commit_pending_flush_reader_pair"
+                    "background_compaction_pair"
+                    if workload["mode"] == "--m4-background-compaction-pair"
+                    else "group_commit_pending_flush_reader_pair"
                     if workload["mode"] == "--m4-group-commit-pending-flush-reader-pair"
                     else "group_commit_flush_reader_pair"
                     if workload["mode"] == "--m4-group-commit-flush-reader-pair"
@@ -234,6 +247,42 @@ class BenchmarkPolicyTests(unittest.TestCase):
         result = {"status": "PASS", "workload_returncode": 0,
                   "controller_cleanup": {"verified": True}}
         return result, data, contract
+
+    def test_background_compaction_pair_verifies_both_orders_and_real_work(self):
+        for profile, expected_order in (
+                ("background_compaction_pair_off_first",
+                 ["background_off", "background_on"]),
+                ("background_compaction_pair_on_first",
+                 ["background_on", "background_off"])):
+            with self.subTest(profile=profile):
+                result, data, contract = self._valid_contention_receipt(
+                    timing_schema=13, workload_profile=profile)
+                self.assertEqual(data["arm_order"], expected_order)
+                lock_runner.verify(result, data, contract, "")
+
+    def test_background_compaction_pair_rejects_a_reversed_unregistered_order(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=13,
+            workload_profile="background_compaction_pair_off_first")
+        data["arms"].reverse()
+        data["arm_order"].reverse()
+        with self.assertRaisesRegex(RuntimeError, "arm order differs from the registered profile"):
+            lock_runner.verify(result, data, contract, "")
+
+    def test_background_compaction_pair_rejects_missing_work_or_wrong_arm(self):
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=13,
+            workload_profile="background_compaction_pair_off_first")
+        data["arms"][1]["compaction_merges"] = 0
+        with self.assertRaisesRegex(RuntimeError, "did not meet the registered work contract"):
+            lock_runner.verify(result, data, contract, "")
+
+        result, data, contract = self._valid_contention_receipt(
+            timing_schema=13,
+            workload_profile="background_compaction_pair_off_first")
+        data["arms"][1]["background_compaction_enabled"] = False
+        with self.assertRaisesRegex(RuntimeError, "did not meet the registered work contract"):
+            lock_runner.verify(result, data, contract, "")
 
     def test_flush_reader_staging_verifier_requires_timestamped_overlap(self):
         result, data, contract = self._valid_contention_receipt(
@@ -618,6 +667,59 @@ class BenchmarkPolicyTests(unittest.TestCase):
         self.assertIn("sole machine-readable source", markdown)
         for value in ("5,477,762", "18,219,000,000", "4.46%", "3.14"):
             self.assertNotIn(value, markdown)
+
+    def test_native_query_lock_split_pair_is_bounded_and_non_qualifying(self):
+        contract = self.policy["native_query_lock_split_pair"]
+        self.assertEqual(contract["approval_status"], "approved")
+        self.assertEqual(contract["evidence_class"], "EXPLORATORY / NON-QUALIFYING")
+        self.assertEqual(contract["arm_roles"], ["control", "treatment"])
+        self.assertTrue(contract["same_source_identity"])
+        self.assertFalse(contract["single_pair_only"])
+        self.assertEqual(contract["max_pairs"], 3)
+        self.assertTrue(contract["aa_pair"])
+        self.assertTrue(contract["counterbalanced_order"])
+        self.assertTrue(contract["no_automatic_retry"])
+        workload = contract["workload"]
+        self.assertEqual(workload["phases"], ["idle", "flush", "optimize"])
+        self.assertGreater(workload["documents"], 0)
+        self.assertEqual(workload["cycles"], 32)
+        self.assertEqual(workload["readers"], 8)
+        self.assertEqual(workload["batch_docs"], 64)
+        self.assertEqual(workload["min_samples_per_phase"], 256)
+        controls = contract["resource_controls"]
+        self.assertEqual(controls["disk_reserve_bytes"], 18219000000)
+        self.assertEqual(controls["memory_swap_max_bytes"], 0)
+        self.assertLessEqual(controls["runtime_limit_seconds"], 180)
+        self.assertIn("No causal", contract["measurement_semantics"])
+
+    def test_background_compaction_profiles_are_bounded_and_counterbalanced(self):
+        contract = self.policy["lock_contention_microbench"]
+        profiles = (
+            "background_compaction_pair_off_first",
+            "background_compaction_pair_on_first",
+        )
+        self.assertNotEqual(contract["workload"]["mode"],
+                            "--m4-background-compaction-pair")
+        expected = {
+            profiles[0]: ("background_off_first", ["background_off", "background_on"]),
+            profiles[1]: ("background_on_first", ["background_on", "background_off"]),
+        }
+        for name in profiles:
+            profile = contract[name]
+            workload = profile["workload"]
+            with self.subTest(profile=name):
+                self.assertEqual(workload["mode"], "--m4-background-compaction-pair")
+                self.assertEqual((workload["arm_order"], workload["compaction_modes"]),
+                                 expected[name])
+                self.assertIn("up to three", profile["execution_authorization_reference"])
+                self.assertEqual(profile["binary_relative_path"],
+                                 ".work/build/background-compaction-benchmark-20261029/m4_compaction_writer_contention")
+                self.assertRegex(profile["binary_sha256"], r"^[0-9a-f]{64}$")
+                self.assertEqual(profile["runtime_library_relative_path"],
+                                 ".local/native/zvec-native-build/lib/libzvec_c_api.so")
+                self.assertRegex(profile["runtime_library_sha256"], r"^[0-9a-f]{64}$")
+                self.assertEqual(workload["documents"], 8192)
+                self.assertEqual(workload["rounds"], 32)
 
     def test_active_and_legacy_harnesses_load_the_json_source(self):
         runner_source = (HERE / "m4_containment_runner.py").read_text(encoding="utf-8")

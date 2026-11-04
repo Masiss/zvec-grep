@@ -234,6 +234,31 @@ class ProfilerAdmissionPolicyTests(unittest.TestCase):
             self.assertEqual(env['M4_WAL_COMPRESSION_LZ4'], '0')
             self.assertEqual(env['M4_P42_LATENCY'], '1')
 
+    def test_stats_coalescing_lz4_profile_isolates_coalescing_at_batch_128(self):
+        standard = profiler.write_amp_workload_profile('standard')
+        workload = profiler.write_amp_workload_profile(
+            'stats-coalescing-at-batch-128-lz4-full-1200')
+        self.assertEqual(workload['files'], 1200)
+        self.assertEqual(workload['control_mutation_batch_docs'], 128)
+        self.assertEqual(workload['candidate_mutation_batch_docs'], 128)
+        self.assertFalse(workload['control_coalesce_stats'])
+        self.assertTrue(workload['candidate_coalesce_stats'])
+        self.assertTrue(workload['control_wal_compression_lz4'])
+        self.assertTrue(workload['candidate_wal_compression_lz4'])
+        self.assertTrue(workload['trace_mutation_latency'])
+        changed = {key for key in standard if standard[key] != workload[key]}
+        self.assertEqual(changed, {
+            'control_mutation_batch_docs', 'candidate_mutation_batch_docs',
+            'control_wal_compression_lz4', 'candidate_coalesce_stats',
+            'trace_mutation_latency',
+        })
+        for role, coalescing in (('control', '0'), ('candidate', '1')):
+            env = profiler.m4_compaction_environment(role, workload)
+            self.assertEqual(env['M4_MUTATION_BATCH_DOCS'], '128')
+            self.assertEqual(env['M4_COALESCE_STATS'], coalescing)
+            self.assertEqual(env['M4_WAL_COMPRESSION_LZ4'], '1')
+            self.assertEqual(env['M4_P42_LATENCY'], '1')
+
     def test_argument_workload_builder_matches_every_policy_field(self):
         policy = profiler.WRITE_AMP_WORKLOAD
         args = SimpleNamespace(

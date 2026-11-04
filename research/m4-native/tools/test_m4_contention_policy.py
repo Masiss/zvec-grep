@@ -445,7 +445,7 @@ class ContentionPolicyTests(unittest.TestCase):
         }
         proof = ct.validate_workspace_quota_attestation(attestation, contract, 0, 0o644)
         self.assertEqual(proof["status"], "VERIFIED")
-        self.assertEqual(proof["max_referenced_bytes"], 134217728)
+        self.assertEqual(proof["max_referenced_bytes"], 167772160)
         with self.assertRaisesRegex(ValueError, "root ownership/mode"):
             ct.validate_workspace_quota_attestation(attestation, contract, os.getuid(), 0o666)
         with self.assertRaisesRegex(ValueError, "mismatch"):
@@ -490,7 +490,7 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(verified["attestation_sha256"], hashlib.sha256(attestation_path.read_bytes()).hexdigest())
         self.assertEqual(verified["live_headroom"]["available_bytes"],
                          expected["max_referenced_bytes"])
-        (qgroup / "referenced").write_text(str(134217728 - 67108864 + 1))
+        (qgroup / "referenced").write_text(str(167772160 - 67108864 + 1))
         with mock.patch.object(ct, "BTRFS_SYSFS_ROOT", qgroup.parents[2]), \
              self.assertRaisesRegex(ValueError, "insufficient live Btrfs qgroup headroom"):
             ct.verify_workspace_quota_headroom(expected)
@@ -500,7 +500,7 @@ class ContentionPolicyTests(unittest.TestCase):
         self.assertEqual(ct.validate_contention_context(ctx), ctx)
         for invalid_proof in (
             dict(ctx["workspace_quota_proof"], max_referenced_bytes=1),
-            dict(ctx["workspace_quota_proof"], workspace_root="/tmp/untrusted"),
+            dict(ctx["workspace_quota_proof"], workspace_root="/not-the-configured-workspace"),
             dict(ctx["workspace_quota_proof"], attestation_sha256="not-a-digest"),
         ):
             with self.subTest(proof=invalid_proof), self.assertRaises(ValueError):
@@ -513,7 +513,13 @@ class ContentionPolicyTests(unittest.TestCase):
             scan_complete=False, inventory_status="PARTIAL_KNOWN_RACE",
             scan_errors=["ENOENT: atomic temporary renamed"],
         )
-        decision = ct.workspace_capacity_decision(uncertain, budget, "contention-aware")
+        quota_sample = {
+            "status": "PASS",
+            **ctx["workspace_quota_proof"]["live_headroom"],
+        }
+        decision = ct.workspace_capacity_decision(
+            uncertain, budget, "contention-aware", quota_sample
+        )
         self.assertTrue(decision["continuation_allowed"])
         self.assertEqual(decision["independent_capacity_upper_bound"],
                          ct.BENCHMARK_POLICY["lock_contention_microbench"]["workspace_quota"]["max_referenced_bytes"])
@@ -1383,6 +1389,12 @@ class ContentionPolicyTests(unittest.TestCase):
             ct.contention_completion_status("PASS", False, False, 0)[0],
             "TELEMETRY_INCOMPLETE",
         )
+        self.assertEqual(
+            ct.contention_completion_status(
+                "PASS", True, True, 0, workspace_samples_complete=False
+            )[0],
+            "COMPLETED_WITH_WORKSPACE_UNCERTAINTY",
+        )
 
     def test_soft_budgets_record_both_overages_without_hard_abort(self):
         work = self.workspace_row(
@@ -1411,6 +1423,9 @@ class ContentionPolicyTests(unittest.TestCase):
             scan_complete=False,
             inventory_status="PARTIAL_KNOWN_RACE",
             scan_errors=["ENOENT: owned atomic temporary renamed"],
+            apparent_bytes=self.ctx["workspace_max_apparent_bytes"] + 17,
+            allocated_st_blocks_bytes_gross=self.ctx["workspace_max_allocated_bytes"]
+            + 23,
         )
         summary, rows, killed = self.run_watchdog(state(), workspace=work)
         self.assertIsNone(summary["abort"])
@@ -1425,6 +1440,12 @@ class ContentionPolicyTests(unittest.TestCase):
             all(r["workspace_capacity_decision"]["state"] == "UNKNOWN" for r in rows)
         )
         self.assertTrue(all(not r["workspace"]["scan_complete"] for r in rows))
+        self.assertTrue(all(not r["workspace_capacity_decision"]["warnings"] for r in rows))
+        self.assertTrue(
+            all(len(r["workspace_capacity_decision"]["indeterminate_overages"]) == 2 for r in rows)
+        )
+        self.assertEqual(summary["workspace_soft_budget_warning_samples"], 0)
+        self.assertEqual(summary["workspace_soft_budget_indeterminate_samples"], len(rows))
 
     def test_pending_drain_is_unknown_without_extra_drain_or_fake_complete(self):
         with mock.patch.object(ct.select, "select", return_value=([1], [], [])):
@@ -1591,6 +1612,10 @@ class ContentionPolicyTests(unittest.TestCase):
             2_500_000_000,
             2_510_000_000,
             2_520_000_000,
+            2_530_000_000,
+            2_540_000_000,
+            2_550_000_000,
+            2_560_000_000,
         ]
         summary, rows, killed = self.run_watchdog(
             state(), monotonic_ns_values=values
@@ -1627,6 +1652,10 @@ class ContentionPolicyTests(unittest.TestCase):
             50_000_000,
             60_000_000,
             70_000_000,
+            80_000_000,
+            90_000_000,
+            100_000_000,
+            110_000_000,
         ]
         boottime_values = [
             5_000_000_000,

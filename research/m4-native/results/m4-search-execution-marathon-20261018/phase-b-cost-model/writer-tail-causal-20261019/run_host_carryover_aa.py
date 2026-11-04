@@ -48,14 +48,26 @@ def features(rows):
         raise ValueError("host window has too few samples")
     start_ns, end_ns = int(rows[0]["monotonic_ns"]), int(rows[-1]["monotonic_ns"])
     duration_s = (end_ns - start_ns) / 1e9
+    def optional_aggregate(key, cast, aggregate):
+        values = []
+        for row in rows:
+            try:
+                value = cast(row.get(key))
+                if not math.isfinite(float(value)) or value < 0:
+                    return None
+                values.append(value)
+            except (TypeError, ValueError):
+                return None
+        return aggregate(values) if values else None
+
     result = {
         "duration_s": duration_s,
-        "load1_max": max(float(r["load1"]) for r in rows),
-        "memavailable_min_kib": min(int(r["memavailable_kib"]) for r in rows),
+        "load1_max": optional_aggregate("load1", float, max),
+        "memavailable_min_kib": optional_aggregate("memavailable_kib", int, min),
         "swapfree_min_kib": min(int(r["swapfree_kib"]) for r in rows),
     }
     for key in ("io_some_avg10", "io_full_avg10", "memory_some_avg10", "memory_full_avg10"):
-        result[f"{key}_max"] = max(float(r[key]) for r in rows)
+        result[f"{key}_max"] = optional_aggregate(key, float, max)
     for key in ("pswpin", "pswpout"):
         result[f"{key}_pages"] = int(rows[-1][key]) - int(rows[0][key])
     before, after = disk_totals(rows[0]), disk_totals(rows[-1])
@@ -64,17 +76,17 @@ def features(rows):
     return result
 
 
-FEATURE_KEYS = (
-    "load1_max", "memavailable_min_kib", "swapfree_min_kib",
-    "io_some_avg10_max", "io_full_avg10_max", "memory_some_avg10_max", "memory_full_avg10_max",
-    "pswpin_pages", "pswpout_pages", "disk_read_sectors_delta", "disk_write_sectors_delta", "disk_io_ms_delta",
-)
+# Host PSI, load and MemAvailable remain recorded in features/receipts but are
+# not stability prerequisites or launch/abort gates. Only the explicit
+# SwapFree capacity floor remains a host-side recovery criterion.
+FEATURE_KEYS = ("swapfree_min_kib",)
 
 
 def validate_baseline_samples(rows, require_sample_timing=True):
     """Classify missing/malformed host telemetry without changing the drift envelope."""
-    required = ("monotonic_ns", "load1", "memavailable_kib", "swapfree_kib", "pswpin", "pswpout",
-                "io_some_avg10", "io_full_avg10", "memory_some_avg10", "memory_full_avg10", "diskstats_json")
+    required = ("monotonic_ns", "swapfree_kib", "pswpin", "pswpout", "diskstats_json")
+    optional_host_context = ("load1", "memavailable_kib", "io_some_avg10", "io_full_avg10",
+                             "memory_some_avg10", "memory_full_avg10")
     errors = []
     period_ns = int(host.SAMPLE_S * 1e9)
     if not rows:
@@ -148,7 +160,18 @@ def validate_baseline_samples(rows, require_sample_timing=True):
     cadence = [b - a for a, b in pairwise(timestamps)]
     if window_count < 6:
         errors.append({"code": "INSUFFICIENT_CAPTURE_WINDOWS", "window_count": window_count})
+    unavailable_host_context = set()
+    for row in rows:
+        for key in optional_host_context:
+            try:
+                value = float(row[key])
+                if not math.isfinite(value) or value < 0:
+                    raise ValueError("invalid optional context")
+            except (KeyError, TypeError, ValueError):
+                unavailable_host_context.add(key)
     return {"status": "MEASUREMENT_INVALID" if errors else "VALID",
+            "host_context_telemetry_unavailable": sorted(unavailable_host_context),
+            "host_context_telemetry_disposition": "observational only; missing or malformed host pressure/load/MemAvailable does not block measurement",
             "sample_count": len(rows), "duration_s": duration_ns / 1e9,
             "window_count": window_count, "expected_period_ns": period_ns,
             "cadence_ns": None if not cadence else {"min": min(cadence), "median": sorted(cadence)[len(cadence)//2], "max": max(cadence)},
@@ -192,27 +215,16 @@ def establish_profile(rows):
 
 
 def within_profile(window, profile):
-    for key in FEATURE_KEYS:
-        if key in ("memavailable_min_kib", "swapfree_min_kib"):
-            if window[key] < profile[key]["min"]:
-                return False
-        elif window[key] > profile[key]["max"]:
-            return False
-    return True
+    return all(window[key] >= profile[key]["min"] for key in FEATURE_KEYS)
 
 
 def resource_guard_failures(state, thresholds):
     checks = (
-        ("MemAvailable_kib", thresholds["MemAvailable_kib_min"], lambda observed, bound: observed >= bound),
         ("resource_root_available_bytes", thresholds["var_tmp_bytes_min"], lambda observed, bound: observed >= bound),
-        ("io_full_avg10", thresholds["io_full_avg10_max"], lambda observed, bound: observed <= bound),
-        ("load1", thresholds["load1_max"], lambda observed, bound: observed <= bound),
     )
     metadata = runner.BENCHMARK_POLICY["resource_guard_metadata"]
     by_key = {spec["threshold_key"]: (gate_id, spec) for gate_id, spec in metadata.items()}
-    key_map = {"MemAvailable_kib": "MemAvailable_kib_min",
-               "resource_root_available_bytes": "var_tmp_bytes_min",
-               "io_full_avg10": "io_full_avg10_max", "load1": "load1_max"}
+    key_map = {"resource_root_available_bytes": "var_tmp_bytes_min"}
     failures = []
     for key, bound, predicate in checks:
         observed = state.get(key)
@@ -229,7 +241,8 @@ def gate_snapshot(policy_context=None, phase='recovery'):
         state = runner.read_host(policy_context)
         decision = runner.containment.contention_decision(state['contention_host_snapshot'], policy_context, phase)
         state.update({'pass': decision['continuation_allowed'], 'diagnostic_decision': decision,
-                      'resource_guard_failures': decision['historical_guard_failures']})
+                      'resource_guard_failures': decision['blocking_failures'],
+                      'historical_guard_failures': decision['historical_guard_failures']})
         return state
     state = runner.read_host()
     state["thresholds"] = runner.THRESHOLDS
@@ -251,56 +264,45 @@ def baseline_pressure_limits(rows):
     reference = windows[:3]
     return {
         "swapfree_min_kib": min(w["swapfree_min_kib"] for w in reference),
-        "memory_some_avg10_max": max(w["memory_some_avg10_max"] for w in reference),
-        "memory_full_avg10_max": max(w["memory_full_avg10_max"] for w in reference),
+        "memory_some_avg10_max": max((w["memory_some_avg10_max"] for w in reference
+                                       if w["memory_some_avg10_max"] is not None), default=0.0),
+        "memory_full_avg10_max": max((w["memory_full_avg10_max"] for w in reference
+                                       if w["memory_full_avg10_max"] is not None), default=0.0),
     }
 
 
 def resource_guard_baseline_failures(rows, thresholds):
-    """Apply the existing absolute host limits to every available baseline sample."""
+    """Apply only the retained-disk reserve to baseline samples."""
     failures = []
     for index, row in enumerate(rows):
-        checks = (
-            ("MemAvailable_kib", int(row["memavailable_kib"]), thresholds["MemAvailable_kib_min"], lambda a, b: a >= b),
-            ("load1", float(row["load1"]), thresholds["load1_max"], lambda a, b: a <= b),
-            ("io_full_avg10", float(row["io_full_avg10"]), thresholds["io_full_avg10_max"], lambda a, b: a <= b),
-        )
-        for metric, observed, bound, predicate in checks:
-            if not predicate(observed, bound):
-                metadata = runner.BENCHMARK_POLICY["resource_guard_metadata"]
-                key_map = {"MemAvailable_kib": "MemAvailable_kib_min",
-                           "load1": "load1_max", "io_full_avg10": "io_full_avg10_max"}
-                gate_id = next(gid for gid, spec in metadata.items() if spec["threshold_key"] == key_map[metric])
-                failures.append({"sample_index": index, "metric": metric, "observed": observed,
-                                 "threshold": bound, "gate_id": gate_id, "threshold_key": key_map[metric],
-                                 "evidence_class": metadata[gate_id]["evidence_class"]})
+        metric, observed, bound = ("resource_root_available_bytes",
+                                  int(row["resource_root_available_bytes"]),
+                                  thresholds["var_tmp_bytes_min"])
+        if observed < bound:
+            metadata = runner.BENCHMARK_POLICY["resource_guard_metadata"]
+            gate_id = next(gid for gid, spec in metadata.items()
+                           if spec["threshold_key"] == "var_tmp_bytes_min")
+            failures.append({"sample_index": index, "metric": metric, "observed": observed,
+                             "threshold": bound, "gate_id": gate_id, "threshold_key": "var_tmp_bytes_min",
+                             "evidence_class": metadata[gate_id]["evidence_class"]})
     return failures
 
 
 def baseline_pressure_failures(windows, pressure_limits):
     failures = []
     for index, window in enumerate(windows[3:], start=3):
-        if (window["swapfree_min_kib"] < pressure_limits["swapfree_min_kib"] or
-                window["memory_some_avg10_max"] > pressure_limits["memory_some_avg10_max"] or
-                window["memory_full_avg10_max"] > pressure_limits["memory_full_avg10_max"]):
+        if window["swapfree_min_kib"] < pressure_limits["swapfree_min_kib"]:
             failures.append({"window_index": index, "features": window, "pressure_limits": pressure_limits})
     return failures
 
 
 def baseline_pressure_window_pass(window, pressure_limits):
     return (pressure_limits is not None and
-            window["swapfree_min_kib"] >= pressure_limits["swapfree_min_kib"] and
-            window["memory_some_avg10_max"] <= pressure_limits["memory_some_avg10_max"] and
-            window["memory_full_avg10_max"] <= pressure_limits["memory_full_avg10_max"])
+            window["swapfree_min_kib"] >= pressure_limits["swapfree_min_kib"])
 
 
 def diagnostic_window_safe(window, state, pressure_limits):
-    t = runner.THRESHOLDS
-    return (state["pass"] and
-            window["memavailable_min_kib"] >= t["MemAvailable_kib_min"] and
-            baseline_pressure_window_pass(window, pressure_limits) and
-            window["load1_max"] <= t["load1_max"] and
-            window["io_full_avg10_max"] <= t["io_full_avg10_max"])
+    return state["pass"] and baseline_pressure_window_pass(window, pressure_limits)
 
 
 def write_rows(path, rows):
@@ -387,6 +389,8 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
 
     def persist_interarm(recovered):
         write_rows(pair / "interarm-host-samples.csv", interarm_rows)
+        first_identity = read_arm_identity(pair / "aa-first")
+        second_identity = read_arm_identity(pair / "aa-second")
         (pair / "interarm-quiescence.json").write_text(json.dumps({
             "windows": window_records, "recovered": recovered, "mode": mode,
             "policy_context": policy_context,
@@ -394,13 +398,11 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
             "recovery_policy": ('contention capacity/integrity windows, no historical-envelope or idle-match prerequisite' if policy_context is not None else
                                 "all operation resource and baseline-pressure guards; diagnostic evidence remains exploratory" if mode == "diagnostic" else "qualification stability envelope plus all operation resource and baseline-pressure guards"),
             "required_consecutive_windows": required_windows, "timeout_seconds": timeout_seconds,
-            "first_arm_identity": read_arm_identity(pair / "aa-first"),
-            "second_arm_identity": read_arm_identity(pair / "aa-second"),
+            "first_arm_identity": first_identity,
+            "second_arm_identity": second_identity,
             "same_binary_source_and_native_library_identity": (
-                read_arm_identity(pair / "aa-first") is not None and
-                read_arm_identity(pair / "aa-second") is not None and
-                read_arm_identity(pair / "aa-first").get("runtime_identity") ==
-                read_arm_identity(pair / "aa-second").get("runtime_identity")
+                first_identity is not None and second_identity is not None and
+                first_identity.get("runtime_identity") == second_identity.get("runtime_identity")
             ),
         }, indent=2) + "\n")
 
@@ -456,6 +458,7 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
                 raise SystemExit("NO_LAUNCH: MEASUREMENT_INVALID; inter-arm feature extraction failed") from exc
             quality_profile_match = (within_profile(summary, profile)
                                      if mode == "qualification" and profile is not None else None)
+            decisions = None
             resource_guard_pass = state["pass"]
             pressure_guard_pass = baseline_pressure_window_pass(summary, pressure_limits)
             if policy_context is not None:
@@ -506,13 +509,15 @@ def run_contained_pair(pair, mode, pressure_limits, profile, *, arm_runner=None,
         raise
     finally:
         runner.EXPECTED_AA_IDENTITY = previous_expected_identity
+    first_identity = read_arm_identity(pair / "aa-first")
+    second_identity = read_arm_identity(pair / "aa-second")
     return {"recovered": consecutive >= required_windows, "windows": window_records,
             "same_binary_source_and_native_library_identity": (
-                read_arm_identity(pair / "aa-first").get("runtime_identity") ==
-                read_arm_identity(pair / "aa-second").get("runtime_identity")
+                first_identity is not None and second_identity is not None and
+                first_identity.get("runtime_identity") == second_identity.get("runtime_identity")
             ),
-            "first_arm_identity": read_arm_identity(pair / "aa-first"),
-            "second_arm_identity": read_arm_identity(pair / "aa-second")}
+            "first_arm_identity": first_identity,
+            "second_arm_identity": second_identity}
 
 
 def read_arm_identity(arm_dir):
@@ -569,14 +574,19 @@ def sample_contention(context, phase):
         raise RuntimeError('contention capacity failure: ' + json.dumps(decision))
     disk = {name: {'read_sectors': d['sectors_read'], 'write_sectors': d['sectors_written'], 'io_ms': d['io_ms']}
             for name, d in state['diskstats'].items()}
-    row = {'load1': state['loadavg'][0], 'memavailable_kib': state['meminfo_kib']['MemAvailable_kib'],
-           'swapfree_kib': state['meminfo_kib']['SwapFree_kib'],
+    mem = state.get('meminfo_kib', {})
+    load = state.get('loadavg') or []
+    row = {'load1': load[0] if load else None,
+           'memavailable_kib': mem.get('MemAvailable_kib'),
+           'swapfree_kib': mem.get('SwapFree_kib'),
            'pswpin': state['vmstat']['pswpin_pages'], 'pswpout': state['vmstat']['pswpout_pages'],
            'diskstats_json': json.dumps(disk), 'contention_host_json': json.dumps(state)}
     for family, prefix in (('io_pressure', 'io'), ('memory_pressure', 'memory'), ('cpu_pressure', 'cpu')):
-        for kind, values in state[family].items():
-            row[f'{prefix}_{kind}_avg10'] = values['avg10']
-            row[f'{prefix}_{kind}_total_us'] = values['total']
+        pressure = state.get(family) or {}
+        for kind in ('some', 'full'):
+            values = pressure.get(kind) or {}
+            row[f'{prefix}_{kind}_avg10'] = values.get('avg10')
+            row[f'{prefix}_{kind}_total_us'] = values.get('total')
     end = time.monotonic_ns()
     row.update({'monotonic_ns': end, 'epoch_ns': time.time_ns(), 'sample_start_monotonic_ns': start,
                 'sample_duration_ns': end-start})
@@ -624,14 +634,28 @@ def validate_contention_samples(rows, context, phase, duration):
                 raise ValueError('invalid/overlong contention sample bracket')
             if int(row['epoch_ns']) <= 0:
                 raise ValueError('invalid contention wall-clock stamp')
-            for key, value in (('load1',state['loadavg'][0]), ('memavailable_kib',state['meminfo_kib']['MemAvailable_kib']),
-                               ('swapfree_kib',state['meminfo_kib']['SwapFree_kib']), ('pswpin',state['vmstat']['pswpin_pages']),
-                               ('pswpout',state['vmstat']['pswpout_pages']), ('io_some_avg10',state['io_pressure']['some']['avg10']),
-                               ('io_full_avg10',state['io_pressure']['full']['avg10']),
-                               ('memory_some_avg10',state['memory_pressure']['some']['avg10']),
-                               ('memory_full_avg10',state['memory_pressure']['full']['avg10'])):
+            required_channels = (
+                ('swapfree_kib', state['meminfo_kib']['SwapFree_kib']),
+                ('pswpin', state['vmstat']['pswpin_pages']),
+                ('pswpout', state['vmstat']['pswpout_pages']),
+            )
+            for key, value in required_channels:
                 if isinstance(row[key], bool) or not math.isfinite(float(row[key])) or float(row[key]) != value:
                     raise ValueError('inconsistent contention sample channels: '+key)
+            optional_channels = (
+                ('load1', (state.get('loadavg') or [None])[0]),
+                ('memavailable_kib', state.get('meminfo_kib', {}).get('MemAvailable_kib')),
+                ('io_some_avg10', ((state.get('io_pressure') or {}).get('some') or {}).get('avg10')),
+                ('io_full_avg10', ((state.get('io_pressure') or {}).get('full') or {}).get('avg10')),
+                ('memory_some_avg10', ((state.get('memory_pressure') or {}).get('some') or {}).get('avg10')),
+                ('memory_full_avg10', ((state.get('memory_pressure') or {}).get('full') or {}).get('avg10')),
+            )
+            for key, value in optional_channels:
+                observed = row.get(key)
+                if observed is None or value is None:
+                    continue
+                if isinstance(observed, bool) or not math.isfinite(float(observed)) or float(observed) != value:
+                    raise ValueError('inconsistent optional host-context channel: '+key)
             expected_disk = {name: {'read_sectors':d['sectors_read'], 'write_sectors':d['sectors_written'], 'io_ms':d['io_ms']}
                              for name,d in state['diskstats'].items()}
             if json.loads(row['diskstats_json']) != expected_disk:
@@ -656,8 +680,9 @@ def baseline_gate_decision(mode, integrity, pressure_limits, absolute_failures,
         raise ValueError('baseline mode/context mismatch')
     if policy_context is not None:
         runner.containment.validate_contention_context(policy_context)
-        valid = integrity.get('status') == 'VALID' and bool(contention_decisions)
-        allowed = valid and all(d['continuation_allowed'] for d in contention_decisions)
+        decisions = contention_decisions or []
+        valid = integrity.get('status') == 'VALID' and bool(decisions)
+        allowed = valid and all(d['continuation_allowed'] for d in decisions)
         return {'policy_id': runner.BENCHMARK_POLICY['policy_id'],
                 'operation_outcome': 'OPERATION_READY_EXPLORATORY' if allowed else 'OPERATION_BLOCKED',
                 'gate_id': None if allowed else 'M4-CA-CAPACITY-OR-INTEGRITY',
@@ -669,6 +694,10 @@ def baseline_gate_decision(mode, integrity, pressure_limits, absolute_failures,
                 'contention_decisions': contention_decisions, 'policy_context': policy_context,
                 'recovery_conditions': 'capacity and integrity; no idle wait, no automatic retry',
                 'mission_status': 'NOT_EVALUATED_BY_RUNNER'}
+    # Preserve all raw historical comparisons in receipts, but only the disk
+    # reserve remains a host-side admission guard in non-contention modes.
+    absolute_failures = [failure for failure in absolute_failures
+                         if failure.get("gate_id") == "M4-RG-DISK"]
     policy = runner.BENCHMARK_POLICY
     if integrity.get("status") != "VALID":
         gate_id, gate_class = "M4-MQ-INTEGRITY", "MEASUREMENT_INTEGRITY"
@@ -987,7 +1016,8 @@ def record_unhandled_operation_exit(pair, exc):
     recovery = decision.get("recovery_conditions")
     for item in receipts:
         if item.get("gate_decisions"):
-            failed = [gate for gate in item["gate_decisions"] if gate.get("status") == "FAIL"]
+            failed = [gate for gate in item["gate_decisions"]
+                      if gate.get("status") == "FAIL" and gate.get("enforced", False)]
             if failed:
                 gate_id = [gate.get("gate_id") for gate in failed]
                 evidence_class = "; ".join(sorted({gate.get("evidence_class", "") for gate in failed}))

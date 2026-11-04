@@ -21,14 +21,34 @@ use zg_cli::{
 };
 use zg_daemon::{DaemonStatus, ListenAddress, McpToolset as DaemonMcpToolset, ServerConfig};
 use zg_daemon_protocol::{DaemonCommand, DaemonReply};
-use zg_engine::{EngineError, ZvecGrep, api::context::ContextOptions};
+use zg_engine::{
+    EngineError, ZvecGrep,
+    api::{
+        context::ContextOptions,
+        verify::{VerifyOptions, VerifyResult},
+    },
+};
 
 static DAEMON_LOGGING: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug)]
+struct ExitStatus(u8);
+
+impl std::fmt::Display for ExitStatus {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "verification exited with status {}", self.0)
+    }
+}
+
+impl Error for ExitStatus {}
 
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
+            if let Some(exit) = error.downcast_ref::<ExitStatus>() {
+                return ExitCode::from(exit.0);
+            }
             if let Some(error) = error.downcast_ref::<EngineError>() {
                 eprintln!("{}", error.report());
             } else {
@@ -174,6 +194,11 @@ async fn execute_plan(plan: CliPlan) -> Result<(), Box<dyn Error>> {
             check_ready,
             output,
         } => execute_status(mode, home.as_deref(), request, check_ready, output).await,
+        CliPlan::Verify {
+            request,
+            json,
+            output: _,
+        } => execute_verify(request, json).await,
         CliPlan::Config(args) => {
             use zg_cli::{ConfigAction, ModelAction, ProviderAction};
             let (label, reference, path) = match args.action {
@@ -239,6 +264,66 @@ async fn execute_plan(plan: CliPlan) -> Result<(), Box<dyn Error>> {
         CliPlan::Install(args) => execute_install_plan(&args).await,
         CliPlan::Uninstall(args) => zg_cli::execute_uninstall(&args).map_err(Into::into),
         CliPlan::Help(_) | CliPlan::Version => Ok(()),
+    }
+}
+
+async fn execute_verify(request: VerifyOptions, json: bool) -> Result<(), Box<dyn Error>> {
+    let engine = ZvecGrep::new();
+    let result = engine.verify(request).await?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    } else {
+        write_verify_human(&result);
+    }
+    let code = result.exit_code();
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(Box::new(ExitStatus(code)))
+    }
+}
+
+fn write_verify_human(result: &VerifyResult) {
+    println!("Index verification");
+    println!("  root       {}", result.root.display());
+    println!("  index      {}", result.index_path.display());
+    let status = result
+        .report
+        .as_ref()
+        .map_or("UNAVAILABLE", |report| report.status.as_str());
+    println!("  status     {status}");
+    if let Some(generation) = &result.expected_generation {
+        println!("  generation {generation}");
+    }
+    if let Some(abi) = result.native_abi {
+        println!("  native ABI {abi}");
+    }
+    if let Some(message) = &result.message {
+        println!("  detail     {message}");
+    }
+    if let Some(report) = &result.report {
+        println!("  coverage");
+        for coverage in &report.coverage {
+            println!(
+                "    {:<10} {:<12} files={} bytes={}",
+                coverage.name, coverage.status, coverage.files, coverage.bytes
+            );
+        }
+        if !report.missing_coverage.is_empty() {
+            println!("  missing     {}", report.missing_coverage.join(", "));
+        }
+        if !report.limitations.is_empty() {
+            println!("  limitations {}", report.limitations.join(", "));
+        }
+        if !report.errors.is_empty() {
+            println!("  errors");
+            for error in &report.errors {
+                println!("    {error}");
+            }
+        }
+    }
+    if result.outcome != zg_engine::api::verify::VerifyOutcome::Pass {
+        println!("  next       inspect the reported errors; rebuild only if you decide to");
     }
 }
 

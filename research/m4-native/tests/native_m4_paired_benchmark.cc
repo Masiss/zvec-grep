@@ -553,7 +553,7 @@ std::pair<uint64_t, uint64_t> AdviseFileColdAndCountPages(const fs::path& path) 
             "mincore replay file: " + path.string());
     return static_cast<uint64_t>(std::count_if(
         residency.begin(), residency.end(),
-        [](unsigned char page) { return (page & 1) != 0; }));
+        [](unsigned char page) { return page != 0; }));
   };
   const uint64_t before = count_resident();
   const int advice = ::posix_fadvise(fd, 0, st.st_size, POSIX_FADV_DONTNEED);
