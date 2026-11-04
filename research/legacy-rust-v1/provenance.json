@@ -1,0 +1,9 @@
+{
+  "status": "source_archive_not_applied",
+  "base": "fdf5c90f0842f734e528377a1d95b130b8906ec5",
+  "snapshot": "13a3555ef3990293c2671856599ad5b1f4eda146",
+  "patches": {
+    "post-rc-runtime.patch": "fe2c15bc5f1663680246a739353a954ec881940a34fcb6d2b7d45432b9758bfc",
+    "pre-recovery-dirty-source.patch": "7dda2ec86b78a98e40052e81157371fad90353199a11e4a46ab93e9b1f3c0b76"
+  }
+}

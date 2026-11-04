@@ -1,6 +1,7 @@
 # Archived patch context includes significant single-space blank context lines.
 # Preserve the original bytes; do not report patch syntax as source whitespace.
 research/legacy-native-0.7.2/*.patch -text -whitespace
+research/legacy-rust-v1/*.patch -text -whitespace
 benchmarks/harness-v2/**/*.patch -text -whitespace
 research/m4-native/patches/*.patch -text -whitespace
 # Raw historical receipts must not be normalized or reformatted during recovery.
