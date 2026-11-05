@@ -40,6 +40,8 @@ fn assert_files(output: &Output, expected: &[&str]) {
 #[test]
 fn all_modes_list_all_files_without_content_models_index_or_daemon() -> Result<(), Box<dyn Error>> {
     let root = TempDir::new()?;
+    // Treat the fixture as its own repository so ancestor worktree ignore rules do not leak in.
+    fs::create_dir(root.path().join(".git"))?;
     let home = TempDir::new()?;
     for index in 0..24 {
         fs::write(root.path().join(format!("file-{index:02}.bin")), b"\0\xff")?;

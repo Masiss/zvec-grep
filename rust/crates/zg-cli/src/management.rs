@@ -65,6 +65,7 @@ pub fn write_index_with_options(
             },
         ),
     )?;
+    write_skipped_summary(&mut writer, theme, result)?;
     index_field(
         &mut writer,
         theme,
@@ -183,6 +184,18 @@ fn write_compact_index(
     }
     writeln!(writer, "  {}", counts.join(" · "))?;
     writeln!(writer, "  {}", theme.muted(&clean(&display_path(root))))?;
+    if !result.skipped_counts.is_empty() {
+        let summary = skipped_counts_summary(result);
+        writeln!(writer, "  Skipped: {}", clean(&summary))?;
+        for skipped in result.skipped.iter().take(5) {
+            writeln!(
+                writer,
+                "    {}: {:?}",
+                clean(&storage_path(&skipped.path, root)),
+                skipped.reason
+            )?;
+        }
+    }
     let filters = scan.map(scan_filters).unwrap_or_default();
     if !filters.is_empty() {
         writeln!(
@@ -203,6 +216,38 @@ fn write_compact_index(
         writeln!(writer, "  Run: zg --help file-types")?;
     }
     Ok(())
+}
+
+fn write_skipped_summary(
+    writer: &mut impl Write,
+    theme: StatusTheme,
+    result: &IndexResult,
+) -> io::Result<()> {
+    if !result.skipped_counts.is_empty() {
+        index_field(writer, theme, "skipped", &skipped_counts_summary(result))?;
+    }
+    for skipped in result.skipped.iter().take(5) {
+        index_field(
+            writer,
+            theme,
+            "skipped file",
+            &format!(
+                "{}: {:?}",
+                theme.path(&output_path(&skipped.path).display().to_string()),
+                skipped.reason
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+fn skipped_counts_summary(result: &IndexResult) -> String {
+    result
+        .skipped_counts
+        .iter()
+        .map(|(reason, count)| format!("{reason} {count}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn index_field(
@@ -534,6 +579,34 @@ mod tests {
         assert_eq!(
             String::from_utf8(bytes).expect("UTF-8"),
             format!("Dropped index for {expected}\n")
+        );
+    }
+
+    #[test]
+    fn index_summary_reports_skipped_counts_and_bounded_samples() {
+        let result = IndexResult {
+            skipped: vec![zg_engine::api::index::result::SkippedFile {
+                path: "/workspace/large.bin".into(),
+                reason: zg_engine::api::index::result::SkippedFileReason::TooLarge,
+                size_bytes: Some(10),
+                limit_bytes: Some(5),
+            }],
+            skipped_counts: std::collections::BTreeMap::from([
+                ("binary".to_owned(), 1),
+                ("too_large".to_owned(), 3),
+            ]),
+            ..IndexResult::default()
+        };
+        let mut output = Vec::new();
+        write_index_result(&mut output, Path::new("/workspace"), &result).expect("summary");
+        let output = String::from_utf8(output).expect("utf8");
+        assert!(
+            output.contains("skipped\tbinary 1, too_large 3"),
+            "{output}"
+        );
+        assert!(
+            output.contains("skipped file\t/workspace/large.bin: TooLarge"),
+            "{output}"
         );
     }
 

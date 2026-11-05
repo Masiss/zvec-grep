@@ -4,6 +4,7 @@ mod authorization;
 mod diagnostics;
 mod highlight;
 mod install;
+mod jobs;
 mod jsonc;
 mod managed_rg;
 mod management;
@@ -19,6 +20,7 @@ mod stdio;
 mod terminal;
 mod theme;
 pub use diagnostics::{diagnostic_color_for_args, exit_parse_error, format_error_report};
+pub use jobs::write_jobs;
 pub use management::{
     write_authorization_revoke_result, write_authorization_revoke_with_options,
     write_authorization_status, write_config_result, write_index_drop_result,
@@ -561,8 +563,14 @@ impl QueryArgs {
 #[allow(clippy::struct_excessive_bools)]
 pub struct IndexArgs {
     pub root: Option<PathBuf>,
+    #[arg(long, conflicts_with = "mode")]
+    pub daemon: bool,
     #[arg(long)]
     pub mode: Option<ClientMode>,
+    #[arg(long = "no-wait", conflicts_with = "wait_timeout_ms")]
+    pub no_wait: bool,
+    #[arg(long = "wait-timeout-ms", value_parser = parse_positive_u64, conflicts_with = "no_wait")]
+    pub wait_timeout_ms: Option<u64>,
     #[arg(long)]
     pub rebuild: bool,
     #[arg(long)]
@@ -637,6 +645,8 @@ pub enum ServerAction {
     On(ServerStartArgs),
     Off(ServerStopArgs),
     Status(ServerStatusArgs),
+    Jobs(ServerJobsArgs),
+    Cancel(ServerCancelArgs),
     #[command(hide = true)]
     Run(ServerStartArgs),
 }
@@ -669,6 +679,23 @@ pub struct ServerStatusArgs {
     pub check_ready: bool,
 }
 
+#[derive(Clone, Debug, Args)]
+pub struct ServerJobsArgs {
+    #[arg(long)]
+    pub home: Option<PathBuf>,
+    #[arg(long)]
+    pub all: bool,
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct ServerCancelArgs {
+    pub id: uuid::Uuid,
+    #[arg(long)]
+    pub home: Option<PathBuf>,
+}
+
 #[derive(Debug)]
 pub enum CliPlan {
     Files {
@@ -686,6 +713,8 @@ pub enum CliPlan {
         mode: ClientMode,
         home: Option<PathBuf>,
         operation: IndexOperation,
+        no_wait: bool,
+        wait_timeout_ms: Option<u64>,
         output: OutputOptions,
     },
     Status {
@@ -724,6 +753,8 @@ pub enum ServerPlan {
     On(ServerStartArgs),
     Off(ServerStopArgs),
     Status(ServerStatusArgs),
+    Jobs(ServerJobsArgs),
+    Cancel(ServerCancelArgs),
     Run(ServerStartArgs),
 }
 
@@ -769,6 +800,10 @@ pub enum CliError {
     MissingServerAction,
     #[error("--stdio cannot be combined with a server action")]
     StdioWithServerAction,
+    #[error("--no-wait and --wait-timeout-ms require --daemon or --mode server")]
+    IndexWaitRequiresServer,
+    #[error("--no-wait and --wait-timeout-ms are only supported for index builds")]
+    IndexWaitForBuildOnly,
     #[error("ZVEC_GREP_MCP_TOOLSET must be agent or full")]
     InvalidToolsetEnvironment,
     #[error("ZVEC_GREP_MODE must be direct, server, or auto")]
@@ -1525,8 +1560,18 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
         .model_cache
         .map(|path| resolve_from(current_dir, Some(&path)));
     let root = resolve_from(current_dir, args.root.as_deref());
-    let mode = resolve_client_mode(args.mode)?;
+    let mode = if args.daemon {
+        ClientMode::Server
+    } else {
+        resolve_client_mode(args.mode)?
+    };
     let home = args.home.clone();
+    if (args.no_wait || args.wait_timeout_ms.is_some()) && mode != ClientMode::Server {
+        return Err(CliError::IndexWaitRequiresServer);
+    }
+    if (args.no_wait || args.wait_timeout_ms.is_some()) && args.drop {
+        return Err(CliError::IndexWaitForBuildOnly);
+    }
     let output = OutputOptions {
         debug: args.debug,
         color: args.color.unwrap_or_default(),
@@ -1556,6 +1601,8 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
                 root: Some(root),
                 include_status: false,
             }),
+            no_wait: false,
+            wait_timeout_ms: None,
             output,
         });
     }
@@ -1596,6 +1643,8 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
             embedding_concurrency: args.embedding_concurrency,
             ..IndexOptions::default()
         })),
+        no_wait: args.no_wait,
+        wait_timeout_ms: args.wait_timeout_ms,
         output,
     })
 }
@@ -1653,6 +1702,20 @@ fn server_plan(args: ServerArgs) -> Result<ServerPlan, CliError> {
             }
             child.home = child.home.or(args.home);
             Ok(ServerPlan::Status(child))
+        }
+        ServerAction::Jobs(mut child) => {
+            if args.listen.is_some() || args.mcp_toolset.is_some() || args.token_file.is_some() {
+                return Err(CliError::MissingServerAction);
+            }
+            child.home = child.home.or(args.home);
+            Ok(ServerPlan::Jobs(child))
+        }
+        ServerAction::Cancel(mut child) => {
+            if args.listen.is_some() || args.mcp_toolset.is_some() || args.token_file.is_some() {
+                return Err(CliError::MissingServerAction);
+            }
+            child.home = child.home.or(args.home);
+            Ok(ServerPlan::Cancel(child))
         }
     }
 }
@@ -1757,7 +1820,8 @@ pub fn parse_modified_time(value: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Cli, CliPlan, FileFormat, IndexOperation, QueryFilter, parse_byte_size, parse_modified_time,
+        Cli, CliPlan, ClientMode, FileFormat, IndexOperation, QueryFilter, ServerPlan,
+        parse_byte_size, parse_modified_time,
     };
     use std::{ffi::OsString, path::PathBuf};
 
@@ -1940,6 +2004,82 @@ mod tests {
         for arguments in [["zg", "--index", "--status"], ["zg", "--index", "--index"]] {
             assert!(Cli::try_parse_from(arguments).is_err());
         }
+    }
+
+    #[test]
+    fn index_job_controls_require_explicit_daemon_and_are_build_only() {
+        let CliPlan::Index {
+            mode,
+            no_wait,
+            wait_timeout_ms,
+            ..
+        } = plan(&["zg", "--daemon", "--index", "--no-wait"])
+        else {
+            panic!("no-wait index plan")
+        };
+        assert_eq!(mode, ClientMode::Server);
+        assert!(no_wait);
+        assert_eq!(wait_timeout_ms, None);
+
+        let CliPlan::Index {
+            wait_timeout_ms, ..
+        } = plan(&[
+            "zg",
+            "--mode",
+            "server",
+            "--index",
+            "--wait-timeout-ms",
+            "25",
+        ])
+        else {
+            panic!("timed index plan")
+        };
+        assert_eq!(wait_timeout_ms, Some(25));
+        let invalid_plan = |arguments: &[&str]| {
+            Cli::try_parse_from(arguments.iter().copied()).map_or(true, |parsed| {
+                parsed.into_plan(std::env::temp_dir()).is_err()
+            })
+        };
+        assert!(invalid_plan(&[
+            "zg",
+            "--mode",
+            "direct",
+            "--index",
+            "--no-wait"
+        ]));
+        assert!(invalid_plan(&[
+            "zg",
+            "--daemon",
+            "--index",
+            "--drop",
+            "--no-wait"
+        ]));
+        assert!(invalid_plan(&[
+            "zg",
+            "--daemon",
+            "--index",
+            "--no-wait",
+            "--wait-timeout-ms",
+            "1"
+        ]));
+    }
+
+    #[test]
+    fn server_jobs_and_cancel_have_explicit_plans() {
+        assert!(matches!(
+            plan(&["zg", "--server", "jobs", "--all", "--json"]),
+            CliPlan::Server(ServerPlan::Jobs(_))
+        ));
+        assert!(matches!(
+            plan(&[
+                "zg",
+                "--server",
+                "cancel",
+                "00000000-0000-0000-0000-000000000001"
+            ]),
+            CliPlan::Server(ServerPlan::Cancel(_))
+        ));
+        assert!(Cli::try_parse_from(["zg", "--server", "cancel"]).is_err());
     }
 
     #[test]

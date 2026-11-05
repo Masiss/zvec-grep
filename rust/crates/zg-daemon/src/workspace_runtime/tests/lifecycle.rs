@@ -28,6 +28,33 @@ async fn drain_runtime_callbacks() {
     }
 }
 
+#[tokio::test]
+async fn detached_job_wait_includes_completion_and_watcher_activation() {
+    let workspace = tempdir().expect("workspace");
+    let root = workspace.path().canonicalize().expect("root");
+    let (manager, _watchers, _sender) = idle_fixture();
+    let submitted = manager
+        .submit_index(
+            IndexOptions {
+                root: Some(root.clone()),
+                ..IndexOptions::default()
+            },
+            false,
+        )
+        .await
+        .expect("submit detached job");
+    let completed = manager
+        .wait_index_job(submitted.job.id)
+        .await
+        .expect("wait job");
+    assert_eq!(
+        completed.job.state,
+        crate::job_scheduler::JobState::Succeeded
+    );
+    assert!(manager.runtime_snapshot(&root).watcher_active);
+    manager.shutdown_all().await.expect("shutdown");
+}
+
 #[tokio::test(start_paused = true)]
 async fn disabled_idle_timeout_keeps_inactive_runtimes() {
     let workspace = tempdir().expect("workspace");

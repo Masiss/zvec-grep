@@ -4305,6 +4305,7 @@ dependencies = [
  "unicode-width",
  "uuid",
  "winapi-util",
+ "zg-daemon-protocol",
  "zg-engine",
  "zg-testkit",
 ]
@@ -4345,6 +4346,7 @@ version = "0.3.0-rc.2"
 dependencies = [
  "serde",
  "serde_json",
+ "uuid",
  "zg-engine",
 ]
 

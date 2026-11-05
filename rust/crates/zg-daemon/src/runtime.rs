@@ -77,6 +77,7 @@ pub(crate) async fn run_server(
     init_logging: impl FnOnce(&std::path::Path) -> Result<(), DaemonError>,
 ) -> Result<(), DaemonError> {
     let idle_ttl = crate::configured_watcher_idle_timeout()?;
+    let scheduler_options = zg_engine::config::daemon_scheduler_options()?;
     engine.enable_read_session_cache()?;
     let token = crate::resolve_token(config.token_file.as_deref())?;
     let mut instance = InstanceLock::acquire(&config).await?;
@@ -99,7 +100,11 @@ pub(crate) async fn run_server(
         }
     };
     let shutdown = CancellationToken::new();
-    let runtimes = WorkspaceRuntimeManager::native_with_idle_ttl(Arc::clone(&engine), idle_ttl);
+    let runtimes = WorkspaceRuntimeManager::native_with_idle_ttl(
+        Arc::clone(&engine),
+        idle_ttl,
+        scheduler_options,
+    );
     let status: Arc<dyn ServerStatusProvider> = Arc::new(RuntimeStatusProvider {
         started: Instant::now(),
         shutdown: shutdown.clone(),
@@ -215,13 +220,13 @@ async fn stream_index(
     }
     let (sender, receiver) = tokio::sync::mpsc::channel(8);
     let progress_sender = sender.clone();
-    options.on_progress = Some(zg_engine::api::index::progress::IndexProgressReporter::new(
-        move |progress| {
-            // Slow clients may skip intermediate snapshots; memory stays bounded.
-            let _ = progress_sender.try_send(IndexStreamEvent::Progress(progress));
-        },
-    ));
+    let reporter = zg_engine::api::index::progress::IndexProgressReporter::new(move |progress| {
+        // Slow clients may skip intermediate snapshots; memory stays bounded.
+        let _ = progress_sender.try_send(IndexStreamEvent::Progress(progress));
+    });
+    let stream_reporter = reporter.clone();
     let signal = state.shutdown.child_token();
+    options.on_progress = Some(reporter);
     options.signal = Some(signal.clone());
     tokio::spawn(async move {
         let _guard = signal.clone().drop_guard();
@@ -234,17 +239,41 @@ async fn stream_index(
             embedding: None,
         };
         let _ = sender.send(IndexStreamEvent::Progress(initial)).await;
-        let operation = execute_command(State(state), headers, Json(DaemonCommand::Index(options)));
-        tokio::pin!(operation);
-        let (_, Json(result)) = tokio::select! {
-            result = &mut operation => result,
-            () = sender.closed() => {
-                // Cancelling an exclusive foreground request must reach its engine job.
-                signal.cancel();
-                operation.await
+        let submitted = match state.runtimes.submit_index_stream(options).await {
+            Ok(submitted) => submitted,
+            Err(error) => {
+                let result = engine_execution(Err(error.into_engine_error()));
+                let _ = sender.send(IndexStreamEvent::Finished(result)).await;
+                return;
             }
         };
-        let _ = sender.send(IndexStreamEvent::Finished(result)).await;
+        let job_id = submitted.job.id;
+        let operation = wait_index_execution(&state.runtimes, job_id, Some(stream_reporter));
+        tokio::pin!(operation);
+        let mut observed_state = None;
+        loop {
+            tokio::select! {
+                result = &mut operation => {
+                    let _ = sender.send(IndexStreamEvent::Finished(result)).await;
+                    return;
+                }
+                () = sender.closed() => {
+                    signal.cancel();
+                    let result = operation.await;
+                    let _ = sender.send(IndexStreamEvent::Finished(result)).await;
+                    return;
+                }
+                () = tokio::time::sleep(std::time::Duration::from_millis(10)) => {
+                    let jobs = state.runtimes.job_views();
+                    let job = jobs.into_iter().find(|job| job.id == job_id);
+                    if let Some(job) = job
+                        && observed_state != Some(job.state) {
+                            observed_state = Some(job.state);
+                            let _ = sender.send(IndexStreamEvent::Job(job)).await;
+                        }
+                }
+            }
+        }
     });
     let stream = futures::stream::unfold(receiver, |mut receiver| async {
         let event = receiver.recv().await?;
@@ -348,8 +377,56 @@ async fn execute_command(
                 .await
                 .map(|reply| DaemonReply::Info(Box::new(reply))),
         ),
+        DaemonCommand::Jobs => {
+            ExecutionResult::Success(DaemonReply::Jobs(state.runtimes.job_views()))
+        }
+        DaemonCommand::CancelJob(id) => {
+            ExecutionResult::Success(DaemonReply::CancelJob(state.runtimes.cancel_job(id)))
+        }
+        DaemonCommand::SubmitIndex(request) => {
+            match state.runtimes.submit_index(request, false).await {
+                Ok(submitted) => state
+                    .runtimes
+                    .job_views()
+                    .into_iter()
+                    .find(|job| job.id == submitted.job.id)
+                    .map_or_else(
+                        || internal_failure("submitted daemon index job is no longer resident"),
+                        |job| ExecutionResult::Success(DaemonReply::IndexJob(job)),
+                    ),
+                Err(error) => engine_execution(Err(error.into_engine_error())),
+            }
+        }
+        DaemonCommand::WaitIndex(id) => wait_index_execution(&state.runtimes, id, None).await,
     };
     (StatusCode::OK, Json(result))
+}
+
+async fn wait_index_execution(
+    runtimes: &WorkspaceRuntimeManager,
+    id: uuid::Uuid,
+    reporter: Option<zg_engine::api::index::progress::IndexProgressReporter>,
+) -> ExecutionResult {
+    match runtimes.wait_index_job_with_progress(id, reporter).await {
+        Ok(completed) if completed.job.state == JobState::Succeeded => {
+            completed.result.map_or_else(
+                || internal_failure("successful daemon index job had no result"),
+                |result| ExecutionResult::Success(DaemonReply::Index(Box::new(result))),
+            )
+        }
+        Ok(completed) => ExecutionResult::Failure(completed.job.error.map_or_else(
+            || {
+                error_reply(zg_engine::EngineError::internal(
+                    "daemon index job ended without an error",
+                ))
+            },
+            |error| ErrorReply {
+                report: error.report,
+                retryable: error.retryable,
+            },
+        )),
+        Err(error) => engine_execution(Err(error.into_engine_error())),
+    }
 }
 
 fn engine_execution(result: Result<DaemonReply, zg_engine::EngineError>) -> ExecutionResult {
@@ -470,9 +547,289 @@ async fn wait_for_shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use async_trait::async_trait;
     use axum::http::{HeaderValue, header::ORIGIN};
+    use futures::StreamExt;
+    use tokio::sync::Notify;
+    use zg_engine::api::index::{IndexOptions, IndexResult};
+    use zg_host_native::{
+        HostError, TaskControl, WatchRequest, WorkspaceWatchSessionPort,
+        WorkspaceWatcherFactoryPort,
+    };
+
+    use crate::{
+        job_scheduler::{IndexExecutor, JobState, SchedulerConfig},
+        workspace_runtime::WorkspaceRuntimeManager,
+    };
 
     use super::*;
+
+    struct BlockingIndexExecutor {
+        started: Notify,
+    }
+
+    #[async_trait]
+    impl IndexExecutor for BlockingIndexExecutor {
+        async fn index(
+            &self,
+            options: IndexOptions,
+        ) -> Result<IndexResult, zg_engine::EngineError> {
+            self.started.notify_one();
+            options.signal.expect("scheduler signal").cancelled().await;
+            Err(zg_engine::EngineError::cancelled("test index cancelled"))
+        }
+    }
+
+    struct UnusedWatcherFactory;
+
+    #[async_trait]
+    impl WorkspaceWatcherFactoryPort for UnusedWatcherFactory {
+        async fn watch(
+            &self,
+            _request: &WatchRequest,
+            _control: &TaskControl,
+        ) -> Result<Arc<dyn WorkspaceWatchSessionPort>, HostError> {
+            Err(HostError::cancelled("watcher is not used by this test"))
+        }
+    }
+
+    async fn next_stream_job<S, E>(events: &mut S) -> zg_daemon_protocol::JobView
+    where
+        S: futures::Stream<Item = Result<bytes::Bytes, E>> + Unpin,
+        E: std::fmt::Debug,
+    {
+        loop {
+            let bytes = events
+                .next()
+                .await
+                .expect("stream remains open")
+                .expect("stream frame");
+            if let zg_daemon_protocol::IndexStreamEvent::Job(job) =
+                serde_json::from_slice(&bytes).expect("stream event")
+            {
+                return job;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn index_stream_disconnect_cancels_its_exclusive_job() {
+        let executor = Arc::new(BlockingIndexExecutor {
+            started: Notify::new(),
+        });
+        let runtimes = WorkspaceRuntimeManager::new(
+            executor.clone(),
+            Arc::new(UnusedWatcherFactory),
+            SchedulerConfig::default(),
+        );
+        let directory = tempfile::tempdir().expect("workspace");
+        let root = directory.path().canonicalize().expect("canonical root");
+        let state = ControlState {
+            shutdown: CancellationToken::new(),
+            listen_port: 7999,
+            engine: Arc::new(ZvecGrep::new()),
+            runtimes: runtimes.clone(),
+        };
+        let mut headers = HeaderMap::new();
+        headers.insert(HOST, HeaderValue::from_static("127.0.0.1:7999"));
+        let response = stream_index(
+            State(state),
+            headers,
+            Json(IndexOptions {
+                root: Some(root),
+                ..IndexOptions::default()
+            }),
+        )
+        .await;
+        let mut events = response.into_body().into_data_stream();
+        let job = tokio::time::timeout(Duration::from_secs(2), next_stream_job(&mut events))
+            .await
+            .expect("exclusive job event arrives");
+        tokio::time::timeout(Duration::from_secs(1), executor.started.notified())
+            .await
+            .expect("exclusive job starts");
+        drop(events);
+        let completed =
+            tokio::time::timeout(Duration::from_secs(2), runtimes.wait_index_job(job.id))
+                .await
+                .expect("disconnect cancellation is bounded")
+                .expect("cancelled job completion");
+        assert_eq!(completed.job.state, JobState::Cancelled);
+        runtimes.shutdown_all().await.expect("runtime shutdown");
+    }
+
+    #[tokio::test]
+    async fn index_stream_disconnect_does_not_cancel_a_coalesced_job() {
+        let executor = Arc::new(BlockingIndexExecutor {
+            started: Notify::new(),
+        });
+        let runtimes = WorkspaceRuntimeManager::new(
+            executor.clone(),
+            Arc::new(UnusedWatcherFactory),
+            SchedulerConfig::default(),
+        );
+        let directory = tempfile::tempdir().expect("workspace");
+        let root = directory.path().canonicalize().expect("canonical root");
+        let state = ControlState {
+            shutdown: CancellationToken::new(),
+            listen_port: 7999,
+            engine: Arc::new(ZvecGrep::new()),
+            runtimes: runtimes.clone(),
+        };
+        let mut headers = HeaderMap::new();
+        headers.insert(HOST, HeaderValue::from_static("127.0.0.1:7999"));
+
+        let first_response = stream_index(
+            State(state.clone()),
+            headers.clone(),
+            Json(IndexOptions {
+                root: Some(root.clone()),
+                ..IndexOptions::default()
+            }),
+        )
+        .await;
+        let mut first_events = first_response.into_body().into_data_stream();
+        let first_job =
+            tokio::time::timeout(Duration::from_secs(2), next_stream_job(&mut first_events))
+                .await
+                .expect("first job event arrives");
+        tokio::time::timeout(Duration::from_secs(1), executor.started.notified())
+            .await
+            .expect("first job starts");
+
+        let second_response = stream_index(
+            State(state),
+            headers,
+            Json(IndexOptions {
+                root: Some(root),
+                ..IndexOptions::default()
+            }),
+        )
+        .await;
+        let mut second_events = second_response.into_body().into_data_stream();
+        let second_job =
+            tokio::time::timeout(Duration::from_secs(2), next_stream_job(&mut second_events))
+                .await
+                .expect("coalesced job event arrives");
+        assert_eq!(second_job.id, first_job.id);
+
+        drop(first_events);
+        drop(second_events);
+        assert!(
+            tokio::time::timeout(
+                Duration::from_millis(100),
+                runtimes.wait_index_job(first_job.id)
+            )
+            .await
+            .is_err(),
+            "disconnects must not cancel shared work"
+        );
+        assert_eq!(
+            runtimes
+                .job_views()
+                .into_iter()
+                .find(|job| job.id == first_job.id)
+                .expect("shared job remains resident")
+                .state,
+            zg_daemon_protocol::JobViewState::Running
+        );
+        assert!(runtimes.cancel_job(first_job.id));
+        let completed = tokio::time::timeout(
+            Duration::from_secs(2),
+            runtimes.wait_index_job(first_job.id),
+        )
+        .await
+        .expect("shared job cleanup is bounded")
+        .expect("cancelled shared job completion");
+        assert_eq!(completed.job.state, JobState::Cancelled);
+        runtimes.shutdown_all().await.expect("runtime shutdown");
+    }
+
+    #[tokio::test]
+    async fn index_stream_tracks_and_cancels_its_exact_same_root_followup() {
+        let executor = Arc::new(BlockingIndexExecutor {
+            started: Notify::new(),
+        });
+        let runtimes = WorkspaceRuntimeManager::new(
+            executor.clone(),
+            Arc::new(UnusedWatcherFactory),
+            SchedulerConfig::default(),
+        );
+        let directory = tempfile::tempdir().expect("workspace");
+        let root = directory.path().canonicalize().expect("canonical root");
+        let active = runtimes
+            .submit_index(
+                IndexOptions {
+                    root: Some(root.clone()),
+                    ..IndexOptions::default()
+                },
+                false,
+            )
+            .await
+            .expect("active job");
+        tokio::time::timeout(Duration::from_secs(1), executor.started.notified())
+            .await
+            .expect("blocking index starts");
+
+        let state = ControlState {
+            shutdown: CancellationToken::new(),
+            listen_port: 7999,
+            engine: Arc::new(ZvecGrep::new()),
+            runtimes: runtimes.clone(),
+        };
+        let mut headers = HeaderMap::new();
+        headers.insert(HOST, HeaderValue::from_static("127.0.0.1:7999"));
+        let response = stream_index(
+            State(state),
+            headers,
+            Json(IndexOptions {
+                root: Some(root.clone()),
+                rebuild: true,
+                ..IndexOptions::default()
+            }),
+        )
+        .await;
+        let mut events = response.into_body().into_data_stream();
+        let followup = tokio::time::timeout(Duration::from_secs(2), next_stream_job(&mut events))
+            .await
+            .expect("job event arrives");
+
+        assert_ne!(followup.id, active.job.id);
+        assert_eq!(followup.root, root);
+        assert_eq!(followup.blocking_job_id, Some(active.job.id));
+        assert!(runtimes.cancel_job(followup.id));
+        let followup_done =
+            tokio::time::timeout(Duration::from_secs(2), runtimes.wait_index_job(followup.id))
+                .await
+                .expect("selected followup cleanup is bounded")
+                .expect("selected followup finishes");
+        assert_eq!(followup_done.job.state, JobState::Cancelled);
+        assert_eq!(
+            runtimes
+                .job_views()
+                .into_iter()
+                .find(|job| job.id == active.job.id)
+                .expect("blocking job remains")
+                .state,
+            zg_daemon_protocol::JobViewState::Running
+        );
+        assert!(runtimes.cancel_job(active.job.id));
+        assert_eq!(
+            tokio::time::timeout(
+                Duration::from_secs(2),
+                runtimes.wait_index_job(active.job.id)
+            )
+            .await
+            .expect("blocking job cleanup is bounded")
+            .expect("blocking job finishes")
+            .job
+            .state,
+            JobState::Cancelled
+        );
+        runtimes.shutdown_all().await.expect("runtime shutdown");
+    }
 
     #[test]
     fn shutdown_rejects_hostile_origin_without_cancelling() {

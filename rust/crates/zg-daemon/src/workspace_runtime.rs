@@ -5,13 +5,13 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex, MutexGuard, Weak,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
 };
 
 use thiserror::Error;
 use tokio::{
-    sync::{mpsc, oneshot},
+    sync::{Notify, mpsc, oneshot},
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
@@ -34,7 +34,7 @@ use zg_host_native::{
 
 use crate::job_scheduler::{
     IndexExecutor, IndexJobScheduler, IndexJobSnapshot, JobReason, JobState, SchedulerConfig,
-    SchedulerError, SchedulerSnapshot,
+    SchedulerError, SchedulerLaneLimits, SchedulerSnapshot,
 };
 mod lifecycle;
 use lifecycle::{RuntimeActivity, RuntimeLifecycle};
@@ -60,6 +60,44 @@ struct RuntimeManagerInner {
     closed: AtomicBool,
     idle_ttl: Option<std::time::Duration>,
     maintenance: Mutex<Option<JoinHandle<()>>>,
+    detached_completions: Mutex<HashMap<uuid::Uuid, Arc<DetachedCompletion>>>,
+}
+
+const MAX_RETAINED_DETACHED_COMPLETIONS: usize = 256;
+
+struct DetachedCompletion {
+    pending: AtomicUsize,
+    changed: Notify,
+}
+
+impl DetachedCompletion {
+    fn new() -> Self {
+        Self {
+            pending: AtomicUsize::new(0),
+            changed: Notify::new(),
+        }
+    }
+
+    fn begin(&self) {
+        self.pending.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn finish(&self) {
+        self.pending.fetch_sub(1, Ordering::AcqRel);
+        self.changed.notify_waiters();
+    }
+
+    async fn wait(&self) {
+        loop {
+            let notified = self.changed.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if self.pending.load(Ordering::Acquire) == 0 {
+                return;
+            }
+            notified.await;
+        }
+    }
 }
 
 struct WorkspaceRuntime {
@@ -258,19 +296,37 @@ impl WorkspaceWatcherFactoryPort for EngineWatcherFactory {
 impl WorkspaceRuntimeManager {
     #[cfg(test)]
     pub(crate) fn native(engine: Arc<ZvecGrep>) -> Self {
-        Self::native_with_idle_ttl(engine, Some(Self::DEFAULT_IDLE_TTL))
-    }
-
-    pub(crate) fn native_with_idle_ttl(
-        engine: Arc<ZvecGrep>,
-        idle_ttl: Option<std::time::Duration>,
-    ) -> Self {
         Self::new_with_idle_ttl(
             Arc::new(ZvecGrepIndexExecutor {
                 engine: Arc::clone(&engine),
             }),
             Arc::new(EngineWatcherFactory { engine }),
             SchedulerConfig::default(),
+            Some(Self::DEFAULT_IDLE_TTL),
+        )
+    }
+
+    pub(crate) fn native_with_idle_ttl(
+        engine: Arc<ZvecGrep>,
+        idle_ttl: Option<std::time::Duration>,
+        options: zg_engine::config::DaemonSchedulerOptions,
+    ) -> Self {
+        let scheduler = SchedulerConfig {
+            concurrency: options
+                .manual_concurrency
+                .saturating_add(options.watch_concurrency),
+            queue_capacity: options.queue_capacity,
+        };
+        Self::new_with_idle_ttl_and_lanes(
+            Arc::new(ZvecGrepIndexExecutor {
+                engine: Arc::clone(&engine),
+            }),
+            Arc::new(EngineWatcherFactory { engine }),
+            scheduler,
+            SchedulerLaneLimits {
+                manual_concurrency: options.manual_concurrency,
+                watch_concurrency: options.watch_concurrency,
+            },
             idle_ttl,
         )
     }
@@ -289,15 +345,36 @@ impl WorkspaceRuntimeManager {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn new_with_idle_ttl(
         executor: Arc<dyn IndexExecutor>,
         watcher_factory: Arc<dyn WorkspaceWatcherFactoryPort>,
         scheduler_config: SchedulerConfig,
         idle_ttl: Option<std::time::Duration>,
     ) -> Self {
+        Self::new_with_idle_ttl_and_lanes(
+            executor,
+            watcher_factory,
+            scheduler_config,
+            SchedulerLaneLimits::default(),
+            idle_ttl,
+        )
+    }
+
+    fn new_with_idle_ttl_and_lanes(
+        executor: Arc<dyn IndexExecutor>,
+        watcher_factory: Arc<dyn WorkspaceWatcherFactoryPort>,
+        scheduler_config: SchedulerConfig,
+        lanes: SchedulerLaneLimits,
+        idle_ttl: Option<std::time::Duration>,
+    ) -> Self {
         Self {
             inner: Arc::new(RuntimeManagerInner {
-                scheduler: IndexJobScheduler::new(Arc::clone(&executor), scheduler_config),
+                scheduler: IndexJobScheduler::new_with_lanes(
+                    Arc::clone(&executor),
+                    scheduler_config,
+                    lanes,
+                ),
                 executor,
                 watcher_factory,
                 runtimes: Mutex::new(HashMap::new()),
@@ -305,14 +382,31 @@ impl WorkspaceRuntimeManager {
                 closed: AtomicBool::new(false),
                 idle_ttl,
                 maintenance: Mutex::new(None),
+                detached_completions: Mutex::new(HashMap::new()),
             }),
         }
     }
 
     pub(crate) async fn submit_index(
         &self,
+        options: IndexOptions,
+        wait: bool,
+    ) -> Result<RuntimeIndexSubmission, WorkspaceRuntimeError> {
+        self.submit_index_inner(options, wait, false).await
+    }
+
+    pub(crate) async fn submit_index_stream(
+        &self,
+        options: IndexOptions,
+    ) -> Result<RuntimeIndexSubmission, WorkspaceRuntimeError> {
+        self.submit_index_inner(options, false, true).await
+    }
+
+    async fn submit_index_inner(
+        &self,
         mut options: IndexOptions,
         wait: bool,
+        preserve_signal_for_detached: bool,
     ) -> Result<RuntimeIndexSubmission, WorkspaceRuntimeError> {
         if self.inner.closed.load(Ordering::Acquire) {
             return Err(WorkspaceRuntimeError::Scheduler(SchedulerError::Closed));
@@ -327,8 +421,9 @@ impl WorkspaceRuntimeManager {
                 "index request was cancelled",
             )));
         }
-        if !wait {
-            // A submitted background job outlives the request that created it.
+        if !wait && !preserve_signal_for_detached {
+            // A detached job outlives the request that created it unless a streaming
+            // foreground request explicitly retains its cancellation signal.
             options.signal = None;
         }
         let canonical_root = canonical_root(options.root.as_deref())?;
@@ -340,6 +435,10 @@ impl WorkspaceRuntimeManager {
         let target_revision = runtime.dirty_revision.load(Ordering::Acquire);
         let submitted =
             runtime.submit_tracked(&self.inner.scheduler, options, JobReason::Manual)?;
+        let detached_completion = (!wait).then(|| self.detached_completion(submitted.job.id));
+        if let Some(completion) = &detached_completion {
+            completion.begin();
+        }
         {
             let manager = self.clone();
             let job_id = submitted.job.id;
@@ -348,6 +447,9 @@ impl WorkspaceRuntimeManager {
             tokio::spawn(async move {
                 let Ok(completed) = manager.inner.scheduler.wait(job_id).await else {
                     activity.forget_job_proof(job_id);
+                    if let Some(completion) = detached_completion {
+                        completion.finish();
+                    }
                     return;
                 };
                 activity.complete_job(&completed);
@@ -361,6 +463,9 @@ impl WorkspaceRuntimeManager {
                             reconfigure,
                         )
                         .await;
+                }
+                if let Some(completion) = detached_completion {
+                    completion.finish();
                 }
             });
         }
@@ -620,6 +725,65 @@ impl WorkspaceRuntimeManager {
         self.inner
             .scheduler
             .get_by_root(&canonical_root.to_path_buf())
+    }
+
+    pub(crate) fn job_views(&self) -> Vec<zg_daemon_protocol::JobView> {
+        self.inner.scheduler.job_views()
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn wait_index_job(
+        &self,
+        id: uuid::Uuid,
+    ) -> Result<RuntimeIndexSubmission, WorkspaceRuntimeError> {
+        self.wait_index_job_with_progress(id, None).await
+    }
+
+    pub(crate) async fn wait_index_job_with_progress(
+        &self,
+        id: uuid::Uuid,
+        reporter: Option<zg_engine::api::index::progress::IndexProgressReporter>,
+    ) -> Result<RuntimeIndexSubmission, WorkspaceRuntimeError> {
+        let completed = self
+            .inner
+            .scheduler
+            .wait_with_progress(id, reporter)
+            .await?;
+        let detached_completion = lock(&self.inner.detached_completions).get(&id).cloned();
+        if let Some(completion) = detached_completion {
+            completion.wait().await;
+        }
+        Ok(RuntimeIndexSubmission {
+            job: completed.job,
+            reused: true,
+            result: completed.result,
+        })
+    }
+
+    pub(crate) fn cancel_job(&self, id: uuid::Uuid) -> bool {
+        self.inner.scheduler.cancel_job(id)
+    }
+
+    fn detached_completion(&self, id: uuid::Uuid) -> Arc<DetachedCompletion> {
+        let mut completions = lock(&self.inner.detached_completions);
+        if completions.len() >= MAX_RETAINED_DETACHED_COMPLETIONS {
+            let finished = completions
+                .iter()
+                .filter(|(_, completion)| completion.pending.load(Ordering::Acquire) == 0)
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>();
+            for id in finished {
+                if completions.len() < MAX_RETAINED_DETACHED_COMPLETIONS {
+                    break;
+                }
+                completions.remove(&id);
+            }
+        }
+        Arc::clone(
+            completions
+                .entry(id)
+                .or_insert_with(|| Arc::new(DetachedCompletion::new())),
+        )
     }
 
     pub(crate) async fn drop_index(
@@ -1434,7 +1598,10 @@ mod tests {
     use tokio::sync::mpsc;
     use zg_engine::{
         EngineError,
-        api::index::{IndexOptions, IndexResult, options::WorkspaceChange as IndexChange},
+        api::index::{
+            IndexOptions, IndexResult,
+            options::{ScanRulesUpdate, WorkspaceChange as IndexChange},
+        },
         api::info::InfoOptions,
     };
     use zg_host_native::{
@@ -1447,7 +1614,7 @@ mod tests {
     use super::WorkspaceRuntimeManager;
 
     #[test]
-    fn watch_template_does_not_replay_model_configuration() {
+    fn watch_template_does_not_replay_model_configuration_or_transient_scan_and_consent() {
         use zg_engine::api::index::options::{Device, EmbeddingModelSpec};
 
         let template = super::index_template(&IndexOptions {
@@ -1458,6 +1625,14 @@ mod tests {
             runtime_api_key: Some("temporary-key".into()),
             runtime_device: Some(Device::Auto),
             runtime_model_cache: Some("temporary-cache".into()),
+            allow_remote: true,
+            rebuild: true,
+            reset_paths: true,
+            scan: ScanRulesUpdate {
+                max_depth: Some(Some(2)),
+                ..ScanRulesUpdate::default()
+            },
+            changes: vec![IndexChange::Rescan],
             embedding: Some(EmbeddingModelSpec {
                 reference: "local/potion-code-16m-v2".into(),
                 revision: None,
@@ -1470,6 +1645,11 @@ mod tests {
         assert!(template.runtime_api_key.is_none());
         assert!(template.runtime_device.is_none());
         assert!(template.runtime_model_cache.is_none());
+        assert!(!template.allow_remote);
+        assert!(!template.rebuild);
+        assert!(!template.reset_paths);
+        assert_eq!(template.scan, ScanRulesUpdate::default());
+        assert!(template.changes.is_empty());
         assert!(template.model_cache.is_none());
         assert!(template.api_key.is_none());
         assert!(template.endpoint.is_none());

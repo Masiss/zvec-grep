@@ -21,6 +21,7 @@ uuid.workspace = true
 unicode-width.workspace = true
 tokio-util.workspace = true
 zg-engine = { path = "../zg-engine" }
+zg-daemon-protocol = { path = "../zg-daemon-protocol" }
 
 [target.'cfg(windows)'.dependencies]
 dunce = "1.0.5"

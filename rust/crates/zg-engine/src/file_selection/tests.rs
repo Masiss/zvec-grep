@@ -136,6 +136,19 @@ async fn filename_formats_intersect_globs_and_preserve_scan_boundaries() {
 }
 
 #[tokio::test]
+async fn results_directories_are_ignored_by_default_scan_policy() {
+    let temporary = tempfile::tempdir().expect("workspace");
+    let root = temporary.path();
+    write(root, "results/report.rs", "fn generated_report() {}");
+    write(root, "src/results/example.rs", "fn nested_results() {}");
+    write(root, "src/keep.rs", "fn keep() {}");
+    assert_eq!(
+        scan(root, &[], &ScanRules::default(), vec![]).await,
+        [PathBuf::from("src/keep.rs")]
+    );
+}
+
+#[tokio::test]
 async fn scan_and_query_use_identical_ordered_path_rules() {
     let temporary = tempfile::tempdir().expect("workspace");
     let root = temporary.path();

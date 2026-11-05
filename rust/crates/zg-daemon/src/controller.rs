@@ -369,7 +369,7 @@ fn retryable_replace_error(error: &std::io::Error) -> bool {
 }
 
 /// Starts the configured daemon process or returns the existing ready process.
-/// A legacy daemon without a protocol version is stopped before replacement.
+/// A daemon with an incompatible or absent protocol version is never replaced automatically.
 ///
 /// # Errors
 ///
@@ -380,15 +380,14 @@ pub async fn start_server(
 ) -> Result<DaemonStatus, DaemonError> {
     match existing_server(config).await {
         Ok(Some(current)) => return Ok(current),
-        Ok(None) | Err(DaemonError::LegacyDaemon { .. }) => {}
+        Ok(None) => {}
         Err(error) => return Err(error),
     }
 
     // The status check above is intentionally only a fast path. This
     // cross-process claim closes the check/spawn race for concurrent stdio
     // bootstrap processes. The winner alone may spawn; waiters re-check state
-    // after the claim is released and reuse the ready daemon. Legacy shutdown
-    // also runs under this claim so only its winner may replace the old process.
+    // after the claim is released and reuse the ready daemon.
     let startup = StartupLock::acquire(&config.home).await?;
     let result = start_server_with_lock(executable, config).await;
     let release = startup.release().await;
@@ -420,24 +419,11 @@ async fn start_server_with_lock(
     executable: &Path,
     config: &ServerConfig,
 ) -> Result<DaemonStatus, DaemonError> {
-    let token = crate::resolve_token(config.token_file.as_deref())?;
-    if let Some(record) = read_running_instance(&config.home).await?
-        && record.daemon_protocol_version.is_none()
-    {
-        // A different target can be checked while the legacy service is still
-        // available. Its own listening address must be released before binding.
-        if record_address(&record, &config.home).await? != config.listen {
-            assert_address_available(&config.listen).await?;
-        }
-        stop_recorded_server(
-            &config.home,
-            &record,
-            crate::default_stop_timeout(),
-            token.as_deref(),
-            StopMode::Graceful,
-        )
-        .await?;
+    if let Some(record) = read_running_instance(&config.home).await? {
+        validate_daemon_protocol(record.pid, record.daemon_protocol_version)?;
+        return wait_until_ready(&config.home, None).await;
     }
+    let _token = crate::resolve_token(config.token_file.as_deref())?;
     if let Some(current) = existing_server(config).await? {
         return Ok(current);
     }
@@ -921,13 +907,13 @@ async fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{path::Path, time::Duration};
 
     use tempfile::TempDir;
 
     use super::{
         DaemonInstanceRecord, InstanceLock, STARTUP_FILE, StartupLock, StartupRecord, daemon_dir,
-        hostname, instance_path, read_instance_record, validate_daemon_protocol,
+        hostname, instance_path, read_instance_record, start_server, validate_daemon_protocol,
     };
     use crate::{DaemonError, ServerConfig};
 
@@ -948,6 +934,45 @@ mod tests {
                 }) if found == actual
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn start_server_refuses_live_legacy_daemon_without_replacing_it() {
+        let home = TempDir::new().expect("temp home");
+        let config = ServerConfig::new(
+            "127.0.0.1:7999".parse().expect("listen"),
+            home.path().to_owned(),
+        );
+        let path = instance_path(home.path());
+        std::fs::create_dir_all(path.parent().expect("daemon dir")).expect("create dir");
+        let legacy = DaemonInstanceRecord {
+            pid: std::process::id(),
+            hostname: hostname(),
+            instance_token: uuid::Uuid::new_v4(),
+            started_at: 1,
+            updated_at: 1,
+            server_url: "http://127.0.0.1:7999/mcp".to_owned(),
+            listen: "127.0.0.1:7999".to_owned(),
+            ready: true,
+            mcp_toolset: "full".to_owned(),
+            daemon_protocol_version: None,
+        };
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&legacy).expect("serialize legacy"),
+        )
+        .expect("write record");
+        let error = start_server(Path::new("/nonexistent/zg"), &config)
+            .await
+            .expect_err("legacy must fail closed");
+        assert!(matches!(error, DaemonError::LegacyDaemon { pid } if pid == std::process::id()));
+        assert_eq!(
+            read_instance_record(home.path())
+                .await
+                .expect("read")
+                .expect("record"),
+            legacy
+        );
     }
 
     #[tokio::test]

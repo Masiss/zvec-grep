@@ -113,6 +113,7 @@ fn parse_global_config(value: &Value) -> Result<Value, EngineError> {
             "models",
             "client",
             "server",
+            "daemon",
             "log",
         ],
         "config",
@@ -129,6 +130,7 @@ fn parse_global_config(value: &Value) -> Result<Value, EngineError> {
         ("models", parse_models),
         ("client", parse_client),
         ("server", parse_server),
+        ("daemon", parse_daemon),
         ("log", parse_log),
     ] {
         if let Some(section) = fields.get(name) {
@@ -258,6 +260,38 @@ fn parse_log(fields: &Map<String, Value>) -> Result<Option<Value>, EngineError> 
     Ok(non_empty_object(parsed))
 }
 
+fn parse_daemon(fields: &Map<String, Value>) -> Result<Option<Value>, EngineError> {
+    check_known_fields(fields, &["scheduler"], "daemon")?;
+    let mut parsed = Map::new();
+    if let Some(scheduler) = fields.get("scheduler") {
+        let scheduler = scheduler
+            .as_object()
+            .ok_or_else(|| invalid_field("daemon.scheduler"))?;
+        check_known_fields(
+            scheduler,
+            &["manual_concurrency", "watch_concurrency", "queue_capacity"],
+            "daemon.scheduler",
+        )?;
+        let mut values = Map::new();
+        for name in ["manual_concurrency", "watch_concurrency"] {
+            if let Some(value) = scheduler.get(name) {
+                let number = json_integer_in_range(value, 1, 64)
+                    .ok_or_else(|| invalid_field(&format!("daemon.scheduler.{name}")))?;
+                values.insert(name.to_owned(), json!(number));
+            }
+        }
+        if let Some(value) = scheduler.get("queue_capacity") {
+            let number = json_integer_in_range(value, 1, 65_536)
+                .ok_or_else(|| invalid_field("daemon.scheduler.queue_capacity"))?;
+            values.insert("queue_capacity".to_owned(), json!(number));
+        }
+        if !values.is_empty() {
+            parsed.insert("scheduler".to_owned(), Value::Object(values));
+        }
+    }
+    Ok(non_empty_object(parsed))
+}
+
 fn json_integer_in_range(value: &Value, minimum: u64, maximum: u64) -> Option<u64> {
     let number = if let Some(number) = value.as_u64() {
         number
@@ -331,6 +365,44 @@ fn non_empty_object(fields: Map<String, Value>) -> Option<Value> {
 
 fn invalid_field(path: &str) -> EngineError {
     EngineError::invalid_argument(format!("Invalid global config field: {path}"))
+}
+
+/// Daemon scheduler limits for manual and watcher index lanes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DaemonSchedulerOptions {
+    pub manual_concurrency: usize,
+    pub watch_concurrency: usize,
+    pub queue_capacity: usize,
+}
+
+impl Default for DaemonSchedulerOptions {
+    fn default() -> Self {
+        Self {
+            manual_concurrency: 1,
+            watch_concurrency: 1,
+            queue_capacity: 64,
+        }
+    }
+}
+
+/// Reads bounded daemon scheduler limits from the per-user global configuration.
+/// # Errors
+/// Returns configuration I/O and validation errors.
+pub fn daemon_scheduler_options() -> Result<DaemonSchedulerOptions, EngineError> {
+    let config = read()?;
+    let scheduler = &config["daemon"]["scheduler"];
+    let defaults = DaemonSchedulerOptions::default();
+    Ok(DaemonSchedulerOptions {
+        manual_concurrency: scheduler["manual_concurrency"]
+            .as_u64()
+            .map_or(defaults.manual_concurrency, |value| value as usize),
+        watch_concurrency: scheduler["watch_concurrency"]
+            .as_u64()
+            .map_or(defaults.watch_concurrency, |value| value as usize),
+        queue_capacity: scheduler["queue_capacity"]
+            .as_u64()
+            .map_or(defaults.queue_capacity, |value| value as usize),
+    })
 }
 
 /// Size-based daemon log limits shared with the TypeScript server.
@@ -640,6 +712,33 @@ mod tests {
         )
         .expect("configuration");
         read_at(&path).expect("single model defaults");
+    }
+
+    #[test]
+    fn daemon_scheduler_config_is_bounded_and_defaults_each_lane() {
+        let parsed = parse_global_config(&json!({
+            "version": 1,
+            "daemon": {"scheduler": {"manual_concurrency": 2, "watch_concurrency": 3, "queue_capacity": 128}}
+        })).expect("scheduler config");
+        assert_eq!(parsed["daemon"]["scheduler"]["manual_concurrency"], 2);
+        assert_eq!(parsed["daemon"]["scheduler"]["watch_concurrency"], 3);
+        assert_eq!(parsed["daemon"]["scheduler"]["queue_capacity"], 128);
+        for invalid in [
+            json!({"version":1,"daemon":{"scheduler":{"manual_concurrency":0}}}),
+            json!({"version":1,"daemon":{"scheduler":{"watch_concurrency":65}}}),
+            json!({"version":1,"daemon":{"scheduler":{"queue_capacity":0}}}),
+            json!({"version":1,"daemon":{"scheduler":{"unknown":1}}}),
+        ] {
+            assert!(parse_global_config(&invalid).is_err(), "{invalid}");
+        }
+        assert_eq!(
+            DaemonSchedulerOptions::default(),
+            DaemonSchedulerOptions {
+                manual_concurrency: 1,
+                watch_concurrency: 1,
+                queue_capacity: 64
+            }
+        );
     }
 
     #[test]

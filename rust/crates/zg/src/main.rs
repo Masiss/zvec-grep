@@ -1,5 +1,6 @@
 use std::{
     error::Error,
+    future::Future,
     io::{self, IsTerminal, Write},
     path::Path,
     process::ExitCode,
@@ -245,8 +246,20 @@ async fn execute_plan(plan: CliPlan) -> Result<ExitCode, Box<dyn Error>> {
             mode,
             home,
             operation,
+            no_wait,
+            wait_timeout_ms,
             output,
-        } => return execute_index(mode, home.as_deref(), operation, output).await,
+        } => {
+            return execute_index(
+                mode,
+                home.as_deref(),
+                operation,
+                no_wait,
+                wait_timeout_ms,
+                output,
+            )
+            .await;
+        }
         CliPlan::Status {
             mode,
             home,
@@ -956,6 +969,8 @@ async fn execute_index(
     mode: ClientMode,
     home: Option<&Path>,
     operation: IndexOperation,
+    no_wait: bool,
+    wait_timeout_ms: Option<u64>,
     output: zg_cli::OutputOptions,
 ) -> Result<ExitCode, Box<dyn Error>> {
     let root = match &operation {
@@ -967,60 +982,76 @@ async fn execute_index(
     match operation {
         IndexOperation::Build(mut request) => {
             authorize_index(&mut request, server, home).await?;
+            if no_wait || wait_timeout_ms.is_some() {
+                if !server {
+                    return Err(io::Error::other(
+                        "--no-wait and --wait-timeout-ms require a ready daemon; use --daemon",
+                    )
+                    .into());
+                }
+                let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
+                let job = zg_daemon::submit_index_job(&home, *request).await?;
+                if no_wait {
+                    writeln!(
+                        io::stdout().lock(),
+                        "Submitted daemon index job {} ({:?}) for {}",
+                        job.id,
+                        job.state,
+                        job.root.display()
+                    )?;
+                    return Ok(ExitCode::SUCCESS);
+                }
+                let timeout =
+                    std::time::Duration::from_millis(wait_timeout_ms.expect("timeout option"));
+                match tokio::time::timeout(timeout, zg_daemon::wait_index_job(&home, job.id)).await
+                {
+                    Ok(result) => {
+                        return write_completed_index(
+                            result?,
+                            server,
+                            Some(home.as_path()),
+                            &root,
+                            output,
+                        )
+                        .await;
+                    }
+                    Err(_) => {
+                        return Err(io::Error::other(format!(
+                            "timed out waiting for daemon index job {}; it continues. Inspect it with `zg --server jobs` or cancel it with `zg --server cancel {}",
+                            job.id,
+                            job.id
+                        )).into());
+                    }
+                }
+            }
             let progress = zg_cli::IndexProgressDisplay::new(
                 io::stderr(),
                 animated_progress(output),
                 output.color,
             );
             let reporter = progress.reporter();
-            let result = if server {
-                let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
-                zg_daemon::index_with_progress(&home, *request, &reporter).await?
-            } else {
-                let engine = ZvecGrep::new();
-                request.on_progress = Some(reporter.prioritize_model_progress());
-                let result = engine.index(*request).await?;
-                engine.close();
-                result
+            let server_request = (*request).clone();
+            let direct_request = *request;
+            let server_home = home.map(Path::to_owned);
+            let server_reporter = reporter.clone();
+            let server_operation = async move {
+                let home = zg_daemon::resolve_home(server_home)?;
+                Ok::<_, Box<dyn Error>>(
+                    zg_daemon::index_with_progress(&home, server_request, &server_reporter).await?,
+                )
             };
-            // Inspect saved metadata so omitted flags and --reset-paths are
-            // reflected in the summary without rescanning workspace files.
-            let info = read_workspace_info(
-                server,
-                home,
-                zg_engine::api::info::InfoOptions {
-                    root: Some(root.clone()),
-                    include_status: false,
-                },
-            )
-            .await?;
+            let direct_operation = async move {
+                let engine = ZvecGrep::new();
+                let mut request = direct_request;
+                request.on_progress = Some(reporter.prioritize_model_progress());
+                let result = engine.index(request).await;
+                engine.close();
+                Ok::<_, Box<dyn Error>>(result?)
+            };
+            let result =
+                run_selected_index_route(server, server_operation, direct_operation).await?;
             progress.finish();
-            zg_cli::write_index_with_options(
-                zg_cli::stdout(),
-                &info.root,
-                &result,
-                info.workspace_index.as_ref().map(|index| &index.scan),
-                output,
-                zg_cli::stdout_supports_ansi(),
-            )?;
-            if output.debug {
-                eprintln!("Index diagnostics: {}", serde_json::to_string(&result)?);
-            }
-            if result.files_failed > 0 {
-                if zg_cli::stdout_supports_ansi() && !output.debug {
-                    return Ok(ExitCode::FAILURE);
-                }
-                return Err(io::Error::other(format!(
-                    "indexing completed with {} failed {}; workspace index is not ready",
-                    result.files_failed,
-                    if result.files_failed == 1 {
-                        "file"
-                    } else {
-                        "files"
-                    }
-                ))
-                .into());
-            }
+            return write_completed_index(result, server, home, &root, output).await;
         }
         IndexOperation::Drop(request) => {
             let removed = if server {
@@ -1045,6 +1076,67 @@ async fn execute_index(
                 zg_cli::stdout_supports_ansi(),
             )?;
         }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn run_selected_index_route<T, E, Server, Direct>(
+    use_daemon: bool,
+    server: Server,
+    direct: Direct,
+) -> Result<T, E>
+where
+    Server: Future<Output = Result<T, E>>,
+    Direct: Future<Output = Result<T, E>>,
+{
+    if use_daemon {
+        server.await
+    } else {
+        direct.await
+    }
+}
+
+async fn write_completed_index(
+    result: zg_engine::api::index::IndexResult,
+    server: bool,
+    home: Option<&Path>,
+    root: &Path,
+    output: zg_cli::OutputOptions,
+) -> Result<ExitCode, Box<dyn Error>> {
+    let info = read_workspace_info(
+        server,
+        home,
+        zg_engine::api::info::InfoOptions {
+            root: Some(root.to_owned()),
+            include_status: false,
+        },
+    )
+    .await?;
+    zg_cli::write_index_with_options(
+        zg_cli::stdout(),
+        &info.root,
+        &result,
+        info.workspace_index.as_ref().map(|index| &index.scan),
+        output,
+        zg_cli::stdout_supports_ansi(),
+    )?;
+    if output.debug {
+        eprintln!("Index diagnostics: {}", serde_json::to_string(&result)?);
+    }
+    if result.files_failed > 0 {
+        if zg_cli::stdout_supports_ansi() && !output.debug {
+            return Ok(ExitCode::FAILURE);
+        }
+        return Err(io::Error::other(format!(
+            "indexing completed with {} failed {}; workspace index is not ready",
+            result.files_failed,
+            if result.files_failed == 1 {
+                "file"
+            } else {
+                "files"
+            }
+        ))
+        .into());
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -1232,6 +1324,27 @@ async fn execute_server_plan(plan: ServerPlan) -> Result<(), Box<dyn Error>> {
                 return Err(io::Error::other("server is not ready").into());
             }
         }
+        ServerPlan::Jobs(args) => {
+            let home = zg_daemon::resolve_home(args.home)?;
+            let jobs = zg_daemon::list_index_jobs(&home).await?;
+            zg_cli::write_jobs(io::stdout().lock(), &jobs, args.all, args.json)?;
+        }
+        ServerPlan::Cancel(args) => {
+            let home = zg_daemon::resolve_home(args.home)?;
+            if zg_daemon::cancel_index_job(&home, args.id).await? {
+                writeln!(
+                    io::stderr().lock(),
+                    "Cancellation requested for daemon index job {}.",
+                    args.id
+                )?;
+            } else {
+                return Err(io::Error::other(format!(
+                    "daemon index job {} is no longer cancellable",
+                    args.id
+                ))
+                .into());
+            }
+        }
         ServerPlan::Run(args) => {
             let config = server_config(args)?;
             zg_daemon::run_server_with_logging(config, Arc::new(ZvecGrep::new()), |home| {
@@ -1382,6 +1495,33 @@ fn init_daemon_tracing(log: zg_daemon::rolling_log::RollingLog, debug: bool) {
         .with_writer(move || log.writer())
         .with_env_filter(filter)
         .try_init();
+}
+
+#[cfg(test)]
+mod index_routing_tests {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    use super::run_selected_index_route;
+
+    #[tokio::test]
+    async fn daemon_submission_race_fails_closed_without_direct_retry() {
+        let direct_called = Arc::new(AtomicBool::new(false));
+        let direct_flag = Arc::clone(&direct_called);
+        let result = run_selected_index_route(
+            true,
+            async { Err::<(), _>(std::io::Error::other("daemon disappeared after readiness")) },
+            async move {
+                direct_flag.store(true, Ordering::Release);
+                Ok::<(), std::io::Error>(())
+            },
+        )
+        .await;
+        assert!(result.is_err());
+        assert!(!direct_called.load(Ordering::Acquire));
+    }
 }
 
 #[cfg(test)]

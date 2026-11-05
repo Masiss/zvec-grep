@@ -84,6 +84,7 @@ pub(crate) async fn post_index_stream(
             for byte in data {
                 if byte == b'\n' {
                     match serde_json::from_slice::<IndexStreamEvent>(&pending)? {
+                        IndexStreamEvent::Job(_) => {}
                         IndexStreamEvent::Progress(progress) => reporter.report(progress),
                         IndexStreamEvent::Finished(result) => return Ok(result),
                     }

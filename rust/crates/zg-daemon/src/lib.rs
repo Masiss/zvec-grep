@@ -212,6 +212,71 @@ pub async fn execute_command(
     }
 }
 
+/// Lists resident daemon jobs in scheduler priority order.
+///
+/// # Errors
+/// Returns a daemon transport or protocol error.
+pub async fn list_index_jobs(
+    home: &std::path::Path,
+) -> Result<Vec<zg_daemon_protocol::JobView>, DaemonError> {
+    match execute_command(home, zg_daemon_protocol::DaemonCommand::Jobs).await? {
+        zg_daemon_protocol::DaemonReply::Jobs(jobs) => Ok(jobs),
+        _ => Err(DaemonError::McpBridge(
+            "daemon returned a reply other than jobs".into(),
+        )),
+    }
+}
+
+/// Requests cancellation of a resident daemon job by id.
+///
+/// # Errors
+/// Returns a daemon transport or protocol error.
+pub async fn cancel_index_job(home: &std::path::Path, id: uuid::Uuid) -> Result<bool, DaemonError> {
+    match execute_command(home, zg_daemon_protocol::DaemonCommand::CancelJob(id)).await? {
+        zg_daemon_protocol::DaemonReply::CancelJob(cancelled) => Ok(cancelled),
+        _ => Err(DaemonError::McpBridge(
+            "daemon returned a reply other than cancel_job".into(),
+        )),
+    }
+}
+
+/// Submits an index job detached from the lifetime of this request.
+///
+/// # Errors
+/// Returns a daemon transport or protocol error.
+pub async fn submit_index_job(
+    home: &std::path::Path,
+    request: zg_engine::api::index::IndexOptions,
+) -> Result<zg_daemon_protocol::JobView, DaemonError> {
+    match execute_command(
+        home,
+        zg_daemon_protocol::DaemonCommand::SubmitIndex(request),
+    )
+    .await?
+    {
+        zg_daemon_protocol::DaemonReply::IndexJob(job) => Ok(job),
+        _ => Err(DaemonError::McpBridge(
+            "daemon returned a reply other than index_job".into(),
+        )),
+    }
+}
+
+/// Waits for a previously submitted daemon job; dropping this client wait does not cancel it.
+///
+/// # Errors
+/// Returns a daemon transport or protocol error.
+pub async fn wait_index_job(
+    home: &std::path::Path,
+    id: uuid::Uuid,
+) -> Result<zg_engine::api::index::IndexResult, DaemonError> {
+    match execute_command(home, zg_daemon_protocol::DaemonCommand::WaitIndex(id)).await? {
+        zg_daemon_protocol::DaemonReply::Index(result) => Ok(*result),
+        _ => Err(DaemonError::McpBridge(
+            "daemon returned a reply other than index".into(),
+        )),
+    }
+}
+
 /// Executes an index operation while forwarding live progress snapshots.
 /// # Errors
 /// Returns connection, protocol, or indexing errors, including a truncated stream.

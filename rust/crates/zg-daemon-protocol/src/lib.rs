@@ -3,7 +3,10 @@
 //! These transport-only DTOs are intentionally separate from the in-process
 //! `ZvecGrep` API.
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use zg_engine::ErrorReport;
 use zg_engine::api::{
     context::{ContextOptions, ContextResult},
@@ -22,6 +25,10 @@ pub enum DaemonCommand {
     GrantIndexAuthorization(zg_engine::authorization::IndexAuthorization),
     DropIndex(InfoOptions),
     Info(InfoOptions),
+    Jobs,
+    CancelJob(Uuid),
+    SubmitIndex(IndexOptions),
+    WaitIndex(Uuid),
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -35,6 +42,7 @@ pub enum ExecutionResult {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "value")]
 pub enum IndexStreamEvent {
+    Job(JobView),
     Progress(IndexProgress),
     Finished(ExecutionResult),
 }
@@ -50,6 +58,55 @@ pub enum DaemonReply {
     GrantIndexAuthorization,
     DropIndex(bool),
     Info(Box<InfoResult>),
+    Jobs(Vec<JobView>),
+    CancelJob(bool),
+    IndexJob(JobView),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct JobView {
+    pub id: Uuid,
+    pub root: PathBuf,
+    pub reason: JobViewReason,
+    pub state: JobViewState,
+    pub phase: Option<JobViewPhase>,
+    pub progress: Option<JobViewProgress>,
+    pub waited_millis: u64,
+    pub blocking_job_id: Option<Uuid>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobViewReason {
+    Manual,
+    Watch,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobViewState {
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobViewPhase {
+    Scanning,
+    Indexing,
+    Finalizing,
+    Done,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct JobViewProgress {
+    pub files_indexed: Option<usize>,
+    pub files_total: Option<usize>,
+    pub files_failed: Option<usize>,
+    pub detail: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -61,6 +118,9 @@ pub struct ErrorReply {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
+    use uuid::Uuid;
     use zg_engine::EngineError;
     use zg_engine::api::{
         context::ContextOptions,
@@ -69,7 +129,10 @@ mod tests {
         },
     };
 
-    use super::{DaemonCommand, ErrorReply, ExecutionResult, IndexStreamEvent};
+    use super::{
+        DaemonCommand, ErrorReply, ExecutionResult, IndexStreamEvent, JobView, JobViewPhase,
+        JobViewProgress, JobViewReason, JobViewState,
+    };
 
     #[test]
     fn index_round_trips_by_root_without_a_name() {
@@ -88,6 +151,61 @@ mod tests {
         assert_eq!(decoded, command);
         encoded["request"]["name"] = serde_json::json!("obsolete");
         assert!(serde_json::from_value::<DaemonCommand>(encoded).is_err());
+    }
+
+    #[test]
+    fn job_commands_and_views_round_trip_with_explicit_wire_names() {
+        let id = Uuid::from_u128(42);
+        let view = JobView {
+            id,
+            root: PathBuf::from("/workspace"),
+            reason: JobViewReason::Manual,
+            state: JobViewState::Queued,
+            phase: None,
+            progress: None,
+            waited_millis: 1200,
+            blocking_job_id: Some(Uuid::from_u128(7)),
+        };
+        let encoded = serde_json::to_value(DaemonCommand::CancelJob(id)).expect("cancel command");
+        assert_eq!(
+            encoded,
+            serde_json::json!({"kind":"cancel_job","request":"00000000-0000-0000-0000-00000000002a"})
+        );
+        assert_eq!(
+            serde_json::from_value::<DaemonCommand>(encoded).expect("decode"),
+            DaemonCommand::CancelJob(id)
+        );
+        let reply = super::DaemonReply::Jobs(vec![view]);
+        let encoded = serde_json::to_value(&reply).expect("jobs reply");
+        assert_eq!(encoded["reply"][0]["state"], "queued");
+        assert_eq!(
+            serde_json::from_value::<super::DaemonReply>(encoded).expect("decode"),
+            reply
+        );
+    }
+
+    #[test]
+    fn index_job_stream_events_preserve_state_and_progress_metadata() {
+        let event = IndexStreamEvent::Job(JobView {
+            id: Uuid::from_u128(9),
+            root: PathBuf::from("/workspace"),
+            reason: JobViewReason::Watch,
+            state: JobViewState::Running,
+            phase: Some(JobViewPhase::Indexing),
+            progress: Some(JobViewProgress {
+                files_indexed: Some(3),
+                files_total: Some(8),
+                files_failed: Some(1),
+                detail: Some("indexing".into()),
+            }),
+            waited_millis: 40,
+            blocking_job_id: None,
+        });
+        let encoded = serde_json::to_vec(&event).expect("event json");
+        assert_eq!(
+            serde_json::from_slice::<IndexStreamEvent>(&encoded).expect("decode"),
+            event
+        );
     }
 
     #[test]
