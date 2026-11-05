@@ -55,6 +55,16 @@ permission to launch new campaigns or import old native behavior.
   Focused regression1 passed; baseline recovery ordering is unchanged. Corrective
   engine focused59/fmt passed earlier; full clippy still pending.
 - Parent owns canonical integration, final verification, push and consolidation.
+  Workspace clippy on `1a6fe37` found evidence-test unwraps, checked-conversion,
+  oversized-function/signature and optional-load lint defects. Parent fixed only
+  `api/evidence.rs` + `config.rs` in `cb469b4` (AST-scoped test expects, equivalent
+  let-else, checked usize conversions). LSP scope is outside this session cwd;
+  compiler verification is required, no clean-LSP claim.
+  Child `76fe6c00-5f1c-4b0d-818e-5c9d3b3ff5c6` completed `29cd144`, reviewed/
+  integrated as `c6754b3`: small helper extractions, private optional load returns
+  Option, shared-storage error facade preserved, all assertions retained.
+  Engine clippy/all-targets and focused59 PASS. No blanket lint suppression or
+  runtime semantic changes. All child writers are now complete.
 
 ## Verification state — not final PASS
 
@@ -99,10 +109,12 @@ original V1 target and installed processes are preserved. Btrfs reclaim is delay
 
 ## Exact next authorized actions / remaining acceptance
 
-1. All writers completed; no source changes remain outstanding. Run integrated
-   fmt and workspace clippy first (metadata-only avoids linking the whole test
-   set before lint corrections). Correct in-scope lint/build defects, no broad
-   suppression or weakened tests. Preserve earlier failure logs.
+1. Rerun integrated fmt and workspace clippy (metadata-only avoids linking the
+   whole test set before lint corrections). Current FULL clippy is NOT PASS;
+   engine-only clippy passed. The original failed raw log
+   `clippy-20261105T074440083531025.log` is preserved. Correct in-scope defects,
+   no broad suppression/weakened tests. Parent evidence/config fixes are committed
+   but await that compiler/test verification.
 2. Prune only unused test/debug outputs; verify headroom. Run offline/locked
    workspace tests after all fixes. Then reclaim unused test executables as
    needed and release **`cargo build -p zg --release`** (not library-only zg-cli),
