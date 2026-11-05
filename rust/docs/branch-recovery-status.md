@@ -1,189 +1,115 @@
 # Fork recovery — active checkpoint
 
-Owner scope (2026-11-04): consolidate the user's V1 `work/zg-optimization`
-and V2 `integration/upstream-rust` into one maintained fork branch, preserving
-new work, commit/push the recovered source, then retire confusing old sources.
-Original upstream refs/worktree, installed binaries/daemon and live indexes
-must remain untouched. No benchmark campaign is authorized by this recovery.
+## Owner scope and protected state
 
-## Baselines and preservation
+Owner (2026-11-04, continued 2026-11-05): consolidate V1 newer work onto the
+released V2 fork, use Luna writers plus parent review, commit/push one maintained
+branch, then retire old personal sources. **Not production rollout.**
 
-- Target product baseline: V2 `c2347d5`, tag `rust-v0.3.0-rc.2`.
-- Source of newer work: V1 `234749d` plus dirty/untracked changes.
-- Main post-RC continuation window: 43 first-parent commits beginning `4f26942`.
-- Recovery branch: `work/zg-recovered`.
-- Private preservation: `/home/masis/.local/share/zvec-grep/source-recovery/20261104/`.
-  `COMPLETE` verified: 11,832 preserved entries with source/backup hashes;
-  nested native submodule refs and dirty patches are included. The initial two
-  preservation failures are retained, not erased. Generated data/private files
-  are not staged for publication.
-- Upstream (`upstream/*`, local `main` and `zvec-grep-upstream-baseline`) is
-  comparison material and is not a merge target or cleanup target.
+- Canonical: `work/zg-recovered`, currently in `zvec-grep-recovery`.
+- Baseline: release code `289674b`, packaged V2 tip `c2347d5`.
+- Preserve upstream refs, local comparison `main`, upstream-baseline worktree and
+  pinned benchmark sources. Do not fetch/push upstream or force-push owner origin.
+- Installed binaries/daemon and live indexes remain untouched. PID191539 still
+  maps a deleted V1 target executable; **do not delete original `rust/target`**.
+  Installed PID802372 is also untouched. No new large index run is needed.
 
-## Writer lane board
+## Preservation already complete
 
-| Lane | Worktree / branch | Owned seam | Next gate | Handoff |
-|---|---|---|---|---|
-| Parent/integration | `zvec-grep-recovery` / `work/zg-recovered` | preservation, selected harness/archive docs, integration/review, final push and cleanup | preservation + source/test review | this file |
-| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | runtime reviewed/integrated as `3786d16` + `3d2bd96`; stale protocol integration fixtures being corrected | latest Luna `690d7923-836f-47b5-966a-2fd6876e6441` |
-| Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | DONE reviewed/integrated `4ec2b73` + `f022b87` + `f24e33e`; portable test fix `5cc9cb9` | final child `4dc6ae58-0434-439e-90d2-932d29f6a487` completed |
-| RAG | temporary worktree retired / `recovery/rag-harness` | source-only evidence API, R0/R1 artifacts and tests | DONE reviewed port + coordinate fix, 10 focused tests PASS | integrated `a8048a0`, `cb848dc` |
+- V1 source snapshot `13a3555`; source/private preservation under
+  `~/.local/share/zvec-grep/source-recovery/20261104/`, `COMPLETE` verified with
+  11,832 source/backup-hashed entries, including native/submodule patches.
+- Owner-origin archive tags pushed and verified:
+  `archive/zg-v1-before-recovery-20261104`, `archive/zg-v2-release-20261104`.
+- Source/research archives integrated, not applied wholesale. Bulk generated
+  data, copied diagnostic source/indexes and credentials are not staged.
 
-Each lane owns a distinct worktree. No child pushes or changes any other
-worktree. Parent is the only integrator. Native pin stays 0.8.0, canonical
-index version/layout and production defaults stay unchanged unless a separately
-reviewed recovery stage explicitly requires and documents an owner decision.
-Never re-enable 0.8.0 outside-lock scalar optimize or deferred maintenance.
-V1 research/native receipts are historical evidence, not V2 qualification.
+## Port/review map
 
-## Current implementation and evidence
+| Seam | Canonical implementation/evidence | Status |
+|---|---|---|
+| V2 native/storage | zvec .8, FP16, format2, safe scalar finalization lock | preserved; no ABI/format migration |
+| CLI/daemon UX | `3786d16`, `3d2bd96`; protocol2, auto/direct/server routing, jobs/cancel/detach/wait, bounded lanes/config, results exclusion, watcher consent hygiene | reviewed/integrated |
+| Scheduler/stream correctness | exact submitted job ID, queued Watch->Manual lane wake, queue admission before superseding watcher | regression-tested/integrated |
+| Optional M2 compact hints | `4ec2b73`, `f022b87`, `f24e33e`; binary ZGM2 plus legacy JSON reads, FP16 identity, malformed/nonregular/oversize misses | reviewed/integrated |
+| Conservative clean scan | same engine commits; content+metadata seals, Unix only, 20k entries/16MiB file/64MiB seal caps, cancellation and safe opens; uncertainty uses normal indexing | reviewed/integrated; no performance qualification |
+| Test portability | `5cc9cb9` keeps moved-root coverage on unsupported cache platforms | integrated; cross-target build unverified |
+| Protocol integration tests | `c274311`, `6cec6d6`: fail-closed old/missing/newer versions, value0, stale records, explicit authenticated restart, positive MCP/full-toolset, PID/auth/port safety | focused10 PASS; integrated |
+| RAG evidence API | `a8048a0`, `cb848dc`, 10 focused tests | source API only; R0/R1 quality work incomplete |
+| Harness/M4/native legacy | tracked harness/source/evidence, `research/legacy-rust-v1`, `research/legacy-native-0.7.2`, V1 docs archive | historical/research only, NOT current runtime qualification |
+| RAM diagnosis | `index-memory-investigation-20261104.md`, `index-memory-diagnostic-result-20261104.md` | bounded diagnostic complete; no global RAM fix/leak claim |
 
-- Legacy snapshot committed `13a3555`; explicitly staged 94 source/doc/test
-  files, no bulk untracked fixtures or local secret files. Native and nested
-  third-party modifications are preserved as non-applied patches.
-- Archive tags pushed and verified on **origin only**:
-  `archive/zg-v1-before-recovery-20261104` and
-  `archive/zg-v2-release-20261104`. Upstream/main refs unchanged.
-- Recovered tracked Harness V2, standalone M4 source/evidence and archived V1
-  plans in `0129cbc`. Historical raw receipts and patches keep their bytes;
-  `.gitattributes` protects them from normalization. No benchmark launched.
-- Offline harness checks PASS: contracts 23, host 10, measurement 5,
-  lifecycle split/refusal 5. Initial missing-guidance errors were corrected
-  by restoring repository instructions; raw evidence was not rewritten.
-- RAG source API + current V1 artifacts integrated with a reviewer fix for
-  forged line/column coordinates and blank projects. Focused evidence tests:
-  10 passed, 0 failed. Existing V1 pilot receipts remain historical; R0 is
-  incomplete and candidate quality/performance targets are not yet accepted.
-- `research/legacy-rust-v1/` retains all old post-RC Rust/runtime work plus the
-  exact pre-recovery dirty patch (`a89226f`). It is NOT applied wholesale.
-  Native patches remain `research/legacy-native-0.7.2/`, not current .8 runtime.
-- UX recovery deliberately bumps daemon wire version 1 -> 2 for the new job
-  contract, failing closed with actionable help. Do not auto-restart a legacy
-  daemon or silently fall back to a second direct writer. Index version stays 2.
-- Use shared Cargo cache while recovering. Host-local Cargo configuration is
-  excluded via `.git/info/exclude`; it must never be published. Disk was under
-  pressure due duplicated language-server build caches. The finished RAG lane
-  worktree/cache was removed after reviewed commits were integrated. Do NOT
-  remove V1's build cache: a running `zg` still references deleted mappings
-  there; the installation/process remains untouched.
+Never re-enable .8 outside-lock scalar optimize. Deferred maintenance #10 is not
+implemented. M4 remains unqualified/NO-GO production. Archive receipts are not
+permission to launch new campaigns or import old native behavior.
 
-## Active continuation — 2026-11-05
+## Lane state
 
-- Both previous Luna runs stopped on provider usage limits, not completed work.
-  Owner explicitly authorized continuation after usage returned. Same retained
-  sessions resumed once; latest IDs are in the lane board. Engine dirty
-  `manifest.rs` robustness patch and UX ~1,473-line dirty port/new files remain
-  intact; do not restart either port from scratch.
-- Owner also flagged critically full disk (~233 MB free). Verified no user
-  executable, cwd, mmap or FD referenced the two lane `rust/target` directories
-  or shared `target/debug/incremental`; no compiler was active. Removed only
-  those rebuildable caches: **8,899,952,640 bytes recovered**, ~8.6 GiB free.
-  V1 target, both running `zg` processes, source, backups and indexes untouched.
-- Host-only excluded Cargo config now exists at both lane roots and their
-  `rust/.cargo/` directories: shared integration target, jobs=2, incremental=false.
-  Explicit CARGO_TARGET_DIR/CARGO_BUILD_JOBS=2/CARGO_INCREMENTAL=0 remains mandatory
-  for validation. Do not recreate lane targets or `cargo clean`; check disk
-  before new builds and do not start them below 4 GiB free.
-- Separately owner-authorized bounded Laya RAM diagnostic completed before the
-  interruption: pilot64 and source-only2,714 files both passed, no retries/cap
-  hits/file failures. Exact `zg` peak RSS: 485,056 / 1,310,944 KiB; larger run
-  mostly anonymous heap, not merely file mmap. No >3 GB reproduction or leak
-  attribution claimed. See `index-memory-diagnostic-result-20261104.md` and
-  preregistration. Raw evidence remains private; do not rerun the index.
-- Temporary Cargo measurement hold is RELEASED. Shared-cache reuse is working
-  (no private lane targets recreated), but new validation artifacts reduced free
-  disk to ~4.7 GiB; check the 4 GiB floor before NEW builds.
-- UX initial handoff reports focused tests passed (CLI180, daemon132, protocol7,
-  scan1, binary6), not release/clippy qualification. Parent identified three
-  concrete correctness issues: root-inferred streamed job ID can refer to the
-  wrong same-root job; Watch->Manual queued promotion can retain the old lane
-  wait; queue-full manual submission can cancel accepted watcher work before
-  admission. Latest UX run must reproduce/fix these with regressions and repair
-  `rg_files` fixture isolation under in-worktree TMPDIR (a /tmp-only rerun is
-  insufficient). Changes are still uncommitted/unaccepted pending this pass.
-- Engine first handoff committed compact hints and conservative all-tree seals
-  (`9f16951`, `11ce93b`), with focused tests/fmt/engine clippy passed. Parent has
-  NOT accepted unbounded all-source hashing: it includes ignored weights/.git/
-  targets, lacks cancellation/budgets, and can regress Laya's ~99 GB root.
-  Latest engine run must bound bytes/entries/open behavior with cache-miss
-  fallback, fix non-Unix temporary borrows, and bound compact encoding before
-  allocation. No benchmark or weakened content-identity check is authorized.
-- Build artifacts reduced disk to ~4.1 GiB. After lanes held Cargo, parent took
-  exclusive shared `debug/.cargo-lock`, verified no compiler and 140 user-process
-  references, then removed only two obsolete unused test executables (old Nov4
-  `zg_engine-ec1f03fc72ac6be4`, oldest `zg_daemon-ea869dbeaf13741d`). Btrfs reclaimed
-  ~626 MiB after a delay; free space ~4.7 GiB. Current variants/dependencies kept.
-  UX completed `c127000`; focused scheduler41/runtime60 and exact in-worktree
-  rg_files fixture1 passed. Parent reread the corrected queue-admission/lane and
-  exact-ID/cancellation paths. UX tree is clean, no active Cargo remains.
-  Before engine validation, exact free4283207680 bytes was BELOW4GiB: no build
-  started. Under the idle build lock parent pruned only unused Nov4 app .rlib/
-  .rmeta pairs (libzg_engine363ce, libzg_cli3b34). After Btrfs delayed reclaim,
-  bounded readiness receipt recorded4469587968 bytes free, above4294967296 floor.
-  Engine hold is explicitly RELEASED in latest run for focused checks+commit;
-  parent does not compile concurrently. Five engine dirty files are source-ready
-  and reviewed, but remain unverified until that run completes. New-build floor
-  remains4GiB; check bytes, not rounded df output.
-- UX hung a newly written regression by trying to cancel a shared Watch via its
-  original client signal. Parent authorized stopping ONLY that worker-owned test
-  PID, preserving output, correcting cleanup with explicit scheduler cancel and
-  bounded waits/command timeout. No installed daemon process is involved.
-- Reviewed UX wire+implementation integrated on canonical as `3786d16` +
-  `3d2bd96`. Native pin remains .8; no storage-format change. `rust/AGENTS.md`
-  build example corrected: executable package is `zg`, not library `zg-cli`.
-  Final checks will include the real binary and workspace clippy; host-local
-  canonical Cargo configs route shared target/jobs2/incremental=false (excluded).
-## Current integrated verification — 2026-11-05 14:xx
+- UX `recovery/ux`: clean, latest `5726203` after `37b3698`/`c127000`/`bfeb5eb`.
+  Last child `b5fdf2fc-e9aa-445c-bc0a-12afc754082f` completed. Parent reviewed all
+  corrective commits and integrated them. No further child work is outstanding.
+- Engine `recovery/engine`: clean, latest `f3b1a24` after `79137ec`/`11ce93b`/
+  `9f16951`. Last child `4dc6ae58-0434-439e-90d2-932d29f6a487` completed.
+  Parent integrated all commits. Corrective engine focused59 tests/fmt passed;
+  engine clippy was not rerun because the disk floor was reached.
+- Parent owns canonical integration, final verification, push and consolidation.
 
-- Engine `79137ec` passed 59 focused tests and fmt; clippy blocked by disk floor.
-  Parent reviewed/integrated engine as `4ec2b73`, `f022b87`, `f24e33e`. Cache is
-  optional/bounded: 20k entries, 16 MiB/file, 64 MiB/seal; cancellation and safe
-  regular-file opens, no weaker metadata-only trust. Non-Unix cache is disabled.
-- Test-only portability correction `f3b1a24` integrated as `5cc9cb9` after the
-  first full run stopped; supported Unix retains strict no-op failure injection,
-  unsupported targets exercise ordinary indexing. Cross-target build not claimed.
-- Shared debug app/test caches were pruned under exclusive build lock and full
-  process path+device/inode reference checks: 97 generated outputs, ~5.06 GiB
-  logical. Vendor dependency libraries/shared objects, original V1 target, installs,
-  sources/backups/indexes preserved. Receipts/logs live privately under
+## Verification state — not final PASS
+
+- Offline harness43 and RAG10 focused tests passed earlier in recovery.
+- UX focused CLI180/daemon132/protocol7/scan1/binary6 passed; review fixes then
+  scheduler41/runtime60 and in-worktree `rg_files` fixture1 passed.
+- Engine corrective focused59 passed. Optional cache budgets/open behavior were
+  reviewed; no performance, cross-target or unconstrained-memory claim.
+- First integrated fmt PASS; full offline/locked workspace tests on `f24e33e`
+  stopped at `server_lifecycle` with27 PASS/9 FAIL. Eight failures were stale
+  literal-version1 assertions; one treated current version2 as unsupported.
+  Old automatic-replacement expectations contradicted chosen fail-closed policy.
+  Raw failed log remains `tests-20261105T063741108932289.log` in private evidence.
+- Repaired protocol fixtures passed10 focused tests, including migration safety,
+  stale-record handling and authenticated positive MCP/full six-toolset checks.
+  No tests ignored/deleted to obtain PASS; production replacement remains refused.
+- **Full integrated suite, workspace clippy and release executable build still
+  pending. No release/production readiness claim.**
+
+## Disk/build controls
+
+Disk initially had only233MB free. Removed only verified-unused generated lane
+caches/shared incremental cache, then obsolete shared-target app/test artifacts
+under exclusive `debug/.cargo-lock` and process path+device/inode reference
+checks. Sources, backups, indexes, external dependency libraries/shared objects,
+original V1 target and installed processes are preserved. Btrfs reclaim is delayed.
+
+- Shared target `/home/masis/src/zvec-grep-integration/rust/target`.
+- Explicit `CARGO_TARGET_DIR`, `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`;
+  absolute canonical-worktree `TMPDIR`; runtime .8 library from
+  `~/.local/share/zvec-grep/rollback-20261101T130300Z` (SHA5093c7d7…).
+- Host-only root/rust Cargo configs are excluded. Do not recreate lane targets.
+- Before **every new build**, exact free bytes must be >=4,294,967,296. A failed
+  preflight starts no build; restore space before another attempt. No cap lowering.
+- No parallel lane builds. Bound long commands; no downloads/live operations.
+- Private driver/helpers: `~/.pi/agent/reports/run_zg_recovery_verification_20261105.sh`
+  and `prune_zg_build_cache_20261105.py`. Private logs/start/result/prune receipts:
   `~/.local/share/zvec-grep/recovery-verification-20261105/`.
-- First integrated fmt PASS, then offline/locked workspace tests on `f24e33e`
-  FAILED in `zg --test server_lifecycle`: 27 passed /9 failed. Eight failures
-  assert fresh daemon version2 equals stale literal1; the ninth incorrectly treats
-  current version2 as unsupported. Old fixtures also expect automatic legacy
-  replacement, contradicting explicitly selected fail-closed UX. Preserve raw
-  `tests-20261105T063741108932289.log`; do not restore automatic replacement.
-- Latest UX run fixes only protocol/migration-safety integration fixtures,
-  preserving PID/token/auth/port/IPv4+IPv6/no-fallback coverage. Production version
-  constant is PRIVATE; use captured fresh instance-record version in fixtures,
-  no new public API. Then focused `protocol_upgrade` test filter+commit.
-- After that failure free space ~2 GiB: no new build admitted. Pruned only39
-  inactive test/debug ELFs, library caches kept. Receipt
-  `cache-prune-20261105T064822809746Z.json`; bounded reclaim job43 observed
-  6413881344 bytes free. UX focused Cargo hold RELEASED, check exact4GiB floor
-  before each new build. Parent does not compile concurrently with this lane.
-- Parent next: review/cherry-pick corrected protocol fixtures; remove stale test
-  executables/top debug CLI before canonical revalidation so another lane cannot
-  supply the shared top-level CLI binary. Run integrated fmt/tests, then (after
-  cache-only headroom recovery as needed) workspace clippy and release `-p zg`.
-  Verification driver: `/home/masis/.pi/agent/reports/run_zg_recovery_verification_20261105.sh`.
-  No PASS claim for full suite/clippy/release yet; canonical push, original-source
-  convergence and personal-worktree retirement remain pending. No live operations.
+- Before canonical validation, remove unused test/debug executables (with the
+  helper's lock/ref checks), including shared top-level debug CLI, so another
+  worktree's binary cannot satisfy a stale top-level path. Keep library caches.
 
-## Remaining acceptance criteria / exact next work
+## Exact next authorized actions / remaining acceptance
 
-1. Finish UX and engine writers; inspect actual source/commits, fix accepted
-   findings, integrate into `work/zg-recovered` as parent-only writer.
-2. Run proportional final engine/daemon/CLI/protocol/MCP/host/FP16 tests, fmt,
-   clippy/build as appropriate against the correct .8 library, not installed W4.
-3. Reconcile feature matrix: no old-layout/native/M4 production import; retain
-   those sources explicitly as unqualified archives. Never claim old PASS as
-   qualification of the recovered runtime.
-4. Push canonical branch to owner origin and verify exact published commit;
-   set a clear single maintained branch without modifying comparison/upstream.
-5. Only then move preserved residual V1 untracked material out of active source,
-   switch the main worktree to canonical recovery, retire extra personal/lane
-   worktrees and branches, and update source-location guidance. No blanket clean,
-   force push, live-index rebuild, installed binary or daemon operation.
+1. Prune only unused test/debug outputs; verify headroom. Run integrated fmt and
+   offline/locked workspace tests after all fixture fixes, preserving earlier
+   failure. Repair in-scope defects and recheck; do not weaken contracts/tests.
+2. Once tests complete, reclaim unused test executables as needed, then workspace
+   clippy `--all-targets -- -D warnings`, release **`cargo build -p zg --release`**
+   (not library-only zg-cli), and isolated version/help/native-pair smoke checks.
+3. Record actual results/ignored tests and runtime-vs-archive feature limitations.
+   Push canonical to owner origin and verify exact published commit; clarify owner
+   default branch if permitted, no force push/upstream mutation.
+4. Only after verified preservation+publication: converge original worktree to
+   canonical and retire personal/lane worktrees/branches. Preserve installed
+   process references, original target and live index paths; do not blanket clean.
 
-This checkpoint is not completion, source-port parity, or production readiness.
+The Laya diagnostic is finished: source-only2,714 files/64MiB, zero failed files,
+exact `zg` peak1,310,944KiB (~1.25GiB), mostly anonymous heap. It did not reproduce
+>3GB, prove a leak or implement a full-index memory cap. Do not rerun it.
