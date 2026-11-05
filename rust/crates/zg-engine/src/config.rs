@@ -392,16 +392,15 @@ pub fn daemon_scheduler_options() -> Result<DaemonSchedulerOptions, EngineError>
     let config = read()?;
     let scheduler = &config["daemon"]["scheduler"];
     let defaults = DaemonSchedulerOptions::default();
+    let limit = |name: &str, default: usize| {
+        scheduler[name].as_u64().map_or(Ok(default), |value| {
+            usize::try_from(value).map_err(|_| invalid_field(&format!("daemon.scheduler.{name}")))
+        })
+    };
     Ok(DaemonSchedulerOptions {
-        manual_concurrency: scheduler["manual_concurrency"]
-            .as_u64()
-            .map_or(defaults.manual_concurrency, |value| value as usize),
-        watch_concurrency: scheduler["watch_concurrency"]
-            .as_u64()
-            .map_or(defaults.watch_concurrency, |value| value as usize),
-        queue_capacity: scheduler["queue_capacity"]
-            .as_u64()
-            .map_or(defaults.queue_capacity, |value| value as usize),
+        manual_concurrency: limit("manual_concurrency", defaults.manual_concurrency)?,
+        watch_concurrency: limit("watch_concurrency", defaults.watch_concurrency)?,
+        queue_capacity: limit("queue_capacity", defaults.queue_capacity)?,
     })
 }
 

@@ -323,16 +323,13 @@ pub fn revalidate(root: &Path, pack: &EvidencePack) -> Result<Vec<EvidenceGap>, 
             ));
             continue;
         };
-        let expected_range = match range_for_offsets(text, start, end) {
-            Ok(range) => range,
-            Err(_) => {
-                gaps.push(item_gap(
-                    EvidenceGapCode::StaleCoordinates,
-                    item,
-                    "citation byte offsets are invalid for the current source",
-                ));
-                continue;
-            }
+        let Ok(expected_range) = range_for_offsets(text, start, end) else {
+            gaps.push(item_gap(
+                EvidenceGapCode::StaleCoordinates,
+                item,
+                "citation byte offsets are invalid for the current source",
+            ));
+            continue;
         };
         if expected_range != item.range || text.get(start..end) != Some(item.content.as_str()) {
             gaps.push(item_gap(
@@ -529,12 +526,12 @@ mod tests {
 
     #[test]
     fn unicode_ranges_reject_split_codepoints_and_keep_exact_bytes() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
         let text = "a😀b\n中\n";
-        fs::write(dir.path().join("unicode.cs"), text).unwrap();
+        fs::write(dir.path().join("unicode.cs"), text).expect("valid evidence test fixture");
         let sha = digest(text.as_bytes());
         let valid = request("p", "unicode.cs", &sha, 1, 5);
-        let pack = assemble(dir.path(), &[valid], budget()).unwrap();
+        let pack = assemble(dir.path(), &[valid], budget()).expect("valid evidence test fixture");
         assert_eq!(pack.items[0].content, "😀");
         assert_eq!(pack.items[0].range.start_line(), Some(1));
         assert!(matches!(
@@ -550,20 +547,20 @@ mod tests {
         ));
 
         let split = request("p", "unicode.cs", &sha, 2, 5);
-        let pack = assemble(dir.path(), &[split], budget()).unwrap();
+        let pack = assemble(dir.path(), &[split], budget()).expect("valid evidence test fixture");
         assert_eq!(pack.gaps[0].code, EvidenceGapCode::InvalidRange);
     }
 
     #[test]
     fn crlf_and_eof_coordinates_are_deterministic() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
         let text = "one\r\ntwo\r\nthree";
-        fs::write(dir.path().join("crlf.cs"), text).unwrap();
+        fs::write(dir.path().join("crlf.cs"), text).expect("valid evidence test fixture");
         let sha = digest(text.as_bytes());
         let mut req = request("p", "crlf.cs", &sha, 5, 8);
         req.expected_start_line = Some(2);
         req.expected_end_line = Some(2);
-        let pack = assemble(dir.path(), &[req], budget()).unwrap();
+        let pack = assemble(dir.path(), &[req], budget()).expect("valid evidence test fixture");
         assert_eq!(pack.items[0].content, "two");
         assert!(matches!(
             pack.items[0].range,
@@ -577,34 +574,36 @@ mod tests {
         ));
 
         let eof = request("p", "crlf.cs", &sha, text.len(), text.len());
-        let pack = assemble(dir.path(), &[eof], budget()).unwrap();
+        let pack = assemble(dir.path(), &[eof], budget()).expect("valid evidence test fixture");
         assert_eq!(pack.items[0].content, "");
         assert_eq!(pack.items[0].range.start_line(), Some(3));
 
         let mut stale = request("p", "crlf.cs", &sha, 5, 8);
         stale.expected_start_line = Some(1);
-        let pack = assemble(dir.path(), &[stale], budget()).unwrap();
+        let pack = assemble(dir.path(), &[stale], budget()).expect("valid evidence test fixture");
         assert_eq!(pack.gaps[0].code, EvidenceGapCode::StaleCoordinates);
     }
 
     #[cfg(unix)]
     #[test]
     fn traversal_symlink_and_out_of_root_are_rejected() {
-        let dir = tempdir().unwrap();
-        let outside = tempdir().unwrap();
-        fs::write(outside.path().join("secret.txt"), "secret").unwrap();
-        fs::write(dir.path().join("inside.txt"), "inside").unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
+        let outside = tempdir().expect("valid evidence test fixture");
+        fs::write(outside.path().join("secret.txt"), "secret")
+            .expect("valid evidence test fixture");
+        fs::write(dir.path().join("inside.txt"), "inside").expect("valid evidence test fixture");
         std::os::unix::fs::symlink(
             outside.path().join("secret.txt"),
             dir.path().join("link.txt"),
         )
-        .unwrap();
+        .expect("valid evidence test fixture");
         let sha = digest(b"inside");
 
         let traversal = request("p", "../secret.txt", &sha, 0, 1);
         let absolute = request("p", "/etc/passwd", &sha, 0, 1);
         let symlink = request("p", "link.txt", &sha, 0, 1);
-        let pack = assemble(dir.path(), &[traversal, absolute, symlink], budget()).unwrap();
+        let pack = assemble(dir.path(), &[traversal, absolute, symlink], budget())
+            .expect("valid evidence test fixture");
         assert_eq!(pack.status, EvidenceStatus::Failed);
         let codes: Vec<_> = pack.gaps.iter().map(|gap| gap.code).collect();
         assert!(codes.contains(&EvidenceGapCode::Traversal));
@@ -614,31 +613,31 @@ mod tests {
 
     #[test]
     fn stale_missing_and_renamed_sources_are_gaps() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
         let file = dir.path().join("old.cs");
-        fs::write(&file, "old").unwrap();
+        fs::write(&file, "old").expect("valid evidence test fixture");
         let old_sha = digest(b"old");
-        fs::rename(&file, dir.path().join("renamed.cs")).unwrap();
+        fs::rename(&file, dir.path().join("renamed.cs")).expect("valid evidence test fixture");
         let req = request("p", "old.cs", &old_sha, 0, 3);
-        let pack = assemble(dir.path(), &[req], budget()).unwrap();
+        let pack = assemble(dir.path(), &[req], budget()).expect("valid evidence test fixture");
         assert_eq!(pack.gaps[0].code, EvidenceGapCode::Missing);
 
-        fs::write(dir.path().join("changed.cs"), "new").unwrap();
+        fs::write(dir.path().join("changed.cs"), "new").expect("valid evidence test fixture");
         let req = request("p", "changed.cs", &digest(b"old"), 0, 3);
-        let pack = assemble(dir.path(), &[req], budget()).unwrap();
+        let pack = assemble(dir.path(), &[req], budget()).expect("valid evidence test fixture");
         assert_eq!(pack.gaps[0].code, EvidenceGapCode::StaleHash);
     }
 
     #[test]
     fn same_relative_name_in_two_projects_stays_separate() {
-        let first = tempdir().unwrap();
-        let second = tempdir().unwrap();
-        fs::write(first.path().join("Same.cs"), "first").unwrap();
-        fs::write(second.path().join("Same.cs"), "second").unwrap();
+        let first = tempdir().expect("valid evidence test fixture");
+        let second = tempdir().expect("valid evidence test fixture");
+        fs::write(first.path().join("Same.cs"), "first").expect("valid evidence test fixture");
+        fs::write(second.path().join("Same.cs"), "second").expect("valid evidence test fixture");
         let a = request("project-a", "Same.cs", &digest(b"first"), 0, 5);
         let b = request("project-b", "Same.cs", &digest(b"second"), 0, 6);
-        let pack_a = assemble(first.path(), &[a], budget()).unwrap();
-        let pack_b = assemble(second.path(), &[b], budget()).unwrap();
+        let pack_a = assemble(first.path(), &[a], budget()).expect("valid evidence test fixture");
+        let pack_b = assemble(second.path(), &[b], budget()).expect("valid evidence test fixture");
         assert_eq!(pack_a.items[0].project, "project-a");
         assert_eq!(pack_a.items[0].content, "first");
         assert_eq!(pack_b.items[0].project, "project-b");
@@ -647,15 +646,16 @@ mod tests {
 
     #[test]
     fn budget_is_fail_closed_and_duplicates_are_deduplicated() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
         let text = "0123456789";
-        fs::write(dir.path().join("budget.cs"), text).unwrap();
+        fs::write(dir.path().join("budget.cs"), text).expect("valid evidence test fixture");
         let sha = digest(text.as_bytes());
         let tight = EvidenceBudget {
             max_bytes: 4,
             max_items: 4,
         };
-        let pack = assemble(dir.path(), &[request("p", "budget.cs", &sha, 0, 10)], tight).unwrap();
+        let pack = assemble(dir.path(), &[request("p", "budget.cs", &sha, 0, 10)], tight)
+            .expect("valid evidence test fixture");
         assert!(pack.items.is_empty());
         assert_eq!(pack.gaps[0].code, EvidenceGapCode::SnippetBudgetExceeded);
 
@@ -668,15 +668,15 @@ mod tests {
                 max_items: 1,
             },
         )
-        .unwrap();
+        .expect("valid evidence test fixture");
         assert_eq!(pack.items.len(), 1);
         assert_eq!(pack.deduplicated, 1);
     }
 
     #[test]
     fn empty_query_is_empty_but_invalid_budget_is_an_error() {
-        let dir = tempdir().unwrap();
-        let empty = assemble(dir.path(), &[], budget()).unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
+        let empty = assemble(dir.path(), &[], budget()).expect("valid evidence test fixture");
         assert_eq!(empty.status, EvidenceStatus::Empty);
         assert!(empty.items.is_empty() && empty.gaps.is_empty());
 
@@ -688,35 +688,36 @@ mod tests {
                 max_items: 0,
             },
         )
-        .unwrap_err();
+        .expect_err("invalid evidence budget is rejected");
         assert_eq!(error, EvidenceError::InvalidBudget);
     }
 
     #[test]
     fn revalidation_detects_changed_source_and_content() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
         let path = dir.path().join("live.cs");
-        fs::write(&path, "before").unwrap();
+        fs::write(&path, "before").expect("valid evidence test fixture");
         let sha = digest(b"before");
-        let pack = assemble(dir.path(), &[request("p", "live.cs", &sha, 0, 6)], budget()).unwrap();
+        let pack = assemble(dir.path(), &[request("p", "live.cs", &sha, 0, 6)], budget())
+            .expect("valid evidence test fixture");
         assert!(revalidate(dir.path(), &pack).unwrap().is_empty());
 
-        fs::write(&path, "after").unwrap();
-        let gaps = revalidate(dir.path(), &pack).unwrap();
+        fs::write(&path, "after").expect("valid evidence test fixture");
+        let gaps = revalidate(dir.path(), &pack).expect("valid evidence test fixture");
         assert_eq!(gaps[0].code, EvidenceGapCode::StaleHash);
     }
 
     #[test]
     fn revalidation_rejects_forged_line_and_column_coordinates() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
         let text = "first\r\nsecond\n";
-        fs::write(dir.path().join("coords.cs"), text).unwrap();
+        fs::write(dir.path().join("coords.cs"), text).expect("valid evidence test fixture");
         let pack = assemble(
             dir.path(),
             &[request("p", "coords.cs", &digest(text.as_bytes()), 7, 10)],
             budget(),
         )
-        .unwrap();
+        .expect("valid evidence test fixture");
         assert!(revalidate(dir.path(), &pack).unwrap().is_empty());
 
         for field in ["start_line", "end_line", "start_column", "end_column"] {
@@ -738,7 +739,7 @@ mod tests {
                 ) => *end_byte_column += 1,
                 _ => unreachable!("test uses text ranges and known coordinate fields"),
             }
-            let gaps = revalidate(dir.path(), &forged).unwrap();
+            let gaps = revalidate(dir.path(), &forged).expect("valid evidence test fixture");
             assert_eq!(gaps.len(), 1, "forged {field} must yield one gap");
             assert_eq!(
                 gaps[0].code,
@@ -750,16 +751,16 @@ mod tests {
 
     #[test]
     fn revalidation_rejects_empty_or_whitespace_project() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("project.cs"), "source").unwrap();
+        let dir = tempdir().expect("valid evidence test fixture");
+        fs::write(dir.path().join("project.cs"), "source").expect("valid evidence test fixture");
         let mut pack = assemble(
             dir.path(),
             &[request("p", "project.cs", &digest(b"source"), 0, 6)],
             budget(),
         )
-        .unwrap();
+        .expect("valid evidence test fixture");
         pack.items[0].project = " \t ".into();
-        let gaps = revalidate(dir.path(), &pack).unwrap();
+        let gaps = revalidate(dir.path(), &pack).expect("valid evidence test fixture");
         assert_eq!(gaps.len(), 1);
         assert_eq!(gaps[0].code, EvidenceGapCode::InvalidProject);
     }
