@@ -1461,6 +1461,8 @@ mod tests {
             vec![crate::domain::GlobRule::from("*.rs")]
         );
         assert_eq!(info.status.expect("status").files_scanned, 0);
+        let clean_scan_supported = super::clean_scan::eligible(&IndexOptions::default())
+            && !before.scan().follow_symlinks();
         service
             .index(
                 &models,
@@ -1472,29 +1474,53 @@ mod tests {
             .await
             .expect("update moved workspace");
         let clean_hint = moved.join(".zvec-grep/clean-scan.json");
-        assert!(clean_hint.is_file());
-        // If the fast path falls through, injected finalization failure makes
-        // the test fail rather than mistaking an empty scan for a no-op.
-        service.fail_index_completion = true;
         let before_noop = super::read_workspace_manifest(
             &moved,
             &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
         )
-        .expect("manifest before no-op")
-        .expect("workspace before no-op");
-        assert_eq!(
+        .expect("manifest before verification")
+        .expect("workspace before verification");
+        if clean_scan_supported {
+            assert!(clean_hint.is_file());
+            // If the fast path falls through, injected finalization failure makes
+            // the test fail rather than mistaking an empty scan for a no-op.
+            service.fail_index_completion = true;
+            assert_eq!(
+                service
+                    .index(
+                        &models,
+                        IndexOptions {
+                            root: Some(moved.clone()),
+                            ..IndexOptions::default()
+                        },
+                    )
+                    .await
+                    .expect("clean-scan no-op"),
+                IndexResult::default()
+            );
+        } else {
+            assert!(!clean_hint.exists());
+            use crate::api::index::progress::{IndexProgressPhase, IndexProgressReporter};
+
+            let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let captured = std::sync::Arc::clone(&completed);
             service
                 .index(
                     &models,
                     IndexOptions {
                         root: Some(moved.clone()),
+                        on_progress: Some(IndexProgressReporter::new(move |progress| {
+                            if progress.phase == IndexProgressPhase::Done {
+                                captured.store(true, std::sync::atomic::Ordering::Release);
+                            }
+                        })),
                         ..IndexOptions::default()
                     },
                 )
                 .await
-                .expect("clean-scan no-op"),
-            IndexResult::default()
-        );
+                .expect("ordinary indexing when clean-scan is unsupported");
+            assert!(completed.load(std::sync::atomic::Ordering::Acquire));
+        }
         let after = super::read_workspace_manifest(
             &moved,
             &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
@@ -1502,7 +1528,9 @@ mod tests {
         .expect("manifest read")
         .expect("manifest");
         assert_eq!(after.scan(), before.scan());
-        assert_eq!(after.updated_epoch_ms(), before_noop.updated_epoch_ms());
+        if clean_scan_supported {
+            assert_eq!(after.updated_epoch_ms(), before_noop.updated_epoch_ms());
+        }
         assert_eq!(
             after.source_root(),
             moved.canonicalize().expect("moved root")
