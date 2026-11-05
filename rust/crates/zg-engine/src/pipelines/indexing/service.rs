@@ -107,29 +107,10 @@ impl WorkspaceIndexService {
         let scan = resolve_scan(existing.as_ref().map(Workspace::scan), &options)?;
         crate::file_selection::ScanPolicy::new(&requested_root, &scan)?;
         let Some((clean_scan_eligible, source_before_index, source_checked)) =
-            begin_clean_scan(&requested_root, &layout, existing.as_ref(), &options)?
+            verify_clean_scan_before_index(&requested_root, &layout, existing.as_ref(), &options)?
         else {
-            if options
-                .signal
-                .as_ref()
-                .is_some_and(CancellationToken::is_cancelled)
-            {
-                return Err(EngineError::cancelled(
-                    "indexing was cancelled during clean-scan verification",
-                ));
-            }
             return Ok(IndexResult::default());
         };
-        if options
-            .signal
-            .as_ref()
-            .is_some_and(CancellationToken::is_cancelled)
-        {
-            clean_scan::invalidate(layout.storage_dir());
-            return Err(EngineError::cancelled(
-                "indexing was cancelled during clean-scan verification",
-            ));
-        }
         if options.rebuild {
             recover_build_for_rebuild(&layout)?;
         } else {
@@ -147,52 +128,24 @@ impl WorkspaceIndexService {
         }
         let rebuilding =
             options.rebuild || !existing.as_ref().is_some_and(Workspace::index_enabled);
-        prepare_index_options(&mut options, existing.as_ref())?;
-        if options
-            .signal
-            .as_ref()
-            .is_some_and(CancellationToken::is_cancelled)
-        {
-            clean_scan::invalidate(layout.storage_dir());
-            return Err(EngineError::cancelled(
-                "indexing was cancelled before model preparation",
-            ));
-        }
-        let IndexModels {
-            runtimes: acquired,
-            descriptor,
-        } = acquire_compatible_index_models(models, existing.as_ref(), &options, rebuilding)?;
-        let workspace = index_workspace_state(
+        let (workspace, acquired) = prepare_workspace_index(
+            models,
             &requested_root,
             &layout,
             existing.as_ref(),
-            &options,
-            &acquired,
-            &descriptor,
+            &mut options,
             scan,
             rebuilding,
         )?;
-        let source_before_pipeline = if !clean_scan_eligible
-            || rebuilding
-            || source_checked && source_before_index.is_none()
-        {
-            None
-        } else {
-            match clean_scan::source_fingerprint(
-                &requested_root,
-                layout.storage_dir(),
-                options.signal.as_ref(),
-            )? {
-                Some(current)
-                    if source_before_index
-                        .as_ref()
-                        .is_none_or(|before| before == &current) =>
-                {
-                    Some(current)
-                }
-                _ => None,
-            }
-        };
+        let source_before_pipeline = clean_scan_source_before_pipeline(
+            &requested_root,
+            &layout,
+            clean_scan_eligible,
+            rebuilding,
+            source_checked,
+            source_before_index.as_deref(),
+            &options,
+        )?;
         if rebuilding {
             options.changes.clear();
             if let Some(active) = existing.as_ref() {
@@ -221,7 +174,6 @@ impl WorkspaceIndexService {
             clean_scan_eligible,
             &options,
             source_before_pipeline.as_deref(),
-            options.signal.as_ref(),
         )?;
         report_index_completion(&options, completed);
         Ok(indexed)
@@ -501,7 +453,6 @@ fn publish_index_state(
     clean_scan_eligible: bool,
     options: &IndexOptions,
     source_before_pipeline: Option<&str>,
-    signal: Option<&CancellationToken>,
 ) -> Result<(), EngineError> {
     if rebuilding {
         publish_build(workspace, now)?;
@@ -516,7 +467,7 @@ fn publish_index_state(
                 &workspace,
                 options,
                 source_before_pipeline,
-                signal,
+                options.signal.as_ref(),
             );
         }
     }
@@ -526,6 +477,62 @@ fn publish_index_state(
 fn report_index_completion(options: &IndexOptions, completed: Option<IndexProgress>) {
     if let (Some(reporter), Some(progress)) = (&options.on_progress, completed) {
         reporter.report(progress);
+    }
+}
+
+fn verify_clean_scan_before_index(
+    source_root: &Path,
+    layout: &WorkspaceLayout,
+    existing: Option<&Workspace>,
+    options: &IndexOptions,
+) -> Result<Option<(bool, Option<String>, bool)>, EngineError> {
+    let result = begin_clean_scan(source_root, layout, existing, options)?;
+    let Some(result) = result else {
+        if options
+            .signal
+            .as_ref()
+            .is_some_and(CancellationToken::is_cancelled)
+        {
+            return Err(EngineError::cancelled(
+                "indexing was cancelled during clean-scan verification",
+            ));
+        }
+        return Ok(None);
+    };
+    if options
+        .signal
+        .as_ref()
+        .is_some_and(CancellationToken::is_cancelled)
+    {
+        clean_scan::invalidate(layout.storage_dir());
+        return Err(EngineError::cancelled(
+            "indexing was cancelled during clean-scan verification",
+        ));
+    }
+    Ok(Some(result))
+}
+
+fn clean_scan_source_before_pipeline(
+    source_root: &Path,
+    layout: &WorkspaceLayout,
+    eligible: bool,
+    rebuilding: bool,
+    source_checked: bool,
+    source_before_index: Option<&str>,
+    options: &IndexOptions,
+) -> Result<Option<String>, EngineError> {
+    if !eligible || rebuilding || source_checked && source_before_index.is_none() {
+        return Ok(None);
+    }
+    match clean_scan::source_fingerprint(
+        source_root,
+        layout.storage_dir(),
+        options.signal.as_ref(),
+    )? {
+        Some(current) if source_before_index.is_none_or(|before| before == current) => {
+            Ok(Some(current))
+        }
+        _ => Ok(None),
     }
 }
 
@@ -598,6 +605,43 @@ fn missing_refresh_index(root: &Path) -> EngineError {
         "No index found in {}. Run `zg --index --embedding <model>` to build it before refreshing.",
         root.display()
     ))
+}
+
+fn prepare_workspace_index(
+    models: &ModelRuntimeManager,
+    source_root: &Path,
+    layout: &WorkspaceLayout,
+    existing: Option<&Workspace>,
+    options: &mut IndexOptions,
+    scan: crate::domain::ScanRules,
+    rebuilding: bool,
+) -> Result<(Workspace, Vec<ModelRuntimeLease>), EngineError> {
+    prepare_index_options(options, existing)?;
+    if options
+        .signal
+        .as_ref()
+        .is_some_and(CancellationToken::is_cancelled)
+    {
+        clean_scan::invalidate(layout.storage_dir());
+        return Err(EngineError::cancelled(
+            "indexing was cancelled before model preparation",
+        ));
+    }
+    let IndexModels {
+        runtimes: acquired,
+        descriptor,
+    } = acquire_compatible_index_models(models, existing, options, rebuilding)?;
+    let workspace = index_workspace_state(
+        source_root,
+        layout,
+        existing,
+        options,
+        &acquired,
+        &descriptor,
+        scan,
+        rebuilding,
+    )?;
+    Ok((workspace, acquired))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1000,6 +1044,7 @@ mod tests {
             index::{
                 IndexOptions, IndexResult,
                 options::{EmbeddingModelSpec, ScanRulesUpdate},
+                progress::{IndexProgressPhase, IndexProgressReporter},
             },
             info::InfoOptions,
         },
@@ -1322,9 +1367,7 @@ mod tests {
 
     #[tokio::test]
     async fn completion_progress_is_sent_only_after_successful_publication() {
-        use crate::api::index::progress::{
-            DETAIL_FINALIZING_INDEX, DETAIL_SAVING_INDEX, IndexProgressPhase, IndexProgressReporter,
-        };
+        use crate::api::index::progress::{DETAIL_FINALIZING_INDEX, DETAIL_SAVING_INDEX};
         for fail in [false, true] {
             let directory = tempdir().expect("workspace");
             let mut service = WorkspaceIndexService::new();
@@ -1411,6 +1454,136 @@ mod tests {
         }
     }
 
+    async fn update_moved_workspace_index(
+        service: &mut WorkspaceIndexService,
+        models: &ModelRuntimeManager,
+        moved: &Path,
+        before: &Workspace,
+    ) -> (Workspace, bool) {
+        let clean_scan_supported = super::clean_scan::eligible(&IndexOptions::default())
+            && !before.scan().follow_symlinks();
+        service
+            .index(
+                models,
+                IndexOptions {
+                    root: Some(moved.to_path_buf()),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("update moved workspace");
+        let clean_hint = moved.join(".zvec-grep/clean-scan.json");
+        let before_noop = super::read_workspace_manifest(
+            moved,
+            &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
+        )
+        .expect("manifest before verification")
+        .expect("workspace before verification");
+        if clean_scan_supported {
+            assert!(clean_hint.is_file());
+            // If the fast path falls through, injected finalization failure proves
+            // the request didn't mistake an empty ordinary scan for a no-op.
+            service.fail_index_completion = true;
+            assert_eq!(
+                service
+                    .index(
+                        models,
+                        IndexOptions {
+                            root: Some(moved.to_path_buf()),
+                            ..IndexOptions::default()
+                        },
+                    )
+                    .await
+                    .expect("clean-scan no-op"),
+                IndexResult::default()
+            );
+        } else {
+            assert!(!clean_hint.exists());
+            let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let captured = std::sync::Arc::clone(&completed);
+            service
+                .index(
+                    models,
+                    IndexOptions {
+                        root: Some(moved.to_path_buf()),
+                        on_progress: Some(IndexProgressReporter::new(move |progress| {
+                            if progress.phase == IndexProgressPhase::Done {
+                                captured.store(true, std::sync::atomic::Ordering::Release);
+                            }
+                        })),
+                        ..IndexOptions::default()
+                    },
+                )
+                .await
+                .expect("ordinary indexing when clean-scan is unsupported");
+            assert!(completed.load(std::sync::atomic::Ordering::Acquire));
+        }
+        let after = super::read_workspace_manifest(
+            moved,
+            &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
+        )
+        .expect("manifest read")
+        .expect("manifest");
+        assert_eq!(after.scan(), before.scan());
+        assert_eq!(
+            after.source_root(),
+            moved.canonicalize().expect("moved root")
+        );
+        if clean_scan_supported {
+            assert_eq!(after.updated_epoch_ms(), before_noop.updated_epoch_ms());
+        }
+        (after, clean_scan_supported)
+    }
+
+    async fn verify_pending_build_recovery(
+        service: &mut WorkspaceIndexService,
+        models: &ModelRuntimeManager,
+        moved: &Path,
+        workspace: &Workspace,
+    ) {
+        let layout = WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout");
+        assert!(
+            matches!(
+                super::clean_scan::check(
+                    layout.storage_dir(),
+                    moved,
+                    layout.index_dir(),
+                    workspace,
+                    &IndexOptions {
+                        root: Some(moved.to_path_buf()),
+                        ..IndexOptions::default()
+                    },
+                    None,
+                ),
+                Ok(super::clean_scan::CheckResult::Hit)
+            ),
+            "the clean cache would hit before a build journal is installed"
+        );
+        super::prepare_build(workspace).expect("create pending build journal");
+        assert!(layout.has_build_record().expect("pending build record"));
+
+        let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let captured = std::sync::Arc::clone(&completed);
+        service.fail_index_completion = false;
+        service
+            .index(
+                models,
+                IndexOptions {
+                    root: Some(moved.to_path_buf()),
+                    on_progress: Some(IndexProgressReporter::new(move |progress| {
+                        if progress.phase == IndexProgressPhase::Done {
+                            captured.store(true, std::sync::atomic::Ordering::Release);
+                        }
+                    })),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect("recover pending build before ordinary indexing");
+        assert!(!layout.has_build_record().expect("recovered build record"));
+        assert!(completed.load(std::sync::atomic::Ordering::Acquire));
+    }
+
     #[tokio::test]
     async fn reopening_a_moved_workspace_uses_its_current_root() {
         let directory = tempdir().expect("temporary directory");
@@ -1465,124 +1638,10 @@ mod tests {
             vec![crate::domain::GlobRule::from("*.rs")]
         );
         assert_eq!(info.status.expect("status").files_scanned, 0);
-        let clean_scan_supported = super::clean_scan::eligible(&IndexOptions::default())
-            && !before.scan().follow_symlinks();
-        service
-            .index(
-                &models,
-                IndexOptions {
-                    root: Some(moved.clone()),
-                    ..IndexOptions::default()
-                },
-            )
-            .await
-            .expect("update moved workspace");
-        let clean_hint = moved.join(".zvec-grep/clean-scan.json");
-        let before_noop = super::read_workspace_manifest(
-            &moved,
-            &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
-        )
-        .expect("manifest before verification")
-        .expect("workspace before verification");
+        let (after, clean_scan_supported) =
+            update_moved_workspace_index(&mut service, &models, &moved, &before).await;
         if clean_scan_supported {
-            assert!(clean_hint.is_file());
-            // If the fast path falls through, injected finalization failure makes
-            // the test fail rather than mistaking an empty scan for a no-op.
-            service.fail_index_completion = true;
-            assert_eq!(
-                service
-                    .index(
-                        &models,
-                        IndexOptions {
-                            root: Some(moved.clone()),
-                            ..IndexOptions::default()
-                        },
-                    )
-                    .await
-                    .expect("clean-scan no-op"),
-                IndexResult::default()
-            );
-        } else {
-            assert!(!clean_hint.exists());
-            use crate::api::index::progress::{IndexProgressPhase, IndexProgressReporter};
-
-            let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-            let captured = std::sync::Arc::clone(&completed);
-            service
-                .index(
-                    &models,
-                    IndexOptions {
-                        root: Some(moved.clone()),
-                        on_progress: Some(IndexProgressReporter::new(move |progress| {
-                            if progress.phase == IndexProgressPhase::Done {
-                                captured.store(true, std::sync::atomic::Ordering::Release);
-                            }
-                        })),
-                        ..IndexOptions::default()
-                    },
-                )
-                .await
-                .expect("ordinary indexing when clean-scan is unsupported");
-            assert!(completed.load(std::sync::atomic::Ordering::Acquire));
-        }
-        let after = super::read_workspace_manifest(
-            &moved,
-            &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
-        )
-        .expect("manifest read")
-        .expect("manifest");
-        assert_eq!(after.scan(), before.scan());
-        if clean_scan_supported {
-            assert_eq!(after.updated_epoch_ms(), before_noop.updated_epoch_ms());
-        }
-        assert_eq!(
-            after.source_root(),
-            moved.canonicalize().expect("moved root")
-        );
-        if clean_scan_supported {
-            let layout = WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout");
-            assert!(
-                matches!(
-                    super::clean_scan::check(
-                        layout.storage_dir(),
-                        &moved,
-                        layout.index_dir(),
-                        &after,
-                        &IndexOptions {
-                            root: Some(moved.clone()),
-                            ..IndexOptions::default()
-                        },
-                        None,
-                    ),
-                    Ok(super::clean_scan::CheckResult::Hit)
-                ),
-                "the clean cache would hit before a build journal is installed"
-            );
-            super::prepare_build(&after).expect("create pending build journal");
-            assert!(layout.has_build_record().expect("pending build record"));
-
-            use crate::api::index::progress::{IndexProgressPhase, IndexProgressReporter};
-
-            let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-            let captured = std::sync::Arc::clone(&completed);
-            service.fail_index_completion = false;
-            service
-                .index(
-                    &models,
-                    IndexOptions {
-                        root: Some(moved.clone()),
-                        on_progress: Some(IndexProgressReporter::new(move |progress| {
-                            if progress.phase == IndexProgressPhase::Done {
-                                captured.store(true, std::sync::atomic::Ordering::Release);
-                            }
-                        })),
-                        ..IndexOptions::default()
-                    },
-                )
-                .await
-                .expect("recover pending build before ordinary indexing");
-            assert!(!layout.has_build_record().expect("recovered build record"));
-            assert!(completed.load(std::sync::atomic::Ordering::Acquire));
+            verify_pending_build_recovery(&mut service, &models, &moved, &after).await;
         }
         models.close();
     }

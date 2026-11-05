@@ -492,7 +492,7 @@ impl IndexStore {
         &self,
         file_id: FileId,
     ) -> EngineResult<Option<FileManifest>> {
-        self.shared()?.manifest.load(file_id)
+        Ok(self.shared()?.manifest.load(file_id))
     }
 
     pub(crate) fn publish_embedding_manifest(

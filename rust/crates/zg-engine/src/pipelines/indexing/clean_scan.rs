@@ -231,6 +231,62 @@ fn hash_tree(root: &Path, excluded: Option<&Path>, allow_symlinks: bool) -> Engi
     hash_tree_with_limits(root, excluded, allow_symlinks, DEFAULT_SEAL_LIMITS, None)
 }
 
+fn hash_regular_file(
+    hash: &mut Sha256,
+    entry: &Path,
+    metadata: &fs::Metadata,
+    limits: SealLimits,
+    bytes_read: &mut u64,
+    signal: Option<&CancellationToken>,
+) -> EngineResult<()> {
+    let file = open_regular_file(entry)
+        .map_err(|error| EngineError::from_io("cannot open clean-scan file", &error))?;
+    let before = file
+        .metadata()
+        .map_err(|error| EngineError::from_io("cannot stat clean-scan file", &error))?;
+    if !same_file(&before, metadata) {
+        return Err(EngineError::storage_failure(
+            "clean-scan file identity changed while opening",
+        ));
+    }
+    let mut limited = (&file).take(metadata.len());
+    let mut file_bytes = 0_u64;
+    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
+    loop {
+        check_cancelled(signal)?;
+        let remaining_file = metadata.len().saturating_sub(file_bytes);
+        let remaining_total = limits.total_bytes.saturating_sub(*bytes_read);
+        let request_bytes = remaining_file.min(remaining_total);
+        if request_bytes == 0 {
+            break;
+        }
+        let buffer_len = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+        let request = usize::try_from(request_bytes.min(buffer_len)).unwrap_or(buffer.len());
+        let count = limited
+            .read(&mut buffer[..request])
+            .map_err(|error| EngineError::from_io("cannot hash clean-scan file", &error))?;
+        if count == 0 {
+            break;
+        }
+        let count_u64 = u64::try_from(count).unwrap_or(u64::MAX);
+        file_bytes = file_bytes.saturating_add(count_u64);
+        *bytes_read = bytes_read.saturating_add(count_u64);
+        hash.update(&buffer[..count]);
+    }
+    if file_bytes != metadata.len() {
+        return Err(budget_exceeded());
+    }
+    let after = file
+        .metadata()
+        .map_err(|error| EngineError::from_io("cannot restat clean-scan file", &error))?;
+    if !same_file(&before, &after) {
+        return Err(EngineError::storage_failure(
+            "clean-scan file changed while hashing",
+        ));
+    }
+    Ok(())
+}
+
 fn hash_tree_with_limits(
     root: &Path,
     excluded: Option<&Path>,
@@ -288,52 +344,14 @@ fn hash_tree_with_limits(
             hash.update(b"directory");
         } else if kind.is_file() {
             hash.update(b"file");
-            let file = open_regular_file(&entry)
-                .map_err(|error| EngineError::from_io("cannot open clean-scan file", &error))?;
-            let before = file
-                .metadata()
-                .map_err(|error| EngineError::from_io("cannot stat clean-scan file", &error))?;
-            if !same_file(&before, &metadata) {
-                return Err(EngineError::storage_failure(
-                    "clean-scan file identity changed while opening",
-                ));
-            }
-            let mut limited = (&file).take(metadata.len());
-            let mut file_bytes = 0_u64;
-            let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
-            loop {
-                check_cancelled(signal)?;
-                let remaining_file = metadata.len().saturating_sub(file_bytes);
-                let remaining_total = limits.total_bytes.saturating_sub(bytes_read);
-                let request_bytes = remaining_file.min(remaining_total);
-                if request_bytes == 0 {
-                    break;
-                }
-                let buffer_len = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-                let request =
-                    usize::try_from(request_bytes.min(buffer_len)).unwrap_or(buffer.len());
-                let count = limited
-                    .read(&mut buffer[..request])
-                    .map_err(|error| EngineError::from_io("cannot hash clean-scan file", &error))?;
-                if count == 0 {
-                    break;
-                }
-                let count_u64 = u64::try_from(count).unwrap_or(u64::MAX);
-                file_bytes = file_bytes.saturating_add(count_u64);
-                bytes_read = bytes_read.saturating_add(count_u64);
-                hash.update(&buffer[..count]);
-            }
-            if file_bytes != metadata.len() {
-                return Err(budget_exceeded());
-            }
-            let after = file
-                .metadata()
-                .map_err(|error| EngineError::from_io("cannot restat clean-scan file", &error))?;
-            if !same_file(&before, &after) {
-                return Err(EngineError::storage_failure(
-                    "clean-scan file changed while hashing",
-                ));
-            }
+            hash_regular_file(
+                &mut hash,
+                &entry,
+                &metadata,
+                limits,
+                &mut bytes_read,
+                signal,
+            )?;
         } else {
             return Err(EngineError::storage_failure(
                 "unsupported special file in clean-scan tree",

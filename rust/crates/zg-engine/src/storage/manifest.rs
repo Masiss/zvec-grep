@@ -285,37 +285,37 @@ impl ManifestStore {
         })
     }
 
-    pub(crate) fn load(&self, file_id: FileId) -> EngineResult<Option<FileManifest>> {
+    pub(crate) fn load(&self, file_id: FileId) -> Option<FileManifest> {
         let path = self.path(file_id);
         // Do not follow symlinks or read special files: a malicious or damaged
         // workspace must not turn a cache lookup into a blocking read.
         let metadata = match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
                 tracing::warn!(file_id = file_id.get(), path = %path.display(), "ignoring non-regular reconciliation manifest");
-                return Ok(None);
+                return None;
             }
             Ok(metadata) => metadata,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
             Err(error) => {
                 tracing::warn!(file_id = file_id.get(), %error, "ignoring unreadable reconciliation manifest");
-                return Ok(None);
+                return None;
             }
         };
         if metadata.len() > u64::try_from(MAX_FILE_MANIFEST_BYTES).unwrap_or(u64::MAX) {
-            return Ok(None);
+            return None;
         }
         let file = match open_regular_file(&path) {
             Ok(file) => file,
             Err(error) => {
                 tracing::warn!(file_id = file_id.get(), %error, "ignoring non-regular or unreadable reconciliation manifest");
-                return Ok(None);
+                return None;
             }
         };
         if file.metadata().map_or(true, |metadata| {
             !metadata.is_file()
                 || metadata.len() > u64::try_from(MAX_FILE_MANIFEST_BYTES).unwrap_or(u64::MAX)
         }) {
-            return Ok(None);
+            return None;
         }
         let mut bytes = Vec::new();
         if let Err(error) = file
@@ -323,10 +323,10 @@ impl ManifestStore {
             .read_to_end(&mut bytes)
         {
             tracing::warn!(file_id = file_id.get(), %error, "ignoring unreadable reconciliation manifest");
-            return Ok(None);
+            return None;
         }
         if bytes.len() > MAX_FILE_MANIFEST_BYTES {
-            return Ok(None);
+            return None;
         }
         let mut manifest: FileManifest = if bytes.starts_with(COMPACT_MAGIC) {
             if let Ok(manifest) = decode_compact(&bytes, file_id) {
@@ -336,23 +336,23 @@ impl ManifestStore {
                     file_id = file_id.get(),
                     "ignoring invalid compact reconciliation manifest"
                 );
-                return Ok(None);
+                return None;
             }
         } else {
             match serde_json::from_slice(&bytes) {
                 Ok(manifest) => manifest,
                 Err(error) => {
                     tracing::warn!(file_id = file_id.get(), %error, "ignoring invalid reconciliation manifest");
-                    return Ok(None);
+                    return None;
                 }
             }
         };
         if let Err(error) = manifest.validate(file_id) {
             tracing::warn!(file_id = file_id.get(), %error, "ignoring incompatible reconciliation manifest");
-            return Ok(None);
+            return None;
         }
         manifest.normalize();
-        Ok(Some(manifest))
+        Some(manifest)
     }
 
     pub(crate) fn publish(&self, manifest: &mut FileManifest) -> EngineResult<bool> {
@@ -471,12 +471,7 @@ mod tests {
             trailing_bytes,
         ] {
             fs::write(&path, malformed).expect("write malformed sidecar");
-            assert!(
-                store
-                    .load(file_id)
-                    .expect("malformed sidecar is nonfatal")
-                    .is_none()
-            );
+            assert!(store.load(file_id).is_none());
         }
     }
 
@@ -583,7 +578,6 @@ mod tests {
         assert_eq!(
             store
                 .load(file_id)
-                .expect("compact load")
                 .expect("published compact sidecar")
                 .fragments
                 .len(),
@@ -593,23 +587,18 @@ mod tests {
         // Simulate a torn write from an older/non-atomic writer and a future
         // schema version. Both are hints only: load must ignore them.
         fs::write(&path, b"{\"version\":2,\"file_id\":11").expect("torn sidecar");
-        assert!(store.load(file_id).expect("torn load").is_none());
+        assert!(store.load(file_id).is_none());
         let incompatible = serde_json::json!({
             "version": 1,
             "file_id": 11,
             "fragments": []
         });
         fs::write(&path, serde_json::to_vec(&incompatible).expect("json")).expect("old sidecar");
-        assert!(store.load(file_id).expect("old load").is_none());
+        assert!(store.load(file_id).is_none());
         fs::write(&path, serde_json::to_vec(&manifest).expect("legacy json"))
             .expect("legacy v2 sidecar");
         assert_eq!(
-            store
-                .load(file_id)
-                .expect("legacy load")
-                .expect("legacy sidecar")
-                .fragments
-                .len(),
+            store.load(file_id).expect("legacy sidecar").fragments.len(),
             1
         );
 
@@ -618,7 +607,6 @@ mod tests {
         assert_eq!(
             store
                 .load(file_id)
-                .expect("reload")
                 .expect("replacement manifest")
                 .fragments
                 .len(),
@@ -649,7 +637,7 @@ mod tests {
         let linked_file = linked_directory.join(format!("file-{:08x}.json", 13));
         std::os::unix::fs::symlink(&external_file, &linked_file).expect("file symlink");
         let store = ManifestStore::open(directory.path(), false).expect("manifest store");
-        assert!(store.load(FileId::new(13)).expect("symlink load").is_none());
+        assert!(store.load(FileId::new(13)).is_none());
     }
 
     #[test]
@@ -659,7 +647,7 @@ mod tests {
         let path = store.path(FileId::new(12));
         let oversized = vec![b' '; MAX_FILE_MANIFEST_BYTES + 1];
         fs::write(&path, oversized).expect("oversized sidecar");
-        assert!(store.load(FileId::new(12)).expect("load").is_none());
+        assert!(store.load(FileId::new(12)).is_none());
     }
 
     #[test]
@@ -674,13 +662,12 @@ mod tests {
         assert_eq!(
             store
                 .load(FileId::new(3))
-                .expect("load")
                 .expect("published manifest")
                 .fragments
                 .len(),
             1
         );
         store.delete(FileId::new(3)).expect("delete");
-        assert!(store.load(FileId::new(3)).expect("load absent").is_none());
+        assert!(store.load(FileId::new(3)).is_none());
     }
 }
