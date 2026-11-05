@@ -48,10 +48,12 @@ permission to launch new campaigns or import old native behavior.
 - UX `recovery/ux`: clean, latest `5726203` after `37b3698`/`c127000`/`bfeb5eb`.
   Last child `b5fdf2fc-e9aa-445c-bc0a-12afc754082f` completed. Parent reviewed all
   corrective commits and integrated them. No further child work is outstanding.
-- Engine `recovery/engine`: clean, latest `f3b1a24` after `79137ec`/`11ce93b`/
-  `9f16951`. Last child `4dc6ae58-0434-439e-90d2-932d29f6a487` completed.
-  Parent integrated all commits. Corrective engine focused59 tests/fmt passed;
-  engine clippy was not rerun because the disk floor was reached.
+- Engine `recovery/engine`: clean at `30033c5`; all changes integrated. Final child
+  `da770216-b6eb-4226-a719-dbe94d48b78f` confirmed pending-journal bypass with a
+  failing regression, then fixed it: canonical `f3b95f0` + `4408bee`. Cache hit
+  requires build record `Ok(false)`; uncertainty follows existing recovery.
+  Focused regression1 passed; baseline recovery ordering is unchanged. Corrective
+  engine focused59/fmt passed earlier; full clippy still pending.
 - Parent owns canonical integration, final verification, push and consolidation.
 
 ## Verification state — not final PASS
@@ -97,12 +99,14 @@ original V1 target and installed processes are preserved. Btrfs reclaim is delay
 
 ## Exact next authorized actions / remaining acceptance
 
-1. Prune only unused test/debug outputs; verify headroom. Run integrated fmt and
-   offline/locked workspace tests after all fixture fixes, preserving earlier
-   failure. Repair in-scope defects and recheck; do not weaken contracts/tests.
-2. Once tests complete, reclaim unused test executables as needed, then workspace
-   clippy `--all-targets -- -D warnings`, release **`cargo build -p zg --release`**
-   (not library-only zg-cli), and isolated version/help/native-pair smoke checks.
+1. All writers completed; no source changes remain outstanding. Run integrated
+   fmt and workspace clippy first (metadata-only avoids linking the whole test
+   set before lint corrections). Correct in-scope lint/build defects, no broad
+   suppression or weakened tests. Preserve earlier failure logs.
+2. Prune only unused test/debug outputs; verify headroom. Run offline/locked
+   workspace tests after all fixes. Then reclaim unused test executables as
+   needed and release **`cargo build -p zg --release`** (not library-only zg-cli),
+   plus isolated version/help/native-pair smoke checks. Every build keeps4GiB floor.
 3. Record actual results/ignored tests and runtime-vs-archive feature limitations.
    Push canonical to owner origin and verify exact published commit; clarify owner
    default branch if permitted, no force push/upstream mutation.
