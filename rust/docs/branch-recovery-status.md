@@ -45,9 +45,11 @@ permission to launch new campaigns or import old native behavior.
 
 ## Lane state
 
-- UX `recovery/ux`: clean, latest `5726203` after `37b3698`/`c127000`/`bfeb5eb`.
-  Last child `b5fdf2fc-e9aa-445c-bc0a-12afc754082f` completed. Parent reviewed all
-  corrective commits and integrated them. No further child work is outstanding.
+- UX `recovery/ux`: clean at `ca2fafb`, integrated as `dc88237`. Final daemon
+  lint cleanup reviewed; borrowed semaphore permits remain held through execution/
+  completion; lane notification and atomic claim ordering unchanged. Scheduler41
+  and runtime/lifecycle60 PASS, daemon-only clippy PASS (`--no-deps`; parent has
+  already fixed the dependency config casts). All child writers are complete.
 - Engine `recovery/engine`: clean at `30033c5`; all changes integrated. Final child
   `da770216-b6eb-4226-a719-dbe94d48b78f` confirmed pending-journal bypass with a
   failing regression, then fixed it: canonical `f3b95f0` + `4408bee`. Cache hit
@@ -64,7 +66,19 @@ permission to launch new campaigns or import old native behavior.
   integrated as `c6754b3`: small helper extractions, private optional load returns
   Option, shared-storage error facade preserved, all assertions retained.
   Engine clippy/all-targets and focused59 PASS. No blanket lint suppression or
-  runtime semantic changes. All child writers are now complete.
+  runtime semantic changes. Parent `a1be39b` then fixed two unwrap calls hidden
+  inside assert macro tokens and documented public job-output errors.
+  Full clippy advanced to daemon-only findings: four long orchestration functions
+  and two test MutexGuards across await. Last actual log:
+  `clippy-20261105T081451895262444.log`. Child
+  `4ef1970b-faa3-4233-8bf4-6ed7ab0a853a` stopped at usage limit; owner explicitly
+  continued it as `bf1d4725-e26f-4b1e-9274-be6df92d362e`, now completed above.
+  A disk-floor refusal launched no build. Parent restored headroom under the
+  exclusive build lock (prune receipt `cache-prune-20261105T115941175747Z.json`)
+  before releasing focused commands. Five orphan daemons from the earlier private
+  protocol tests were identified by exact executable inode, PID/start identity and
+  private temporary home, then terminated via pidfd/SIGTERM; owner PID191539 and
+  PID802372 untouched. Receipt `private-test-orphan-cleanup-20261105.json`.
 
 ## Verification state — not final PASS
 
