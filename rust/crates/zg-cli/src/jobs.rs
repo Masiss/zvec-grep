@@ -2,6 +2,10 @@ use std::io::{self, Write};
 
 use zg_daemon_protocol::{JobView, JobViewState};
 
+/// Writes active or retained daemon jobs as text or JSON.
+///
+/// # Errors
+/// Returns an error if output writing or JSON serialization fails.
 pub fn write_jobs(
     mut writer: impl Write,
     jobs: &[JobView],

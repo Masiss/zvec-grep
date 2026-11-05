@@ -700,7 +700,11 @@ mod tests {
         let sha = digest(b"before");
         let pack = assemble(dir.path(), &[request("p", "live.cs", &sha, 0, 6)], budget())
             .expect("valid evidence test fixture");
-        assert!(revalidate(dir.path(), &pack).unwrap().is_empty());
+        assert!(
+            revalidate(dir.path(), &pack)
+                .expect("unchanged evidence is valid")
+                .is_empty()
+        );
 
         fs::write(&path, "after").expect("valid evidence test fixture");
         let gaps = revalidate(dir.path(), &pack).expect("valid evidence test fixture");
@@ -718,7 +722,11 @@ mod tests {
             budget(),
         )
         .expect("valid evidence test fixture");
-        assert!(revalidate(dir.path(), &pack).unwrap().is_empty());
+        assert!(
+            revalidate(dir.path(), &pack)
+                .expect("original citation coordinates are valid")
+                .is_empty()
+        );
 
         for field in ["start_line", "end_line", "start_column", "end_column"] {
             let mut forged = pack.clone();
