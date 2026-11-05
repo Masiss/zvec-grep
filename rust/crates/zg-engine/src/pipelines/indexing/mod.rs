@@ -1,5 +1,6 @@
 //! Workspace discovery, extraction, embedding, and storage orchestration.
 
+mod clean_scan;
 mod input_budget;
 mod model_progress;
 pub(crate) mod pipeline;

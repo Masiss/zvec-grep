@@ -110,14 +110,7 @@ fn decode_hex(value: &str, expected_bytes: usize) -> EngineResult<Vec<u8>> {
             "invalid reconciliation hex field",
         ));
     }
-    Ok(value
-        .as_bytes()
-        .chunks_exact(2)
-        .map(|pair| {
-            let digit = |byte: u8| (byte as char).to_digit(16).unwrap_or_default() as u8;
-            (digit(pair[0]) << 4) | digit(pair[1])
-        })
-        .collect())
+    hex::decode(value).map_err(|_| EngineError::storage_failure("invalid reconciliation hex field"))
 }
 
 fn encode_hex(bytes: &[u8]) -> String {
@@ -302,15 +295,14 @@ impl ManifestStore {
             )
         })?;
         let mut manifest: FileManifest = if bytes.starts_with(COMPACT_MAGIC) {
-            match decode_compact(&bytes, file_id) {
-                Ok(manifest) => manifest,
-                Err(()) => {
-                    tracing::warn!(
-                        file_id = file_id.get(),
-                        "ignoring invalid compact reconciliation manifest"
-                    );
-                    return Ok(None);
-                }
+            if let Ok(manifest) = decode_compact(&bytes, file_id) {
+                manifest
+            } else {
+                tracing::warn!(
+                    file_id = file_id.get(),
+                    "ignoring invalid compact reconciliation manifest"
+                );
+                return Ok(None);
             }
         } else {
             match serde_json::from_slice(&bytes) {
@@ -387,6 +379,8 @@ mod tests {
             .push(entry("a".repeat(40).as_str(), "m", &"b".repeat(64)));
         let bytes = manifest.encode_bounded().expect("encode").expect("bounded");
         let decoded = decode_compact(&bytes, FileId::new(7)).expect("decode compact");
+        let legacy_json = serde_json::to_vec(&decoded).expect("legacy JSON encoding");
+        assert!(bytes.len() < legacy_json.len());
         assert_eq!(decoded.file_id(), FileId::new(7));
         assert!(
             decoded
@@ -396,6 +390,88 @@ mod tests {
         assert!(
             decoded
                 .find_embedding(&"a".repeat(40), "m", &"c".repeat(64))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn malformed_compact_sidecars_are_nonfatal_cache_misses() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let store = ManifestStore::open(directory.path(), false).expect("manifest store");
+        let file_id = FileId::new(23);
+        let path = store.path(file_id);
+        let mut manifest = FileManifest::new(file_id);
+        manifest
+            .fragments
+            .push(entry("a".repeat(40).as_str(), "m", &"b".repeat(64)));
+        let valid = manifest.encode_bounded().expect("encode").expect("bounded");
+        assert_eq!(valid.len(), 16 + 20 + 2 + 1 + 32 + 32);
+
+        let mut bad_magic = valid.clone();
+        bad_magic[0] ^= 1;
+        let mut bad_version = valid.clone();
+        bad_version[4..8].copy_from_slice(&99_u32.to_le_bytes());
+        let mut bad_identity = valid.clone();
+        bad_identity[8..12].copy_from_slice(&99_u32.to_le_bytes());
+        let truncated_header = b"ZGM2".to_vec();
+        let mut truncated_entry = valid.clone();
+        truncated_entry.pop();
+        let mut invalid_utf8 = valid.clone();
+        invalid_utf8[38] = 0xff;
+        let mut huge_count = valid.clone();
+        huge_count[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
+        let mut huge_model_length = valid.clone();
+        huge_model_length[36..38].copy_from_slice(&u16::MAX.to_le_bytes());
+        let mut trailing_bytes = valid;
+        trailing_bytes.push(0);
+
+        for malformed in [
+            bad_magic,
+            bad_version,
+            bad_identity,
+            truncated_header,
+            truncated_entry,
+            invalid_utf8,
+            huge_count,
+            huge_model_length,
+            trailing_bytes,
+        ] {
+            fs::write(&path, malformed).expect("write malformed sidecar");
+            assert!(
+                store
+                    .load(file_id)
+                    .expect("malformed sidecar is nonfatal")
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn compact_format_preserves_model_input_and_fp16_vector_identity() {
+        let file_id = FileId::new(17);
+        let vector = [0.1_f32, -0.2, 1.25];
+        let vector_fingerprint = vector_fingerprint(&vector);
+        let mut manifest = FileManifest::new(file_id);
+        manifest.fragments.push(FragmentManifestEntry {
+            fragment_id: "a".repeat(40),
+            model: "model-a".to_owned(),
+            embedding_fingerprint: "b".repeat(64),
+            vector_fingerprint: vector_fingerprint.clone(),
+        });
+        let bytes = manifest.encode_bounded().expect("encode").expect("bounded");
+        let decoded = decode_compact(&bytes, file_id).expect("decode");
+        let entry = decoded
+            .find_embedding(&"a".repeat(40), "model-a", &"b".repeat(64))
+            .expect("exact reusable identity");
+        assert_eq!(entry.vector_fingerprint, vector_fingerprint);
+        assert!(
+            decoded
+                .find_embedding(&"a".repeat(40), "model-b", &"b".repeat(64))
+                .is_none()
+        );
+        assert!(
+            decoded
+                .find_embedding(&"a".repeat(40), "model-a", &"c".repeat(64))
                 .is_none()
         );
     }
@@ -440,7 +516,7 @@ mod tests {
             store
                 .load(file_id)
                 .expect("compact load")
-                .unwrap()
+                .expect("published compact sidecar")
                 .fragments
                 .len(),
             1
@@ -463,7 +539,7 @@ mod tests {
             store
                 .load(file_id)
                 .expect("legacy load")
-                .unwrap()
+                .expect("legacy sidecar")
                 .fragments
                 .len(),
             1

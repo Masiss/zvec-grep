@@ -49,6 +49,7 @@ use crate::{
     },
 };
 
+use super::clean_scan;
 use super::pipeline::{
     IndexEmbeddingRuntime, IndexingContext, get_workspace_index_status, index_workspace,
 };
@@ -105,6 +106,11 @@ impl WorkspaceIndexService {
         options.scan.normalize_ignore_paths(&requested_root)?;
         let scan = resolve_scan(existing.as_ref().map(Workspace::scan), &options)?;
         crate::file_selection::ScanPolicy::new(&requested_root, &scan)?;
+        let Some((clean_scan_eligible, source_before_index)) =
+            begin_clean_scan(&requested_root, &layout, existing.as_ref(), &options)
+        else {
+            return Ok(IndexResult::default());
+        };
         if options.rebuild {
             recover_build_for_rebuild(&layout)?;
         } else {
@@ -112,34 +118,12 @@ impl WorkspaceIndexService {
         }
         let rebuilding =
             options.rebuild || !existing.as_ref().is_some_and(Workspace::index_enabled);
-        if options.reset_paths
-            || options.scan != crate::api::index::options::ScanRulesUpdate::default()
-        {
-            // A changed selection can admit files outside a watcher's narrow change scope.
-            options.changes.clear();
-        }
-        // Resolve only at the shared index boundary; query runtimes never read these overrides.
-        options.embedding_concurrency = resolve_index_concurrency(
-            &embedding_reference(existing.as_ref(), options.embedding.as_ref())?,
-            options.embedding_concurrency,
-        )
-        .map_err(ModelError::into_engine_error)?;
+        prepare_index_options(&mut options, existing.as_ref())?;
         let IndexModels {
             runtimes: acquired,
             descriptor,
-        } = acquire_index_models(models, existing.as_ref(), &options)?;
-        if !rebuilding
-            && let Some(previous) = existing
-                .as_ref()
-                .and_then(|workspace| workspace.index().descriptor())
-        {
-            previous
-                .ensure_index_compatible(&descriptor)
-                .map_err(|error| {
-                    error.with_help("Rebuild the index with `zg --index --rebuild`.")
-                })?;
-        }
-        let mut workspace = index_workspace_state(
+        } = acquire_compatible_index_models(models, existing.as_ref(), &options, rebuilding)?;
+        let workspace = index_workspace_state(
             &requested_root,
             &layout,
             existing.as_ref(),
@@ -149,6 +133,10 @@ impl WorkspaceIndexService {
             scan,
             rebuilding,
         )?;
+        let source_before_pipeline = source_before_index.filter(|before| {
+            clean_scan::source_fingerprint(&requested_root, layout.storage_dir()).as_deref()
+                == Some(before.as_str())
+        });
         if rebuilding {
             options.changes.clear();
             if let Some(active) = existing.as_ref() {
@@ -169,16 +157,16 @@ impl WorkspaceIndexService {
             let _ = discard_build(&workspace);
         }
         let (indexed, completed) = result?;
-        let now = epoch_millis();
-        if rebuilding {
-            publish_build(workspace, now)?;
-        } else {
-            workspace.record_update(now);
-            write_workspace_manifest(workspace.layout().manifest_path(), &workspace)?;
-        }
-        if let (Some(reporter), Some(progress)) = (&options.on_progress, completed) {
-            reporter.report(progress);
-        }
+        publish_index_state(
+            workspace,
+            rebuilding,
+            epoch_millis(),
+            &requested_root,
+            clean_scan_eligible,
+            &options,
+            source_before_pipeline.as_deref(),
+        )?;
+        report_index_completion(&options, completed);
         Ok(indexed)
     }
 
@@ -404,12 +392,120 @@ impl WorkspaceIndexService {
         // Corrupt metadata must not prevent explicit cleanup.
         let has_data = layout.has_index_data()?;
         if has_data {
+            clean_scan::invalidate(layout.storage_dir());
             drop_index_storage(&layout)?;
             delete_workspace_manifest(&layout)?;
             delete_credentials_key(&layout)?;
         }
         Ok(has_data)
     }
+}
+
+fn acquire_compatible_index_models(
+    models: &ModelRuntimeManager,
+    existing: Option<&Workspace>,
+    options: &IndexOptions,
+    rebuilding: bool,
+) -> Result<IndexModels, EngineError> {
+    let acquired = acquire_index_models(models, existing, options)?;
+    if !rebuilding
+        && let Some(previous) = existing.and_then(|workspace| workspace.index().descriptor())
+    {
+        previous
+            .ensure_index_compatible(&acquired.descriptor)
+            .map_err(|error| error.with_help("Rebuild the index with `zg --index --rebuild`."))?;
+    }
+    Ok(acquired)
+}
+
+fn prepare_index_options(
+    options: &mut IndexOptions,
+    existing: Option<&Workspace>,
+) -> Result<(), EngineError> {
+    if options.reset_paths || options.scan != crate::api::index::options::ScanRulesUpdate::default()
+    {
+        // A changed selection can admit files outside a watcher's narrow change scope.
+        options.changes.clear();
+    }
+    // Resolve at the shared index boundary; query runtimes never read these overrides.
+    options.embedding_concurrency = resolve_index_concurrency(
+        &embedding_reference(existing, options.embedding.as_ref())?,
+        options.embedding_concurrency,
+    )
+    .map_err(ModelError::into_engine_error)?;
+    Ok(())
+}
+
+fn publish_index_state(
+    mut workspace: Workspace,
+    rebuilding: bool,
+    now: u64,
+    source_root: &Path,
+    clean_scan_eligible: bool,
+    options: &IndexOptions,
+    source_before_pipeline: Option<&str>,
+) -> Result<(), EngineError> {
+    if rebuilding {
+        publish_build(workspace, now)?;
+    } else {
+        workspace.record_update(now);
+        write_workspace_manifest(workspace.layout().manifest_path(), &workspace)?;
+        if clean_scan_eligible {
+            clean_scan::publish(
+                workspace.layout().storage_dir(),
+                source_root,
+                workspace.layout().index_dir(),
+                &workspace,
+                options,
+                source_before_pipeline,
+            );
+        }
+    }
+    Ok(())
+}
+
+fn report_index_completion(options: &IndexOptions, completed: Option<IndexProgress>) {
+    if let (Some(reporter), Some(progress)) = (&options.on_progress, completed) {
+        reporter.report(progress);
+    }
+}
+
+fn begin_clean_scan(
+    source_root: &Path,
+    layout: &WorkspaceLayout,
+    existing: Option<&Workspace>,
+    options: &IndexOptions,
+) -> Option<(bool, Option<String>)> {
+    let eligible = clean_scan::eligible(options)
+        && existing.is_none_or(|workspace| !workspace.scan().follow_symlinks());
+    if eligible
+        && let Some(workspace) = existing.filter(|workspace| workspace.index_enabled())
+        && !options
+            .signal
+            .as_ref()
+            .is_some_and(CancellationToken::is_cancelled)
+        && clean_scan::matches(
+            layout.storage_dir(),
+            source_root,
+            workspace.layout().index_dir(),
+            workspace,
+            options,
+        )
+        && !options
+            .signal
+            .as_ref()
+            .is_some_and(CancellationToken::is_cancelled)
+    {
+        return None;
+    }
+    let source_before = if eligible {
+        clean_scan::source_fingerprint(source_root, layout.storage_dir())
+    } else {
+        None
+    };
+    // Invalidate before recovery or any possible in-place write.
+    clean_scan::invalidate(layout.storage_dir());
+    Some((eligible, source_before))
 }
 
 fn load_index_workspace(
@@ -829,7 +925,7 @@ mod tests {
     use crate::{
         api::{
             index::{
-                IndexOptions,
+                IndexOptions, IndexResult,
                 options::{EmbeddingModelSpec, ScanRulesUpdate},
             },
             info::InfoOptions,
@@ -1139,6 +1235,10 @@ mod tests {
             service.fail_index_completion = fail;
             let models = ModelRuntimeManager::new();
             let layout = WorkspaceLayout::new(directory.path().join(".zvec-grep")).expect("layout");
+            std::fs::create_dir_all(layout.storage_dir()).expect("workspace home");
+            std::fs::write(layout.storage_dir().join("clean-scan.json"), b"stale hint")
+                .expect("seed stale clean-scan hint");
+            let progress_layout = layout.clone();
             let observed = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
             let captured = observed.clone();
             let finalizing = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1158,7 +1258,7 @@ mod tests {
                         on_progress: Some(IndexProgressReporter::new(move |progress| {
                             if progress.detail.as_deref() == Some(DETAIL_SAVING_INDEX) {
                                 assert_eq!(progress.phase, IndexProgressPhase::Finalizing);
-                                assert!(!layout.manifest_path().exists());
+                                assert!(!progress_layout.manifest_path().exists());
                             }
                             if progress.phase == IndexProgressPhase::Finalizing {
                                 captured_finalizing
@@ -1170,8 +1270,11 @@ mod tests {
                                 );
                                 assert!(
                                     super::read_workspace_manifest(
-                                        layout.storage_dir().parent().expect("source root"),
-                                        &layout
+                                        progress_layout
+                                            .storage_dir()
+                                            .parent()
+                                            .expect("source root"),
+                                        &progress_layout
                                     )
                                     .expect("published metadata")
                                     .is_some()
@@ -1194,6 +1297,7 @@ mod tests {
                 )
                 .await;
             assert_eq!(result.is_err(), fail);
+            assert!(!layout.storage_dir().join("clean-scan.json").exists());
             assert!(finalizing.load(std::sync::atomic::Ordering::Acquire));
             assert_eq!(
                 *observed.lock().expect("observed progress"),
@@ -1217,7 +1321,7 @@ mod tests {
         let original = directory.path().join("original");
         let moved = directory.path().join("moved");
         std::fs::create_dir(&original).expect("workspace root");
-        let service = WorkspaceIndexService::new();
+        let mut service = WorkspaceIndexService::new();
         let models = ModelRuntimeManager::new();
         service
             .index(
@@ -1275,6 +1379,30 @@ mod tests {
             )
             .await
             .expect("update moved workspace");
+        let clean_hint = moved.join(".zvec-grep/clean-scan.json");
+        assert!(clean_hint.is_file());
+        // If the fast path falls through, injected finalization failure makes
+        // the test fail rather than mistaking an empty scan for a no-op.
+        service.fail_index_completion = true;
+        let before_noop = super::read_workspace_manifest(
+            &moved,
+            &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
+        )
+        .expect("manifest before no-op")
+        .expect("workspace before no-op");
+        assert_eq!(
+            service
+                .index(
+                    &models,
+                    IndexOptions {
+                        root: Some(moved.clone()),
+                        ..IndexOptions::default()
+                    },
+                )
+                .await
+                .expect("clean-scan no-op"),
+            IndexResult::default()
+        );
         let after = super::read_workspace_manifest(
             &moved,
             &WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout"),
@@ -1282,6 +1410,7 @@ mod tests {
         .expect("manifest read")
         .expect("manifest");
         assert_eq!(after.scan(), before.scan());
+        assert_eq!(after.updated_epoch_ms(), before_noop.updated_epoch_ms());
         assert_eq!(
             after.source_root(),
             moved.canonicalize().expect("moved root")
