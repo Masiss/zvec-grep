@@ -325,7 +325,7 @@ fn older_and_newer_protocols_are_rejected_without_replacing_the_daemon()
     let (mut guard, _) = start_server(&binary, &home, "agent", None, |_| {})?;
     let current_record = instance_record(home.path())?;
     let current_version = current_protocol_version(&current_record)?;
-    let older_version = current_version.checked_sub(1).unwrap_or(0);
+    let older_version = current_version.saturating_sub(1);
     let newer_version = current_version
         .checked_add(1)
         .ok_or("current protocol version cannot be incremented")?;

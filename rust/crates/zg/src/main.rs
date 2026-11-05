@@ -1040,44 +1040,54 @@ async fn execute_index(
                     zg_daemon::index_with_progress(&home, server_request, &server_reporter).await?,
                 )
             };
-            let direct_operation = async move {
+            let direct_operation = Box::pin(async move {
                 let engine = ZvecGrep::new();
                 let mut request = direct_request;
                 request.on_progress = Some(reporter.prioritize_model_progress());
                 let result = engine.index(request).await;
                 engine.close();
                 Ok::<_, Box<dyn Error>>(result?)
-            };
+            });
             let result =
                 run_selected_index_route(server, server_operation, direct_operation).await?;
             progress.finish();
             return write_completed_index(result, server, home, &root, output).await;
         }
         IndexOperation::Drop(request) => {
-            let removed = if server {
-                let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
-                let reply =
-                    zg_daemon::execute_command(&home, DaemonCommand::DropIndex(request)).await?;
-                let DaemonReply::DropIndex(removed) = reply else {
-                    return Err(protocol_mismatch("drop_index"));
-                };
-                removed
-            } else {
-                let engine = ZvecGrep::new();
-                let removed = engine.drop_index(request).await?;
-                engine.close();
-                removed
-            };
-            zg_cli::write_index_drop_with_options(
-                zg_cli::stdout(),
-                &root,
-                removed,
-                output.color,
-                zg_cli::stdout_supports_ansi(),
-            )?;
+            execute_index_drop(request, server, home, &root, output).await?;
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+async fn execute_index_drop(
+    request: zg_engine::api::info::InfoOptions,
+    server: bool,
+    home: Option<&Path>,
+    root: &Path,
+    output: zg_cli::OutputOptions,
+) -> Result<(), Box<dyn Error>> {
+    let removed = if server {
+        let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
+        let reply = zg_daemon::execute_command(&home, DaemonCommand::DropIndex(request)).await?;
+        let DaemonReply::DropIndex(removed) = reply else {
+            return Err(protocol_mismatch("drop_index"));
+        };
+        removed
+    } else {
+        let engine = ZvecGrep::new();
+        let removed = engine.drop_index(request).await?;
+        engine.close();
+        removed
+    };
+    zg_cli::write_index_drop_with_options(
+        zg_cli::stdout(),
+        root,
+        removed,
+        output.color,
+        zg_cli::stdout_supports_ansi(),
+    )?;
+    Ok(())
 }
 
 async fn run_selected_index_route<T, E, Server, Direct>(
