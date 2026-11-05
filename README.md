@@ -3,7 +3,7 @@
 > unchanged; the former personal branches are preserved by `archive/zg-v1-*`
 > and `archive/zg-v2-*` tags, not parallel implementation targets. See
 > [`rust/docs/branch-recovery-status.md`](rust/docs/branch-recovery-status.md)
-> for verification and remaining recovery work. Research/native archives are
+> for completed verification and source consolidation. Research/native archives are
 > not production integrations.
 
 <p align="right">

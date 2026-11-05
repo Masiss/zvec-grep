@@ -38,7 +38,7 @@ these results. GPU inference and cross-target builds were not verified.
 
 Builds used a shared cache, two build jobs, no incremental compilation, offline /
 locked dependencies, an isolated app home and absolute temporary directory. Every
-new build required at least 4 GiB free. Refused preflights launched no manual build;
+explicit validation build required at least 4 GiB free. Refused preflights launched no manual build;
 unused test outputs were removed under an exclusive Cargo lock and process-reference
 checks before explicitly releasing further work. Earlier failed logs remain intact.
 

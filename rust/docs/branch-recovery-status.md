@@ -6,7 +6,8 @@ Owner authorized recovery of newer V1 work onto released V2, Luna implementation
 plus parent review, one maintained published branch and retirement of old personal
 sources. **Not production rollout.**
 
-- Canonical branch: `work/zg-recovered`; source currently in `zvec-grep-recovery`.
+- Canonical branch: `work/zg-recovered`; source in `/home/masis/src/zvec-grep`.
+  This is also the owner-origin default branch. Recovery source worktrees are retired.
 - Baseline: packaged V2 `c2347d5` / release code `289674b`.
 - Preserve upstream refs, local comparison `main`, upstream-baseline worktree and
   pinned benchmark source `/home/masis/bench/fork-src`.
@@ -46,7 +47,7 @@ The separate Laya measurement is finished: 2,714 files, zero failures, about1.25
 peak `zg` RSS, mostly anonymous memory. No >3GiB reproduction, leak proof or global
 RAM cap fix. Do not rerun it as part of source consolidation.
 
-## Preservation — DONE; retirement not yet applied
+## Preservation and source retirement — DONE
 
 - Original V1 snapshot `13a3555`; private preservation
   `~/.local/share/zvec-grep/source-recovery/20261104/COMPLETE`, including native /
@@ -55,7 +56,9 @@ RAM cap fix. Do not rerun it as part of source consolidation.
   `archive/zg-v1-before-recovery-20261104`, `archive/zg-v2-release-20261104`.
 - Original untracked audit: 10,125 paths (10,124 regular + one known symlink),
   1,788,531,855 regular bytes; both source and backup SHA-256 match the manifest.
-  Audit was read-only. Original source remains unchanged until publication verifies.
+  Audit first ran read-only; after exact publication verification, entries were
+  atomically renamed to private `retired-original-untracked/`, retaining inode,
+  timestamps and symlink targets. Nothing sensitive was added to Git.
 - Private helper `quarantine_zg_legacy_untracked_20261105.py` requires exact published
   canonical HEAD before atomic private retirement; it checks original HEAD/clean
   tracked state, manifests, hashes, filesystem and symlink metadata. Never bulk-add
@@ -65,19 +68,30 @@ RAM cap fix. Do not rerun it as part of source consolidation.
   private. No active lane/integration executable or mapped-file references found
   in the last pre-retirement check; recheck before actual cache/worktree changes.
 
-## Remaining authorized actions
+## Publication and consolidation — DONE
 
-1. Commit documentation-only verification record, push canonical to owner origin
-   and verify exact remote commit. Clarify canonical default branch where permitted;
-   do not force-push or mutate upstream.
-2. Only after that verification, revalidate and quarantine original untracked legacy
-   files privately; converge original worktree to canonical without overwriting
-   ignored data, original target or live indexes.
-3. Retire inactive personal/lane sources and branches after patch/preservation checks.
-   Keep upstream/comparison/pinned sources. Shared build cache currently lives inside
-   old integration; preserve or safely relocate it before removing that worktree.
-4. Record final source path/ref and actual retirement outcome. Publication and
-   consolidation are still pending at this checkpoint, not DONE by a test PASS.
+- Canonical source was pushed and exact origin HEAD verified before any original
+  retirement. Owner origin default is `work/zg-recovered`; no force push.
+- Original source path was switched with `--no-overwrite-ignore`. No ignored-file
+  collision occurred. Old private IDE/diagnostic data remains in place with local
+  excludes, not public source. Original tracked and visible untracked state is clean.
+- Recovery UX, engine, parent and old integration worktrees are retired after clean
+  source / process-reference checks. Lane-exclusive patches are covered; old V1/V2
+  tips remain in remotely verified archive tags. Personal/lane branches are retired.
+- Local comparison `main`, all upstream refs, upstream-baseline worktree and pinned
+  benchmark worktree are preserved. Only `work/zg-recovered` is maintained here.
+- Build cache moved outside source to
+  `~/.cache/zvec-grep/rust-target-recovered-20261105`. The old integration path now
+  contains only a target-cache compatibility symlink (absolute linker paths), not a
+  source worktree. Host-only Cargo configs route root/rust invocations to that cache
+  and pinned native .8, not the protected original V1 target. Offline metadata
+  resolution from the canonical original path passed.
+- Reference-check refusals were preserved and corrected narrowly: the collector's
+  own mandatory lock descriptors; the owned alias's directory-only ignore mismatch;
+  and two Markdown helpers owned by this agent session holding the retiring cwd.
+  No unrelated process was killed or actual source dirtiness suppressed.
+- Source consolidation is complete. Production rollout, larger performance/RAM
+  qualification and new optimization features remain outside this completed task.
 
 ## Operational controls
 
@@ -85,7 +99,7 @@ Private build/smoke logs and candidate artifact:
 `~/.local/share/zvec-grep/recovery-verification-20261105/`.
 The candidate is not installed. Native .8 pair is the verified rollback library.
 
-Build cache: `/home/masis/src/zvec-grep-integration/rust/target`; two jobs,
+Build cache: `~/.cache/zvec-grep/rust-target-recovered-20261105`; two jobs,
 incremental off, absolute temporary path, offline/locked dependencies. Every explicit
 new validation build requires >=4,294,967,296 free bytes. Preserve gate failures;
 restore space under exclusive Cargo lock + process path/inode reference checks
