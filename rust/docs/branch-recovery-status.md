@@ -49,7 +49,11 @@ permission to launch new campaigns or import old native behavior.
   lint cleanup reviewed; borrowed semaphore permits remain held through execution/
   completion; lane notification and atomic claim ordering unchanged. Scheduler41
   and runtime/lifecycle60 PASS, daemon-only clippy PASS (`--no-deps`; parent has
-  already fixed the dependency config casts). All child writers are complete.
+  already fixed the dependency config casts). CLI-only `8e4f784` reviewed and
+  integrated `2388653`: drop helper, only direct future boxed (engine construction
+  remains inside unpolled async body), equivalent saturating arithmetic. Binary
+  unit6/protocol10 and binary-only clippy PASS. All child writers completed.
+  Parent source is ready for integrated checks; no full PASS claimed yet.
 - Engine `recovery/engine`: clean at `30033c5`; all changes integrated. Final child
   `da770216-b6eb-4226-a719-dbe94d48b78f` confirmed pending-journal bypass with a
   failing regression, then fixed it: canonical `f3b95f0` + `4408bee`. Cache hit
@@ -123,12 +127,11 @@ original V1 target and installed processes are preserved. Btrfs reclaim is delay
 
 ## Exact next authorized actions / remaining acceptance
 
-1. Rerun integrated fmt and workspace clippy (metadata-only avoids linking the
-   whole test set before lint corrections). Current FULL clippy is NOT PASS;
-   engine-only clippy passed. The original failed raw log
-   `clippy-20261105T074440083531025.log` is preserved. Correct in-scope defects,
-   no broad suppression/weakened tests. Parent evidence/config fixes are committed
-   but await that compiler/test verification.
+1. CLI follow-up integrated; rerun integrated fmt/workspace clippy.
+   Latest full check `dfcb074` passed core/daemon and reached only four CLI findings
+   (107-line execute_index, two nested large futures, equivalent saturating sub).
+   Raw log `clippy-20261105T121021147151452.log` and earlier failures preserved.
+   FULL clippy is NOT PASS. No broad suppression/weakened tests.
 2. Prune only unused test/debug outputs; verify headroom. Run offline/locked
    workspace tests after all fixes. Then reclaim unused test executables as
    needed and release **`cargo build -p zg --release`** (not library-only zg-cli),
