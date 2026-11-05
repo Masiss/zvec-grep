@@ -25,8 +25,8 @@ must remain untouched. No benchmark campaign is authorized by this recovery.
 | Lane | Worktree / branch | Owned seam | Next gate | Handoff |
 |---|---|---|---|---|
 | Parent/integration | `zvec-grep-recovery` / `work/zg-recovered` | preservation, selected harness/archive docs, integration/review, final push and cleanup | preservation + source/test review | this file |
-| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | implementing full seam; protocol-only `bfeb5eb` NOT accepted alone | Luna resumed after usage reset `41a39dd0-4c1f-45b4-93aa-48225974f989` |
-| Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | compact `9f16951` committed, malformed-sidecar and no-op review pending | Luna resumed after usage reset `9bc203fe-f77f-43d6-b80a-e1156facfee7` |
+| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | review fixes committed `c127000`, focused regression passes; ready for parent integration | completed `e740aea7-2fc2-42da-8425-dfc60159ea60` |
+| Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | `9f16951` + `11ce93b` committed; bounded-cache correction validation+commit in progress | latest Luna `dc96fb87-c90b-422d-9d46-a57b5147aed8` |
 | RAG | temporary worktree retired / `recovery/rag-harness` | source-only evidence API, R0/R1 artifacts and tests | DONE reviewed port + coordinate fix, 10 focused tests PASS | integrated `a8048a0`, `cb848dc` |
 
 Each lane owns a distinct worktree. No child pushes or changes any other
@@ -90,9 +90,48 @@ V1 research/native receipts are historical evidence, not V2 qualification.
   mostly anonymous heap, not merely file mmap. No >3 GB reproduction or leak
   attribution claimed. See `index-memory-diagnostic-result-20261104.md` and
   preregistration. Raw evidence remains private; do not rerun the index.
-- Temporary Cargo measurement hold is RELEASED. Parent next: review actual
-  lane changes/commits as they complete, integrate, then final proportional
-  validation/publication/cleanup under the original owner scope.
+- Temporary Cargo measurement hold is RELEASED. Shared-cache reuse is working
+  (no private lane targets recreated), but new validation artifacts reduced free
+  disk to ~4.7 GiB; check the 4 GiB floor before NEW builds.
+- UX initial handoff reports focused tests passed (CLI180, daemon132, protocol7,
+  scan1, binary6), not release/clippy qualification. Parent identified three
+  concrete correctness issues: root-inferred streamed job ID can refer to the
+  wrong same-root job; Watch->Manual queued promotion can retain the old lane
+  wait; queue-full manual submission can cancel accepted watcher work before
+  admission. Latest UX run must reproduce/fix these with regressions and repair
+  `rg_files` fixture isolation under in-worktree TMPDIR (a /tmp-only rerun is
+  insufficient). Changes are still uncommitted/unaccepted pending this pass.
+- Engine first handoff committed compact hints and conservative all-tree seals
+  (`9f16951`, `11ce93b`), with focused tests/fmt/engine clippy passed. Parent has
+  NOT accepted unbounded all-source hashing: it includes ignored weights/.git/
+  targets, lacks cancellation/budgets, and can regress Laya's ~99 GB root.
+  Latest engine run must bound bytes/entries/open behavior with cache-miss
+  fallback, fix non-Unix temporary borrows, and bound compact encoding before
+  allocation. No benchmark or weakened content-identity check is authorized.
+- Build artifacts reduced disk to ~4.1 GiB. After lanes held Cargo, parent took
+  exclusive shared `debug/.cargo-lock`, verified no compiler and 140 user-process
+  references, then removed only two obsolete unused test executables (old Nov4
+  `zg_engine-ec1f03fc72ac6be4`, oldest `zg_daemon-ea869dbeaf13741d`). Btrfs reclaimed
+  ~626 MiB after a delay; free space ~4.7 GiB. Current variants/dependencies kept.
+  UX completed `c127000`; focused scheduler41/runtime60 and exact in-worktree
+  rg_files fixture1 passed. Parent reread the corrected queue-admission/lane and
+  exact-ID/cancellation paths. UX tree is clean, no active Cargo remains.
+  Before engine validation, exact free4283207680 bytes was BELOW4GiB: no build
+  started. Under the idle build lock parent pruned only unused Nov4 app .rlib/
+  .rmeta pairs (libzg_engine363ce, libzg_cli3b34). After Btrfs delayed reclaim,
+  bounded readiness receipt recorded4469587968 bytes free, above4294967296 floor.
+  Engine hold is explicitly RELEASED in latest run for focused checks+commit;
+  parent does not compile concurrently. Five engine dirty files are source-ready
+  and reviewed, but remain unverified until that run completes. New-build floor
+  remains4GiB; check bytes, not rounded df output.
+- UX hung a newly written regression by trying to cancel a shared Watch via its
+  original client signal. Parent authorized stopping ONLY that worker-owned test
+  PID, preserving output, correcting cleanup with explicit scheduler cancel and
+  bounded waits/command timeout. No installed daemon process is involved.
+- Parent next: integrate reviewed UX wire+implementation commits while engine
+  validates; then review/integrate engine corrections, run final proportional
+  validation, publish/verify canonical branch and perform originally authorized
+  source consolidation. No production rollout or live-index operation.
 
 ## Remaining acceptance criteria / exact next work
 
