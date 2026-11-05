@@ -25,7 +25,7 @@ must remain untouched. No benchmark campaign is authorized by this recovery.
 | Lane | Worktree / branch | Owned seam | Next gate | Handoff |
 |---|---|---|---|---|
 | Parent/integration | `zvec-grep-recovery` / `work/zg-recovered` | preservation, selected harness/archive docs, integration/review, final push and cleanup | preservation + source/test review | this file |
-| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | review fixes committed `c127000`, focused regression passes; ready for parent integration | completed `e740aea7-2fc2-42da-8425-dfc60159ea60` |
+| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | DONE reviewed/integrated as `3786d16` + `3d2bd96`; final integrated checks pending | completed `e740aea7-2fc2-42da-8425-dfc60159ea60` |
 | Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | `9f16951` + `11ce93b` committed; bounded-cache correction validation+commit in progress | latest Luna `dc96fb87-c90b-422d-9d46-a57b5147aed8` |
 | RAG | temporary worktree retired / `recovery/rag-harness` | source-only evidence API, R0/R1 artifacts and tests | DONE reviewed port + coordinate fix, 10 focused tests PASS | integrated `a8048a0`, `cb848dc` |
 
@@ -128,10 +128,15 @@ V1 research/native receipts are historical evidence, not V2 qualification.
   original client signal. Parent authorized stopping ONLY that worker-owned test
   PID, preserving output, correcting cleanup with explicit scheduler cancel and
   bounded waits/command timeout. No installed daemon process is involved.
-- Parent next: integrate reviewed UX wire+implementation commits while engine
-  validates; then review/integrate engine corrections, run final proportional
-  validation, publish/verify canonical branch and perform originally authorized
-  source consolidation. No production rollout or live-index operation.
+- Reviewed UX wire+implementation integrated on canonical as `3786d16` +
+  `3d2bd96`. Native pin remains .8; no storage-format change. `rust/AGENTS.md`
+  build example corrected: executable package is `zg`, not library `zg-cli`.
+  Final checks will include the real binary and workspace clippy; host-local
+  canonical Cargo configs route shared target/jobs2/incremental=false (excluded).
+- Parent next: review/integrate engine correction after validation, then final
+  proportional integrated tests/fmt/clippy/release executable build, publish/
+  verify canonical branch and originally authorized source consolidation. Do not
+  compile concurrently with engine. No production rollout/live-index operation.
 
 ## Remaining acceptance criteria / exact next work
 

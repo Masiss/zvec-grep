@@ -38,15 +38,17 @@ cargo test -p zg-transport-mcp
 cargo test -p zg-daemon-protocol
 cargo test -p zg-zvec-fp16
 cargo test -p zg-host-native
-cargo clippy -p zg-engine -p zg-daemon -p zg-cli -p zg-transport-mcp --all-targets -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
-cargo build -p zg-cli --release
+cargo build -p zg --release
 ```
 
 - Prefer focused tests first, then the relevant suites. Report exact commands,
   counts, and failures; do not claim verification that did not run.
 - Do not weaken a test to obtain PASS. Treat a known `#[ignore]` reason as
   evidence, not as permission to remove the gate.
+- The executable package is `zg`; `zg-cli` is its supporting library and building
+  that library alone does not verify the CLI executable.
 - The release CLI needs the native `libzvec_c_api.so` next to the binary or under
   its `$ORIGIN/../lib` runpath. Do not symlink an installed local `zg` directly
   to a disposable `target/` directory; `cargo clean` will break it.
