@@ -106,19 +106,58 @@ impl WorkspaceIndexService {
         options.scan.normalize_ignore_paths(&requested_root)?;
         let scan = resolve_scan(existing.as_ref().map(Workspace::scan), &options)?;
         crate::file_selection::ScanPolicy::new(&requested_root, &scan)?;
-        let Some((clean_scan_eligible, source_before_index)) =
-            begin_clean_scan(&requested_root, &layout, existing.as_ref(), &options)
+        let Some((clean_scan_eligible, source_before_index, source_checked)) =
+            begin_clean_scan(&requested_root, &layout, existing.as_ref(), &options)?
         else {
+            if options
+                .signal
+                .as_ref()
+                .is_some_and(CancellationToken::is_cancelled)
+            {
+                return Err(EngineError::cancelled(
+                    "indexing was cancelled during clean-scan verification",
+                ));
+            }
             return Ok(IndexResult::default());
         };
+        if options
+            .signal
+            .as_ref()
+            .is_some_and(CancellationToken::is_cancelled)
+        {
+            clean_scan::invalidate(layout.storage_dir());
+            return Err(EngineError::cancelled(
+                "indexing was cancelled during clean-scan verification",
+            ));
+        }
         if options.rebuild {
             recover_build_for_rebuild(&layout)?;
         } else {
             recover_build(&layout)?;
         }
+        if options
+            .signal
+            .as_ref()
+            .is_some_and(CancellationToken::is_cancelled)
+        {
+            clean_scan::invalidate(layout.storage_dir());
+            return Err(EngineError::cancelled(
+                "indexing was cancelled before model preparation",
+            ));
+        }
         let rebuilding =
             options.rebuild || !existing.as_ref().is_some_and(Workspace::index_enabled);
         prepare_index_options(&mut options, existing.as_ref())?;
+        if options
+            .signal
+            .as_ref()
+            .is_some_and(CancellationToken::is_cancelled)
+        {
+            clean_scan::invalidate(layout.storage_dir());
+            return Err(EngineError::cancelled(
+                "indexing was cancelled before model preparation",
+            ));
+        }
         let IndexModels {
             runtimes: acquired,
             descriptor,
@@ -133,10 +172,27 @@ impl WorkspaceIndexService {
             scan,
             rebuilding,
         )?;
-        let source_before_pipeline = source_before_index.filter(|before| {
-            clean_scan::source_fingerprint(&requested_root, layout.storage_dir()).as_deref()
-                == Some(before.as_str())
-        });
+        let source_before_pipeline = if !clean_scan_eligible
+            || rebuilding
+            || source_checked && source_before_index.is_none()
+        {
+            None
+        } else {
+            match clean_scan::source_fingerprint(
+                &requested_root,
+                layout.storage_dir(),
+                options.signal.as_ref(),
+            )? {
+                Some(current)
+                    if source_before_index
+                        .as_ref()
+                        .is_none_or(|before| before == &current) =>
+                {
+                    Some(current)
+                }
+                _ => None,
+            }
+        };
         if rebuilding {
             options.changes.clear();
             if let Some(active) = existing.as_ref() {
@@ -165,6 +221,7 @@ impl WorkspaceIndexService {
             clean_scan_eligible,
             &options,
             source_before_pipeline.as_deref(),
+            options.signal.as_ref(),
         )?;
         report_index_completion(&options, completed);
         Ok(indexed)
@@ -444,6 +501,7 @@ fn publish_index_state(
     clean_scan_eligible: bool,
     options: &IndexOptions,
     source_before_pipeline: Option<&str>,
+    signal: Option<&CancellationToken>,
 ) -> Result<(), EngineError> {
     if rebuilding {
         publish_build(workspace, now)?;
@@ -458,6 +516,7 @@ fn publish_index_state(
                 &workspace,
                 options,
                 source_before_pipeline,
+                signal,
             );
         }
     }
@@ -475,37 +534,46 @@ fn begin_clean_scan(
     layout: &WorkspaceLayout,
     existing: Option<&Workspace>,
     options: &IndexOptions,
-) -> Option<(bool, Option<String>)> {
+) -> Result<Option<(bool, Option<String>, bool)>, EngineError> {
+    let home = layout.storage_dir();
+    if options
+        .signal
+        .as_ref()
+        .is_some_and(CancellationToken::is_cancelled)
+    {
+        clean_scan::invalidate(home);
+        return Err(EngineError::cancelled(
+            "indexing was cancelled before clean-scan verification",
+        ));
+    }
     let eligible = clean_scan::eligible(options)
         && existing.is_none_or(|workspace| !workspace.scan().follow_symlinks());
-    if eligible
-        && let Some(workspace) = existing.filter(|workspace| workspace.index_enabled())
-        && !options
-            .signal
-            .as_ref()
-            .is_some_and(CancellationToken::is_cancelled)
-        && clean_scan::matches(
-            layout.storage_dir(),
+    let mut source_before = None;
+    let mut source_checked = false;
+    if eligible && let Some(workspace) = existing.filter(|workspace| workspace.index_enabled()) {
+        match clean_scan::check(
+            home,
             source_root,
             workspace.layout().index_dir(),
             workspace,
             options,
-        )
-        && !options
-            .signal
-            .as_ref()
-            .is_some_and(CancellationToken::is_cancelled)
-    {
-        return None;
+            options.signal.as_ref(),
+        ) {
+            Ok(clean_scan::CheckResult::Hit) => return Ok(None),
+            Ok(clean_scan::CheckResult::MissBeforeSource) => {}
+            Ok(clean_scan::CheckResult::MissAfterSource(source)) => {
+                source_checked = true;
+                source_before = source;
+            }
+            Err(error) => {
+                clean_scan::invalidate(home);
+                return Err(error);
+            }
+        }
     }
-    let source_before = if eligible {
-        clean_scan::source_fingerprint(source_root, layout.storage_dir())
-    } else {
-        None
-    };
     // Invalidate before recovery or any possible in-place write.
-    clean_scan::invalidate(layout.storage_dir());
-    Some((eligible, source_before))
+    clean_scan::invalidate(home);
+    Ok(Some((eligible, source_before, source_checked)))
 }
 
 fn load_index_workspace(
@@ -921,6 +989,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use tempfile::tempdir;
+    use tokio_util::sync::CancellationToken;
 
     use crate::{
         api::{
@@ -1201,6 +1270,29 @@ mod tests {
             super::resolve_scan(Some(manifest.scan()), &options).expect("scan rules"),
             crate::domain::ScanRules::default()
         );
+    }
+
+    #[tokio::test]
+    async fn pre_cancelled_index_stops_before_model_preparation() {
+        let directory = tempdir().expect("workspace");
+        let service = WorkspaceIndexService::new();
+        let models = ModelRuntimeManager::new();
+        let signal = CancellationToken::new();
+        signal.cancel();
+        let error = service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().to_path_buf()),
+                    signal: Some(signal),
+                    ..IndexOptions::default()
+                },
+            )
+            .await
+            .expect_err("pre-cancelled indexing");
+        assert_eq!(error.code(), crate::EngineError::CANCELLED);
+        assert_eq!(models.snapshot().cached_runtimes, 0);
+        models.close();
     }
 
     #[tokio::test]

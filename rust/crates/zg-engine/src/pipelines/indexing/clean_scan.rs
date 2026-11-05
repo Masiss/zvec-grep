@@ -7,6 +7,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use tokio_util::sync::CancellationToken;
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -14,12 +16,28 @@ use crate::{
     EngineError, EngineResult,
     api::index::IndexOptions,
     domain::Workspace,
-    utils::{atomic_write, sync_directory},
+    utils::{atomic_write, open_regular_file, sync_directory},
 };
 
 const FILE_NAME: &str = "clean-scan.json";
 const VERSION: u32 = 1;
 const MAX_HINT_BYTES: u64 = 4096;
+const MAX_TREE_ENTRIES: usize = 20_000;
+const MAX_TREE_FILE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_TREE_BYTES: u64 = 64 * 1024 * 1024;
+
+#[derive(Clone, Copy)]
+struct SealLimits {
+    entries: usize,
+    file_bytes: u64,
+    total_bytes: u64,
+}
+
+const DEFAULT_SEAL_LIMITS: SealLimits = SealLimits {
+    entries: MAX_TREE_ENTRIES,
+    file_bytes: MAX_TREE_FILE_BYTES,
+    total_bytes: MAX_TREE_BYTES,
+};
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -78,38 +96,60 @@ fn feed_path(hash: &mut Sha256, root: &Path, entry: &Path) -> EngineResult<()> {
         relative.as_os_str().as_bytes()
     };
     #[cfg(not(unix))]
-    let bytes = relative.to_string_lossy().as_bytes();
+    let bytes = relative.to_string_lossy().into_owned();
+    #[cfg(not(unix))]
+    let bytes = bytes.as_bytes();
     hash.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes());
     hash.update(bytes);
     Ok(())
 }
 
+fn check_cancelled(signal: Option<&CancellationToken>) -> EngineResult<()> {
+    if signal.is_some_and(CancellationToken::is_cancelled) {
+        return Err(EngineError::cancelled(
+            "clean-scan verification was cancelled",
+        ));
+    }
+    Ok(())
+}
+
+fn budget_exceeded() -> EngineError {
+    EngineError::storage_failure("clean-scan seal exceeds its bounded cache budget")
+}
+
 fn tree_entries(
     root: &Path,
     excluded: Option<&Path>,
+    limits: SealLimits,
+    signal: Option<&CancellationToken>,
 ) -> EngineResult<Vec<(PathBuf, fs::Metadata)>> {
     let mut entries = Vec::new();
     let mut pending = vec![root.to_path_buf()];
+    let mut total_bytes = 0_u64;
     while let Some(directory) = pending.pop() {
-        let mut children = fs::read_dir(&directory)
-            .map_err(|error| {
-                EngineError::from_io(
-                    format!(
-                        "cannot scan clean-scan directory {}: {error}",
-                        directory.display()
-                    ),
-                    &error,
-                )
-            })?
-            .map(|entry| entry.map(|entry| entry.path()))
-            .collect::<std::io::Result<Vec<_>>>()
-            .map_err(|error| {
-                EngineError::from_io("cannot enumerate clean-scan directory", &error)
-            })?;
-        children.sort();
-        for entry in children {
+        check_cancelled(signal)?;
+        let read_dir = fs::read_dir(&directory).map_err(|error| {
+            EngineError::from_io(
+                format!(
+                    "cannot scan clean-scan directory {}: {error}",
+                    directory.display()
+                ),
+                &error,
+            )
+        })?;
+        let mut children = Vec::new();
+        for child in read_dir {
+            check_cancelled(signal)?;
+            let entry = child
+                .map_err(|error| {
+                    EngineError::from_io("cannot enumerate clean-scan directory", &error)
+                })?
+                .path();
             if excluded.is_some_and(|excluded| entry == excluded) {
                 continue;
+            }
+            if entries.len().saturating_add(children.len()) >= limits.entries {
+                return Err(budget_exceeded());
             }
             let metadata = fs::symlink_metadata(&entry).map_err(|error| {
                 EngineError::from_io(
@@ -120,10 +160,23 @@ fn tree_entries(
                     &error,
                 )
             })?;
-            entries.push((entry.clone(), metadata.clone()));
-            if metadata.is_dir() {
-                pending.push(entry);
+            if metadata.is_file() {
+                if metadata.len() > limits.file_bytes {
+                    return Err(budget_exceeded());
+                }
+                total_bytes = total_bytes
+                    .checked_add(metadata.len())
+                    .filter(|total| *total <= limits.total_bytes)
+                    .ok_or_else(budget_exceeded)?;
             }
+            children.push((entry, metadata));
+        }
+        children.sort_by(|left, right| left.0.cmp(&right.0));
+        for (entry, metadata) in children {
+            if metadata.is_dir() {
+                pending.push(entry.clone());
+            }
+            entries.push((entry, metadata));
         }
     }
     entries.sort_by(|left, right| left.0.cmp(&right.0));
@@ -173,7 +226,19 @@ fn hash_metadata(hash: &mut Sha256, metadata: &fs::Metadata) -> EngineResult<()>
     Ok(())
 }
 
+#[cfg(test)]
 fn hash_tree(root: &Path, excluded: Option<&Path>, allow_symlinks: bool) -> EngineResult<String> {
+    hash_tree_with_limits(root, excluded, allow_symlinks, DEFAULT_SEAL_LIMITS, None)
+}
+
+fn hash_tree_with_limits(
+    root: &Path,
+    excluded: Option<&Path>,
+    allow_symlinks: bool,
+    limits: SealLimits,
+    signal: Option<&CancellationToken>,
+) -> EngineResult<String> {
+    check_cancelled(signal)?;
     let root_meta = fs::symlink_metadata(root).map_err(|error| {
         EngineError::from_io(
             format!("cannot inspect clean-scan root {}: {error}", root.display()),
@@ -185,11 +250,13 @@ fn hash_tree(root: &Path, excluded: Option<&Path>, allow_symlinks: bool) -> Engi
             "clean-scan root is not a regular directory",
         ));
     }
-    let entries = tree_entries(root, excluded)?;
+    let entries = tree_entries(root, excluded, limits, signal)?;
     let mut hash = Sha256::new();
     hash.update(b"tree-root");
     hash_metadata(&mut hash, &root_meta)?;
+    let mut bytes_read = 0_u64;
     for (entry, metadata) in entries {
+        check_cancelled(signal)?;
         let kind = metadata.file_type();
         feed_path(&mut hash, root, &entry)?;
         hash_metadata(&mut hash, &metadata)?;
@@ -208,7 +275,9 @@ fn hash_tree(root: &Path, excluded: Option<&Path>, allow_symlinks: bool) -> Engi
                 target.as_os_str().as_bytes()
             };
             #[cfg(not(unix))]
-            let target_bytes = target.to_string_lossy().as_bytes();
+            let target_bytes = target.to_string_lossy().into_owned();
+            #[cfg(not(unix))]
+            let target_bytes = target_bytes.as_bytes();
             hash.update(
                 u64::try_from(target_bytes.len())
                     .unwrap_or(u64::MAX)
@@ -219,7 +288,7 @@ fn hash_tree(root: &Path, excluded: Option<&Path>, allow_symlinks: bool) -> Engi
             hash.update(b"directory");
         } else if kind.is_file() {
             hash.update(b"file");
-            let mut file = fs::File::open(&entry)
+            let file = open_regular_file(&entry)
                 .map_err(|error| EngineError::from_io("cannot open clean-scan file", &error))?;
             let before = file
                 .metadata()
@@ -229,15 +298,33 @@ fn hash_tree(root: &Path, excluded: Option<&Path>, allow_symlinks: bool) -> Engi
                     "clean-scan file identity changed while opening",
                 ));
             }
+            let mut limited = (&file).take(metadata.len());
+            let mut file_bytes = 0_u64;
             let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
             loop {
-                let count = file
-                    .read(&mut buffer)
+                check_cancelled(signal)?;
+                let remaining_file = metadata.len().saturating_sub(file_bytes);
+                let remaining_total = limits.total_bytes.saturating_sub(bytes_read);
+                let request_bytes = remaining_file.min(remaining_total);
+                if request_bytes == 0 {
+                    break;
+                }
+                let buffer_len = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+                let request =
+                    usize::try_from(request_bytes.min(buffer_len)).unwrap_or(buffer.len());
+                let count = limited
+                    .read(&mut buffer[..request])
                     .map_err(|error| EngineError::from_io("cannot hash clean-scan file", &error))?;
                 if count == 0 {
                     break;
                 }
+                let count_u64 = u64::try_from(count).unwrap_or(u64::MAX);
+                file_bytes = file_bytes.saturating_add(count_u64);
+                bytes_read = bytes_read.saturating_add(count_u64);
                 hash.update(&buffer[..count]);
+            }
+            if file_bytes != metadata.len() {
+                return Err(budget_exceeded());
             }
             let after = file
                 .metadata()
@@ -262,8 +349,9 @@ fn read(home: &Path) -> Option<Snapshot> {
     if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > MAX_HINT_BYTES {
         return None;
     }
-    let file = fs::File::open(target).ok()?;
-    if !file.metadata().ok()?.is_file() {
+    let file = open_regular_file(&target).ok()?;
+    let opened_metadata = file.metadata().ok()?;
+    if opened_metadata.len() > MAX_HINT_BYTES {
         return None;
     }
     let mut bytes = Vec::new();
@@ -276,7 +364,10 @@ fn read(home: &Path) -> Option<Snapshot> {
 }
 
 pub(crate) fn eligible(options: &IndexOptions) -> bool {
-    !options.rebuild
+    cfg!(all(
+        unix,
+        not(any(target_os = "espidf", target_os = "horizon"))
+    )) && !options.rebuild
         && !options.reset_paths
         && options.changes.is_empty()
         && options.scan == crate::api::index::options::ScanRulesUpdate::default()
@@ -293,29 +384,82 @@ pub(crate) fn eligible(options: &IndexOptions) -> bool {
         && options.runtime_model_cache.is_none()
 }
 
-pub(crate) fn matches(
+fn optional_tree_hash(
+    root: &Path,
+    excluded: Option<&Path>,
+    allow_symlinks: bool,
+    signal: Option<&CancellationToken>,
+) -> EngineResult<Option<String>> {
+    optional_tree_hash_with_limits(root, excluded, allow_symlinks, DEFAULT_SEAL_LIMITS, signal)
+}
+
+fn optional_tree_hash_with_limits(
+    root: &Path,
+    excluded: Option<&Path>,
+    allow_symlinks: bool,
+    limits: SealLimits,
+    signal: Option<&CancellationToken>,
+) -> EngineResult<Option<String>> {
+    match hash_tree_with_limits(root, excluded, allow_symlinks, limits, signal) {
+        Ok(hash) => {
+            check_cancelled(signal)?;
+            Ok(Some(hash))
+        }
+        Err(error) if error.code() == EngineError::CANCELLED => Err(error),
+        Err(_) => Ok(None),
+    }
+}
+
+pub(crate) enum CheckResult {
+    MissBeforeSource,
+    MissAfterSource(Option<String>),
+    Hit,
+}
+
+pub(crate) fn check(
     home: &Path,
     source_root: &Path,
     storage_root: &Path,
     workspace: &Workspace,
     options: &IndexOptions,
-) -> bool {
+    signal: Option<&CancellationToken>,
+) -> EngineResult<CheckResult> {
+    check_cancelled(signal)?;
     let Some(snapshot) = read(home) else {
-        return false;
+        check_cancelled(signal)?;
+        return Ok(CheckResult::MissBeforeSource);
     };
-    // The workspace metadata directory is a direct child of the source root.
-    let (Ok(source), Ok(storage), Ok(settings)) = (
-        hash_tree(source_root, Some(home), true),
-        hash_tree(storage_root, None, false),
-        settings_fingerprint(options, workspace),
-    ) else {
-        return false;
+    let Ok(settings) = settings_fingerprint(options, workspace) else {
+        check_cancelled(signal)?;
+        return Ok(CheckResult::MissBeforeSource);
     };
-    snapshot.source == source && snapshot.storage == storage && snapshot.settings == settings
+    check_cancelled(signal)?;
+    if snapshot.settings != settings {
+        return Ok(CheckResult::MissBeforeSource);
+    }
+    let Some(source) = optional_tree_hash(source_root, Some(home), true, signal)? else {
+        return Ok(CheckResult::MissAfterSource(None));
+    };
+    if snapshot.source != source {
+        return Ok(CheckResult::MissAfterSource(Some(source)));
+    }
+    let Some(storage) = optional_tree_hash(storage_root, None, false, signal)? else {
+        return Ok(CheckResult::MissAfterSource(Some(source)));
+    };
+    check_cancelled(signal)?;
+    if snapshot.storage == storage {
+        Ok(CheckResult::Hit)
+    } else {
+        Ok(CheckResult::MissAfterSource(Some(source)))
+    }
 }
 
-pub(crate) fn source_fingerprint(source_root: &Path, home: &Path) -> Option<String> {
-    hash_tree(source_root, Some(home), true).ok()
+pub(crate) fn source_fingerprint(
+    source_root: &Path,
+    home: &Path,
+    signal: Option<&CancellationToken>,
+) -> EngineResult<Option<String>> {
+    optional_tree_hash(source_root, Some(home), true, signal)
 }
 
 pub(crate) fn invalidate(home: &Path) {
@@ -332,22 +476,26 @@ pub(crate) fn publish(
     workspace: &Workspace,
     options: &IndexOptions,
     source_before_index: Option<&str>,
+    signal: Option<&CancellationToken>,
 ) {
     let Some(source_before_index) = source_before_index else {
         return;
     };
-    let Ok(source) = hash_tree(source_root, Some(home), true) else {
+    let Ok(Some(source)) = optional_tree_hash(source_root, Some(home), true, signal) else {
         return;
     };
     if source != source_before_index {
         return;
     }
-    let Ok(storage) = hash_tree(storage_root, None, false) else {
+    let Ok(Some(storage)) = optional_tree_hash(storage_root, None, false, signal) else {
         return;
     };
     let Ok(settings) = settings_fingerprint(options, workspace) else {
         return;
     };
+    if check_cancelled(signal).is_err() {
+        return;
+    }
     let snapshot = Snapshot {
         version: VERSION,
         source,
@@ -365,6 +513,69 @@ pub(crate) fn publish(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn tiny_seal_budgets_reject_oversized_files_and_entry_sets_during_enumeration() {
+        let directory = tempfile::tempdir().expect("source root");
+        let oversized = directory.path().join("large.bin");
+        let file = fs::File::create(&oversized).expect("sparse file");
+        file.set_len(32).expect("size sparse file");
+        drop(file);
+        let tiny_file_limit = SealLimits {
+            entries: 8,
+            file_bytes: 8,
+            total_bytes: 16,
+        };
+        assert!(tree_entries(directory.path(), None, tiny_file_limit, None).is_err());
+        assert!(
+            hash_tree_with_limits(directory.path(), None, true, tiny_file_limit, None).is_err()
+        );
+        assert_eq!(
+            optional_tree_hash_with_limits(directory.path(), None, true, tiny_file_limit, None)
+                .expect("budget miss is nonfatal"),
+            None
+        );
+
+        fs::remove_file(&oversized).expect("remove sparse file");
+        for name in ["large-a", "large-b"] {
+            fs::write(directory.path().join(name), [b'x'; 8]).expect("small file");
+        }
+        let tiny_total_limit = SealLimits {
+            entries: 8,
+            file_bytes: 8,
+            total_bytes: 12,
+        };
+        assert!(tree_entries(directory.path(), None, tiny_total_limit, None).is_err());
+        for name in ["large-a", "large-b"] {
+            fs::remove_file(directory.path().join(name)).expect("remove small file");
+        }
+        for name in ["a", "b", "c"] {
+            fs::write(directory.path().join(name), b"x").expect("small file");
+        }
+        let tiny_entry_limit = SealLimits {
+            entries: 2,
+            file_bytes: 8,
+            total_bytes: 16,
+        };
+        assert!(tree_entries(directory.path(), None, tiny_entry_limit, None).is_err());
+    }
+
+    #[test]
+    fn cancellation_is_checked_before_enumeration_and_hashing() {
+        let directory = tempfile::tempdir().expect("source root");
+        fs::write(directory.path().join("file"), b"payload").expect("source file");
+        let signal = CancellationToken::new();
+        signal.cancel();
+        let error = hash_tree_with_limits(
+            directory.path(),
+            None,
+            true,
+            DEFAULT_SEAL_LIMITS,
+            Some(&signal),
+        )
+        .expect_err("cancelled clean-scan check");
+        assert_eq!(error.code(), EngineError::CANCELLED);
+    }
+
     #[test]
     fn source_tree_seal_excludes_workspace_but_detects_same_size_content_rewrite() {
         let directory = tempfile::tempdir().expect("temp root");
@@ -419,6 +630,15 @@ mod tests {
         assert!(read(directory.path()).is_none());
         invalidate(directory.path());
         assert!(read(directory.path()).is_none());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let external = tempfile::tempdir().expect("external marker");
+            fs::write(external.path().join("snapshot"), b"not a marker").expect("external file");
+            symlink(external.path().join("snapshot"), path(directory.path()))
+                .expect("marker symlink");
+            assert!(read(directory.path()).is_none());
+        }
     }
 
     #[cfg(unix)]

@@ -15,6 +15,7 @@ pub(crate) use filesystem::atomic_write;
 pub(crate) use filesystem::directory_exists;
 pub(crate) use filesystem::ensure_directory;
 pub(crate) use filesystem::file_exists;
+pub(crate) use filesystem::open_regular_file;
 pub(crate) use filesystem::reject_symlink;
 pub(crate) use filesystem::resolve_directory;
 pub(crate) use filesystem::sync_directory;

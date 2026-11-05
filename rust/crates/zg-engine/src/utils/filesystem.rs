@@ -57,6 +57,50 @@ pub(crate) fn ensure_directory(path: &Path) -> EngineResult<()> {
     }
 }
 
+pub(crate) fn open_regular_file(path: &Path) -> io::Result<File> {
+    #[cfg(any(target_os = "espidf", target_os = "horizon"))]
+    {
+        let _ = path;
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "safe regular-file opens are unavailable on this target",
+        ))
+    }
+    #[cfg(not(any(target_os = "espidf", target_os = "horizon")))]
+    {
+        #[cfg(unix)]
+        let file = {
+            let flags = rustix::fs::OFlags::RDONLY
+                | rustix::fs::OFlags::NONBLOCK
+                | rustix::fs::OFlags::CLOEXEC
+                | rustix::fs::OFlags::NOFOLLOW;
+            let descriptor = rustix::fs::open(path, flags, rustix::fs::Mode::empty())
+                .map_err(io::Error::from)?;
+            File::from(descriptor)
+        };
+        #[cfg(windows)]
+        let file = {
+            use std::os::windows::fs::OpenOptionsExt;
+
+            const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+            fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(path)?
+        };
+        #[cfg(not(any(unix, windows)))]
+        let file = File::open(path)?;
+
+        if !file.metadata()?.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "expected a regular file",
+            ));
+        }
+        Ok(file)
+    }
+}
+
 pub(crate) fn file_exists(path: &Path) -> EngineResult<bool> {
     match metadata(path)? {
         Some(metadata) if !metadata.is_file() => Err(EngineError::invalid_argument(format!(
@@ -388,6 +432,24 @@ mod tests {
             assert_eq!(error.code(), EngineError::INVALID_ARGUMENT);
             assert!(error.message().contains(&path.display().to_string()));
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn open_regular_file_rejects_fifo_without_blocking() {
+        use rustix::fs::{CWD, Mode, mkfifoat};
+
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().expect("temporary directory");
+        let fifo = root.path().join("fifo");
+        mkfifoat(CWD, &fifo, Mode::from_raw_mode(0o600)).expect("create FIFO");
+        assert!(open_regular_file(&fifo).is_err());
+        let target = root.path().join("regular");
+        let link = root.path().join("link");
+        fs::write(&target, b"contents").expect("regular target");
+        symlink(&target, &link).expect("regular-file symlink");
+        assert!(open_regular_file(&link).is_err());
     }
 
     #[cfg(unix)]

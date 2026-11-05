@@ -6,6 +6,7 @@
 use std::{
     collections::HashSet,
     fs,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -14,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     EngineError, EngineResult,
     domain::FileId,
-    utils::{atomic_write, directory_exists, sync_directory},
+    utils::{atomic_write, directory_exists, open_regular_file, sync_directory},
 };
 
 const MANIFEST_VERSION: u32 = 2;
@@ -97,10 +98,12 @@ impl FileManifest {
     }
 
     fn encode_bounded(&mut self) -> EngineResult<Option<Vec<u8>>> {
+        if compact_encoded_len(self).is_none() {
+            return Ok(None);
+        }
         self.normalize();
         self.validate(self.file_id())?;
-        let bytes = encode_compact(self)?;
-        Ok((bytes.len() <= MAX_FILE_MANIFEST_BYTES).then_some(bytes))
+        encode_compact(self)
     }
 }
 
@@ -123,13 +126,34 @@ fn encode_hex(bytes: &[u8]) -> String {
     output
 }
 
-fn encode_compact(manifest: &FileManifest) -> EngineResult<Vec<u8>> {
-    let mut bytes = Vec::new();
+fn compact_encoded_len(manifest: &FileManifest) -> Option<(u32, usize)> {
+    let count = u32::try_from(manifest.fragments.len()).ok()?;
+    let mut encoded_len = 16_usize;
+    for entry in &manifest.fragments {
+        let model_len = entry.model.len();
+        if model_len > usize::from(u16::MAX)
+            || entry.fragment_id.len() != 40
+            || entry.embedding_fingerprint.len() != 64
+            || entry.vector_fingerprint.len() != 64
+        {
+            return None;
+        }
+        encoded_len = encoded_len.checked_add(86)?.checked_add(model_len)?;
+        if encoded_len > MAX_FILE_MANIFEST_BYTES {
+            return None;
+        }
+    }
+    Some((count, encoded_len))
+}
+
+fn encode_compact(manifest: &FileManifest) -> EngineResult<Option<Vec<u8>>> {
+    let Some((count, encoded_len)) = compact_encoded_len(manifest) else {
+        return Ok(None);
+    };
+    let mut bytes = Vec::with_capacity(encoded_len);
     bytes.extend_from_slice(COMPACT_MAGIC);
     bytes.extend_from_slice(&MANIFEST_VERSION.to_le_bytes());
     bytes.extend_from_slice(&manifest.file_id.to_le_bytes());
-    let count = u32::try_from(manifest.fragments.len())
-        .map_err(|_| EngineError::storage_failure("too many reconciliation fragments"))?;
     bytes.extend_from_slice(&count.to_le_bytes());
     for entry in &manifest.fragments {
         bytes.extend_from_slice(&decode_hex(&entry.fragment_id, 20)?);
@@ -141,7 +165,7 @@ fn encode_compact(manifest: &FileManifest) -> EngineResult<Vec<u8>> {
         bytes.extend_from_slice(&decode_hex(&entry.embedding_fingerprint, 32)?);
         bytes.extend_from_slice(&decode_hex(&entry.vector_fingerprint, 32)?);
     }
-    Ok(bytes)
+    Ok(Some(bytes))
 }
 
 struct CompactReader<'a> {
@@ -273,27 +297,37 @@ impl ManifestStore {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => {
-                return Err(EngineError::from_io(
-                    format!(
-                        "cannot inspect reconciliation manifest {}: {error}",
-                        path.display()
-                    ),
-                    &error,
-                ));
+                tracing::warn!(file_id = file_id.get(), %error, "ignoring unreadable reconciliation manifest");
+                return Ok(None);
             }
         };
-        if usize::try_from(metadata.len()).unwrap_or(usize::MAX) > MAX_FILE_MANIFEST_BYTES {
+        if metadata.len() > u64::try_from(MAX_FILE_MANIFEST_BYTES).unwrap_or(u64::MAX) {
             return Ok(None);
         }
-        let bytes = fs::read(&path).map_err(|error| {
-            EngineError::from_io(
-                format!(
-                    "cannot read reconciliation manifest {}: {error}",
-                    path.display()
-                ),
-                &error,
-            )
-        })?;
+        let file = match open_regular_file(&path) {
+            Ok(file) => file,
+            Err(error) => {
+                tracing::warn!(file_id = file_id.get(), %error, "ignoring non-regular or unreadable reconciliation manifest");
+                return Ok(None);
+            }
+        };
+        if file.metadata().map_or(true, |metadata| {
+            !metadata.is_file()
+                || metadata.len() > u64::try_from(MAX_FILE_MANIFEST_BYTES).unwrap_or(u64::MAX)
+        }) {
+            return Ok(None);
+        }
+        let mut bytes = Vec::new();
+        if let Err(error) = file
+            .take(u64::try_from(MAX_FILE_MANIFEST_BYTES).unwrap_or(u64::MAX) + 1)
+            .read_to_end(&mut bytes)
+        {
+            tracing::warn!(file_id = file_id.get(), %error, "ignoring unreadable reconciliation manifest");
+            return Ok(None);
+        }
+        if bytes.len() > MAX_FILE_MANIFEST_BYTES {
+            return Ok(None);
+        }
         let mut manifest: FileManifest = if bytes.starts_with(COMPACT_MAGIC) {
             if let Ok(manifest) = decode_compact(&bytes, file_id) {
                 manifest
@@ -444,6 +478,40 @@ mod tests {
                     .is_none()
             );
         }
+    }
+
+    #[test]
+    fn oversized_compact_hints_are_skipped_before_binary_allocation() {
+        let file_id = FileId::new(29);
+        let mut long_model = FileManifest::new(file_id);
+        long_model.fragments.push(FragmentManifestEntry {
+            fragment_id: "a".repeat(40),
+            model: "m".repeat(usize::from(u16::MAX) + 1),
+            embedding_fingerprint: "b".repeat(64),
+            vector_fingerprint: "c".repeat(64),
+        });
+        assert!(
+            long_model
+                .encode_bounded()
+                .expect("optional oversized model")
+                .is_none()
+        );
+
+        let mut oversized = FileManifest::new(file_id);
+        for index in 0..65_u32 {
+            oversized.fragments.push(FragmentManifestEntry {
+                fragment_id: format!("{index:040x}"),
+                model: "m".repeat(65_000),
+                embedding_fingerprint: "b".repeat(64),
+                vector_fingerprint: "c".repeat(64),
+            });
+        }
+        assert!(
+            oversized
+                .encode_bounded()
+                .expect("optional oversized manifest")
+                .is_none()
+        );
     }
 
     #[test]
