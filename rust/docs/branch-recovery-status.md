@@ -25,8 +25,8 @@ must remain untouched. No benchmark campaign is authorized by this recovery.
 | Lane | Worktree / branch | Owned seam | Next gate | Handoff |
 |---|---|---|---|---|
 | Parent/integration | `zvec-grep-recovery` / `work/zg-recovered` | preservation, selected harness/archive docs, integration/review, final push and cleanup | preservation + source/test review | this file |
-| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | implementing full seam; protocol-only `bfeb5eb` NOT accepted alone | Luna resumed `4ec9a783-3fe4-442c-bacd-8d2061a2470a` |
-| Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | compact `9f16951` committed, malformed-sidecar and no-op review pending | Luna resumed `2c76562d-37f9-4802-9c19-0ca70ce6a879` |
+| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | implementing full seam; protocol-only `bfeb5eb` NOT accepted alone | Luna resumed after usage reset `41a39dd0-4c1f-45b4-93aa-48225974f989` |
+| Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | compact `9f16951` committed, malformed-sidecar and no-op review pending | Luna resumed after usage reset `9bc203fe-f77f-43d6-b80a-e1156facfee7` |
 | RAG | temporary worktree retired / `recovery/rag-harness` | source-only evidence API, R0/R1 artifacts and tests | DONE reviewed port + coordinate fix, 10 focused tests PASS | integrated `a8048a0`, `cb848dc` |
 
 Each lane owns a distinct worktree. No child pushes or changes any other
@@ -66,6 +66,33 @@ V1 research/native receipts are historical evidence, not V2 qualification.
   worktree/cache was removed after reviewed commits were integrated. Do NOT
   remove V1's build cache: a running `zg` still references deleted mappings
   there; the installation/process remains untouched.
+
+## Active continuation — 2026-11-05
+
+- Both previous Luna runs stopped on provider usage limits, not completed work.
+  Owner explicitly authorized continuation after usage returned. Same retained
+  sessions resumed once; latest IDs are in the lane board. Engine dirty
+  `manifest.rs` robustness patch and UX ~1,473-line dirty port/new files remain
+  intact; do not restart either port from scratch.
+- Owner also flagged critically full disk (~233 MB free). Verified no user
+  executable, cwd, mmap or FD referenced the two lane `rust/target` directories
+  or shared `target/debug/incremental`; no compiler was active. Removed only
+  those rebuildable caches: **8,899,952,640 bytes recovered**, ~8.6 GiB free.
+  V1 target, both running `zg` processes, source, backups and indexes untouched.
+- Host-only excluded Cargo config now exists at both lane roots and their
+  `rust/.cargo/` directories: shared integration target, jobs=2, incremental=false.
+  Explicit CARGO_TARGET_DIR/CARGO_BUILD_JOBS=2/CARGO_INCREMENTAL=0 remains mandatory
+  for validation. Do not recreate lane targets or `cargo clean`; check disk
+  before new builds and do not start them below 4 GiB free.
+- Separately owner-authorized bounded Laya RAM diagnostic completed before the
+  interruption: pilot64 and source-only2,714 files both passed, no retries/cap
+  hits/file failures. Exact `zg` peak RSS: 485,056 / 1,310,944 KiB; larger run
+  mostly anonymous heap, not merely file mmap. No >3 GB reproduction or leak
+  attribution claimed. See `index-memory-diagnostic-result-20261104.md` and
+  preregistration. Raw evidence remains private; do not rerun the index.
+- Temporary Cargo measurement hold is RELEASED. Parent next: review actual
+  lane changes/commits as they complete, integrate, then final proportional
+  validation/publication/cleanup under the original owner scope.
 
 ## Remaining acceptance criteria / exact next work
 
