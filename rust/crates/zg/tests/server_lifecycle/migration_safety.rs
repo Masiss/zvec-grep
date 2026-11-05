@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn reused_pid_is_not_terminated_by_automatic_migration() -> Result<(), Box<dyn Error>> {
+fn legacy_record_does_not_signal_a_reused_pid() -> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let unrelated_home = TempDir::new()?;
@@ -37,12 +37,9 @@ fn reused_pid_is_not_terminated_by_automatic_migration() -> Result<(), Box<dyn E
         }
         assert!(
             survived,
-            "migration terminated an unrelated process: {output:?}"
+            "fail-closed legacy refusal signaled an unrelated process: {output:?}"
         );
-        assert!(
-            !output.status.success(),
-            "unverified owner must block migration"
-        );
+        assert_failure(&output, "legacy zvec-grep daemon");
         assert_eq!(instance_record(home.path())?, stale);
     }
     assert_command_success(&unrelated.stop()?);
@@ -50,12 +47,13 @@ fn reused_pid_is_not_terminated_by_automatic_migration() -> Result<(), Box<dyn E
 }
 
 #[test]
-fn occupied_configured_target_preserves_the_legacy_daemon() -> Result<(), Box<dyn Error>> {
+fn occupied_configured_target_does_not_override_legacy_fail_closed_policy()
+-> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let home = TempDir::new()?;
     let (mut guard, _) = start_server(&binary, &home, "agent", None, |_| {})?;
-    let legacy = legacy_record(home.path())?;
+    let (legacy, current_version) = legacy_record(home.path())?;
     let occupied = TcpListener::bind("127.0.0.1:0")?;
     let config_home = home.path().join(".zvec-grep");
     std::fs::create_dir(&config_home)?;
@@ -65,48 +63,57 @@ fn occupied_configured_target_preserves_the_legacy_daemon() -> Result<(), Box<dy
             "version": 1, "server": { "host": "127.0.0.1", "port": occupied.local_addr()?.port() }
         }))?,
     )?;
-    let output = cli(&guard, &["--server", "on"]).output()?;
-    assert_failure(&output, "is already in use");
-    assert!(
-        assert_healthy(&guard.listen).is_ok(),
-        "migration stopped the healthy old daemon"
-    );
+    let refused = cli(&guard, &["--server", "on"]).output()?;
+    assert_failure(&refused, "legacy zvec-grep daemon");
     assert_eq!(instance_record(home.path())?, legacy);
+    assert_healthy(&guard.listen)?;
+
+    let stop = cli(&guard, &["--server", "off"]).output()?;
+    assert_command_success(&stop);
+    guard.active = false;
+    assert!(!home.path().join("daemon").join("instance.lock").exists());
+    assert!(TcpStream::connect(&guard.listen).is_err());
+
+    // Once the operator explicitly stops the incompatible daemon, normal bind
+    // validation still rejects the occupied configured address without a record.
+    let collision = cli(&guard, &["--server", "on"]).output()?;
+    assert_failure(&collision, "is already in use");
+    assert!(!home.path().join("daemon").join("instance.lock").exists());
+    assert!(TcpStream::connect(occupied.local_addr()?).is_ok());
+
+    let restarted = cli(&guard, &["--server", "on", "--listen", &guard.listen]).output()?;
+    assert_command_success(&restarted);
+    guard.active = true;
+    assert_eq!(
+        instance_record(home.path())?["daemonProtocolVersion"],
+        current_version
+    );
+    assert_healthy(&guard.listen)?;
     assert_command_success(&guard.stop()?);
     Ok(())
 }
 
 #[test]
-fn unreachable_legacy_endpoint_does_not_force_termination() -> Result<(), Box<dyn Error>> {
+fn legacy_mismatch_is_rejected_before_contacting_an_unreachable_endpoint()
+-> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let home = TempDir::new()?;
     let (mut guard, _) = start_server(&binary, &home, "agent", None, |_| {})?;
     let original = instance_record(home.path())?;
-    let mut legacy = legacy_record(home.path())?;
+    let (mut legacy, _current_version) = legacy_record(home.path())?;
     let unavailable = format!("127.0.0.1:{}", available_port()?);
     legacy["serverUrl"] = json!(format!("http://{unavailable}/mcp"));
     write_record(home.path(), &legacy)?;
     let output = cli(&guard, &["--server", "on", "--listen", &unavailable]).output()?;
-    let survived = assert_healthy(&guard.listen).is_ok();
-    let after = instance_record(home.path())?;
-    if survived {
-        write_record(home.path(), &original)?;
-    }
-    assert!(
-        survived,
-        "migration must not signal a process when shutdown is unreachable"
-    );
-    assert!(!output.status.success(), "unexpected success: {output:?}");
-    // A closed loopback port can reach the HTTP deadline on Windows instead
-    // of immediately refusing the connection. Both are failed contact attempts.
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("daemon I/O failed")
-            || stderr.contains("timed out waiting for zvec-grep server to contact"),
-        "expected a connection failure or contact timeout: {output:?}"
-    );
-    assert_eq!(after, legacy);
+    assert_failure(&output, "legacy zvec-grep daemon");
+    assert_eq!(instance_record(home.path())?, legacy);
+    assert_healthy(&guard.listen)?;
+    assert!(TcpStream::connect(&unavailable).is_err());
+    // Restore the valid endpoint for explicit test cleanup; no request was sent
+    // to the unavailable endpoint because compatibility validation failed first.
+    write_record(home.path(), &original)?;
+    assert_eq!(instance_record(home.path())?, original);
     assert_command_success(&guard.stop()?);
     Ok(())
 }
@@ -169,17 +176,16 @@ impl Drop for DecoyServer {
 }
 
 #[test]
-fn localhost_migration_reaches_ipv6_without_shutting_down_an_ipv4_service()
--> Result<(), Box<dyn Error>> {
-    check_localhost_migration(418, true)
+fn legacy_localhost_record_does_not_contact_an_ipv4_decoy() -> Result<(), Box<dyn Error>> {
+    check_legacy_localhost_refusal(418)
 }
 
 #[test]
-fn ambiguous_localhost_preserves_both_services() -> Result<(), Box<dyn Error>> {
-    check_localhost_migration(200, false)
+fn ambiguous_legacy_localhost_preserves_ipv4_and_ipv6_services() -> Result<(), Box<dyn Error>> {
+    check_legacy_localhost_refusal(200)
 }
 
-fn check_localhost_migration(decoy_status: u16, migrate: bool) -> Result<(), Box<dyn Error>> {
+fn check_legacy_localhost_refusal(decoy_status: u16) -> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let reservation = match TcpListener::bind("[::1]:0") {
         Ok(listener) => listener,
@@ -212,27 +218,20 @@ fn check_localhost_migration(decoy_status: u16, migrate: bool) -> Result<(), Box
     drop(reservation);
     assert_command_success(&cli(&guard, &["--server", "on", "--listen", &listen]).output()?);
     let original = instance_record(home.path())?;
-    let mut legacy = legacy_record(home.path())?;
+    let (mut legacy, _current_version) = legacy_record(home.path())?;
     legacy["serverUrl"] = json!(format!("http://localhost:{port}/mcp"));
     write_record(home.path(), &legacy)?;
     let target = format!("127.0.0.1:{}", available_port()?);
     let output = cli(&guard, &["--server", "on", "--listen", &target]).output()?;
-    let after = instance_record(home.path())?;
-    // Restore the actual IPv6 address on failure so fixture cleanup remains safe.
-    if !output.status.success() {
-        write_record(home.path(), &original)?;
-    }
+    assert_failure(&output, "legacy zvec-grep daemon");
+    assert_eq!(instance_record(home.path())?, legacy);
     assert_eq!(decoy.shutdown_requests.load(Ordering::SeqCst), 0);
-    if migrate {
-        assert_command_success(&output);
-        assert_ne!(after["pid"], original["pid"]);
-        assert_eq!(after["daemonProtocolVersion"], 1);
-        assert_healthy(&target)?;
-    } else {
-        assert_failure(&output, "cannot identify a unique healthy daemon");
-        assert_eq!(after, legacy);
-        assert_healthy(&listen)?;
-    }
+    assert_healthy(&listen)?;
+
+    // Restore the actual IPv6 address for explicit cleanup. Protocol validation
+    // must refuse the legacy record before resolving its ambiguous localhost URL.
+    write_record(home.path(), &original)?;
+    assert_eq!(instance_record(home.path())?, original);
     assert_command_success(&guard.stop()?);
     Ok(())
 }

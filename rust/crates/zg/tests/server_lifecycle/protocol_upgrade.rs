@@ -17,16 +17,62 @@ fn write_record(home: &Path, record: &serde_json::Value) -> Result<(), Box<dyn E
     Ok(())
 }
 
-fn legacy_record(home: &Path) -> Result<serde_json::Value, Box<dyn Error>> {
+fn current_protocol_version(record: &serde_json::Value) -> Result<u32, Box<dyn Error>> {
+    let raw = record
+        .get("daemonProtocolVersion")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or("current daemon record has no protocol version")?;
+    let version = u32::try_from(raw)?;
+    if version == 0 {
+        return Err("current daemon protocol version must be positive".into());
+    }
+    Ok(version)
+}
+
+fn legacy_record(home: &Path) -> Result<(serde_json::Value, u32), Box<dyn Error>> {
     let mut record = instance_record(home)?;
-    assert_eq!(record["daemonProtocolVersion"], 1);
+    let current_version = current_protocol_version(&record)?;
     let fields = record.as_object_mut().ok_or("instance record object")?;
     // Keep a real process and shutdown endpoint, but publish the Node.js record
-    // shape. This exercises migration without requiring Node.js on the runner.
+    // shape to exercise fail-closed compatibility without requiring Node.js.
     fields.remove("daemonProtocolVersion");
     fields.remove("listen");
     write_record(home, &record)?;
-    Ok(record)
+    Ok((record, current_version))
+}
+
+fn explicitly_stop_restart_and_reuse(
+    guard: &mut ServerGuard,
+    legacy: &serde_json::Value,
+    current_version: u32,
+) -> Result<serde_json::Value, Box<dyn Error>> {
+    let mut stop = cli(guard, &["--server", "off"]);
+    if let Some(token_file) = &guard.token_file {
+        stop.arg("--token-file").arg(token_file);
+    }
+    assert_command_success(&stop.output()?);
+    guard.active = false;
+    assert!(!guard.home.join("daemon").join("instance.lock").exists());
+    assert!(TcpStream::connect(&guard.listen).is_err());
+
+    let mut start = cli(guard, &["--server", "on", "--listen", &guard.listen]);
+    if let Some(token_file) = &guard.token_file {
+        start.arg("--token-file").arg(token_file);
+    }
+    assert_command_success(&start.output()?);
+    guard.active = true;
+    let current = instance_record(&guard.home)?;
+    assert_eq!(current["daemonProtocolVersion"], current_version);
+    assert_ne!(current["instanceToken"], legacy["instanceToken"]);
+    assert_healthy(&guard.listen)?;
+
+    let mut reuse = cli(guard, &["--server", "on", "--listen", &guard.listen]);
+    if let Some(token_file) = &guard.token_file {
+        reuse.arg("--token-file").arg(token_file);
+    }
+    assert_command_success(&reuse.output()?);
+    assert_eq!(instance_record(&guard.home)?, current);
+    Ok(current)
 }
 
 fn cli(guard: &ServerGuard, args: &[&str]) -> Command {
@@ -64,44 +110,56 @@ fn assert_healthy(listen: &str) -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn legacy_checks_fail_without_requests_or_direct_fallback_and_off_still_works()
--> Result<(), Box<dyn Error>> {
+fn legacy_daemon_fails_closed_until_explicit_authenticated_restart() -> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let home = TempDir::new()?;
-    let (mut guard, _) = start_server(&binary, &home, "agent", None, |_| {})?;
-    let legacy = legacy_record(home.path())?;
+    let token_file = home.path().join("token.txt");
+    std::fs::write(&token_file, "legacy-transition-token-01234567890123456789")?;
+    let (mut guard, _) = start_server(&binary, &home, "agent", Some(&token_file), |command| {
+        command
+            .env_remove("ZVEC_GREP_SERVER_TOKEN")
+            .env_remove("ZVEC_GREP_SERVER_TOKEN_FILE");
+    })?;
+    let (legacy, current_version) = legacy_record(home.path())?;
 
     for args in [
         vec!["--server", "status"],
         vec!["--server", "status", "--check-ready"],
         vec!["--status", "--mode", "auto"],
         vec!["--status", "--mode", "server"],
+        vec!["--server", "on", "--listen", &guard.listen],
+        vec!["--server", "--stdio", "--listen", &guard.listen],
     ] {
         let output = cli(&guard, &args).output()?;
         assert_failure(&output, "legacy zvec-grep daemon");
-        assert_failure(&output, "zg --server on");
+        assert_failure(&output, "zg --server off");
         assert_eq!(instance_record(home.path())?, legacy);
     }
+    let unauthorized_stop = cli(&guard, &["--server", "off"]).output()?;
+    assert_failure(&unauthorized_stop, "shutdown request failed with HTTP 401");
+    assert_eq!(instance_record(home.path())?, legacy);
+    assert_healthy(&guard.listen)?;
+
+    let workspace = TempDir::new()?;
+    let workspace_path = workspace.path().to_str().ok_or("workspace path")?;
+    let auto_index = cli(&guard, &["--index", workspace_path, "--mode", "auto"]).output()?;
+    assert_failure(&auto_index, "legacy zvec-grep daemon");
+    assert!(
+        !workspace.path().join(".zvec-grep").exists(),
+        "auto mode must not build directly after a protocol refusal"
+    );
+    assert_eq!(instance_record(home.path())?, legacy);
     assert_healthy(&guard.listen)?;
     assert_command_success(&cli(&guard, &["--status", "--mode", "direct"]).output()?);
-    assert_command_success(&guard.stop()?);
-    assert!(!home.path().join("daemon").join("instance.lock").exists());
 
-    // A stale legacy record is stopped state, not a compatibility error.
-    write_record(home.path(), &legacy)?;
-    let stopped = cli(&guard, &["--server", "status"]).output()?;
-    assert_command_success(&stopped);
-    assert!(String::from_utf8_lossy(&stopped.stdout).contains("Server: stopped"));
-    guard.active = true;
-    assert_command_success(&cli(&guard, &["--server", "on", "--listen", &guard.listen]).output()?);
-    assert_eq!(instance_record(home.path())?["daemonProtocolVersion"], 1);
+    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
     assert_command_success(&guard.stop()?);
     Ok(())
 }
 
 #[test]
-fn concurrent_starts_replace_one_legacy_daemon_and_reuse_the_new_protocol()
+fn concurrent_starts_fail_closed_until_explicit_stop_then_reuse_current_protocol()
 -> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
@@ -116,7 +174,7 @@ fn concurrent_starts_replace_one_legacy_daemon_and_reuse_the_new_protocol()
             .env_remove("ZVEC_GREP_SERVER_TOKEN")
             .env_remove("ZVEC_GREP_SERVER_TOKEN_FILE");
     })?;
-    let legacy = legacy_record(home.path())?;
+    let (legacy, current_version) = legacy_record(home.path())?;
     let mut children = Vec::new();
     for _ in 0..4 {
         children.push(
@@ -142,20 +200,18 @@ fn concurrent_starts_replace_one_legacy_daemon_and_reuse_the_new_protocol()
         .into_iter()
         .map(Child::wait_with_output)
         .collect::<Result<Vec<_>, _>>()?;
-    let current = instance_record(home.path())?;
-    assert_eq!(current["daemonProtocolVersion"], 1);
-    assert_eq!(current["mcpToolset"], "agent");
-    assert_ne!(current["pid"], legacy["pid"]);
-    assert_ne!(current["instanceToken"], legacy["instanceToken"]);
+    assert_eq!(instance_record(home.path())?, legacy);
     for output in outputs {
-        assert_command_success(&output);
-        assert!(
-            String::from_utf8_lossy(&output.stdout).contains(&format!("PID: {}", current["pid"]))
-        );
+        assert_failure(&output, "legacy zvec-grep daemon");
     }
-    assert!(!home.path().join("daemon").join("startup.lock").exists());
-    assert_command_success(&cli(&guard, &["--server", "on"]).output()?);
-    assert_eq!(instance_record(home.path())?, current);
+    assert_healthy(&guard.listen)?;
+    assert_eq!(instance_record(home.path())?, legacy);
+    assert!(
+        !home.path().join("daemon").join("startup.lock").exists(),
+        "rejected concurrent starts must release the startup lock"
+    );
+    let current = explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
+    assert_eq!(current["mcpToolset"], "agent");
 
     let direct = cli(
         &guard,
@@ -176,46 +232,49 @@ fn concurrent_starts_replace_one_legacy_daemon_and_reuse_the_new_protocol()
 }
 
 #[test]
-fn stdio_bootstrap_replaces_a_legacy_daemon_before_mcp_connects() -> Result<(), Box<dyn Error>> {
+fn stdio_bootstrap_fails_closed_until_explicit_authenticated_restart() -> Result<(), Box<dyn Error>>
+{
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let home = TempDir::new()?;
-    let (mut guard, _) = start_server(&binary, &home, "full", None, |_| {})?;
-    let legacy = legacy_record(home.path())?;
-    let mut bridge = StdioBridge::spawn_with_toolset(&binary, home.path(), &guard.listen, None)?;
-    bridge.request(&json!({
-        "jsonrpc": "2.0", "id": 1, "method": "initialize",
-        "params": { "protocolVersion": "2025-11-25", "capabilities": {},
-            "clientInfo": { "name": "protocol-upgrade-test", "version": "1" } }
-    }))?;
-    bridge.notify(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))?;
-    let tools = bridge.request(&json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))?;
-    assert_eq!(
-        tools["result"]["tools"]
-            .as_array()
-            .ok_or("tool list")?
-            .len(),
-        1
-    );
-    let current = instance_record(home.path())?;
-    assert_eq!(current["daemonProtocolVersion"], 1);
-    assert_ne!(current["pid"], legacy["pid"]);
-    assert_ne!(current["instanceToken"], legacy["instanceToken"]);
-    bridge.close()?;
+    let token_file = home.path().join("token.txt");
+    std::fs::write(&token_file, "stdio-transition-token-01234567890123456789")?;
+    let (mut guard, _) = start_server(&binary, &home, "full", Some(&token_file), |command| {
+        command
+            .env_remove("ZVEC_GREP_SERVER_TOKEN")
+            .env_remove("ZVEC_GREP_SERVER_TOKEN_FILE");
+    })?;
+    let (legacy, current_version) = legacy_record(home.path())?;
+    let bootstrap = cli(&guard, &["--server", "--stdio", "--listen", &guard.listen]).output()?;
+    assert_failure(&bootstrap, "legacy zvec-grep daemon");
+    assert_eq!(instance_record(home.path())?, legacy);
+    assert_healthy(&guard.listen)?;
+
+    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
     assert_command_success(&guard.stop()?);
     Ok(())
 }
 
 #[test]
-fn unsupported_protocol_is_rejected_without_replacing_the_daemon() -> Result<(), Box<dyn Error>> {
+fn older_and_newer_protocols_are_rejected_without_replacing_the_daemon()
+-> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let home = TempDir::new()?;
     let (mut guard, _) = start_server(&binary, &home, "agent", None, |_| {})?;
-    for version in [0, 2] {
-        let mut record = instance_record(home.path())?;
-        record["daemonProtocolVersion"] = json!(version);
-        write_record(home.path(), &record)?;
+    let current_record = instance_record(home.path())?;
+    let current_version = current_protocol_version(&current_record)?;
+    let older_version = current_version.checked_sub(1).unwrap_or(0);
+    let newer_version = current_version
+        .checked_add(1)
+        .ok_or("current protocol version cannot be incremented")?;
+    assert_ne!(older_version, current_version);
+    assert_ne!(newer_version, current_version);
+
+    for version in [older_version, newer_version] {
+        let mut incompatible = current_record.clone();
+        incompatible["daemonProtocolVersion"] = json!(version);
+        write_record(home.path(), &incompatible)?;
         for args in [
             vec!["--server", "status", "--check-ready"],
             vec!["--status", "--mode", "auto"],
@@ -225,17 +284,19 @@ fn unsupported_protocol_is_rejected_without_replacing_the_daemon() -> Result<(),
         ] {
             let output = cli(&guard, &args).stdin(Stdio::null()).output()?;
             assert_failure(&output, &format!("uses daemonProtocolVersion {version}"));
-            assert_eq!(instance_record(home.path())?, record);
+            assert_eq!(instance_record(home.path())?, incompatible);
+            assert_healthy(&guard.listen)?;
         }
-        assert_healthy(&guard.listen)?;
     }
+    // Restore the record written by this test binary before explicit cleanup.
+    write_record(home.path(), &current_record)?;
+    assert_eq!(instance_record(home.path())?, current_record);
     assert_command_success(&guard.stop()?);
     Ok(())
 }
 
 #[test]
-fn rejected_legacy_shutdown_preserves_the_daemon_until_credentials_are_provided()
--> Result<(), Box<dyn Error>> {
+fn legacy_shutdown_requires_explicit_credentials_before_restart() -> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let home = TempDir::new()?;
@@ -249,25 +310,19 @@ fn rejected_legacy_shutdown_preserves_the_daemon_until_credentials_are_provided(
             .env_remove("ZVEC_GREP_SERVER_TOKEN")
             .env_remove("ZVEC_GREP_SERVER_TOKEN_FILE");
     })?;
-    let legacy = legacy_record(home.path())?;
-    for action in ["on", "off"] {
-        let mut command = cli(&guard, &["--server", action]);
-        if action == "on" {
-            command.args(["--listen", &guard.listen]);
-        }
-        let output = command.output()?;
-        assert_failure(&output, "shutdown request failed with HTTP 401");
-        assert_eq!(instance_record(home.path())?, legacy);
-        assert_healthy(&guard.listen)?;
-        assert!(!home.path().join("daemon").join("startup.lock").exists());
-    }
-    assert_command_success(
-        &cli(&guard, &["--server", "on", "--listen", &guard.listen])
-            .arg("--token-file")
-            .arg(&token_file)
-            .output()?,
-    );
-    assert_eq!(instance_record(home.path())?["daemonProtocolVersion"], 1);
+    let (legacy, current_version) = legacy_record(home.path())?;
+    let refused_start = cli(&guard, &["--server", "on", "--listen", &guard.listen]).output()?;
+    assert_failure(&refused_start, "legacy zvec-grep daemon");
+    assert_eq!(instance_record(home.path())?, legacy);
+    assert_healthy(&guard.listen)?;
+
+    let refused_stop = cli(&guard, &["--server", "off"]).output()?;
+    assert_failure(&refused_stop, "shutdown request failed with HTTP 401");
+    assert_eq!(instance_record(home.path())?, legacy);
+    assert_healthy(&guard.listen)?;
+    assert!(!home.path().join("daemon").join("startup.lock").exists());
+
+    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
     assert_command_success(&guard.stop()?);
     Ok(())
 }
