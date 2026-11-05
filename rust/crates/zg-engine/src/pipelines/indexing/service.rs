@@ -1548,7 +1548,10 @@ mod tests {
                         &moved,
                         layout.index_dir(),
                         &after,
-                        &IndexOptions::default(),
+                        &IndexOptions {
+                            root: Some(moved.clone()),
+                            ..IndexOptions::default()
+                        },
                         None,
                     ),
                     Ok(super::clean_scan::CheckResult::Hit)
