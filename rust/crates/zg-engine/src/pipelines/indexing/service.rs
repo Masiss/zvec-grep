@@ -550,7 +550,11 @@ fn begin_clean_scan(
         && existing.is_none_or(|workspace| !workspace.scan().follow_symlinks());
     let mut source_before = None;
     let mut source_checked = false;
-    if eligible && let Some(workspace) = existing.filter(|workspace| workspace.index_enabled()) {
+    // A previous writer can leave a build journal without invalidating this optional hint.
+    if eligible
+        && let Some(workspace) = existing.filter(|workspace| workspace.index_enabled())
+        && matches!(layout.has_build_record(), Ok(false))
+    {
         match clean_scan::check(
             home,
             source_root,
@@ -1535,6 +1539,48 @@ mod tests {
             after.source_root(),
             moved.canonicalize().expect("moved root")
         );
+        if clean_scan_supported {
+            let layout = WorkspaceLayout::new(moved.join(".zvec-grep")).expect("layout");
+            assert!(
+                matches!(
+                    super::clean_scan::check(
+                        layout.storage_dir(),
+                        &moved,
+                        layout.index_dir(),
+                        &after,
+                        &IndexOptions::default(),
+                        None,
+                    ),
+                    Ok(super::clean_scan::CheckResult::Hit)
+                ),
+                "the clean cache would hit before a build journal is installed"
+            );
+            super::prepare_build(&after).expect("create pending build journal");
+            assert!(layout.has_build_record().expect("pending build record"));
+
+            use crate::api::index::progress::{IndexProgressPhase, IndexProgressReporter};
+
+            let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let captured = std::sync::Arc::clone(&completed);
+            service.fail_index_completion = false;
+            service
+                .index(
+                    &models,
+                    IndexOptions {
+                        root: Some(moved.clone()),
+                        on_progress: Some(IndexProgressReporter::new(move |progress| {
+                            if progress.phase == IndexProgressPhase::Done {
+                                captured.store(true, std::sync::atomic::Ordering::Release);
+                            }
+                        })),
+                        ..IndexOptions::default()
+                    },
+                )
+                .await
+                .expect("recover pending build before ordinary indexing");
+            assert!(!layout.has_build_record().expect("recovered build record"));
+            assert!(completed.load(std::sync::atomic::Ordering::Acquire));
+        }
         models.close();
     }
 
