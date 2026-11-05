@@ -238,12 +238,25 @@ impl StdioBridge {
         listen: &str,
         toolset: Option<&str>,
     ) -> Result<Self, Box<dyn Error>> {
+        Self::spawn_with_toolset_and_token_file(binary, home, listen, toolset, None)
+    }
+
+    fn spawn_with_toolset_and_token_file(
+        binary: &Path,
+        home: &Path,
+        listen: &str,
+        toolset: Option<&str>,
+        token_file: Option<&Path>,
+    ) -> Result<Self, Box<dyn Error>> {
         let stderr = NamedTempFile::new()?;
         let daemon_log_start =
             std::fs::metadata(home.join("daemon").join("logs").join("server.log"))
                 .map_or(0, |metadata| metadata.len());
         let mut command = Command::new(binary);
-        command.env_remove("ZVEC_GREP_MCP_TOOLSET");
+        command
+            .env_remove("ZVEC_GREP_MCP_TOOLSET")
+            .env_remove("ZVEC_GREP_SERVER_TOKEN")
+            .env_remove("ZVEC_GREP_SERVER_TOKEN_FILE");
         command.args([
             "--server",
             "--stdio",
@@ -254,6 +267,9 @@ impl StdioBridge {
         ]);
         if let Some(toolset) = toolset {
             command.args(["--mcp-toolset", toolset]);
+        }
+        if let Some(token_file) = token_file {
+            command.arg("--token-file").arg(token_file);
         }
         let mut child = command
             .stdin(Stdio::piped())

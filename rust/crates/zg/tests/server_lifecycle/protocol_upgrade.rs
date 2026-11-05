@@ -45,6 +45,7 @@ fn explicitly_stop_restart_and_reuse(
     guard: &mut ServerGuard,
     legacy: &serde_json::Value,
     current_version: u32,
+    toolset: Option<&str>,
 ) -> Result<serde_json::Value, Box<dyn Error>> {
     let mut stop = cli(guard, &["--server", "off"]);
     if let Some(token_file) = &guard.token_file {
@@ -55,7 +56,21 @@ fn explicitly_stop_restart_and_reuse(
     assert!(!guard.home.join("daemon").join("instance.lock").exists());
     assert!(TcpStream::connect(&guard.listen).is_err());
 
+    // A stopped process may leave a stale legacy record. Status must report
+    // stopped rather than reject its obsolete protocol before the explicit restart.
+    write_record(&guard.home, legacy)?;
+    let stale_status = cli(guard, &["--server", "status"]).output()?;
+    assert_command_success(&stale_status);
+    assert!(
+        String::from_utf8_lossy(&stale_status.stdout).contains("Server: stopped"),
+        "stale stopped record should report stopped: {stale_status:?}"
+    );
+    assert_eq!(instance_record(&guard.home)?, *legacy);
+
     let mut start = cli(guard, &["--server", "on", "--listen", &guard.listen]);
+    if let Some(toolset) = toolset {
+        start.args(["--mcp-toolset", toolset]);
+    }
     if let Some(token_file) = &guard.token_file {
         start.arg("--token-file").arg(token_file);
     }
@@ -67,6 +82,9 @@ fn explicitly_stop_restart_and_reuse(
     assert_healthy(&guard.listen)?;
 
     let mut reuse = cli(guard, &["--server", "on", "--listen", &guard.listen]);
+    if let Some(toolset) = toolset {
+        reuse.args(["--mcp-toolset", toolset]);
+    }
     if let Some(token_file) = &guard.token_file {
         reuse.arg("--token-file").arg(token_file);
     }
@@ -153,7 +171,7 @@ fn legacy_daemon_fails_closed_until_explicit_authenticated_restart() -> Result<(
     assert_healthy(&guard.listen)?;
     assert_command_success(&cli(&guard, &["--status", "--mode", "direct"]).output()?);
 
-    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
+    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version, None)?;
     assert_command_success(&guard.stop()?);
     Ok(())
 }
@@ -210,7 +228,7 @@ fn concurrent_starts_fail_closed_until_explicit_stop_then_reuse_current_protocol
         !home.path().join("daemon").join("startup.lock").exists(),
         "rejected concurrent starts must release the startup lock"
     );
-    let current = explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
+    let current = explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version, None)?;
     assert_eq!(current["mcpToolset"], "agent");
 
     let direct = cli(
@@ -250,7 +268,50 @@ fn stdio_bootstrap_fails_closed_until_explicit_authenticated_restart() -> Result
     assert_eq!(instance_record(home.path())?, legacy);
     assert_healthy(&guard.listen)?;
 
-    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
+    let current =
+        explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version, Some("full"))?;
+    assert_eq!(current["mcpToolset"], "full");
+
+    let mut bridge = StdioBridge::spawn_with_toolset_and_token_file(
+        &binary,
+        home.path(),
+        &guard.listen,
+        None,
+        Some(&token_file),
+    )?;
+    let initialized = bridge.request(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-11-25", "capabilities": {},
+            "clientInfo": {"name": "protocol-upgrade-test", "version": "1"}
+        }
+    }))?;
+    assert_eq!(initialized["result"]["protocolVersion"], "2025-11-25");
+    bridge.notify(&json!({
+        "jsonrpc": "2.0", "method": "notifications/initialized"
+    }))?;
+    let tools = bridge.request(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}
+    }))?;
+    let mut names = tools["result"]["tools"]
+        .as_array()
+        .ok_or("tools/list did not return an array")?
+        .iter()
+        .map(|tool| tool["name"].as_str().ok_or("tool has no name"))
+        .collect::<Result<Vec<_>, _>>()?;
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        [
+            "zvec_grep_index",
+            "zvec_grep_index_drop",
+            "zvec_grep_index_status",
+            "zvec_grep_rg",
+            "zvec_grep_search",
+            "zvec_grep_server_status",
+        ]
+    );
+    bridge.close()?;
     assert_command_success(&guard.stop()?);
     Ok(())
 }
@@ -271,7 +332,14 @@ fn older_and_newer_protocols_are_rejected_without_replacing_the_daemon()
     assert_ne!(older_version, current_version);
     assert_ne!(newer_version, current_version);
 
-    for version in [older_version, newer_version] {
+    let mut mismatches = vec![0, older_version, newer_version];
+    mismatches.sort_unstable();
+    mismatches.dedup();
+    mismatches.retain(|version| *version != current_version);
+    assert!(mismatches.contains(&0));
+    assert!(!mismatches.contains(&current_version));
+
+    for version in mismatches {
         let mut incompatible = current_record.clone();
         incompatible["daemonProtocolVersion"] = json!(version);
         write_record(home.path(), &incompatible)?;
@@ -322,7 +390,7 @@ fn legacy_shutdown_requires_explicit_credentials_before_restart() -> Result<(), 
     assert_healthy(&guard.listen)?;
     assert!(!home.path().join("daemon").join("startup.lock").exists());
 
-    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version)?;
+    explicitly_stop_restart_and_reuse(&mut guard, &legacy, current_version, None)?;
     assert_command_success(&guard.stop()?);
     Ok(())
 }
