@@ -439,36 +439,14 @@ impl WorkspaceRuntimeManager {
         if let Some(completion) = &detached_completion {
             completion.begin();
         }
-        {
-            let manager = self.clone();
-            let job_id = submitted.job.id;
-            let template = template.clone();
-            let activity = runtime.continuation();
-            tokio::spawn(async move {
-                let Ok(completed) = manager.inner.scheduler.wait(job_id).await else {
-                    activity.forget_job_proof(job_id);
-                    if let Some(completion) = detached_completion {
-                        completion.finish();
-                    }
-                    return;
-                };
-                activity.complete_job(&completed);
-                if completed.job.state == JobState::Succeeded {
-                    let _ = manager
-                        .on_index_succeeded(
-                            Arc::clone(&activity),
-                            completed.job.id,
-                            target_revision,
-                            template,
-                            reconfigure,
-                        )
-                        .await;
-                }
-                if let Some(completion) = detached_completion {
-                    completion.finish();
-                }
-            });
-        }
+        self.spawn_index_completion(
+            runtime.continuation(),
+            submitted.job.id,
+            target_revision,
+            template.clone(),
+            reconfigure,
+            detached_completion,
+        );
         if !wait {
             return Ok(RuntimeIndexSubmission {
                 job: submitted.job,
@@ -516,6 +494,42 @@ impl WorkspaceRuntimeManager {
             reused: submitted.reused,
             result: completed.result,
         })
+    }
+
+    fn spawn_index_completion(
+        &self,
+        activity: RuntimeActivity,
+        job_id: uuid::Uuid,
+        target_revision: u64,
+        template: IndexOptions,
+        reconfigure: bool,
+        detached_completion: Option<Arc<DetachedCompletion>>,
+    ) {
+        let manager = self.clone();
+        tokio::spawn(async move {
+            let Ok(completed) = manager.inner.scheduler.wait(job_id).await else {
+                activity.forget_job_proof(job_id);
+                if let Some(completion) = detached_completion {
+                    completion.finish();
+                }
+                return;
+            };
+            activity.complete_job(&completed);
+            if completed.job.state == JobState::Succeeded {
+                let _ = manager
+                    .on_index_succeeded(
+                        Arc::clone(&activity),
+                        completed.job.id,
+                        target_revision,
+                        template,
+                        reconfigure,
+                    )
+                    .await;
+            }
+            if let Some(completion) = detached_completion {
+                completion.finish();
+            }
+        });
     }
 
     /// Returns whether refresh work was scheduled or is already in flight.

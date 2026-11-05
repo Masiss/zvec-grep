@@ -105,6 +105,52 @@ pub(crate) async fn run_server(
         idle_ttl,
         scheduler_options,
     );
+    let app = build_router(
+        &config,
+        Arc::clone(&engine),
+        listen_port,
+        shutdown.clone(),
+        runtimes.clone(),
+        token,
+    );
+
+    if let Err(error) = instance.mark_ready().await {
+        instance.release().await?;
+        return Err(error);
+    }
+    info!(url = %config.listen.server_url(), "zvec-grep daemon ready");
+    let signal_shutdown = shutdown.clone();
+    tokio::spawn(async move {
+        wait_for_shutdown_signal().await;
+        signal_shutdown.cancel();
+    });
+    let runtime_shutdown = shutdown.clone();
+    let runtime_manager = runtimes.clone();
+    let runtime_shutdown_task = tokio::spawn(async move {
+        runtime_shutdown.cancelled().await;
+        if let Err(error) = runtime_manager.shutdown_all().await {
+            warn!(%error, "daemon runtime shutdown was incomplete");
+        }
+    });
+    let serve_result = axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown.clone().cancelled_owned())
+        .await;
+    shutdown.cancel();
+    let _ = runtime_shutdown_task.await;
+    engine.close();
+    let release_result = instance.release().await;
+    serve_result?;
+    release_result
+}
+
+fn build_router(
+    config: &ServerConfig,
+    engine: Arc<ZvecGrep>,
+    listen_port: u16,
+    shutdown: CancellationToken,
+    runtimes: WorkspaceRuntimeManager,
+    token: Option<String>,
+) -> Router {
     let status: Arc<dyn ServerStatusProvider> = Arc::new(RuntimeStatusProvider {
         started: Instant::now(),
         shutdown: shutdown.clone(),
@@ -136,7 +182,7 @@ pub(crate) async fn run_server(
         Arc::new(crate::mcp_sessions::BoundedSessionManager::default()),
         mcp_config,
     );
-    let app = Router::new()
+    Router::new()
         .route("/healthz", get(health))
         .route("/control/shutdown", post(request_shutdown))
         .route("/admin/execute", post(execute_command))
@@ -147,39 +193,11 @@ pub(crate) async fn run_server(
             crate::authentication::authenticate,
         ))
         .with_state(ControlState {
-            shutdown: shutdown.clone(),
+            shutdown,
             listen_port,
-            engine: Arc::clone(&engine),
-            runtimes: runtimes.clone(),
-        });
-
-    if let Err(error) = instance.mark_ready().await {
-        instance.release().await?;
-        return Err(error);
-    }
-    info!(url = %config.listen.server_url(), "zvec-grep daemon ready");
-    let signal_shutdown = shutdown.clone();
-    tokio::spawn(async move {
-        wait_for_shutdown_signal().await;
-        signal_shutdown.cancel();
-    });
-    let runtime_shutdown = shutdown.clone();
-    let runtime_manager = runtimes.clone();
-    let runtime_shutdown_task = tokio::spawn(async move {
-        runtime_shutdown.cancelled().await;
-        if let Err(error) = runtime_manager.shutdown_all().await {
-            warn!(%error, "daemon runtime shutdown was incomplete");
-        }
-    });
-    let serve_result = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown.clone().cancelled_owned())
-        .await;
-    shutdown.cancel();
-    let _ = runtime_shutdown_task.await;
-    engine.close();
-    let release_result = instance.release().await;
-    serve_result?;
-    release_result
+            engine,
+            runtimes,
+        })
 }
 
 async fn health() -> Json<Value> {
@@ -308,7 +326,15 @@ async fn execute_command(
             })),
         );
     }
-    let result = match command {
+    let result = execute_authorized_command(&state, command).await;
+    (StatusCode::OK, Json(result))
+}
+
+async fn execute_authorized_command(
+    state: &ControlState,
+    command: DaemonCommand,
+) -> ExecutionResult {
+    match command {
         DaemonCommand::IndexSetup(options) => engine_execution(
             state
                 .engine
@@ -398,8 +424,7 @@ async fn execute_command(
             }
         }
         DaemonCommand::WaitIndex(id) => wait_index_execution(&state.runtimes, id, None).await,
-    };
-    (StatusCode::OK, Json(result))
+    }
 }
 
 async fn wait_index_execution(

@@ -674,32 +674,9 @@ fn create_job(
 }
 
 fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
-    if let Some(signal) = lock(&job.options)
-        .as_ref()
-        .and_then(|options| options.signal.clone())
-    {
-        let inner = Arc::clone(&inner);
-        let job = Arc::clone(&job);
-        tokio::spawn(async move {
-            let completed = job.completed.notified();
-            tokio::pin!(completed);
-            completed.as_mut().enable();
-            if job.finished.load(Ordering::Acquire) {
-                return;
-            }
-            tokio::select! {
-                () = completed => {},
-                () = signal.cancelled() => {
-                    let _state = lock(&inner.state);
-                    if !job.shared.load(Ordering::Acquire) {
-                        job.cancellation.cancel();
-                    }
-                }
-            }
-        });
-    }
+    spawn_request_cancellation(&inner, &job);
     tokio::spawn(async move {
-        let (_lane_permit, _permit, mut options) = loop {
+        let (lane_permit, permit, options) = loop {
             // A queued watch can be promoted while waiting for its lane. Enable the
             // notification before reading the reason so a promotion cannot be missed.
             let notified = job.lane_wakeup.notified();
@@ -779,37 +756,74 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
             drop(state);
             break (lane_permit, permit, options);
         };
-        // Decide after coalescing so explicit manual jobs retain creation permission.
-        options.require_existing_index = lock(&job.snapshot).reason == JobReason::Watch;
-        options.signal = Some(job.cancellation.clone());
-        let weak_job = Arc::downgrade(&job);
-        options.on_progress = Some(
-            zg_engine::api::index::progress::IndexProgressReporter::new(move |progress| {
-                if let Some(job) = weak_job.upgrade() {
-                    lock(&job.snapshot).progress = Some(progress);
-                }
-            })
-            .prioritize_model_progress(),
-        );
-        let outcome = inner.executor.index(options).await;
-        match outcome {
-            Ok(result) => {
-                *lock(&job.result) = Some(result);
-                lock(&job.snapshot).state = JobState::Succeeded;
-            }
-            Err(error) => {
-                let state = if error.code() == EngineError::CANCELLED {
-                    JobState::Cancelled
-                } else {
-                    JobState::Failed
-                };
-                let mut snapshot = lock(&job.snapshot);
-                snapshot.state = state;
-                snapshot.error = Some(job_error(error));
-            }
-        }
-        finish_job(&inner, &job);
+        run_claimed_job(&inner, &job, lane_permit, permit, options).await;
     });
+}
+
+fn spawn_request_cancellation(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
+    if let Some(signal) = lock(&job.options)
+        .as_ref()
+        .and_then(|options| options.signal.clone())
+    {
+        let inner = Arc::clone(inner);
+        let job = Arc::clone(job);
+        tokio::spawn(async move {
+            let completed = job.completed.notified();
+            tokio::pin!(completed);
+            completed.as_mut().enable();
+            if job.finished.load(Ordering::Acquire) {
+                return;
+            }
+            tokio::select! {
+                () = completed => {},
+                () = signal.cancelled() => {
+                    let _state = lock(&inner.state);
+                    if !job.shared.load(Ordering::Acquire) {
+                        job.cancellation.cancel();
+                    }
+                }
+            }
+        });
+    }
+}
+
+async fn run_claimed_job(
+    inner: &Arc<SchedulerInner>,
+    job: &Arc<ScheduledJob>,
+    _lane_permit: tokio::sync::SemaphorePermit<'_>,
+    _permit: tokio::sync::SemaphorePermit<'_>,
+    mut options: IndexOptions,
+) {
+    // Decide after coalescing so explicit manual jobs retain creation permission.
+    options.require_existing_index = lock(&job.snapshot).reason == JobReason::Watch;
+    options.signal = Some(job.cancellation.clone());
+    let weak_job = Arc::downgrade(job);
+    options.on_progress = Some(
+        zg_engine::api::index::progress::IndexProgressReporter::new(move |progress| {
+            if let Some(job) = weak_job.upgrade() {
+                lock(&job.snapshot).progress = Some(progress);
+            }
+        })
+        .prioritize_model_progress(),
+    );
+    let outcome = inner.executor.index(options).await;
+    match outcome {
+        Ok(result) => {
+            *lock(&job.result) = Some(result);
+            lock(&job.snapshot).state = JobState::Succeeded;
+        }
+        Err(error) => {
+            let state = if error.code() == EngineError::CANCELLED {
+                JobState::Cancelled
+            } else {
+                JobState::Failed
+            };
+            let mut snapshot = lock(&job.snapshot);
+            snapshot.state = state;
+            snapshot.error = Some(job_error(error));
+        }
+    }
+    finish_job(inner, job);
 }
 
 fn finish_job(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
@@ -1998,11 +2012,13 @@ mod tests {
             .await
             .expect("manual promotion must not wait for watch A's lane");
 
-        let calls = executor.calls.lock().expect("recorded calls");
-        assert!(calls.iter().any(|call| {
-            call.root.as_deref() == Some(root_b.as_path()) && !call.require_existing_index
-        }));
-        drop(calls);
+        let manual_call_started = {
+            let calls = executor.calls.lock().expect("recorded calls");
+            calls.iter().any(|call| {
+                call.root.as_deref() == Some(root_b.as_path()) && !call.require_existing_index
+            })
+        };
+        assert!(manual_call_started);
         assert_eq!(
             scheduler
                 .job_views()
@@ -2336,18 +2352,13 @@ mod tests {
                 .state,
             JobState::Succeeded
         );
-        let calls = executor.manual_options.lock().expect("manual options");
-        assert_eq!(calls.len(), 1);
-        assert!(
-            calls[0]
-                .changes
-                .contains(&WorkspaceChange::Upsert(PathBuf::from("/watch-change")))
-        );
-        assert!(
-            calls[0]
-                .changes
-                .contains(&WorkspaceChange::Upsert(PathBuf::from("/manual-change")))
-        );
+        let manual_changes = {
+            let calls = executor.manual_options.lock().expect("manual options");
+            assert_eq!(calls.len(), 1);
+            calls[0].changes.clone()
+        };
+        assert!(manual_changes.contains(&WorkspaceChange::Upsert(PathBuf::from("/watch-change"))));
+        assert!(manual_changes.contains(&WorkspaceChange::Upsert(PathBuf::from("/manual-change"))));
         scheduler.shutdown().await;
     }
 
