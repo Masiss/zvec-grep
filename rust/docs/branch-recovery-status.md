@@ -25,8 +25,8 @@ must remain untouched. No benchmark campaign is authorized by this recovery.
 | Lane | Worktree / branch | Owned seam | Next gate | Handoff |
 |---|---|---|---|---|
 | Parent/integration | `zvec-grep-recovery` / `work/zg-recovered` | preservation, selected harness/archive docs, integration/review, final push and cleanup | preservation + source/test review | this file |
-| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | DONE reviewed/integrated as `3786d16` + `3d2bd96`; final integrated checks pending | completed `e740aea7-2fc2-42da-8425-dfc60159ea60` |
-| Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | `9f16951` + `11ce93b` committed; bounded-cache correction validation+commit in progress | latest Luna `dc96fb87-c90b-422d-9d46-a57b5147aed8` |
+| UX | `zvec-grep-recovery-ux` / `recovery/ux` | CLI/daemon/protocol controls, routing, queue/timeouts, scan/consent regressions | runtime reviewed/integrated as `3786d16` + `3d2bd96`; stale protocol integration fixtures being corrected | latest Luna `690d7923-836f-47b5-966a-2fd6876e6441` |
+| Engine | `zvec-grep-recovery-engine` / `recovery/engine` | optional compact sidecar + safe clean-scan on V2 FP16/layout | DONE reviewed/integrated `4ec2b73` + `f022b87` + `f24e33e`; portable test fix `5cc9cb9` | final child `4dc6ae58-0434-439e-90d2-932d29f6a487` completed |
 | RAG | temporary worktree retired / `recovery/rag-harness` | source-only evidence API, R0/R1 artifacts and tests | DONE reviewed port + coordinate fix, 10 focused tests PASS | integrated `a8048a0`, `cb848dc` |
 
 Each lane owns a distinct worktree. No child pushes or changes any other
@@ -133,10 +133,42 @@ V1 research/native receipts are historical evidence, not V2 qualification.
   build example corrected: executable package is `zg`, not library `zg-cli`.
   Final checks will include the real binary and workspace clippy; host-local
   canonical Cargo configs route shared target/jobs2/incremental=false (excluded).
-- Parent next: review/integrate engine correction after validation, then final
-  proportional integrated tests/fmt/clippy/release executable build, publish/
-  verify canonical branch and originally authorized source consolidation. Do not
-  compile concurrently with engine. No production rollout/live-index operation.
+## Current integrated verification — 2026-11-05 14:xx
+
+- Engine `79137ec` passed 59 focused tests and fmt; clippy blocked by disk floor.
+  Parent reviewed/integrated engine as `4ec2b73`, `f022b87`, `f24e33e`. Cache is
+  optional/bounded: 20k entries, 16 MiB/file, 64 MiB/seal; cancellation and safe
+  regular-file opens, no weaker metadata-only trust. Non-Unix cache is disabled.
+- Test-only portability correction `f3b1a24` integrated as `5cc9cb9` after the
+  first full run stopped; supported Unix retains strict no-op failure injection,
+  unsupported targets exercise ordinary indexing. Cross-target build not claimed.
+- Shared debug app/test caches were pruned under exclusive build lock and full
+  process path+device/inode reference checks: 97 generated outputs, ~5.06 GiB
+  logical. Vendor dependency libraries/shared objects, original V1 target, installs,
+  sources/backups/indexes preserved. Receipts/logs live privately under
+  `~/.local/share/zvec-grep/recovery-verification-20261105/`.
+- First integrated fmt PASS, then offline/locked workspace tests on `f24e33e`
+  FAILED in `zg --test server_lifecycle`: 27 passed /9 failed. Eight failures
+  assert fresh daemon version2 equals stale literal1; the ninth incorrectly treats
+  current version2 as unsupported. Old fixtures also expect automatic legacy
+  replacement, contradicting explicitly selected fail-closed UX. Preserve raw
+  `tests-20261105T063741108932289.log`; do not restore automatic replacement.
+- Latest UX run fixes only protocol/migration-safety integration fixtures,
+  preserving PID/token/auth/port/IPv4+IPv6/no-fallback coverage. Production version
+  constant is PRIVATE; use captured fresh instance-record version in fixtures,
+  no new public API. Then focused `protocol_upgrade` test filter+commit.
+- After that failure free space ~2 GiB: no new build admitted. Pruned only39
+  inactive test/debug ELFs, library caches kept. Receipt
+  `cache-prune-20261105T064822809746Z.json`; bounded reclaim job43 observed
+  6413881344 bytes free. UX focused Cargo hold RELEASED, check exact4GiB floor
+  before each new build. Parent does not compile concurrently with this lane.
+- Parent next: review/cherry-pick corrected protocol fixtures; remove stale test
+  executables/top debug CLI before canonical revalidation so another lane cannot
+  supply the shared top-level CLI binary. Run integrated fmt/tests, then (after
+  cache-only headroom recovery as needed) workspace clippy and release `-p zg`.
+  Verification driver: `/home/masis/.pi/agent/reports/run_zg_recovery_verification_20261105.sh`.
+  No PASS claim for full suite/clippy/release yet; canonical push, original-source
+  convergence and personal-worktree retirement remain pending. No live operations.
 
 ## Remaining acceptance criteria / exact next work
 
