@@ -21,12 +21,12 @@ promoted. The gap prototype is archived at
 
 ## Active status
 
-- **Discovery:** H1 pool 14/25; H2 file-to-range expansion **19/25 (76%)**
-  with 15,683 ranges and 13,525 additions (0 duplicates); coverage saturates at
-  ~500 ranges/case. H3 observed-symbol no gain. H4 reference-aware reaches
-  **20/25 (80%)** but only by one incidental D02 span with 144 queries/97.3 s;
-  resource/generalization gate fails. Discovery remains **NO-GO**; missing D02
-  C4/C5, D10 C4, D12 S1. Selection/Expansion frozen.
+- **Discovery:** H1 pool 14/25; H2 full 19/25 but 15,683 ranges; H2 **bounded
+  cap 500 gives only 15/25 (60%)** at p95 4.05 s, 0.44 s CPU, 11.9 MiB PSS,
+  722.9 MB rchar. H3 no gain. H4 reaches 20/25 (80%) only by one incidental D02
+  span with 144 queries/97.3 s; resource/generalization fails. Independent 5-case
+  set is too easy (H1 5/5), not a discriminating gate. Discovery remains
+  **NO-GO**; missing D02 C4/C5, D10 C4, D12 S1. Selection/Expansion frozen.
 - **Selection:** frozen; A/B historical policies selected 4/25 and 6/25. No
   Selection work is authorized until Discovery reaches its gate.
 - **Expansion:** gap prototype validates anchors/definitions but cannot find

@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_H2_BOUNDED",
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "pool_units": 500,
+      "added": 317,
+      "coverage": 2,
+      "origins": {
+        "search": 183,
+        "method": 291,
+        "type": 26
+      },
+      "wall_ms": 3386.364912992576,
+      "cpu_s": 0.30591399999999996
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "pool_units": 500,
+      "added": 338,
+      "coverage": 2,
+      "origins": {
+        "search": 162,
+        "method": 267,
+        "type": 71
+      },
+      "wall_ms": 3394.2729429982137,
+      "cpu_s": 0.346449
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "pool_units": 500,
+      "added": 164,
+      "coverage": 1,
+      "origins": {
+        "search": 336,
+        "method": 92,
+        "type": 72
+      },
+      "wall_ms": 3931.442764995154,
+      "cpu_s": 0.24056900000000003
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "pool_units": 500,
+      "added": 310,
+      "coverage": 1,
+      "origins": {
+        "search": 190,
+        "method": 235,
+        "type": 75
+      },
+      "wall_ms": 4022.4149339919677,
+      "cpu_s": 0.33396200000000004
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "pool_units": 500,
+      "added": 388,
+      "coverage": 0,
+      "origins": {
+        "search": 112,
+        "method": 352,
+        "type": 36
+      },
+      "wall_ms": 3398.973515999387,
+      "cpu_s": 0.36297899999999994
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "pool_units": 500,
+      "added": 409,
+      "coverage": 2,
+      "origins": {
+        "search": 91,
+        "method": 374,
+        "type": 35
+      },
+      "wall_ms": 2182.23908499931,
+      "cpu_s": 0.2973859999999998
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "pool_units": 500,
+      "added": 259,
+      "coverage": 2,
+      "origins": {
+        "search": 241,
+        "method": 224,
+        "type": 35
+      },
+      "wall_ms": 4052.09686300077,
+      "cpu_s": 0.3014539999999999
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "pool_units": 500,
+      "added": 396,
+      "coverage": 2,
+      "origins": {
+        "search": 104,
+        "method": 359,
+        "type": 37
+      },
+      "wall_ms": 3600.5905240017455,
+      "cpu_s": 0.37449200000000027
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "pool_units": 500,
+      "added": 301,
+      "coverage": 1,
+      "origins": {
+        "search": 199,
+        "method": 243,
+        "type": 58
+      },
+      "wall_ms": 4027.7991259936243,
+      "cpu_s": 0.3349239999999999
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "pool_units": 500,
+      "added": 190,
+      "coverage": 1,
+      "origins": {
+        "search": 310,
+        "method": 172,
+        "type": 18
+      },
+      "wall_ms": 5992.871390000801,
+      "cpu_s": 0.4422470000000003
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "pool_units": 500,
+      "added": 412,
+      "coverage": 1,
+      "origins": {
+        "search": 88,
+        "method": 373,
+        "type": 39
+      },
+      "wall_ms": 4033.1538200116483,
+      "cpu_s": 0.5051609999999997
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "pool_units": 500,
+      "added": 358,
+      "coverage": 0,
+      "origins": {
+        "search": 142,
+        "method": 293,
+        "type": 65
+      },
+      "wall_ms": 3613.9356329949806,
+      "cpu_s": 0.42547299999999977
+    }
+  ],
+  "totals": {
+    "gold": 25,
+    "coverage": 15,
+    "pool_units": 6000,
+    "added": 3842,
+    "origins": {
+      "search": 2158,
+      "method": 3275,
+      "type": 567
+    }
+  },
+  "macro": {
+    "coverage": 0.6805555555555555
+  },
+  "resources": {
+    "p95_case_wall_ms": 4052.09686300077,
+    "p95_case_cpu_s": 0.4422470000000003,
+    "peak_pss_kib": 11955,
+    "cpu_user_s": 2.996587,
+    "cpu_sys_s": 1.275289,
+    "io": {
+      "rchar": 722926477,
+      "wchar": 7003991,
+      "syscr": 205607,
+      "syscw": 8190,
+      "read_bytes": 0,
+      "write_bytes": 40960,
+      "cancelled_write_bytes": 0
+    }
+  },
+  "limits": [
+    "cap 500 ranges/case",
+    "dev-only",
+    "no gold in policy"
+  ]
+}

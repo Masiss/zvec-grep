@@ -11,7 +11,15 @@ Receipt: `benchmarks/rag-impact/results/discovery-reference-probe.json`.
 - H4: **20/25 (80%)**, macro 0.875; file coverage 21/25.
 - Only one new span (D02 `EmployeeDetail.cs`), likely incidental to generic
   observed `func_Employee*` references.
-- Still missing: D02 C4 17–20/41–55, D02 C5, D10 C4, D12 S1 (5 spans).
+- Still missing (5):
+  - D02 C4 17–20 — query formulation; exact `AddFromAssembly`/context probe can
+    reach it, but no observed reference path selected it.
+  - D02 C4 41–55, D02 C5 — file discovery; files remain absent from the pool.
+  - D10 C4 — query formulation; `CoreDBContext` is not selected from observed
+    references.
+  - D12 S1 — query formulation; `sp_UpdateOrgTotalEmployee` is not selected.
+  H4 did not invent a relation for these; no observed reference path was found
+  that both starts in cited bytes and reaches the target.
 - H2-covered spans preserved.
 
 ## Cost / provenance

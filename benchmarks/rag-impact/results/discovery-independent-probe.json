@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_INDEPENDENT_DEV",
+  "cases": [
+    {
+      "id": "E1",
+      "gold": 1,
+      "h1_units": 113,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 387,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 387,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeJoinByMonthNgayVaoCongTy",
+        "func_EmployeeRecruitmentByYear",
+        "AccessToken",
+        "ActivationCode"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2633.564584000851,
+      "h2_wall_ms": 244.82711499149445,
+      "h4_wall_ms": 4176.133073007804
+    },
+    {
+      "id": "E2",
+      "gold": 1,
+      "h1_units": 120,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 380,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 380,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeTotalByOrgs",
+        "func_TongHopSoLuongNhanSu",
+        "AccessToken",
+        "ActivationCode",
+        "Active",
+        "AddClaim"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2562.3430270061363,
+      "h2_wall_ms": 244.9890379939461,
+      "h4_wall_ms": 3913.637823003228
+    },
+    {
+      "id": "E3",
+      "gold": 1,
+      "h1_units": 112,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 388,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 388,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeTotalFirstLevelOrgPercentage",
+        "fn_GetEmployeeTotalByOrg",
+        "func_EmployeeTotal12MonthsExcludeOrg",
+        "func_EmployeeTotalByOrgExcludeOrg",
+        "AddHeads",
+        "AddMinutes"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2585.334792995127,
+      "h2_wall_ms": 216.57122300530318,
+      "h4_wall_ms": 3935.6336039927555
+    },
+    {
+      "id": "E4",
+      "gold": 1,
+      "h1_units": 125,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 375,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 375,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeTotalByOrgExcludeOrg",
+        "func_EmployeeTotal12MonthsExcludeOrg",
+        "AccessToken",
+        "ActivationCode",
+        "Active"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2571.5338620066177,
+      "h2_wall_ms": 148.47130999260116,
+      "h4_wall_ms": 3865.2546939993044
+    },
+    {
+      "id": "E5",
+      "gold": 1,
+      "h1_units": 175,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 325,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 325,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeTotalByOrgExcludeOrg",
+        "func_EmployeeTotal12MonthsExcludeOrg",
+        "AddClaims",
+        "AddHours",
+        "AddPicture"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2606.5725820080843,
+      "h2_wall_ms": 218.12969099846669,
+      "h4_wall_ms": 3990.5591679998906
+    }
+  ],
+  "totals": {
+    "gold": 5,
+    "h1_cov": 5,
+    "h2_cov": 5,
+    "h4_cov": 5
+  },
+  "macro": {
+    "h1": 1.0,
+    "h2": 1.0,
+    "h4": 1.0
+  },
+  "resources": {
+    "peak_pss_kib": 11966,
+    "cpu_user_s": 2.4638459999999998,
+    "cpu_sys_s": 0.8516349999999999,
+    "io": {
+      "rchar": 478429437,
+      "wchar": 4456362,
+      "syscr": 179800,
+      "syscw": 6216,
+      "read_bytes": 77824,
+      "write_bytes": 40960,
+      "cancelled_write_bytes": 0
+    },
+    "p95_case_wall_ms": 7054.52477200015
+  },
+  "limits": [
+    "5 independent dev cases; held-out locked",
+    "cap 500 ranges/case",
+    "gold measurement only",
+    "no top10 selection"
+  ]
+}

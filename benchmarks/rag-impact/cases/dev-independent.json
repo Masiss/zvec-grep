@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "FROZEN_INDEPENDENT_DEV",
+  "source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "source_head": "68a53a6865b81d05745c4aa47967204e8e128996",
+  "purpose": "Independent development retrieval cases, disjoint from the 12 frozen cases; held-out remains locked.",
+  "cases": [
+    {
+      "id": "E1",
+      "question": "Tạo mới nhân viên đi qua method nào?",
+      "source_refs": [
+        {"path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs", "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5", "spans": [{"start_line": 16, "end_line": 213}]}
+      ]
+    },
+    {
+      "id": "E2",
+      "question": "Tạo nation mới đi qua đâu?",
+      "source_refs": [
+        {"path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs", "sha256": "31dc9b735bdf0317632c9667e1c8b6095bf20957f1b7c1e924afe510b731d66a", "spans": [{"start_line": 19, "end_line": 51}]}
+      ]
+    },
+    {
+      "id": "E3",
+      "question": "Đọc chi tiết nhân viên ở đâu?",
+      "source_refs": [
+        {"path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeDetailCommand.cs", "sha256": "cbd28422d013c2f444b6de91b01b85db8e99803c67cf393e640302249fb824b7", "spans": [{"start_line": 12, "end_line": 36}]}
+      ]
+    },
+    {
+      "id": "E4",
+      "question": "Cập nhật trạng thái công việc nhân sự xử lý gì?",
+      "source_refs": [
+        {"path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs", "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5", "spans": [{"start_line": 627, "end_line": 649}]}
+      ]
+    },
+    {
+      "id": "E5",
+      "question": "Map nation từ API vào database ở đâu?",
+      "source_refs": [
+        {"path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs", "sha256": "31dc9b735bdf0317632c9667e1c8b6095bf20957f1b7c1e924afe510b731d66a", "spans": [{"start_line": 333, "end_line": 351}]}
+      ]
+    }
+  ]
+}
