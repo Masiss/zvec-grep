@@ -1,0 +1,1056 @@
+{
+  "schema_version": 1,
+  "status": "R4D2_POLICY_RUN",
+  "policy": "six B0 calls -> up to 8 seed files -> local method ranges -> <=3 files, 10 ranges",
+  "cases": [
+    {
+      "id": "D01",
+      "gold_spans": 2,
+      "matched_gold_spans": 2,
+      "recall": 1.0,
+      "fixed_matched_gold_spans": 1,
+      "fixed_recall": 0.5,
+      "b0_oracle_recall": 0.5,
+      "files_opened": 8,
+      "bytes_read": 201232,
+      "method_candidates": 151,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 138,
+          "end_line": 387,
+          "score": 135,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215,
+          "end_line": 459,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 575,
+          "end_line": 625,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 460,
+          "end_line": 622,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 627,
+          "end_line": 648,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 334,
+          "end_line": 354,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 356,
+          "end_line": 457,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 389,
+          "end_line": 393,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 673,
+          "end_line": 708,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 711,
+          "end_line": 715,
+          "score": 110,
+          "reason": "local method"
+        }
+      ],
+      "elapsed_ms": 267.5929180040839
+    },
+    {
+      "id": "D02",
+      "gold_spans": 6,
+      "matched_gold_spans": 0,
+      "recall": 0.0,
+      "fixed_matched_gold_spans": 0,
+      "fixed_recall": 0.0,
+      "b0_oracle_recall": 0.0,
+      "files_opened": 8,
+      "bytes_read": 238497,
+      "method_candidates": 120,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 138,
+          "end_line": 387,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 118,
+          "end_line": 362,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 16,
+          "end_line": 560,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 389,
+          "end_line": 393,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 673,
+          "end_line": 708,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 711,
+          "end_line": 715,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 717,
+          "end_line": 721,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 727,
+          "end_line": 731,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 185,
+          "end_line": 211,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 358,
+          "end_line": 391,
+          "score": 100,
+          "reason": "search seed"
+        }
+      ],
+      "elapsed_ms": 430.44499900133815
+    },
+    {
+      "id": "D03",
+      "gold_spans": 1,
+      "matched_gold_spans": 0,
+      "recall": 0.0,
+      "fixed_matched_gold_spans": 0,
+      "fixed_recall": 0.0,
+      "b0_oracle_recall": 0.0,
+      "files_opened": 8,
+      "bytes_read": 262082,
+      "method_candidates": 115,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 138,
+          "end_line": 387,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 17,
+          "end_line": 512,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 18,
+          "end_line": 131,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 133,
+          "end_line": 149,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 389,
+          "end_line": 393,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 727,
+          "end_line": 731,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 733,
+          "end_line": 790,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 297,
+          "end_line": 357,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 397,
+          "end_line": 453,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 1,
+          "end_line": 40,
+          "score": 100,
+          "reason": "search seed"
+        }
+      ],
+      "elapsed_ms": 284.19113700510934
+    },
+    {
+      "id": "D04",
+      "gold_spans": 1,
+      "matched_gold_spans": 1,
+      "recall": 1.0,
+      "fixed_matched_gold_spans": 1,
+      "fixed_recall": 1.0,
+      "b0_oracle_recall": 1.0,
+      "files_opened": 8,
+      "bytes_read": 303642,
+      "method_candidates": 134,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 562,
+          "end_line": 573,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 575,
+          "end_line": 625,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 427,
+          "end_line": 684,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 138,
+          "end_line": 387,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 733,
+          "end_line": 790,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 686,
+          "end_line": 875,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539,
+          "end_line": 548,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 550,
+          "end_line": 560,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 627,
+          "end_line": 648,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "start_line": 389,
+          "end_line": 393,
+          "score": 110,
+          "reason": "local method"
+        }
+      ],
+      "elapsed_ms": 295.52714499732247
+    },
+    {
+      "id": "D05",
+      "gold_spans": 1,
+      "matched_gold_spans": 0,
+      "recall": 0.0,
+      "fixed_matched_gold_spans": 0,
+      "fixed_recall": 0.0,
+      "b0_oracle_recall": 0.0,
+      "files_opened": 8,
+      "bytes_read": 162648,
+      "method_candidates": 46,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 17,
+          "end_line": 512,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+          "start_line": 116,
+          "end_line": 212,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+          "start_line": 214,
+          "end_line": 225,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "start_line": 572,
+          "end_line": 586,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "start_line": 588,
+          "end_line": 598,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "start_line": 600,
+          "end_line": 1075,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+          "start_line": 211,
+          "end_line": 227,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "start_line": 577,
+          "end_line": 623,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 184,
+          "end_line": 254,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 297,
+          "end_line": 357,
+          "score": 100,
+          "reason": "search seed"
+        }
+      ],
+      "elapsed_ms": 157.41396600060398
+    },
+    {
+      "id": "D06",
+      "gold_spans": 3,
+      "matched_gold_spans": 0,
+      "recall": 0.0,
+      "fixed_matched_gold_spans": 0,
+      "fixed_recall": 0.0,
+      "b0_oracle_recall": 0.3333333333333333,
+      "files_opened": 8,
+      "bytes_read": 242773,
+      "method_candidates": 111,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 17,
+          "end_line": 512,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 118,
+          "end_line": 362,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+          "start_line": 601,
+          "end_line": 661,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 185,
+          "end_line": 211,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 297,
+          "end_line": 357,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+          "start_line": 628,
+          "end_line": 628,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+          "start_line": 642,
+          "end_line": 642,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+          "start_line": 656,
+          "end_line": 656,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 459,
+          "end_line": 604,
+          "score": 20,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 514,
+          "end_line": 530,
+          "score": 15,
+          "reason": "local method"
+        }
+      ],
+      "elapsed_ms": 276.30128899909323
+    },
+    {
+      "id": "D07",
+      "gold_spans": 3,
+      "matched_gold_spans": 0,
+      "recall": 0.0,
+      "fixed_matched_gold_spans": 0,
+      "fixed_recall": 0.0,
+      "b0_oracle_recall": 0.3333333333333333,
+      "files_opened": 8,
+      "bytes_read": 107803,
+      "method_candidates": 17,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 17,
+          "end_line": 512,
+          "score": 125,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 156,
+          "end_line": 398,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 18,
+          "end_line": 131,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 133,
+          "end_line": 149,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 297,
+          "end_line": 357,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 353,
+          "end_line": 404,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 1,
+          "end_line": 40,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "start_line": 144,
+          "end_line": 181,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Export/Pdf/EmployeeController.cs",
+          "start_line": 1,
+          "end_line": 46,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 514,
+          "end_line": 530,
+          "score": 10,
+          "reason": "local method"
+        }
+      ],
+      "elapsed_ms": 98.11412099952577
+    },
+    {
+      "id": "D08",
+      "gold_spans": 2,
+      "matched_gold_spans": 2,
+      "recall": 1.0,
+      "fixed_matched_gold_spans": 2,
+      "fixed_recall": 1.0,
+      "b0_oracle_recall": 1.0,
+      "files_opened": 8,
+      "bytes_read": 176080,
+      "method_candidates": 112,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539,
+          "end_line": 548,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 624,
+          "end_line": 628,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 16,
+          "end_line": 560,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 461,
+          "end_line": 520,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 522,
+          "end_line": 537,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 550,
+          "end_line": 560,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 460,
+          "end_line": 622,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 631,
+          "end_line": 635,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 637,
+          "end_line": 640,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 642,
+          "end_line": 671,
+          "score": 110,
+          "reason": "local method"
+        }
+      ],
+      "elapsed_ms": 244.10272399836686
+    },
+    {
+      "id": "D09",
+      "gold_spans": 1,
+      "matched_gold_spans": 0,
+      "recall": 0.0,
+      "fixed_matched_gold_spans": 1,
+      "fixed_recall": 1.0,
+      "b0_oracle_recall": 1.0,
+      "files_opened": 8,
+      "bytes_read": 142551,
+      "method_candidates": 52,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 16,
+          "end_line": 560,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 26,
+          "end_line": 32,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 47,
+          "end_line": 57,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 1,
+          "end_line": 41,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 37,
+          "end_line": 80,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 1,
+          "end_line": 50,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 177,
+          "end_line": 216,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Training/StageController.cs",
+          "start_line": 1022,
+          "end_line": 1057,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 107,
+          "end_line": 120,
+          "score": 10,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 124,
+          "end_line": 129,
+          "score": 10,
+          "reason": "local method"
+        }
+      ],
+      "elapsed_ms": 255.63424899883103
+    },
+    {
+      "id": "D10",
+      "gold_spans": 2,
+      "matched_gold_spans": 1,
+      "recall": 0.5,
+      "fixed_matched_gold_spans": 0,
+      "fixed_recall": 0.0,
+      "b0_oracle_recall": 0.5,
+      "files_opened": 8,
+      "bytes_read": 149861,
+      "method_candidates": 73,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 31,
+          "end_line": 41,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 43,
+          "end_line": 48,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 50,
+          "end_line": 54,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 17,
+          "end_line": 512,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 26,
+          "end_line": 32,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 47,
+          "end_line": 57,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 1125,
+          "end_line": 1136,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "start_line": 1139,
+          "end_line": 1145,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 17,
+          "end_line": 17,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 31,
+          "end_line": 31,
+          "score": 100,
+          "reason": "search seed"
+        }
+      ],
+      "elapsed_ms": 237.93108700192533
+    },
+    {
+      "id": "D11",
+      "gold_spans": 1,
+      "matched_gold_spans": 1,
+      "recall": 1.0,
+      "fixed_matched_gold_spans": 1,
+      "fixed_recall": 1.0,
+      "b0_oracle_recall": 1.0,
+      "files_opened": 8,
+      "bytes_read": 150818,
+      "method_candidates": 67,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 866,
+          "end_line": 887,
+          "score": 135,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 118,
+          "end_line": 362,
+          "score": 120,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 17,
+          "end_line": 512,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 575,
+          "end_line": 625,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 830,
+          "end_line": 864,
+          "score": 115,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 627,
+          "end_line": 648,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 889,
+          "end_line": 964,
+          "score": 110,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 185,
+          "end_line": 211,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 52,
+          "end_line": 107,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 587,
+          "end_line": 636,
+          "score": 100,
+          "reason": "search seed"
+        }
+      ],
+      "elapsed_ms": 152.79266700235894
+    },
+    {
+      "id": "D12",
+      "gold_spans": 2,
+      "matched_gold_spans": 0,
+      "recall": 0.0,
+      "fixed_matched_gold_spans": 0,
+      "fixed_recall": 0.0,
+      "b0_oracle_recall": 0.0,
+      "files_opened": 8,
+      "bytes_read": 188177,
+      "method_candidates": 65,
+      "pack_files": 3,
+      "pack": [
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 16,
+          "end_line": 560,
+          "score": 140,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 118,
+          "end_line": 362,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 17,
+          "end_line": 512,
+          "score": 130,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 185,
+          "end_line": 211,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 297,
+          "end_line": 357,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 44,
+          "end_line": 84,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "start_line": 145,
+          "end_line": 182,
+          "score": 100,
+          "reason": "search seed"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 459,
+          "end_line": 604,
+          "score": 20,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 18,
+          "end_line": 25,
+          "score": 10,
+          "reason": "local method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 27,
+          "end_line": 38,
+          "score": 10,
+          "reason": "local method"
+        }
+      ],
+      "elapsed_ms": 149.15760400617728
+    }
+  ],
+  "summary": {
+    "cases": 12,
+    "recall": 0.375,
+    "fixed_recall": 0.375,
+    "b0_oracle_recall": 0.47222222222222227,
+    "files_opened": 8.0,
+    "bytes_read": 193847.0,
+    "method_candidates": 88.58333333333333,
+    "pack_files": 3.0,
+    "elapsed_ms": 237.43365883456136
+  },
+  "limits": [
+    "development cases only; held-out not inspected",
+    "no model/LSP/graph/second index; local source reads only",
+    "gold used for measurement only, never as policy input",
+    "pack files vs post-pack agent reads are reported separately"
+  ]
+}
