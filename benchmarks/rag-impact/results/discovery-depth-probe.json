@@ -1,0 +1,414 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_DEPTH_PROBE",
+  "method": "B0 six query constructions with 50 results per call; union and optimal 10-item subset",
+  "cases": [
+    {
+      "id": "D01",
+      "gold_spans": 2,
+      "units": 183,
+      "retrievable_gold": 2,
+      "selectable_recall10_gold": 2,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 2
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 24
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 4790.694556009839
+    },
+    {
+      "id": "D02",
+      "gold_spans": 6,
+      "units": 162,
+      "retrievable_gold": 2,
+      "selectable_recall10_gold": 2,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 1
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 4435.037540009944
+    },
+    {
+      "id": "D03",
+      "gold_spans": 1,
+      "units": 196,
+      "retrievable_gold": 0,
+      "selectable_recall10_gold": 0,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 50
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 5483.796097993036
+    },
+    {
+      "id": "D04",
+      "gold_spans": 1,
+      "units": 186,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 50
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 5266.662379988702
+    },
+    {
+      "id": "D05",
+      "gold_spans": 1,
+      "units": 112,
+      "retrievable_gold": 0,
+      "selectable_recall10_gold": 0,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 50
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 0
+        }
+      ],
+      "wall_ms": 4069.917989007081
+    },
+    {
+      "id": "D06",
+      "gold_spans": 3,
+      "units": 91,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 7
+        }
+      ],
+      "wall_ms": 2291.932945998269
+    },
+    {
+      "id": "D07",
+      "gold_spans": 3,
+      "units": 187,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 50
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 2777.982889005216
+    },
+    {
+      "id": "D08",
+      "gold_spans": 2,
+      "units": 104,
+      "retrievable_gold": 2,
+      "selectable_recall10_gold": 2,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 2
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 3
+        }
+      ],
+      "wall_ms": 2616.9094639917603
+    },
+    {
+      "id": "D09",
+      "gold_spans": 1,
+      "units": 176,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 50
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 2646.5608489961596
+    },
+    {
+      "id": "D10",
+      "gold_spans": 2,
+      "units": 158,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 50
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 2633.4644830058096
+    },
+    {
+      "id": "D11",
+      "gold_spans": 1,
+      "units": 88,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 1
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 1
+        }
+      ],
+      "wall_ms": 2941.4136999985203
+    },
+    {
+      "id": "D12",
+      "gold_spans": 2,
+      "units": 142,
+      "retrievable_gold": 0,
+      "selectable_recall10_gold": 0,
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "units": 50
+        },
+        {
+          "call": "fts_question",
+          "units": 50
+        },
+        {
+          "call": "fts_first_phrase",
+          "units": 50
+        },
+        {
+          "call": "rg_last_phrase",
+          "units": 0
+        },
+        {
+          "call": "fts_code_tokens",
+          "units": 0
+        },
+        {
+          "call": "rg_code_tokens",
+          "units": 50
+        }
+      ],
+      "wall_ms": 3030.274749005912
+    }
+  ],
+  "totals": {
+    "gold_spans": 25,
+    "retrievable_gold": 12,
+    "selectable_recall10_gold": 12
+  },
+  "macro": {
+    "retrievable_recall": 0.5416666666666666,
+    "selectable_recall10": 0.5416666666666666
+  },
+  "limits": [
+    "development split only",
+    "read-only search; no model/index change",
+    "gold measurement only",
+    "no held-out"
+  ]
+}
