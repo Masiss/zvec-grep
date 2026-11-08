@@ -23,8 +23,8 @@ promoted. The gap prototype is archived at
 
 - **Discovery:** H5 deterministic cap-500 ordering reaches **19/25 (76%)**
   with identical selected hashes across hash seeds; it is the H2 ceiling and
-  cannot reach 20/25. H6 structural references reach **20/25 (80%)** by one
-  incidental D02 span, but p95 wall 10.97 s, CPU 15.3 s, hard independent eval
+  cannot reach 20/25. H6 frequency-ranked observed-name expansion (mislabelled as structural
+  references) reaches **20/25 (80%)** by one incidental D02 span, but p95 wall 10.97 s, CPU 15.3 s, hard independent eval
   not run; resource/generalization fails. H2 bounded 15/25; H2 full 19/25 is an
   order artifact. Hard independent set: H1/H2 4/5, H4 5/5; easy set 5/5 all.
   Discovery **NO-GO**; missing D02 C4/C5, D10 C4, D12 S1.

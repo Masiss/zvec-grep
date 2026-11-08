@@ -1,6 +1,8 @@
 # Discovery H6 — structural reference resolution (cap 500)
 
-Status: **20/25 (80%) but NO-GO on resource/generalization.**
+Status: **20/25 (80%) but NO-GO on resource/generalization. Implementation was
+frequency-ranked observed-name expansion, not typed structural resolution; the
+original label is corrected below.**
 Date: 2026-11-08. Pre-registration:
 `DISCOVERY-H6-PREREGISTRATION.md`.
 Receipt: `results/discovery-h6-reference.json`.
@@ -30,3 +32,22 @@ Receipt: `results/discovery-h6-reference.json`.
 
 - `benchmarks/rag-impact/tools/discovery_h6_reference.py`
 - `benchmarks/rag-impact/results/discovery-h6-reference.json`
+
+## Implementation correction (2026-11-08)
+
+The committed H6 receipt was produced by `tools/discovery_h6_reference.py`,
+which does **not** resolve typed structural references. It extracts candidate
+names from observed source with regexes, ranks procedure-like names first, then
+frequency, and takes the top six. It then runs exact search. This is a
+frequency-ranked observed-name expansion, not a `ReferenceExpr` /
+`DeclarationResolver` closure.
+
+Consequences:
+
+- The one new D02 C6 span is incidental to generic `func_Employee*` names.
+- `CoreDBContext` / `sp_UpdateOrgTotalEmployee` were not resolved from typed
+  receiver or selected SQL binding.
+- The 20/25 result remains a valid measurement of the implementation, but it
+  must not be cited as evidence that structural reference resolution works.
+
+Historical receipts and pre-registration are unchanged.
