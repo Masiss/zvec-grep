@@ -20,7 +20,9 @@ Status: **R0 FROZEN; official B0 measured; candidate pending. Targets, corpus an
   official B0 receipt are recorded. D13–D16 fixture shapes are validated; their
   engine behavior is pending R2/R4. Candidate measurement is not yet run.
 - R2 bounded C# facts are implemented (`rust/docs/rag-r2-csharp-facts.md`);
-  synthetic and real-case C# fact gates PASS; SQL-dependent cases are R3.
+  synthetic and real-case C# fact gates PASS. R3 SQL facts PASS the selected-anchor
+  gate. R4 candidate pilot **FAILED** the frozen benefit targets; no candidate
+  GO, keep the R1 lightweight mode (`rust/docs/rag-r4-candidate-pilot.md`).
 - Official B0 (`results/b0-official.md`): dev recall@10 0.4722, held-out 0.3958,
   search p95 63.4 ms, idle PSS 571,800 KiB, peak PSS 769,113 KiB, 0
   RESOURCE_BUSY, cold index median 6.31 s. Read the limitations before reusing

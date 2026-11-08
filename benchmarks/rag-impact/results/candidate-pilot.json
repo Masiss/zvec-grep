@@ -1,0 +1,963 @@
+{
+  "cases": [
+    {
+      "additional_context_tokens": 480,
+      "additional_source_reads": 2,
+      "b0_additional_context_tokens": 3688,
+      "b0_additional_source_reads": 2,
+      "b0_recall": 0.5,
+      "gold_spans": 2,
+      "id": "D01",
+      "items": [
+        {
+          "end_line": 28,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/General/BuilderTable.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 28
+        },
+        {
+          "end_line": 37,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 37
+        },
+        {
+          "end_line": 79,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 79
+        },
+        {
+          "end_line": 88,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 88
+        },
+        {
+          "end_line": 94,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 94
+        },
+        {
+          "end_line": 96,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 96
+        },
+        {
+          "end_line": 100,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 100
+        },
+        {
+          "end_line": 101,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 101
+        },
+        {
+          "end_line": 117,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 370,
+          "start_line": 82
+        },
+        {
+          "end_line": 80,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 74
+        }
+      ],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    },
+    {
+      "additional_context_tokens": 850,
+      "additional_source_reads": 3,
+      "b0_additional_context_tokens": 3525,
+      "b0_additional_source_reads": 2,
+      "b0_recall": 0.0,
+      "gold_spans": 6,
+      "id": "D02",
+      "items": [
+        {
+          "end_line": 68,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 46,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 370,
+          "start_line": 42
+        },
+        {
+          "end_line": 52,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 370,
+          "start_line": 48
+        },
+        {
+          "end_line": 22,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 10
+        },
+        {
+          "end_line": 32,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 24
+        },
+        {
+          "end_line": 41,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 33
+        },
+        {
+          "end_line": 61,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 58
+        },
+        {
+          "end_line": 248,
+          "path": "Webs/HRM/Controllers/Kpi/KpiController.cs",
+          "reason": "method-name query match, invocation query match",
+          "score": 140,
+          "start_line": 243
+        },
+        {
+          "end_line": 475,
+          "path": "Webs/HRM/Controllers/Kpi/KpiPersonalController.cs",
+          "reason": "method-name query match, invocation query match",
+          "score": 140,
+          "start_line": 470
+        },
+        {
+          "end_line": 225,
+          "path": "Webs/HRM/Controllers/Kpi/KpiController.cs",
+          "reason": "method-name query match, assignment query match, invocation query match",
+          "score": 130,
+          "start_line": 212
+        }
+      ],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    },
+    {
+      "additional_context_tokens": 2837,
+      "additional_source_reads": 8,
+      "b0_additional_context_tokens": 3587,
+      "b0_additional_source_reads": 2,
+      "b0_recall": 0.0,
+      "gold_spans": 1,
+      "id": "D03",
+      "items": [
+        {
+          "end_line": 779,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 730
+        },
+        {
+          "end_line": 259,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 225
+        },
+        {
+          "end_line": 86,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 80
+        },
+        {
+          "end_line": 79,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeWorkConfirmations/EmployeeWorkConfirmationCommand.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 40
+        },
+        {
+          "end_line": 599,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 545
+        },
+        {
+          "end_line": 95,
+          "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionCommand.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 87
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/General/DataControls/DataControlCommand.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 1
+        },
+        {
+          "end_line": 207,
+          "path": "Webs/HRM/Controllers/CB/SalaryController.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 157
+        },
+        {
+          "end_line": 573,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match",
+          "score": 410,
+          "start_line": 562
+        },
+        {
+          "end_line": 203,
+          "path": "Webs/HRM/Controllers/CB/SalaryController.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 410,
+          "start_line": 194
+        }
+      ],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    },
+    {
+      "additional_context_tokens": 3728,
+      "additional_source_reads": 8,
+      "b0_additional_context_tokens": 4082,
+      "b0_additional_source_reads": 3,
+      "b0_recall": 1.0,
+      "gold_spans": 1,
+      "id": "D04",
+      "items": [
+        {
+          "end_line": 186,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractTypes/ContractTypeMany.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 130
+        },
+        {
+          "end_line": 46,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyMany.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 1
+        },
+        {
+          "end_line": 59,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailMany.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 1
+        },
+        {
+          "end_line": 48,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee01Many.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 1
+        },
+        {
+          "end_line": 206,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee05Many.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 157
+        },
+        {
+          "end_line": 599,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 545
+        },
+        {
+          "end_line": 54,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeSuggestion.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 1
+        },
+        {
+          "end_line": 76,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 31
+        },
+        {
+          "end_line": 573,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 600,
+          "start_line": 562
+        },
+        {
+          "end_line": 60,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeSuggestion.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed",
+          "score": 480,
+          "start_line": 45
+        }
+      ],
+      "matched_gold_spans": 1,
+      "recall": 1.0
+    },
+    {
+      "additional_context_tokens": 3801,
+      "additional_source_reads": 8,
+      "b0_additional_context_tokens": 3590,
+      "b0_additional_source_reads": 3,
+      "b0_recall": 0.0,
+      "gold_spans": 1,
+      "id": "D05",
+      "items": [
+        {
+          "end_line": 88,
+          "path": "Services/HRIS/Service.Core/Executes/Category/JobPositions/JobPositionCommand.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 48
+        },
+        {
+          "end_line": 463,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 417
+        },
+        {
+          "end_line": 623,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 577
+        },
+        {
+          "end_line": 518,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationCommand.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 484
+        },
+        {
+          "end_line": 357,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 297
+        },
+        {
+          "end_line": 636,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 587
+        },
+        {
+          "end_line": 1149,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 1109
+        },
+        {
+          "end_line": 228,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 197
+        },
+        {
+          "end_line": 1136,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed",
+          "score": 480,
+          "start_line": 1125
+        },
+        {
+          "end_line": 586,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 572
+        }
+      ],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    },
+    {
+      "additional_context_tokens": 3714,
+      "additional_source_reads": 7,
+      "b0_additional_context_tokens": 3341,
+      "b0_additional_source_reads": 3,
+      "b0_recall": 0.3333333333333333,
+      "gold_spans": 3,
+      "id": "D06",
+      "items": [
+        {
+          "end_line": 211,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 185
+        },
+        {
+          "end_line": 357,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 297
+        },
+        {
+          "end_line": 1149,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 1109
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 1
+        },
+        {
+          "end_line": 38,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 1
+        },
+        {
+          "end_line": 351,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 324
+        },
+        {
+          "end_line": 1158,
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 1127
+        },
+        {
+          "end_line": 391,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 358
+        },
+        {
+          "end_line": 393,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed, caller of seed",
+          "score": 560,
+          "start_line": 388
+        },
+        {
+          "end_line": 1136,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed",
+          "score": 480,
+          "start_line": 1125
+        }
+      ],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    },
+    {
+      "additional_context_tokens": 4670,
+      "additional_source_reads": 8,
+      "b0_additional_context_tokens": 3587,
+      "b0_additional_source_reads": 2,
+      "b0_recall": 0.3333333333333333,
+      "gold_spans": 3,
+      "id": "D07",
+      "items": [
+        {
+          "end_line": 122,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 85
+        },
+        {
+          "end_line": 78,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 40
+        },
+        {
+          "end_line": 83,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 43
+        },
+        {
+          "end_line": 63,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailCommand.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 1
+        },
+        {
+          "end_line": 404,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 353
+        },
+        {
+          "end_line": 239,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 200
+        },
+        {
+          "end_line": 252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 224
+        },
+        {
+          "end_line": 184,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 142
+        },
+        {
+          "end_line": 48,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailCommand.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed",
+          "score": 480,
+          "start_line": 17
+        },
+        {
+          "end_line": 459,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 215
+        }
+      ],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    },
+    {
+      "additional_context_tokens": 832,
+      "additional_source_reads": 6,
+      "b0_additional_context_tokens": 3669,
+      "b0_additional_source_reads": 3,
+      "b0_recall": 1.0,
+      "gold_spans": 2,
+      "id": "D08",
+      "items": [
+        {
+          "end_line": 539,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 539
+        },
+        {
+          "end_line": 624,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 624
+        },
+        {
+          "end_line": 626,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 626
+        },
+        {
+          "end_line": 628,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, callee of seed, caller of seed",
+          "score": 810,
+          "start_line": 624
+        },
+        {
+          "end_line": 548,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 610,
+          "start_line": 539
+        },
+        {
+          "end_line": 910,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "seed file, method-name query match, invocation query match",
+          "score": 260,
+          "start_line": 905
+        },
+        {
+          "end_line": 225,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+          "reason": "method-name query match, invocation query match",
+          "score": 240,
+          "start_line": 214
+        },
+        {
+          "end_line": 598,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "method-name query match, invocation query match",
+          "score": 240,
+          "start_line": 588
+        },
+        {
+          "end_line": 55,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentCommand.cs",
+          "reason": "method-name query match, invocation query match",
+          "score": 240,
+          "start_line": 44
+        },
+        {
+          "end_line": 125,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+          "reason": "method-name query match, invocation query match",
+          "score": 240,
+          "start_line": 114
+        }
+      ],
+      "matched_gold_spans": 2,
+      "recall": 1.0
+    },
+    {
+      "additional_context_tokens": 3794,
+      "additional_source_reads": 8,
+      "b0_additional_context_tokens": 4435,
+      "b0_additional_source_reads": 4,
+      "b0_recall": 1.0,
+      "gold_spans": 1,
+      "id": "D09",
+      "items": [
+        {
+          "end_line": 10,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 50,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 33
+        },
+        {
+          "end_line": 282,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees/CbEmployeeMany.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 236
+        },
+        {
+          "end_line": 54,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 1
+        },
+        {
+          "end_line": 286,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeOne.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 236
+        },
+        {
+          "end_line": 62,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeSuggestion.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 47
+        },
+        {
+          "end_line": 54,
+          "path": "Services/HRIS/Service.Core/Executes/General/CbGlones/CbGloneOne.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 1
+        },
+        {
+          "end_line": 596,
+          "path": "Webs/HRM/Controllers/CB/InsuranceHealthController.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 550
+        },
+        {
+          "end_line": 73,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, callee of seed",
+          "score": 580,
+          "start_line": 17
+        },
+        {
+          "end_line": 296,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeOne.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 460,
+          "start_line": 259
+        }
+      ],
+      "matched_gold_spans": 1,
+      "recall": 1.0
+    },
+    {
+      "additional_context_tokens": 241,
+      "additional_source_reads": 3,
+      "b0_additional_context_tokens": 3859,
+      "b0_additional_source_reads": 3,
+      "b0_recall": 0.5,
+      "gold_spans": 2,
+      "id": "D10",
+      "items": [
+        {
+          "end_line": 87,
+          "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 87
+        },
+        {
+          "end_line": 89,
+          "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 89
+        },
+        {
+          "end_line": 50,
+          "path": "Services/HRIS/Service.Core/Components/EmailKitComponent.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 50
+        },
+        {
+          "end_line": 52,
+          "path": "Services/HRIS/Service.Core/Components/EmailKitComponent.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 52
+        },
+        {
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 17
+        },
+        {
+          "end_line": 31,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 31
+        },
+        {
+          "end_line": 43,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 43
+        },
+        {
+          "end_line": 50,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 50
+        },
+        {
+          "end_line": 41,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 470,
+          "start_line": 31
+        },
+        {
+          "end_line": 48,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 470,
+          "start_line": 43
+        }
+      ],
+      "matched_gold_spans": 1,
+      "recall": 0.5
+    },
+    {
+      "additional_context_tokens": 4254,
+      "additional_source_reads": 8,
+      "b0_additional_context_tokens": 3600,
+      "b0_additional_source_reads": 3,
+      "b0_recall": 1.0,
+      "gold_spans": 1,
+      "id": "D11",
+      "items": [
+        {
+          "end_line": 211,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "reason": "best-call seed",
+          "score": 1000,
+          "start_line": 185
+        },
+        {
+          "end_line": 78,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+          "reason": "best-call seed",
+          "score": 999,
+          "start_line": 40
+        },
+        {
+          "end_line": 84,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "best-call seed",
+          "score": 998,
+          "start_line": 42
+        },
+        {
+          "end_line": 274,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeUnions/EmployeeUnionCommand.cs",
+          "reason": "best-call seed",
+          "score": 997,
+          "start_line": 229
+        },
+        {
+          "end_line": 107,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "best-call seed",
+          "score": 996,
+          "start_line": 52
+        },
+        {
+          "end_line": 1149,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "best-call seed",
+          "score": 995,
+          "start_line": 1109
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "best-call seed",
+          "score": 994,
+          "start_line": 1
+        },
+        {
+          "end_line": 252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "best-call seed",
+          "score": 993,
+          "start_line": 224
+        },
+        {
+          "end_line": 362,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 118
+        },
+        {
+          "end_line": 93,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 60
+        }
+      ],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    },
+    {
+      "additional_context_tokens": 0,
+      "additional_source_reads": 0,
+      "b0_additional_context_tokens": 3634,
+      "b0_additional_source_reads": 3,
+      "b0_recall": 0.0,
+      "gold_spans": 2,
+      "id": "D12",
+      "items": [],
+      "matched_gold_spans": 0,
+      "recall": 0.0
+    }
+  ],
+  "method": "B0 search seeds + bounded C#/SQL evidence expansion; 10-item budget",
+  "status": "CANDIDATE_QUALITY_PILOT_FAIL",
+  "summary": {
+    "b0_mean_reads": 2.75,
+    "b0_mean_recall": 0.47222222222222215,
+    "b0_mean_tokens": 3716.4166666666665,
+    "candidate_mean_reads": 5.75,
+    "candidate_mean_recall": 0.2916666666666667,
+    "candidate_mean_tokens": 2433.4166666666665,
+    "cases": 12,
+    "delta_pp": -18.055555555555546,
+    "heldout": "NOT_RUN_IMPLEMENTER_MUST_NOT_INSPECT",
+    "performance": "NOT_MEASURED",
+    "task_correctness_proxy": {
+      "definition": "fraction of cases with all gold spans found in the 10-item candidate pack",
+      "candidate": 0.25,
+      "b0": 0.3333333333333333
+    },
+    "targets": {
+      "evidence_recall_target_pp": 10.0,
+      "evidence_recall_delta_pp": -18.055555555555546,
+      "reads_reduction_target_pct": 30.0,
+      "reads_delta_pct": 109.09090909090908,
+      "tokens_reduction_target_pct": 20.0,
+      "tokens_delta_pct": -34.52250151355473
+    }
+  },
+  "limitations": [
+    "Quality pilot only: it reuses the frozen B0 search seeds instead of running a live candidate search.",
+    "Development split only; held-out was not inspected or run by the implementer.",
+    "Performance, PSS, indexing overhead and concurrency were not measured for the candidate.",
+    "The candidate is a bounded evidence expander prototype, not the full R4 agent loop.",
+    "Reads are counted as distinct source files represented by the candidate pack; token counts use the frozen local tokenizer."
+  ]
+}

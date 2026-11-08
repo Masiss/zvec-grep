@@ -109,10 +109,12 @@ duplicate requests are collapsed.
    R3; D15 revalidation is R4.
 2. B0 is measured and frozen; use the receipt as the baseline for candidate
    comparison. Do not adjust targets or the corpus after seeing candidate output.
-3. After the real-case R2 gate, start R3 (EF6/SQL/cross-file). Do not run
-   candidate quality/performance measurement until R3/R4 produce a candidate and
-   a separate candidate-measurement authorization exists.
-4. Keep the held-out split uninspected by the implementer; run it mechanically
+3. R3 SQL facts are implemented and the real selected-anchor gate passes:
+   see [`rag-r3-sql-facts.md`](rag-r3-sql-facts.md).
+4. R4 bounded expansion pilot **FAILED** the frozen benefit targets: recall
+   regressed, reads increased, only tokens improved. No candidate GO; keep the
+   R1 lightweight mode. See [`rag-r4-candidate-pilot.md`](rag-r4-candidate-pilot.md).
+5. Keep the held-out split uninspected by the implementer; run it mechanically
    and report it separately from the development split.
 
 ## Evidence
