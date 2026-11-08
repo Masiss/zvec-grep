@@ -1,0 +1,827 @@
+{
+  "schema_version": 1,
+  "status": "H7_E1_FORENSICS",
+  "base": "f62b830",
+  "receipt": "results/discovery-h7-e1.json (immutable)",
+  "coverage": {
+    "10": 7,
+    "100": 15,
+    "250": 20,
+    "50": 13,
+    "500": 23
+  },
+  "phase": {
+    "io_build": {
+      "cancelled_write_bytes": 0,
+      "rchar": 5407282,
+      "read_bytes": 0,
+      "syscr": 1666,
+      "syscw": 0,
+      "wchar": 0,
+      "write_bytes": 0
+    },
+    "parse_build_ms": 5844.121994,
+    "project_scope_merge_ms": 77.995037,
+    "pss_kib_after_build": 386257,
+    "pss_kib_after_merge": 386001,
+    "pss_kib_before_merge": 346941,
+    "pss_kib_end": 389497,
+    "rss_hwm_kib_end": 393368,
+    "rss_kib_after_build": 390128,
+    "rss_kib_end": 393368,
+    "source_bytes_from_manifest": 5400637,
+    "total_phase_ms": 11363.478003
+  },
+  "closure_diagnostics": {
+    "closure_items": 1498,
+    "resolved": 8454,
+    "unresolved": {
+      "invocation_receiver_type_missing": 6947,
+      "sql_binding_not_resolved": 105,
+      "type_decl_missing": 461
+    }
+  },
+  "latency": {
+    "off_p50_ms": 195.340421,
+    "off_p95_ms": 248.074998,
+    "on_p50_ms": 255.08022400000002,
+    "on_p95_ms": 315.22441699999996,
+    "closure_incremental_mean_ms": 54.319095749999995,
+    "parse_build_ms": 5844.121994,
+    "merge_ms": 77.995037
+  },
+  "memory": {
+    "rss_hwm_kib": 393368,
+    "pss_after_build_kib": 386257,
+    "pss_before_merge_kib": 346941,
+    "pss_after_merge_kib": 386001,
+    "pss_end_kib": 389497,
+    "merge_delta_kib": 39060,
+    "closure_delta_kib": 3240
+  },
+  "io": {
+    "build_rchar": 5407282,
+    "source_bytes": 5400637,
+    "rchar_overhead_bytes": 6645,
+    "case_rchar": "104 bytes/case (page-cache reads after build)"
+  },
+  "cases": [
+    {
+      "candidates": 500,
+      "closure_hash": "e523d5e72bdf6d8b",
+      "closure_items": 21,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 20
+      },
+      "coverage": {
+        "10": 1,
+        "100": 2,
+        "250": 2,
+        "50": 2,
+        "500": 2
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 21,
+        "resolved": 839,
+        "unresolved": {
+          "invocation_receiver_type_missing": 735,
+          "sql_binding_not_resolved": 13,
+          "type_decl_missing": 51
+        }
+      },
+      "gold": 2,
+      "id": "D01",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 388113,
+      "ranks_off": [
+        19,
+        2
+      ],
+      "ranks_on": [
+        19,
+        2
+      ],
+      "refs_off": {
+        "10": 1,
+        "100": 2,
+        "250": 2,
+        "50": 2,
+        "500": 2
+      },
+      "rss_kib_after_case": 391984,
+      "wall_off_ms": 268.62281,
+      "wall_on_ms": 315.22441699999996
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "a22804fe0ca486f3",
+      "closure_items": 326,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 325
+      },
+      "coverage": {
+        "10": 0,
+        "100": 3,
+        "250": 5,
+        "50": 3,
+        "500": 5
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 326,
+        "resolved": 837,
+        "unresolved": {
+          "invocation_receiver_type_missing": 681,
+          "sql_binding_not_resolved": 13,
+          "type_decl_missing": 44
+        }
+      },
+      "gold": 6,
+      "id": "D02",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 388561,
+      "ranks_off": [
+        240,
+        240,
+        null,
+        null,
+        null,
+        null
+      ],
+      "ranks_on": [
+        166,
+        166,
+        40,
+        40,
+        45,
+        null
+      ],
+      "refs_off": {
+        "10": 0,
+        "100": 0,
+        "250": 2,
+        "50": 0,
+        "500": 2
+      },
+      "rss_kib_after_case": 392432,
+      "wall_off_ms": 211.425735,
+      "wall_on_ms": 265.133378
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "d9d312b2ff3f437b",
+      "closure_items": 25,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 24
+      },
+      "coverage": {
+        "10": 0,
+        "100": 0,
+        "250": 1,
+        "50": 0,
+        "500": 1
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 25,
+        "resolved": 844,
+        "unresolved": {
+          "invocation_receiver_type_missing": 725,
+          "sql_binding_not_resolved": 16,
+          "type_decl_missing": 51
+        }
+      },
+      "gold": 1,
+      "id": "D03",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 388561,
+      "ranks_off": [
+        171
+      ],
+      "ranks_on": [
+        196
+      ],
+      "refs_off": {
+        "10": 0,
+        "100": 0,
+        "250": 1,
+        "50": 0,
+        "500": 1
+      },
+      "rss_kib_after_case": 392432,
+      "wall_off_ms": 248.074998,
+      "wall_on_ms": 316.09911
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "b0615a1d670b4bda",
+      "closure_items": 26,
+      "closure_rules": {
+        "receiver-type": 26
+      },
+      "coverage": {
+        "10": 1,
+        "100": 1,
+        "250": 1,
+        "50": 1,
+        "500": 1
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 26,
+        "resolved": 28,
+        "unresolved": {
+          "invocation_receiver_type_missing": 660,
+          "sql_binding_not_resolved": 10,
+          "type_decl_missing": 39
+        }
+      },
+      "gold": 1,
+      "id": "D04",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 388885,
+      "ranks_off": [
+        4
+      ],
+      "ranks_on": [
+        4
+      ],
+      "refs_off": {
+        "10": 1,
+        "100": 1,
+        "250": 1,
+        "50": 1,
+        "500": 1
+      },
+      "rss_kib_after_case": 392756,
+      "wall_off_ms": 238.504479,
+      "wall_on_ms": 279.142451
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "0eb978878e7677fa",
+      "closure_items": 29,
+      "closure_rules": {
+        "receiver-type": 29
+      },
+      "coverage": {
+        "10": 0,
+        "100": 0,
+        "250": 1,
+        "50": 0,
+        "500": 1
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 29,
+        "resolved": 30,
+        "unresolved": {
+          "invocation_receiver_type_missing": 481,
+          "sql_binding_not_resolved": 10,
+          "type_decl_missing": 28
+        }
+      },
+      "gold": 1,
+      "id": "D05",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 388949,
+      "ranks_off": [
+        209
+      ],
+      "ranks_on": [
+        238
+      ],
+      "refs_off": {
+        "10": 0,
+        "100": 0,
+        "250": 1,
+        "50": 0,
+        "500": 1
+      },
+      "rss_kib_after_case": 392820,
+      "wall_off_ms": 195.30222799999999,
+      "wall_on_ms": 255.556082
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "e1d7bd6cc2a7f549",
+      "closure_items": 15,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 14
+      },
+      "coverage": {
+        "10": 2,
+        "100": 3,
+        "250": 3,
+        "50": 2,
+        "500": 3
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 15,
+        "resolved": 833,
+        "unresolved": {
+          "invocation_receiver_type_missing": 525,
+          "sql_binding_not_resolved": 8,
+          "type_decl_missing": 31
+        }
+      },
+      "gold": 3,
+      "id": "D06",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 388949,
+      "ranks_off": [
+        3,
+        3,
+        40
+      ],
+      "ranks_on": [
+        3,
+        3,
+        55
+      ],
+      "refs_off": {
+        "10": 2,
+        "100": 3,
+        "250": 3,
+        "50": 3,
+        "500": 3
+      },
+      "rss_kib_after_case": 392820,
+      "wall_off_ms": 157.798213,
+      "wall_on_ms": 231.641089
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "ac55466f694e9a30",
+      "closure_items": 338,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 337
+      },
+      "coverage": {
+        "10": 0,
+        "100": 0,
+        "250": 1,
+        "50": 0,
+        "500": 3
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 338,
+        "resolved": 849,
+        "unresolved": {
+          "invocation_receiver_type_missing": 793,
+          "sql_binding_not_resolved": 7,
+          "type_decl_missing": 44
+        }
+      },
+      "gold": 3,
+      "id": "D07",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 388949,
+      "ranks_off": [
+        119,
+        67,
+        122
+      ],
+      "ranks_on": [
+        175,
+        313,
+        460
+      ],
+      "refs_off": {
+        "10": 0,
+        "100": 1,
+        "250": 3,
+        "50": 0,
+        "500": 3
+      },
+      "rss_kib_after_case": 392820,
+      "wall_off_ms": 195.340421,
+      "wall_on_ms": 255.08022400000002
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "8ed83f6ce44c370a",
+      "closure_items": 26,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 25
+      },
+      "coverage": {
+        "10": 2,
+        "100": 2,
+        "250": 2,
+        "50": 2,
+        "500": 2
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 26,
+        "resolved": 844,
+        "unresolved": {
+          "invocation_receiver_type_missing": 531,
+          "sql_binding_not_resolved": 11,
+          "type_decl_missing": 35
+        }
+      },
+      "gold": 2,
+      "id": "D08",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 389117,
+      "ranks_off": [
+        0,
+        3
+      ],
+      "ranks_on": [
+        0,
+        3
+      ],
+      "refs_off": {
+        "10": 2,
+        "100": 2,
+        "250": 2,
+        "50": 2,
+        "500": 2
+      },
+      "rss_kib_after_case": 392988,
+      "wall_off_ms": 195.061973,
+      "wall_on_ms": 238.613592
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "563469b0b68b327d",
+      "closure_items": 323,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 322
+      },
+      "coverage": {
+        "10": 0,
+        "100": 0,
+        "250": 0,
+        "50": 0,
+        "500": 1
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 323,
+        "resolved": 834,
+        "unresolved": {
+          "invocation_receiver_type_missing": 477,
+          "sql_binding_not_resolved": 5,
+          "type_decl_missing": 38
+        }
+      },
+      "gold": 1,
+      "id": "D09",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 389117,
+      "ranks_off": [
+        44
+      ],
+      "ranks_on": [
+        367
+      ],
+      "refs_off": {
+        "10": 0,
+        "100": 1,
+        "250": 1,
+        "50": 1,
+        "500": 1
+      },
+      "rss_kib_after_case": 392988,
+      "wall_off_ms": 198.58479400000002,
+      "wall_on_ms": 251.737979
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "729eaeee6d3c11ed",
+      "closure_items": 326,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 325
+      },
+      "coverage": {
+        "10": 0,
+        "100": 2,
+        "250": 2,
+        "50": 1,
+        "500": 2
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 326,
+        "resolved": 837,
+        "unresolved": {
+          "invocation_receiver_type_missing": 453,
+          "sql_binding_not_resolved": 3,
+          "type_decl_missing": 36
+        }
+      },
+      "gold": 2,
+      "id": "D10",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 389497,
+      "ranks_off": [
+        43,
+        90
+      ],
+      "ranks_on": [
+        51,
+        36
+      ],
+      "refs_off": {
+        "10": 0,
+        "100": 2,
+        "250": 2,
+        "50": 1,
+        "500": 2
+      },
+      "rss_kib_after_case": 393368,
+      "wall_off_ms": 156.572909,
+      "wall_on_ms": 232.337394
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "a719c59225fbd124",
+      "closure_items": 27,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 26
+      },
+      "coverage": {
+        "10": 1,
+        "100": 1,
+        "250": 1,
+        "50": 1,
+        "500": 1
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 27,
+        "resolved": 845,
+        "unresolved": {
+          "invocation_receiver_type_missing": 467,
+          "sql_binding_not_resolved": 5,
+          "type_decl_missing": 33
+        }
+      },
+      "gold": 1,
+      "id": "D11",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 389497,
+      "ranks_off": [
+        1
+      ],
+      "ranks_on": [
+        1
+      ],
+      "refs_off": {
+        "10": 1,
+        "100": 1,
+        "250": 1,
+        "50": 1,
+        "500": 1
+      },
+      "rss_kib_after_case": 393368,
+      "wall_off_ms": 170.138781,
+      "wall_on_ms": 209.446477
+    },
+    {
+      "candidates": 500,
+      "closure_hash": "ab201c0621f46f58",
+      "closure_items": 16,
+      "closure_rules": {
+        "dbset-element": 1,
+        "receiver-type": 15
+      },
+      "coverage": {
+        "10": 0,
+        "100": 1,
+        "250": 1,
+        "50": 1,
+        "500": 1
+      },
+      "diagnostics_off": {
+        "closure_items": 0,
+        "resolved": 0,
+        "unresolved": {}
+      },
+      "diagnostics_on": {
+        "closure_items": 16,
+        "resolved": 834,
+        "unresolved": {
+          "invocation_receiver_type_missing": 419,
+          "sql_binding_not_resolved": 4,
+          "type_decl_missing": 31
+        }
+      },
+      "gold": 2,
+      "id": "D12",
+      "io_case": {
+        "cancelled_write_bytes": 0,
+        "rchar": 100,
+        "read_bytes": 0,
+        "syscr": 4,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "pss_kib_after_case": 389497,
+      "ranks_off": [
+        27,
+        null
+      ],
+      "ranks_on": [
+        43,
+        null
+      ],
+      "refs_off": {
+        "10": 0,
+        "100": 1,
+        "250": 1,
+        "50": 1,
+        "500": 1
+      },
+      "rss_kib_after_case": 393368,
+      "wall_off_ms": 131.172376,
+      "wall_on_ms": 168.416673
+    }
+  ],
+  "missing": [
+    {
+      "case": "D02",
+      "gold_index": 5,
+      "reason": "no_covering_candidate"
+    },
+    {
+      "case": "D12",
+      "gold_index": 1,
+      "reason": "no_covering_candidate"
+    }
+  ],
+  "d09": {
+    "off_rank": 44,
+    "on_rank": 367,
+    "closure_items": 323
+  },
+  "verdict": "NO-GO unchanged; resource fail; E2 not run",
+  "limits": [
+    "allocations not instrumented",
+    "per-project parse time not separated",
+    "cold/warm source cache not dropped"
+  ],
+  "options": [
+    {
+      "id": "A",
+      "name": "seed-file full parse + declaration-only reference index",
+      "prediction": "parse P1 seed files full; P2/P3 declaration index only (types/fields/DbSets); remove merged full facts; target PSS under 64 MiB; coverage 23/25 expected",
+      "tradeoff": "no method traversal in reference projects; needs compact scope API"
+    },
+    {
+      "id": "B",
+      "name": "anchor-bounded closure with receiver-type cap",
+      "prediction": "top 2 anchors, <=8 receiver types; restores D09 off rank 44 and D07/D06 budget regression; coverage 22-23/25; PSS saving ~3 MiB only",
+      "tradeoff": "does not fix 347 MiB baseline; may lose D02 +3 if cap too tight"
+    }
+  ]
+}

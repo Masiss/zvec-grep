@@ -30,6 +30,13 @@ pub struct CandidateItem {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ClosureDiagnostics {
+    pub closure_items: usize,
+    pub resolved: usize,
+    pub unresolved: BTreeMap<String, usize>,
+}
+
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn expand(
@@ -51,6 +58,51 @@ pub fn expand_with_closure(
     query: &str,
     budget: usize,
     closure: bool,
+) -> Vec<CandidateItem> {
+    let mut diagnostics = ClosureDiagnostics::default();
+    expand_inner(
+        project,
+        catalog,
+        seeds,
+        query,
+        budget,
+        closure,
+        &mut diagnostics,
+    )
+}
+
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn expand_with_closure_diagnostics(
+    project: &ProjectFacts,
+    catalog: &SqlCatalog,
+    seeds: &[Seed],
+    query: &str,
+    budget: usize,
+    closure: bool,
+) -> (Vec<CandidateItem>, ClosureDiagnostics) {
+    let mut diagnostics = ClosureDiagnostics::default();
+    let items = expand_inner(
+        project,
+        catalog,
+        seeds,
+        query,
+        budget,
+        closure,
+        &mut diagnostics,
+    );
+    (items, diagnostics)
+}
+
+#[allow(clippy::too_many_lines)]
+fn expand_inner(
+    project: &ProjectFacts,
+    catalog: &SqlCatalog,
+    seeds: &[Seed],
+    query: &str,
+    budget: usize,
+    closure: bool,
+    diagnostics: &mut ClosureDiagnostics,
 ) -> Vec<CandidateItem> {
     if budget == 0 {
         return Vec::new();
@@ -244,6 +296,12 @@ pub fn expand_with_closure(
                 }
             }
             for invocation in invocations_by_method.get(&key).into_iter().flatten() {
+                if invocation.receiver_type.is_none() {
+                    *diagnostics
+                        .unresolved
+                        .entry("invocation_receiver_type_missing".to_owned())
+                        .or_insert(0) += 1;
+                }
                 if let Some(receiver_type) = &invocation.receiver_type {
                     receiver_types
                         .entry(receiver_type.clone())
@@ -274,6 +332,14 @@ pub fn expand_with_closure(
                 .into_iter()
                 .flatten()
             {
+                if binding.status == BindingStatus::Resolved {
+                    diagnostics.resolved += 1;
+                } else {
+                    *diagnostics
+                        .unresolved
+                        .entry("sql_binding_not_resolved".to_owned())
+                        .or_insert(0) += 1;
+                }
                 add_sql_definition(&mut items, binding, catalog, &anchor);
             }
         }
@@ -284,6 +350,7 @@ pub fn expand_with_closure(
             if receiver_types.contains_key(&db_set.context_type)
                 && observed_db_set_properties.contains(&db_set.property)
             {
+                diagnostics.resolved += 1;
                 let expression = format!(
                     "anchor=project-scope|expr={}.{}",
                     db_set.context_type, db_set.property
@@ -311,10 +378,12 @@ pub fn expand_with_closure(
         }
 
         for (type_name, expression) in &receiver_types {
+            let mut found = false;
             for type_fact in &project.types {
                 if &type_fact.name != type_name {
                     continue;
                 }
+                found = true;
                 let target = format!(
                     "{}:{}-{}",
                     type_fact.path, type_fact.line_start, type_fact.line_end
@@ -336,9 +405,21 @@ pub fn expand_with_closure(
                     },
                 );
             }
+            if found {
+                diagnostics.resolved += 1;
+            } else {
+                *diagnostics
+                    .unresolved
+                    .entry("type_decl_missing".to_owned())
+                    .or_insert(0) += 1;
+            }
         }
     }
 
+    diagnostics.closure_items = items
+        .values()
+        .filter(|item| item.reason.starts_with("resolved|"))
+        .count();
     let mut ranked: Vec<CandidateItem> = items.into_values().collect();
     ranked.sort_by(|left, right| {
         right
@@ -1442,6 +1523,59 @@ mod h7_e1_tests {
         (vec![p1, p2, p3], catalog)
     }
 
+    fn status_kib(key: &str) -> usize {
+        std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find(|line| line.starts_with(key))
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .and_then(|value| value.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+
+    fn pss_kib() -> usize {
+        std::fs::read_to_string("/proc/self/smaps_rollup")
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find(|line| line.starts_with("Pss:"))
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .and_then(|value| value.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+
+    fn io_snapshot() -> BTreeMap<String, u64> {
+        std::fs::read_to_string("/proc/self/io")
+            .ok()
+            .map(|text| {
+                text.lines()
+                    .filter_map(|line| {
+                        let (key, value) = line.split_once(':')?;
+                        Some((key.to_owned(), value.trim().parse().ok()?))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn io_delta(
+        before: &BTreeMap<String, u64>,
+        after: &BTreeMap<String, u64>,
+    ) -> BTreeMap<String, u64> {
+        after
+            .iter()
+            .map(|(key, value)| {
+                (
+                    key.clone(),
+                    value.saturating_sub(*before.get(key).unwrap_or(&0)),
+                )
+            })
+            .collect()
+    }
+
     fn gold(case: &serde_json::Value) -> Vec<(String, usize, usize)> {
         let mut out = Vec::new();
         for reference in case["source_refs"].as_array().into_iter().flatten() {
@@ -1481,7 +1615,13 @@ mod h7_e1_tests {
         let b0 = read_json("benchmarks/rag-impact/results/b0-official.json");
         let dev = read_json("benchmarks/rag-impact/cases/dev.json");
         let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
+        let phase_start = std::time::Instant::now();
+        let io_phase_before = io_snapshot();
+        let build_start = std::time::Instant::now();
         let (projects, catalog) = projects(&root, &corpus);
+        let parse_build_ms = build_start.elapsed().as_secs_f64() * 1000.0;
+        let pss_before_merge = pss_kib();
+        let merge_start = std::time::Instant::now();
         let mut merged = projects[0].clone();
         for project in &projects[1..] {
             merged.files.extend(project.files.clone());
@@ -1493,8 +1633,19 @@ mod h7_e1_tests {
             merged.invocations.extend(project.invocations.clone());
             merged.saves.extend(project.saves.clone());
         }
+        let merge_ms = merge_start.elapsed().as_secs_f64() * 1000.0;
+        let pss_after_merge = pss_kib();
+        let io_phase = io_delta(&io_phase_before, &io_snapshot());
+        let source_bytes: u64 = corpus["files"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|file| file["bytes"].as_u64())
+            .sum();
         let mut rows = Vec::new();
         let mut totals = BTreeMap::new();
+        let rss_after_build = status_kib("VmRSS:");
+        let pss_after_build = pss_kib();
         for case in dev["cases"].as_array().expect("cases") {
             let Some(id) = case["id"].as_str() else {
                 continue;
@@ -1533,7 +1684,8 @@ mod h7_e1_tests {
                 })
                 .collect();
             let evaluate = |closure: bool| {
-                let mut items = expand_with_closure(&merged, &catalog, &seeds, query, 500, closure);
+                let (mut items, diagnostics) =
+                    expand_with_closure_diagnostics(&merged, &catalog, &seeds, query, 500, closure);
                 items.sort_by(|left, right| {
                     right
                         .score
@@ -1547,10 +1699,18 @@ mod h7_e1_tests {
                         && left.start_line == right.start_line
                         && left.end_line == right.end_line
                 });
-                items
+                (items, diagnostics)
             };
-            let on = evaluate(true);
-            let off = evaluate(false);
+            let io_before = io_snapshot();
+            let off_start = std::time::Instant::now();
+            let (off, off_diag) = evaluate(false);
+            let off_ms = off_start.elapsed().as_secs_f64() * 1000.0;
+            let on_start = std::time::Instant::now();
+            let (on, on_diag) = evaluate(true);
+            let on_ms = on_start.elapsed().as_secs_f64() * 1000.0;
+            let io_after = io_snapshot();
+            let rss_after_case = status_kib("VmRSS:");
+            let pss_after_case = pss_kib();
             let gold = gold(case);
             let at = |items: &[CandidateItem], budget: usize| {
                 covered(&items[..items.len().min(budget)], &gold)
@@ -1574,6 +1734,19 @@ mod h7_e1_tests {
                 item.score.hash(&mut hasher);
                 item.reason.hash(&mut hasher);
             }
+            let rank = |items: &[CandidateItem], path: &str, start: usize, end: usize| {
+                items.iter().position(|item| {
+                    item.path == path && ranges_overlap(item.start_line, item.end_line, start, end)
+                })
+            };
+            let ranks_on: Vec<Option<usize>> = gold
+                .iter()
+                .map(|(path, start, end)| rank(&on, path, *start, *end))
+                .collect();
+            let ranks_off: Vec<Option<usize>> = gold
+                .iter()
+                .map(|(path, start, end)| rank(&off, path, *start, *end))
+                .collect();
             let row = serde_json::json!({
                 "id": id,
                 "gold": gold.len(),
@@ -1583,6 +1756,15 @@ mod h7_e1_tests {
                 "closure_items": closure_items.len(),
                 "closure_rules": rules,
                 "closure_hash": format!("{:016x}", hasher.finish()),
+                "ranks_on": ranks_on,
+                "ranks_off": ranks_off,
+                "diagnostics_on": on_diag,
+                "diagnostics_off": off_diag,
+                "wall_on_ms": on_ms,
+                "wall_off_ms": off_ms,
+                "rss_kib_after_case": rss_after_case,
+                "pss_kib_after_case": pss_after_case,
+                "io_case": io_delta(&io_before, &io_after),
             });
             for (budget, value) in [
                 ("10", at(&on, 10)),
@@ -1595,7 +1777,21 @@ mod h7_e1_tests {
             }
             rows.push(row);
         }
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_E1_TYPED_REFERENCE_CLOSURE","cases":rows,"totals":totals})).expect("json"));
+        let phase = serde_json::json!({
+            "parse_build_ms": parse_build_ms,
+            "project_scope_merge_ms": merge_ms,
+            "pss_kib_before_merge": pss_before_merge,
+            "pss_kib_after_merge": pss_after_merge,
+            "total_phase_ms": phase_start.elapsed().as_secs_f64() * 1000.0,
+            "rss_kib_after_build": rss_after_build,
+            "pss_kib_after_build": pss_after_build,
+            "rss_kib_end": status_kib("VmRSS:"),
+            "rss_hwm_kib_end": status_kib("VmHWM:"),
+            "pss_kib_end": pss_kib(),
+            "io_build": io_phase,
+            "source_bytes_from_manifest": source_bytes,
+        });
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_E1_TYPED_REFERENCE_CLOSURE_FORENSICS","cases":rows,"totals":totals,"phase":phase})).expect("json"));
     }
 }
 
@@ -1770,8 +1966,8 @@ mod h7_e1_external {
                 });
                 items
             };
-            let on = evaluate(true);
             let off = evaluate(false);
+            let on = evaluate(true);
             let at = |items: &[CandidateItem], budget: usize| {
                 covered(&items[..items.len().min(budget)], &gold)
             };

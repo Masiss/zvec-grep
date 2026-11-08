@@ -23,8 +23,11 @@ promoted. The gap prototype is archived at
 
 - **H7 E1 (fact-layer typed reference closure):** coverage @500 23/25,
   @250 20/25, @100 15/25; refs-off 20/25; independent easy/hard 5/5;
-  deterministic. **FAIL resource:** peak RSS 392.5 MiB, p95/I/O not
-  instrumented. E1 NO-GO; E2 not run.
+  deterministic. **FAIL resource:** peak RSS 393.4 MiB; forensics shows
+  ~347 MiB parse baseline + ~38 MiB full ProjectFacts merge + ~3.2 MiB closure,
+  not closure alone. p95/I/O partially measured; allocations not instrumented.
+  E1 NO-GO; E2 not run. Cost options: declaration-only reference index;
+  anchor-bounded closure (latter does not fix baseline).
 - **Discovery:** H5 deterministic cap-500 ordering reaches **19/25 (76%)**
   with identical selected hashes across hash seeds; it is the H2 ceiling and
   cannot reach 20/25. H6 frequency-ranked observed-name expansion (mislabelled as structural
