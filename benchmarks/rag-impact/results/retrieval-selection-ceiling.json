@@ -1,0 +1,646 @@
+{
+  "schema_version": 1,
+  "status": "READ_ONLY_RETRIEVAL_SELECTION_AUDIT",
+  "inputs": {
+    "b0": "results/b0-official.json",
+    "dev": "cases/dev.json",
+    "candidate": "results/candidate-pilot.json",
+    "r4a": "results/candidate-r4a.json",
+    "r4b": "results/candidate-r4b.json"
+  },
+  "totals": {
+    "gold_spans": 25,
+    "retrievable_gold": 9,
+    "selectable_recall10_gold": 9,
+    "b0_oracle_gold": 9
+  },
+  "macro": {
+    "retrievable_recall": 0.47222222222222227,
+    "selectable_recall10": 0.47222222222222227,
+    "b0_oracle": 0.47222222222222227,
+    "fixed_fts_code": 0.375,
+    "candidate": 0.2916666666666667,
+    "r4a": 0.2916666666666667,
+    "r4b": 0.2916666666666667
+  },
+  "rows": [
+    {
+      "id": "D01",
+      "gold_spans": 2,
+      "union_candidates": 41,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "b0_oracle_best_call": "fts_code_tokens",
+      "b0_oracle_gold": 1,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 9
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 2
+        },
+        "r4a": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 3
+        },
+        "r4b": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D02",
+      "gold_spans": 6,
+      "union_candidates": 34,
+      "retrievable_gold": 0,
+      "selectable_recall10_gold": 0,
+      "b0_oracle_best_call": "hybrid_question",
+      "b0_oracle_gold": 0,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 6,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 1
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 6,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 6,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 5
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 6,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D03",
+      "gold_spans": 1,
+      "union_candidates": 43,
+      "retrievable_gold": 0,
+      "selectable_recall10_gold": 0,
+      "b0_oracle_best_call": "hybrid_question",
+      "b0_oracle_gold": 0,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 10
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 8
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 5
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D04",
+      "gold_spans": 1,
+      "union_candidates": 42,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "b0_oracle_best_call": "fts_first_phrase",
+      "b0_oracle_gold": 1,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 10
+        },
+        "candidate": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 8
+        },
+        "r4a": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 4
+        },
+        "r4b": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D05",
+      "gold_spans": 1,
+      "union_candidates": 23,
+      "retrievable_gold": 0,
+      "selectable_recall10_gold": 0,
+      "b0_oracle_best_call": "hybrid_question",
+      "b0_oracle_gold": 0,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 10
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 8
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 4
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D06",
+      "gold_spans": 3,
+      "union_candidates": 25,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "b0_oracle_best_call": "fts_first_phrase",
+      "b0_oracle_gold": 1,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 0
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 7
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 4
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D07",
+      "gold_spans": 3,
+      "union_candidates": 39,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "b0_oracle_best_call": "rg_code_tokens",
+      "b0_oracle_gold": 1,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 10
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 8
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 5
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D08",
+      "gold_spans": 2,
+      "union_candidates": 24,
+      "retrievable_gold": 2,
+      "selectable_recall10_gold": 2,
+      "b0_oracle_best_call": "fts_code_tokens",
+      "b0_oracle_gold": 2,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 2,
+          "misses": {
+            "packed": 2,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 2
+        },
+        "candidate": {
+          "packed_gold": 2,
+          "misses": {
+            "packed": 2,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 6
+        },
+        "r4a": {
+          "packed_gold": 2,
+          "misses": {
+            "packed": 2,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        },
+        "r4b": {
+          "packed_gold": 2,
+          "misses": {
+            "packed": 2,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D09",
+      "gold_spans": 1,
+      "union_candidates": 38,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "b0_oracle_best_call": "fts_code_tokens",
+      "b0_oracle_gold": 1,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 10
+        },
+        "candidate": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 8
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 0,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 5
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 0,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D10",
+      "gold_spans": 2,
+      "union_candidates": 34,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "b0_oracle_best_call": "rg_code_tokens",
+      "b0_oracle_gold": 1,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 10
+        },
+        "candidate": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 1
+          },
+          "files": 4
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 1,
+            "ranking": 0,
+            "range": 1
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D11",
+      "gold_spans": 1,
+      "union_candidates": 19,
+      "retrievable_gold": 1,
+      "selectable_recall10_gold": 1,
+      "b0_oracle_best_call": "fts_code_tokens",
+      "b0_oracle_gold": 1,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 1
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 0,
+            "ranking": 1,
+            "range": 0
+          },
+          "files": 8
+        },
+        "r4a": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        },
+        "r4b": {
+          "packed_gold": 1,
+          "misses": {
+            "packed": 1,
+            "discovery": 0,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    },
+    {
+      "id": "D12",
+      "gold_spans": 2,
+      "union_candidates": 30,
+      "retrievable_gold": 0,
+      "selectable_recall10_gold": 0,
+      "b0_oracle_best_call": "hybrid_question",
+      "b0_oracle_gold": 0,
+      "policies": {
+        "fixed_fts_code": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 0
+        },
+        "candidate": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 0
+        },
+        "r4a": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 4
+        },
+        "r4b": {
+          "packed_gold": 0,
+          "misses": {
+            "packed": 0,
+            "discovery": 2,
+            "ranking": 0,
+            "range": 0
+          },
+          "files": 3
+        }
+      }
+    }
+  ],
+  "notes": [
+    "B0 best_call is per-case max recall; it is an oracle selector, not a deployable policy.",
+    "fixed_fts_code_tokens is the best fixed call by mean recall; it is deployable.",
+    "Retrievable ceiling uses the union of all six search calls; selectable ceiling uses an optimal 10-item subset.",
+    "Candidate/R4 files are distinct files in the pack, not post-pack agent reads."
+  ]
+}
