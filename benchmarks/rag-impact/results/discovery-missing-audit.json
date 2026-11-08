@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_MISSING_AUDIT",
+  "totals": {
+    "query_formulation": 3,
+    "file_discovery": 3,
+    "range_coverage": 5
+  },
+  "rows": [
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 17,
+      "end_line": 20,
+      "exact_pattern": "OnModelCreating",
+      "file_in_pool": false,
+      "exact_hit": true,
+      "depth200_hit": false,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 41,
+      "end_line": 55,
+      "exact_pattern": null,
+      "file_in_pool": false,
+      "exact_hit": false,
+      "depth200_hit": false,
+      "layer": "file_discovery"
+    },
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+      "start_line": 1,
+      "end_line": 65,
+      "exact_pattern": null,
+      "file_in_pool": false,
+      "exact_hit": false,
+      "depth200_hit": false,
+      "layer": "file_discovery"
+    },
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+      "start_line": 1,
+      "end_line": 100,
+      "exact_pattern": null,
+      "file_in_pool": false,
+      "exact_hit": false,
+      "depth200_hit": false,
+      "layer": "file_discovery"
+    },
+    {
+      "case": "D05",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 425,
+      "exact_pattern": "EmployeeEditThongTinCaNhan",
+      "file_in_pool": true,
+      "exact_hit": true,
+      "depth200_hit": true,
+      "layer": "range_coverage"
+    },
+    {
+      "case": "D06",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 427,
+      "end_line": 457,
+      "exact_pattern": null,
+      "file_in_pool": true,
+      "exact_hit": false,
+      "depth200_hit": false,
+      "layer": "range_coverage"
+    },
+    {
+      "case": "D06",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "exact_pattern": "UpdateOrgTotalEmployee",
+      "file_in_pool": true,
+      "exact_hit": true,
+      "depth200_hit": false,
+      "layer": "range_coverage"
+    },
+    {
+      "case": "D07",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "exact_pattern": "UpdateOrgTotalEmployee",
+      "file_in_pool": true,
+      "exact_hit": true,
+      "depth200_hit": false,
+      "layer": "range_coverage"
+    },
+    {
+      "case": "D10",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 9,
+      "end_line": 20,
+      "exact_pattern": "CoreDBContext",
+      "file_in_pool": false,
+      "exact_hit": true,
+      "depth200_hit": false,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D12",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "exact_pattern": "UpdateOrgTotalEmployee",
+      "file_in_pool": true,
+      "exact_hit": true,
+      "depth200_hit": false,
+      "layer": "range_coverage"
+    },
+    {
+      "case": "D12",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "start_line": 1,
+      "end_line": 95,
+      "exact_pattern": "sp_UpdateOrgTotalEmployee",
+      "file_in_pool": false,
+      "exact_hit": true,
+      "depth200_hit": false,
+      "layer": "query_formulation"
+    }
+  ]
+}

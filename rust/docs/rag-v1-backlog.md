@@ -21,12 +21,11 @@ promoted. The gap prototype is archived at
 
 ## Active status
 
-- **Discovery:** H1 question-symbol pool raised the candidate-pool ceiling to
-  **14/25 (macro 0.6528)**, above the blind target, but deployable selection
-  remained 6/25 (0.4167). Depth-50 alone was 12/25. D05/D12 remain 0; D02 has
-  four misses.
-- **Selection:** A/B policies (RRF, symbol-first+RRF) selected 4/25 and 6/25.
-  Selection NO-GO; do not proceed to Expansion on this pool.
+- **Discovery:** H1 pool 14/25; H2 file-to-range expansion **19/25 (76%)**;
+  H3 observed-symbol expansion **no gain**. Discovery NO-GO; 20/25 (80%) gate
+  not reached. Missing: D02 (4), D10 (1), D12 S1 (1).
+- **Selection:** frozen; A/B historical policies selected 4/25 and 6/25. No
+  Selection work is authorized until Discovery reaches its gate.
 - **Expansion:** gap prototype validates anchors/definitions but cannot find
   unobserved files; archived, no integration.
 - **R1 delivery:** evidence contract 10/10 tests; V2 dev pilot 12/12 packs,

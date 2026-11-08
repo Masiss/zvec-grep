@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_H2_FILE_RANGE",
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "h1_file": 2,
+      "h1_spans": 2,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 1529,
+      "added_ranges": 1346,
+      "files_read": 104,
+      "bytes_read": 1814227
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "h1_file": 2,
+      "h1_spans": 2,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 1087,
+      "added_ranges": 925,
+      "files_read": 83,
+      "bytes_read": 1521805
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "h1_file": 1,
+      "h1_spans": 1,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1956,
+      "added_ranges": 1620,
+      "files_read": 208,
+      "bytes_read": 2386806
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "h1_file": 1,
+      "h1_spans": 1,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1340,
+      "added_ranges": 1150,
+      "files_read": 135,
+      "bytes_read": 1668444
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "h1_file": 1,
+      "h1_spans": 0,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1014,
+      "added_ranges": 902,
+      "files_read": 70,
+      "bytes_read": 1273839
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "h1_file": 3,
+      "h1_spans": 1,
+      "file_coverage": 3,
+      "range_coverage": 3,
+      "pool_units": 982,
+      "added_ranges": 891,
+      "files_read": 56,
+      "bytes_read": 1235804
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "h1_file": 3,
+      "h1_spans": 2,
+      "file_coverage": 3,
+      "range_coverage": 3,
+      "pool_units": 1629,
+      "added_ranges": 1388,
+      "files_read": 135,
+      "bytes_read": 2086353
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "h1_file": 2,
+      "h1_spans": 2,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 976,
+      "added_ranges": 872,
+      "files_read": 69,
+      "bytes_read": 1202758
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "h1_file": 1,
+      "h1_spans": 1,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1291,
+      "added_ranges": 1092,
+      "files_read": 113,
+      "bytes_read": 1657094
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "h1_file": 1,
+      "h1_spans": 1,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1995,
+      "added_ranges": 1685,
+      "files_read": 156,
+      "bytes_read": 2133494
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "h1_file": 1,
+      "h1_spans": 1,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 892,
+      "added_ranges": 804,
+      "files_read": 59,
+      "bytes_read": 1300780
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "h1_file": 1,
+      "h1_spans": 0,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 992,
+      "added_ranges": 850,
+      "files_read": 78,
+      "bytes_read": 1357607
+    }
+  ],
+  "totals": {
+    "gold": 25,
+    "h1_spans": 14,
+    "range_coverage": 19,
+    "file_coverage": 19
+  },
+  "macro": {
+    "h1": 0.6527777777777778,
+    "range_coverage": 0.8611111111111112,
+    "file_coverage": 0.8611111111111112
+  },
+  "cost": {
+    "files_read": 1266,
+    "bytes_read": 19639011
+  }
+}

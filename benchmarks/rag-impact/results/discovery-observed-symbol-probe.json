@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_H3_OBSERVED_SYMBOL",
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "h2_spans": 2,
+      "observed_symbols": [
+        "AKKA",
+        "AccountManagement",
+        "ActiveCode",
+        "ActiveJobPosition"
+      ],
+      "extra_units": 21,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 1550
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "h2_spans": 2,
+      "observed_symbols": [
+        "AccountManagement",
+        "ActiveJobPosition",
+        "AddClaims",
+        "AddEmpToTalentEvaluationStageOrg"
+      ],
+      "extra_units": 19,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 1106
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "h2_spans": 1,
+      "observed_symbols": [
+        "AccountManagement",
+        "ActivationCode",
+        "ActiveJobPosition",
+        "AddClaims"
+      ],
+      "extra_units": 18,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1974
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "h2_spans": 1,
+      "observed_symbols": [
+        "AccountManagement",
+        "ActivationCode",
+        "ActiveJobPosition",
+        "AddClaims"
+      ],
+      "extra_units": 18,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1358
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "h2_spans": 1,
+      "observed_symbols": [
+        "AKKA",
+        "AccountManagement",
+        "ActiveCode",
+        "ActiveJobPosition"
+      ],
+      "extra_units": 21,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1035
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "h2_spans": 3,
+      "observed_symbols": [
+        "AccountManagement",
+        "ActiveJobPosition",
+        "AddClaims",
+        "AddEmpToTalentEvaluationStageOrg"
+      ],
+      "extra_units": 19,
+      "file_coverage": 3,
+      "range_coverage": 3,
+      "pool_units": 1001
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "h2_spans": 3,
+      "observed_symbols": [
+        "ActiveJobPosition",
+        "AddFromAssembly",
+        "AddHeads",
+        "AddManeuveStageEmployees"
+      ],
+      "extra_units": 11,
+      "file_coverage": 3,
+      "range_coverage": 3,
+      "pool_units": 1640
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "h2_spans": 2,
+      "observed_symbols": [
+        "AKKA",
+        "AccountManagement",
+        "ActiveCode",
+        "ActiveJobPosition"
+      ],
+      "extra_units": 20,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 996
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "h2_spans": 1,
+      "observed_symbols": [
+        "AddFromAssembly",
+        "AddHeads",
+        "AddHours",
+        "AddRow"
+      ],
+      "extra_units": 9,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1300
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "h2_spans": 1,
+      "observed_symbols": [
+        "AKKA",
+        "ActiveCode",
+        "ActiveOrgId",
+        "AddClaims"
+      ],
+      "extra_units": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 2007
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "h2_spans": 1,
+      "observed_symbols": [
+        "AccountManagement",
+        "ActiveJobPosition",
+        "AddClaims",
+        "AddEmpToTalentEvaluationStageOrg"
+      ],
+      "extra_units": 20,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 912
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "h2_spans": 1,
+      "observed_symbols": [
+        "ActiveJobPosition",
+        "AddClaims",
+        "AddEmpToTalentEvaluationStageOrg",
+        "AddFromAssembly"
+      ],
+      "extra_units": 13,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1005
+    }
+  ],
+  "totals": {
+    "gold": 25,
+    "h2_spans": 19,
+    "range_coverage": 19,
+    "file_coverage": 19
+  },
+  "macro": {
+    "h2": 0.8611111111111112,
+    "range_coverage": 0.8611111111111112
+  },
+  "limits": [
+    "dev-only",
+    "gold measurement only",
+    "no model/index",
+    "no top10 selection"
+  ]
+}
