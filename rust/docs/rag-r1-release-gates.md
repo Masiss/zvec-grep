@@ -30,6 +30,7 @@ inspected. No candidate/R4 change and no new model/index/LSP.
 | V2 real-source dev pilot | PASS | 12/12 packs, 25/25 items, 0 gaps |
 | V2 real-source held-out | NOT RUN | forbidden for this audit |
 | Public engine API contract | PASS | `tests/r1_public_api.rs` from an external crate: assemble, revalidate, schema-v1 JSON round-trip, missing/invalid failures |
+| Concurrent evidence reads | PASS | 4 concurrent `assemble`+`revalidate` calls on an isolated fixture; independent results |
 | Public MCP/CLI service integration | MISSING | no CLI/MCP/daemon consumer; library API only |
 | Versioning/unsupported behavior | PARTIAL | schema-v1 round-trip covered; no public compatibility/unsupported-behavior policy |
 | Cache/version key and invalidation | MISSING | no cache; per-answer revalidation only |

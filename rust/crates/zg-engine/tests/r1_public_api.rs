@@ -74,3 +74,33 @@ fn public_evidence_api_round_trips_and_fails_closed() {
     );
     assert!(invalid.is_err());
 }
+
+#[test]
+fn concurrent_assemblies_are_independent_and_fresh() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    let text = "line one\nline two\n";
+    fs::write(root.join("source.txt"), text).expect("fixture");
+    let mut workers = Vec::new();
+    for _ in 0..4 {
+        let root = root.clone();
+        let request = request("source.txt", text);
+        workers.push(std::thread::spawn(move || {
+            let budget = EvidenceBudget {
+                max_bytes: 1024,
+                max_items: 8,
+            };
+            let pack = assemble(&root, &[request], budget).expect("concurrent assemble");
+            assert_eq!(pack.status, EvidenceStatus::Ok);
+            assert_eq!(pack.items.len(), 1);
+            assert!(
+                revalidate(&root, &pack)
+                    .expect("concurrent revalidate")
+                    .is_empty()
+            );
+        }));
+    }
+    for worker in workers {
+        worker.join().expect("worker");
+    }
+}
