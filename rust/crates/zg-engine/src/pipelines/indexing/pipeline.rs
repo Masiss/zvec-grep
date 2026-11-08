@@ -1374,7 +1374,12 @@ fn lexical_text(content: &Content, metadata: Option<&EntityMetadata>) -> String 
 fn append_contents(output: &mut String, contents: &[Content]) {
     for content in contents {
         match content {
-            Content::Text(text) | Content::Code(text) => output.push_str(text),
+            Content::Text(text) | Content::Code(text) => {
+                // Reserve the separator too: pushing it after an exact-fit text
+                // would otherwise double the capacity of large FTS fragments.
+                output.reserve(text.len().saturating_add(1));
+                output.push_str(text);
+            }
             Content::Image(image) => {
                 output.push_str("[image:");
                 output.push_str(image.format().as_str());
@@ -2624,6 +2629,36 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn lexical_text_reserves_the_trailing_separator_with_large_fragments() {
+        for text in ["a".repeat(1024), "dữ liệu 🦀\n".repeat(128)] {
+            for content in [Content::Text(text.clone()), Content::Code(text.clone())] {
+                let output = lexical_text(&content, None);
+                assert_eq!(output, format!("{text}\n"));
+                assert!(
+                    output.capacity() <= output.len() + output.len() / 8 + 16,
+                    "the final newline must not double the fragment buffer: len={}, capacity={}",
+                    output.len(),
+                    output.capacity()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn lexical_append_preserves_existing_prefix_and_content_separators() {
+        let mut output = "heading\n".to_owned();
+        append_contents(
+            &mut output,
+            &[
+                Content::Text("alpha\n".to_owned()),
+                Content::Code("β\0".to_owned()),
+                Content::Text(String::new()),
+            ],
+        );
+        assert_eq!(output, "heading\nalpha\n\nβ\0\n\n");
+    }
 
     #[test]
     fn declaration_documentation_reaches_lexical_and_embedding_inputs() {
