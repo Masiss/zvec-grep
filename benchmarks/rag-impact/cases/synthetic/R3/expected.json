@@ -1,0 +1,17 @@
+{
+  "case": "R3-synthetic",
+  "selected_proc": "sp_UpdateOrgTotalEmployee",
+  "selected_view": "EmployeeBaseViews",
+  "excluded_variant": "sp_UpdateOrgTotalEmployee_old",
+  "required_facts": [
+    "The selected proc writes Organizations.TotalEmployee and reads Employees/EmployeeOrganizations.",
+    "The selected view reads Employees and exposes FullName; it is not a write.",
+    "The raw update targets Employees but its predicate/value is dynamic.",
+    "A dynamic table name remains a candidate/gap."
+  ],
+  "forbidden_claims": [
+    "the _old variant is the selected/live definition",
+    "the view writes FullName",
+    "the dynamic table name is resolved by proximity"
+  ]
+}

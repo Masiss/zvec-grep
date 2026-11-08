@@ -55,6 +55,7 @@ fn xml_element(text: &str, tag: &str) -> Option<String> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeFact {
+    pub path: String,
     pub namespace: String,
     pub name: String,
     pub kind: String,
@@ -72,6 +73,7 @@ pub struct ParameterFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MethodFact {
     pub project: String,
+    pub path: String,
     pub namespace: String,
     pub type_name: String,
     pub name: String,
@@ -130,6 +132,7 @@ pub enum ResolutionStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationFact {
     pub project: String,
+    pub path: String,
     pub namespace: String,
     pub type_name: String,
     pub method: String,
@@ -595,6 +598,7 @@ fn walk(
             let name = text(name_node, source);
             let partial = has_modifier(node, source, "partial");
             out.types.push(TypeFact {
+                path: out.path.clone(),
                 namespace: context.namespace(),
                 name: name.clone(),
                 kind: node.kind().trim_end_matches("_declaration").to_owned(),
@@ -730,6 +734,7 @@ fn walk_method(
     );
     out.methods.push(MethodFact {
         project: project.name.clone(),
+        path: out.path.clone(),
         namespace: context.namespace(),
         type_name: context.type_name(),
         name: name.clone(),
@@ -928,6 +933,7 @@ fn record_invocation(node: Node<'_>, source: &str, context: &mut Context, out: &
     }
     out.invocations.push(InvocationFact {
         project: out.project.clone(),
+        path: out.path.clone(),
         namespace: context.namespace(),
         type_name: context.type_name(),
         method: context.method_name(),

@@ -1,5 +1,6 @@
 //! Deterministic source extraction used by the indexing and lexical-enrichment paths.
 
+pub(crate) mod candidate;
 mod chunking;
 mod code;
 pub(crate) mod csharp_facts;
@@ -7,6 +8,7 @@ mod image;
 mod markdown;
 mod service;
 mod spi;
+pub(crate) mod sql_facts;
 mod text;
 
 pub(crate) use code::code_outline;
