@@ -1,6 +1,6 @@
 # RAG Impact — R0/R1 artifacts
 
-Status: **R0 FROZEN; official B0 measured; candidate pending. Targets, corpus and all 16 development cases frozen; D13–D16 fixtures shape-validated. R1 contract and selected real-source slice PASS.**
+Status: **R0 FROZEN; official B0 measured; candidate/Discovery remains NO-GO. Targets, corpus and all 16 development cases frozen; D13–D16 fixtures shape-validated. R1 contract and selected real-source slice PASS; H7 E1/E1R historical NO-GO.**
 
 - The read-only pilot exists at `/home/masis/itc/Ricons/HRM2.0`; checkout root
   `/home/masis/itc/Ricons/`, observed HEAD
@@ -43,6 +43,9 @@ Status: **R0 FROZEN; official B0 measured; candidate pending. Targets, corpus an
 | `cases/synthetic/` | D13–D16 synthetic fixtures and expected outcomes; shape-validated, engine behavior pending R2/R4. |
 | `cases/heldout.json` | Reviewer-authored H01–H08 with source hashes/spans; no candidate measurement has run. |
 | `results/r1-pilot-slice.json` | Bounded real-source evidence packs and revalidation receipt for D02/D07 plus negative twins. |
+| `DISCOVERY-H7-RESOURCE-PREREGISTRATION.md` | Fixed H7 compact-index resource experiment and gates. |
+| `results/h7-resource-preprofile.json` | Pre-change per-project/fact-type profile (DbSet duplication). |
+| `results/h7-e1r-compact.json` | H7 E1R coverage/resource receipt; NO-GO at 74,028 KiB RSS. |
 | `results/b0-official.json` / `.md` | Official B0 baseline receipt and its limitations. |
 | `schema/evidence-pack.schema.json` | JSON shape for R1 evidence packs. |
 | `REPORT-CONTRACT.md` | Three conclusion classes and citation rules for an external agent. |
@@ -60,6 +63,16 @@ Status: **R0 FROZEN; official B0 measured; candidate pending. Targets, corpus an
 
 After those gates, R0 can be frozen. The R1 contract and current evidence-pack
 smoke test do not evaluate retrieval quality or performance.
+
+## Discovery / H7 current
+
+H7 E1 fact-layer closure reached 23/25 @500 but was historical NO-GO at 393 MiB
+peak RSS. H7 E1R replaced full ProjectFacts with a compact declaration index and
+anchor-only facts: coverage stayed 23/25, independent sets 5/5, deterministic;
+peak RSS fell to 74,028 KiB and PSS to 69,387 KiB, still above the fixed 64 MiB
+gate. E2 is not run; no gate change or cap tuning. H7 E1 remains historical
+NO-GO. See `rust/docs/rag-v1-handoff-20261108.md` and
+`rust/docs/rag-discovery-h7-resource-results.md`.
 
 Do not use `NewSolution` or an unselected `_old` SQL definition as authority.
 No database, MSBuild/restore, code execution or live deployment inference.

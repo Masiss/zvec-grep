@@ -79,8 +79,12 @@ promoted. The gap prototype is archived at
 
 ## Next authorized work
 
-1. Discovery: query/symbol formulation and code-aware candidate retrieval,
-   using depth-50 candidates and general-purpose signals; pre-register before
-   measuring.
-2. R1 public qualification: concurrency/performance/cache/security/release gates.
-3. Selection/Expansion only after Discovery evidence is sufficient.
+1. Owner decision on H7 resource: E1R is NO-GO at 74,028 KiB peak RSS / 69,387
+   KiB PSS. Do not run E2 or tune caps against gold. Any further resource work
+   needs a new bounded pre-registration and the same fixed 64 MiB gate.
+2. R1 public qualification: CLI/MCP/service integration, cache/version
+   invalidation, concurrency/performance, generated/results admission,
+   PII/secret/auth/audit, independent validation and release/rollback.
+3. Selection/Expansion only after Discovery evidence is sufficient and
+   explicitly authorized.
+4. Continuity: `rust/docs/rag-v1-handoff-20261108.md`.
