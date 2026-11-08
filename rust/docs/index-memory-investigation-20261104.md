@@ -1,5 +1,11 @@
 # Index RAM growth investigation — 2026-11-04
 
+> Historical read-only investigation. For measured corpus/reclaim results, the large-file
+> reproduction, candidate limitations and current recommendation, see the
+> [2026-11-07 investigation](index-allocation-lifecycle-investigation-20261107.md) and
+> [handoff](index-allocation-lifecycle-handoff-20261107.md). The original findings below
+> are preserved as historical evidence, not the current implementation/acceptance status.
+
 ## Question and scope
 
 Owner observed index RAM grow above 3 GB on an approximately 9k-file run.
