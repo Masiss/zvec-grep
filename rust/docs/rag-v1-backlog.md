@@ -26,8 +26,10 @@ promoted. The gap prototype is archived at
   deterministic. **FAIL resource:** peak RSS 393.4 MiB; forensics shows
   ~347 MiB parse baseline + ~38 MiB full ProjectFacts merge + ~3.2 MiB closure,
   not closure alone. p95/I/O partially measured; allocations not instrumented.
-  E1 NO-GO; E2 not run. Cost options: declaration-only reference index;
-  anchor-bounded closure (latter does not fix baseline).
+  E1 NO-GO; E2 not run. E1R compact declaration index: **23/25 @500**,
+  independent 5/5, deterministic; peak RSS **74,028 KiB**, PSS **69,387 KiB**;
+  still **NO-GO** resource. Pre-profile found DbSet scope duplication
+  (38k/99k/53k vs 234 unique). E2 not run; no cap tuning.
 - **Discovery:** H5 deterministic cap-500 ordering reaches **19/25 (76%)**
   with identical selected hashes across hash seeds; it is the H2 ceiling and
   cannot reach 20/25. H6 frequency-ranked observed-name expansion (mislabelled as structural

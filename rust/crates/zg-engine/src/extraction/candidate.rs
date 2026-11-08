@@ -10,7 +10,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::extraction::{
-    csharp_facts::{AssignmentFact, InvocationFact, MethodFact, ProjectFacts, ResolutionStatus},
+    csharp_facts::{
+        AssignmentFact, InvocationFact, MethodFact, ProjectDeclarations, ProjectFacts,
+        ResolutionStatus,
+    },
     sql_facts::{BindingStatus, SqlBinding, SqlCatalog, bind_project},
 };
 
@@ -62,6 +65,7 @@ pub fn expand_with_closure(
     let mut diagnostics = ClosureDiagnostics::default();
     expand_inner(
         project,
+        None,
         catalog,
         seeds,
         query,
@@ -84,6 +88,7 @@ pub fn expand_with_closure_diagnostics(
     let mut diagnostics = ClosureDiagnostics::default();
     let items = expand_inner(
         project,
+        None,
         catalog,
         seeds,
         query,
@@ -94,9 +99,34 @@ pub fn expand_with_closure_diagnostics(
     (items, diagnostics)
 }
 
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn expand_with_declarations(
+    project: &ProjectFacts,
+    declarations: &ProjectDeclarations,
+    catalog: &SqlCatalog,
+    seeds: &[Seed],
+    query: &str,
+    budget: usize,
+    closure: bool,
+    diagnostics: &mut ClosureDiagnostics,
+) -> Vec<CandidateItem> {
+    expand_inner(
+        project,
+        Some(declarations),
+        catalog,
+        seeds,
+        query,
+        budget,
+        closure,
+        diagnostics,
+    )
+}
+
 #[allow(clippy::too_many_lines)]
 fn expand_inner(
     project: &ProjectFacts,
+    declarations: Option<&ProjectDeclarations>,
     catalog: &SqlCatalog,
     seeds: &[Seed],
     query: &str,
@@ -107,6 +137,9 @@ fn expand_inner(
     if budget == 0 {
         return Vec::new();
     }
+    let declaration_types = declarations.map_or(project.types.as_slice(), |d| d.types.as_slice());
+    let declaration_db_sets =
+        declarations.map_or(project.db_sets.as_slice(), |d| d.db_sets.as_slice());
     let query_terms = query_tokens(query);
     let seed_paths: BTreeSet<&str> = seeds.iter().map(|seed| seed.path.as_str()).collect();
     let mut seed_methods: Vec<&MethodFact> = Vec::new();
@@ -346,7 +379,7 @@ fn expand_inner(
 
         // DbSet members expose their element type and declaration span; both are
         // bounded, observed project facts.
-        for db_set in &project.db_sets {
+        for db_set in declaration_db_sets {
             if receiver_types.contains_key(&db_set.context_type)
                 && observed_db_set_properties.contains(&db_set.property)
             {
@@ -379,7 +412,7 @@ fn expand_inner(
 
         for (type_name, expression) in &receiver_types {
             let mut found = false;
-            for type_fact in &project.types {
+            for type_fact in declaration_types {
                 if &type_fact.name != type_name {
                     continue;
                 }
@@ -526,16 +559,11 @@ fn invocations_by_method(
     project: &ProjectFacts,
 ) -> BTreeMap<(String, String), Vec<&InvocationFact>> {
     let mut result: BTreeMap<(String, String), Vec<&InvocationFact>> = BTreeMap::new();
-    for file in &project.files {
-        for invocation in &file.invocations {
-            result
-                .entry((
-                    invocation_path(file, &invocation.type_name, &invocation.method),
-                    invocation.method.clone(),
-                ))
-                .or_default()
-                .push(invocation);
-        }
+    for invocation in &project.invocations {
+        result
+            .entry((invocation.path.clone(), invocation.method.clone()))
+            .or_default()
+            .push(invocation);
     }
     result
 }
@@ -1990,5 +2018,592 @@ mod h7_e1_external {
             )
             .expect("json")
         );
+    }
+}
+
+#[cfg(test)]
+mod h7_resource_profile {
+    use super::*;
+    use crate::extraction::csharp_facts::{
+        ProjectFacts, ProjectIdentity, parse_project, parse_project_with_references,
+    };
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+    use std::time::Instant;
+
+    fn status_kib(key: &str) -> usize {
+        std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find(|line| line.starts_with(key))
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .and_then(|value| value.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+    fn pss_kib() -> usize {
+        std::fs::read_to_string("/proc/self/smaps_rollup")
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find(|line| line.starts_with("Pss:"))
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .and_then(|value| value.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+    fn counts(project: &ProjectFacts) -> serde_json::Value {
+        serde_json::json!({
+            "files": project.files.len(), "types": project.types.len(), "methods": project.methods.len(),
+            "fields": project.fields.len(), "db_sets": project.db_sets.len(),
+            "assignments": project.assignments.len(), "invocations": project.invocations.len(),
+            "saves": project.saves.len(),
+        })
+    }
+    fn sample(label: &str, start: Instant, project: &ProjectFacts) -> serde_json::Value {
+        serde_json::json!({
+            "project": label,
+            "parse_ms": start.elapsed().as_secs_f64() * 1000.0,
+            "counts": counts(project),
+            "pss_kib": pss_kib(),
+            "rss_kib": status_kib("VmRSS:"),
+            "rss_hwm_kib": status_kib("VmHWM:"),
+        })
+    }
+
+    #[test]
+    #[ignore = "requires external HRM2.0 checkout"]
+    fn h7_resource_profile() {
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let corpus: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(repo.join("benchmarks/rag-impact/corpus-manifest.json"))
+                .expect("corpus"),
+        )
+        .expect("json");
+        let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
+        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for file in corpus["files"].as_array().expect("files") {
+            let Some(project) = file["project"].as_str() else {
+                continue;
+            };
+            if file["kind"].as_str() != Some("cs_compile") {
+                continue;
+            }
+            let path = file["path"].as_str().expect("path").to_owned();
+            by_project
+                .entry(project.to_owned())
+                .or_default()
+                .push((path.clone(), read(&path)));
+        }
+        let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
+        let mut rows = Vec::new();
+        let start = Instant::now();
+        let p3 = parse_project(
+            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
+            &by_project.remove("P3").expect("P3"),
+        );
+        rows.push(sample("P3", start, &p3));
+        let start = Instant::now();
+        let p2 = parse_project_with_references(
+            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
+            &by_project.remove("P2").expect("P2"),
+            std::slice::from_ref(&p3),
+        );
+        rows.push(sample("P2", start, &p2));
+        let start = Instant::now();
+        let p1 = parse_project_with_references(
+            &identity("Webs/HRM/HRM.csproj"),
+            &by_project.remove("P1").expect("P1"),
+            &[p2.clone(), p3.clone()],
+        );
+        rows.push(sample("P1", start, &p1));
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_RESOURCE_PREPROFILE","rows":rows,"process_rss_hwm_kib":status_kib("VmHWM:"),"process_pss_kib":pss_kib()})).expect("json"));
+    }
+}
+
+#[cfg(test)]
+mod h7_e1r_compact {
+    use super::*;
+    use crate::extraction::csharp_facts::{
+        ProjectDeclarations, ProjectIdentity, build_declaration_index, parse_anchor_facts,
+    };
+    use crate::extraction::sql_facts::SqlCatalog;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::hash::{Hash, Hasher};
+    use std::path::PathBuf;
+
+    fn status_kib(key: &str) -> usize {
+        std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find(|line| line.starts_with(key))
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .and_then(|value| value.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+    fn pss_kib() -> usize {
+        std::fs::read_to_string("/proc/self/smaps_rollup")
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find(|line| line.starts_with("Pss:"))
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .and_then(|value| value.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+    fn io_snapshot() -> BTreeMap<String, u64> {
+        std::fs::read_to_string("/proc/self/io")
+            .ok()
+            .map(|text| {
+                text.lines()
+                    .filter_map(|line| {
+                        let (key, value) = line.split_once(':')?;
+                        Some((key.to_owned(), value.trim().parse().ok()?))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+    fn io_delta(
+        before: &BTreeMap<String, u64>,
+        after: &BTreeMap<String, u64>,
+    ) -> BTreeMap<String, u64> {
+        after
+            .iter()
+            .map(|(key, value)| {
+                (
+                    key.clone(),
+                    value.saturating_sub(*before.get(key).unwrap_or(&0)),
+                )
+            })
+            .collect()
+    }
+    fn covered(items: &[CandidateItem], gold: &[(String, usize, usize)]) -> usize {
+        gold.iter()
+            .filter(|(path, start, end)| {
+                items.iter().any(|item| {
+                    item.path == *path
+                        && ranges_overlap(item.start_line, item.end_line, *start, *end)
+                })
+            })
+            .count()
+    }
+
+    #[test]
+    #[ignore = "requires external HRM2.0 checkout and frozen B0/dev receipts"]
+    fn h7_e1r_compact() {
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let read_json = |path: &str| -> serde_json::Value {
+            serde_json::from_str(&std::fs::read_to_string(repo.join(path)).expect("json"))
+                .expect("valid json")
+        };
+        let corpus = read_json("benchmarks/rag-impact/corpus-manifest.json");
+        let b0 = read_json("benchmarks/rag-impact/results/b0-official.json");
+        let dev = read_json("benchmarks/rag-impact/cases/dev.json");
+        let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
+        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for file in corpus["files"].as_array().expect("files") {
+            let Some(project) = file["project"].as_str() else {
+                continue;
+            };
+            if file["kind"].as_str() != Some("cs_compile") {
+                continue;
+            }
+            let path = file["path"].as_str().expect("path").to_owned();
+            by_project
+                .entry(project.to_owned())
+                .or_default()
+                .push((path.clone(), read(&path)));
+        }
+        let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
+        let phase_start = std::time::Instant::now();
+        let io_before = io_snapshot();
+        let p3 = build_declaration_index(
+            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
+            by_project.get("P3").expect("P3"),
+        );
+        let p3_pss = pss_kib();
+        let p2 = build_declaration_index(
+            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
+            by_project.get("P2").expect("P2"),
+        );
+        let p2_pss = pss_kib();
+        let p1 = build_declaration_index(
+            &identity("Webs/HRM/HRM.csproj"),
+            by_project.get("P1").expect("P1"),
+        );
+        let p1_pss = pss_kib();
+        let mut declarations = ProjectDeclarations::default();
+        declarations.merge(p3);
+        declarations.merge(p2);
+        declarations.merge(p1);
+        let declaration_ms = phase_start.elapsed().as_secs_f64() * 1000.0;
+        let declaration_pss = pss_kib();
+        let catalog = SqlCatalog::from_sources(&[
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Views/EmployeeBaseViews.sql".to_owned(),
+                read("DB/Views/EmployeeBaseViews.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+        ]);
+        let all_files: Vec<(String, String)> = by_project.values().flatten().cloned().collect();
+        let identity_p1 = identity("Webs/HRM/HRM.csproj");
+        let mut rows = Vec::new();
+        let mut totals = BTreeMap::new();
+        for case in dev["cases"].as_array().expect("cases") {
+            let Some(id) = case["id"].as_str() else {
+                continue;
+            };
+            if !id.starts_with('D')
+                || ["D13", "D14", "D15", "D16"]
+                    .iter()
+                    .any(|p| id.starts_with(p))
+            {
+                continue;
+            }
+            let b0_case = b0["quality"]["dev_real_cases"]
+                .as_array()
+                .expect("b0")
+                .iter()
+                .find(|entry| entry["id"] == id)
+                .expect("case");
+            let query = case["question"].as_str().unwrap_or_default();
+            let mut seeds = BTreeSet::new();
+            for call in b0_case["calls"].as_array().into_iter().flatten() {
+                for unit in call["units"].as_array().into_iter().flatten() {
+                    let path = unit["path"].as_str().unwrap_or_default();
+                    let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
+                    let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
+                    if !path.is_empty() && start > 0 {
+                        seeds.insert((path.to_owned(), start, end));
+                    }
+                }
+            }
+            let seeds: Vec<Seed> = seeds
+                .into_iter()
+                .map(|(path, start_line, end_line)| Seed {
+                    path,
+                    start_line,
+                    end_line,
+                })
+                .collect();
+            let anchor_paths: BTreeSet<String> =
+                seeds.iter().map(|seed| seed.path.clone()).collect();
+            let anchor_start = std::time::Instant::now();
+            let anchor_pss_before = pss_kib();
+            let project =
+                parse_anchor_facts(&identity_p1, &all_files, &anchor_paths, &declarations);
+            let anchor_ms = anchor_start.elapsed().as_secs_f64() * 1000.0;
+            let anchor_pss = pss_kib();
+            let mut gold = Vec::new();
+            for reference in case["source_refs"].as_array().into_iter().flatten() {
+                let path = reference["path"].as_str().unwrap_or_default().to_owned();
+                for span in reference["spans"].as_array().into_iter().flatten() {
+                    if let (Some(start), Some(end)) =
+                        (span["start_line"].as_u64(), span["end_line"].as_u64())
+                    {
+                        gold.push((path.clone(), start as usize, end as usize));
+                    }
+                }
+            }
+            let evaluate = |closure: bool| {
+                let mut diagnostics = ClosureDiagnostics::default();
+                let mut items = expand_with_declarations(
+                    &project,
+                    &declarations,
+                    &catalog,
+                    &seeds,
+                    query,
+                    500,
+                    closure,
+                    &mut diagnostics,
+                );
+                items.sort_by(|left, right| {
+                    right
+                        .score
+                        .cmp(&left.score)
+                        .then_with(|| left.path.cmp(&right.path))
+                        .then_with(|| left.start_line.cmp(&right.start_line))
+                        .then_with(|| left.end_line.cmp(&right.end_line))
+                });
+                items.dedup_by(|left, right| {
+                    left.path == right.path
+                        && left.start_line == right.start_line
+                        && left.end_line == right.end_line
+                });
+                (items, diagnostics)
+            };
+            let io_case_before = io_snapshot();
+            let off_start = std::time::Instant::now();
+            let (off, _off_diag) = evaluate(false);
+            let off_ms = off_start.elapsed().as_secs_f64() * 1000.0;
+            let on_start = std::time::Instant::now();
+            let (on, on_diag) = evaluate(true);
+            let on_ms = on_start.elapsed().as_secs_f64() * 1000.0;
+            let io_case = io_delta(&io_case_before, &io_snapshot());
+            let at = |items: &[CandidateItem], budget: usize| {
+                covered(&items[..items.len().min(budget)], &gold)
+            };
+            let rank = |items: &[CandidateItem], path: &str, start: usize, end: usize| {
+                items.iter().position(|item| {
+                    item.path == path && ranges_overlap(item.start_line, item.end_line, start, end)
+                })
+            };
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            for item in &on {
+                item.path.hash(&mut hasher);
+                item.start_line.hash(&mut hasher);
+                item.end_line.hash(&mut hasher);
+                item.score.hash(&mut hasher);
+                item.reason.hash(&mut hasher);
+            }
+            let row = serde_json::json!({
+                "id": id, "gold": gold.len(),
+                "coverage": {"10": at(&on,10), "50": at(&on,50), "100": at(&on,100), "250": at(&on,250), "500": at(&on,500)},
+                "refs_off": {"10": at(&off,10), "50": at(&off,50), "100": at(&off,100), "250": at(&off,250), "500": at(&off,500)},
+                "ranks_on": gold.iter().map(|(path,start,end)| rank(&on,path,*start,*end)).collect::<Vec<_>>(),
+                "ranks_off": gold.iter().map(|(path,start,end)| rank(&off,path,*start,*end)).collect::<Vec<_>>(),
+                "candidates": on.len(), "closure_items": on_diag.closure_items,
+                "diagnostics": on_diag,
+                "wall_off_ms": off_ms, "wall_on_ms": on_ms,
+                "anchor_files": anchor_paths.len(),
+                "anchor_parse_ms": anchor_ms,
+                "anchor_pss_before_kib": anchor_pss_before,
+                "anchor_pss_after_kib": anchor_pss,
+                "io_case": io_case,
+                "closure_hash": format!("{:016x}", hasher.finish()),
+            });
+            for (budget, value) in [
+                ("10", at(&on, 10)),
+                ("50", at(&on, 50)),
+                ("100", at(&on, 100)),
+                ("250", at(&on, 250)),
+                ("500", at(&on, 500)),
+            ] {
+                *totals.entry(budget).or_insert(0) += value;
+            }
+            rows.push(row);
+        }
+        let io_phase = io_delta(&io_before, &io_snapshot());
+        let source_bytes: u64 = corpus["files"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|file| file["bytes"].as_u64())
+            .sum();
+        let phase = serde_json::json!({
+            "declaration_build_ms": declaration_ms,
+            "p3_pss_kib": p3_pss, "p2_pss_kib": p2_pss, "p1_pss_kib": p1_pss,
+            "declaration_pss_kib": declaration_pss,
+            "declaration_types": declarations.types.len(),
+            "declaration_fields": declarations.fields.len(),
+            "declaration_db_sets": declarations.db_sets.len(),
+            "io": io_phase, "source_bytes": source_bytes,
+            "rss_hwm_kib": status_kib("VmHWM:"), "pss_end_kib": pss_kib(),
+            "total_ms": phase_start.elapsed().as_secs_f64() * 1000.0,
+        });
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_E1R_COMPACT","cases":rows,"totals":totals,"phase":phase})).expect("json"));
+    }
+
+    #[test]
+    #[ignore = "set H7_CASES and H7_ANCHORS to frozen JSON files"]
+    fn h7_e1r_compact_external() {
+        let Ok(cases_path) = std::env::var("H7_CASES") else {
+            return;
+        };
+        let Ok(anchors_path) = std::env::var("H7_ANCHORS") else {
+            return;
+        };
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let read_json = |path: &str| -> serde_json::Value {
+            serde_json::from_str(&std::fs::read_to_string(path).expect("json")).expect("valid json")
+        };
+        let corpus = read_json(
+            &repo
+                .join("benchmarks/rag-impact/corpus-manifest.json")
+                .to_string_lossy(),
+        );
+        let cases = read_json(&cases_path);
+        let anchors = read_json(&anchors_path);
+        let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
+        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for file in corpus["files"].as_array().expect("files") {
+            let Some(project) = file["project"].as_str() else {
+                continue;
+            };
+            if file["kind"].as_str() != Some("cs_compile") {
+                continue;
+            }
+            let path = file["path"].as_str().expect("path").to_owned();
+            by_project
+                .entry(project.to_owned())
+                .or_default()
+                .push((path.clone(), read(&path)));
+        }
+        let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
+        let mut declarations = ProjectDeclarations::default();
+        declarations.merge(build_declaration_index(
+            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
+            by_project.get("P3").expect("P3"),
+        ));
+        declarations.merge(build_declaration_index(
+            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
+            by_project.get("P2").expect("P2"),
+        ));
+        declarations.merge(build_declaration_index(
+            &identity("Webs/HRM/HRM.csproj"),
+            by_project.get("P1").expect("P1"),
+        ));
+        let all_files: Vec<(String, String)> = by_project.values().flatten().cloned().collect();
+
+        let catalog = SqlCatalog::from_sources(&[
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Views/EmployeeBaseViews.sql".to_owned(),
+                read("DB/Views/EmployeeBaseViews.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+        ]);
+        let project_identity = identity("Webs/HRM/HRM.csproj");
+        let by_id: BTreeMap<String, &serde_json::Value> = anchors["cases"]
+            .as_array()
+            .expect("anchors")
+            .iter()
+            .filter_map(|case| Some((case["id"].as_str()?.to_owned(), case)))
+            .collect();
+        let mut rows = Vec::new();
+        let mut totals = BTreeMap::new();
+        for case in cases["cases"].as_array().expect("cases") {
+            let Some(id) = case["id"].as_str() else {
+                continue;
+            };
+            let Some(anchor) = by_id.get(id) else {
+                continue;
+            };
+            let seeds: Vec<Seed> = anchor["seeds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|unit| {
+                    Some(Seed {
+                        path: unit["path"].as_str()?.to_owned(),
+                        start_line: unit["start_line"].as_u64()? as usize,
+                        end_line: unit["end_line"].as_u64()? as usize,
+                    })
+                })
+                .collect();
+            let anchor_paths: BTreeSet<String> =
+                seeds.iter().map(|seed| seed.path.clone()).collect();
+            let project =
+                parse_anchor_facts(&project_identity, &all_files, &anchor_paths, &declarations);
+            let query = case["question"].as_str().unwrap_or_default();
+            let mut gold = Vec::new();
+            for reference in case["source_refs"].as_array().into_iter().flatten() {
+                let path = reference["path"].as_str().unwrap_or_default().to_owned();
+                for span in reference["spans"].as_array().into_iter().flatten() {
+                    if let (Some(start), Some(end)) =
+                        (span["start_line"].as_u64(), span["end_line"].as_u64())
+                    {
+                        gold.push((path.clone(), start as usize, end as usize));
+                    }
+                }
+            }
+            let evaluate = |closure: bool| {
+                let mut diagnostics = ClosureDiagnostics::default();
+                let mut items = expand_with_declarations(
+                    &project,
+                    &declarations,
+                    &catalog,
+                    &seeds,
+                    query,
+                    500,
+                    closure,
+                    &mut diagnostics,
+                );
+                items.sort_by(|left, right| {
+                    right
+                        .score
+                        .cmp(&left.score)
+                        .then_with(|| left.path.cmp(&right.path))
+                        .then_with(|| left.start_line.cmp(&right.start_line))
+                        .then_with(|| left.end_line.cmp(&right.end_line))
+                });
+                items.dedup_by(|left, right| {
+                    left.path == right.path
+                        && left.start_line == right.start_line
+                        && left.end_line == right.end_line
+                });
+                (items, diagnostics)
+            };
+            let (on, on_diag) = evaluate(true);
+            let (off, _) = evaluate(false);
+            let at = |items: &[CandidateItem], budget: usize| {
+                covered(&items[..items.len().min(budget)], &gold)
+            };
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            for item in &on {
+                item.path.hash(&mut hasher);
+                item.start_line.hash(&mut hasher);
+                item.end_line.hash(&mut hasher);
+                item.score.hash(&mut hasher);
+                item.reason.hash(&mut hasher);
+            }
+            let row = serde_json::json!({"id":id,"gold":gold.len(),"coverage":{"10":at(&on,10),"50":at(&on,50),"100":at(&on,100),"250":at(&on,250),"500":at(&on,500)},"refs_off":{"10":at(&off,10),"50":at(&off,50),"100":at(&off,100),"250":at(&off,250),"500":at(&off,500)},"candidates":on.len(),"diagnostics":on_diag,"closure_hash":format!("{:016x}",hasher.finish())});
+            for (budget, value) in [
+                ("10", at(&on, 10)),
+                ("50", at(&on, 50)),
+                ("100", at(&on, 100)),
+                ("250", at(&on, 250)),
+                ("500", at(&on, 500)),
+            ] {
+                *totals.entry(budget).or_insert(0) += value;
+            }
+            rows.push(row);
+        }
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_E1R_COMPACT_EXTERNAL","cases":rows,"totals":totals})).expect("json"));
     }
 }

@@ -1,0 +1,58 @@
+{
+  "process_pss_kib": 345678,
+  "process_rss_hwm_kib": 364240,
+  "rows": [
+    {
+      "counts": {
+        "assignments": 0,
+        "db_sets": 38610,
+        "fields": 4492,
+        "files": 164,
+        "invocations": 3,
+        "methods": 3,
+        "saves": 0,
+        "types": 254
+      },
+      "parse_ms": 404.055797,
+      "project": "P3",
+      "pss_kib": 69006,
+      "rss_hwm_kib": 73088,
+      "rss_kib": 73088
+    },
+    {
+      "counts": {
+        "assignments": 3141,
+        "db_sets": 99684,
+        "fields": 3561,
+        "files": 426,
+        "invocations": 15193,
+        "methods": 1216,
+        "saves": 525,
+        "types": 832
+      },
+      "parse_ms": 3180.800215,
+      "project": "P2",
+      "pss_kib": 188474,
+      "rss_hwm_kib": 197672,
+      "rss_kib": 192364
+    },
+    {
+      "counts": {
+        "assignments": 2026,
+        "db_sets": 53118,
+        "fields": 636,
+        "files": 227,
+        "invocations": 12883,
+        "methods": 2051,
+        "saves": 108,
+        "types": 286
+      },
+      "parse_ms": 2624.7068950000003,
+      "project": "P1",
+      "pss_kib": 345678,
+      "rss_hwm_kib": 364240,
+      "rss_kib": 349568
+    }
+  ],
+  "status": "H7_RESOURCE_PREPROFILE"
+}

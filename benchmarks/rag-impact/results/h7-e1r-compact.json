@@ -1,0 +1,1074 @@
+{
+  "schema_version": 1,
+  "status": "H7_E1R_COMPACT",
+  "base": "e7eac77",
+  "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-RESOURCE-PREREGISTRATION.md",
+  "historical_e1": "results/discovery-h7-e1.json (unchanged)",
+  "preprofile": "results/h7-resource-preprofile.json",
+  "dev": {
+    "cases": [
+      {
+        "anchor_files": 26,
+        "anchor_parse_ms": 356.24766400000004,
+        "anchor_pss_after_kib": 67475,
+        "anchor_pss_before_kib": 56383,
+        "candidates": 390,
+        "closure_hash": "5c5d5851fe921905",
+        "closure_items": 21,
+        "coverage": {
+          "10": 2,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "diagnostics": {
+          "closure_items": 21,
+          "resolved": 22,
+          "unresolved": {
+            "invocation_receiver_type_missing": 735,
+            "sql_binding_not_resolved": 13,
+            "type_decl_missing": 51
+          }
+        },
+        "gold": 2,
+        "id": "D01",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          9,
+          0
+        ],
+        "ranks_on": [
+          9,
+          0
+        ],
+        "refs_off": {
+          "10": 2,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "wall_off_ms": 23.072814,
+        "wall_on_ms": 25.743418000000002
+      },
+      {
+        "anchor_files": 21,
+        "anchor_parse_ms": 249.715384,
+        "anchor_pss_after_kib": 68651,
+        "anchor_pss_before_kib": 67527,
+        "candidates": 500,
+        "closure_hash": "f371af4bf83075a6",
+        "closure_items": 326,
+        "coverage": {
+          "10": 0,
+          "100": 3,
+          "250": 5,
+          "50": 3,
+          "500": 5
+        },
+        "diagnostics": {
+          "closure_items": 326,
+          "resolved": 20,
+          "unresolved": {
+            "invocation_receiver_type_missing": 681,
+            "sql_binding_not_resolved": 13,
+            "type_decl_missing": 44
+          }
+        },
+        "gold": 6,
+        "id": "D02",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "ranks_on": [
+          166,
+          166,
+          40,
+          40,
+          45,
+          null
+        ],
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 0,
+          "50": 0,
+          "500": 0
+        },
+        "wall_off_ms": 13.936608,
+        "wall_on_ms": 15.653154999999998
+      },
+      {
+        "anchor_files": 29,
+        "anchor_parse_ms": 354.06494,
+        "anchor_pss_after_kib": 70803,
+        "anchor_pss_before_kib": 68715,
+        "candidates": 385,
+        "closure_hash": "dc8de266d676c331",
+        "closure_items": 25,
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 25,
+          "resolved": 27,
+          "unresolved": {
+            "invocation_receiver_type_missing": 725,
+            "sql_binding_not_resolved": 16,
+            "type_decl_missing": 51
+          }
+        },
+        "gold": 1,
+        "id": "D03",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          123
+        ],
+        "ranks_on": [
+          148
+        ],
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "wall_off_ms": 23.814947999999998,
+        "wall_on_ms": 24.698511
+      },
+      {
+        "anchor_files": 28,
+        "anchor_parse_ms": 323.72785700000003,
+        "anchor_pss_after_kib": 69367,
+        "anchor_pss_before_kib": 69359,
+        "candidates": 344,
+        "closure_hash": "079a10b9af31b817",
+        "closure_items": 26,
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 26,
+          "resolved": 28,
+          "unresolved": {
+            "invocation_receiver_type_missing": 660,
+            "sql_binding_not_resolved": 10,
+            "type_decl_missing": 39
+          }
+        },
+        "gold": 1,
+        "id": "D04",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          4
+        ],
+        "ranks_on": [
+          4
+        ],
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "wall_off_ms": 18.288446999999998,
+        "wall_on_ms": 19.455962
+      },
+      {
+        "anchor_files": 21,
+        "anchor_parse_ms": 285.51574400000004,
+        "anchor_pss_after_kib": 69371,
+        "anchor_pss_before_kib": 69367,
+        "candidates": 274,
+        "closure_hash": "4dfbd1e35ce8dca7",
+        "closure_items": 29,
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 29,
+          "resolved": 30,
+          "unresolved": {
+            "invocation_receiver_type_missing": 481,
+            "sql_binding_not_resolved": 10,
+            "type_decl_missing": 28
+          }
+        },
+        "gold": 1,
+        "id": "D05",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          102
+        ],
+        "ranks_on": [
+          131
+        ],
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "wall_off_ms": 12.410487,
+        "wall_on_ms": 13.499599
+      },
+      {
+        "anchor_files": 19,
+        "anchor_parse_ms": 297.875589,
+        "anchor_pss_after_kib": 69375,
+        "anchor_pss_before_kib": 69371,
+        "candidates": 271,
+        "closure_hash": "6eca00c90fb9e71d",
+        "closure_items": 15,
+        "coverage": {
+          "10": 2,
+          "100": 3,
+          "250": 3,
+          "50": 3,
+          "500": 3
+        },
+        "diagnostics": {
+          "closure_items": 15,
+          "resolved": 16,
+          "unresolved": {
+            "invocation_receiver_type_missing": 525,
+            "sql_binding_not_resolved": 8,
+            "type_decl_missing": 31
+          }
+        },
+        "gold": 3,
+        "id": "D06",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          4,
+          4,
+          33
+        ],
+        "ranks_on": [
+          4,
+          4,
+          48
+        ],
+        "refs_off": {
+          "10": 2,
+          "100": 3,
+          "250": 3,
+          "50": 3,
+          "500": 3
+        },
+        "wall_off_ms": 11.442139000000001,
+        "wall_on_ms": 11.873078
+      },
+      {
+        "anchor_files": 33,
+        "anchor_parse_ms": 278.890685,
+        "anchor_pss_after_kib": 69379,
+        "anchor_pss_before_kib": 69375,
+        "candidates": 500,
+        "closure_hash": "60c9531e3be593e0",
+        "closure_items": 338,
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 3
+        },
+        "diagnostics": {
+          "closure_items": 338,
+          "resolved": 32,
+          "unresolved": {
+            "invocation_receiver_type_missing": 793,
+            "sql_binding_not_resolved": 7,
+            "type_decl_missing": 44
+          }
+        },
+        "gold": 3,
+        "id": "D07",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          82,
+          null,
+          85
+        ],
+        "ranks_on": [
+          175,
+          313,
+          423
+        ],
+        "refs_off": {
+          "10": 0,
+          "100": 2,
+          "250": 2,
+          "50": 0,
+          "500": 2
+        },
+        "wall_off_ms": 12.728282,
+        "wall_on_ms": 14.734249
+      },
+      {
+        "anchor_files": 19,
+        "anchor_parse_ms": 249.58235000000002,
+        "anchor_pss_after_kib": 69383,
+        "anchor_pss_before_kib": 69379,
+        "candidates": 307,
+        "closure_hash": "7bfd159f8e5c74fe",
+        "closure_items": 26,
+        "coverage": {
+          "10": 2,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "diagnostics": {
+          "closure_items": 26,
+          "resolved": 27,
+          "unresolved": {
+            "invocation_receiver_type_missing": 531,
+            "sql_binding_not_resolved": 11,
+            "type_decl_missing": 35
+          }
+        },
+        "gold": 2,
+        "id": "D08",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          0,
+          3
+        ],
+        "ranks_on": [
+          0,
+          3
+        ],
+        "refs_off": {
+          "10": 2,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "wall_off_ms": 13.001677999999998,
+        "wall_on_ms": 14.715708
+      },
+      {
+        "anchor_files": 28,
+        "anchor_parse_ms": 275.440274,
+        "anchor_pss_after_kib": 69387,
+        "anchor_pss_before_kib": 69383,
+        "candidates": 500,
+        "closure_hash": "7ee3b3b2d2e0eb5a",
+        "closure_items": 323,
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 0,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 323,
+          "resolved": 17,
+          "unresolved": {
+            "invocation_receiver_type_missing": 477,
+            "sql_binding_not_resolved": 5,
+            "type_decl_missing": 38
+          }
+        },
+        "gold": 1,
+        "id": "D09",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          41
+        ],
+        "ranks_on": [
+          364
+        ],
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "wall_off_ms": 14.243658,
+        "wall_on_ms": 15.970983
+      },
+      {
+        "anchor_files": 25,
+        "anchor_parse_ms": 267.987248,
+        "anchor_pss_after_kib": 69387,
+        "anchor_pss_before_kib": 69387,
+        "candidates": 500,
+        "closure_hash": "ea4503fd4948e3d8",
+        "closure_items": 326,
+        "coverage": {
+          "10": 0,
+          "100": 2,
+          "250": 2,
+          "50": 1,
+          "500": 2
+        },
+        "diagnostics": {
+          "closure_items": 326,
+          "resolved": 20,
+          "unresolved": {
+            "invocation_receiver_type_missing": 453,
+            "sql_binding_not_resolved": 3,
+            "type_decl_missing": 36
+          }
+        },
+        "gold": 2,
+        "id": "D10",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          42,
+          null
+        ],
+        "ranks_on": [
+          51,
+          36
+        ],
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "wall_off_ms": 15.581422,
+        "wall_on_ms": 18.528882
+      },
+      {
+        "anchor_files": 17,
+        "anchor_parse_ms": 258.444734,
+        "anchor_pss_after_kib": 69387,
+        "anchor_pss_before_kib": 69386,
+        "candidates": 257,
+        "closure_hash": "da8bddf6928e0a75",
+        "closure_items": 27,
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 27,
+          "resolved": 28,
+          "unresolved": {
+            "invocation_receiver_type_missing": 467,
+            "sql_binding_not_resolved": 5,
+            "type_decl_missing": 33
+          }
+        },
+        "gold": 1,
+        "id": "D11",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          3
+        ],
+        "ranks_on": [
+          3
+        ],
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "wall_off_ms": 11.25413,
+        "wall_on_ms": 12.574862
+      },
+      {
+        "anchor_files": 17,
+        "anchor_parse_ms": 226.827506,
+        "anchor_pss_after_kib": 69387,
+        "anchor_pss_before_kib": 69387,
+        "candidates": 234,
+        "closure_hash": "73a9a4d613c6382c",
+        "closure_items": 16,
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 16,
+          "resolved": 17,
+          "unresolved": {
+            "invocation_receiver_type_missing": 419,
+            "sql_binding_not_resolved": 4,
+            "type_decl_missing": 31
+          }
+        },
+        "gold": 2,
+        "id": "D12",
+        "io_case": {
+          "cancelled_write_bytes": 0,
+          "rchar": 100,
+          "read_bytes": 0,
+          "syscr": 4,
+          "syscw": 0,
+          "wchar": 0,
+          "write_bytes": 0
+        },
+        "ranks_off": [
+          25,
+          null
+        ],
+        "ranks_on": [
+          41,
+          null
+        ],
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "wall_off_ms": 8.74601,
+        "wall_on_ms": 8.752166
+      }
+    ],
+    "phase": {
+      "declaration_build_ms": 2628.117422,
+      "declaration_db_sets": 234,
+      "declaration_fields": 8689,
+      "declaration_pss_kib": 53247,
+      "declaration_types": 1372,
+      "io": {
+        "cancelled_write_bytes": 0,
+        "rchar": 982030,
+        "read_bytes": 0,
+        "syscr": 312,
+        "syscw": 0,
+        "wchar": 0,
+        "write_bytes": 0
+      },
+      "p1_pss_kib": 53079,
+      "p2_pss_kib": 53015,
+      "p3_pss_kib": 46390,
+      "pss_end_kib": 69387,
+      "rss_hwm_kib": 74028,
+      "source_bytes": 5400637,
+      "total_ms": 6460.5703459999995
+    },
+    "status": "H7_E1R_COMPACT",
+    "totals": {
+      "10": 8,
+      "100": 15,
+      "250": 20,
+      "50": 14,
+      "500": 23
+    }
+  },
+  "dev_refs_off": {
+    "10": 8,
+    "50": 12,
+    "100": 14,
+    "250": 16,
+    "500": 16
+  },
+  "independent_easy": {
+    "cases": [
+      {
+        "candidates": 500,
+        "closure_hash": "f096d17dd78041c1",
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 385,
+          "resolved": 82,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2391,
+            "sql_binding_not_resolved": 21,
+            "type_decl_missing": 83
+          }
+        },
+        "gold": 1,
+        "id": "E1",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "23618694113b73a6",
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 393,
+          "resolved": 89,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2307,
+            "sql_binding_not_resolved": 29,
+            "type_decl_missing": 83
+          }
+        },
+        "gold": 1,
+        "id": "E2",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "56ab24472d9ce615",
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 368,
+          "resolved": 64,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2856,
+            "sql_binding_not_resolved": 21,
+            "type_decl_missing": 88
+          }
+        },
+        "gold": 1,
+        "id": "E3",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "088bfa4befe44cc5",
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 394,
+          "resolved": 91,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2447,
+            "sql_binding_not_resolved": 41,
+            "type_decl_missing": 79
+          }
+        },
+        "gold": 1,
+        "id": "E4",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "3317a3b1c534455f",
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 378,
+          "resolved": 74,
+          "unresolved": {
+            "invocation_receiver_type_missing": 3125,
+            "sql_binding_not_resolved": 29,
+            "type_decl_missing": 106
+          }
+        },
+        "gold": 1,
+        "id": "E5",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        }
+      }
+    ],
+    "status": "H7_E1R_COMPACT_EXTERNAL",
+    "totals": {
+      "10": 2,
+      "100": 4,
+      "250": 5,
+      "50": 3,
+      "500": 5
+    }
+  },
+  "independent_hard": {
+    "cases": [
+      {
+        "candidates": 500,
+        "closure_hash": "8c3b88ccdf5f26f1",
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 384,
+          "resolved": 80,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2116,
+            "sql_binding_not_resolved": 23,
+            "type_decl_missing": 78
+          }
+        },
+        "gold": 1,
+        "id": "H1",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "e3a1f48bf2314af4",
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 405,
+          "resolved": 102,
+          "unresolved": {
+            "invocation_receiver_type_missing": 1933,
+            "sql_binding_not_resolved": 66,
+            "type_decl_missing": 73
+          }
+        },
+        "gold": 1,
+        "id": "H2",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "e7b50cea05a4e82a",
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 385,
+          "resolved": 82,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2505,
+            "sql_binding_not_resolved": 42,
+            "type_decl_missing": 77
+          }
+        },
+        "gold": 1,
+        "id": "H3",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "fa3cee8d00e64800",
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 0,
+          "50": 0,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 364,
+          "resolved": 61,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2360,
+            "sql_binding_not_resolved": 23,
+            "type_decl_missing": 92
+          }
+        },
+        "gold": 1,
+        "id": "H4",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        }
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "3ad7e8951e4fa5c9",
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "diagnostics": {
+          "closure_items": 370,
+          "resolved": 68,
+          "unresolved": {
+            "invocation_receiver_type_missing": 2045,
+            "sql_binding_not_resolved": 26,
+            "type_decl_missing": 71
+          }
+        },
+        "gold": 1,
+        "id": "H5",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        }
+      }
+    ],
+    "status": "H7_E1R_COMPACT_EXTERNAL",
+    "totals": {
+      "10": 1,
+      "100": 1,
+      "250": 4,
+      "50": 1,
+      "500": 5
+    }
+  },
+  "determinism": {
+    "run1_hashes": [
+      "5c5d5851fe921905",
+      "f371af4bf83075a6",
+      "dc8de266d676c331",
+      "079a10b9af31b817",
+      "4dfbd1e35ce8dca7",
+      "6eca00c90fb9e71d",
+      "60c9531e3be593e0",
+      "7bfd159f8e5c74fe",
+      "7ee3b3b2d2e0eb5a",
+      "ea4503fd4948e3d8",
+      "da8bddf6928e0a75",
+      "73a9a4d613c6382c"
+    ],
+    "run2_hashes": [
+      "5c5d5851fe921905",
+      "f371af4bf83075a6",
+      "dc8de266d676c331",
+      "079a10b9af31b817",
+      "4dfbd1e35ce8dca7",
+      "6eca00c90fb9e71d",
+      "60c9531e3be593e0",
+      "7bfd159f8e5c74fe",
+      "7ee3b3b2d2e0eb5a",
+      "ea4503fd4948e3d8",
+      "da8bddf6928e0a75",
+      "73a9a4d613c6382c"
+    ],
+    "identical": true
+  },
+  "closure_diagnostics": {
+    "closure_items": 1498,
+    "resolved": 284,
+    "unresolved": {
+      "invocation_receiver_type_missing": 6947,
+      "sql_binding_not_resolved": 105,
+      "type_decl_missing": 461
+    }
+  },
+  "resource": {
+    "peak_rss_kib": 74028,
+    "pss_end_kib": 69387,
+    "declaration_pss_kib": 53247,
+    "declaration_build_ms": 2628.117422,
+    "total_ms": 6460.5703459999995,
+    "user_s": 6.43,
+    "sys_s": 0.04,
+    "anchor_parse_mean_ms": 285.35999791666666,
+    "anchor_parse_p95_ms": 354.06494,
+    "on_p50_ms": 15.653154999999998,
+    "on_p95_ms": 24.698511,
+    "off_p50_ms": 13.936608,
+    "off_p95_ms": 23.072814,
+    "closure_incremental_mean_ms": 1.473329166666667,
+    "io": "declaration phase rchar 982,030 B; initial source load 5,400,637 B occurred before phase counter; total I/O not reconciled"
+  },
+  "gate": {
+    "coverage500": "PASS 23/25",
+    "independent_easy": "PASS 5/5",
+    "independent_hard": "PASS 5/5",
+    "determinism": "PASS",
+    "pss_rss_64mib": "FAIL 69,387 KiB PSS / 74,028 KiB RSS",
+    "io_reconciled": "FAIL/partial",
+    "provenance": "PASS (closure reason template); unresolved histogram emitted"
+  },
+  "d09": {
+    "off_rank": 41,
+    "on_rank": 364,
+    "closure_items": 323
+  },
+  "verdict": "NO-GO resource"
+}

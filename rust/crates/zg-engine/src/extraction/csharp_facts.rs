@@ -192,6 +192,134 @@ pub struct ProjectFacts {
     pub saves: Vec<SaveFact>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ProjectDeclarations {
+    pub types: Vec<TypeFact>,
+    pub fields: Vec<FieldFact>,
+    pub db_sets: Vec<DbSetFact>,
+}
+
+impl ProjectDeclarations {
+    pub fn merge(&mut self, other: Self) {
+        for ty in other.types {
+            if !self.types.contains(&ty) {
+                self.types.push(ty);
+            }
+        }
+        for field in other.fields {
+            if !self.fields.contains(&field) {
+                self.fields.push(field);
+            }
+        }
+        for db_set in other.db_sets {
+            if !self.db_sets.iter().any(|existing| {
+                existing.path == db_set.path
+                    && existing.context_type == db_set.context_type
+                    && existing.property == db_set.property
+            }) {
+                self.db_sets.push(db_set);
+            }
+        }
+    }
+}
+
+#[must_use]
+pub fn build_declaration_index(
+    project: &ProjectIdentity,
+    files: &[(String, String)],
+) -> ProjectDeclarations {
+    let mut declarations = ProjectDeclarations::default();
+    for (path, source) in files {
+        let facts = parse_file(project, path, source);
+        declarations.types.extend(facts.types);
+        declarations.fields.extend(facts.fields);
+        declarations.db_sets.extend(facts.db_sets);
+    }
+    declarations.types.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then_with(|| left.line_start.cmp(&right.line_start))
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    declarations.types.dedup();
+    declarations.fields.sort_by(|left, right| {
+        left.namespace
+            .cmp(&right.namespace)
+            .then_with(|| left.type_name.cmp(&right.type_name))
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    declarations.fields.dedup();
+    declarations.db_sets.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then_with(|| left.context_type.cmp(&right.context_type))
+            .then_with(|| left.property.cmp(&right.property))
+    });
+    declarations.db_sets.dedup_by(|left, right| {
+        left.path == right.path
+            && left.context_type == right.context_type
+            && left.property == right.property
+    });
+    declarations
+}
+
+/// Parse full facts only for anchor files, using compact declarations for
+/// project-scoped receiver/declaration resolution. All declarations are kept;
+/// methods/assignments/invocations/saves are anchor-only.
+#[must_use]
+pub fn parse_anchor_facts(
+    project: &ProjectIdentity,
+    files: &[(String, String)],
+    anchor_paths: &std::collections::BTreeSet<String>,
+    declarations: &ProjectDeclarations,
+) -> ProjectFacts {
+    let mut fields_by_type: HashMap<(String, String), HashMap<String, String>> = HashMap::new();
+    for field in &declarations.fields {
+        fields_by_type
+            .entry((field.namespace.clone(), field.type_name.clone()))
+            .or_default()
+            .insert(field.name.clone(), field.field_type.clone());
+    }
+    let scope = ProjectScope {
+        fields_by_type,
+        db_sets: declarations.db_sets.clone(),
+    };
+    let mut parsed = Vec::new();
+    for (path, source) in files {
+        if !anchor_paths.contains(path) {
+            continue;
+        }
+        let mut facts = parse_file_with_scope(project, path, source, &scope);
+        facts.db_sets.clear();
+        parsed.push(facts);
+    }
+    let mut project_facts = ProjectFacts {
+        project: project.clone(),
+        files: parsed,
+        types: Vec::new(),
+        methods: Vec::new(),
+        db_sets: Vec::new(),
+        fields: Vec::new(),
+        assignments: Vec::new(),
+        invocations: Vec::new(),
+        saves: Vec::new(),
+    };
+    // Resolve while file-local methods/invocations are still present; then keep
+    // only file-local assignments in FileFacts and the resolved top-level graph.
+    resolve_project(&mut project_facts);
+    let mut files = Vec::new();
+    for mut file in project_facts.files {
+        project_facts.methods.append(&mut file.methods);
+        project_facts.saves.append(&mut file.saves);
+        file.saves.clear();
+        file.methods.clear();
+        file.invocations.clear();
+        files.push(file);
+    }
+    project_facts.files = files;
+    project_facts
+}
+
 impl ProjectFacts {
     pub fn resolved_invocations(&self) -> impl Iterator<Item = &InvocationFact> {
         self.invocations
