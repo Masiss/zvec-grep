@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_STAGE_PROFILE",
+  "rows": [
+    {
+      "id": "D01",
+      "pool_units": 183,
+      "search_bytes": 550732,
+      "source_bytes": 1814227,
+      "source_files": 104,
+      "search_wall_ms": 3145.8717749919742,
+      "source_wall_ms": 2.638763005961664,
+      "child_cpu_s": 3.369751
+    },
+    {
+      "id": "D02",
+      "pool_units": 162,
+      "search_bytes": 366815,
+      "source_bytes": 1521805,
+      "source_files": 83,
+      "search_wall_ms": 3036.215219006408,
+      "source_wall_ms": 2.4554260016884655,
+      "child_cpu_s": 3.2567790000000003
+    },
+    {
+      "id": "D03",
+      "pool_units": 336,
+      "search_bytes": 787422,
+      "source_bytes": 2386806,
+      "source_files": 208,
+      "search_wall_ms": 3661.247290991014,
+      "source_wall_ms": 4.4016430038027465,
+      "child_cpu_s": 3.923803999999999
+    },
+    {
+      "id": "D04",
+      "pool_units": 190,
+      "search_bytes": 656222,
+      "source_bytes": 1668444,
+      "source_files": 135,
+      "search_wall_ms": 3694.978394996724,
+      "source_wall_ms": 3.3711900032358244,
+      "child_cpu_s": 3.9754790000000013
+    },
+    {
+      "id": "D05",
+      "pool_units": 112,
+      "search_bytes": 574049,
+      "source_bytes": 1273839,
+      "source_files": 70,
+      "search_wall_ms": 3298.270486004185,
+      "source_wall_ms": 2.0128519972786307,
+      "child_cpu_s": 3.5263099999999996
+    },
+    {
+      "id": "D06",
+      "pool_units": 91,
+      "search_bytes": 348613,
+      "source_bytes": 1235804,
+      "source_files": 56,
+      "search_wall_ms": 1966.1141100077657,
+      "source_wall_ms": 2.608972994494252,
+      "child_cpu_s": 2.099982
+    },
+    {
+      "id": "D07",
+      "pool_units": 241,
+      "search_bytes": 757570,
+      "source_bytes": 2086353,
+      "source_files": 135,
+      "search_wall_ms": 3732.3125759867253,
+      "source_wall_ms": 3.3983159955823794,
+      "child_cpu_s": 4.013108000000001
+    },
+    {
+      "id": "D08",
+      "pool_units": 104,
+      "search_bytes": 350505,
+      "source_bytes": 1202758,
+      "source_files": 69,
+      "search_wall_ms": 3860.731136010145,
+      "source_wall_ms": 3.004468002473004,
+      "child_cpu_s": 4.136573999999998
+    },
+    {
+      "id": "D09",
+      "pool_units": 199,
+      "search_bytes": 668215,
+      "source_bytes": 1657094,
+      "source_files": 113,
+      "search_wall_ms": 4720.01103599905,
+      "source_wall_ms": 3.554537004674785,
+      "child_cpu_s": 5.048841000000003
+    },
+    {
+      "id": "D10",
+      "pool_units": 310,
+      "search_bytes": 921962,
+      "source_bytes": 2133494,
+      "source_files": 156,
+      "search_wall_ms": 5331.043675992987,
+      "source_wall_ms": 4.781452007591724,
+      "child_cpu_s": 5.695226999999999
+    },
+    {
+      "id": "D11",
+      "pool_units": 88,
+      "search_bytes": 349535,
+      "source_bytes": 1300780,
+      "source_files": 59,
+      "search_wall_ms": 3582.0181110029807,
+      "source_wall_ms": 2.073676005238667,
+      "child_cpu_s": 3.8262209999999968
+    },
+    {
+      "id": "D12",
+      "pool_units": 142,
+      "search_bytes": 594979,
+      "source_bytes": 1357607,
+      "source_files": 78,
+      "search_wall_ms": 3479.4020150002325,
+      "source_wall_ms": 2.7019640110665932,
+      "child_cpu_s": 3.719705000000001
+    }
+  ],
+  "totals": {
+    "search_bytes": 6926619,
+    "source_bytes": 19639011,
+    "search_wall_ms": 43508.21582599019,
+    "source_wall_ms": 37.003260033088736
+  },
+  "limits": [
+    "parent rchar is not a stage split; subprocess stdout is search payload",
+    "dev-only"
+  ]
+}

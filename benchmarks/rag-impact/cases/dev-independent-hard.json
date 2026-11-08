@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "FROZEN_INDEPENDENT_DEV_HARD",
+  "source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "source_head": "68a53a6865b81d05745c4aa47967204e8e128996",
+  "purpose": "Hard independent development cases: natural-language queries without exact target identifiers; some require cross-file evidence. Held-out remains locked.",
+  "cases": [
+    {"id": "H1", "question": "Tạo quốc gia mới lưu ở đâu?", "source_refs": [{"path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs", "sha256": "31dc9b735bdf0317632c9667e1c8b6095bf20957f1b7c1e924afe510b731d66a", "spans": [{"start_line": 82, "end_line": 111}]}]},
+    {"id": "H2", "question": "Xóa quận có xóa vật lý không?", "source_refs": [{"path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs", "sha256": "31dc9b735bdf0317632c9667e1c8b6095bf20957f1b7c1e924afe510b731d66a", "spans": [{"start_line": 261, "end_line": 275}]}]},
+    {"id": "H3", "question": "Cập nhật mã số thuế nhân viên ở đâu?", "source_refs": [{"path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeDetailCommand.cs", "sha256": "cbd28422d013c2f444b6de91b01b85db8e99803c67cf393e640302249fb824b7", "spans": [{"start_line": 37, "end_line": 81}]}]},
+    {"id": "H4", "question": "Đồng bộ quốc gia từ API vào database ở đâu?", "source_refs": [{"path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs", "sha256": "31dc9b735bdf0317632c9667e1c8b6095bf20957f1b7c1e924afe510b731d66a", "spans": [{"start_line": 352, "end_line": 370}]}]},
+    {"id": "H5", "question": "Đổi trạng thái làm việc có gọi cập nhật tổng nhân sự không?", "source_refs": [{"path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs", "sha256": "9e773b9904d87877f6898abe551171f2549c8b89afc9545842662b9b79615fe5", "spans": [{"start_line": 627, "end_line": 649}]}]}
+  ]
+}

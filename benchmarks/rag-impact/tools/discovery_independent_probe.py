@@ -9,7 +9,7 @@ import discovery_depth_probe as dd
 import discovery_symbol_probe as ds
 import discovery_file_range_probe as h2
 import discovery_reference_probe as h4
-CASES=RAG/'cases'/'dev-independent.json'; OUT=RAG/'results'/'discovery-independent-probe.json'
+CASES=Path(__import__('os').environ.get('DISCOVERY_CASES', str(RAG/'cases'/'dev-independent.json'))); OUT=RAG/'results'/'discovery-independent-probe.json'
 CAP=500
 class Sampler(threading.Thread):
     def __init__(self): super().__init__(daemon=True); self.value=0; self.stop=False

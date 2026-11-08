@@ -21,12 +21,14 @@ promoted. The gap prototype is archived at
 
 ## Active status
 
-- **Discovery:** H1 pool 14/25; H2 full 19/25 but 15,683 ranges; H2 **bounded
-  cap 500 gives only 15/25 (60%)** at p95 4.05 s, 0.44 s CPU, 11.9 MiB PSS,
-  722.9 MB rchar. H3 no gain. H4 reaches 20/25 (80%) only by one incidental D02
-  span with 144 queries/97.3 s; resource/generalization fails. Independent 5-case
-  set is too easy (H1 5/5), not a discriminating gate. Discovery remains
+- **Discovery:** H1 14/25; H2 full 19/25 but 15,683 ranges; **H2 bounded 500 =
+  15/25 (60%)**. The 19-vs-15 difference is hash/order nondeterminism, not a
+  stable 4-span loss; 19/25 is an order artifact. H3 no gain; H4 20/25 only by
+  one incidental D02 span, 144 queries/97.3 s, resource/generalization fails.
+  Hard independent set: H1/H2 4/5, H4 5/5; easy set 5/5 all arms. Discovery
   **NO-GO**; missing D02 C4/C5, D10 C4, D12 S1. Selection/Expansion frozen.
+  H5 deterministic budget ordering and H6 structural reference resolution are
+  pre-registered, not run.
 - **Selection:** frozen; A/B historical policies selected 4/25 and 6/25. No
   Selection work is authorized until Discovery reaches its gate.
 - **Expansion:** gap prototype validates anchors/definitions but cannot find

@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_INDEPENDENT_DEV",
+  "cases": [
+    {
+      "id": "H1",
+      "gold": 1,
+      "h1_units": 121,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 379,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 379,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeTotalByOrgs",
+        "func_TongHopSoLuongNhanSu",
+        "AccessToken",
+        "ActivationCode",
+        "Active"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2630.2437470003497,
+      "h2_wall_ms": 286.84963400883134,
+      "h4_wall_ms": 4024.275649993797
+    },
+    {
+      "id": "H2",
+      "gold": 1,
+      "h1_units": 114,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 386,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 386,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeForSyncHistory",
+        "AccessToken",
+        "ActiveJobPosition",
+        "AddClaim",
+        "AddMinutes",
+        "AddressMapping"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2620.362956993631,
+      "h2_wall_ms": 173.40841999975964,
+      "h4_wall_ms": 3867.731727004866
+    },
+    {
+      "id": "H3",
+      "gold": 1,
+      "h1_units": 122,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 378,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 378,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeTotalByOrgExcludeOrg",
+        "func_EmployeeTotal12MonthsExcludeOrg",
+        "AccessToken",
+        "ActivationCode",
+        "Active",
+        "AdDomain"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2600.534515993786,
+      "h2_wall_ms": 199.59065700822975,
+      "h4_wall_ms": 3960.9163849963807
+    },
+    {
+      "id": "H4",
+      "gold": 1,
+      "h1_units": 147,
+      "h1_cov": 0,
+      "h2_units": 500,
+      "h2_added": 353,
+      "h2_cov": 0,
+      "h4_units": 500,
+      "h4_added": 353,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeTotalByOrgExcludeOrg",
+        "func_EmployeeTotal12MonthsExcludeOrg",
+        "AddClaims",
+        "AddMonths",
+        "Address"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 3352.4798510043183,
+      "h2_wall_ms": 205.13862499501556,
+      "h4_wall_ms": 3767.476066001109
+    },
+    {
+      "id": "H5",
+      "gold": 1,
+      "h1_units": 109,
+      "h1_cov": 1,
+      "h2_units": 500,
+      "h2_added": 391,
+      "h2_cov": 1,
+      "h4_units": 500,
+      "h4_added": 391,
+      "h4_cov": 1,
+      "h4_refs": [
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeTotalByOrgExcludeOrg",
+        "func_EmployeeTotal12MonthsExcludeOrg",
+        "AddMinutes",
+        "AddRange",
+        "AddressMappingApis"
+      ],
+      "h4_queries": 12,
+      "h1_wall_ms": 2511.870882997755,
+      "h2_wall_ms": 222.5976769987028,
+      "h4_wall_ms": 3852.14656800963
+    }
+  ],
+  "totals": {
+    "gold": 5,
+    "h1_cov": 4,
+    "h2_cov": 4,
+    "h4_cov": 5
+  },
+  "macro": {
+    "h1": 0.8,
+    "h2": 0.8,
+    "h4": 1.0
+  },
+  "resources": {
+    "peak_pss_kib": 12167,
+    "cpu_user_s": 2.290865,
+    "cpu_sys_s": 0.8226089999999999,
+    "io": {
+      "rchar": 489941017,
+      "wchar": 4470829,
+      "syscr": 185978,
+      "syscw": 6321,
+      "read_bytes": 8192,
+      "write_bytes": 40960,
+      "cancelled_write_bytes": 0
+    },
+    "p95_case_wall_ms": 7325.094542000443
+  },
+  "limits": [
+    "5 independent dev cases; held-out locked",
+    "cap 500 ranges/case",
+    "gold measurement only",
+    "no top10 selection"
+  ]
+}
