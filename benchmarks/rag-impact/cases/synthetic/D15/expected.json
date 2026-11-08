@@ -1,0 +1,17 @@
+{
+  "case": "D15",
+  "kind": "synthetic",
+  "question": "Source is modified or deleted after discovery: what must the evidence say?",
+  "required_facts": [
+    "The v1 and v2 files have different SHA-256 and different line coordinates.",
+    "After mutation, a v1 hash/range is stale and must not be cited as current.",
+    "If refresh is not completed within budget, the final answer is PARTIAL with the stale gap."
+  ],
+  "forbidden_claims": [
+    "citing the old line as current",
+    "treating the changed file as unchanged",
+    "claiming a successful refresh without revalidation"
+  ],
+  "fixture_files": ["ProfileService.v1.cs", "ProfileService.v2.cs"],
+  "mutation": "replace v1 with v2, or delete the file, after discovery and before final citation"
+}

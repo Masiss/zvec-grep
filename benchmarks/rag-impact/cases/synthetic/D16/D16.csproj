@@ -1,0 +1,12 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <AssemblyName>D16</AssemblyName>
+    <RootNamespace>Synthetic.Cycle</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="CycleA.cs" />
+    <Compile Include="CycleB.cs" />
+    <Compile Include="LongChain.cs" />
+    <Compile Include="Instructions.cs" />
+  </ItemGroup>
+</Project>

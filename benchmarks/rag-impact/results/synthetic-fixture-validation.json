@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "status": "FIXTURE_SHAPE_VALID_ENGINE_BEHAVIOR_PENDING_R2",
+  "fixtures": {
+    "D13": {
+      "checks": [
+        "same FQN/method",
+        "distinct bodies",
+        "distinct assembly names"
+      ],
+      "files": {
+        "D13/ProjectA/Orders/OrderService.cs": {
+          "sha256": "4da1ba7fe3eb8be041f0623c7fa4454828aff205dfbeec86907bf939ae718b8c",
+          "bytes": 165
+        },
+        "D13/ProjectA/ProjectA.csproj": {
+          "sha256": "c1695e85d9ecd2a48d12c5c44f8499f7bb54e592588905257bec273f94eab48e",
+          "bytes": 305
+        },
+        "D13/ProjectB/Orders/OrderService.cs": {
+          "sha256": "e41c323471c5afe4b7ceb27715557a8f3e86df77e1aa579922fe2be00308f9f6",
+          "bytes": 169
+        },
+        "D13/ProjectB/ProjectB.csproj": {
+          "sha256": "f3665e981d68fa9038e3092e9a06610a7680e4a6674cd86d4ea7943ab7512793",
+          "bytes": 305
+        },
+        "D13/expected.json": {
+          "sha256": "c49c5e87292f749513f94e954f8032119392bcf1c85c13698a762aa390739a02",
+          "bytes": 823
+        }
+      }
+    },
+    "D14": {
+      "checks": [
+        "reflection dispatch",
+        "dynamic SQL target",
+        "candidate/gap expected"
+      ],
+      "files": {
+        "D14/D14.csproj": {
+          "sha256": "b57bf08f7aba61e8aaa8e0fd987ff45bc30ea0503b5aadebfd8c7eeb9d109e97",
+          "bytes": 301
+        },
+        "D14/DynamicTargets.cs": {
+          "sha256": "a7f7fa6e884388db3932e3370c3b7ba2ded48f1c0c4a52634487fb8a48a50c95",
+          "bytes": 494
+        },
+        "D14/expected.json": {
+          "sha256": "d484927d02ae336bae34befee3411f8872613677870b4ce80b5628c9a31c6950",
+          "bytes": 662
+        }
+      }
+    },
+    "D15": {
+      "checks": [
+        "assignment line 8 -> 10",
+        "distinct hashes",
+        "stale revalidation expected"
+      ],
+      "files": {
+        "D15/ProfileService.v1.cs": {
+          "sha256": "639b0fa29b99119c4b8037169d4d33c7d307f0f73bfe6d05f68ea47a139a65fd",
+          "bytes": 236
+        },
+        "D15/ProfileService.v2.cs": {
+          "sha256": "d390fb87c600616c55267c715bc23fae3ed574a49d23eab72cdb06de43a55fce",
+          "bytes": 359
+        },
+        "D15/expected.json": {
+          "sha256": "d65893b6f087d4a7aad8ea88594708c7c56e9e5ef5335d8d9e943ad5d67a282d",
+          "bytes": 761
+        }
+      }
+    },
+    "D16": {
+      "checks": [
+        "cycle edges present",
+        "25 chain methods",
+        "instruction canary is text data"
+      ],
+      "files": {
+        "D16/CycleA.cs": {
+          "sha256": "920c37a03209ff4ce43714a93bcb524ef2fba19fcde6a1528018fa4a6b9748ed",
+          "bytes": 140
+        },
+        "D16/CycleB.cs": {
+          "sha256": "f311e37f67c8a3facd4aa477d7012592f4d33ca8a6d7765d4b30711e8dcdcb34",
+          "bytes": 140
+        },
+        "D16/D16.csproj": {
+          "sha256": "34f49518ddbfa46c0b1165f25caae6e40bd4fb148d2022a7c7ffeda8931c4fe7",
+          "bytes": 408
+        },
+        "D16/Instructions.cs": {
+          "sha256": "6c5063dabea8e59a56c12adf9314c1722f912302036578f183fe126f6e462745",
+          "bytes": 277
+        },
+        "D16/LongChain.cs": {
+          "sha256": "c40935956ce2693b815458cf650055a727fc16bf29bc8ebb71e93c973e128f13",
+          "bytes": 524
+        },
+        "D16/expected.json": {
+          "sha256": "e5eb83ce2719d06b2c86521b6119b91db61d3f4896d2b8856dc650d14f26483a",
+          "bytes": 698
+        }
+      }
+    }
+  },
+  "engine_behavior": "PENDING_R2_R4"
+}

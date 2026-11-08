@@ -1,0 +1,23 @@
+{
+  "case": "D13",
+  "kind": "synthetic",
+  "question": "Same FQN and method name in two projects: which target is called?",
+  "required_facts": [
+    "Shop.Orders.OrderService exists in ProjectA and ProjectB as separate assemblies.",
+    "A call resolved in ProjectA must cite ProjectA/Orders/OrderService.cs and must not merge with ProjectB.",
+    "The two Update methods have different bodies and must not be treated as one partial entity."
+  ],
+  "forbidden_claims": [
+    "cross-project partial merge",
+    "resolving ProjectA.Update to ProjectB by nearest filename or same FQN",
+    "claiming a single deployed assembly without scope evidence"
+  ],
+  "fixture_files": [
+    "ProjectA/ProjectA.csproj",
+    "ProjectA/Orders/OrderService.cs",
+    "ProjectA/Orders/Caller.cs",
+    "ProjectB/ProjectB.csproj",
+    "ProjectB/Orders/OrderService.cs",
+    "ProjectB/Orders/Caller.cs"
+  ]
+}

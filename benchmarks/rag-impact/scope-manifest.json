@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "status": "R0_REANCHORED_SOURCE_CASES_ANNOTATED_PENDING_GATES",
-  "blocker": "The declared checkout is present and selected project/source hashes plus D01-D12 line spans are pinned to observed HEAD 68a53a6865b81d05745c4aa47967204e8e128996. Detailed D01-D12 fact/claim-limit review, D13-D16 synthetic fixtures and owner acceptance of numeric targets remain pending.",
+  "status": "R0_FROZEN_B0_MEASURED_CANDIDATE_PENDING",
+  "blocker": "R0 targets, corpus, cases and B0 are frozen. The candidate (R2/R3) is not implemented or measured; D13-D16 engine behavior remains an R2/R4 gate.",
   "pilot": {
     "declared_root": "/home/masis/itc/Ricons/HRM2.0",
     "declared_git_head": "d5e8fbcdd49b48c208887096993074464c793cd7",
@@ -84,22 +84,256 @@
     }
   ],
   "case_spans": {
-    "D01": [{"anchor": "C1", "spans": [[459, 620]]}, {"anchor": "C2", "spans": [[215, 285]]}],
-    "D02": [{"anchor": "C2", "spans": [[215, 285], [287, 425]]}, {"anchor": "C4", "spans": [[17, 20], [41, 55]]}, {"anchor": "C5", "spans": [[1, 65]]}, {"anchor": "C6", "spans": [[1, 100]]}],
-    "D03": [{"anchor": "C2", "spans": [[215, 285]]}],
-    "D04": [{"anchor": "C2", "spans": [[562, 573]]}],
-    "D05": [{"anchor": "C2", "spans": [[215, 425]]}],
-    "D06": [{"anchor": "C2", "spans": [[215, 285], [427, 457]]}, {"anchor": "C7", "spans": [[1057, 1074]]}],
-    "D07": [{"anchor": "C2", "spans": [[539, 560]]}, {"anchor": "C7", "spans": [[1057, 1074]]}, {"anchor": "S1", "spans": [[58, 95]]}],
-    "D08": [{"anchor": "C1", "spans": [[624, 634]]}, {"anchor": "C2", "spans": [[539, 549]]}],
-    "D09": [{"anchor": "S2", "spans": [[1, 10]]}],
-    "D10": [{"anchor": "C3", "spans": [[15, 22]]}, {"anchor": "C4", "spans": [[9, 20]]}],
-    "D11": [{"anchor": "C2", "spans": [[866, 887]]}],
-    "D12": [{"anchor": "C7", "spans": [[1057, 1074]]}, {"anchor": "S1", "spans": [[1, 95]]}],
-    "D13": {"fixture": null, "status": "not_authored"},
-    "D14": {"fixture": null, "status": "not_authored"},
-    "D15": {"fixture": null, "status": "not_authored"},
-    "D16": {"fixture": null, "status": "not_authored"}
+    "D01": [
+      {
+        "anchor": "C1",
+        "spans": [
+          [
+            459,
+            620
+          ]
+        ]
+      },
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            215,
+            285
+          ]
+        ]
+      }
+    ],
+    "D02": [
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            215,
+            285
+          ],
+          [
+            287,
+            425
+          ]
+        ]
+      },
+      {
+        "anchor": "C4",
+        "spans": [
+          [
+            17,
+            20
+          ],
+          [
+            41,
+            55
+          ]
+        ]
+      },
+      {
+        "anchor": "C5",
+        "spans": [
+          [
+            1,
+            65
+          ]
+        ]
+      },
+      {
+        "anchor": "C6",
+        "spans": [
+          [
+            1,
+            100
+          ]
+        ]
+      }
+    ],
+    "D03": [
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            215,
+            285
+          ]
+        ]
+      }
+    ],
+    "D04": [
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            562,
+            573
+          ]
+        ]
+      }
+    ],
+    "D05": [
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            215,
+            425
+          ]
+        ]
+      }
+    ],
+    "D06": [
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            215,
+            285
+          ],
+          [
+            427,
+            457
+          ]
+        ]
+      },
+      {
+        "anchor": "C7",
+        "spans": [
+          [
+            1057,
+            1074
+          ]
+        ]
+      }
+    ],
+    "D07": [
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            539,
+            560
+          ]
+        ]
+      },
+      {
+        "anchor": "C7",
+        "spans": [
+          [
+            1057,
+            1074
+          ]
+        ]
+      },
+      {
+        "anchor": "S1",
+        "spans": [
+          [
+            58,
+            95
+          ]
+        ]
+      }
+    ],
+    "D08": [
+      {
+        "anchor": "C1",
+        "spans": [
+          [
+            624,
+            634
+          ]
+        ]
+      },
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            539,
+            549
+          ]
+        ]
+      }
+    ],
+    "D09": [
+      {
+        "anchor": "S2",
+        "spans": [
+          [
+            1,
+            10
+          ]
+        ]
+      }
+    ],
+    "D10": [
+      {
+        "anchor": "C3",
+        "spans": [
+          [
+            15,
+            22
+          ]
+        ]
+      },
+      {
+        "anchor": "C4",
+        "spans": [
+          [
+            9,
+            20
+          ]
+        ]
+      }
+    ],
+    "D11": [
+      {
+        "anchor": "C2",
+        "spans": [
+          [
+            866,
+            887
+          ]
+        ]
+      }
+    ],
+    "D12": [
+      {
+        "anchor": "C7",
+        "spans": [
+          [
+            1057,
+            1074
+          ]
+        ]
+      },
+      {
+        "anchor": "S1",
+        "spans": [
+          [
+            1,
+            95
+          ]
+        ]
+      }
+    ],
+    "D13": {
+      "fixture": null,
+      "status": "not_authored"
+    },
+    "D14": {
+      "fixture": null,
+      "status": "not_authored"
+    },
+    "D15": {
+      "fixture": null,
+      "status": "not_authored"
+    },
+    "D16": {
+      "fixture": null,
+      "status": "not_authored"
+    }
   },
   "exclusions": [
     {
@@ -118,7 +352,25 @@
   "acceptance": {
     "dev_cases": 16,
     "heldout_cases": 8,
-    "numeric_targets": "see rust/docs/rag/implementation-plan.md section 9; not yet accepted"
+    "numeric_targets": "frozen by owner on 2026-11-08 in benchmarks/rag-impact/PREREGISTRATION.md",
+    "numeric_targets_status": "OWNER_FROZEN",
+    "hard_gates": [
+      "task correctness >= B0",
+      "citation/source accuracy = 100%",
+      "freshness/privacy = 0 serious errors",
+      "search p95 <= 1.20x B0",
+      "idle PSS <= B0 + 64 MiB",
+      "retrieval peak PSS <= B0 + 128 MiB",
+      "indexing overhead <= 10%",
+      "0 RESOURCE_BUSY over 400 queries with 4 readers"
+    ],
+    "optimization_goals": [
+      "Evidence Recall@10 >= B0 + 10pp",
+      "additional source reads reduced >= 30%",
+      "additional context tokens reduced >= 20%"
+    ],
+    "dev_cases_status": "ALL_24_FROZEN",
+    "baseline_status": "B0_MEASURED"
   },
   "notes": [
     "Hashes are from current tracked source at observed HEAD 68a53a6865b81d05745c4aa47967204e8e128996.",
@@ -128,6 +380,45 @@
     "Exact source spans for D01-D12 are in case_spans and mirrored into dev.json; detailed facts/claim-limit review remains pending.",
     "D13-D16 are synthetic and require authored fixtures plus expected outcomes before they can freeze.",
     "Held-out cases are in cases/heldout.json and were authored by a reviewer independent of candidate tuning.",
-    "Numeric targets remain proposed until owner acceptance; no candidate measurement before acceptance."
-  ]
+    "Numeric targets remain proposed until owner acceptance; no candidate measurement before acceptance.",
+    "Owner set blind targets on 2026-11-08; see PREREGISTRATION.md. Targets are not adjusted after measurement.",
+    "B0 corpus frozen in corpus-manifest.json: 822 files, 5,400,637 bytes (three compile sets, project files, S1/S2).",
+    "D01-D12 facts/claim limits reviewed and frozen on 2026-11-08; D13-D16 synthetic fixtures remain pending.",
+    "B0 has not been measured yet. No candidate measurement may start before B0 and the full R0 freeze.",
+    "D13-D16 synthetic fixtures authored and shape-validated; engine behavior remains PENDING_R2_R4.",
+    "All 16 development cases are frozen; official B0 has not run.",
+    "Official B0 measured with 3 cold index runs and 400 server-mode queries; see results/b0-official.md. Task correctness is a deterministic evidence proxy."
+  ],
+  "artifacts": {
+    "pre_registration": {
+      "path": "benchmarks/rag-impact/PREREGISTRATION.md",
+      "sha256": "90d1e58e95671699f7ca2efd0b2617eb76b86cd600ce9c454e7f34fba08b8fb1"
+    },
+    "corpus_manifest": {
+      "path": "benchmarks/rag-impact/corpus-manifest.json",
+      "sha256": "c706c8dd9b560572a2c1739c2c2bda676982f4c3b5da4cd4b32bcfeb66359cdb",
+      "files": 822,
+      "bytes": 5400637
+    },
+    "dev_cases": {
+      "path": "benchmarks/rag-impact/cases/dev.json",
+      "sha256": "22e57f49bcd15ad6a8f38edee1bf93ed914a8793b54a2ed6f11559d22a1bbe48"
+    },
+    "report_contract": {
+      "path": "benchmarks/rag-impact/REPORT-CONTRACT.md",
+      "sha256": "0bd73d1904b04f3e707fd17e011af8bad0d968c4e34ffb92346c8a0027de40af"
+    },
+    "synthetic_fixture_validation": {
+      "path": "benchmarks/rag-impact/results/synthetic-fixture-validation.json",
+      "sha256": "ba62db9f8d866f07c6bf40031ac0e9475ce58cecbbb708ad043171c8b6c69647"
+    },
+    "b0_receipt": {
+      "path": "benchmarks/rag-impact/results/b0-official.json",
+      "sha256": "e57c11e23822cf4477266b20a98d84de548ebf9b5c88e8637ddb0e912c37443c"
+    },
+    "b0_summary": {
+      "path": "benchmarks/rag-impact/results/b0-official.md",
+      "sha256": "ecdad2b903548d094e5e0c28a2080e35f4cd507a5821d9de8ac72e8696d1dca7"
+    }
+  }
 }

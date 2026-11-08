@@ -1,0 +1,3507 @@
+{
+  "schema_version": 1,
+  "status": "PILOT_SIX_CALL_POLICY_NOT_FROZEN_B0",
+  "purpose": "B0 quality pilot using the frozen six-call policy; development cases only",
+  "corpus_manifest_sha256": "c706c8dd9b560572a2c1739c2c2bda676982f4c3b5da4cd4b32bcfeb66359cdb",
+  "dev_cases_sha256": "22e57f49bcd15ad6a8f38edee1bf93ed914a8793b54a2ed6f11559d22a1bbe48",
+  "binary": "/home/masis/.local/share/zvec-grep/index-allocation-diagnostics/20261105-lifecycle/fixed-1.98.0-bin/zg",
+  "cases": [
+    {
+      "id": "D01",
+      "question_sha256": "0f04e526b5c754668b44ea0b7e092926243c03bf08aed670a7c57003f51f8aaa",
+      "first_phrase": "Form 1 update",
+      "last_phrase": "tin cá nhân",
+      "code_tokens": [
+        "Form"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 347,
+              "end_line": 375
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 324,
+              "end_line": 351
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 177,
+              "end_line": 216
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1127,
+              "end_line": 1158
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+              "start_line": 1,
+              "end_line": 24
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.8404,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+              "start_line": 142,
+              "end_line": 184
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+              "start_line": 42,
+              "end_line": 84
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 417,
+              "end_line": 463
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1127,
+              "end_line": 1158
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7892,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+              "start_line": 118,
+              "end_line": 175
+            },
+            {
+              "path": "Webs/HRM/Controllers/Setting/EmailController.cs",
+              "start_line": 43,
+              "end_line": 79
+            },
+            {
+              "path": "Webs/HRM/Controllers/Recruitment/2.2/CandidateController.cs",
+              "start_line": 138,
+              "end_line": 193
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+              "start_line": 324,
+              "end_line": 380
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 685,
+              "end_line": 730
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Word/TerminationController.cs",
+              "start_line": 91,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 417,
+              "end_line": 463
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/AuthController.cs",
+              "start_line": 301,
+              "end_line": 339
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+              "start_line": 80,
+              "end_line": 86
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionCommand.cs",
+              "start_line": 87,
+              "end_line": 95
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.8128,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+              "start_line": 596,
+              "end_line": 596
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 430,
+              "end_line": 430
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0122,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+              "start_line": 118,
+              "end_line": 175
+            },
+            {
+              "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+              "start_line": 84,
+              "end_line": 127
+            },
+            {
+              "path": "Webs/HRM/Controllers/Setting/EmailController.cs",
+              "start_line": 43,
+              "end_line": 79
+            },
+            {
+              "path": "Webs/HRM/Controllers/Recruitment/2.2/CandidateController.cs",
+              "start_line": 138,
+              "end_line": 193
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Word/TerminationController.cs",
+              "start_line": 91,
+              "end_line": 105
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+              "start_line": 441,
+              "end_line": 484
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/General/BuilderTable.cs",
+              "start_line": 1,
+              "end_line": 30
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/AuthController.cs",
+              "start_line": 301,
+              "end_line": 339
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+              "start_line": 220,
+              "end_line": 262
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Word/EmployeeController.cs",
+              "start_line": 391,
+              "end_line": 438
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 1,
+          "recall": 0.5,
+          "wall_s": 0.7909,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/General/BuilderTable.cs",
+              "start_line": 28,
+              "end_line": 28
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 37,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 79,
+              "end_line": 79
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 88,
+              "end_line": 88
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 94,
+              "end_line": 94
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 96,
+              "end_line": 96
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 100,
+              "end_line": 100
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 101,
+              "end_line": 101
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 103,
+              "end_line": 103
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+              "start_line": 128,
+              "end_line": 128
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0138,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "fts_code_tokens",
+      "recall": 0.5,
+      "additional_source_reads": 2,
+      "additional_context_bytes": 233599
+    },
+    {
+      "id": "D02",
+      "question_sha256": "c6448e46b079a18836024cd7021b6feb1471971de90b74036e2cea8113c182fe",
+      "first_phrase": "Personal update ghi",
+      "last_phrase": "Personal update ghi",
+      "code_tokens": [
+        "Personal"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 37,
+              "end_line": 80
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 394,
+              "end_line": 420
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ImportController.cs",
+              "start_line": 436,
+              "end_line": 464
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Webs/HRM/Controllers/CB/SalaryCategoryController.cs",
+              "start_line": 722,
+              "end_line": 770
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+              "start_line": 40,
+              "end_line": 78
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            }
+          ],
+          "gold_spans": 6,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.8942,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 465,
+              "end_line": 503
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 177,
+              "end_line": 216
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+              "start_line": 40,
+              "end_line": 78
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 129,
+              "end_line": 166
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            }
+          ],
+          "gold_spans": 6,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7671,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+              "start_line": 1,
+              "end_line": 68
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentCommand.cs",
+              "start_line": 1,
+              "end_line": 49
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 37,
+              "end_line": 80
+            },
+            {
+              "path": "Webs/HRM/App_Start/FilterConfig.cs",
+              "start_line": 1,
+              "end_line": 14
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogQueue.cs",
+              "start_line": 1,
+              "end_line": 57
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Features/FeatureCommand.cs",
+              "start_line": 50,
+              "end_line": 91
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 685,
+              "end_line": 730
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/DataControls/DataControlCommand.cs",
+              "start_line": 1,
+              "end_line": 40
+            }
+          ],
+          "gold_spans": 6,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7564,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+              "start_line": 1,
+              "end_line": 68
+            }
+          ],
+          "gold_spans": 6,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7415,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+              "start_line": 370,
+              "end_line": 370
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 152,
+              "end_line": 152
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 282,
+              "end_line": 282
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 283,
+              "end_line": 283
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 284,
+              "end_line": 284
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 285,
+              "end_line": 285
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 286,
+              "end_line": 286
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 287,
+              "end_line": 287
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 288,
+              "end_line": 288
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 289,
+              "end_line": 289
+            }
+          ],
+          "gold_spans": 6,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0132,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "hybrid_question",
+      "recall": 0.0,
+      "additional_source_reads": 2,
+      "additional_context_bytes": 172297
+    },
+    {
+      "id": "D03",
+      "question_sha256": "d7e3e86e925fc38d62408b9e445c734c3c140bf89b3687e0dda7e47b6dac9c01",
+      "first_phrase": "FullName personal update",
+      "last_phrase": "personal update Keyword",
+      "code_tokens": [
+        "Đổi",
+        "FullName"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 324,
+              "end_line": 351
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 716,
+              "end_line": 739
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 111,
+              "end_line": 150
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.8409,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 82,
+              "end_line": 109
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 111,
+              "end_line": 150
+            },
+            {
+              "path": "Webs/HRM/Startup.cs",
+              "start_line": 78,
+              "end_line": 117
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Webs/HRM/Controllers/Termination/TerminationController.cs",
+              "start_line": 283,
+              "end_line": 326
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 129,
+              "end_line": 166
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.725,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+              "start_line": 1,
+              "end_line": 68
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 545,
+              "end_line": 599
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 730,
+              "end_line": 779
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 725,
+              "end_line": 756
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/DataControls/DataControlCommand.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Webs/HRM/Controllers/CB/SalaryController.cs",
+              "start_line": 157,
+              "end_line": 207
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+              "start_line": 225,
+              "end_line": 259
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+              "start_line": 80,
+              "end_line": 86
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionCommand.cs",
+              "start_line": 87,
+              "end_line": 95
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeWorkConfirmations/EmployeeWorkConfirmationCommand.cs",
+              "start_line": 40,
+              "end_line": 79
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7242,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0112,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 174,
+              "end_line": 201
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+              "start_line": 46,
+              "end_line": 92
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluations/TalentEvaluationCommand.cs",
+              "start_line": 220,
+              "end_line": 242
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee04Many.cs",
+              "start_line": 1677,
+              "end_line": 1711
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 397,
+              "end_line": 453
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 716,
+              "end_line": 739
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 108,
+              "end_line": 151
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 214,
+              "end_line": 250
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 189,
+              "end_line": 222
+            },
+            {
+              "path": "Webs/HRM/Controllers/CB/SalaryCategoryController.cs",
+              "start_line": 801,
+              "end_line": 836
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7297,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 3,
+              "end_line": 3
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+              "start_line": 184,
+              "end_line": 184
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+              "start_line": 210,
+              "end_line": 210
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
+              "start_line": 80,
+              "end_line": 80
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 10,
+              "end_line": 10
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 68,
+              "end_line": 68
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 88,
+              "end_line": 88
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 107,
+              "end_line": 107
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 126,
+              "end_line": 126
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 156,
+              "end_line": 156
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0129,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "hybrid_question",
+      "recall": 0.0,
+      "additional_source_reads": 2,
+      "additional_context_bytes": 228808
+    },
+    {
+      "id": "D04",
+      "question_sha256": "e57467db2309fb2f81efac2ecc447e70c936ff38d88c72c86815f53f9785d1bc",
+      "first_phrase": "EmployeeUpdateInfo cập nhật",
+      "last_phrase": "cập nhật Keyword",
+      "code_tokens": [
+        "EmployeeUpdateInfo",
+        "Keyword"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 752,
+              "end_line": 800
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 249,
+              "end_line": 280
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+              "start_line": 142,
+              "end_line": 184
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/CbRoles/CbRoleCommand.cs",
+              "start_line": 92,
+              "end_line": 140
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 417,
+              "end_line": 463
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Webs/HRM/Controllers/Training/EmployeePlanController.cs",
+              "start_line": 171,
+              "end_line": 211
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.8208,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 394,
+              "end_line": 420
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 417,
+              "end_line": 463
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/CbRoles/CbRoleCommand.cs",
+              "start_line": 92,
+              "end_line": 140
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+              "start_line": 142,
+              "end_line": 184
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 716,
+              "end_line": 739
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Category/JobPositions/JobPositionCommand.cs",
+              "start_line": 48,
+              "end_line": 88
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6977,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 545,
+              "end_line": 599
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 618,
+              "end_line": 669
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+              "start_line": 46,
+              "end_line": 92
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 174,
+              "end_line": 201
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+              "start_line": 115,
+              "end_line": 134
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Webs/HRM/Models/LoginModel.cs",
+              "start_line": 1,
+              "end_line": 59
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 417,
+              "end_line": 463
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+              "start_line": 1,
+              "end_line": 24
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 468,
+              "end_line": 492
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 1,
+          "recall": 1.0,
+          "wall_s": 0.6913,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0112,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 545,
+              "end_line": 599
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeSuggestion.cs",
+              "start_line": 1,
+              "end_line": 54
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee01Many.cs",
+              "start_line": 1,
+              "end_line": 48
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractTypes/ContractTypeMany.cs",
+              "start_line": 130,
+              "end_line": 186
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee05Many.cs",
+              "start_line": 157,
+              "end_line": 206
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluations/TalentEvaluationMany.cs",
+              "start_line": 380,
+              "end_line": 428
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 31,
+              "end_line": 76
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Address/AddressMany.cs",
+              "start_line": 344,
+              "end_line": 394
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailMany.cs",
+              "start_line": 1,
+              "end_line": 59
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyMany.cs",
+              "start_line": 1,
+              "end_line": 46
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 1,
+          "recall": 1.0,
+          "wall_s": 0.6843,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+              "start_line": 95,
+              "end_line": 95
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+              "start_line": 211,
+              "end_line": 211
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractType.cs",
+              "start_line": 20,
+              "end_line": 20
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 8,
+              "end_line": 8
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 123,
+              "end_line": 123
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 176,
+              "end_line": 176
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 261,
+              "end_line": 261
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 356,
+              "end_line": 356
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 531,
+              "end_line": 531
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 555,
+              "end_line": 555
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0134,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "fts_first_phrase",
+      "recall": 1.0,
+      "additional_source_reads": 3,
+      "additional_context_bytes": 238233
+    },
+    {
+      "id": "D05",
+      "question_sha256": "9273e65c1d944cf1b4a016196881881dc2c09db482de91f2588be0671e67d3dd",
+      "first_phrase": "Thiếu detail record",
+      "last_phrase": "all or nothing",
+      "code_tokens": [
+        "Thiếu"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 197,
+              "end_line": 228
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+              "start_line": 142,
+              "end_line": 184
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 417,
+              "end_line": 463
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Category/JobPositions/JobPositionCommand.cs",
+              "start_line": 48,
+              "end_line": 88
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+              "start_line": 577,
+              "end_line": 623
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationCommand.cs",
+              "start_line": 484,
+              "end_line": 518
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7818,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 184,
+              "end_line": 254
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+              "start_line": 417,
+              "end_line": 463
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionCommand.cs",
+              "start_line": 51,
+              "end_line": 91
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 177,
+              "end_line": 216
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignCommand.cs",
+              "start_line": 135,
+              "end_line": 156
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+              "start_line": 211,
+              "end_line": 227
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+              "start_line": 142,
+              "end_line": 184
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6796,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 184,
+              "end_line": 254
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionCommand.cs",
+              "start_line": 51,
+              "end_line": 91
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 177,
+              "end_line": 216
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1155,
+              "end_line": 1181
+            },
+            {
+              "path": "Webs/HRM/Controllers/ISign/ISignRequestController.cs",
+              "start_line": 38,
+              "end_line": 63
+            },
+            {
+              "path": "Webs/HRM/Controllers/Maneuve/TransferConfirmController.cs",
+              "start_line": 46,
+              "end_line": 90
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+              "start_line": 1,
+              "end_line": 24
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluations/TalentEvaluationCommand.cs",
+              "start_line": 220,
+              "end_line": 242
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.749,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0139,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 184,
+              "end_line": 254
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionCommand.cs",
+              "start_line": 51,
+              "end_line": 91
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 177,
+              "end_line": 216
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1155,
+              "end_line": 1181
+            },
+            {
+              "path": "Webs/HRM/Controllers/ISign/ISignRequestController.cs",
+              "start_line": 38,
+              "end_line": 63
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+              "start_line": 1,
+              "end_line": 24
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluations/TalentEvaluationCommand.cs",
+              "start_line": 220,
+              "end_line": 242
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/ApproveProcesses/ApproveCommand.cs",
+              "start_line": 295,
+              "end_line": 333
+            },
+            {
+              "path": "Webs/HRM/Controllers/Maneuve/ManeuveController.cs",
+              "start_line": 1,
+              "end_line": 66
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.8422,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0123,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "hybrid_question",
+      "recall": 0.0,
+      "additional_source_reads": 3,
+      "additional_context_bytes": 183344
+    },
+    {
+      "id": "D06",
+      "question_sha256": "dc5dd4369b72811f680a4a65e84e6684b15a48f840f8476f74cfc1728d48d7b5",
+      "first_phrase": "tên đều gọi",
+      "last_phrase": "tổng nhân sự",
+      "code_tokens": [],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 1,
+              "end_line": 38
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 324,
+              "end_line": 351
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1127,
+              "end_line": 1158
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.8302,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/ApproveProcesses/ApproveCommand.cs",
+              "start_line": 295,
+              "end_line": 333
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkLog.cs",
+              "start_line": 1,
+              "end_line": 35
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+              "start_line": 46,
+              "end_line": 92
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6544,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+              "start_line": 1,
+              "end_line": 33
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 37,
+              "end_line": 80
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkLog.cs",
+              "start_line": 1,
+              "end_line": 35
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/ApproveProcesses/ApproveCommand.cs",
+              "start_line": 295,
+              "end_line": 333
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 200,
+              "end_line": 239
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee04Many.cs",
+              "start_line": 1231,
+              "end_line": 1266
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 1,
+          "recall": 0.3333333333333333,
+          "wall_s": 0.6489,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee04Many.cs",
+              "start_line": 1211,
+              "end_line": 1211
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+              "start_line": 604,
+              "end_line": 604
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+              "start_line": 628,
+              "end_line": 628
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+              "start_line": 642,
+              "end_line": 642
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+              "start_line": 656,
+              "end_line": 656
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/Employee/EmployeeController.cs",
+              "start_line": 331,
+              "end_line": 331
+            },
+            {
+              "path": "Webs/HRM/Controllers/Prefer/GeneralController.cs",
+              "start_line": 224,
+              "end_line": 224
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0099,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "fts_first_phrase",
+      "recall": 0.3333333333333333,
+      "additional_source_reads": 3,
+      "additional_context_bytes": 179230
+    },
+    {
+      "id": "D07",
+      "question_sha256": "d8e386730bb8ad18357ab039141293d45976ee1ec32c2240c943480d3e61d52e",
+      "first_phrase": "Restore nhân viên",
+      "last_phrase": "nhân viên Employees",
+      "code_tokens": [
+        "Restore",
+        "Employees"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 372,
+              "end_line": 398
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 200,
+              "end_line": 239
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 144,
+              "end_line": 181
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7683,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/ApproveProcesses/ApproveCommand.cs",
+              "start_line": 295,
+              "end_line": 333
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6614,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+              "start_line": 85,
+              "end_line": 122
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+              "start_line": 43,
+              "end_line": 83
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/ApproveProcesses/ApproveCommand.cs",
+              "start_line": 295,
+              "end_line": 333
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+              "start_line": 40,
+              "end_line": 78
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+              "start_line": 142,
+              "end_line": 184
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailCommand.cs",
+              "start_line": 1,
+              "end_line": 63
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 353,
+              "end_line": 404
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 200,
+              "end_line": 239
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6536,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0113,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Export/Pdf/EmployeeController.cs",
+              "start_line": 1,
+              "end_line": 46
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+              "start_line": 1,
+              "end_line": 43
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyOne.cs",
+              "start_line": 1,
+              "end_line": 22
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
+              "start_line": 1,
+              "end_line": 24
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/DecisionController.cs",
+              "start_line": 1,
+              "end_line": 50
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestModels.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentOne.cs",
+              "start_line": 1,
+              "end_line": 25
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestMany.cs",
+              "start_line": 1,
+              "end_line": 46
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationMany.cs",
+              "start_line": 1,
+              "end_line": 50
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6511,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 63,
+              "end_line": 63
+            },
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 85,
+              "end_line": 85
+            },
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 5,
+              "end_line": 5
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 55,
+              "end_line": 55
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 114,
+              "end_line": 114
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkProcess.cs",
+              "start_line": 43,
+              "end_line": 43
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkProcess.cs",
+              "start_line": 89,
+              "end_line": 89
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/General/EmailGroup.cs",
+              "start_line": 19,
+              "end_line": 19
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+              "start_line": 5,
+              "end_line": 5
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Category/JobPositions/JobPositionCommand.cs",
+              "start_line": 81,
+              "end_line": 81
+            }
+          ],
+          "gold_spans": 3,
+          "matched_gold_spans": 1,
+          "recall": 0.3333333333333333,
+          "wall_s": 0.0124,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "rg_code_tokens",
+      "recall": 0.3333333333333333,
+      "additional_source_reads": 2,
+      "additional_context_bytes": 280240
+    },
+    {
+      "id": "D08",
+      "question_sha256": "45d20aa52a545a6f4a4b4261f740cc2acc83210ab73a508ef7af74ffbec11e1c",
+      "first_phrase": "DeleteEmployeeByIds xóa hàng",
+      "last_phrase": "hàng vật lý",
+      "code_tokens": [
+        "DeleteEmployeeByIds"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 52,
+              "end_line": 107
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+              "start_line": 225,
+              "end_line": 259
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+              "start_line": 211,
+              "end_line": 227
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeCommand.cs",
+              "start_line": 87,
+              "end_line": 108
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7329,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 394,
+              "end_line": 420
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 78,
+              "end_line": 117
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1127,
+              "end_line": 1158
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1066,
+              "end_line": 1118
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Webs/HRM/Controllers/Termination/TerminationController.cs",
+              "start_line": 283,
+              "end_line": 326
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6356,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 394,
+              "end_line": 420
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 78,
+              "end_line": 117
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankCommand.cs",
+              "start_line": 55,
+              "end_line": 79
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1127,
+              "end_line": 1158
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeUnions/EmployeeUnionCommand.cs",
+              "start_line": 164,
+              "end_line": 207
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/CbRoles/CbRoleCommand.cs",
+              "start_line": 92,
+              "end_line": 140
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6236,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0092,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+              "start_line": 597,
+              "end_line": 643
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 503,
+              "end_line": 553
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 2,
+          "recall": 1.0,
+          "wall_s": 0.6259,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 539,
+              "end_line": 539
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+              "start_line": 624,
+              "end_line": 624
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+              "start_line": 626,
+              "end_line": 626
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 2,
+          "recall": 1.0,
+          "wall_s": 0.01,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "fts_code_tokens",
+      "recall": 1.0,
+      "additional_source_reads": 3,
+      "additional_context_bytes": 147185
+    },
+    {
+      "id": "D09",
+      "question_sha256": "9e2583a6a23ea4823047c1667810a19e4ee878c9d3076d080848bc4d2add8722",
+      "first_phrase": "EmployeeBaseViews ghi đọc",
+      "last_phrase": "ghi đọc FullName",
+      "code_tokens": [
+        "EmployeeBaseViews",
+        "FullName"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 397,
+              "end_line": 453
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+              "start_line": 1,
+              "end_line": 33
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 37,
+              "end_line": 80
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 465,
+              "end_line": 503
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/FamilyRelations/FamilyRelationCommand.cs",
+              "start_line": 44,
+              "end_line": 86
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 200,
+              "end_line": 239
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeUnions/EmployeeUnionCommand.cs",
+              "start_line": 44,
+              "end_line": 90
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7123,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 37,
+              "end_line": 80
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+              "start_line": 1,
+              "end_line": 33
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkLog.cs",
+              "start_line": 1,
+              "end_line": 35
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 465,
+              "end_line": 503
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 177,
+              "end_line": 216
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+              "start_line": 141,
+              "end_line": 185
+            },
+            {
+              "path": "Webs/HRM/App_Start/FilterConfig.cs",
+              "start_line": 1,
+              "end_line": 14
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/FamilyRelations/FamilyRelationCommand.cs",
+              "start_line": 44,
+              "end_line": 86
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6321,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkLog.cs",
+              "start_line": 1,
+              "end_line": 35
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+              "start_line": 1,
+              "end_line": 33
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 465,
+              "end_line": 503
+            },
+            {
+              "path": "Webs/HRM/App_Start/FilterConfig.cs",
+              "start_line": 1,
+              "end_line": 14
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+              "start_line": 43,
+              "end_line": 80
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 1,
+              "end_line": 50
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogQueue.cs",
+              "start_line": 1,
+              "end_line": 57
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.634,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0098,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 1,
+              "end_line": 10
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeOne.cs",
+              "start_line": 236,
+              "end_line": 286
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+              "start_line": 1,
+              "end_line": 54
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 33,
+              "end_line": 50
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/CbGlones/CbGloneOne.cs",
+              "start_line": 1,
+              "end_line": 54
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeSuggestion.cs",
+              "start_line": 47,
+              "end_line": 62
+            },
+            {
+              "path": "Webs/HRM/Controllers/CB/WelfareFundController.cs",
+              "start_line": 54,
+              "end_line": 96
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees/CbEmployeeMany.cs",
+              "start_line": 236,
+              "end_line": 282
+            },
+            {
+              "path": "Webs/HRM/Controllers/Training/StageController.cs",
+              "start_line": 1022,
+              "end_line": 1057
+            },
+            {
+              "path": "Webs/HRM/Controllers/CB/InsuranceHealthController.cs",
+              "start_line": 550,
+              "end_line": 596
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 1,
+          "recall": 1.0,
+          "wall_s": 0.6261,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 1,
+              "end_line": 1
+            },
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 3,
+              "end_line": 3
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 42,
+              "end_line": 42
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+              "start_line": 184,
+              "end_line": 184
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+              "start_line": 210,
+              "end_line": 210
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
+              "start_line": 80,
+              "end_line": 80
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 10,
+              "end_line": 10
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 68,
+              "end_line": 68
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 88,
+              "end_line": 88
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 107,
+              "end_line": 107
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 1,
+          "recall": 1.0,
+          "wall_s": 0.0124,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "fts_code_tokens",
+      "recall": 1.0,
+      "additional_source_reads": 4,
+      "additional_context_bytes": 225384
+    },
+    {
+      "id": "D10",
+      "question_sha256": "a6d1838cc73b9cf184e0dba5a01da452150c2499fe77ddcf3cbdb8b365319d26",
+      "first_phrase": "Cùng CoreService ba",
+      "last_phrase": "đây ghi DB",
+      "code_tokens": [
+        "Cùng",
+        "CoreService"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeUnions/EmployeeUnionCommand.cs",
+              "start_line": 120,
+              "end_line": 172
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 1,
+              "end_line": 59
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 438,
+              "end_line": 469
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 200,
+              "end_line": 239
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentCommand.cs",
+              "start_line": 1,
+              "end_line": 48
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7221,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 37,
+              "end_line": 80
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 184,
+              "end_line": 254
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkLog.cs",
+              "start_line": 1,
+              "end_line": 35
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+              "start_line": 1,
+              "end_line": 49
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6131,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+              "start_line": 1,
+              "end_line": 24
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/ImportStructures/ImportStructureCommand.cs",
+              "start_line": 1,
+              "end_line": 50
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/PropertyController.cs",
+              "start_line": 122,
+              "end_line": 167
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+              "start_line": 1,
+              "end_line": 33
+            },
+            {
+              "path": "Webs/HRM/Controllers/Kpi/KpiYearController.cs",
+              "start_line": 104,
+              "end_line": 139
+            },
+            {
+              "path": "Webs/HRM/Controllers/Training/StageController.cs",
+              "start_line": 1209,
+              "end_line": 1248
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6355,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0106,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+              "start_line": 1,
+              "end_line": 24
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+              "start_line": 1,
+              "end_line": 37
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/ImportStructures/ImportStructureCommand.cs",
+              "start_line": 1,
+              "end_line": 50
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/PropertyController.cs",
+              "start_line": 122,
+              "end_line": 167
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+              "start_line": 1,
+              "end_line": 33
+            },
+            {
+              "path": "Webs/HRM/Controllers/Kpi/KpiYearController.cs",
+              "start_line": 104,
+              "end_line": 139
+            },
+            {
+              "path": "Webs/HRM/Controllers/Training/StageController.cs",
+              "start_line": 1209,
+              "end_line": 1248
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6434,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+              "start_line": 87,
+              "end_line": 87
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+              "start_line": 89,
+              "end_line": 89
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/EmailKitComponent.cs",
+              "start_line": 50,
+              "end_line": 50
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Components/EmailKitComponent.cs",
+              "start_line": 52,
+              "end_line": 52
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+              "start_line": 17,
+              "end_line": 17
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+              "start_line": 31,
+              "end_line": 31
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+              "start_line": 43,
+              "end_line": 43
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+              "start_line": 50,
+              "end_line": 50
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankCommand.cs",
+              "start_line": 10,
+              "end_line": 10
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankMany.cs",
+              "start_line": 8,
+              "end_line": 8
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 1,
+          "recall": 0.5,
+          "wall_s": 0.012,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "rg_code_tokens",
+      "recall": 0.5,
+      "additional_source_reads": 3,
+      "additional_context_bytes": 204436
+    },
+    {
+      "id": "D11",
+      "question_sha256": "405acd01c6b4c420a18f0bfd527373cff48089d17ceaa13661f3c3b0d010f86a",
+      "first_phrase": "UpdateEmployeeAttr thay trường",
+      "last_phrase": "UpdateEmployeeAttr thay trường",
+      "code_tokens": [
+        "UpdateEmployeeAttr"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+              "start_line": 42,
+              "end_line": 84
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+              "start_line": 40,
+              "end_line": 78
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 111,
+              "end_line": 150
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 52,
+              "end_line": 107
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeUnions/EmployeeUnionCommand.cs",
+              "start_line": 229,
+              "end_line": 274
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7358,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 111,
+              "end_line": 150
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 468,
+              "end_line": 492
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+              "start_line": 40,
+              "end_line": 78
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.643,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 224,
+              "end_line": 252
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1109,
+              "end_line": 1149
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionCommand.cs",
+              "start_line": 51,
+              "end_line": 91
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 587,
+              "end_line": 636
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 468,
+              "end_line": 492
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 111,
+              "end_line": 150
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+              "start_line": 78,
+              "end_line": 105
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs",
+              "start_line": 466,
+              "end_line": 514
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6649,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 848,
+              "end_line": 902
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 1,
+          "recall": 1.0,
+          "wall_s": 0.6554,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 866,
+              "end_line": 866
+            }
+          ],
+          "gold_spans": 1,
+          "matched_gold_spans": 1,
+          "recall": 1.0,
+          "wall_s": 0.0098,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "fts_code_tokens",
+      "recall": 1.0,
+      "additional_source_reads": 3,
+      "additional_context_bytes": 141232
+    },
+    {
+      "id": "D12",
+      "question_sha256": "94307c175b68f1f5774ef869165433abe3b695889d40a79cfe5176b6d4269f55",
+      "first_phrase": "Proc tên nhiều",
+      "last_phrase": "nhiều definition repo",
+      "code_tokens": [
+        "Proc"
+      ],
+      "calls": [
+        {
+          "call": "hybrid_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 324,
+              "end_line": 351
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 465,
+              "end_line": 503
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1127,
+              "end_line": 1158
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 37,
+              "end_line": 80
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+              "start_line": 185,
+              "end_line": 211
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.7755,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_question",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 145,
+              "end_line": 182
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 197,
+              "end_line": 228
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 324,
+              "end_line": 351
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+              "start_line": 1,
+              "end_line": 40
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1127,
+              "end_line": 1158
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs",
+              "start_line": 762,
+              "end_line": 802
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+              "start_line": 1,
+              "end_line": 44
+            },
+            {
+              "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+              "start_line": 358,
+              "end_line": 391
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6685,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_first_phrase",
+          "top10_units": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+              "start_line": 347,
+              "end_line": 375
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+              "start_line": 297,
+              "end_line": 357
+            },
+            {
+              "path": "Webs/HRM/Controllers/Prefer/GeneralController.cs",
+              "start_line": 205,
+              "end_line": 253
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs",
+              "start_line": 762,
+              "end_line": 802
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluations/TalentEvaluationCommand.cs",
+              "start_line": 220,
+              "end_line": 242
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+              "start_line": 142,
+              "end_line": 184
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeWorkLog.cs",
+              "start_line": 1,
+              "end_line": 35
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+              "start_line": 1,
+              "end_line": 33
+            },
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+              "start_line": 1,
+              "end_line": 41
+            },
+            {
+              "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+              "start_line": 44,
+              "end_line": 84
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6566,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_last_phrase",
+          "top10_units": [],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0124,
+          "stderr_tail": ""
+        },
+        {
+          "call": "fts_code_tokens",
+          "top10_units": [],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.6788,
+          "stderr_tail": ""
+        },
+        {
+          "call": "rg_code_tokens",
+          "top10_units": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+              "start_line": 98,
+              "end_line": 98
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+              "start_line": 158,
+              "end_line": 158
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+              "start_line": 183,
+              "end_line": 183
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+              "start_line": 202,
+              "end_line": 202
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+              "start_line": 203,
+              "end_line": 203
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+              "start_line": 204,
+              "end_line": 204
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj",
+              "start_line": 231,
+              "end_line": 231
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 45,
+              "end_line": 45
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 57,
+              "end_line": 57
+            },
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 58,
+              "end_line": 58
+            }
+          ],
+          "gold_spans": 2,
+          "matched_gold_spans": 0,
+          "recall": 0.0,
+          "wall_s": 0.0134,
+          "stderr_tail": ""
+        }
+      ],
+      "best_call": "hybrid_question",
+      "recall": 0.0,
+      "additional_source_reads": 3,
+      "additional_context_bytes": 271854
+    }
+  ],
+  "summary": {
+    "cases": 12,
+    "mean_recall": 0.47222222222222227,
+    "mean_additional_source_reads": 2.75,
+    "mean_additional_context_bytes": 208820.16666666666,
+    "context_tokens": "NOT_MEASURED_NO_TOKENIZER",
+    "heldout": "NOT_RUN_IMPLEMENTER_MUST_NOT_INSPECT",
+    "synthetic_d13_d16": "NOT_AUTHORED"
+  }
+}

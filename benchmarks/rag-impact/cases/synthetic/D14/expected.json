@@ -1,0 +1,16 @@
+{
+  "case": "D14",
+  "kind": "synthetic",
+  "question": "Reflection-dispatched method and dynamic SQL target: what can be resolved?",
+  "required_facts": [
+    "The reflection target depends on the runtime methodName value.",
+    "The SQL target depends on the runtime tableName value.",
+    "Any answer must keep these as candidate/gap, not as a resolved call or writes_table edge."
+  ],
+  "forbidden_claims": [
+    "resolving the reflection target by nearest method name",
+    "resolving the SQL table by nearby string or filename",
+    "claiming the dynamic SQL executes against a specific table"
+  ],
+  "fixture_files": ["D14.csproj", "DynamicTargets.cs"]
+}

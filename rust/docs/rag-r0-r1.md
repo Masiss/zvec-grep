@@ -1,8 +1,17 @@
 # RAG R0/R1 — Pilot freeze and evidence contract
 
-Status: **R0 IN PROGRESS; R1 PASS for the contract and selected real-source slice.**
-Date: 2026-11-04. Follows `docs/rag/README.md`,
+Status: **R0 FROZEN; official B0 measured; candidate pending. Targets, B0 corpus
+and all 16 development cases frozen; D13–D16 fixtures shape-validated. R1 PASS
+for the contract and selected real-source slice.**
+Date: 2026-11-08. Follows `docs/rag/README.md`,
 `docs/rag/implementation-plan.md` and `docs/rag/hrm2-pilot.md`.
+
+Owner blind targets were frozen on 2026-11-08 in
+[`../../benchmarks/rag-impact/PREREGISTRATION.md`](../../benchmarks/rag-impact/PREREGISTRATION.md).
+The frozen B0 corpus is
+[`../../benchmarks/rag-impact/corpus-manifest.json`](../../benchmarks/rag-impact/corpus-manifest.json)
+(822 files, 5,400,637 bytes). Targets are not adjusted after B0 or candidate
+measurement; hard gates and optimization goals are listed separately.
 
 ## R0 — current freeze state
 
@@ -28,9 +37,15 @@ provided excluded-topic themes to avoid duplication, so the author was
 independent of candidate tuning but was not blind to all development topics.
 No candidate measurement was performed.
 
-**R0 gate: INCOMPLETE.** Finish D01–D12 fact/claim-limit review and D13–D16
-synthetic fixtures, then obtain owner acceptance of §9 targets before candidate
-measurement.
+**R0 gate: FROZEN.** D01–D12 facts/claim limits are reviewed and frozen; owner
+targets are accepted; the B0 corpus is frozen; D13–D16 synthetic fixtures are
+authored and shape-validated; official B0 is measured. D13–D16 engine behavior
+remains an R2/R4 gate before claiming those relation cases pass.
+
+Official B0 (development/held-out): recall@10 0.4722 / 0.3958; search p95
+63.4 ms; idle PSS 571,800 KiB; peak PSS 769,113 KiB; 0 RESOURCE_BUSY; cold index
+median 6.31 s. Task correctness is a deterministic evidence proxy, not answer
+quality. Receipt: `benchmarks/rag-impact/results/b0-official.md`.
 
 ## R1 — evidence/source pack
 
@@ -88,12 +103,17 @@ duplicate requests are collapsed.
 
 ## Next
 
-1. Finish exact refs/facts for development cases D01–D12 and synthetic fixture
-   definitions for D13–D16; keep them unfrozen until reviewed.
-2. Ask the owner to accept or adjust `implementation-plan.md` §9 targets.
-3. Do not run candidate quality/performance measurement until both R0 gates are
-   satisfied. Only then consider the scoped C# fact adapter (R2); no graph store,
-   background LLM, DB connection, build/restore or code execution.
+1. R2 bounded C# facts are implemented and pass both the synthetic slice and the
+   real-case gate for the C# fact subset (D01–D06/D08/D10/D11): see
+   [`rag-r2-csharp-facts.md`](rag-r2-csharp-facts.md). D07/D09/D12 SQL facts are
+   R3; D15 revalidation is R4.
+2. B0 is measured and frozen; use the receipt as the baseline for candidate
+   comparison. Do not adjust targets or the corpus after seeing candidate output.
+3. After the real-case R2 gate, start R3 (EF6/SQL/cross-file). Do not run
+   candidate quality/performance measurement until R3/R4 produce a candidate and
+   a separate candidate-measurement authorization exists.
+4. Keep the held-out split uninspected by the implementer; run it mechanically
+   and report it separately from the development split.
 
 ## Evidence
 

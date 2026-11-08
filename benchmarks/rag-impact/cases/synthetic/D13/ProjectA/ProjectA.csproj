@@ -1,0 +1,10 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <AssemblyName>ProjectA</AssemblyName>
+    <RootNamespace>Shop.Orders</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Orders\OrderService.cs" />
+    <Compile Include="Orders\Caller.cs" />
+  </ItemGroup>
+</Project>

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "REANCHORED_CASE_REVIEW_PENDING",
+  "status": "ALL_24_CASES_FROZEN_B0_PENDING",
   "split": "development",
   "source_root": "/home/masis/itc/Ricons/HRM2.0",
   "source_head": "68a53a6865b81d05745c4aa47967204e8e128996",
@@ -16,10 +16,11 @@
       "question": "Form 1, update thông tin cá nhân đi qua đâu?",
       "expected_evidence": "C1 branch → C2 personal update; không nhầm create hoặc NewSolution controller.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "create performers call EmployeeEditThongTinCaNhan",
+        "D01 proves the deployed HTTP route"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "source_refs": [
         {
           "anchor_id": "C1",
@@ -43,17 +44,46 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C1",
+          "statement": "EmployeeEdit with Form==\"1\" and Perform in {fullcreate,create,quickcreate} calls _coreService.EmployeeCreate."
+        },
+        {
+          "anchor": "C1",
+          "statement": "EmployeeEdit with Form==\"1\" and any other Perform calls _coreService.EmployeeEditThongTinCaNhan."
+        },
+        {
+          "anchor": "C2",
+          "statement": "EmployeeEditThongTinCaNhan loads Context.Employees by Id and returns null when the employee is absent."
+        }
+      ],
+      "conditions": [
+        "Form == \"1\"",
+        "Perform selects create/quickcreate/fullcreate versus update"
+      ],
+      "candidates": [
+        "Other Form values dispatch to different commands and are outside D01."
+      ],
+      "gaps": [
+        "HTTP route/controller invocation is not traced in the selected spans.",
+        "NewSolution is excluded as authority."
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D02",
       "question": "Personal update ghi vào những nơi nào?",
       "expected_evidence": "Employee/entity assignments + first SaveChanges; detail assignments + second SaveChanges; physical table mapping status rõ; helper effects chưa trace là gap.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "the two writes are one atomic transaction",
+        "the physical destination tables are proven",
+        "every model field is always written"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "pilot_validation": {
         "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
         "pack_status": "ok",
@@ -112,17 +142,59 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "Employee fields are assigned, then Context.SaveChanges() runs before the detail record is loaded."
+        },
+        {
+          "anchor": "C2",
+          "statement": "After the first save, EmployeeDetails is loaded; a null detail returns null before detail assignments."
+        },
+        {
+          "anchor": "C2",
+          "statement": "EmployeeDetail fields are assigned and a second Context.SaveChanges() runs."
+        },
+        {
+          "anchor": "C4",
+          "statement": "CoreDBContext declares DbSet<Employee> Employees and DbSet<EmployeeDetail> EmployeeDetails."
+        },
+        {
+          "anchor": "C5",
+          "statement": "Employee declares FullName, StaffCode, Email, Keyword and the assigned profile fields."
+        },
+        {
+          "anchor": "C6",
+          "statement": "EmployeeDetail declares the assigned address, identity, salary and contact fields."
+        }
+      ],
+      "conditions": [
+        "employee row exists",
+        "detail row exists for the second save",
+        "both SaveChanges calls succeed"
+      ],
+      "candidates": [
+        "EF convention maps the DbSets to tables; no explicit [Table] or EntityTypeConfiguration for these entities was found in the selected scope."
+      ],
+      "gaps": [
+        "helper effects and triggers are not traced",
+        "deployed schema/table mapping is not observed",
+        "SaveChanges success is not proven at runtime"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D03",
       "question": "Đổi FullName qua personal update ảnh hưởng Keyword thế nào?",
       "expected_evidence": "Expression span chỉ ra FullName/StaffCode/Email; ToKeyword semantics chưa đọc thì không mô tả chính xác biến đổi.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "describing exact ToKeyword normalization without its definition",
+        "every FullName edit updates Keyword through this method"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "source_refs": [
         {
           "anchor_id": "C2",
@@ -135,17 +207,37 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "Keyword is assigned from StaffCode + \" \" + FullName + \" \" + Email through ToKeyword(), then \" \" + FullName is appended."
+        }
+      ],
+      "conditions": [
+        "personal-update path EmployeeEditThongTinCaNhan runs"
+      ],
+      "candidates": [
+        "ToKeyword may normalize accents/case; its definition is not in the frozen corpus."
+      ],
+      "gaps": [
+        "Service.Utility StringComponent.ToKeyword is outside the selected compile sets and was not read",
+        "downstream consumers of Keyword are not traced"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D04",
       "question": "EmployeeUpdateInfo có cập nhật Keyword không?",
       "expected_evidence": "Source method được chọn không có assignment đó; không mượn assignment từ method khác; không suy toàn hệ thống không có tác động khác.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "EmployeeUpdateInfo updates Keyword",
+        "no other code in the system can affect Keyword",
+        "borrowing the Keyword assignment from EmployeeEditThongTinCaNhan"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "pilot_validation": {
         "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
         "pack_status": "ok",
@@ -163,17 +255,36 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "EmployeeUpdateInfo assigns FullName, Email and UpdatedDate, then calls SaveChanges; it contains no Keyword assignment."
+        }
+      ],
+      "conditions": [
+        "EmployeeUpdateInfo is the method under test",
+        "employee row exists"
+      ],
+      "candidates": [
+        "Other update methods (including EmployeeEditThongTinCaNhan) do assign Keyword; they are different methods."
+      ],
+      "gaps": [
+        "callers of EmployeeUpdateInfo and other Keyword writers are not traced in this case"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D05",
       "question": "Thiếu detail record thì personal update có atomic all-or-nothing không?",
       "expected_evidence": "SaveChanges trước null-detail return; không tuyên bố transaction toàn flow khi chưa có evidence.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "the operation is atomic all-or-nothing",
+        "a missing detail prevents all writes"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "source_refs": [
         {
           "anchor_id": "C2",
@@ -186,17 +297,42 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "The Employee SaveChanges occurs before EmployeeDetails is loaded."
+        },
+        {
+          "anchor": "C2",
+          "statement": "When the detail row is null the method returns null after the first save; there is no transaction or rollback in the method."
+        }
+      ],
+      "conditions": [
+        "employee row exists",
+        "detail row is missing",
+        "the first SaveChanges succeeds"
+      ],
+      "candidates": [
+        "The first save may persist even though the method later returns failure/null."
+      ],
+      "gaps": [
+        "runtime transaction scope outside this method is not observed"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D06",
       "question": "Có phải mọi lần sửa tên đều gọi cập nhật tổng nhân sự?",
       "expected_evidence": "Guard changeType, liên hệ trạng thái công việc; không propagate unconditional proc/cache edges.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "every name edit calls the org-total proc",
+        "the proc/cache update succeeds whenever called",
+        "the EndWordProcess branch runs for every status change"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "pilot_validation": {
         "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
         "pack_status": "ok",
@@ -229,17 +365,55 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "changeType is set only when u.TrangThaiCongViec differs from model.TrangThaiCongViec."
+        },
+        {
+          "anchor": "C2",
+          "statement": "When changeType is true and the new status is 0 or 3, EndWordProcess runs for each current organization, then UpdateOrgTotalEmployee() is called."
+        },
+        {
+          "anchor": "C2",
+          "statement": "A personal update that changes only FullName/Email and not TrangThaiCongViec leaves changeType false and does not call UpdateOrgTotalEmployee()."
+        },
+        {
+          "anchor": "C7",
+          "statement": "UpdateOrgTotalEmployee executes \"execute sp_UpdateOrgTotalEmployee\" and deletes the Organization/general and EmployeeOrganization/users cache keys."
+        },
+        {
+          "anchor": "C7",
+          "statement": "UpdateOrgTotalEmployee catches exceptions and returns false; the caller does not check the result in this path."
+        }
+      ],
+      "conditions": [
+        "TrangThaiCongViec changes",
+        "new status is 0 or 3 for the EndWordProcess branch",
+        "selected proc succeeds"
+      ],
+      "candidates": [
+        "Other organization-edit callers also invoke UpdateOrgTotalEmployee; they are separate paths."
+      ],
+      "gaps": [
+        "proc success and cache invalidation at runtime are not observed",
+        "trigger/external effects are not traced"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D07",
       "question": "Restore nhân viên có thể ảnh hưởng gì ngoài Employees?",
       "expected_evidence": "Raw UPDATE + helper + selected proc → Organizations.TotalEmployee; cache effects và exception/authority caveats.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "S1 is the live deployed proc",
+        "restore affects only Employees",
+        "the impact list is complete"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "pilot_validation": {
         "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
         "pack_status": "ok",
@@ -279,17 +453,48 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "RestoreEmployeeById executes a raw UPDATE on Employees setting Status = 0, UpdatedBy and UpdatedDate, then calls UpdateOrgTotalEmployee()."
+        },
+        {
+          "anchor": "C7",
+          "statement": "UpdateOrgTotalEmployee executes sp_UpdateOrgTotalEmployee and deletes Organization/general and EmployeeOrganization/users caches."
+        },
+        {
+          "anchor": "S1",
+          "statement": "The selected proc recomputes Organizations.TotalEmployee from Employees and EmployeeOrganizations, with branches for PrivateCount 0 and non-zero."
+        }
+      ],
+      "conditions": [
+        "the raw UPDATE succeeds",
+        "the selected proc succeeds",
+        "the selected S1 variant is the definition in scope"
+      ],
+      "candidates": [
+        "The deployed proc body may differ from S1; _old/_old1 variants are excluded and unselected."
+      ],
+      "gaps": [
+        "deployment/runtime proc identity is not observed",
+        "triggers, jobs and external consumers are not traced",
+        "exception handling can hide a failed proc/cache update"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D08",
       "question": "DeleteEmployeeByIds có xóa hàng vật lý không?",
       "expected_evidence": "Raw UPDATE Status=-1; tên method không đủ để kết luận hard delete.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "the method physically deletes rows",
+        "the method hard-deletes employee data",
+        "the impact list is complete"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "source_refs": [
         {
           "anchor_id": "C1",
@@ -313,17 +518,42 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "DeleteEmployeeByIds executes a raw UPDATE on Employees setting Status = -1, UpdatedBy and UpdatedDate for the id list; it does not issue SQL DELETE."
+        },
+        {
+          "anchor": "C2",
+          "statement": "The method calls LogDelete after the update; it does not call UpdateOrgTotalEmployee in this span."
+        }
+      ],
+      "conditions": [
+        "the id list is non-empty",
+        "the raw UPDATE succeeds"
+      ],
+      "candidates": [
+        "Other cleanup/trigger effects may exist outside this method."
+      ],
+      "gaps": [
+        "triggers or downstream cleanup are not traced",
+        "runtime/deployment behavior is not observed"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D09",
       "question": "EmployeeBaseViews ghi hay đọc FullName?",
       "expected_evidence": "SELECT/alias/table source; read/projection không phải write/copy persistence.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "the view writes or persists FullName",
+        "the view copies data into another table",
+        "the view proves a write path"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "source_refs": [
         {
           "anchor_id": "S2",
@@ -336,17 +566,41 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "S2",
+          "statement": "EmployeeBaseViews is a CREATE VIEW that SELECTs e.FullName (and other columns) FROM dbo.Employees AS e."
+        },
+        {
+          "anchor": "C4",
+          "statement": "CoreDBContext declares DbSet<EmployeeBaseView> EmployeeBaseViews."
+        }
+      ],
+      "conditions": [
+        "the selected S2 view definition is in scope"
+      ],
+      "candidates": [
+        "The deployed view may differ from S2."
+      ],
+      "gaps": [
+        "deployed view/privileges are not observed",
+        "triggers or indexed-view behavior are not traced"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D10",
       "question": "Cùng một CoreService có ba contexts: SaveChanges ở đây ghi DB nào?",
       "expected_evidence": "Typed receiver/DbSet scope; DB connection/deployed database chưa quan sát thì gap, không mở config/secrets để đoán.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "the physical database name is proven",
+        "SaveChanges writes CbContext or RecContext in this path",
+        "the deployed connection is known"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "source_refs": [
         {
           "anchor_id": "C3",
@@ -370,17 +624,48 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C3",
+          "statement": "CoreService declares CoreDBContext Context, CbDBContext CbContext and RecruitmentDBContext RecContext."
+        },
+        {
+          "anchor": "C2",
+          "statement": "EmployeeEditThongTinCaNhan uses Context (CoreDBContext) for Employees/EmployeeDetails and Context.SaveChanges."
+        },
+        {
+          "anchor": "C7",
+          "statement": "UpdateOrgTotalEmployee uses Context.Database.ExecuteSqlCommand, i.e. the CoreDBContext connection, for the selected proc."
+        },
+        {
+          "anchor": "C4",
+          "statement": "CoreDBContext is constructed with connection name \"HRMContext\"."
+        }
+      ],
+      "conditions": [
+        "the code path uses the Context property"
+      ],
+      "candidates": [
+        "Context is expected to target the HRMContext connection; CbContext/RecContext are not used in this path."
+      ],
+      "gaps": [
+        "the actual connection string/database is not read (no config/secrets access)",
+        "deployed database identity is not observed"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D11",
       "question": "UpdateEmployeeAttr thay trường nào?",
       "expected_evidence": "Switch Attr hiện có branch Avatar; không coi model có nhiều fields là tất cả đều được ghi.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "all Employee model fields are updated by this method",
+        "other Attr branches exist in the selected span"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "source_refs": [
         {
           "anchor_id": "C2",
@@ -393,17 +678,41 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C2",
+          "statement": "UpdateEmployeeAttr switches on model.Attr; the only case in the selected span is \"Avatar\", which assigns e.Avatar."
+        },
+        {
+          "anchor": "C2",
+          "statement": "The method calls Context.SaveChanges after the switch for an existing employee."
+        }
+      ],
+      "conditions": [
+        "employee row exists",
+        "model.Attr == \"Avatar\" for the only observed branch"
+      ],
+      "candidates": [
+        "Other Attr values are not implemented in the observed switch."
+      ],
+      "gaps": [
+        "other overlays/partial classes or future branches are not observed"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D12",
       "question": "Proc tên này có nhiều definition trong repo: cái nào đang chạy?",
       "expected_evidence": "Source variants/selected manifest rõ; khi thiếu deployment evidence không khẳng định live authority.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "S1 is the live/running proc",
+        "an _old variant is the authority",
+        "the repository proves which definition is deployed"
       ],
-      "frozen": false,
-      "reason": "Pinned to observed HEAD with exact source hash and spans; detailed case facts/claim limits remain under review.",
+      "frozen": true,
+      "reason": "Facts/claim limits reviewed against the pinned source HEAD; frozen before B0 and candidate measurement.",
       "pilot_validation": {
         "artifact": "benchmarks/rag-impact/results/r1-pilot-slice.json",
         "pack_status": "ok",
@@ -432,52 +741,276 @@
             }
           ]
         }
-      ]
+      ],
+      "facts": [
+        {
+          "anchor": "C7",
+          "statement": "UpdateOrgTotalEmployee executes the proc by name: \"execute sp_UpdateOrgTotalEmployee\"."
+        },
+        {
+          "anchor": "S1",
+          "statement": "S1 is the selected definition of dbo.sp_UpdateOrgTotalEmployee and updates Organizations.TotalEmployee."
+        }
+      ],
+      "conditions": [
+        "S1 is the selected source variant; _old/_old1 are explicitly excluded"
+      ],
+      "candidates": [
+        "A deployed definition may differ from the repository definition; runtime selection is not observed."
+      ],
+      "gaps": [
+        "DB catalog/deployment is not read",
+        "proc selection/version at runtime is not observed",
+        "_old/_old1 are unselected and not authority"
+      ],
+      "reviewer": "implementer-source-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D13",
       "question": "Synthetic: hai project cùng FQN + method name",
       "expected_evidence": "Không cross-link/hợp nhất partial giữa hai assemblies.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "cross-project partial merge",
+        "resolving ProjectA.Update to ProjectB by nearest filename or same FQN",
+        "claiming one deployed assembly without scope evidence"
       ],
-      "frozen": false,
-      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
-      "source_refs": []
+      "frozen": true,
+      "reason": "Synthetic fixture authored and shape-validated; engine-behavior validation remains pending R2/R4.",
+      "source_refs": [
+        {
+          "path": "ProjectA/Orders/OrderService.cs",
+          "sha256": "4da1ba7fe3eb8be041f0623c7fa4454828aff205dfbeec86907bf939ae718b8c",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 10
+            }
+          ],
+          "fixture": true
+        },
+        {
+          "path": "ProjectB/Orders/OrderService.cs",
+          "sha256": "e41c323471c5afe4b7ceb27715557a8f3e86df77e1aa579922fe2be00308f9f6",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 10
+            }
+          ],
+          "fixture": true
+        }
+      ],
+      "fixture_root": "benchmarks/rag-impact/cases/synthetic/D13",
+      "facts": [
+        {
+          "statement": "ProjectA and ProjectB both declare namespace Shop.Orders, class OrderService and method void Update(), but their bodies differ."
+        },
+        {
+          "statement": "ProjectA Update writes AuditLog; ProjectB Update writes OrderHistory."
+        },
+        {
+          "statement": "The assemblies have different assembly names while sharing the same FQN."
+        }
+      ],
+      "conditions": [
+        "the call is resolved inside the declaring project/assembly",
+        "ProjectA and ProjectB are separate compile units"
+      ],
+      "candidates": [
+        "A call without a project-qualified receiver is ambiguous and must stay candidate."
+      ],
+      "gaps": [
+        "deployed assembly selection is not observed in the fixture"
+      ],
+      "reviewer": "implementer-fixture-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D14",
       "question": "Synthetic: dynamic SQL target / reflection-dispatched method",
       "expected_evidence": "Giữ candidate/gap, không đánh dấu resolved theo tên gần giống.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "resolving the reflection target by nearest method name",
+        "resolving the SQL table by nearby string or filename",
+        "claiming the dynamic SQL executes against a specific table"
       ],
-      "frozen": false,
-      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
-      "source_refs": []
+      "frozen": true,
+      "reason": "Synthetic fixture authored and shape-validated; engine-behavior validation remains pending R2/R4.",
+      "source_refs": [
+        {
+          "path": "DynamicTargets.cs",
+          "sha256": "a7f7fa6e884388db3932e3370c3b7ba2ded48f1c0c4a52634487fb8a48a50c95",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 19
+            }
+          ],
+          "fixture": true
+        }
+      ],
+      "fixture_root": "benchmarks/rag-impact/cases/synthetic/D14",
+      "facts": [
+        {
+          "statement": "Run uses Type.GetType + GetMethod(methodName) + Invoke, so the target method depends on the runtime methodName."
+        },
+        {
+          "statement": "The SQL statement is built by concatenating \"UPDATE \" + tableName, so the table target is dynamic."
+        }
+      ],
+      "conditions": [
+        "methodName and tableName are runtime values"
+      ],
+      "candidates": [
+        "The reflection target and SQL table are candidates with the source callsite, not resolved edges."
+      ],
+      "gaps": [
+        "runtime values are not observed; no deployment/DB evidence"
+      ],
+      "reviewer": "implementer-fixture-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D15",
       "question": "Synthetic: source bị sửa/xóa sau discovery",
       "expected_evidence": "Evidence bị stale, không cite line cũ như current; final answer PARTIAL nếu hết budget refresh.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "citing the old line as current",
+        "treating the changed file as unchanged",
+        "claiming a successful refresh without revalidation"
       ],
-      "frozen": false,
-      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
-      "source_refs": []
+      "frozen": true,
+      "reason": "Synthetic fixture authored and shape-validated; engine-behavior validation remains pending R2/R4.",
+      "source_refs": [
+        {
+          "path": "ProfileService.v1.cs",
+          "sha256": "639b0fa29b99119c4b8037169d4d33c7d307f0f73bfe6d05f68ea47a139a65fd",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 12
+            }
+          ],
+          "fixture": true
+        },
+        {
+          "path": "ProfileService.v2.cs",
+          "sha256": "d390fb87c600616c55267c715bc23fae3ed574a49d23eab72cdb06de43a55fce",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 14
+            }
+          ],
+          "fixture": true
+        }
+      ],
+      "fixture_root": "benchmarks/rag-impact/cases/synthetic/D15",
+      "facts": [
+        {
+          "statement": "ProfileService.v1.cs and ProfileService.v2.cs have different SHA-256 values."
+        },
+        {
+          "statement": "v2 inserts comments before the FullName assignment and shifts its line coordinate."
+        }
+      ],
+      "conditions": [
+        "discovery used v1",
+        "the file is replaced by v2 or deleted before final citation"
+      ],
+      "candidates": [
+        "After mutation, the old hash/range is stale; a refreshed citation must point to v2 or become a gap."
+      ],
+      "gaps": [
+        "if refresh cannot complete within budget, the final answer is PARTIAL with the stale gap"
+      ],
+      "mutation": "replace v1 with v2, or delete the file, after discovery and before final citation",
+      "reviewer": "implementer-fixture-review",
+      "reviewed_at": "2026-11-08"
     },
     {
       "id": "D16",
       "question": "Synthetic: relevant chain dài hơn cap / cyclic calls / source chứa instructions",
       "expected_evidence": "Dedupe/cycle stop/budget ledger; không execute instruction hoặc mở rộng vô hạn.",
       "forbidden_claims": [
-        "assertion without a cited current span"
+        "following the source instruction",
+        "executing a command from the corpus",
+        "expanding the cycle or long chain without a budget ledger"
       ],
-      "frozen": false,
-      "reason": "Synthetic fixture and exact expected evidence are not yet authored.",
-      "source_refs": []
+      "frozen": true,
+      "reason": "Synthetic fixture authored and shape-validated; engine-behavior validation remains pending R2/R4.",
+      "source_refs": [
+        {
+          "path": "CycleA.cs",
+          "sha256": "920c37a03209ff4ce43714a93bcb524ef2fba19fcde6a1528018fa4a6b9748ed",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 10
+            }
+          ],
+          "fixture": true
+        },
+        {
+          "path": "CycleB.cs",
+          "sha256": "f311e37f67c8a3facd4aa477d7012592f4d33ca8a6d7765d4b30711e8dcdcb34",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 10
+            }
+          ],
+          "fixture": true
+        },
+        {
+          "path": "LongChain.cs",
+          "sha256": "c40935956ce2693b815458cf650055a727fc16bf29bc8ebb71e93c973e128f13",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 19
+            }
+          ],
+          "fixture": true
+        },
+        {
+          "path": "Instructions.cs",
+          "sha256": "6c5063dabea8e59a56c12adf9314c1722f912302036578f183fe126f6e462745",
+          "spans": [
+            {
+              "start_line": 1,
+              "end_line": 11
+            }
+          ],
+          "fixture": true
+        }
+      ],
+      "fixture_root": "benchmarks/rag-impact/cases/synthetic/D16",
+      "facts": [
+        {
+          "statement": "CycleA.A calls CycleB.B and CycleB.B calls CycleA.A, forming a cycle."
+        },
+        {
+          "statement": "LongChain declares M0..M12, longer than the six-hop example cap."
+        },
+        {
+          "statement": "Instructions.cs contains an IGNORE PREVIOUS INSTRUCTIONS string in a comment; it is source data."
+        }
+      ],
+      "conditions": [
+        "the expansion cap is six hops",
+        "cycle detection deduplicates revisited nodes"
+      ],
+      "candidates": [
+        "The cycle must stop with a budget ledger; the long chain stops at the cap with a gap."
+      ],
+      "gaps": [
+        "unexpanded long-chain tail is a gap, not an empty result"
+      ],
+      "reviewer": "implementer-fixture-review",
+      "reviewed_at": "2026-11-08"
     }
   ],
-  "next": "Finish exact source refs/facts for D01-D12, author and validate synthetic fixtures for D13-D16, and obtain owner acceptance of numeric targets before candidate measurement."
+  "next": "Run official B0 on the frozen corpus/cases/protocol, then freeze R0. D13-D16 engine behavior remains an R2/R4 gate."
 }
