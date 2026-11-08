@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_H5_DETERMINISTIC_ORDER",
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "h1_units": 183,
+      "pool_units": 500,
+      "coverage": 2,
+      "coverage_at_budget": {
+        "100": 2,
+        "250": 2,
+        "500": 2
+      },
+      "files": 104,
+      "bytes": 1814227,
+      "wall_ms": 4185.541316997842,
+      "selected_hash": "67a905fbc2d895728a32ee1f37b993583aa6dc447f4e83731ac2e2c41b9a0111"
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "h1_units": 162,
+      "pool_units": 500,
+      "coverage": 2,
+      "coverage_at_budget": {
+        "100": 2,
+        "250": 2,
+        "500": 2
+      },
+      "files": 83,
+      "bytes": 1521805,
+      "wall_ms": 4183.102009003051,
+      "selected_hash": "881749088d74d080af2dced68604461c11147669fbf54e37f607cfe869e5e483"
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "h1_units": 336,
+      "pool_units": 500,
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "250": 1,
+        "500": 1
+      },
+      "files": 208,
+      "bytes": 2386806,
+      "wall_ms": 5004.420827011927,
+      "selected_hash": "2fdfb260a92c995c3c53f94d450bd27afef1fb054bca3f9cec5970dfdff5471b"
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "h1_units": 190,
+      "pool_units": 500,
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 1,
+        "250": 1,
+        "500": 1
+      },
+      "files": 135,
+      "bytes": 1668444,
+      "wall_ms": 7918.063493998488,
+      "selected_hash": "8199ce59d813c4f48aa7a2f9d279d218affece16bc41d73e265c887f65e7eabc"
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "h1_units": 112,
+      "pool_units": 500,
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "250": 1,
+        "500": 1
+      },
+      "files": 70,
+      "bytes": 1273839,
+      "wall_ms": 6305.227470002137,
+      "selected_hash": "4584f60f8c19b2da50d09f46e96f7426f7ec096d21393e854054a41e9ab11a93"
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "h1_units": 91,
+      "pool_units": 500,
+      "coverage": 3,
+      "coverage_at_budget": {
+        "100": 3,
+        "250": 3,
+        "500": 3
+      },
+      "files": 56,
+      "bytes": 1235804,
+      "wall_ms": 3634.0562440018402,
+      "selected_hash": "9a4e405ffa94586272c915476d13d2d1addb409303a96703beb7eab9f8e6e207"
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "h1_units": 241,
+      "pool_units": 500,
+      "coverage": 3,
+      "coverage_at_budget": {
+        "100": 0,
+        "250": 2,
+        "500": 3
+      },
+      "files": 135,
+      "bytes": 2086353,
+      "wall_ms": 6522.960932998103,
+      "selected_hash": "9a20ccdc4adb431d764bafb1d883cbed8dc4d563538fb58af1b135b9f5d28f95"
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "h1_units": 104,
+      "pool_units": 500,
+      "coverage": 2,
+      "coverage_at_budget": {
+        "100": 1,
+        "250": 2,
+        "500": 2
+      },
+      "files": 69,
+      "bytes": 1202758,
+      "wall_ms": 4241.577905995655,
+      "selected_hash": "2f12d964da041cf9b8a3e37facc8571e3931802db92518310e3d3565f5463664"
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "h1_units": 199,
+      "pool_units": 500,
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 1,
+        "250": 1,
+        "500": 1
+      },
+      "files": 113,
+      "bytes": 1657094,
+      "wall_ms": 4738.844687992241,
+      "selected_hash": "0be4ba6c7c748dcca26912d39d562ce53491b70fc97415593963e7a5833305eb"
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "h1_units": 310,
+      "pool_units": 500,
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "250": 1,
+        "500": 1
+      },
+      "files": 156,
+      "bytes": 2133494,
+      "wall_ms": 5016.611970990198,
+      "selected_hash": "7e37984118e8d50db2a938d30acf0608631d79342f0587ecfc7612621b564969"
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "h1_units": 88,
+      "pool_units": 500,
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 1,
+        "250": 1,
+        "500": 1
+      },
+      "files": 59,
+      "bytes": 1300780,
+      "wall_ms": 3925.262197997654,
+      "selected_hash": "69e105b7339f254d5ec42d88d048f98610bd19955b0ee47b481e836eb259fd2f"
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "h1_units": 142,
+      "pool_units": 500,
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "250": 1,
+        "500": 1
+      },
+      "files": 78,
+      "bytes": 1357607,
+      "wall_ms": 4654.486006998923,
+      "selected_hash": "623a801c60069755bcdb1e14fc8dc63c46158c54ef9467e847322842ab841e75"
+    }
+  ],
+  "totals": {
+    "gold": 25,
+    "coverage": 19,
+    "pool_units": 6000
+  },
+  "macro": {
+    "coverage": 0.8611111111111112
+  },
+  "resources": {
+    "p95_case_wall_ms": 6522.960932998103,
+    "cpu_user_s": 9.477212999999999,
+    "cpu_sys_s": 0.04578,
+    "peak_rss_kib": 22760,
+    "io": {
+      "rchar": 733815565,
+      "wchar": 7004015,
+      "syscr": 198988,
+      "syscw": 8192,
+      "read_bytes": 0,
+      "write_bytes": 40960,
+      "cancelled_write_bytes": 0
+    }
+  },
+  "limits": [
+    "cap 500",
+    "dev-only",
+    "no gold in order",
+    "sorted files/ranges deterministic"
+  ]
+}

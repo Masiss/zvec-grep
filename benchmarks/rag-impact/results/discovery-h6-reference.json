@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_H6_STRUCTURAL_REFERENCE",
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeByOrganzationWorkProcess",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "ref_units": 64,
+      "coverage": 2,
+      "wall_ms": 8708.030132009299
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "ref_units": 62,
+      "coverage": 3,
+      "wall_ms": 8148.838216991862
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeByOrganzationWorkProcess",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "ref_units": 60,
+      "coverage": 1,
+      "wall_ms": 9110.629943999811
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeByOrganzationWorkProcess",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth"
+      ],
+      "ref_units": 67,
+      "coverage": 1,
+      "wall_ms": 9902.06965401012
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeForSyncHistory",
+        "sp_UpdateOrgTotalEmployee",
+        "AddressChangeResult",
+        "ApprovalController",
+        "AuthenticationProperties",
+        "AuthenticationTicket"
+      ],
+      "ref_units": 106,
+      "coverage": 1,
+      "wall_ms": 9068.088080995949
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage",
+        "func_EmployeeTotalByOrgExcludeOrg"
+      ],
+      "ref_units": 62,
+      "coverage": 3,
+      "wall_ms": 7223.780899003032
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "ref_units": 62,
+      "coverage": 3,
+      "wall_ms": 10973.418174995459
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "ref_units": 66,
+      "coverage": 2,
+      "wall_ms": 9567.02195899561
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "ref_units": 64,
+      "coverage": 1,
+      "wall_ms": 11474.571922997711
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "ref_units": 61,
+      "coverage": 1,
+      "wall_ms": 10704.972770006862
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "ref_units": 64,
+      "coverage": 1,
+      "wall_ms": 8576.631021991489
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "pool_units": 500,
+      "refs": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "ref_units": 65,
+      "coverage": 1,
+      "wall_ms": 10161.655746007455
+    }
+  ],
+  "totals": {
+    "gold": 25,
+    "coverage": 20,
+    "pool_units": 6000
+  },
+  "macro": {
+    "coverage": 0.875
+  },
+  "resources": {
+    "p95_case_wall_ms": 10973.418174995459,
+    "cpu_user_s": 15.300055,
+    "cpu_sys_s": 0.05689899999999999,
+    "peak_rss_kib": 19212,
+    "io": {
+      "rchar": 1247917938,
+      "wchar": 14554075,
+      "syscr": 481230,
+      "syscw": 17454,
+      "read_bytes": 73728,
+      "write_bytes": 81920,
+      "cancelled_write_bytes": 0
+    }
+  },
+  "limits": [
+    "cap 500",
+    "dev-only",
+    "structural refs from observed source",
+    "no gold in policy"
+  ]
+}

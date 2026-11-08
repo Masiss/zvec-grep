@@ -21,14 +21,14 @@ promoted. The gap prototype is archived at
 
 ## Active status
 
-- **Discovery:** H1 14/25; H2 full 19/25 but 15,683 ranges; **H2 bounded 500 =
-  15/25 (60%)**. The 19-vs-15 difference is hash/order nondeterminism, not a
-  stable 4-span loss; 19/25 is an order artifact. H3 no gain; H4 20/25 only by
-  one incidental D02 span, 144 queries/97.3 s, resource/generalization fails.
-  Hard independent set: H1/H2 4/5, H4 5/5; easy set 5/5 all arms. Discovery
-  **NO-GO**; missing D02 C4/C5, D10 C4, D12 S1. Selection/Expansion frozen.
-  H5 deterministic budget ordering and H6 structural reference resolution are
-  pre-registered, not run.
+- **Discovery:** H5 deterministic cap-500 ordering reaches **19/25 (76%)**
+  with identical selected hashes across hash seeds; it is the H2 ceiling and
+  cannot reach 20/25. H6 structural references reach **20/25 (80%)** by one
+  incidental D02 span, but p95 wall 10.97 s, CPU 15.3 s, hard independent eval
+  not run; resource/generalization fails. H2 bounded 15/25; H2 full 19/25 is an
+  order artifact. Hard independent set: H1/H2 4/5, H4 5/5; easy set 5/5 all.
+  Discovery **NO-GO**; missing D02 C4/C5, D10 C4, D12 S1.
+  Selection/Expansion frozen.
 - **Selection:** frozen; A/B historical policies selected 4/25 and 6/25. No
   Selection work is authorized until Discovery reaches its gate.
 - **Expansion:** gap prototype validates anchors/definitions but cannot find

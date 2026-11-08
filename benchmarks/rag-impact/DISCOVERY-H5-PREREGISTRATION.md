@@ -29,3 +29,10 @@ rank**, not gold, will retain more of the 19 full-pool spans at the 500 cap.
 Micro old ≥20/25, hard independent ≥4/5, no H1 regression, p95 wall ≤5 s/case,
 peak PSS ≤64 MiB, CPU/I/O recorded. If fail, report NO-GO; no H6 unless a
 different evidence path exists.
+
+## Amendment — 2026-11-08 (append-only; original preserved)
+
+The H5 ceiling is **19/25**: H5 only reorders the existing H2 pool, so it cannot
+create the 20th span. H5 success is therefore **19/25 at cap 500, deterministic,
+within resource budget**; it cannot satisfy the overall 20/25 Discovery gate by
+itself. H6 is required for any span outside the H2 pool.
