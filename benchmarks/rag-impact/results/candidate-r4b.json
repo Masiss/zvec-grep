@@ -1,0 +1,452 @@
+{
+  "schema_version": 1,
+  "status": "R4B_FAIL_COST_ONLY",
+  "purpose": "R4-B file-cluster packing and corrected pack-level measurement",
+  "inputs": {
+    "b0": "results/b0-official.json",
+    "dev": "cases/dev.json",
+    "corpus": "corpus-manifest.json",
+    "pre_registration": "R4-EXPERIMENT-PREREGISTRATION.md"
+  },
+  "summary": {
+    "b0_files": 7.75,
+    "b0_recall": 0.47222222222222215,
+    "b0_tokens": 2845.1666666666665,
+    "cases": 12,
+    "heldout": "NOT_RUN",
+    "performance": "NOT_MEASURED",
+    "r4a_files": 4.083333333333333,
+    "r4a_recall": 0.2916666666666667,
+    "r4a_tokens": 3189.0,
+    "r4b_files": 3.0,
+    "r4b_recall": 0.2916666666666667,
+    "r4b_tokens": 1420.1666666666667,
+    "status": "R4A_R4B_FOLLOWUP"
+  },
+  "targets": {
+    "recall_delta_pp": -18.055555555555546,
+    "recall_target_pp": 10.0,
+    "files_delta_pct": -61.29032258064516,
+    "tokens_delta_pct": -50.084939370862855
+  },
+  "cases": [
+    {
+      "b0_files": 9,
+      "b0_pack_recall": 0.5,
+      "b0_tokens": 3530,
+      "id": "D01",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 459,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 215
+        },
+        {
+          "end_line": 88,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 88
+        },
+        {
+          "end_line": 94,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 94
+        },
+        {
+          "end_line": 188,
+          "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+          "reason": "r4b file cluster",
+          "score": 997,
+          "start_line": 84
+        }
+      ],
+      "r4b_recall": 0.5,
+      "r4b_tokens": 1051
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 3925,
+      "id": "D02",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 68,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 49,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 1
+        },
+        {
+          "end_line": 503,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4b file cluster",
+          "score": 998,
+          "start_line": 465
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 1191
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 4261,
+      "id": "D03",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 92,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 46
+        },
+        {
+          "end_line": 790,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "reason": "r4b file cluster",
+          "score": 999,
+          "start_line": 725
+        },
+        {
+          "end_line": 265,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 998,
+          "start_line": 218
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 1492
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 4022,
+      "id": "D04",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 92,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 40
+        },
+        {
+          "end_line": 134,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 999,
+          "start_line": 107
+        },
+        {
+          "end_line": 648,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 998,
+          "start_line": 545
+        }
+      ],
+      "r4b_recall": 1.0,
+      "r4b_tokens": 1265
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 4558,
+      "id": "D05",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 1075,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 572
+        },
+        {
+          "end_line": 254,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 184
+        },
+        {
+          "end_line": 252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 224
+        },
+        {
+          "end_line": 357,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 297
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 2048
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.3333333333333333,
+      "b0_tokens": 4437,
+      "id": "D06",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 494,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 131,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "r4b file cluster",
+          "score": 999,
+          "start_line": 1
+        },
+        {
+          "end_line": 560,
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "reason": "r4b file cluster",
+          "score": 998,
+          "start_line": 16
+        },
+        {
+          "end_line": 398,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "seed file, assignment query match, invocation query match, callee of seed",
+          "score": 220,
+          "start_line": 156
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 2048
+    },
+    {
+      "b0_files": 7,
+      "b0_pack_recall": 0.3333333333333333,
+      "b0_tokens": 164,
+      "id": "D07",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 22,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyOne.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 25,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentOne.cs",
+          "reason": "r4b file cluster",
+          "score": 999,
+          "start_line": 1
+        },
+        {
+          "end_line": 252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 224
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 839
+    },
+    {
+      "b0_files": 2,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 753,
+      "id": "D08",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 560,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 503
+        },
+        {
+          "end_line": 643,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "r4b file cluster",
+          "score": 999,
+          "start_line": 597
+        },
+        {
+          "end_line": 140,
+          "path": "Services/HRIS/Service.Core/Executes/General/CbRoles/CbRoleCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 998,
+          "start_line": 84
+        }
+      ],
+      "r4b_recall": 1.0,
+      "r4b_tokens": 1341
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 3819,
+      "id": "D09",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 73,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 296,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeOne.cs",
+          "reason": "r4b file cluster",
+          "score": 999,
+          "start_line": 236
+        },
+        {
+          "end_line": 80,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 43
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 1504
+    },
+    {
+      "b0_files": 5,
+      "b0_pack_recall": 0.5,
+      "b0_tokens": 111,
+      "id": "D10",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 48,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 31
+        },
+        {
+          "end_line": 24,
+          "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 1
+        },
+        {
+          "end_line": 1149,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 997,
+          "start_line": 1109
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 732
+    },
+    {
+      "b0_files": 1,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 332,
+      "id": "D11",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 902,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 830
+        },
+        {
+          "end_line": 648,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 998,
+          "start_line": 587
+        },
+        {
+          "end_line": 110,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 997,
+          "start_line": 40
+        },
+        {
+          "end_line": 93,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 996,
+          "start_line": 42
+        }
+      ],
+      "r4b_recall": 1.0,
+      "r4b_tokens": 1995
+    },
+    {
+      "b0_files": 9,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 4230,
+      "id": "D12",
+      "r4b_files": 3,
+      "r4b_items": [
+        {
+          "end_line": 503,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4b file cluster",
+          "score": 1000,
+          "start_line": 13
+        },
+        {
+          "end_line": 512,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "r4b file cluster",
+          "score": 999,
+          "start_line": 17
+        },
+        {
+          "end_line": 560,
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "reason": "r4b file cluster",
+          "score": 998,
+          "start_line": 16
+        }
+      ],
+      "r4b_recall": 0.0,
+      "r4b_tokens": 1536
+    }
+  ],
+  "limitations": [
+    "Pack-level diagnostic only; B0 pack uses best-call top-10 units, not the original B0 read/search metric.",
+    "Development split only; held-out was not inspected or run.",
+    "Performance/PSS/concurrency were not measured.",
+    "No target, corpus or frozen B0/R4 receipt was changed."
+  ]
+}

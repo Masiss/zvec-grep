@@ -1,0 +1,1012 @@
+{
+  "schema_version": 1,
+  "status": "R4A_FAIL",
+  "purpose": "R4-A multi-call seed retention",
+  "inputs": {
+    "b0": "results/b0-official.json",
+    "dev": "cases/dev.json",
+    "corpus": "corpus-manifest.json",
+    "pre_registration": "R4-EXPERIMENT-PREREGISTRATION.md"
+  },
+  "summary": {
+    "b0_files": 7.75,
+    "b0_recall": 0.47222222222222215,
+    "b0_tokens": 2845.1666666666665,
+    "cases": 12,
+    "heldout": "NOT_RUN",
+    "performance": "NOT_MEASURED",
+    "r4a_files": 4.083333333333333,
+    "r4a_recall": 0.2916666666666667,
+    "r4a_tokens": 3189.0,
+    "r4b_files": 3.0,
+    "r4b_recall": 0.2916666666666667,
+    "r4b_tokens": 1420.1666666666667,
+    "status": "R4A_R4B_FOLLOWUP"
+  },
+  "targets": {
+    "recall_delta_pp": -18.055555555555546,
+    "recall_target_pp": 10.0,
+    "files_delta_pct": -47.31182795698925,
+    "tokens_delta_pct": 12.084822213109959
+  },
+  "cases": [
+    {
+      "b0_files": 9,
+      "b0_pack_recall": 0.5,
+      "b0_tokens": 3530,
+      "id": "D01",
+      "r4a_files": 3,
+      "r4a_items": [
+        {
+          "end_line": 430,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 430
+        },
+        {
+          "end_line": 88,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 88
+        },
+        {
+          "end_line": 94,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 94
+        },
+        {
+          "end_line": 175,
+          "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 118
+        },
+        {
+          "end_line": 127,
+          "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 84
+        },
+        {
+          "end_line": 459,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 600,
+          "start_line": 215
+        },
+        {
+          "end_line": 172,
+          "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+          "reason": "seed file, seed span, callee of seed, caller of seed",
+          "score": 520,
+          "start_line": 161
+        },
+        {
+          "end_line": 188,
+          "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed",
+          "score": 480,
+          "start_line": 174
+        },
+        {
+          "end_line": 92,
+          "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+          "reason": "seed file, seed span, caller of seed",
+          "score": 400,
+          "start_line": 84
+        },
+        {
+          "end_line": 102,
+          "path": "Webs/HRM/Models/MultipartFormBuilder.cs",
+          "reason": "seed file, seed span, caller of seed",
+          "score": 400,
+          "start_line": 94
+        }
+      ],
+      "r4a_recall": 0.5,
+      "r4a_tokens": 1714
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 3925,
+      "id": "D02",
+      "r4a_files": 5,
+      "r4a_items": [
+        {
+          "end_line": 68,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 49,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 1
+        },
+        {
+          "end_line": 503,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 465
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 1
+        },
+        {
+          "end_line": 80,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 37
+        },
+        {
+          "end_line": 57,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, callee of seed",
+          "score": 440,
+          "start_line": 47
+        },
+        {
+          "end_line": 503,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "seed file, seed span, callee of seed",
+          "score": 440,
+          "start_line": 497
+        },
+        {
+          "end_line": 104,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, caller of seed",
+          "score": 400,
+          "start_line": 65
+        },
+        {
+          "end_line": 131,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "seed file, seed span, caller of seed",
+          "score": 400,
+          "start_line": 18
+        },
+        {
+          "end_line": 46,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 370,
+          "start_line": 42
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 3020
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 4261,
+      "id": "D03",
+      "r4a_files": 5,
+      "r4a_items": [
+        {
+          "end_line": 92,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 46
+        },
+        {
+          "end_line": 756,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 725
+        },
+        {
+          "end_line": 259,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 225
+        },
+        {
+          "end_line": 1149,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 1109
+        },
+        {
+          "end_line": 201,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 174
+        },
+        {
+          "end_line": 731,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, callee of seed, caller of seed",
+          "score": 610,
+          "start_line": 727
+        },
+        {
+          "end_line": 790,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, callee of seed, caller of seed",
+          "score": 610,
+          "start_line": 733
+        },
+        {
+          "end_line": 1136,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, method-name query match, callee of seed",
+          "score": 490,
+          "start_line": 1125
+        },
+        {
+          "end_line": 1145,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, invocation query match, caller of seed",
+          "score": 440,
+          "start_line": 1139
+        },
+        {
+          "end_line": 265,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 370,
+          "start_line": 218
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 3665
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 4022,
+      "id": "D04",
+      "r4a_files": 4,
+      "r4a_items": [
+        {
+          "end_line": 92,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 46
+        },
+        {
+          "end_line": 134,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 115
+        },
+        {
+          "end_line": 599,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 545
+        },
+        {
+          "end_line": 59,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailMany.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 1
+        },
+        {
+          "end_line": 636,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 587
+        },
+        {
+          "end_line": 573,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 600,
+          "start_line": 562
+        },
+        {
+          "end_line": 132,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 500,
+          "start_line": 107
+        },
+        {
+          "end_line": 648,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 500,
+          "start_line": 627
+        },
+        {
+          "end_line": 54,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 460,
+          "start_line": 40
+        },
+        {
+          "end_line": 625,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 575
+        }
+      ],
+      "r4a_recall": 1.0,
+      "r4a_tokens": 3079
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 4558,
+      "id": "D05",
+      "r4a_files": 4,
+      "r4a_items": [
+        {
+          "end_line": 623,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 577
+        },
+        {
+          "end_line": 254,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 184
+        },
+        {
+          "end_line": 252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 224
+        },
+        {
+          "end_line": 1149,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 1109
+        },
+        {
+          "end_line": 357,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 297
+        },
+        {
+          "end_line": 1136,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed",
+          "score": 480,
+          "start_line": 1125
+        },
+        {
+          "end_line": 586,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 572
+        },
+        {
+          "end_line": 1075,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "seed file, seed span, assignment query match, invocation query match",
+          "score": 400,
+          "start_line": 600
+        },
+        {
+          "end_line": 1145,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, caller of seed",
+          "score": 400,
+          "start_line": 1139
+        },
+        {
+          "end_line": 598,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "reason": "seed file, seed span, invocation query match",
+          "score": 360,
+          "start_line": 588
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 3345
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 0.3333333333333333,
+      "b0_tokens": 4437,
+      "id": "D06",
+      "r4a_files": 4,
+      "r4a_items": [
+        {
+          "end_line": 252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 224
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 1
+        },
+        {
+          "end_line": 182,
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 145
+        },
+        {
+          "end_line": 38,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 1
+        },
+        {
+          "end_line": 351,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 324
+        },
+        {
+          "end_line": 131,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "seed file, seed span, assignment query match, invocation query match",
+          "score": 400,
+          "start_line": 18
+        },
+        {
+          "end_line": 560,
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "reason": "seed file, seed span, invocation query match",
+          "score": 360,
+          "start_line": 16
+        },
+        {
+          "end_line": 494,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 13
+        },
+        {
+          "end_line": 1199,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee01Many.cs",
+          "reason": "method-name query match, assignment query match, invocation query match",
+          "score": 230,
+          "start_line": 1138
+        },
+        {
+          "end_line": 398,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "seed file, assignment query match, invocation query match, callee of seed",
+          "score": 220,
+          "start_line": 156
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 4799
+    },
+    {
+      "b0_files": 7,
+      "b0_pack_recall": 0.3333333333333333,
+      "b0_tokens": 164,
+      "id": "D07",
+      "r4a_files": 5,
+      "r4a_items": [
+        {
+          "end_line": 22,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyOne.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 25,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentOne.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 1
+        },
+        {
+          "end_line": 252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 224
+        },
+        {
+          "end_line": 122,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 85
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 1
+        },
+        {
+          "end_line": 94,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "seed file, seed span, assignment query match, invocation query match",
+          "score": 400,
+          "start_line": 56
+        },
+        {
+          "end_line": 120,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "reason": "seed file, seed span, assignment query match, invocation query match",
+          "score": 400,
+          "start_line": 96
+        },
+        {
+          "end_line": 23,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentOne.cs",
+          "reason": "seed file, seed span, invocation query match",
+          "score": 360,
+          "start_line": 9
+        },
+        {
+          "end_line": 19,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyOne.cs",
+          "reason": "seed file, seed span, invocation query match",
+          "score": 360,
+          "start_line": 13
+        },
+        {
+          "end_line": 131,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "seed file, seed span, invocation query match",
+          "score": 360,
+          "start_line": 18
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 3022
+    },
+    {
+      "b0_files": 2,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 753,
+      "id": "D08",
+      "r4a_files": 3,
+      "r4a_items": [
+        {
+          "end_line": 539,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 539
+        },
+        {
+          "end_line": 624,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 624
+        },
+        {
+          "end_line": 140,
+          "path": "Services/HRIS/Service.Core/Executes/General/CbRoles/CbRoleCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 92
+        },
+        {
+          "end_line": 643,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 597
+        },
+        {
+          "end_line": 553,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 503
+        },
+        {
+          "end_line": 628,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, callee of seed, caller of seed",
+          "score": 810,
+          "start_line": 624
+        },
+        {
+          "end_line": 635,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, callee of seed, caller of seed",
+          "score": 660,
+          "start_line": 630
+        },
+        {
+          "end_line": 548,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 610,
+          "start_line": 539
+        },
+        {
+          "end_line": 93,
+          "path": "Services/HRIS/Service.Core/Executes/General/CbRoles/CbRoleCommand.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 510,
+          "start_line": 84
+        },
+        {
+          "end_line": 560,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 460,
+          "start_line": 550
+        }
+      ],
+      "r4a_recall": 1.0,
+      "r4a_tokens": 1711
+    },
+    {
+      "b0_files": 10,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 3819,
+      "id": "D09",
+      "r4a_files": 5,
+      "r4a_items": [
+        {
+          "end_line": 54,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 1
+        },
+        {
+          "end_line": 286,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeOne.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 236
+        },
+        {
+          "end_line": 80,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 43
+        },
+        {
+          "end_line": 453,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 397
+        },
+        {
+          "end_line": 239,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 200
+        },
+        {
+          "end_line": 73,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, callee of seed",
+          "score": 580,
+          "start_line": 17
+        },
+        {
+          "end_line": 512,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match, caller of seed",
+          "score": 490,
+          "start_line": 17
+        },
+        {
+          "end_line": 296,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeOne.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 460,
+          "start_line": 259
+        },
+        {
+          "end_line": 213,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 16
+        },
+        {
+          "end_line": 459,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 215
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 4770
+    },
+    {
+      "b0_files": 5,
+      "b0_pack_recall": 0.5,
+      "b0_tokens": 111,
+      "id": "D10",
+      "r4a_files": 4,
+      "r4a_items": [
+        {
+          "end_line": 31,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 31
+        },
+        {
+          "end_line": 43,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 43
+        },
+        {
+          "end_line": 24,
+          "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 1
+        },
+        {
+          "end_line": 1149,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 1109
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 1
+        },
+        {
+          "end_line": 1136,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, invocation query match, callee of seed",
+          "score": 480,
+          "start_line": 1125
+        },
+        {
+          "end_line": 41,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 470,
+          "start_line": 31
+        },
+        {
+          "end_line": 48,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 470,
+          "start_line": 43
+        },
+        {
+          "end_line": 1145,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "reason": "seed file, seed span, caller of seed",
+          "score": 400,
+          "start_line": 1139
+        },
+        {
+          "end_line": 131,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
+          "reason": "seed file, seed span, assignment query match, invocation query match",
+          "score": 400,
+          "start_line": 18
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 1899
+    },
+    {
+      "b0_files": 1,
+      "b0_pack_recall": 1.0,
+      "b0_tokens": 332,
+      "id": "D11",
+      "r4a_files": 3,
+      "r4a_items": [
+        {
+          "end_line": 866,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 866
+        },
+        {
+          "end_line": 902,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 848
+        },
+        {
+          "end_line": 636,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 587
+        },
+        {
+          "end_line": 78,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 40
+        },
+        {
+          "end_line": 84,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 42
+        },
+        {
+          "end_line": 887,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match",
+          "score": 520,
+          "start_line": 866
+        },
+        {
+          "end_line": 648,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match",
+          "score": 460,
+          "start_line": 627
+        },
+        {
+          "end_line": 93,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match, invocation query match",
+          "score": 450,
+          "start_line": 60
+        },
+        {
+          "end_line": 110,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeExperiences/EmployeeExperienceCommand.cs",
+          "reason": "seed file, seed span, method-name query match, assignment query match",
+          "score": 410,
+          "start_line": 53
+        },
+        {
+          "end_line": 864,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "reason": "seed file, seed span, method-name query match, invocation query match",
+          "score": 410,
+          "start_line": 830
+        }
+      ],
+      "r4a_recall": 1.0,
+      "r4a_tokens": 3140
+    },
+    {
+      "b0_files": 9,
+      "b0_pack_recall": 0.0,
+      "b0_tokens": 4230,
+      "id": "D12",
+      "r4a_files": 4,
+      "r4a_items": [
+        {
+          "end_line": 375,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 1000,
+          "start_line": 347
+        },
+        {
+          "end_line": 357,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "r4a multi-call seed",
+          "score": 999,
+          "start_line": 297
+        },
+        {
+          "end_line": 182,
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "reason": "r4a multi-call seed",
+          "score": 998,
+          "start_line": 145
+        },
+        {
+          "end_line": 351,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 997,
+          "start_line": 324
+        },
+        {
+          "end_line": 503,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "r4a multi-call seed",
+          "score": 996,
+          "start_line": 465
+        },
+        {
+          "end_line": 560,
+          "path": "Webs/HRM/Controllers/Export/Excel/TrainingController.cs",
+          "reason": "seed file, seed span, invocation query match",
+          "score": 360,
+          "start_line": 16
+        },
+        {
+          "end_line": 512,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "reason": "seed file, seed span, invocation query match",
+          "score": 360,
+          "start_line": 17
+        },
+        {
+          "end_line": 494,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 13
+        },
+        {
+          "end_line": 503,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "reason": "seed file, seed span",
+          "score": 320,
+          "start_line": 497
+        },
+        {
+          "end_line": 260,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "reason": "assignment query match, invocation query match, callee of seed",
+          "score": 200,
+          "start_line": 229
+        }
+      ],
+      "r4a_recall": 0.0,
+      "r4a_tokens": 4104
+    }
+  ],
+  "limitations": [
+    "Pack-level diagnostic only; B0 pack uses best-call top-10 units, not the original B0 read/search metric.",
+    "Development split only; held-out was not inspected or run.",
+    "Performance/PSS/concurrency were not measured.",
+    "No target, corpus or frozen B0/R4 receipt was changed."
+  ]
+}

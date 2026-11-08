@@ -21,7 +21,7 @@ pub struct Seed {
     pub end_line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct CandidateItem {
     pub path: String,
     pub start_line: usize,
@@ -477,6 +477,422 @@ mod tests {
         );
         assert!(items.iter().any(|item| item.path == "PersonalUpdate.cs"));
         assert!(items.iter().any(|item| item.reason.contains("seed")));
+    }
+
+    #[test]
+    #[ignore = "requires the external HRM2.0 checkout and the frozen B0 receipt"]
+    #[allow(
+        clippy::too_many_lines,
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap
+    )]
+    fn r4a_r4b_followup_experiments() {
+        use std::collections::{BTreeMap, BTreeSet};
+        use std::path::PathBuf;
+
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let b0: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(repo.join("benchmarks/rag-impact/results/b0-official.json"))
+                .expect("B0 receipt"),
+        )
+        .expect("valid B0");
+        let dev: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(repo.join("benchmarks/rag-impact/cases/dev.json"))
+                .expect("dev cases"),
+        )
+        .expect("valid dev");
+        let corpus: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(repo.join("benchmarks/rag-impact/corpus-manifest.json"))
+                .expect("corpus"),
+        )
+        .expect("valid corpus");
+        let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
+
+        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for file in corpus["files"].as_array().expect("files") {
+            let Some(project) = file["project"].as_str() else {
+                continue;
+            };
+            if file["kind"].as_str() != Some("cs_compile") {
+                continue;
+            }
+            let path = file["path"].as_str().expect("path").to_owned();
+            by_project
+                .entry(project.to_owned())
+                .or_default()
+                .push((path.clone(), read(&path)));
+        }
+        let identity = |csproj: &str| {
+            crate::extraction::csharp_facts::ProjectIdentity::from_csproj(&root.join(csproj))
+        };
+        let p3 = crate::extraction::csharp_facts::parse_project(
+            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
+            &by_project.remove("P3").expect("P3"),
+        );
+        let p2 = crate::extraction::csharp_facts::parse_project_with_references(
+            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
+            &by_project.remove("P2").expect("P2"),
+            std::slice::from_ref(&p3),
+        );
+        let p1 = crate::extraction::csharp_facts::parse_project_with_references(
+            &identity("Webs/HRM/HRM.csproj"),
+            &by_project.remove("P1").expect("P1"),
+            &[p2.clone(), p3.clone()],
+        );
+        let projects = [("P1", &p1), ("P2", &p2), ("P3", &p3)];
+        let catalog = crate::extraction::sql_facts::SqlCatalog::from_sources(&[
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Views/EmployeeBaseViews.sql".to_owned(),
+                read("DB/Views/EmployeeBaseViews.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+        ]);
+        let tokenizer_path = PathBuf::from(std::env::var("HOME").expect("HOME"))
+            .join(".local/share/zvec-grep/index-memory-diagnostics/laya-20261104/models/model2vec/minishlab--potion-code-16M-v2");
+        let tokenizer = std::fs::read_dir(&tokenizer_path)
+            .ok()
+            .and_then(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .map(|entry| entry.path().join("tokenizer/tokenizer.json"))
+                    .find(|path| path.is_file())
+            })
+            .and_then(|path| tokenizers::Tokenizer::from_file(path).ok());
+
+        let token_count = |items: &[CandidateItem]| -> usize {
+            let Some(tokenizer) = &tokenizer else {
+                return 0;
+            };
+            let mut total = 0;
+            for item in items {
+                if let Ok(text) = std::fs::read_to_string(root.join(&item.path)) {
+                    let lines: Vec<&str> = text.lines().collect();
+                    let start = item.start_line.saturating_sub(1).min(lines.len());
+                    let end = item.end_line.min(lines.len());
+                    if let Ok(encoding) =
+                        tokenizer.encode(lines[start..end].join("\n").as_str(), false)
+                    {
+                        total += encoding.len();
+                    }
+                }
+            }
+            total
+        };
+        let file_count = |items: &[CandidateItem]| -> usize {
+            items
+                .iter()
+                .map(|item| item.path.as_str())
+                .collect::<BTreeSet<_>>()
+                .len()
+        };
+        let recall = |items: &[CandidateItem], gold: &[(String, usize, usize)]| -> f64 {
+            if gold.is_empty() {
+                return 0.0;
+            }
+            let matched = gold
+                .iter()
+                .filter(|(path, start, end)| {
+                    items.iter().any(|item| {
+                        item.path == *path
+                            && ranges_overlap(item.start_line, item.end_line, *start, *end)
+                    })
+                })
+                .count();
+            matched as f64 / gold.len() as f64
+        };
+
+        let mut rows = Vec::new();
+        for case in dev["cases"].as_array().expect("cases") {
+            let Some(id) = case["id"].as_str() else {
+                continue;
+            };
+            if !id.starts_with('D')
+                || id.starts_with("D13")
+                || id.starts_with("D14")
+                || id.starts_with("D15")
+                || id.starts_with("D16")
+            {
+                continue;
+            }
+            let b0_case = b0["quality"]["dev_real_cases"]
+                .as_array()
+                .expect("dev cases")
+                .iter()
+                .find(|entry| entry["id"] == id)
+                .expect("B0 case");
+            let query = case["question"].as_str().unwrap_or_default();
+            let query_terms = query_tokens(query);
+            let mut calls: Vec<(String, Vec<Seed>)> = Vec::new();
+            for call in b0_case["calls"].as_array().into_iter().flatten() {
+                let label = call["call"].as_str().unwrap_or_default().to_owned();
+                let mut seeds = Vec::new();
+                for unit in call["units"].as_array().into_iter().flatten() {
+                    let path = unit["path"].as_str().unwrap_or_default().to_owned();
+                    let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
+                    let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
+                    if !path.is_empty() && start > 0 {
+                        seeds.push(Seed {
+                            path,
+                            start_line: start,
+                            end_line: end,
+                        });
+                    }
+                }
+                calls.push((label, seeds));
+            }
+
+            // B0 reference pack: the best call's top-10 units.
+            let best_call = b0_case["best_call"].as_str().unwrap_or_default();
+            let mut b0_pack: Vec<CandidateItem> = Vec::new();
+            for (label, seeds) in &calls {
+                if label == best_call {
+                    for (index, seed) in seeds.iter().take(10).enumerate() {
+                        b0_pack.push(CandidateItem {
+                            path: seed.path.clone(),
+                            start_line: seed.start_line,
+                            end_line: seed.end_line,
+                            score: 1000usize.saturating_sub(index),
+                            reason: "b0 best-call unit".to_owned(),
+                        });
+                    }
+                }
+            }
+            let gold: Vec<(String, usize, usize)> = case["source_refs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .flat_map(|reference| {
+                    let path = reference["path"].as_str().unwrap_or_default().to_owned();
+                    reference["spans"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(move |span| {
+                            (
+                                path.clone(),
+                                span["start_line"].as_u64().unwrap_or(0) as usize,
+                                span["end_line"].as_u64().unwrap_or(0) as usize,
+                            )
+                        })
+                })
+                .collect();
+
+            // R4-A: score units per call, retain call diversity, then expand.
+            let mut selected: Vec<(usize, Seed, String)> = Vec::new();
+            let mut per_call: BTreeMap<String, Vec<(usize, Seed)>> = BTreeMap::new();
+            for (label, seeds) in &calls {
+                for seed in seeds {
+                    let method = projects
+                        .iter()
+                        .flat_map(|(_, project)| {
+                            project.methods.iter().filter(|method| {
+                                method.path == seed.path
+                                    && ranges_overlap(
+                                        seed.start_line,
+                                        seed.end_line,
+                                        method.line_start,
+                                        method.line_end,
+                                    )
+                            })
+                        })
+                        .next();
+                    let method_hits = method.map_or(0, |method| {
+                        let tokens = query_tokens(&method.name);
+                        query_terms
+                            .iter()
+                            .filter(|token| tokens.contains(token))
+                            .count()
+                    });
+                    let path_hits = query_tokens(&seed.path)
+                        .iter()
+                        .filter(|token| query_terms.contains(token))
+                        .count();
+                    let score = method.map_or(0, |_| 5)
+                        + method_hits * 3
+                        + path_hits
+                        + usize::from(seed.end_line > seed.start_line);
+                    per_call
+                        .entry(label.clone())
+                        .or_default()
+                        .push((score, seed.clone()));
+                }
+            }
+            for (label, mut units) in per_call {
+                units.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+                for (score, seed) in units.into_iter().take(2) {
+                    selected.push((score, seed, label.clone()));
+                }
+            }
+            selected.sort_by_key(|(score, _, _)| std::cmp::Reverse(*score));
+            let mut chosen: Vec<Seed> = Vec::new();
+            let mut call_counts: BTreeMap<String, usize> = BTreeMap::new();
+            let mut seen = BTreeSet::new();
+            for (_, seed, label) in selected {
+                if chosen.len() >= 5 {
+                    break;
+                }
+                if call_counts.get(&label).copied().unwrap_or(0) >= 2 {
+                    continue;
+                }
+                if seen.insert((seed.path.clone(), seed.start_line, seed.end_line)) {
+                    call_counts.entry(label).or_insert(0);
+                    chosen.push(seed);
+                }
+            }
+            let mut expanded: Vec<CandidateItem> = Vec::new();
+            for (_, project) in &projects {
+                let project_seeds: Vec<Seed> = chosen
+                    .iter()
+                    .filter(|seed| project.files.iter().any(|file| file.path == seed.path))
+                    .cloned()
+                    .collect();
+                if !project_seeds.is_empty() {
+                    expanded.extend(expand(project, &catalog, &project_seeds, query, 50));
+                }
+            }
+            expanded.sort_by_key(|item| std::cmp::Reverse(item.score));
+            let mut expansion: Vec<CandidateItem> = Vec::new();
+            let mut expansion_seen = BTreeSet::new();
+            for item in expanded {
+                if chosen.iter().any(|seed| {
+                    seed.path == item.path
+                        && seed.start_line == item.start_line
+                        && seed.end_line == item.end_line
+                }) {
+                    continue;
+                }
+                if expansion_seen.insert((item.path.clone(), item.start_line, item.end_line)) {
+                    expansion.push(item);
+                }
+            }
+            let mut pack_a: Vec<CandidateItem> = Vec::new();
+            for (index, seed) in chosen.iter().enumerate() {
+                pack_a.push(CandidateItem {
+                    path: seed.path.clone(),
+                    start_line: seed.start_line,
+                    end_line: seed.end_line,
+                    score: 1000usize.saturating_sub(index),
+                    reason: "r4a multi-call seed".to_owned(),
+                });
+            }
+            for item in expansion.into_iter().take(5) {
+                pack_a.push(item);
+            }
+            pack_a.sort_by_key(|item| std::cmp::Reverse(item.score));
+            pack_a.truncate(10);
+
+            // R4-B: file-cluster packing, max 3 files, merge adjacent spans.
+            let mut by_file: BTreeMap<String, Vec<&CandidateItem>> = BTreeMap::new();
+            for item in &pack_a {
+                by_file.entry(item.path.clone()).or_default().push(item);
+            }
+            let mut files: Vec<(usize, String)> = by_file
+                .iter()
+                .map(|(path, items)| {
+                    (
+                        items.iter().map(|item| item.score).max().unwrap_or(0),
+                        path.clone(),
+                    )
+                })
+                .collect();
+            files.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+            let selected_files: BTreeSet<String> =
+                files.into_iter().take(3).map(|(_, path)| path).collect();
+            let mut pack_b: Vec<CandidateItem> = Vec::new();
+            for (path, mut items) in by_file {
+                if !selected_files.contains(&path) {
+                    continue;
+                }
+                items.sort_by_key(|item| item.start_line);
+                let mut merged: Vec<CandidateItem> = Vec::new();
+                for item in items {
+                    if let Some(last) = merged.last_mut()
+                        && item.start_line <= last.end_line.saturating_add(2)
+                    {
+                        last.end_line = last.end_line.max(item.end_line);
+                        last.score = last.score.max(item.score);
+                        last.reason = "r4b file cluster".to_owned();
+                        continue;
+                    }
+                    merged.push((*item).clone());
+                }
+                pack_b.extend(merged);
+            }
+            pack_b.sort_by_key(|item| std::cmp::Reverse(item.score));
+            pack_b.truncate(10);
+
+            rows.push(serde_json::json!({
+                "id": id,
+                "b0_pack_recall": recall(&b0_pack, &gold),
+                "r4a_recall": recall(&pack_a, &gold),
+                "r4b_recall": recall(&pack_b, &gold),
+                "b0_files": file_count(&b0_pack),
+                "r4a_files": file_count(&pack_a),
+                "r4b_files": file_count(&pack_b),
+                "b0_tokens": token_count(&b0_pack),
+                "r4a_tokens": token_count(&pack_a),
+                "r4b_tokens": token_count(&pack_b),
+                "r4a_items": pack_a,
+                "r4b_items": pack_b,
+            }));
+        }
+        let mean = |key: &str, rows: &[serde_json::Value]| -> f64 {
+            rows.iter().filter_map(|row| row[key].as_f64()).sum::<f64>() / rows.len() as f64
+        };
+        let summary = serde_json::json!({
+            "status": "R4A_R4B_FOLLOWUP",
+            "cases": rows.len(),
+            "b0_recall": mean("b0_pack_recall", &rows),
+            "r4a_recall": mean("r4a_recall", &rows),
+            "r4b_recall": mean("r4b_recall", &rows),
+            "b0_files": mean("b0_files", &rows),
+            "r4a_files": mean("r4a_files", &rows),
+            "r4b_files": mean("r4b_files", &rows),
+            "b0_tokens": mean("b0_tokens", &rows),
+            "r4a_tokens": mean("r4a_tokens", &rows),
+            "r4b_tokens": mean("r4b_tokens", &rows),
+            "heldout": "NOT_RUN",
+            "performance": "NOT_MEASURED",
+        });
+        let out_dir =
+            PathBuf::from(std::env::var("RAG_R4_OUT_DIR").unwrap_or_else(|_| "/tmp".to_owned()));
+        std::fs::write(
+            out_dir.join("candidate-r4a.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema_version": 1,
+                "status": "R4A_MULTI_CALL_SEED_METHOD_RANKING",
+                "method": "multi-call seeds + method-level ranking; 5 fixed + 5 expansion slots",
+                "summary": summary,
+                "cases": rows,
+            }))
+            .expect("json"),
+        )
+        .expect("write r4a");
+        eprintln!(
+            "{}",
+            serde_json::to_string_pretty(&summary).expect("summary")
+        );
     }
 
     #[test]
