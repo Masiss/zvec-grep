@@ -29,8 +29,9 @@ inspected. No candidate/R4 change and no new model/index/LSP.
 | Fail-closed path/hash/range/UTF-8 | PASS | tests + pilot gaps=0 |
 | V2 real-source dev pilot | PASS | 12/12 packs, 25/25 items, 0 gaps |
 | V2 real-source held-out | NOT RUN | forbidden for this audit |
-| Public API/MCP/CLI integration | MISSING | no CLI/MCP/daemon consumer; library API only |
-| Versioning/unsupported behavior | MISSING | schema v1 internal; no public compatibility contract |
+| Public engine API contract | PASS | `tests/r1_public_api.rs` from an external crate: assemble, revalidate, schema-v1 JSON round-trip, missing/invalid failures |
+| Public MCP/CLI service integration | MISSING | no CLI/MCP/daemon consumer; library API only |
+| Versioning/unsupported behavior | PARTIAL | schema-v1 round-trip covered; no public compatibility/unsupported-behavior policy |
 | Cache/version key and invalidation | MISSING | no cache; per-answer revalidation only |
 | Performance/footprint gate | PARTIAL | one 33 ms smoke, 2.6 MiB PSS; no p95/PSS/concurrency |
 | Security/privacy review | MISSING | traversal tested; no secret/PII/root/auth/audit policy |
