@@ -1,0 +1,134 @@
+{
+  "cases": [
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 26.740392,
+      "gaps": [],
+      "id": "D01",
+      "items": 2,
+      "requests": 2,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 48.398673,
+      "gaps": [],
+      "id": "D02",
+      "items": 6,
+      "requests": 6,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 10.438462000000001,
+      "gaps": [],
+      "id": "D03",
+      "items": 1,
+      "requests": 1,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 15.507285000000001,
+      "gaps": [],
+      "id": "D04",
+      "items": 1,
+      "requests": 1,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 11.710643999999998,
+      "gaps": [],
+      "id": "D05",
+      "items": 1,
+      "requests": 1,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 27.730076999999998,
+      "gaps": [],
+      "id": "D06",
+      "items": 3,
+      "requests": 3,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 32.778769,
+      "gaps": [],
+      "id": "D07",
+      "items": 3,
+      "requests": 3,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 25.524225,
+      "gaps": [],
+      "id": "D08",
+      "items": 2,
+      "requests": 2,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 0.422557,
+      "gaps": [],
+      "id": "D09",
+      "items": 1,
+      "requests": 1,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 7.003952,
+      "gaps": [],
+      "id": "D10",
+      "items": 2,
+      "requests": 2,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 10.655757999999999,
+      "gaps": [],
+      "id": "D11",
+      "items": 1,
+      "requests": 1,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    },
+    {
+      "deduplicated": 0,
+      "elapsed_ms": 18.405735,
+      "gaps": [],
+      "id": "D12",
+      "items": 2,
+      "requests": 2,
+      "revalidation_gaps": [],
+      "status": "Ok"
+    }
+  ],
+  "limits": [
+    "development cases only; held-out was not inspected",
+    "24 KiB per-case evidence budget",
+    "no search/model/index; read-only assemble+revalidate"
+  ],
+  "process_pss_kib": 2569,
+  "schema_version": 1,
+  "source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "status": "R1_V2_DEV_EVIDENCE_PILOT",
+  "total_elapsed_ms": 235.316529
+}
