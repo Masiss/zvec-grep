@@ -2,6 +2,7 @@
 
 mod chunking;
 mod code;
+pub(crate) mod csharp_facts;
 mod image;
 mod markdown;
 mod service;
