@@ -39,6 +39,19 @@ pub fn expand(
     query: &str,
     budget: usize,
 ) -> Vec<CandidateItem> {
+    expand_with_closure(project, catalog, seeds, query, budget, true)
+}
+
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn expand_with_closure(
+    project: &ProjectFacts,
+    catalog: &SqlCatalog,
+    seeds: &[Seed],
+    query: &str,
+    budget: usize,
+    closure: bool,
+) -> Vec<CandidateItem> {
     if budget == 0 {
         return Vec::new();
     }
@@ -201,10 +214,111 @@ pub fn expand(
         }
     }
 
-    // Type definitions for receivers used by seed methods (e.g. CoreDBContext).
-    for method in &seed_methods {
-        for type_fact in &project.types {
-            if type_fact.name == "CoreDBContext" {
+    if closure {
+        // Typed closure from observed seed evidence. No identifier special cases:
+        // receiver/declaration types are resolved from project facts.
+        let mut receiver_types: BTreeMap<String, String> = BTreeMap::new();
+        let mut observed_db_set_properties: BTreeSet<String> = BTreeSet::new();
+        for method in &seed_methods {
+            let anchor = format!("{}:{}-{}", method.path, method.line_start, method.line_end);
+            let key = (method.path.clone(), method.name.clone());
+            for assignment in assignments_by_method.get(&key).into_iter().flatten() {
+                if let Some((_, property)) = assignment.value.split_once('.') {
+                    observed_db_set_properties.insert(
+                        property
+                            .split(['.', '(', ' '])
+                            .next()
+                            .unwrap_or_default()
+                            .to_owned(),
+                    );
+                }
+                if let Some(receiver_type) = &assignment.receiver_type {
+                    receiver_types
+                        .entry(receiver_type.clone())
+                        .or_insert_with(|| {
+                            format!(
+                                "anchor={anchor}|expr={}.{}",
+                                assignment.receiver, assignment.field
+                            )
+                        });
+                }
+            }
+            for invocation in invocations_by_method.get(&key).into_iter().flatten() {
+                if let Some(receiver_type) = &invocation.receiver_type {
+                    receiver_types
+                        .entry(receiver_type.clone())
+                        .or_insert_with(|| {
+                            format!(
+                                "anchor={anchor}|expr={}.{}()",
+                                invocation.receiver.as_deref().unwrap_or_default(),
+                                invocation.called
+                            )
+                        });
+                }
+            }
+            for save in project
+                .saves
+                .iter()
+                .filter(|save| save.method == method.name && save.type_name == method.type_name)
+            {
+                if let Some(context_type) = &save.context_type {
+                    receiver_types
+                        .entry(context_type.clone())
+                        .or_insert_with(|| {
+                            format!("anchor={anchor}|expr={}.SaveChanges()", save.receiver)
+                        });
+                }
+            }
+            for binding in bindings_by_method
+                .get(&(method.path.clone(), method.name.clone()))
+                .into_iter()
+                .flatten()
+            {
+                add_sql_definition(&mut items, binding, catalog, &anchor);
+            }
+        }
+
+        // DbSet members expose their element type and declaration span; both are
+        // bounded, observed project facts.
+        for db_set in &project.db_sets {
+            if receiver_types.contains_key(&db_set.context_type)
+                && observed_db_set_properties.contains(&db_set.property)
+            {
+                let expression = format!(
+                    "anchor=project-scope|expr={}.{}",
+                    db_set.context_type, db_set.property
+                );
+                receiver_types
+                    .entry(db_set.element_type.clone())
+                    .or_insert_with(|| expression.clone());
+                insert(
+                    &mut items,
+                    CandidateItem {
+                        path: db_set.path.clone(),
+                        start_line: db_set.line_start,
+                        end_line: db_set.line_end,
+                        score: 300,
+                        reason: closure_reason(
+                            "resolved",
+                            &expression,
+                            &format!("{}:{}:{}", db_set.path, db_set.line_start, db_set.line_end),
+                            &format!("{}:{}:{}", db_set.path, db_set.line_start, db_set.line_end),
+                            "dbset-element",
+                        ),
+                    },
+                );
+            }
+        }
+
+        for (type_name, expression) in &receiver_types {
+            for type_fact in &project.types {
+                if &type_fact.name != type_name {
+                    continue;
+                }
+                let target = format!(
+                    "{}:{}-{}",
+                    type_fact.path, type_fact.line_start, type_fact.line_end
+                );
                 insert(
                     &mut items,
                     CandidateItem {
@@ -212,17 +326,16 @@ pub fn expand(
                         start_line: type_fact.line_start,
                         end_line: type_fact.line_end,
                         score: 300,
-                        reason: "receiver context type".to_owned(),
+                        reason: closure_reason(
+                            "resolved",
+                            expression,
+                            &target,
+                            &target,
+                            "receiver-type",
+                        ),
                     },
                 );
             }
-        }
-        for binding in bindings_by_method
-            .get(&(method.path.clone(), method.name.clone()))
-            .into_iter()
-            .flatten()
-        {
-            add_sql_definition(&mut items, binding, catalog);
         }
     }
 
@@ -242,6 +355,7 @@ fn add_sql_definition(
     items: &mut BTreeMap<(String, usize, usize), CandidateItem>,
     binding: &SqlBinding,
     catalog: &SqlCatalog,
+    anchor: &str,
 ) {
     if binding.status != BindingStatus::Resolved {
         return;
@@ -261,10 +375,33 @@ fn add_sql_definition(
                 start_line: definition.line_start,
                 end_line: definition.line_end,
                 score: 300,
-                reason: format!("selected SQL {}", definition.name),
+                reason: closure_reason(
+                    "resolved",
+                    &format!(
+                        "anchor={anchor}|expr={}({})",
+                        binding.called,
+                        binding.object_name.as_deref().unwrap_or_default()
+                    ),
+                    &format!("{}:{}", definition.path, definition.line_start),
+                    &format!(
+                        "{}:{}-{}",
+                        definition.path, definition.line_start, definition.line_end
+                    ),
+                    "sql-selected",
+                ),
             },
         );
     }
+}
+
+fn closure_reason(
+    status: &str,
+    expression: &str,
+    declaration: &str,
+    target: &str,
+    rule: &str,
+) -> String {
+    format!("{status}|{expression}|declaration={declaration}|target={target}|rule={rule}")
 }
 
 fn insert(items: &mut BTreeMap<(String, usize, usize), CandidateItem>, item: CandidateItem) {
@@ -1230,5 +1367,432 @@ mod tests {
         for item in &items {
             assert!(keys.insert((item.path.clone(), item.start_line, item.end_line)));
         }
+    }
+}
+
+#[cfg(test)]
+mod h7_e1_tests {
+    use super::*;
+    use crate::extraction::csharp_facts::{ProjectIdentity, parse_project};
+    use crate::extraction::sql_facts::SqlCatalog;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::hash::{Hash, Hasher};
+    use std::path::PathBuf;
+
+    fn projects(
+        root: &std::path::Path,
+        corpus: &serde_json::Value,
+    ) -> (Vec<ProjectFacts>, SqlCatalog) {
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
+        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for file in corpus["files"].as_array().expect("files") {
+            let Some(project) = file["project"].as_str() else {
+                continue;
+            };
+            if file["kind"].as_str() != Some("cs_compile") {
+                continue;
+            }
+            let path = file["path"].as_str().expect("path").to_owned();
+            by_project
+                .entry(project.to_owned())
+                .or_default()
+                .push((path.clone(), read(&path)));
+        }
+        let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
+        let p3 = parse_project(
+            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
+            &by_project.remove("P3").expect("P3"),
+        );
+        let p2 = crate::extraction::csharp_facts::parse_project_with_references(
+            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
+            &by_project.remove("P2").expect("P2"),
+            std::slice::from_ref(&p3),
+        );
+        let p1 = crate::extraction::csharp_facts::parse_project_with_references(
+            &identity("Webs/HRM/HRM.csproj"),
+            &by_project.remove("P1").expect("P1"),
+            &[p2.clone(), p3.clone()],
+        );
+        let catalog = SqlCatalog::from_sources(&[
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Views/EmployeeBaseViews.sql".to_owned(),
+                read("DB/Views/EmployeeBaseViews.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+        ]);
+        (vec![p1, p2, p3], catalog)
+    }
+
+    fn gold(case: &serde_json::Value) -> Vec<(String, usize, usize)> {
+        let mut out = Vec::new();
+        for reference in case["source_refs"].as_array().into_iter().flatten() {
+            let path = reference["path"].as_str().unwrap_or_default().to_owned();
+            for span in reference["spans"].as_array().into_iter().flatten() {
+                if let (Some(start), Some(end)) =
+                    (span["start_line"].as_u64(), span["end_line"].as_u64())
+                {
+                    out.push((path.clone(), start as usize, end as usize));
+                }
+            }
+        }
+        out
+    }
+
+    fn covered(items: &[CandidateItem], gold: &[(String, usize, usize)]) -> usize {
+        gold.iter()
+            .filter(|(path, start, end)| {
+                items.iter().any(|item| {
+                    item.path == *path
+                        && ranges_overlap(item.start_line, item.end_line, *start, *end)
+                })
+            })
+            .count()
+    }
+
+    #[test]
+    #[ignore = "requires the external HRM2.0 checkout and frozen B0/dev receipts"]
+    #[allow(clippy::too_many_lines)]
+    fn h7_e1_typed_reference_closure() {
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let read_json = |path: &str| -> serde_json::Value {
+            serde_json::from_str(&std::fs::read_to_string(repo.join(path)).expect("json"))
+                .expect("valid json")
+        };
+        let corpus = read_json("benchmarks/rag-impact/corpus-manifest.json");
+        let b0 = read_json("benchmarks/rag-impact/results/b0-official.json");
+        let dev = read_json("benchmarks/rag-impact/cases/dev.json");
+        let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
+        let (projects, catalog) = projects(&root, &corpus);
+        let mut merged = projects[0].clone();
+        for project in &projects[1..] {
+            merged.files.extend(project.files.clone());
+            merged.types.extend(project.types.clone());
+            merged.methods.extend(project.methods.clone());
+            merged.db_sets.extend(project.db_sets.clone());
+            merged.fields.extend(project.fields.clone());
+            merged.assignments.extend(project.assignments.clone());
+            merged.invocations.extend(project.invocations.clone());
+            merged.saves.extend(project.saves.clone());
+        }
+        let mut rows = Vec::new();
+        let mut totals = BTreeMap::new();
+        for case in dev["cases"].as_array().expect("cases") {
+            let Some(id) = case["id"].as_str() else {
+                continue;
+            };
+            if !id.starts_with('D')
+                || ["D13", "D14", "D15", "D16"]
+                    .iter()
+                    .any(|p| id.starts_with(p))
+            {
+                continue;
+            }
+            let b0_case = b0["quality"]["dev_real_cases"]
+                .as_array()
+                .expect("b0 cases")
+                .iter()
+                .find(|entry| entry["id"] == id)
+                .expect("b0 case");
+            let query = case["question"].as_str().unwrap_or_default();
+            let mut seeds = BTreeSet::new();
+            for call in b0_case["calls"].as_array().into_iter().flatten() {
+                for unit in call["units"].as_array().into_iter().flatten() {
+                    let path = unit["path"].as_str().unwrap_or_default();
+                    let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
+                    let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
+                    if !path.is_empty() && start > 0 {
+                        seeds.insert((path.to_owned(), start, end));
+                    }
+                }
+            }
+            let seeds: Vec<Seed> = seeds
+                .into_iter()
+                .map(|(path, start_line, end_line)| Seed {
+                    path,
+                    start_line,
+                    end_line,
+                })
+                .collect();
+            let evaluate = |closure: bool| {
+                let mut items = expand_with_closure(&merged, &catalog, &seeds, query, 500, closure);
+                items.sort_by(|left, right| {
+                    right
+                        .score
+                        .cmp(&left.score)
+                        .then_with(|| left.path.cmp(&right.path))
+                        .then_with(|| left.start_line.cmp(&right.start_line))
+                        .then_with(|| left.end_line.cmp(&right.end_line))
+                });
+                items.dedup_by(|left, right| {
+                    left.path == right.path
+                        && left.start_line == right.start_line
+                        && left.end_line == right.end_line
+                });
+                items
+            };
+            let on = evaluate(true);
+            let off = evaluate(false);
+            let gold = gold(case);
+            let at = |items: &[CandidateItem], budget: usize| {
+                covered(&items[..items.len().min(budget)], &gold)
+            };
+            let closure_items: Vec<&CandidateItem> = on
+                .iter()
+                .filter(|item| item.reason.starts_with("resolved|"))
+                .collect();
+            let rules: BTreeMap<String, usize> =
+                closure_items.iter().fold(BTreeMap::new(), |mut map, item| {
+                    if let Some(rule) = item.reason.split("rule=").nth(1) {
+                        *map.entry(rule.to_owned()).or_insert(0) += 1;
+                    }
+                    map
+                });
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            for item in &on {
+                item.path.hash(&mut hasher);
+                item.start_line.hash(&mut hasher);
+                item.end_line.hash(&mut hasher);
+                item.score.hash(&mut hasher);
+                item.reason.hash(&mut hasher);
+            }
+            let row = serde_json::json!({
+                "id": id,
+                "gold": gold.len(),
+                "coverage": {"10": at(&on, 10), "50": at(&on, 50), "100": at(&on, 100), "250": at(&on, 250), "500": at(&on, 500)},
+                "refs_off": {"10": at(&off, 10), "50": at(&off, 50), "100": at(&off, 100), "250": at(&off, 250), "500": at(&off, 500)},
+                "candidates": on.len(),
+                "closure_items": closure_items.len(),
+                "closure_rules": rules,
+                "closure_hash": format!("{:016x}", hasher.finish()),
+            });
+            for (budget, value) in [
+                ("10", at(&on, 10)),
+                ("50", at(&on, 50)),
+                ("100", at(&on, 100)),
+                ("250", at(&on, 250)),
+                ("500", at(&on, 500)),
+            ] {
+                *totals.entry(budget).or_insert(0) += value;
+            }
+            rows.push(row);
+        }
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_E1_TYPED_REFERENCE_CLOSURE","cases":rows,"totals":totals})).expect("json"));
+    }
+}
+
+#[cfg(test)]
+mod h7_e1_external {
+    use super::*;
+    use crate::extraction::csharp_facts::parse_project;
+    use crate::extraction::sql_facts::SqlCatalog;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    fn projects(root: &std::path::Path, corpus: &serde_json::Value) -> (ProjectFacts, SqlCatalog) {
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
+        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for file in corpus["files"].as_array().expect("files") {
+            let Some(project) = file["project"].as_str() else {
+                continue;
+            };
+            if file["kind"].as_str() != Some("cs_compile") {
+                continue;
+            }
+            let path = file["path"].as_str().expect("path").to_owned();
+            by_project
+                .entry(project.to_owned())
+                .or_default()
+                .push((path.clone(), read(&path)));
+        }
+        let identity = |csproj: &str| {
+            crate::extraction::csharp_facts::ProjectIdentity::from_csproj(&root.join(csproj))
+        };
+        let p3 = parse_project(
+            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
+            &by_project.remove("P3").expect("P3"),
+        );
+        let p2 = crate::extraction::csharp_facts::parse_project_with_references(
+            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
+            &by_project.remove("P2").expect("P2"),
+            std::slice::from_ref(&p3),
+        );
+        let p1 = crate::extraction::csharp_facts::parse_project_with_references(
+            &identity("Webs/HRM/HRM.csproj"),
+            &by_project.remove("P1").expect("P1"),
+            &[p2.clone(), p3.clone()],
+        );
+        let catalog = SqlCatalog::from_sources(&[
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Views/EmployeeBaseViews.sql".to_owned(),
+                read("DB/Views/EmployeeBaseViews.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+        ]);
+        let mut merged = p1;
+        for project in [&p2, &p3] {
+            merged.files.extend(project.files.clone());
+            merged.types.extend(project.types.clone());
+            merged.methods.extend(project.methods.clone());
+            merged.db_sets.extend(project.db_sets.clone());
+            merged.fields.extend(project.fields.clone());
+            merged.assignments.extend(project.assignments.clone());
+            merged.invocations.extend(project.invocations.clone());
+            merged.saves.extend(project.saves.clone());
+        }
+        (merged, catalog)
+    }
+
+    fn covered(items: &[CandidateItem], gold: &[(String, usize, usize)]) -> usize {
+        gold.iter()
+            .filter(|(path, start, end)| {
+                items.iter().any(|item| {
+                    item.path == *path
+                        && ranges_overlap(item.start_line, item.end_line, *start, *end)
+                })
+            })
+            .count()
+    }
+
+    #[test]
+    #[ignore = "set H7_CASES and H7_ANCHORS to frozen JSON files"]
+    fn h7_e1_external() {
+        let Ok(cases_path) = std::env::var("H7_CASES") else {
+            return;
+        };
+        let Ok(anchors_path) = std::env::var("H7_ANCHORS") else {
+            return;
+        };
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let corpus: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(repo.join("benchmarks/rag-impact/corpus-manifest.json"))
+                .expect("corpus"),
+        )
+        .expect("json");
+        let cases: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(cases_path).expect("cases"))
+                .expect("json");
+        let anchors: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(anchors_path).expect("anchors"))
+                .expect("json");
+        let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
+        let (merged, catalog) = projects(&root, &corpus);
+        let by_id: BTreeMap<String, &serde_json::Value> = anchors["cases"]
+            .as_array()
+            .expect("anchor cases")
+            .iter()
+            .filter_map(|case| Some((case["id"].as_str()?.to_owned(), case)))
+            .collect();
+        let mut rows = Vec::new();
+        let mut totals = BTreeMap::new();
+        for case in cases["cases"].as_array().expect("cases") {
+            let Some(id) = case["id"].as_str() else {
+                continue;
+            };
+            let Some(anchor) = by_id.get(id) else {
+                continue;
+            };
+            let seeds: Vec<Seed> = anchor["seeds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|unit| {
+                    Some(Seed {
+                        path: unit["path"].as_str()?.to_owned(),
+                        start_line: unit["start_line"].as_u64()? as usize,
+                        end_line: unit["end_line"].as_u64()? as usize,
+                    })
+                })
+                .collect();
+            let query = case["question"].as_str().unwrap_or_default();
+            let mut gold = Vec::new();
+            for reference in case["source_refs"].as_array().into_iter().flatten() {
+                let path = reference["path"].as_str().unwrap_or_default().to_owned();
+                for span in reference["spans"].as_array().into_iter().flatten() {
+                    if let (Some(start), Some(end)) =
+                        (span["start_line"].as_u64(), span["end_line"].as_u64())
+                    {
+                        gold.push((path.clone(), start as usize, end as usize));
+                    }
+                }
+            }
+            let evaluate = |closure: bool| {
+                let mut items = expand_with_closure(&merged, &catalog, &seeds, query, 500, closure);
+                items.sort_by(|left, right| {
+                    right
+                        .score
+                        .cmp(&left.score)
+                        .then_with(|| left.path.cmp(&right.path))
+                        .then_with(|| left.start_line.cmp(&right.start_line))
+                        .then_with(|| left.end_line.cmp(&right.end_line))
+                });
+                items.dedup_by(|left, right| {
+                    left.path == right.path
+                        && left.start_line == right.start_line
+                        && left.end_line == right.end_line
+                });
+                items
+            };
+            let on = evaluate(true);
+            let off = evaluate(false);
+            let at = |items: &[CandidateItem], budget: usize| {
+                covered(&items[..items.len().min(budget)], &gold)
+            };
+            let row = serde_json::json!({"id":id,"gold":gold.len(),"coverage":{"10":at(&on,10),"50":at(&on,50),"100":at(&on,100),"250":at(&on,250),"500":at(&on,500)},"refs_off":{"10":at(&off,10),"50":at(&off,50),"100":at(&off,100),"250":at(&off,250),"500":at(&off,500)},"candidates":on.len(),"closure_items":on.iter().filter(|item| item.reason.starts_with("resolved|")).count()});
+            for (budget, value) in [
+                ("10", at(&on, 10)),
+                ("50", at(&on, 50)),
+                ("100", at(&on, 100)),
+                ("250", at(&on, 250)),
+                ("500", at(&on, 500)),
+            ] {
+                *totals.entry(budget).or_insert(0) += value;
+            }
+            rows.push(row);
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &serde_json::json!({"status":"H7_E1_EXTERNAL","cases":rows,"totals":totals})
+            )
+            .expect("json")
+        );
     }
 }

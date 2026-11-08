@@ -1,0 +1,605 @@
+{
+  "schema_version": 1,
+  "status": "H7_E1_TYPED_REFERENCE_CLOSURE",
+  "base": "88b91d7",
+  "branch": "work/h7-e1",
+  "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-PREREGISTRATION.md",
+  "dev": {
+    "cases": [
+      {
+        "candidates": 500,
+        "closure_hash": "e523d5e72bdf6d8b",
+        "closure_items": 21,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 20
+        },
+        "coverage": {
+          "10": 1,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "gold": 2,
+        "id": "D01",
+        "refs_off": {
+          "10": 1,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "range_precision": 0.004
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "a22804fe0ca486f3",
+        "closure_items": 326,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 325
+        },
+        "coverage": {
+          "10": 0,
+          "100": 3,
+          "250": 5,
+          "50": 3,
+          "500": 5
+        },
+        "gold": 6,
+        "id": "D02",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 2,
+          "50": 0,
+          "500": 2
+        },
+        "range_precision": 0.01
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "d9d312b2ff3f437b",
+        "closure_items": 25,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 24
+        },
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "D03",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "b0615a1d670b4bda",
+        "closure_items": 26,
+        "closure_rules": {
+          "receiver-type": 26
+        },
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "D04",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "0eb978878e7677fa",
+        "closure_items": 29,
+        "closure_rules": {
+          "receiver-type": 29
+        },
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "D05",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "e1d7bd6cc2a7f549",
+        "closure_items": 15,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 14
+        },
+        "coverage": {
+          "10": 2,
+          "100": 3,
+          "250": 3,
+          "50": 2,
+          "500": 3
+        },
+        "gold": 3,
+        "id": "D06",
+        "refs_off": {
+          "10": 2,
+          "100": 3,
+          "250": 3,
+          "50": 3,
+          "500": 3
+        },
+        "range_precision": 0.006
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "ac55466f694e9a30",
+        "closure_items": 338,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 337
+        },
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 3
+        },
+        "gold": 3,
+        "id": "D07",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 3,
+          "50": 0,
+          "500": 3
+        },
+        "range_precision": 0.006
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "8ed83f6ce44c370a",
+        "closure_items": 26,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 25
+        },
+        "coverage": {
+          "10": 2,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "gold": 2,
+        "id": "D08",
+        "refs_off": {
+          "10": 2,
+          "100": 2,
+          "250": 2,
+          "50": 2,
+          "500": 2
+        },
+        "range_precision": 0.004
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "563469b0b68b327d",
+        "closure_items": 323,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 322
+        },
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 0,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "D09",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "729eaeee6d3c11ed",
+        "closure_items": 326,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 325
+        },
+        "coverage": {
+          "10": 0,
+          "100": 2,
+          "250": 2,
+          "50": 1,
+          "500": 2
+        },
+        "gold": 2,
+        "id": "D10",
+        "refs_off": {
+          "10": 0,
+          "100": 2,
+          "250": 2,
+          "50": 1,
+          "500": 2
+        },
+        "range_precision": 0.004
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "a719c59225fbd124",
+        "closure_items": 27,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 26
+        },
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "D11",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_hash": "ab201c0621f46f58",
+        "closure_items": 16,
+        "closure_rules": {
+          "dbset-element": 1,
+          "receiver-type": 15
+        },
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "gold": 2,
+        "id": "D12",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      }
+    ],
+    "status": "H7_E1_TYPED_REFERENCE_CLOSURE",
+    "totals": {
+      "10": 7,
+      "100": 15,
+      "250": 20,
+      "50": 13,
+      "500": 23
+    }
+  },
+  "dev_refs_off": {
+    "10": 7,
+    "50": 12,
+    "100": 14,
+    "250": 20,
+    "500": 20
+  },
+  "independent_easy": {
+    "cases": [
+      {
+        "candidates": 500,
+        "closure_items": 339,
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "E1",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 328,
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "E2",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 325,
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "E3",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 291,
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "E4",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 300,
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "E5",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      }
+    ],
+    "status": "H7_E1_EXTERNAL",
+    "totals": {
+      "10": 2,
+      "100": 4,
+      "250": 5,
+      "50": 3,
+      "500": 5
+    }
+  },
+  "independent_hard": {
+    "cases": [
+      {
+        "candidates": 500,
+        "closure_items": 335,
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "H1",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 307,
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "H2",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 298,
+        "coverage": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "H3",
+        "refs_off": {
+          "10": 0,
+          "100": 1,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 329,
+        "coverage": {
+          "10": 0,
+          "100": 0,
+          "250": 0,
+          "50": 0,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "H4",
+        "refs_off": {
+          "10": 0,
+          "100": 0,
+          "250": 1,
+          "50": 0,
+          "500": 1
+        },
+        "range_precision": 0.002
+      },
+      {
+        "candidates": 500,
+        "closure_items": 349,
+        "coverage": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "gold": 1,
+        "id": "H5",
+        "refs_off": {
+          "10": 1,
+          "100": 1,
+          "250": 1,
+          "50": 1,
+          "500": 1
+        },
+        "range_precision": 0.002
+      }
+    ],
+    "status": "H7_E1_EXTERNAL",
+    "totals": {
+      "10": 1,
+      "100": 3,
+      "250": 4,
+      "50": 1,
+      "500": 5
+    }
+  },
+  "resource": {
+    "peak_rss_kib": 392500,
+    "user_s": 11.76,
+    "sys_s": 0.15,
+    "wall_s": 11.97,
+    "search_calls_per_case": 6,
+    "search_calls_note": "B0/H1 anchor calls only; closure resolves from project facts/catalog, no broad search",
+    "cold_warm": "two warm processes; cold parse not separately measured",
+    "p95_case_wall_ms": null,
+    "p95_note": "not instrumented per case; total wall 11.97s/12",
+    "io": "not reconciled; process rchar not captured in this harness"
+  },
+  "unresolved": {
+    "sql_no_observed_binding": 1,
+    "no_observed_declaration_for_span": 1,
+    "no_path": 1,
+    "note": "derived from missing spans; code-level unresolved histogram not emitted by this harness"
+  },
+  "limits": [
+    "dev B0 anchors, not H5 selected anchors",
+    "merged P1/P2/P3 facts; product call sites may expand per project",
+    "hard/easy anchors generated by H1 pool units",
+    "candidate precision is diagnostic"
+  ],
+  "gate": {
+    "coverage500": "PASS 23/25",
+    "coverage250": "PASS 20/25",
+    "coverage100": "PASS 15/25",
+    "hard_independent": "PASS 5/5",
+    "determinism": "PASS identical hashes",
+    "peak_pss_64mib": "FAIL 392500 KiB RSS",
+    "p95_5s": "NOT MEASURED",
+    "io_reconciled": "FAIL/NOT MEASURED"
+  },
+  "verdict": "FAIL_RESOURCE"
+}

@@ -21,6 +21,10 @@ promoted. The gap prototype is archived at
 
 ## Active status
 
+- **H7 E1 (fact-layer typed reference closure):** coverage @500 23/25,
+  @250 20/25, @100 15/25; refs-off 20/25; independent easy/hard 5/5;
+  deterministic. **FAIL resource:** peak RSS 392.5 MiB, p95/I/O not
+  instrumented. E1 NO-GO; E2 not run.
 - **Discovery:** H5 deterministic cap-500 ordering reaches **19/25 (76%)**
   with identical selected hashes across hash seeds; it is the H2 ceiling and
   cannot reach 20/25. H6 frequency-ranked observed-name expansion (mislabelled as structural

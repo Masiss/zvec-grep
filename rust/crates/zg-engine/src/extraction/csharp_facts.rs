@@ -85,9 +85,12 @@ pub struct MethodFact {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DbSetFact {
+    pub path: String,
     pub context_type: String,
     pub property: String,
     pub element_type: String,
+    pub line_start: usize,
+    pub line_end: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -771,9 +774,12 @@ fn record_property(node: Node<'_>, source: &str, context: &mut Context, out: &mu
     }
     if let Some(element) = db_set_element(&type_text) {
         out.db_sets.push(DbSetFact {
+            path: out.path.clone(),
             context_type: context.type_name(),
             property: name.clone(),
             element_type: element,
+            line_start: node.start_position().row + 1,
+            line_end: node.end_position().row + 1,
         });
     }
     if !type_text.is_empty() {
@@ -976,7 +982,12 @@ fn infer_type(node: Node<'_>, source: &str, context: &Context, out: &FileFacts) 
             if let Some(element) = dbset_element_for(&receiver_type, &name, out) {
                 return Some(element);
             }
-            if receiver_type == "CoreDBContext" && name == "Database" {
+            if name == "Database"
+                && out
+                    .db_sets
+                    .iter()
+                    .any(|db_set| db_set.context_type == receiver_type)
+            {
                 return Some("DatabaseFacade".to_owned());
             }
             if name == "FirstOrDefault" || name == "SingleOrDefault" {
@@ -1032,10 +1043,14 @@ fn infer_from_text(text_value: &str, context: &Context, out: &FileFacts) -> Opti
     if compact.contains(".GetMethod") {
         return Some("MethodInfo".to_owned());
     }
-    if let Some(property) = compact
-        .strip_prefix("Context.")
-        .and_then(|rest| rest.split('.').next())
-        && let Some(element) = dbset_element_for("CoreDBContext", property, out)
+    let mut access = compact.split('.');
+    if let (Some(receiver), Some(property)) = (access.next(), access.next())
+        && let Some(receiver_type) = context
+            .locals
+            .get(receiver)
+            .or_else(|| context.params.get(receiver))
+            .or_else(|| context.fields.get(receiver))
+        && let Some(element) = dbset_element_for(receiver_type, property, out)
     {
         return Some(element);
     }
