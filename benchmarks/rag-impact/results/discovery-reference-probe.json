@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_H4_REFERENCE",
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "h2_spans": 2,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeByOrganzationWorkProcess",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeForSyncHistory",
+        "func_EmployeeJoinByMonth"
+      ],
+      "extra_units": 67,
+      "queries": 12,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 1596,
+      "missing": []
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "h2_spans": 2,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "extra_units": 65,
+      "queries": 12,
+      "file_coverage": 4,
+      "range_coverage": 3,
+      "pool_units": 1152,
+      "missing": [
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 17,
+          "end_line": 20
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 41,
+          "end_line": 55
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "start_line": 1,
+          "end_line": 65
+        }
+      ]
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "h2_spans": 1,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeByOrganzationWorkProcess",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "extra_units": 63,
+      "queries": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 2019,
+      "missing": []
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "h2_spans": 1,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeByOrganzationWorkProcess",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear"
+      ],
+      "extra_units": 67,
+      "queries": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1407,
+      "missing": []
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "h2_spans": 1,
+      "references": [
+        "func_EmployeeForSyncHistory",
+        "sp_UpdateOrgTotalEmployee",
+        "AllocationMethod",
+        "AllowMultiple",
+        "AppSetting",
+        "Appendix"
+      ],
+      "extra_units": 238,
+      "queries": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1252,
+      "missing": []
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "h2_spans": 3,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "extra_units": 66,
+      "queries": 12,
+      "file_coverage": 3,
+      "range_coverage": 3,
+      "pool_units": 1048,
+      "missing": []
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "h2_spans": 3,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "extra_units": 65,
+      "queries": 12,
+      "file_coverage": 3,
+      "range_coverage": 3,
+      "pool_units": 1694,
+      "missing": []
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "h2_spans": 2,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "extra_units": 66,
+      "queries": 12,
+      "file_coverage": 2,
+      "range_coverage": 2,
+      "pool_units": 1042,
+      "missing": []
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "h2_spans": 1,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "extra_units": 64,
+      "queries": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1355,
+      "missing": []
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "h2_spans": 1,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "extra_units": 61,
+      "queries": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 2056,
+      "missing": [
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 9,
+          "end_line": 20
+        }
+      ]
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "h2_spans": 1,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeSeniorityPercentage",
+        "func_EmployeeTotalByOrgExcludeOrg",
+        "func_EmployeeTotalByOrgs"
+      ],
+      "extra_units": 62,
+      "queries": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 954,
+      "missing": []
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "h2_spans": 1,
+      "references": [
+        "func_EmployeeByOrgType",
+        "func_EmployeeExperiencePercentage",
+        "func_EmployeeForReportOrgs",
+        "func_EmployeeJoinByMonth",
+        "func_EmployeeRecruitmentByYear",
+        "func_EmployeeSeniorityPercentage"
+      ],
+      "extra_units": 65,
+      "queries": 12,
+      "file_coverage": 1,
+      "range_coverage": 1,
+      "pool_units": 1057,
+      "missing": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 95
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "gold": 25,
+    "h2_spans": 19,
+    "range_coverage": 20,
+    "file_coverage": 21
+  },
+  "macro": {
+    "h2": 0.8611111111111112,
+    "range_coverage": 0.875
+  },
+  "cost": {
+    "queries": 144,
+    "wall_ms": 97347.38348600513
+  },
+  "limits": [
+    "dev-only",
+    "gold measurement only",
+    "no model/index",
+    "no top10 selection"
+  ]
+}

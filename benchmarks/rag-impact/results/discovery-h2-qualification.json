@@ -1,0 +1,355 @@
+{
+  "schema_version": 1,
+  "status": "DISCOVERY_H2_QUALIFICATION",
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "h1_units": 183,
+      "pool_units": 1529,
+      "added": 1346,
+      "duplicates": 0,
+      "origins": {
+        "search": 183,
+        "method": 1194,
+        "type": 152,
+        "sql": 0
+      },
+      "coverage": 2,
+      "coverage_at_budget": {
+        "100": 2,
+        "500": 2,
+        "1000": 2,
+        "5000": 2,
+        "10000": 2,
+        "1529": 2
+      },
+      "wall_ms": 3486.166956005036,
+      "cpu_user_s": 0.650311,
+      "cpu_sys_s": 0.049436999999999995
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "h1_units": 162,
+      "pool_units": 1087,
+      "added": 925,
+      "duplicates": 0,
+      "origins": {
+        "search": 162,
+        "method": 802,
+        "type": 123,
+        "sql": 0
+      },
+      "coverage": 2,
+      "coverage_at_budget": {
+        "100": 2,
+        "500": 2,
+        "1000": 2,
+        "5000": 2,
+        "10000": 2,
+        "1087": 2
+      },
+      "wall_ms": 3502.887055001338,
+      "cpu_user_s": 0.631234,
+      "cpu_sys_s": 0.060266999999999994
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "h1_units": 336,
+      "pool_units": 1956,
+      "added": 1620,
+      "duplicates": 0,
+      "origins": {
+        "search": 336,
+        "method": 1253,
+        "type": 367,
+        "sql": 0
+      },
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "500": 1,
+        "1000": 1,
+        "5000": 1,
+        "10000": 1,
+        "1956": 1
+      },
+      "wall_ms": 4290.707952008233,
+      "cpu_user_s": 0.818921,
+      "cpu_sys_s": 0.07178299999999999
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "h1_units": 190,
+      "pool_units": 1340,
+      "added": 1150,
+      "duplicates": 0,
+      "origins": {
+        "search": 190,
+        "method": 948,
+        "type": 202,
+        "sql": 0
+      },
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 1,
+        "500": 1,
+        "1000": 1,
+        "5000": 1,
+        "10000": 1,
+        "1340": 1
+      },
+      "wall_ms": 4100.07060499629,
+      "cpu_user_s": 0.572791,
+      "cpu_sys_s": 0.082922
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "h1_units": 112,
+      "pool_units": 1014,
+      "added": 902,
+      "duplicates": 0,
+      "origins": {
+        "search": 112,
+        "method": 825,
+        "type": 77,
+        "sql": 0
+      },
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "500": 1,
+        "1000": 1,
+        "5000": 1,
+        "10000": 1,
+        "1014": 1
+      },
+      "wall_ms": 3400.805933008087,
+      "cpu_user_s": 0.47436100000000003,
+      "cpu_sys_s": 0.05452800000000002
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "h1_units": 91,
+      "pool_units": 982,
+      "added": 891,
+      "duplicates": 0,
+      "origins": {
+        "search": 91,
+        "method": 796,
+        "type": 95,
+        "sql": 0
+      },
+      "coverage": 3,
+      "coverage_at_budget": {
+        "100": 1,
+        "500": 3,
+        "1000": 3,
+        "5000": 3,
+        "10000": 3,
+        "982": 3
+      },
+      "wall_ms": 2246.5026029967703,
+      "cpu_user_s": 0.42116500000000023,
+      "cpu_sys_s": 0.063251
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "h1_units": 241,
+      "pool_units": 1629,
+      "added": 1388,
+      "duplicates": 0,
+      "origins": {
+        "search": 241,
+        "method": 1133,
+        "type": 255,
+        "sql": 0
+      },
+      "coverage": 3,
+      "coverage_at_budget": {
+        "100": 0,
+        "500": 3,
+        "1000": 3,
+        "5000": 3,
+        "10000": 3,
+        "1629": 3
+      },
+      "wall_ms": 4279.9645100021735,
+      "cpu_user_s": 0.842063,
+      "cpu_sys_s": 0.07189499999999999
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "h1_units": 104,
+      "pool_units": 976,
+      "added": 872,
+      "duplicates": 0,
+      "origins": {
+        "search": 104,
+        "method": 802,
+        "type": 70,
+        "sql": 0
+      },
+      "coverage": 2,
+      "coverage_at_budget": {
+        "100": 1,
+        "500": 2,
+        "1000": 2,
+        "5000": 2,
+        "10000": 2,
+        "976": 2
+      },
+      "wall_ms": 3428.627510991646,
+      "cpu_user_s": 0.40381800000000023,
+      "cpu_sys_s": 0.07658500000000001
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "h1_units": 199,
+      "pool_units": 1291,
+      "added": 1092,
+      "duplicates": 0,
+      "origins": {
+        "search": 199,
+        "method": 880,
+        "type": 212,
+        "sql": 0
+      },
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 1,
+        "500": 1,
+        "1000": 1,
+        "5000": 1,
+        "10000": 1,
+        "1291": 1
+      },
+      "wall_ms": 4303.261481996742,
+      "cpu_user_s": 0.6584209999999997,
+      "cpu_sys_s": 0.10844999999999994
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "h1_units": 310,
+      "pool_units": 1995,
+      "added": 1685,
+      "duplicates": 0,
+      "origins": {
+        "search": 310,
+        "method": 1518,
+        "type": 167,
+        "sql": 0
+      },
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "500": 1,
+        "1000": 1,
+        "5000": 1,
+        "10000": 1,
+        "1995": 1
+      },
+      "wall_ms": 7655.639728996903,
+      "cpu_user_s": 1.4260229999999998,
+      "cpu_sys_s": 0.19267800000000002
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "h1_units": 88,
+      "pool_units": 892,
+      "added": 804,
+      "duplicates": 0,
+      "origins": {
+        "search": 88,
+        "method": 743,
+        "type": 61,
+        "sql": 0
+      },
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 1,
+        "500": 1,
+        "1000": 1,
+        "5000": 1,
+        "10000": 1,
+        "892": 1
+      },
+      "wall_ms": 5314.008357992861,
+      "cpu_user_s": 0.8857109999999997,
+      "cpu_sys_s": 0.11511699999999991
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "h1_units": 142,
+      "pool_units": 992,
+      "added": 850,
+      "duplicates": 0,
+      "origins": {
+        "search": 142,
+        "method": 738,
+        "type": 112,
+        "sql": 0
+      },
+      "coverage": 1,
+      "coverage_at_budget": {
+        "100": 0,
+        "500": 1,
+        "1000": 1,
+        "5000": 1,
+        "10000": 1,
+        "992": 1
+      },
+      "wall_ms": 5246.793356986018,
+      "cpu_user_s": 0.7172210000000003,
+      "cpu_sys_s": 0.12410100000000002
+    }
+  ],
+  "totals": {
+    "gold": 25,
+    "coverage": 19,
+    "pool_units": 15683,
+    "added": 13525,
+    "duplicates": 0,
+    "origins": {
+      "search": 2158,
+      "method": 11632,
+      "type": 1893,
+      "sql": 0
+    }
+  },
+  "macro": {
+    "coverage": 0.8611111111111112
+  },
+  "resources": {
+    "p95_case_wall_ms": 5314.008357992861,
+    "p95_case_cpu_s": 1.0008279999999996,
+    "peak_pss_kib": 13367,
+    "cpu_user_s": 8.504371,
+    "cpu_sys_s": 1.0712650000000001,
+    "io": {
+      "rchar": 736839267,
+      "wchar": 7003811,
+      "syscr": 207739,
+      "syscw": 8175,
+      "read_bytes": 0,
+      "write_bytes": 40960,
+      "cancelled_write_bytes": 0
+    }
+  },
+  "limits": [
+    "dev-only",
+    "no targeted selection",
+    "coverage@budget uses insertion order"
+  ]
+}
