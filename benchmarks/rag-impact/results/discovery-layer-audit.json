@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "status": "READ_ONLY_DISCOVERY_LAYER_AUDIT",
+  "probe": {
+    "binary": "/home/masis/.local/share/zvec-grep/index-allocation-diagnostics/20261105-lifecycle/fixed-1.98.0-bin/zg",
+    "corpus_root": "/home/masis/.local/share/zvec-grep/rag-impact/20261108-b0-pilot/corpus",
+    "note": "managed rg and FTS exact-identifier probes; no index writes"
+  },
+  "totals": {
+    "file_hit_missing_range": 7,
+    "query_formulation": 9
+  },
+  "rows": [
+    {
+      "case": "D01",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 285,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": true,
+      "exact_probe": "EmployeeEditThongTinCaNhan",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "file_hit_missing_range"
+    },
+    {
+      "case": "D02",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 285,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "EmployeeEditThongTinCaNhan",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D02",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 287,
+      "end_line": 425,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "SaveChanges",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 17,
+      "end_line": 20,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "AddFromAssembly",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 41,
+      "end_line": 55,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "EmployeeDetails",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+      "start_line": 1,
+      "end_line": 65,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "Employee",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+      "start_line": 1,
+      "end_line": 100,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "EmployeeDetail",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D03",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 285,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": true,
+      "exact_probe": "Keyword",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "file_hit_missing_range"
+    },
+    {
+      "case": "D05",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 425,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": true,
+      "exact_probe": "SaveChanges",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "file_hit_missing_range"
+    },
+    {
+      "case": "D06",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 427,
+      "end_line": 457,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": true,
+      "exact_probe": "UpdateOrgTotalEmployee",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "file_hit_missing_range"
+    },
+    {
+      "case": "D06",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": true,
+      "exact_probe": "UpdateOrgTotalEmployee",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "file_hit_missing_range"
+    },
+    {
+      "case": "D07",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 539,
+      "end_line": 560,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": true,
+      "exact_probe": "DeleteEmployeeByIds",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "file_hit_missing_range"
+    },
+    {
+      "case": "D07",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "UpdateOrgTotalEmployee",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D10",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 9,
+      "end_line": 20,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": false,
+      "exact_probe": "CoreDBContext",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    },
+    {
+      "case": "D12",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "corpus_kind": "cs_compile",
+      "b0_file_hit": true,
+      "exact_probe": "UpdateOrgTotalEmployee",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "file_hit_missing_range"
+    },
+    {
+      "case": "D12",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "start_line": 1,
+      "end_line": 95,
+      "corpus_kind": "sql_anchor",
+      "b0_file_hit": false,
+      "exact_probe": "sp_UpdateOrgTotalEmployee",
+      "rg_reaches_span": true,
+      "fts_reaches_span": true,
+      "layer": "query_formulation"
+    }
+  ]
+}
