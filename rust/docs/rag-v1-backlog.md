@@ -21,11 +21,12 @@ promoted. The gap prototype is archived at
 
 ## Active status
 
-- **Discovery:** primary. Depth-50 probe raised ceiling from 9/25 to **12/25**
-  (macro 0.5417) but target 0.5722 is still above it. D03/D05/D12 remain fully
-  undiscovered; D02 has four misses; D06/D07 two each.
-- **Selection:** historical candidate/selection policies cannot exceed the
-  Discovery ceiling. No new selection work until Discovery improves.
+- **Discovery:** H1 question-symbol pool raised the candidate-pool ceiling to
+  **14/25 (macro 0.6528)**, above the blind target, but deployable selection
+  remained 6/25 (0.4167). Depth-50 alone was 12/25. D05/D12 remain 0; D02 has
+  four misses.
+- **Selection:** A/B policies (RRF, symbol-first+RRF) selected 4/25 and 6/25.
+  Selection NO-GO; do not proceed to Expansion on this pool.
 - **Expansion:** gap prototype validates anchors/definitions but cannot find
   unobserved files; archived, no integration.
 - **R1 delivery:** evidence contract 10/10 tests; V2 dev pilot 12/12 packs,
