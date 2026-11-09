@@ -994,3 +994,624 @@ fn onindex_code_discovery() {
         .expect("json")
     );
 }
+
+// ---------------------------------------------------------------------------
+// H7 control qualification (release-caller). Measurement only.
+// ---------------------------------------------------------------------------
+
+/// Process CPU time in milliseconds (user + system).
+fn cpu_ms() -> u64 {
+    let Ok(text) = std::fs::read_to_string("/proc/self/stat") else {
+        return 0;
+    };
+    let Some(close) = text.rfind(')') else {
+        return 0;
+    };
+    let fields: Vec<&str> = text[close + 2..].split_whitespace().collect();
+    let utime = fields
+        .get(11)
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    let stime = fields
+        .get(12)
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    let ticks = utime + stime;
+    // USER_HZ is 100 on Linux; convert to milliseconds.
+    ticks * 10
+}
+
+fn sample_cpu(label: &str, start: Instant, cpu_start: u64) -> serde_json::Value {
+    let mut value = sample(label, start);
+    value["cpu_ms"] = serde_json::json!(cpu_ms().saturating_sub(cpu_start));
+    value
+}
+
+/// A closure reason must carry status, anchor expression, declaration, target
+/// and rule fields (`anchor`/`expr` themselves contain one `|`).
+fn closure_reason_ok(reason: &str) -> bool {
+    let parts: Vec<&str> = reason.split('|').collect();
+    parts.len() >= 6
+        && parts[0] == "resolved"
+        && parts[1].starts_with("anchor=")
+        && parts[2].starts_with("expr=")
+        && parts[3].starts_with("declaration=")
+        && parts[4].starts_with("target=")
+        && parts[5].starts_with("rule=")
+}
+
+fn provenance_of(items: &[CandidateItem]) -> serde_json::Value {
+    let mut closure = 0usize;
+    let mut closure_ok = 0usize;
+    let mut bad_ranges = 0usize;
+    let mut empty_paths = 0usize;
+    for item in items {
+        if item.path.is_empty() {
+            empty_paths += 1;
+        }
+        if item.start_line == 0 || item.start_line > item.end_line {
+            bad_ranges += 1;
+        }
+        if item.reason.starts_with("resolved|") {
+            closure += 1;
+            if closure_reason_ok(&item.reason) {
+                closure_ok += 1;
+            }
+        }
+    }
+    serde_json::json!({
+        "closure_items": closure,
+        "closure_reasons_ok": closure_ok,
+        "empty_paths": empty_paths,
+        "bad_ranges": bad_ranges,
+        "ok": empty_paths == 0 && bad_ranges == 0 && closure == closure_ok,
+    })
+}
+
+fn delivery(items: &[CandidateItem]) -> (usize, f64) {
+    let payload: Vec<serde_json::Value> = items
+        .iter()
+        .map(|item| {
+            serde_json::json!({
+                "path": item.path,
+                "start_line": item.start_line,
+                "end_line": item.end_line,
+                "score": item.score,
+                "reason": item.reason,
+            })
+        })
+        .collect();
+    let started = Instant::now();
+    let encoded = serde_json::to_vec(&payload).expect("deliver");
+    (encoded.len(), started.elapsed().as_secs_f64() * 1000.0)
+}
+
+struct ControlRow {
+    row: serde_json::Value,
+    pass: usize,
+}
+
+fn control_rows_json(rows: &[ControlRow]) -> Vec<serde_json::Value> {
+    rows.iter().map(|row| row.row.clone()).collect()
+}
+
+fn run_control_case(
+    corpus: &Corpus,
+    declarations: &ProjectDeclarations,
+    case: &CaseSpec,
+    pass: usize,
+    start: Instant,
+) -> ControlRow {
+    let anchor_paths: BTreeSet<String> = case.seeds.iter().map(|seed| seed.path.clone()).collect();
+    let identity = corpus.identity("P1");
+    let case_start = Instant::now();
+    let cpu_start = cpu_ms();
+    let io_before = io_snapshot();
+
+    let read_start = Instant::now();
+    let anchors = corpus.anchor_files(&anchor_paths);
+    let anchor_read_ms = read_start.elapsed().as_secs_f64() * 1000.0;
+    let bytes = anchors
+        .iter()
+        .map(|(_, source)| source.len())
+        .sum::<usize>();
+
+    let parse_start = Instant::now();
+    let project = parse_anchor_facts(&identity, &anchors, &anchor_paths, declarations);
+    let anchor_parse_ms = parse_start.elapsed().as_secs_f64() * 1000.0;
+
+    let closure_start = Instant::now();
+    let mut diagnostics = ClosureDiagnostics::default();
+    let mut items = expand_with_declarations(
+        &project,
+        declarations,
+        &corpus.catalog,
+        &case.seeds,
+        &case.query,
+        500,
+        true,
+        &mut diagnostics,
+    );
+    sort_dedup(&mut items);
+    let closure_ms = closure_start.elapsed().as_secs_f64() * 1000.0;
+    let provenance = provenance_of(&items);
+    let (delivery_bytes, delivery_ms) = delivery(&items);
+    let io_case = io_delta(&io_before, &io_snapshot());
+    let case_ms = case_start.elapsed().as_secs_f64() * 1000.0;
+    let cpu_case = cpu_ms().saturating_sub(cpu_start);
+    let after = sample("after_case", start);
+    let _ = after;
+    let row = serde_json::json!({
+        "id": case.id,
+        "pass": pass,
+        "gold": case.gold.len(),
+        "anchor_files": anchor_paths.len(),
+        "coverage": coverage(&items, &case.gold),
+        "candidates": items.len(),
+        "closure_items": diagnostics.closure_items,
+        "diagnostics": diagnostics,
+        "ranks": case.gold.iter().map(|(p,s,e)| rank(&items,p,*s,*e)).collect::<Vec<_>>(),
+        "closure_hash": hash_items(&items),
+        "provenance": provenance,
+        "phases": {
+            "anchor_read_ms": anchor_read_ms,
+            "anchor_parse_ms": anchor_parse_ms,
+            "closure_ms": closure_ms,
+            "delivery_ms": delivery_ms,
+            "case_ms": case_ms,
+        },
+        "cpu_ms": cpu_case,
+        "io_case": io_case,
+        "anchor_bytes": bytes,
+        "delivery_bytes": delivery_bytes,
+        "rss_kib": status_kib("VmRSS:"),
+        "rss_hwm_kib": status_kib("VmHWM:"),
+        "pss_kib": pss_kib(),
+    });
+    ControlRow { row, pass }
+}
+
+fn percentile(values: &mut [f64], quantile: f64) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    values.sort_by(f64::total_cmp);
+    let index = ((values.len() - 1) as f64 * quantile).round() as usize;
+    values[index]
+}
+
+/// Control qualification: two full passes over one workload (env selects the
+/// workload files), per-phase cost, provenance and resource decomposition.
+#[test]
+#[ignore = "manual: cargo test --release --lib extraction::onindex_tests::onindex_control_qualification -- --ignored --exact --nocapture"]
+fn onindex_control_qualification() {
+    let start = Instant::now();
+    let cpu_start = cpu_ms();
+    let mut phases = vec![sample_cpu("process_start", start, cpu_start)];
+    let corpus = Corpus::load();
+    phases.push(sample_cpu("corpus_loaded", start, cpu_start));
+    let cases = load_cases();
+    phases.push(sample_cpu("cases_loaded", start, cpu_start));
+
+    let mut declarations = ProjectDeclarations::default();
+    for project in ["P3", "P2", "P1"] {
+        let project_start = Instant::now();
+        let project_cpu = cpu_ms();
+        let io_before = io_snapshot();
+        let files = corpus.project_files(project);
+        let source_bytes: usize = files.iter().map(|(_, source)| source.len()).sum();
+        let built = build_declaration_index(&corpus.identity(project), &files);
+        let declaration_types = built.types.len();
+        let declaration_fields = built.fields.len();
+        let declaration_db_sets = built.db_sets.len();
+        declarations.merge(built);
+        let mut value = sample_cpu(
+            &format!("declarations_{project}"),
+            project_start,
+            project_cpu,
+        );
+        value["files"] = serde_json::json!(files.len());
+        value["source_bytes"] = serde_json::json!(source_bytes);
+        value["types"] = serde_json::json!(declaration_types);
+        value["fields"] = serde_json::json!(declaration_fields);
+        value["db_sets"] = serde_json::json!(declaration_db_sets);
+        value["io"] = io_delta(&io_before, &io_snapshot());
+        phases.push(value);
+    }
+    let cold_end = sample_cpu("declarations_built", start, cpu_start);
+
+    let passes: usize = std::env::var("ONINDEX_PASSES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(1)
+        .clamp(1, 4);
+    let mut rows = Vec::new();
+    let mut totals = BTreeMap::new();
+    for pass in 0..passes {
+        for (index, case) in cases.iter().enumerate() {
+            let result = run_control_case(&corpus, &declarations, case, pass, start);
+            if pass + 1 == passes {
+                for budget in ["10", "50", "100", "250", "500"] {
+                    let value = result.row["coverage"][budget].as_u64().unwrap_or(0);
+                    *totals.entry(budget.to_owned()).or_insert(0u64) += value;
+                }
+            }
+            if pass == 0 {
+                let mut phase = sample_cpu(
+                    if index == 0 {
+                        "after_cold_case"
+                    } else {
+                        "after_cold_pass"
+                    },
+                    start,
+                    cpu_start,
+                );
+                phase["case_id"] = serde_json::json!(case.id);
+                phases.push(phase);
+            }
+            rows.push(result);
+        }
+    }
+    let end = sample_cpu("end", start, cpu_start);
+
+    // Warm (second pass) per-case latencies and CPU.
+    let mut case_ms: Vec<f64> = rows
+        .iter()
+        .filter(|row| row.pass + 1 == passes)
+        .map(|row| row.row["phases"]["case_ms"].as_f64().unwrap_or(0.0))
+        .collect();
+    let p50 = percentile(&mut case_ms.clone(), 0.5);
+    let p95 = percentile(&mut case_ms, 0.95);
+    let mut per_phase = BTreeMap::<String, Vec<f64>>::new();
+    for row in rows.iter().filter(|row| row.pass + 1 == passes) {
+        for (key, value) in row.row["phases"].as_object().into_iter().flatten() {
+            per_phase
+                .entry(key.clone())
+                .or_default()
+                .push(value.as_f64().unwrap_or(0.0));
+        }
+    }
+    let phase_stats: BTreeMap<String, serde_json::Value> = per_phase
+        .into_iter()
+        .map(|(key, mut values)| {
+            let p50 = percentile(&mut values.clone(), 0.5);
+            let p95 = percentile(&mut values, 0.95);
+            (key, serde_json::json!({"p50_ms": p50, "p95_ms": p95}))
+        })
+        .collect();
+    let hashes_pass0: Vec<&str> = rows
+        .iter()
+        .filter(|row| row.pass == 0)
+        .filter_map(|row| row.row["closure_hash"].as_str())
+        .collect();
+    let hashes_pass1: Vec<&str> = rows
+        .iter()
+        .filter(|row| row.pass + 1 == passes)
+        .filter_map(|row| row.row["closure_hash"].as_str())
+        .collect();
+    let micro = totals.get("500").copied().unwrap_or(0);
+    let gold_total: u64 = cases.iter().map(|case| case.gold.len() as u64).sum();
+    let macro_recall = rows
+        .iter()
+        .filter(|row| row.pass + 1 == passes)
+        .map(|row| {
+            let covered = row.row["coverage"]["500"].as_f64().unwrap_or(0.0);
+            let gold = row.row["gold"].as_f64().unwrap_or(1.0);
+            covered / gold
+        })
+        .sum::<f64>()
+        / cases.len() as f64;
+    let provenance_ok = rows
+        .iter()
+        .filter(|row| row.pass + 1 == passes)
+        .all(|row| row.row["provenance"]["ok"].as_bool().unwrap_or(false));
+    let diagnostics: BTreeMap<String, u64> = {
+        let mut merged = BTreeMap::new();
+        for row in rows.iter().filter(|row| row.pass + 1 == passes) {
+            if let Some(unresolved) = row.row["diagnostics"]["unresolved"].as_object() {
+                for (reason, value) in unresolved {
+                    *merged.entry(reason.clone()).or_insert(0) += value.as_u64().unwrap_or(0);
+                }
+            }
+        }
+        merged
+    };
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ONINDEX_CONTROL_QUALIFICATION",
+            "workload": std::env::var("ONINDEX_WORKLOAD").unwrap_or_else(|_| "dev".to_owned()),
+            "case_count": cases.len(),
+            "totals": totals,
+            "micro_recall": micro,
+            "gold_total": gold_total,
+            "macro_recall": macro_recall,
+            "per_case_ms": {"p50": p50, "p95": p95},
+            "phase_stats": phase_stats,
+            "provenance_ok": provenance_ok,
+            "diagnostics": diagnostics,
+            "determinism": {
+                "passes": passes,
+                "identical": passes < 2 || hashes_pass0 == hashes_pass1,
+            },
+            "phases": phases,
+            "cold_declarations": cold_end,
+            "rows": control_rows_json(&rows),
+            "end": end,
+            "rss_hwm_kib": status_kib("VmHWM:"),
+            "pss_end_kib": pss_kib(),
+            "cpu_ms_total": cpu_ms().saturating_sub(cpu_start),
+        }))
+        .expect("json")
+    );
+}
+
+/// Full-fact refs-off parity (E1 definition) in its own process.
+#[test]
+#[ignore = "manual: cargo test --release --lib extraction::onindex_tests::onindex_control_refs_off -- --ignored --exact --nocapture"]
+fn onindex_control_refs_off() {
+    use super::candidate::expand_with_closure;
+    use super::csharp_facts::{parse_project, parse_project_with_references};
+
+    let start = Instant::now();
+    let cpu_start = cpu_ms();
+    let corpus = Corpus::load();
+    let cases = load_cases();
+    let p3 = parse_project(&corpus.identity("P3"), &corpus.project_files("P3"));
+    let p2 = parse_project_with_references(
+        &corpus.identity("P2"),
+        &corpus.project_files("P2"),
+        std::slice::from_ref(&p3),
+    );
+    let p1 = parse_project_with_references(
+        &corpus.identity("P1"),
+        &corpus.project_files("P1"),
+        &[p2.clone(), p3.clone()],
+    );
+    let mut merged = p1;
+    for project in [&p2, &p3] {
+        merged.files.extend(project.files.clone());
+        merged.types.extend(project.types.clone());
+        merged.methods.extend(project.methods.clone());
+        merged.db_sets.extend(project.db_sets.clone());
+        merged.fields.extend(project.fields.clone());
+        merged.assignments.extend(project.assignments.clone());
+        merged.invocations.extend(project.invocations.clone());
+        merged.saves.extend(project.saves.clone());
+    }
+    let mut rows = Vec::new();
+    let mut totals = BTreeMap::new();
+    for case in &cases {
+        let mut items = expand_with_closure(
+            &merged,
+            &corpus.catalog,
+            &case.seeds,
+            &case.query,
+            500,
+            false,
+        );
+        sort_dedup(&mut items);
+        for budget in ["10", "50", "100", "250", "500"] {
+            let value = items[..items.len().min(budget.parse().unwrap_or(500))]
+                .iter()
+                .filter(|item| {
+                    case.gold.iter().any(|(path, start, end)| {
+                        item.path == *path
+                            && ranges_overlap(item.start_line, item.end_line, *start, *end)
+                    })
+                })
+                .count();
+            let _ = value;
+        }
+        let row = serde_json::json!({
+            "id": case.id,
+            "gold": case.gold.len(),
+            "coverage": coverage(&items, &case.gold),
+            "candidates": items.len(),
+            "closure_hash": hash_items(&items),
+        });
+        for budget in ["10", "50", "100", "250", "500"] {
+            let value = row["coverage"][budget].as_u64().unwrap_or(0);
+            *totals.entry(budget.to_owned()).or_insert(0u64) += value;
+        }
+        rows.push(row);
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ONINDEX_CONTROL_REFS_OFF",
+            "workload": std::env::var("ONINDEX_WORKLOAD").unwrap_or_else(|_| "dev".to_owned()),
+            "case_count": cases.len(),
+            "totals": totals,
+            "rows": rows,
+            "rss_hwm_kib": status_kib("VmHWM:"),
+            "pss_end_kib": pss_kib(),
+            "cpu_ms_total": cpu_ms().saturating_sub(cpu_start),
+            "elapsed_ms": start.elapsed().as_secs_f64() * 1000.0,
+        }))
+        .expect("json")
+    );
+}
+
+/// Worker-pool concurrency: K threads share the read-only declaration index.
+#[test]
+#[ignore = "manual: ONINDEX_CONCURRENCY=4 cargo test --release --lib extraction::onindex_tests::onindex_control_concurrency -- --ignored --exact --nocapture"]
+fn onindex_control_concurrency() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let start = Instant::now();
+    let cpu_start = cpu_ms();
+    let concurrency: usize = std::env::var("ONINDEX_CONCURRENCY")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(4)
+        .max(1);
+    let corpus = Arc::new(Corpus::load());
+    let cases = Arc::new(load_cases());
+    let mut declarations = ProjectDeclarations::default();
+    for project in ["P3", "P2", "P1"] {
+        declarations.merge(build_declaration_index(
+            &corpus.identity(project),
+            &corpus.project_files(project),
+        ));
+    }
+    let declarations = Arc::new(declarations);
+    let corpus_start = sample_cpu("worker_ready", start, cpu_start);
+
+    let wall_cpu_start = cpu_ms();
+    let cursor = Arc::new(AtomicUsize::new(0));
+    let results = Arc::new(std::sync::Mutex::new(
+        Vec::<(usize, serde_json::Value)>::new(),
+    ));
+    let wall = Instant::now();
+    let mut handles = Vec::new();
+    for worker in 0..concurrency {
+        let corpus = Arc::clone(&corpus);
+        let cases = Arc::clone(&cases);
+        let declarations = Arc::clone(&declarations);
+        let cursor = Arc::clone(&cursor);
+        let results = Arc::clone(&results);
+        handles.push(std::thread::spawn(move || {
+            loop {
+                let index = cursor.fetch_add(1, Ordering::SeqCst);
+                let Some(case) = cases.get(index) else {
+                    break;
+                };
+                let case_start = Instant::now();
+                let cpu_start = cpu_ms();
+                let anchors =
+                    corpus.anchor_files(&case.seeds.iter().map(|seed| seed.path.clone()).collect());
+                let anchor_paths: BTreeSet<String> =
+                    case.seeds.iter().map(|seed| seed.path.clone()).collect();
+                let project = parse_anchor_facts(
+                    &corpus.identity("P1"),
+                    &anchors,
+                    &anchor_paths,
+                    &declarations,
+                );
+                let mut diagnostics = ClosureDiagnostics::default();
+                let mut items = expand_with_declarations(
+                    &project,
+                    &declarations,
+                    &corpus.catalog,
+                    &case.seeds,
+                    &case.query,
+                    500,
+                    true,
+                    &mut diagnostics,
+                );
+                sort_dedup(&mut items);
+                let (delivery_bytes, _) = delivery(&items);
+                let row = serde_json::json!({
+                    "id": case.id,
+                    "worker": worker,
+                    "case_ms": case_start.elapsed().as_secs_f64() * 1000.0,
+                    "cpu_ms": cpu_ms().saturating_sub(cpu_start),
+                    "closure_hash": hash_items(&items),
+                    "candidates": items.len(),
+                    "delivery_bytes": delivery_bytes,
+                });
+                results.lock().expect("results").push((index, row));
+            }
+        }));
+    }
+    for handle in handles {
+        handle.join().expect("worker");
+    }
+    let wall_ms = wall.elapsed().as_secs_f64() * 1000.0;
+    let worker_cpu_ms = cpu_ms().saturating_sub(wall_cpu_start);
+    let mut rows: Vec<(usize, serde_json::Value)> = results.lock().expect("results").clone();
+    rows.sort_by_key(|(index, _)| *index);
+    let mut case_ms: Vec<f64> = rows
+        .iter()
+        .map(|(_, row)| row["case_ms"].as_f64().unwrap_or(0.0))
+        .collect();
+    let p50 = percentile(&mut case_ms.clone(), 0.5);
+    let p95 = percentile(&mut case_ms, 0.95);
+    let hashes: BTreeMap<String, String> = rows
+        .iter()
+        .map(|(_, row)| {
+            (
+                row["id"].as_str().unwrap_or_default().to_owned(),
+                row["closure_hash"].as_str().unwrap_or_default().to_owned(),
+            )
+        })
+        .collect();
+    let baseline_mismatch = std::env::var("ONINDEX_BASELINE_HASHES")
+        .ok()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<BTreeMap<String, String>>(&text).ok())
+        .map(|baseline| {
+            baseline
+                .iter()
+                .filter(|(id, hash)| hashes.get(*id) != Some(*hash))
+                .map(|(id, _)| id.clone())
+                .collect::<Vec<_>>()
+        });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ONINDEX_CONTROL_CONCURRENCY",
+            "workload": std::env::var("ONINDEX_WORKLOAD").unwrap_or_else(|_| "dev".to_owned()),
+            "concurrency": concurrency,
+            "case_count": rows.len(),
+            "wall_ms": wall_ms,
+            "cases_per_second": rows.len() as f64 / (wall_ms / 1000.0),
+            "case_ms": {"p50": p50, "p95": p95},
+            "worker_ready": corpus_start,
+            "cpu_ms_total": cpu_ms().saturating_sub(cpu_start),
+            "worker_cpu_ms": worker_cpu_ms,
+            "cpu_wall_ratio": worker_cpu_ms as f64 / wall_ms.max(1.0),
+            "rss_hwm_kib": status_kib("VmHWM:"),
+            "pss_end_kib": pss_kib(),
+            "rows": rows.into_iter().map(|(_, row)| row).collect::<Vec<_>>(),
+            "baseline_mismatch": baseline_mismatch,
+        }))
+        .expect("json")
+    );
+}
+
+/// Daemon/index footprint: open the frozen index read-only, warm it, idle.
+#[test]
+#[ignore = "manual: cargo test --release --lib extraction::onindex_tests::onindex_index_footprint -- --ignored --exact --nocapture"]
+fn onindex_index_footprint() {
+    let start = Instant::now();
+    let cpu_start = cpu_ms();
+    let corpus = Corpus::load();
+    let mut phases = vec![sample_cpu("process_start", start, cpu_start)];
+    let engine = ZvecGrep::new();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let warm = ContextOptions {
+        queries: vec!["warmup".to_owned()],
+        root: Some(corpus.workspace.clone()),
+        prefer_symbol: true,
+        limit: Some(1),
+        auto_update: false,
+        refresh: Some(RefreshPolicy::Off),
+        filter: QueryFilter {
+            included_formats: vec![FileFormat::CSharp],
+            ..QueryFilter::default()
+        },
+        ..ContextOptions::default()
+    };
+    let _ = runtime.block_on(engine.context(warm));
+    phases.push(sample_cpu("index_warm", start, cpu_start));
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    phases.push(sample_cpu("index_idle", start, cpu_start));
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ONINDEX_INDEX_FOOTPRINT",
+            "phases": phases,
+            "rss_hwm_kib": status_kib("VmHWM:"),
+            "pss_end_kib": pss_kib(),
+            "cpu_ms_total": cpu_ms().saturating_sub(cpu_start),
+        }))
+        .expect("json")
+    );
+}

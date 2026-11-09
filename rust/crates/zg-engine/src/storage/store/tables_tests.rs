@@ -807,3 +807,73 @@ fn maximum_u32_directory_id_survives_reopen_and_filters_both_retrieval_collectio
         Some(vec![u32::MAX])
     );
 }
+
+/// Read-only audit probe for the exact-symbol endpoint and the symbol_type
+/// filter. Opens an existing index; writes nothing.
+///
+/// `ONINDEX_AUDIT_INDEX=<index dir>` and `ONINDEX_AUDIT_MODEL=<model ref>`.
+#[test]
+#[ignore = "manual audit: ONINDEX_AUDIT_INDEX=<index dir> ONINDEX_AUDIT_MODEL=<model>"]
+fn onindex_exact_symbol_audit() {
+    let Ok(index) = std::env::var("ONINDEX_AUDIT_INDEX") else {
+        return;
+    };
+    let model = std::env::var("ONINDEX_AUDIT_MODEL")
+        .unwrap_or_else(|_| "local/potion-code-16m-v2".to_owned());
+    let store = IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+        storage_path: PathBuf::from(index),
+    })
+    .expect("open read-only index");
+
+    for name in ["Foo", "Bar", "IThing", "CoreDBContext", "EmployeeDetail"] {
+        let candidates = store
+            .find_resolution_candidates(name)
+            .expect("exact symbol candidates");
+        println!("exact name={name} candidates={}", candidates.len());
+        for candidate in candidates.iter().take(4) {
+            println!(
+                "  entity={} path={} symbol_type={:?} symbol_name={:?} range={:?}",
+                candidate.entity_id.as_str(),
+                candidate.file.relative_path().as_path().display(),
+                candidate.metadata.symbol_type,
+                candidate.metadata.symbol_name,
+                candidate.metadata.scope,
+            );
+        }
+    }
+
+    for (types, label) in [
+        (None, "none"),
+        (Some(vec![SymbolType::Class]), "class"),
+        (Some(vec![SymbolType::Function]), "function"),
+        (Some(vec![SymbolType::Interface]), "interface"),
+    ] {
+        let filter = StorageSearchFilter {
+            symbol_types: types,
+            ..StorageSearchFilter::default()
+        };
+        let hits = store
+            .search_fts("Foo", 10, Some(&filter))
+            .expect("filtered FTS");
+        println!("fts Foo filter={label} hits={}", hits.len());
+    }
+
+    let hits = store.search_fts("Foo", 10, None).expect("unfiltered FTS");
+    println!("fts Foo unfiltered hits={}", hits.len());
+    for hit in hits.iter().take(6) {
+        let doc = fragment_document(&store, &model, &hit.document_id);
+        let symbol_type = doc
+            .has_field("symbol_type")
+            .then(|| string_field(&doc, "symbol_type").ok())
+            .flatten();
+        let symbol_name_hashed = doc
+            .has_field("symbol_name")
+            .then(|| string_field(&doc, "symbol_name").ok())
+            .flatten();
+        println!(
+            "  doc={} symbol_type={symbol_type:?} symbol_name_field_present={} symbol_name_hashed={symbol_name_hashed:?}",
+            hit.document_id,
+            symbol_name_hashed.is_some(),
+        );
+    }
+}
