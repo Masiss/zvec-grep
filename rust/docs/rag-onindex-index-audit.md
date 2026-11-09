@@ -2,8 +2,10 @@
 
 Status: **audit only; no index format, storage or default change.**
 Date: 2026-11-09. Base `9444eed` (`work/zg-recovered`), branch `work/onindex`.
-Companion: `benchmarks/rag-impact/ONINDEX-DISCOVERY-PREREGISTRATION.md` and
-`rust/docs/rag-onindex-discovery-results.md`.
+Companion: `benchmarks/rag-impact/ONINDEX-DISCOVERY-PREREGISTRATION.md`,
+`rust/docs/rag-onindex-discovery-results.md`,
+`rust/docs/rag-onindex-control-qualification.md` (§6 is the definitive
+exact-symbol probe) and `rust/docs/rag-v1-handoff-20261109.md`.
 
 Evidence: source inspection of `rust/crates/zg-engine/src/{storage,api,pipelines,extraction}`,
 plus live read-only probes against the frozen B0 workspace index (818/818 files,

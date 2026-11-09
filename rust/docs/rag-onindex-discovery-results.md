@@ -11,6 +11,16 @@ frozen. No production default, index format, corpus, gold, held-out or receipt
 change. No product code changed by this experiment (harness and prototypes are
 test-only).
 
+**Update 2026-11-09 (later in the same branch):** the H7 control was qualified
+on release on dev and on the high-anchor workloads. Coverage/parity/provenance/
+determinism/refs-off pass, but the control is **NO-GO on the 64 MiB worker gate**
+on independent-easy (66,776 KiB RSS). The exact-symbol audit also corrected the
+arm-A blocker: C# has **no** index symbol metadata at all, so the "exact-symbol
+endpoint" is blocked on C# extraction, not on API exposure or a filter defect.
+See `rust/docs/rag-onindex-control-qualification.md` and
+`rust/docs/rag-v1-handoff-20261109.md`. Arm A/B remain comparative evidence and
+nothing is promoted.
+
 ## 1. Protocol and environment
 
 - Corpus: frozen HRM2.0 compile subset (817 `.cs`, 5.4 MB) from the B0 workspace
@@ -135,11 +145,15 @@ separately pre-registered document experiment.
    It reaches the full 23/25 coverage with ~1.0–1.6 s/case p95 and 51.3 MiB peak
    on the dev protocol, with no index residency in the discovery worker and no
    product change. Selection can consume its candidates unchanged.
-2. **Arm A is the right long-term lookup, but not through ranked FTS.** The
-   index already stores hashed `symbol_name`; exposing a metadata-only exact
-   enumeration (`symbol_name → [{path, range, symbol_type, scope}]`) would turn
-   ~600 ms/name batches into scalar lookups and return every declaration site.
-   Until then A is NO-GO on latency and memory.
+2. **Arm A is the right long-term lookup, but it is blocked on data, not just
+   on ranked FTS.** The index stores hashed `symbol_name` only for languages the
+   code-outline extractor supports; **C# has no grammar/adapter arm**, so `.cs`
+   is indexed as plain text with no symbol fields and exact lookup returns
+   nothing (audited 2026-11-09). Even after adding C# symbol extraction, the
+   public API needs a metadata-only exact enumeration
+   (`symbol_name → [{path, range, symbol_type, scope}]`) to replace the
+   ~600 ms/name FTS batches. Until both land, A is NO-GO on correctness,
+   latency and memory.
 3. **Tiered retrieval, not a new index format.** Recommended assembly:
    resident index for seed recall (FTS/vector/hybrid) → direct exact-symbol
    enumeration for declarations → bounded lexical fallback (B) when the symbol
@@ -162,7 +176,8 @@ Expansion stay frozen.
   receipt); independent sets both arms 5/5 + 5/5.
 - Document prototype: 8 fixture tests pass; receipt emitted.
 - Full `zg-engine` lib suite under bwrap containment: **750 passed, 0 failed,
-  25 ignored** (second run). The first run had one flaky crash-recovery test
+  30 ignored** (re-verified after the control-qualification additions; the
+  earlier run had 25 ignored). The first run had one flaky crash-recovery test
   (`graph_tests::process_exit_during_canonical_replacement_recovers_from_durable_status`)
   that passes twice in isolation; no product code was changed.
 - `cargo fmt --check` clean for the new modules; clippy passes with the

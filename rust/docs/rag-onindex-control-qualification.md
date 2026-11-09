@@ -9,6 +9,7 @@ Pre-registration: `benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGIST
 Historical E1/E1R/E1S receipts and verdicts are unchanged. Arm A/B stay
 comparative evidence; nothing is promoted. Held-out untouched. Selection and
 Expansion frozen. No defaults, index format, corpus or gold change.
+Continuity and next steps: `rust/docs/rag-v1-handoff-20261109.md`.
 
 ## 1. Scope and workloads
 

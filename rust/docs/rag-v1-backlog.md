@@ -87,17 +87,27 @@ promoted. The gap prototype is archived at
    pre-registered scope sharing is memory-neutral; the fixed gate stays NO-GO
    for the E1R harness. See `rust/docs/rag-discovery-h7-e1s-reconcile-results.md`
    on that branch.
-2. One-Index discovery (branch `work/onindex`): audit + two code arms + a
-   document prototype. Arm B (bounded lexical declaration selection) reaches
-   23/25 with 1.07 s/case p95 and 51.7 MiB peak (release, dev protocol); arm A
-   (index-assisted lookups through the public FTS surface) reaches 23/25 but
-   fails latency (10.8 s/case) and memory. Next work needs a bounded
-   anchor/frontier budget for independent sets and, for arm A, an exact-symbol
-   enumeration endpoint. Audit: C# has no code-outline extractor, so `.cs` is
-   indexed as plain text with no `symbol_name`/`symbol_type`; the filter is not
-   the bug. Do not add an index format. See
-   `rust/docs/rag-onindex-discovery-results.md` and
+   Control qualification (branch `work/onindex`, release): coverage/parity/
+   provenance/determinism/refs-off pass on dev and both high-anchor workloads,
+   but the worker gate is **NO-GO** on independent-easy (66,776 KiB RSS vs
+   65,536; PSS passes). Peak is anchor fact acquisition in the 87-anchor case.
+   Discovery candidate is **not frozen**. See
    `rust/docs/rag-onindex-control-qualification.md`.
+2. One-Index discovery (branch `work/onindex`): audit + two code arms + a
+   document prototype, then the H7 control qualification. Arm B (bounded lexical
+   declaration selection) reaches 23/25 with ~1.0 s/case p95 and 51.3 MiB peak
+   (release, dev protocol); arm A (index-assisted lookups through the public FTS
+   surface) reaches 23/25 but fails latency (10.8 s/case) and memory. Arm A is
+   blocked on data: C# has no code-outline extractor, so `.cs` is indexed as
+   plain text with no `symbol_name`/`symbol_type` and exact lookup returns
+   nothing (the `symbol_type` filter itself is correct). Remaining work, each
+   requiring its own pre-registration: bounded per-case anchor/fact acquisition
+   for the control; then C# symbol extraction followed by a bounded exact-symbol
+   endpoint and an A re-measure; worker-pool admission control (K≥2 exceeds the
+   worker envelope). Do not add an index format and do not change the 64 MiB
+   gate. See `rust/docs/rag-onindex-discovery-results.md`,
+   `rust/docs/rag-onindex-control-qualification.md` and
+   `rust/docs/rag-v1-handoff-20261109.md`.
 3. R1 public qualification: CLI/MCP/service integration, cache/version
    invalidation, concurrency/performance, generated/results admission,
    PII/secret/auth/audit, independent validation and release/rollback.

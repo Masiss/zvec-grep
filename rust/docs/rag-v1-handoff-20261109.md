@@ -1,110 +1,192 @@
-# RAG v1.0 handoff — 2026-11-09 (One-Index audit + discovery experiments)
+# RAG v1.0 handoff — 2026-11-09 (One-Index audit, Code A/B, H7 control qualification)
 
 Branch: `work/onindex` (experiment only; not merged, not pushed).
 Base: `9444eed` (`work/zg-recovered`). Worktree:
 `/home/masis/src/worktrees/zvec-grep/onindex-20261109`.
-Related branch: `work/h7-e1s` (H7 E1S reconcile + scope sharing; NO-GO, see that
-branch's `rust/docs/rag-discovery-h7-e1s-reconcile-results.md`).
+HEAD at handoff: `7a5311d`.
+Related branch: `work/h7-e1s` (H7 E1S reconcile + scope sharing; NO-GO, see
+`rust/docs/rag-discovery-h7-e1s-reconcile-results.md` on that branch).
+
+Isolation used throughout: release build, external `CARGO_TARGET_DIR`
+(`~/.cache/zvec-grep/rust-target-onindex-20261109`), bwrap containment
+(host/repo read-only, only OUT and the target writable), pre-built B0 index
+opened read-only. Main tree clean; protected `rust/target` untouched; no
+push/release; no held-out access.
 
 ## 1. Status
 
 | Layer | Status |
 |---|---|
 | One index (storage/query) | audited; no format change |
-| Code Discovery arm B (bounded lexical) | **PASS on the dev protocol** (23/25, 1.07 s p95, 51.7 MiB) |
-| Code Discovery arm A (index lookups) | **coverage PASS, latency/memory FAIL** |
+| Code Discovery arm B (bounded lexical) | PASS on the dev protocol (23/25, ~1.0 s p95, 51.3 MiB) |
+| Code Discovery arm A (index lookups) | coverage PASS; latency/memory FAIL (**and blocked by missing C# symbols**) |
+| H7 control (release caller) | **NO-GO on the fixed 64 MiB worker gate** (high-anchor workload) |
+| Frozen Discovery candidate | **NOT frozen** (control gate not met) |
 | Document Discovery | interface + fixture prototype only |
 | Selection | **FROZEN** |
 | Expansion | **FROZEN** (H7 E2 not run) |
 | R1 delivery | PARTIAL; independent qualification continues |
 | RAG v1.0 | **NOT GO** |
 
-No product code changed in this experiment; no default, index format, corpus,
-gold, held-out or receipt was modified. Historical H7 E1/E1R/E1S receipts and
-verdicts are unchanged.
+No product code changed on this branch: only test-only measurement harnesses,
+read-only probes, fixtures, docs and receipts. No default, index format, corpus,
+gold, held-out or historical receipt was modified. H7 E1/E1R/E1S verdicts and
+receipts stay exactly as recorded.
 
-## 2. Results
+## 2. H7 control qualification (the latest result)
 
-Release profile, bwrap containment, pre-built B0 index opened read-only for arm
-A, 12 dev cases, seeds from `b0-official.json`, unchanged H7 closure.
+Pre-registration:
+`benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md`.
+Full note: `rust/docs/rag-onindex-control-qualification.md`.
 
-| Arm | @500 | case p95 | peak RSS | PSS | independent |
-|---|---:|---:|---:|---:|---|
-| Control `full` (E1R path, lean caller) | 23/25 | 0.21 s | 48,004 KiB | 44,099 KiB | — |
-| A `index` | 23/25 | 10.8 s | 444,792 KiB (incremental +117,976) | 427,696 KiB | 5/5, 5/5 |
-| B `lexical` | 23/25 | 1.07 s | 52,956 KiB | 49,077 KiB | 5/5, 5/5 |
+Same semantics as H7 E1R (`build_declaration_index` + `parse_anchor_facts` +
+unchanged closure), release profile, one process per workload, single pass for
+the gate and two passes for determinism.
 
-- refs-off baseline is 20/25 (full-fact protocol, frozen E1/E1S receipts).
-- Determinism: two fresh runs per arm with identical per-case closure hashes.
-- B on the independent anchor sets (64–87 anchor files/case) peaks at
-  85,188 KiB (easy) / 77,748 KiB (hard) — above 64 MiB; a bounded
-  anchor/frontier budget is required before any promotion.
+| Workload | Anchors/case | @10/50/100/250/500 | p50/p95 | worker peak RSS | worker PSS | Gate |
+|---|---|---:|---:|---:|---:|---|
+| dev | 17–33 | 8/14/15/20/**23** | 162/195 ms | 48,032 KiB | 43,383 KiB | PASS |
+| independent-hard | 64–82 | 1/1/1/4/**5** | 561/603 ms | 62,640 KiB | 58,770 KiB | PASS |
+| independent-easy | 67–87 | 2/3/4/5/**5** | 682/1,378 ms | **66,776 KiB** | 59,855 KiB | **FAIL RSS** |
 
-## 3. What changed on the branch
+- Correctness/parity: dev coverage, candidate counts and closure hashes are
+  identical to the frozen E1R receipt; independent coverage/counts are identical
+  (hashes differ only through caller file-order tie-breaks; the frozen E1R
+  caller reproduces the frozen hashes exactly). Provenance, determinism and the
+  full-fact refs-off parity (`7/12/14/20/20` = 20/25) pass.
+- Failing workload/phase: independent-easy, **anchor fact acquisition** on the
+  87-anchor case (RSS 61,676 → 68,080 KiB, parse 1,284 ms). Closure 44–92 ms and
+  delivery 0.2–0.4 ms are negligible; declaration build peaks at ~40 MiB.
+- Only RSS breaches; PSS is under the gate on every workload. The gate requires
+  both, so the verdict is NO-GO. No tuning, no gate change, no freeze.
+- Resource decomposition: worker above; **daemon/index** process 326,192 KiB RSS
+  / 321,862 KiB PSS warm+idle (386,344 KiB transient warm-up); totals
+  (worker+daemon) 374,224 / 388,832 / 392,968 KiB RSS for dev / hard / easy.
+- Concurrency (dev, shared read-only declaration index): K=1 5.04 cases/s,
+  54,044 KiB; K=2 8.34 cases/s, 66,008 KiB; K=4 13.92 cases/s, 88,204 KiB.
+  Hash parity holds. A pool of two or more workers exceeds the 64 MiB worker
+  envelope, so admission/bounded-pool policy is required before scaling.
 
-Test-only prototype and measurement code plus docs/receipts:
+## 3. Comparative arms (not promoted)
 
-- `extraction/onindex_tests.rs` — four-arm harness (`full` control, `index`,
-  `lexical`), bounded lookup budgets, per-case lookup provenance, phase memory,
-  I/O and latency.
-- `extraction/discovery_proto.rs` + `_tests.rs` — shared candidate/provenance
-  envelope and bounded document grouping (Markdown/JSON/CSV/log/text), 8 fixture
-  tests.
-- `examples/index_capability_probe.rs` — read-only index capability probe.
-- `benchmarks/rag-impact/ONINDEX-DISCOVERY-PREREGISTRATION.md`,
-  `rust/docs/rag-onindex-index-audit.md`,
-  `rust/docs/rag-onindex-discovery-results.md`, receipts under
-  `benchmarks/rag-impact/results/onindex-*`.
+Release, dev protocol, from the previous experiment on this branch
+(`rust/docs/rag-onindex-discovery-results.md`):
 
-## 4. Exact next state
+| Arm | @500 | p95 | peak RSS | Note |
+|---|---:|---:|---:|---|
+| A `index` (public FTS lookups) | 23/25 | 10.8–12.4 s | 443,512 KiB | incremental +117.7 MiB; fails latency/memory |
+| B `lexical` (bounded scan) | 23/25 | 1.0–1.6 s | 52,524 KiB | independent easy/hard 5/5; dev-protocol only |
 
-1. **Bounded frontier before promotion.** Define a fixed per-case anchor and
-   verification-file budget that keeps the independent sets under the resource
-   envelope, pre-register it, and re-measure; do not tune it against gold.
-2. **Arm A needs C# symbol extraction first.** The read-only audit
-   (2026-11-09 control qualification §6) shows `.cs` is indexed as plain text:
-   `grammar()`/`resolve_adapter()` have no C# arm, so fragment documents carry
-   no `symbol_name`/`symbol_type`, `find_resolution_candidates` returns 0, and
-   the `symbol_type` filter has no data to match (the filter code and its unit
-   tests are correct). Add a C# adapter/grammar, then expose
-   `symbol_name → [{path, range, symbol_type, scope}]` and re-measure A.
-3. **Tiered retrieval** is the recommended architecture: resident index for seed
-   recall, exact-symbol enumeration for declarations, bounded lexical fallback
-   (B) while (2) is unavailable, then Selection (frozen).
-4. **Optional incremental metadata** (per-file declaration digests) only if the
-   lexical scan’s ~12 MB/case I/O becomes the bottleneck; separate
-   pre-registration, no new index format.
-5. R1 public qualification continues independently.
+Arm B is the only arm that fits the dev-protocol envelope, but it is **not**
+promoted: the control itself is NO-GO on a high-anchor workload and B’s
+independent-set peak is higher (86,296 KiB easy / 77,040 KiB hard).
 
-## 4a. Control qualification (2026-11-09, branch `work/onindex`)
+## 4. Exact-symbol audit — root cause and proposal
 
-The H7 control was qualified on release with the frozen index receipts:
-dev 23/25, independent easy 5/5, hard 5/5, refs-off 20/25, provenance and
-determinism pass. **Worker gate: NO-GO** — independent easy peaks at
-66,776 KiB RSS (limit 65,536) during anchor fact acquisition on the 87-anchor
-case; PSS stays under the gate on all workloads. The index/daemon process adds
-326,192 KiB RSS / 321,862 KiB PSS when resident. Concurrency (K≥2) also exceeds
-the worker envelope. No freeze, no tuning, no gate change. The exact-symbol
-audit found that C# is indexed as plain text (no symbol metadata), which is the
-real blocker for arm A. See `rust/docs/rag-onindex-control-qualification.md`.
+Read-only probe (`storage::store::tables_tests::onindex_exact_symbol_audit`)
+against a fresh micro index and the frozen B0 index:
 
-## 5. Evidence index
+1. `find_resolution_candidates(...)` returns **0** for every C# name.
+2. Fragment documents carry **no `symbol_name`/`symbol_type`**; the
+   `symbol_type` filter therefore matches nothing.
+3. The filter code is correct — the existing unit test with populated data
+   passes.
+
+Root cause: `extraction/code.rs::grammar()` and `extraction/code/adapter.rs::resolve_adapter()`
+have **no C# arm** (although the crate depends on `tree-sitter-c-sharp`), so
+`.cs` falls through to `fallback()` and is indexed as plain text without
+`CodeMetadata`.
+
+Minimal fix proposal (not implemented): add a C# grammar + `LanguageAdapter`
+(declarations, scope, signature) so `CodeMetadata` is written at index time
+(no index-format change needed); then expose a bounded exact-symbol enumeration
+`symbol_name → [{path, range, symbol_type, scope}]` (today `ResolutionCandidate`
+carries entity id, file record and metadata but not the source range); add a
+pipeline test that indexes a real `.cs` file so this gap cannot regress.
+
+## 5. Document Discovery
+
+Interface prototype only (`extraction/discovery_proto.rs` + 8 fixture tests,
+receipt `onindex-document-prototype.json`): shared
+`DiscoveryCandidate { path, range, score, kind, provenance }` envelope with
+Markdown heading path, JSON key path, CSV header/key, log event grouping, and a
+text fallback. No quality/coverage claim, no typed closure for documents, no
+gate. It stays a separate track.
+
+## 6. Branch contents (what is on `work/onindex`)
+
+- `rust/crates/zg-engine/src/extraction/onindex_tests.rs` — four-arm harness
+  (`full`/`index`/`lexical`), phase/CPU/IO/memory sampling, provenance,
+  refs-off parity, control qualification, worker-pool concurrency, index
+  footprint.
+- `rust/crates/zg-engine/src/extraction/discovery_proto*.rs` — document
+  grouping prototype + fixtures.
+- `rust/crates/zg-engine/src/storage/store/tables_tests.rs` — read-only
+  exact-symbol audit probe.
+- `rust/crates/zg-engine/examples/index_capability_probe.rs` — index capability
+  probe.
+- Docs: `rag-onindex-index-audit.md`, `rag-onindex-discovery-results.md`,
+  `rag-onindex-control-qualification.md`, this handoff.
+- Pre-registrations: `ONINDEX-DISCOVERY-PREREGISTRATION.md`,
+  `ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md`.
+- Receipts: `benchmarks/rag-impact/results/onindex-{code,control,index,document,exact-symbol}*`.
+
+## 7. Exact next state
+
+1. **Do not freeze or promote Discovery.** The control gate is NO-GO; arm A/B
+   stay comparative evidence.
+2. If the control is to be qualified further, the only authorized direction is
+   a **new pre-registered candidate change** for bounded per-case anchor/fact
+   acquisition (release parse state between files, bounded working set) or an
+   explicit anchor-file budget for high-anchor workloads. Do not tune against
+   gold, do not change the 64 MiB gate, and re-run the same three workloads.
+3. **C# symbol extraction is the prerequisite for the index-assisted path.**
+   Without it, arm A cannot use exact symbols and the `symbol_type` filter has no
+   data. Land the adapter/grammar first, then the bounded exact-symbol endpoint,
+   then re-measure A. Do not add an index format.
+4. **Tiered retrieval** remains the recommended architecture: resident index for
+   seed recall, exact-symbol enumeration for declarations once available,
+   bounded lexical fallback (B) meanwhile, then Selection (frozen).
+5. **Worker pool sizing** must be part of the serving contract: K≥2 exceeds the
+   64 MiB worker envelope even on dev. Admission control or a bounded pool needs
+   its own pre-registration.
+6. R1 public qualification continues independently (CLI/MCP/service, cache
+   invalidation, concurrency, admission, PII/auth/audit, release/rollback).
+
+## 8. Evidence index
 
 - `benchmarks/rag-impact/ONINDEX-DISCOVERY-PREREGISTRATION.md`
+- `benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md`
 - `rust/docs/rag-onindex-index-audit.md`
 - `rust/docs/rag-onindex-discovery-results.md`
-- `benchmarks/rag-impact/results/onindex-code-full-control.json`
-- `benchmarks/rag-impact/results/onindex-code-a-index.json`
-- `benchmarks/rag-impact/results/onindex-code-b-lexical.json`
-- `benchmarks/rag-impact/results/onindex-code-{a,b}-independent-{easy,hard}.json`
-- `benchmarks/rag-impact/results/onindex-document-prototype.json`
-- raw runs/host state: `~/.local/share/zvec-grep/rag-impact/20261109-onindex/`
+- `rust/docs/rag-onindex-control-qualification.md`
+- `benchmarks/rag-impact/results/onindex-control-{dev,independent-easy,independent-hard}*.json`
+- `benchmarks/rag-impact/results/onindex-control-refs-off.json`
+- `benchmarks/rag-impact/results/onindex-control-concurrency-*.json`
+- `benchmarks/rag-impact/results/onindex-index-footprint.json`
+- `benchmarks/rag-impact/results/onindex-exact-symbol-audit.json`
+- `benchmarks/rag-impact/results/onindex-code-*.json`,
+  `benchmarks/rag-impact/results/onindex-document-prototype.json`
+- Raw runs, host state and logs:
+  `~/.local/share/zvec-grep/rag-impact/20261109-onindex/`
 
-## 6. Verification
+## 9. Verification of this branch
 
-- Release runs, one process per mode; determinism twice per arm.
-- Independent sets: easy 5/5, hard 5/5 for both arms.
-- Document prototype: 8 fixture tests pass.
-- Full `zg-engine` lib suite: **750 passed, 0 failed, 25 ignored** (one earlier
-  run had a flaky crash-recovery test that passes in isolation twice; product
-  code unchanged).
+- Control: release, one process per workload; two passes + two processes with
+  identical per-case hashes; refs-off parity 20/25.
+- Arms A/B: release; determinism twice per arm; independent sets 5/5 + 5/5.
+- Document prototype: 8 fixture tests.
+- Full `zg-engine` lib suite under bwrap: **750 passed, 0 failed, 30 ignored**.
+  One earlier run had a flaky crash-recovery test that passes twice in
+  isolation; product code is unchanged.
+- `cargo fmt --check` clean.
+
+## 10. Caveats
+
+- Historical H7 E1/E1R/E1S receipts and verdicts are immutable; nothing here
+  revises them. The lean control caller (anchor-only sources) reaches 48,032 KiB
+  versus the frozen E1R 74,028 KiB (debug, duplicate corpus copies); that is a
+  caller/protocol difference, not a product change.
+- The 64 MiB gate is a worker metric. The resident daemon/index (~318 MiB PSS)
+  is reported separately and is not subtracted from or added to the gate.
+- `arm A`/`arm B` and the control are experiment labels; none is a RAG v1.0 GO.
