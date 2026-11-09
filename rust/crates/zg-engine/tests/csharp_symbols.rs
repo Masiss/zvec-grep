@@ -496,6 +496,13 @@ async fn exact_symbol_pages_are_complete_and_cursor_safe() -> TestResult {
         .await
         .expect_err("malformed cursor must fail");
     assert_eq!(error.code(), zg_engine::EngineError::INVALID_ARGUMENT);
+    let mut oversized = symbols(root, "Widget");
+    oversized.cursor = Some("a".repeat(17 * 1024));
+    let error = engine
+        .symbols(oversized)
+        .await
+        .expect_err("oversized cursor must fail");
+    assert_eq!(error.code(), zg_engine::EngineError::INVALID_ARGUMENT);
 
     // A refresh changes the generation; the old cursor must not silently skip
     // or duplicate rows across generations.

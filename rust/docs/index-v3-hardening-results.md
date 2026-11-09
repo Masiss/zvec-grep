@@ -1,7 +1,9 @@
 # Index v3 hardening — audit and qualification results
 
 Date: 2026-11-09. Branch `work/index-v3-hardening-20261109`, base `986ab51`.
-Pre-registration: `index-v3-hardening-prereg.md`.
+Pre-registration: `index-v3-hardening-prereg.md`. Independent deep audit:
+`index-v3-deep-audit.md` (block-namespace gap, C# docs, cursor bound, dense
+benchmark correction, deferred scope experiment).
 Scope: C# structural indexing, exact-symbol API, v3 promotion evidence. RAG,
 Selection, Expansion, held-out data and historical receipts are untouched.
 
@@ -80,7 +82,7 @@ one tree-sitter `Parser` per file in `extract_code`; no parser pool.
 | Corpus | v2 | v3 |
 |---|---|---|
 | mixed `Type0` | hit, 5 items | hit, 10 items |
-| dense `Dense0` | hit, 10 | hit, 10 |
+| dense `Dense0` | hit, 10 | hit, 10 (previous `Property0`/`Type0` dense receipt was invalid; see deep audit F3) |
 | duplicate `Widget` | hit, 10 | hit, 10 |
 
 All modes returned distinct entity IDs; no duplicate entity rows. v3 returns
@@ -145,19 +147,22 @@ migration cost and non-C# parity.
 
 Hypotheses not proven: (a) parent/child embeddings may raise near-duplicate
 ranked results on real repositories; (b) dropping container embeddings could save
-~10–30% of v3 disk without recall loss; (c) per-file extraction capability
+~1–8.5% of v3 disk (corrected attribution in the deep audit; dense class vectors
+are ~1.1%, mixed ~8.5%), not the earlier 10–30% estimate; (c) per-file extraction capability
 markers would make non-C# migration free. None was implemented without a
 quality/reindex design.
 
 Open issues: exact-symbol page cost at very high name cardinality; one full-suite
 run showed four timing-sensitive storage optimize tests failing under load, all
 passed on isolated and full reruns (baseline flakiness, not reproduced as a new
-regression); dense `Property0` FTS returned 0 in both v2 and v3 (tokenizer
-behaviour, parity preserved).
+regression). The previous `Property0` FTS=0 claim was a benchmark-query defect,
+not a tokenizer regression: direct probes return 10/10 files in v2 and v3; only
+the unsuffixed `Property` query returns 0 in both (whole-token BM25). See
+`index-v3-deep-audit.md` F3.
 
 ## 8b. Verification
 
-- `cargo test -p zg-engine --tests`: lib 743 passed / 24 ignored; integration
+- `cargo test -p zg-engine --tests`: lib 744 passed / 24 ignored; integration
   binaries 8+1+4+17+8+2+2+3+2 passed, 0 failed. `cargo fmt --check` passes.
 - Downstream `zg-cli`, `zg-daemon-protocol`, `zg-transport-mcp`: 180+5+7+60
   tests passed; workspace `cargo check --all-targets` and release `zg` build
@@ -168,6 +173,10 @@ behaviour, parity preserved).
 - One full-suite run produced four timing-sensitive storage optimize test
   failures under load; the same tests passed individually and in the next two
   full runs. Treated as baseline flakiness, not attributed to this change.
+- Deep-audit fixes: block-namespace gap coverage, C# ordinary-comment doc
+  filtering, punctuation-only gap suppression, cursor size cap; adversarial
+  Unicode/CRLF/generic/operator/indexer extraction test and block-namespace
+  coverage test pass.
 
 ## 9. Verdict
 

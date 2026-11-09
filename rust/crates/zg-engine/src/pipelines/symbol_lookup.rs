@@ -228,6 +228,9 @@ fn decode_cursor(
     updated_ms: u64,
     query: &str,
 ) -> Result<SymbolCursorKey, EngineError> {
+    if cursor.len() > 16 * 1024 {
+        return Err(invalid_cursor("cursor is too large"));
+    }
     let mut parts = cursor.splitn(3, ':');
     let version = parts.next().unwrap_or_default();
     let payload = parts.next().unwrap_or_default();

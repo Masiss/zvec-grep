@@ -17,6 +17,7 @@ use zg_engine::{
 };
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn csharp_gap_entities_preserve_usings_comments_and_top_level_code()
 -> Result<(), Box<dyn std::error::Error>> {
     let temporary = tempdir()?;
@@ -36,6 +37,17 @@ async fn csharp_gap_entities_preserve_usings_comments_and_top_level_code()
         root.join("OnlyUsings.cs"),
         "using System.Text;\n// usingsdelta\n",
     )?;
+    std::fs::write(
+        root.join("Block.cs"),
+        concat!(
+            "using System.Collections; // qzxasdf\n",
+            "namespace BlockNs\n",
+            "{\n",
+            "    // qzxqwerty\n",
+            "    public class BlockThing { public void Go() { } }\n",
+            "}\n",
+        ),
+    )?;
     let engine = ZvecGrep::new();
     let indexed = engine.index(index_options(root)).await?;
     assert_eq!(indexed.files_failed, 0);
@@ -45,6 +57,8 @@ async fn csharp_gap_entities_preserve_usings_comments_and_top_level_code()
         ("jsonbeta", "jsonbeta"),
         ("commentgamma", "commentgamma"),
         ("usingsdelta", "usingsdelta"),
+        ("qzxasdf", "qzxasdf"),
+        ("qzxqwerty", "qzxqwerty"),
     ] {
         let result = engine
             .context(ContextOptions {
@@ -59,7 +73,16 @@ async fn csharp_gap_entities_preserve_usings_comments_and_top_level_code()
                 ..ContextOptions::default()
             })
             .await?;
-        assert_eq!(result.items.len(), 1, "{query}");
+        assert_eq!(
+            result.items.len(),
+            1,
+            "{query}: {:?}",
+            result
+                .items
+                .iter()
+                .map(|item| (item.relative_path.clone(), item.content.clone()))
+                .collect::<Vec<_>>()
+        );
         assert!(
             result.items[0].content.contains(marker),
             "{query}: {:?}",
@@ -89,6 +112,17 @@ async fn csharp_gap_entities_preserve_usings_comments_and_top_level_code()
         .await?;
     assert_eq!(inside.total, 1);
     assert_eq!(inside.items[0].scope.as_deref(), Some("Marker"));
+    let block = engine
+        .symbols(SymbolsOptions {
+            root: Some(root.to_path_buf()),
+            name: "BlockThing".to_owned(),
+            auto_update: false,
+            allow_remote: true,
+            ..SymbolsOptions::default()
+        })
+        .await?;
+    assert_eq!(block.total, 1);
+    assert_eq!(block.items[0].scope.as_deref(), Some("BlockNs"));
 
     engine.close();
     drop(server);

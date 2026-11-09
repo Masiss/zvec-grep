@@ -167,6 +167,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             evidence.insert("self", process_usage());
             engine.close();
         }
+        "monotonic" => {
+            set_endpoint(&args.root, server.address)?;
+            let engine = ZvecGrep::new();
+            let mut ticks = Vec::new();
+            for tick in 0..20 {
+                let path = ["src/cs/Type0.cs", "src/cs/Dense0.cs", "src/cs/Widget0.cs"]
+                    .iter()
+                    .map(|path| args.root.join(path))
+                    .find(|path| path.exists())
+                    .expect("corpus file");
+                let mut source = fs::read_to_string(&path)?;
+                let _ = writeln!(source, "// tick {tick}");
+                fs::write(&path, source)?;
+                let result = engine
+                    .index(IndexOptions {
+                        root: Some(args.root.clone()),
+                        allow_remote: true,
+                        api_key: Some("local-test-key".into()),
+                        ..IndexOptions::default()
+                    })
+                    .await?;
+                let manifest: Value =
+                    serde_json::from_slice(&fs::read(args.root.join(".zvec-grep/manifest.json"))?)?;
+                ticks.push(json!({
+                    "tick": tick,
+                    "updated_time": manifest["updatedTime"],
+                    "modified": result.files_modified,
+                }));
+            }
+            evidence.insert("ticks", json!(ticks));
+            engine.close();
+        }
         "query" => {
             set_endpoint(&args.root, server.address)?;
             let engine = ZvecGrep::new();
@@ -191,6 +223,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn query_cases(corpus: &str) -> Vec<(&'static str, Vec<ContextRouteMode>, &'static str)> {
     match corpus {
+        "dense" => vec![
+            ("fts", vec![ContextRouteMode::Fts], "Dense0"),
+            ("vector", vec![ContextRouteMode::Vector], "Dense0"),
+            (
+                "hybrid",
+                vec![ContextRouteMode::Fts, ContextRouteMode::Vector],
+                "Dense0",
+            ),
+        ],
         "toplevel" => vec![
             ("fts", vec![ContextRouteMode::Fts], "top0"),
             ("vector", vec![ContextRouteMode::Vector], "top0"),
@@ -262,10 +303,16 @@ async fn measure_query(
         .map(|item| item.relative_path.clone())
         .collect::<std::collections::BTreeSet<_>>()
         .len();
+    let mut result_paths = Vec::new();
     for _ in 0..20 {
         let started = Instant::now();
         let result = run(&modes).await?;
         warm.push(started.elapsed().as_micros());
+        result_paths = result
+            .items
+            .iter()
+            .map(|item| item.relative_path.to_string_lossy().into_owned())
+            .collect();
         items = result.items.len();
         distinct = result
             .items
@@ -288,9 +335,11 @@ async fn measure_query(
         "cold_us": cold_us,
         "warm_p50_us": warm[warm.len() / 2],
         "warm_p95_us": warm[warm.len() * 95 / 100],
+        "paths": result_paths,
     }))
 }
 
+#[allow(clippy::too_many_lines)]
 fn write_corpus(root: &Path, corpus: &str, files: usize) -> Result<(), Box<dyn std::error::Error>> {
     let src = root.join("src");
     if src.exists() {

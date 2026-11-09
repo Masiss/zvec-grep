@@ -53,7 +53,12 @@ This branch implements the minimal fix proposed there.
 - Non-declaration source outside every declaration (using directives, comments,
   global attributes, top-level statements) is emitted as one text gap entity per
   contiguous non-whitespace run. This restores v2 text-fallback recall for
-  mixed declaration/statement files without changing other adapters.
+  mixed declaration/statement files without changing other adapters. For block
+  namespaces the namespace entity covers only its header; comments/usings inside
+  the block become gap entities. Punctuation-only gaps are skipped.
+- C# documentation is taken from `///` and `/** */` preceding comments only; an
+  ordinary `//` comment is not promoted to declaration documentation (it remains
+  searchable through its gap entity).
 
 ### 2.2 Exact-symbol API
 
@@ -129,7 +134,7 @@ their entity/fragment counts and index bytes are unchanged.
   - restart from persisted storage;
   - stale metadata marked, then repaired by `RefreshPolicy::Wait`;
   - fail-closed behaviour without an index and invalid bounds.
-- `cargo test -p zg-engine --lib`: 743 passed, 0 failed, 24 ignored.
+- `cargo test -p zg-engine --lib`: 744 passed, 0 failed, 24 ignored.
 - `cargo test -p zg-engine`: all binaries passed (unit, concurrent queries,
   C# symbols, engine storage, file selection, index version, scan failures,
   storage crash).
@@ -179,3 +184,8 @@ Raw receipts: `~/.cache/zvec-grep/out-csharp/bench/`
   part of the entity range.
 - Namespaces are emitted once per written declaration, so a partial class split
   across two files yields two `Module` entries for the same namespace name.
+- C# FTS/vector metadata includes `scope`, so querying a class name also recalls
+  its members; this member crowding is a measured retrieval-quality issue and is
+  deferred to a separate retrieval track (see `index-v3-deep-audit.md` F5).
+- CLI/MCP/daemon do not expose exact-symbol enumeration or cursors; only the
+  engine API does (interface gap, not a correctness failure).

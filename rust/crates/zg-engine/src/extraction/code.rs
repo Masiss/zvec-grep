@@ -252,15 +252,32 @@ fn csharp_coverage_ranges(entities: &[CodeEntity<'_>]) -> Vec<(usize, usize)> {
     let mut ranges = entities
         .iter()
         .map(|entity| {
-            let node = if matches!(entity.node.kind(), "identifier" | "qualified_name")
+            if matches!(entity.node.kind(), "identifier" | "qualified_name")
                 && entity.node.parent().is_some_and(|parent| {
                     matches!(
                         parent.kind(),
                         "namespace_declaration" | "file_scoped_namespace_declaration"
                     )
-                }) {
-                entity.node.parent().unwrap_or(entity.node)
-            } else if entity.node.kind() == "variable_declarator" {
+                })
+            {
+                // A block namespace entity carries only its name; covering its body
+                // would hide comments/usings inside it without indexing them. Cover
+                // the declaration header instead and let gaps cover the rest.
+                return entity.node.parent().map_or(
+                    (entity.node.start_byte(), entity.node.end_byte()),
+                    |parent| {
+                        if parent.kind() == "namespace_declaration" {
+                            let end = parent
+                                .child_by_field_name("body")
+                                .map_or(parent.end_byte(), |body| body.start_byte());
+                            (parent.start_byte(), end)
+                        } else {
+                            (parent.start_byte(), parent.end_byte())
+                        }
+                    },
+                );
+            }
+            let node = if entity.node.kind() == "variable_declarator" {
                 entity
                     .node
                     .parent()
@@ -339,6 +356,12 @@ fn append_gap(
     let Some(first) = raw.find(|character: char| !character.is_whitespace()) else {
         return Ok(());
     };
+    if raw
+        .chars()
+        .all(|character| character.is_whitespace() || matches!(character, '{' | '}' | ';' | ','))
+    {
+        return Ok(());
+    }
     let last = raw
         .char_indices()
         .rfind(|(_, character)| !character.is_whitespace())
@@ -843,6 +866,93 @@ mod tests {
             Range::Text(range) if range.start_line() == 1 && range.end_line() == 1
         ));
         assert_eq!(metadata("Order").language, Some(CodeLanguage::CSharp));
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn csharp_adversarial_declarations_and_gaps_are_source_backed() {
+        let source = test_source(
+            FileFormat::CSharp,
+            "Edge.cs",
+            &[
+                "using System; // edge_using_marker",
+                "namespace Edge",
+                "{",
+                "    // edge_comment_marker",
+                "    [Obsolete]",
+                "    public record struct Point(int X, int Y)",
+                "    {",
+                "        public int this[int index] => index;",
+                "        public static Point operator +(Point left, Point right) => left;",
+                "        void IFoo.Run<T>(T value) where T : class { }",
+                "    }",
+                "    public interface IFoo { void Run<T>(T value) where T : class; }",
+                "    /// <summary>Documented class.</summary>",
+                "    public class Documented { }",
+                "    public class Café { public string Naïve { get; set; } = \"ok\"; }",
+                "}",
+            ]
+            .join("\r\n"),
+        );
+        let fragments = extract(&source, ChunkOptions::default()).expect("csharp edge extraction");
+        for name in [
+            "Point",
+            "this",
+            "operator+",
+            "Run",
+            "IFoo",
+            "Café",
+            "Naïve",
+            "Documented",
+        ] {
+            let entity = named(&fragments, name);
+            assert_source_backed(&source, entity);
+        }
+        let metadata = |name| {
+            let Some(EntityMetadata::Code(metadata)) = test_metadata(named(&fragments, name))
+            else {
+                panic!("code metadata expected for {name}");
+            };
+            metadata
+        };
+        assert_eq!(metadata("Point").documentation, None);
+        assert_eq!(
+            metadata("Documented").documentation.as_deref(),
+            Some("<summary>Documented class.</summary>")
+        );
+        assert_eq!(metadata("Point").symbol_type, Some(SymbolType::Class));
+        assert_eq!(metadata("Point").scope.as_deref(), Some("Edge"));
+        assert!(
+            metadata("Point")
+                .signature
+                .as_deref()
+                .is_some_and(|s| s.contains("record struct Point"))
+        );
+        assert_eq!(metadata("this").symbol_type, Some(SymbolType::Value));
+        assert_eq!(
+            metadata("operator+").symbol_type,
+            Some(SymbolType::Function)
+        );
+        assert_eq!(metadata("Café").symbol_type, Some(SymbolType::Class));
+        assert_eq!(metadata("Naïve").symbol_type, Some(SymbolType::Value));
+        assert_eq!(metadata("Naïve").scope.as_deref(), Some("Edge::Café"));
+        let gap = fragments
+            .iter()
+            .find(|fragment| {
+                matches!(&fragment.content, Content::Code(text) if text.contains("edge_using_marker"))
+            })
+            .expect("using directive gap entity");
+        assert!(test_metadata(gap).is_none());
+        let comment_gap = fragments
+            .iter()
+            .find(|fragment| {
+                matches!(&fragment.content, Content::Code(text) if text.contains("edge_comment_marker"))
+            })
+            .expect("comment gap entity");
+        let Range::Text(range) = comment_gap.source_range else {
+            panic!("gap range");
+        };
+        assert_eq!(range.start_line(), 3);
     }
 
     #[test]

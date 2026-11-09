@@ -370,7 +370,14 @@ impl LanguageAdapter {
     }
 
     pub(super) fn extract_doc(self, node: Node<'_>, source: &[u8]) -> Option<String> {
-        let mut documentation = extract_preceding_doc(node, source);
+        let preceding_doc = |node: Node<'_>| {
+            if self.kind == Language::CSharp {
+                extract_preceding_csharp_doc(node, source)
+            } else {
+                extract_preceding_doc(node, source)
+            }
+        };
+        let mut documentation = preceding_doc(node);
         let mut declaration = node;
         while let Some(parent) = declaration.parent().filter(|parent| match self.kind {
             Language::JavaScript | Language::TypeScript => matches!(
@@ -387,7 +394,7 @@ impl LanguageAdapter {
             Language::Go => parent.kind() == "type_declaration",
             _ => false,
         }) {
-            if let Some(outer) = extract_preceding_doc(parent, source) {
+            if let Some(outer) = preceding_doc(parent) {
                 documentation = Some(match documentation {
                     Some(inner) => format!("{outer}\n{inner}"),
                     None => outer,
@@ -963,6 +970,25 @@ fn append_signature(
         offset = child.end_byte();
     }
     out.push_str(std::str::from_utf8(&source[offset..end_byte]).unwrap_or_default());
+}
+
+fn extract_preceding_csharp_doc(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let mut comments = Vec::new();
+    let mut sibling = node.prev_named_sibling();
+    while let Some(item) = sibling {
+        if !is_comment(item) {
+            break;
+        }
+        let raw = text(item, source).trim_start();
+        if !(raw.starts_with("///") || raw.starts_with("/**")) {
+            break;
+        }
+        comments.push(clean_comment_text(text(item, source)));
+        sibling = item.prev_named_sibling();
+    }
+    comments.reverse();
+    let doc = comments.join("\n").trim().to_owned();
+    (!doc.is_empty()).then_some(doc)
 }
 
 fn extract_preceding_doc(node: Node<'_>, source: &[u8]) -> Option<String> {
