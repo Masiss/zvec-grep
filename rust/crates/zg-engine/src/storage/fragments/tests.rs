@@ -766,3 +766,28 @@ fn reusable_vectors_are_loaded_by_fragment_identity_and_model() {
         crate::EngineError::INVALID_ARGUMENT
     );
 }
+
+#[test]
+fn fts_expression_quotes_terms_and_rejects_empty_queries() {
+    assert_eq!(
+        fts_query_expression("access control"),
+        Some("\"access\" OR \"control\"".to_owned())
+    );
+    assert_eq!(
+        fts_query_expression("C++ \"quoted\" back\\slash"),
+        Some("\"C++\" OR \"quoted\" OR \"back\" OR \"slash\"".to_owned())
+    );
+    assert_eq!(fts_query_expression("   ---   "), None);
+    assert_eq!(fts_query_expression(""), None);
+    let long = (0..80)
+        .map(|index| format!("term{index}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        fts_query_expression(&long)
+            .expect("terms")
+            .split(" OR ")
+            .count(),
+        64
+    );
+}

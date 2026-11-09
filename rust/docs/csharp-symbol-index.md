@@ -134,7 +134,7 @@ their entity/fragment counts and index bytes are unchanged.
   - restart from persisted storage;
   - stale metadata marked, then repaired by `RefreshPolicy::Wait`;
   - fail-closed behaviour without an index and invalid bounds.
-- `cargo test -p zg-engine --lib`: 744 passed, 0 failed, 24 ignored.
+- `cargo test -p zg-engine --lib`: 745 passed, 0 failed, 24 ignored.
 - `cargo test -p zg-engine`: all binaries passed (unit, concurrent queries,
   C# symbols, engine storage, file selection, index version, scan failures,
   storage crash).
@@ -184,8 +184,10 @@ Raw receipts: `~/.cache/zvec-grep/out-csharp/bench/`
   part of the entity range.
 - Namespaces are emitted once per written declaration, so a partial class split
   across two files yields two `Module` entries for the same namespace name.
-- C# FTS/vector metadata includes `scope`, so querying a class name also recalls
-  its members; this member crowding is a measured retrieval-quality issue and is
-  deferred to a separate retrieval track (see `index-v3-deep-audit.md` F5).
+- C# FTS/vector metadata omits `scope` (scope remains in `CodeMetadata` and
+  exact-symbol filters). This prevents a class-name query from recalling every
+  member through scope text; class/namespace declarations still represent their
+  scopes. Requires reindex for a clean index; see
+  `index-v3-promotion-qualification.md`.
 - CLI/MCP/daemon do not expose exact-symbol enumeration or cursors; only the
   engine API does (interface gap, not a correctness failure).

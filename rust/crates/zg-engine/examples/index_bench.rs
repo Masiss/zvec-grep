@@ -129,6 +129,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }),
             );
             evidence.insert("index", index_bytes(&args.root.join(".zvec-grep/index"))?);
+            evidence.insert("entities_created", json!(result.entities_created));
+            evidence.insert("timings", json!(result.timings));
             evidence.insert("self", process_usage());
             engine.close();
         }
@@ -164,6 +166,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }),
             );
             evidence.insert("index", index_bytes(&args.root.join(".zvec-grep/index"))?);
+            evidence.insert("entities_created", json!(result.entities_created));
+            evidence.insert("timings", json!(result.timings));
             evidence.insert("self", process_usage());
             engine.close();
         }
@@ -203,10 +207,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             set_endpoint(&args.root, server.address)?;
             let engine = ZvecGrep::new();
             let mut queries = BTreeMap::new();
+            let limit = if args.corpus == "quality" { 50 } else { 10 };
             for (label, mode, query) in query_cases(&args.corpus) {
                 queries.insert(
-                    label.to_owned(),
-                    measure_query(&engine, &args.root, mode, query).await?,
+                    label,
+                    measure_query(&engine, &args.root, mode, &query, limit).await?,
                 );
             }
             evidence.insert("queries", json!(queries));
@@ -221,42 +226,108 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn query_cases(corpus: &str) -> Vec<(&'static str, Vec<ContextRouteMode>, &'static str)> {
+#[allow(clippy::too_many_lines)]
+fn query_cases(corpus: &str) -> Vec<(String, Vec<ContextRouteMode>, String)> {
     match corpus {
-        "dense" => vec![
-            ("fts", vec![ContextRouteMode::Fts], "Dense0"),
-            ("vector", vec![ContextRouteMode::Vector], "Dense0"),
+        "cjk" => vec![
             (
-                "hybrid",
+                "fts".to_owned(),
+                vec![ContextRouteMode::Fts],
+                "发票对账".to_owned(),
+            ),
+            (
+                "fts".to_owned(),
+                vec![ContextRouteMode::Fts],
+                "仓库库存".to_owned(),
+            ),
+            (
+                "fts".to_owned(),
+                vec![ContextRouteMode::Fts],
+                "不存在的词语".to_owned(),
+            ),
+        ],
+        "quality" => {
+            let mut cases = Vec::new();
+            for (_, _, query) in quality_topics() {
+                for (mode, routes) in [
+                    ("fts", vec![ContextRouteMode::Fts]),
+                    ("vector", vec![ContextRouteMode::Vector]),
+                    (
+                        "hybrid",
+                        vec![ContextRouteMode::Fts, ContextRouteMode::Vector],
+                    ),
+                ] {
+                    cases.push((format!("{mode}:{query}"), routes, query.to_owned()));
+                }
+            }
+            cases
+        }
+        "dense" => vec![
+            (
+                "fts".to_owned(),
+                vec![ContextRouteMode::Fts],
+                "Dense0".to_owned(),
+            ),
+            (
+                "vector".to_owned(),
+                vec![ContextRouteMode::Vector],
+                "Dense0".to_owned(),
+            ),
+            (
+                "hybrid".to_owned(),
                 vec![ContextRouteMode::Fts, ContextRouteMode::Vector],
-                "Dense0",
+                "Dense0".to_owned(),
             ),
         ],
         "toplevel" => vec![
-            ("fts", vec![ContextRouteMode::Fts], "top0"),
-            ("vector", vec![ContextRouteMode::Vector], "top0"),
             (
-                "hybrid",
+                "fts".to_owned(),
+                vec![ContextRouteMode::Fts],
+                "top0".to_owned(),
+            ),
+            (
+                "vector".to_owned(),
+                vec![ContextRouteMode::Vector],
+                "top0".to_owned(),
+            ),
+            (
+                "hybrid".to_owned(),
                 vec![ContextRouteMode::Fts, ContextRouteMode::Vector],
-                "top0",
+                "top0".to_owned(),
             ),
         ],
         "duplicate" => vec![
-            ("fts", vec![ContextRouteMode::Fts], "Widget"),
-            ("vector", vec![ContextRouteMode::Vector], "Widget"),
             (
-                "hybrid",
+                "fts".to_owned(),
+                vec![ContextRouteMode::Fts],
+                "Widget".to_owned(),
+            ),
+            (
+                "vector".to_owned(),
+                vec![ContextRouteMode::Vector],
+                "Widget".to_owned(),
+            ),
+            (
+                "hybrid".to_owned(),
                 vec![ContextRouteMode::Fts, ContextRouteMode::Vector],
-                "Widget",
+                "Widget".to_owned(),
             ),
         ],
         _ => vec![
-            ("fts", vec![ContextRouteMode::Fts], "Type0"),
-            ("vector", vec![ContextRouteMode::Vector], "Type0"),
             (
-                "hybrid",
+                "fts".to_owned(),
+                vec![ContextRouteMode::Fts],
+                "Type0".to_owned(),
+            ),
+            (
+                "vector".to_owned(),
+                vec![ContextRouteMode::Vector],
+                "Type0".to_owned(),
+            ),
+            (
+                "hybrid".to_owned(),
                 vec![ContextRouteMode::Fts, ContextRouteMode::Vector],
-                "Type0",
+                "Type0".to_owned(),
             ),
         ],
     }
@@ -267,6 +338,7 @@ async fn measure_query(
     root: &Path,
     modes: Vec<ContextRouteMode>,
     query: &str,
+    limit: usize,
 ) -> Result<Value, Box<dyn std::error::Error>> {
     let run = |modes: &[ContextRouteMode]| {
         let options = ContextOptions {
@@ -281,7 +353,7 @@ async fn measure_query(
             fuse: modes.len() > 1,
             auto_update: false,
             allow_remote: true,
-            limit: Some(10),
+            limit: Some(limit),
             ..ContextOptions::default()
         };
         async move { engine.context(options).await }
@@ -340,6 +412,42 @@ async fn measure_query(
 }
 
 #[allow(clippy::too_many_lines)]
+fn quality_topics() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        (
+            "invoice-reconciliation",
+            "InvoiceReconciliation",
+            "invoice reconciliation",
+        ),
+        (
+            "warehouse-inventory",
+            "WarehouseInventory",
+            "warehouse inventory",
+        ),
+        (
+            "patient-scheduling",
+            "PatientScheduling",
+            "patient scheduling",
+        ),
+        (
+            "claim-adjudication",
+            "ClaimAdjudication",
+            "claim adjudication",
+        ),
+        ("payroll-export", "PayrollExport", "payroll export"),
+        ("audit-logging", "AuditLogging", "audit logging"),
+        ("device-telemetry", "DeviceTelemetry", "device telemetry"),
+        ("document-indexing", "DocumentIndexing", "document indexing"),
+        ("access-control", "AccessControl", "access control"),
+        (
+            "billing-reconciliation",
+            "BillingReconciliation",
+            "billing reconciliation",
+        ),
+    ]
+}
+
+#[allow(clippy::too_many_lines)]
 fn write_corpus(root: &Path, corpus: &str, files: usize) -> Result<(), Box<dyn std::error::Error>> {
     let src = root.join("src");
     if src.exists() {
@@ -347,6 +455,70 @@ fn write_corpus(root: &Path, corpus: &str, files: usize) -> Result<(), Box<dyn s
     }
     fs::create_dir_all(src.join("cs"))?;
     match corpus {
+        "cjk" => {
+            fs::create_dir_all(src.join("docs"))?;
+            for (index, text) in [
+                "发票对账流程说明。财务系统每日核对发票与总账。",
+                "仓库库存盘点规则。库存不足时触发补货通知。",
+                "患者预约排班指南。门诊排班与预约冲突处理。",
+                "理赔审核与 adjudication 流程。",
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                fs::write(
+                    src.join("docs").join(format!("note{index}.md")),
+                    format!("# 文档 {index}\n\n{text}\n"),
+                )?;
+            }
+        }
+        "quality" => {
+            let mut truth = Vec::new();
+            for (slug, pascal, query) in quality_topics() {
+                let mut relevant = Vec::new();
+                let dir = src.join("cs").join(slug);
+                fs::create_dir_all(&dir)?;
+                for index in 0..8 {
+                    let path = format!("src/cs/{slug}/Concept{index}.cs");
+                    let body = format!(
+                        "namespace Quality.{pascal};\n\n/// <summary>\n/// Handles {query} for tenant {tenant}. Ledger matching, exception review and reporting.\n/// </summary>\npublic class Concept{index}\n{{\n    public int Tenant {{ get; init; }} = {tenant};\n    public string Status {{ get; set; }} = \"open\";\n    public void Handle(int id) {{ var ledger = LoadLedger(id); }}\n    public string Describe() => \"{query}\";\n    private object LoadLedger(int id) => id;\n}}\n",
+                        index = index,
+                        tenant = index + 1,
+                    );
+                    fs::write(root.join(&path), body)?;
+                    relevant.push(path);
+                }
+                let docs = src.join("docs").join(slug);
+                fs::create_dir_all(&docs)?;
+                for index in 0..2 {
+                    let path = format!("src/docs/{slug}/guide{index}.md");
+                    fs::write(
+                        root.join(&path),
+                        format!("# {query} guide {index}\n\nOperations for {query}.\n"),
+                    )?;
+                    relevant.push(path);
+                }
+                fs::create_dir_all(src.join("rust"))?;
+                fs::create_dir_all(src.join("python"))?;
+                let rust_path = format!("src/rust/{slug}.rs");
+                fs::write(
+                    root.join(&rust_path),
+                    format!("pub fn {pascal}() -> &\'static str {{ \"{query}\" }}\n"),
+                )?;
+                relevant.push(rust_path);
+                let python_path = format!("src/python/{slug}.py");
+                fs::write(
+                    root.join(&python_path),
+                    format!("def {pascal}():\n    return \"{query}\"\n"),
+                )?;
+                relevant.push(python_path);
+                truth.push(json!({"query": query, "relevant": relevant}));
+            }
+            fs::write(
+                root.join("quality_truth.json"),
+                serde_json::to_vec_pretty(&json!({"queries": truth}))?,
+            )?;
+        }
         "dense" => {
             for index in 0..files {
                 let mut source = format!(

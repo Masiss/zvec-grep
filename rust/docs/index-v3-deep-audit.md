@@ -56,7 +56,7 @@ A syntactically invalid but huge cursor was parsed before rejection. Cursors are
 now capped at 16 KiB with `INVALID_ARGUMENT`; regression added to the pagination
 test. This is a bounded-input safety fix, not a format change.
 
-### F5. Scope-prefix member crowding (QUALITY REGRESSION, DEFERRED)
+### F5. Scope-prefix member crowding (QUALITY REGRESSION, FIXED)
 
 `lexical_text` and vector metadata prepend `scope` to every declaration. Query
 `Type0` on the mixed corpus returns 8–12 matches from the same file because every
@@ -70,9 +70,23 @@ Prototype (not committed): omit `scope` from C# FTS and vector metadata only.
 - index bytes mixed 15.51 → 15.26 MB (−1.6%), dense 55.78 → 54.42 MB (−2.4%);
 - vector/hybrid distinct-file counts unchanged in the measured corpora.
 
-Disposition: **DEFERRED**. It changes retrieval text and scope-search semantics
-for C#. It needs a dedicated retrieval-quality gate and owner approval; it is not
-part of the promoted v3 change. The prototype files were reverted.
+Disposition: **FIXED** in `index-v3-promotion-qualification.md`. The C#-only
+scope omission is applied to FTS and vector metadata; `CodeMetadata.scope`
+remains available for exact-symbol output/filters. Quality R@10/50/MRR/nDCG is
+unchanged on the synthetic topic set, mixed same-file crowding falls from 12 to
+6 items, and mixed/dense disk falls 1.6–2.4%. Reindex is required for a clean
+index because FTS/vector text changes.
+
+### F11. Multi-term FTS returned arbitrary documents (BLOCKER, FIXED)
+
+`Fts::set_match_string` in zvec returns top-k documents for a multi-term query
+even when no term matches. On the quality index `zzzz qqqq` returned 50 docs/42
+files; `Type0 zzzz` on mixed returned arbitrary docs. `match_string` + AND avoids
+the fallback but loses OR recall (quality `access control` → 0). Fix: build an
+explicit quoted `A OR B` `query_string` from identifier terms, split
+punctuation, filter boolean words, cap 64 terms and escape syntax. This is
+query-only (no reindex). Regression: `tests/fts_query.rs`, including CJK and
+no-answer cases. Classification: **FIXED**.
 
 ### F6. Same-millisecond `updatedTime` snapshot collision (HYPOTHESIS, NOT REPRODUCED)
 
@@ -144,16 +158,18 @@ The coverage check also lists all files on every page, so paging cost is O(files
 | F2 ordinary comments as docs | FIXED |
 | F3 dense benchmark query | FIXED (measurement) |
 | F4 cursor length | FIXED |
-| F5 scope-prefix crowding | DEFERRED (retrieval design) |
+| F5 scope-prefix crowding | FIXED (C# FTS/vector metadata; reindex) |
 | F6 same-ms token collision | UNKNOWN / low-risk; not reproduced |
 | F7 container cost claim | CORRECTED (1–8.5%) |
 | F8 write amplification | ACCEPTED TRADE-OFF (pre-existing) |
 | F9 CLI/MCP symbols surface | DEFERRED |
+| F11 multi-term FTS fallback | FIXED (query-only) |
 | F10 coverage granularity | ACCEPTED LIMITATION |
 
 ## Verdict
 
-**CONDITIONAL GO for Index v3.** F1/F2/F4 are merged on the hardening branch;
-F5/F6/F9/F10 are promotion conditions or separate tracks. The v3 storage,
-CPU and dense-disk costs remain as recorded; no storage dedup or retrieval
-semantics change was promoted.
+**CONDITIONAL GO for Index v3.** F1/F2/F4/F11 are fixed; F5 is fixed with a
+C#-only retrieval metadata change and reindex requirement. F6/F9/F10 and
+storage/CPU trade-offs remain conditions or separate tracks. See
+`index-v3-promotion-qualification.md` for the promotion gates and final
+quality/resource numbers.

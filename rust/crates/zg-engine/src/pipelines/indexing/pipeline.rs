@@ -36,7 +36,7 @@ use crate::{
     domain::{
         Content, ContentKind, Entity, EntityFragment, EntityId, EntityMetadata, FileCategory,
         FileFormat, FileGraphResult, FileId, FileIndexStatus, FileRecord, FileSnapshot, FragmentId,
-        Range, SourcePath, Workspace,
+        Language, Range, SourcePath, Workspace,
         model::{EmbeddingModelInfo, EmbeddingPurpose, EmbeddingResult},
     },
     extraction::{
@@ -1346,11 +1346,16 @@ fn lexical_text(content: &Content, metadata: Option<&EntityMetadata>) -> String 
     if let Some(metadata) = metadata {
         match metadata {
             EntityMetadata::Code(code) => {
+                let scope = if code.language == Some(Language::CSharp) {
+                    None
+                } else {
+                    code.scope.as_ref()
+                };
                 for value in [
-                    &code.symbol_name,
-                    &code.scope,
-                    &code.signature,
-                    &code.documentation,
+                    code.symbol_name.as_ref(),
+                    scope,
+                    code.signature.as_ref(),
+                    code.documentation.as_ref(),
                 ]
                 .into_iter()
                 .flatten()

@@ -249,11 +249,11 @@ impl Fragments {
         if limit == 0 {
             return Ok(Vec::new());
         }
+        let Some(expression) = fts_query_expression(&index_text(query)) else {
+            return Ok(Vec::new());
+        };
         let mut fts = native(Fts::new(), "create full-text request")?;
-        native(
-            fts.set_match_string(&index_text(query)),
-            "set full-text query",
-        )?;
+        native(fts.set_query_string(&expression), "set full-text query")?;
         let mut request = native(
             SearchQuery::fts("text", &fts, top_k(limit)?),
             "create full-text query",
@@ -487,6 +487,23 @@ fn configure_query(
         native(query.set_filter(filter), "set search filter")?;
     }
     Ok(())
+}
+
+/// Builds an explicit OR expression because zvec's `match_string` returns
+/// documents even when a multi-term query has no matches.
+fn fts_query_expression(query: &str) -> Option<String> {
+    let terms = query
+        .split(|character: char| {
+            !(character.is_alphanumeric() || matches!(character, '_' | '#' | '+'))
+        })
+        .filter(|term| {
+            term.chars().any(char::is_alphanumeric)
+                && !matches!(term.to_ascii_lowercase().as_str(), "and" | "or" | "not")
+        })
+        .take(64)
+        .map(|term| format!("\"{}\"", term.replace('\\', "\\\\").replace('"', "\\\"")))
+        .collect::<Vec<_>>();
+    (!terms.is_empty()).then(|| terms.join(" OR "))
 }
 
 pub(super) fn build_filter(

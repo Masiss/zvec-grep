@@ -2,7 +2,8 @@
 
 Date: 2026-11-09. Branch `work/index-v3-hardening-20261109`, base `986ab51`.
 Pre-registration: `index-v3-hardening-prereg.md`. Independent deep audit:
-`index-v3-deep-audit.md` (block-namespace gap, C# docs, cursor bound, dense
+`index-v3-deep-audit.md`; promotion gates and final FTS/scope numbers:
+`index-v3-promotion-qualification.md` (block-namespace gap, C# docs, cursor bound, dense
 benchmark correction, deferred scope experiment).
 Scope: C# structural indexing, exact-symbol API, v3 promotion evidence. RAG,
 Selection, Expansion, held-out data and historical receipts are untouched.
@@ -162,8 +163,8 @@ the unsuffixed `Property` query returns 0 in both (whole-token BM25). See
 
 ## 8b. Verification
 
-- `cargo test -p zg-engine --tests`: lib 744 passed / 24 ignored; integration
-  binaries 8+1+4+17+8+2+2+3+2 passed, 0 failed. `cargo fmt --check` passes.
+- `cargo test -p zg-engine --tests`: lib 745 passed / 24 ignored; integration
+  binaries 8+1+4+17+8+1+2+2+3+2 passed, 0 failed. `cargo fmt --check` passes.
 - Downstream `zg-cli`, `zg-daemon-protocol`, `zg-transport-mcp`: 180+5+7+60
   tests passed; workspace `cargo check --all-targets` and release `zg` build
   pass.
@@ -177,6 +178,15 @@ the unsuffixed `Property` query returns 0 in both (whole-token BM25). See
   filtering, punctuation-only gap suppression, cursor size cap; adversarial
   Unicode/CRLF/generic/operator/indexer extraction test and block-namespace
   coverage test pass.
+
+## 8c. Post-hardening promotion changes
+
+The deep audit's F11 (multi-term FTS returned arbitrary documents) and F5
+(C# scope-prefix crowding) were fixed after this table was measured. Final
+allocated disk is mixed 17.37 MB, dense 54.15 MB, duplicate 12.56 MB; quality
+topic retrieval is R@10 0.833 (maximum for 12 relevant files), R@50 1.0
+(FTS/hybrid), MRR/nDCG 1.0. No-answer queries now return empty instead of
+arbitrary top-k. See `index-v3-promotion-qualification.md`.
 
 ## 9. Verdict
 
