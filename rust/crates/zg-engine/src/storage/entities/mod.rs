@@ -123,6 +123,31 @@ impl Entities {
         Ok(owners)
     }
 
+    /// Read only the canonical source range for each requested entity.
+    /// Callers bound the ID list; payload bytes are not retained.
+    pub(super) fn fetch_source_ranges(
+        &self,
+        ids: &[EntityId],
+    ) -> EngineResult<HashMap<EntityId, crate::domain::Range>> {
+        let mut ranges = HashMap::with_capacity(ids.len());
+        for batch in ids.chunks(WRITE_BATCH) {
+            let keys: Vec<_> = batch.iter().map(EntityId::as_str).collect();
+            for doc in native(
+                self.collection
+                    .fetch_with_options(&keys, Some(&["entity_id", "payload"]), false),
+                "fetch entity source ranges",
+            )? {
+                let id = string_field(&doc, "entity_id")?;
+                if doc_key(&doc)? != id {
+                    return Err(corrupt("entity identity differs from its index fields"));
+                }
+                let range = codec::decode_source_range(&string_field(&doc, "payload")?)?;
+                ranges.insert(EntityId::from_string(id), range);
+            }
+        }
+        Ok(ranges)
+    }
+
     /// Read every canonical ID before replacing or deleting a file's entities.
     /// The caller must hold the store lock throughout this read and the update.
     /// Full query batches are split into disjoint indexed ranges so a retrieval

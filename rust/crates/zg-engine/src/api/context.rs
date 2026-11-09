@@ -299,7 +299,7 @@ pub mod options {
 
 /// Values returned by [`crate::ZvecGrep::context`].
 pub mod result {
-    pub use crate::domain::{CodeMetadata, EntityMetadata, MarkdownMetadata};
+    pub use crate::domain::{CodeMetadata, EntityMetadata, Language, MarkdownMetadata};
 
     use std::path::PathBuf;
 

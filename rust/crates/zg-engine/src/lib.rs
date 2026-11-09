@@ -25,6 +25,7 @@ use api::{
     index::{IndexOptions, IndexResult},
     info::{InfoOptions, InfoResult},
     paths::{PathLookupResult, PathsOptions, PathsResult},
+    symbols::{SymbolsOptions, SymbolsResult},
 };
 
 pub use error::{EngineError, EngineResult, ErrorReport, ErrorSite};
@@ -92,6 +93,15 @@ impl ZvecGrep {
     ) -> EngineResult<ContextResult> {
         self.service
             .context_after_refresh(options)
+            .await
+            .map_err(|error| error.report_here())
+    }
+
+    /// Enumerates exact-name declarations from indexed metadata without reading
+    /// source files or running a ranked full-text/vector query.
+    pub async fn symbols(&self, options: SymbolsOptions) -> EngineResult<SymbolsResult> {
+        self.service
+            .symbols(options)
             .await
             .map_err(|error| error.report_here())
     }

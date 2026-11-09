@@ -6,3 +6,4 @@ pub mod files;
 pub mod index;
 pub mod info;
 pub mod paths;
+pub mod symbols;

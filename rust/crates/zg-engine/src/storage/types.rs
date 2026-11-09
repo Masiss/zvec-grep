@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::domain::{
-    Entity, EntityFragment, EntityId, FileId, FileRecord, FragmentId, SourcePath, SymbolType,
-    model::EmbeddingModelInfo,
+    CodeMetadata, Entity, EntityFragment, EntityId, FileId, FileRecord, FragmentId, Range,
+    SourcePath, SymbolType, model::EmbeddingModelInfo,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,6 +75,22 @@ pub(crate) struct IndexedFragment {
     pub model: String,
     pub vector: Vec<f32>,
     pub fts_text: String,
+}
+
+/// One exact-name declaration with its source location, without content.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SymbolDeclaration {
+    pub entity_id: EntityId,
+    pub file: FileRecord,
+    pub metadata: CodeMetadata,
+    pub source_range: Range,
+}
+
+/// Bounded exact-symbol page plus the total number of matching declarations.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SymbolDeclarationPage {
+    pub total: usize,
+    pub items: Vec<SymbolDeclaration>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

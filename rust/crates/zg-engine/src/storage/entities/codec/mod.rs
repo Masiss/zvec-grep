@@ -24,6 +24,19 @@ pub(super) fn decode_entity(json: &str, metadata: Option<&EntityMetadata>) -> En
         .map_err(|error| invalid_record("entity", &error))
 }
 
+/// Decode only the source range from a canonical entity payload.
+#[derive(Deserialize)]
+struct SourceRangeRecord {
+    source_range: RangeRecord,
+}
+
+pub(super) fn decode_source_range(json: &str) -> EngineResult<Range> {
+    let record: SourceRangeRecord = serde_json::from_str(json).map_err(|error| {
+        invalid_record("entity", &EngineError::storage_failure(error.to_string()))
+    })?;
+    record.source_range.try_into()
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EntityRecord<'a> {

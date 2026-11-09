@@ -539,7 +539,10 @@ fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError
     })
 }
 
-fn file_freshness_status(workspace_root: &Path, file: &FileRecord) -> ContextItemStatus {
+pub(in crate::pipelines) fn file_freshness_status(
+    workspace_root: &Path,
+    file: &FileRecord,
+) -> ContextItemStatus {
     let absolute_path = workspace_root.join(file.relative_path());
     let metadata = match fs::metadata(&absolute_path) {
         Ok(metadata) => metadata,

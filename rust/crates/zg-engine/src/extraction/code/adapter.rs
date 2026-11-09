@@ -43,6 +43,40 @@ const CPP: LanguageAdapter = LanguageAdapter {
         "union_specifier",
     ],
 };
+const CSHARP: LanguageAdapter = LanguageAdapter {
+    kind: Language::CSharp,
+    entity_types: &[
+        "class_declaration",
+        "constructor_declaration",
+        "conversion_operator_declaration",
+        "delegate_declaration",
+        "destructor_declaration",
+        "enum_declaration",
+        "enum_member_declaration",
+        "event_declaration",
+        "event_field_declaration",
+        "field_declaration",
+        "file_scoped_namespace_declaration",
+        "indexer_declaration",
+        "interface_declaration",
+        "local_function_statement",
+        "method_declaration",
+        "namespace_declaration",
+        "operator_declaration",
+        "property_declaration",
+        "record_declaration",
+        "struct_declaration",
+    ],
+    scope_types: &[
+        "class_declaration",
+        "enum_declaration",
+        "file_scoped_namespace_declaration",
+        "interface_declaration",
+        "namespace_declaration",
+        "record_declaration",
+        "struct_declaration",
+    ],
+};
 const GO: LanguageAdapter = LanguageAdapter {
     kind: Language::Go,
     entity_types: &[
@@ -150,6 +184,7 @@ pub(super) fn resolve_adapter(format: FileFormat) -> Option<&'static LanguageAda
     match format {
         FileFormat::C => Some(&C),
         FileFormat::Cpp => Some(&CPP),
+        FileFormat::CSharp => Some(&CSHARP),
         FileFormat::Go => Some(&GO),
         FileFormat::Java => Some(&JAVA),
         FileFormat::JavaScript => Some(&JAVASCRIPT),
@@ -186,6 +221,30 @@ impl LanguageAdapter {
                 return entities;
             }
         }
+        if self.kind == Language::CSharp {
+            if matches!(
+                node.kind(),
+                "namespace_declaration" | "file_scoped_namespace_declaration"
+            ) {
+                return node
+                    .child_by_field_name("name")
+                    .map_or_else(|| vec![node], |name| vec![name]);
+            }
+            if matches!(node.kind(), "field_declaration" | "event_field_declaration") {
+                let declarators = named_children(node)
+                    .into_iter()
+                    .filter(|child| child.kind() == "variable_declaration")
+                    .flat_map(|declaration| {
+                        named_children(declaration)
+                            .into_iter()
+                            .filter(|child| child.kind() == "variable_declarator")
+                    })
+                    .collect::<Vec<_>>();
+                if !declarators.is_empty() {
+                    return declarators;
+                }
+            }
+        }
         vec![node]
     }
 
@@ -204,6 +263,7 @@ impl LanguageAdapter {
     pub(super) fn extract_name(self, node: Node<'_>, source: &[u8]) -> Option<String> {
         match self.kind {
             Language::C | Language::Cpp => extract_c_family_name(node, source),
+            Language::CSharp => extract_csharp_name(node, source),
             Language::Go => field_text(node, "name", source),
             Language::Java
                 if matches!(node.kind(), "field_declaration" | "constant_declaration") =>
@@ -287,6 +347,7 @@ impl LanguageAdapter {
     pub(super) fn classify(self, node: Node<'_>) -> Option<SymbolType> {
         match self.kind {
             Language::C | Language::Cpp => classify_c_family(node),
+            Language::CSharp => classify_csharp(node),
             Language::Go => classify_go(node),
             Language::Java if node.kind() == "field_declaration" => Some(SymbolType::Value),
             Language::JavaScript | Language::TypeScript => classify_javascript_typescript(node),
@@ -296,6 +357,7 @@ impl LanguageAdapter {
 
     pub(super) fn extract_signature(self, node: Node<'_>, source: &[u8]) -> Option<String> {
         match self.kind {
+            Language::CSharp => extract_csharp_signature(node, source),
             Language::JavaScript | Language::TypeScript => {
                 extract_javascript_signature(node, source)
             }
@@ -317,6 +379,10 @@ impl LanguageAdapter {
                     | "ambient_declaration"
                     | "lexical_declaration"
                     | "variable_declaration"
+            ),
+            Language::CSharp => matches!(
+                parent.kind(),
+                "variable_declaration" | "field_declaration" | "event_field_declaration"
             ),
             Language::Go => parent.kind() == "type_declaration",
             _ => false,
@@ -543,6 +609,112 @@ fn classify_go(node: Node<'_>) -> Option<SymbolType> {
     }
 }
 
+fn extract_csharp_name(node: Node<'_>, source: &[u8]) -> Option<String> {
+    match node.kind() {
+        "identifier" | "qualified_name"
+            if node.parent().is_some_and(|parent| {
+                matches!(
+                    parent.kind(),
+                    "namespace_declaration" | "file_scoped_namespace_declaration"
+                )
+            }) =>
+        {
+            Some(text(node, source).trim().to_owned())
+        }
+        "operator_declaration" => node
+            .child_by_field_name("operator")
+            .map(|operator| format!("operator{}", text(operator, source))),
+        "conversion_operator_declaration" => node
+            .child_by_field_name("type")
+            .map(|target| format!("operator {}", text(target, source).trim())),
+        "indexer_declaration" => Some("this".to_owned()),
+        _ => field_text(node, "name", source),
+    }
+}
+
+fn classify_csharp(node: Node<'_>) -> Option<SymbolType> {
+    if matches!(node.kind(), "identifier" | "qualified_name")
+        && node.parent().is_some_and(|parent| {
+            matches!(
+                parent.kind(),
+                "namespace_declaration" | "file_scoped_namespace_declaration"
+            )
+        })
+    {
+        return Some(SymbolType::Module);
+    }
+    Some(match node.kind() {
+        "class_declaration"
+        | "delegate_declaration"
+        | "record_declaration"
+        | "struct_declaration" => SymbolType::Class,
+        "interface_declaration" => SymbolType::Interface,
+        "enum_declaration" => SymbolType::Enum,
+        "namespace_declaration" | "file_scoped_namespace_declaration" => SymbolType::Module,
+        "constructor_declaration"
+        | "conversion_operator_declaration"
+        | "destructor_declaration"
+        | "local_function_statement"
+        | "method_declaration"
+        | "operator_declaration" => SymbolType::Function,
+        "enum_member_declaration"
+        | "event_declaration"
+        | "event_field_declaration"
+        | "field_declaration"
+        | "indexer_declaration"
+        | "property_declaration"
+        | "variable_declarator" => SymbolType::Value,
+        _ => return classify_code_node(node),
+    })
+}
+
+fn extract_csharp_signature(node: Node<'_>, source: &[u8]) -> Option<String> {
+    if matches!(node.kind(), "identifier" | "qualified_name")
+        && node.parent().is_some_and(|parent| {
+            matches!(
+                parent.kind(),
+                "namespace_declaration" | "file_scoped_namespace_declaration"
+            )
+        })
+    {
+        return Some(format!("namespace {}", text(node, source).trim()));
+    }
+    match node.kind() {
+        "variable_declarator" => extract_csharp_field_signature(node, source),
+        "enum_member_declaration" => field_text(node, "name", source),
+        _ => extract_generic_signature(node, source),
+    }
+}
+
+fn extract_csharp_field_signature(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let name = field_text(node, "name", source)?;
+    let declaration = node.parent()?;
+    if declaration.kind() != "variable_declaration" {
+        return Some(name);
+    }
+    let type_name = field_text(declaration, "type", source)?;
+    let holder = declaration.parent()?;
+    let mut signature = String::new();
+    if matches!(
+        holder.kind(),
+        "field_declaration" | "event_field_declaration"
+    ) {
+        for child in named_children(holder) {
+            if child.kind() == "modifier" {
+                signature.push_str(text(child, source).trim());
+                signature.push(' ');
+            }
+        }
+        if holder.kind() == "event_field_declaration" {
+            signature.push_str("event ");
+        }
+    }
+    signature.push_str(type_name.trim());
+    signature.push(' ');
+    signature.push_str(&name);
+    Some(signature)
+}
+
 fn should_index_javascript_typescript_entity(node: Node<'_>) -> bool {
     if node.kind() == "method_definition"
         && node
@@ -734,12 +906,14 @@ fn append_signature(
             | "block_comment"
             | "documentation_comment"
             | "attribute_item"
+            | "attribute_list"
             | "inner_attribute_item"
             | "attribute_specifier"
             | "attribute_declaration"
             | "annotation"
             | "marker_annotation"
             | "decorator"
+            | "constructor_initializer"
     ) {
         // A comment may be the only separator between two declaration tokens.
         out.push(' ');
@@ -755,8 +929,14 @@ fn append_signature(
                     | "class_body"
                     | "declaration_list"
                     | "field_declaration_list"
+                    | "accessor_list"
             )
         })
+    });
+    let body = body.or_else(|| {
+        matches!(node.kind(), "property_declaration" | "indexer_declaration")
+            .then(|| node.child_by_field_name("value"))
+            .flatten()
     });
     let mut offset = node.start_byte();
     for child in named_children(node) {
