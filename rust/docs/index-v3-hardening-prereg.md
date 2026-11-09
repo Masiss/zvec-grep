@@ -1,5 +1,7 @@
 # Index v3 hardening — pre-registration
 
+Continuation checkpoint: `index-v3-handoff-20261109.md`.
+
 Date: 2026-11-09. Branch `work/index-v3-hardening-20261109`, base `986ab51`.
 This document freezes the audit findings, the bounded change set and the gates
 before implementation. RAG, Selection, Expansion, held-out data and historical

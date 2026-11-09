@@ -1,6 +1,7 @@
 # Index v3 hardening — audit and qualification results
 
-Date: 2026-11-09. Branch `work/index-v3-hardening-20261109`, base `986ab51`.
+Date: 2026-11-09. Branch `work/index-v3-hardening-20261109`, base `986ab51`,
+final continuation HEAD **`894b71e`** (`index-v3-handoff-20261109.md`).
 Pre-registration: `index-v3-hardening-prereg.md`. Independent deep audit:
 `index-v3-deep-audit.md`; promotion gates and final FTS/scope numbers:
 `index-v3-promotion-qualification.md` (block-namespace gap, C# docs, cursor bound, dense

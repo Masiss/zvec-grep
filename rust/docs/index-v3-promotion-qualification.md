@@ -1,6 +1,7 @@
 # Index v3 promotion qualification — retrieval and efficiency
 
-Base `928f49f`. Isolated worktree, external target, mock embedding server.
+Base `928f49f`; final HEAD **`894b71e`**. Isolated worktree, external target,
+mock embedding server. Continuation: `index-v3-handoff-20261109.md`.
 This note freezes the corpora, gates and results used to decide whether the
 C# structural index is promotable. No held-out data, RAG track, Selection or
 Expansion was touched.

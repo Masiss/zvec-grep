@@ -1,12 +1,13 @@
 # C# structural indexing and exact-symbol lookup
 
-Status: **CONDITIONAL GO** after hardening; see
-`index-v3-hardening-results.md` and `index-v3-hardening-prereg.md`. RAG
+Status: **CONDITIONAL GO** after hardening; continuation checkpoint
+`index-v3-handoff-20261109.md`. See `index-v3-hardening-results.md`,
+`index-v3-deep-audit.md` and `index-v3-promotion-qualification.md`. RAG
 discovery, selection, expansion, held-out data and product defaults are
 unchanged.
 Date: 2026-11-09. Base `9444eed` (`work/zg-recovered`); implementation branch
 `work/csharp-symbols-20261109`, hardening branch
-`work/index-v3-hardening-20261109`.
+`work/index-v3-hardening-20261109`, final HEAD `894b71e`.
 
 ## 1. Root cause (audited, not inferred)
 

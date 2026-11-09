@@ -1,7 +1,8 @@
 # Index v3 deep audit — independent findings (2026-11-09)
 
-Base `e9a9824`; this audit was executed in the same isolated worktree with
-external `CARGO_TARGET_DIR`. It does not reuse the previous report as authority;
+Base `e9a9824`; final continuation HEAD **`894b71e`**
+(`index-v3-handoff-20261109.md`). This audit was executed in the same isolated
+worktree with external `CARGO_TARGET_DIR`. It does not reuse the previous report as authority;
 each finding below has a reproduction and a disposition.
 
 Receipts: `~/.cache/zvec-grep/out-csharp/index-v3/receipts/`.
