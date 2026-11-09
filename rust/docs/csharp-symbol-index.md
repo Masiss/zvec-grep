@@ -1,10 +1,12 @@
 # C# structural indexing and exact-symbol lookup
 
-Status: **Index Track GO** for C# extraction and bounded exact-symbol
-enumeration. RAG discovery, selection, expansion, held-out data and product
-defaults are unchanged.
-Date: 2026-11-09. Base `9444eed` (`work/zg-recovered`), branch
-`work/csharp-symbols-20261109`.
+Status: **CONDITIONAL GO** after hardening; see
+`index-v3-hardening-results.md` and `index-v3-hardening-prereg.md`. RAG
+discovery, selection, expansion, held-out data and product defaults are
+unchanged.
+Date: 2026-11-09. Base `9444eed` (`work/zg-recovered`); implementation branch
+`work/csharp-symbols-20261109`, hardening branch
+`work/index-v3-hardening-20261109`.
 
 ## 1. Root cause (audited, not inferred)
 
@@ -48,6 +50,10 @@ This branch implements the minimal fix proposed there.
 - XML doc comments (`///`) are captured through the existing comment path.
 - Method bodies are not walked, so local variables and local functions inside
   methods are not emitted as declarations.
+- Non-declaration source outside every declaration (using directives, comments,
+  global attributes, top-level statements) is emitted as one text gap entity per
+  contiguous non-whitespace run. This restores v2 text-fallback recall for
+  mixed declaration/statement files without changing other adapters.
 
 ### 2.2 Exact-symbol API
 
@@ -58,10 +64,17 @@ This branch implements the minimal fix proposed there.
   workspace file reads.
 - Optional filters: `scope` (exact breadcrumb), `symbol_types`, `path` (exact
   workspace-relative path with `/`).
-- `limit` defaults to 50 and is capped at 500; `total` reports matches before the
-  limit and `truncated` reports whether the page is partial.
-- Ordering is deterministic: relative path, source start offset, source end
-  offset, entity id.
+- `limit` defaults to 50 and is capped at 500; `total` reports all matches and
+  `truncated`/`next_cursor` describe continuation. `cursor` resumes strictly
+  after the last returned declaration.
+- Ordering is deterministic and metadata-only: relative path, scope, symbol
+  type, signature, entity id. Canonical payloads are read only for the returned
+  page to resolve source ranges.
+- Cursors are checksummed and bound to the query parameters plus the workspace
+  generation and manifest update time. Malformed, cross-query and stale-snapshot
+  cursors are rejected with `INVALID_ARGUMENT`; they never restart silently.
+- `coverage` reports indexed, unfinished and failed workspace files for the
+  snapshot; `complete` is false when any file is not indexed.
 - Each item carries `entity_id`, `name`, `symbol_type`, `scope`, `signature`,
   `language`, `relative_path`, `absolute_path`, `range` (source line/byte
   coordinates), `role` and source `status` (`fresh` / `possibly_stale`).
@@ -71,6 +84,8 @@ This branch implements the minimal fix proposed there.
 - Source range is read from the canonical entity record for the matching
   declarations. No content is returned and no workspace source file is opened.
   Freshness uses the existing stored-snapshot check, only for returned items.
+- Exact-name candidate enumeration is bounded by the stored name cardinality,
+  not by the page size; paging is correct but O(candidates) per page.
 
 ### 2.3 Schema and migration
 
@@ -83,8 +98,14 @@ Returning zero C# symbols from those indexes would be silently incomplete, so
 `CURRENT_INDEX_VERSION` was bumped **2 → 3**. The existing version gate fails
 closed with `INDEX_INCOMPATIBLE` and the standard
 `zg --index --rebuild` guidance. A rebuild re-extracts every file, so all C#
-metadata is regenerated. Incremental refresh of a version-2 index is refused by
-the same gate; there is no partial or guessed upgrade path.
+metadata and gap entities are regenerated. Incremental refresh of a version-2
+index is refused by the same gate; there is no partial or guessed upgrade path.
+v3 was not released; the hardening branch is the first v3 definition. Any v3
+index built from the earlier experimental commit must be rebuilt.
+
+Measured v2→v3 rebuild on the mixed corpus: median 3.03 s, 15.51 MB, 346 MB peak
+RSS. Non-C# workspaces rebuild too because the version is workspace-wide, but
+their entity/fragment counts and index bytes are unchanged.
 
 ## 3. Verification
 
@@ -115,32 +136,31 @@ the same gate; there is no partial or guessed upgrade path.
 - Existing language-adapter tests are unchanged; the mixed corpus below indexes
   Rust, Python and Markdown identically before and after.
 
-### 3.2 Measurements
+### 3.2 Measurements (hardening protocol)
 
-Release build, mock OpenAI-compatible embedding server, deterministic corpus:
-300 C# files + 75 Rust + 75 Python + 75 Markdown = 525 files. One process per
-phase; peak RSS/PSS sampled in-process. Baseline is the same corpus at
-`9444eed` with `.cs` indexed as text.
+Release build, mock OpenAI-compatible embedding server, deterministic corpora;
+three runs per condition, median reported. Baseline is the same corpus at
+`9444eed` with `.cs` indexed as text. Full per-corpus tables, disk attribution
+and caveats are in `index-v3-hardening-results.md`.
 
 | Metric | Baseline (2) | After (3) | Delta |
 |---|---:|---:|---:|
-| Full index wall | 2.42 s | 2.90 s | +20% |
-| Full index peak RSS | 322,432 KiB | 355,288 KiB | +10% |
-| Full index PSS | 306,219 KiB | 332,867 KiB | +9% |
-| Index bytes | 6.72 MB | 18.44 MB | +174% |
-| Incremental (1 modified file) wall | 1.25 s | 1.35 s | +8% |
-| Incremental peak RSS | 376,564 KiB | 389,848 KiB | +4% |
-| Query process peak RSS | 284,716 KiB | 295,380 KiB | +4% |
-| FTS `Method0` + `symbol_type=function` | 0 items, 352 ms | 1 item, 115 ms | fixed |
-| Exact `Add` (600 declarations) | n/a | 127 ms p50 / 144 ms p95 | new |
+| Full index wall | 2.45 s | 3.07 s | +25% |
+| Full index peak RSS | 315 MB | 347 MB | +10% |
+| Allocated index bytes | 8.93 MB | 18.04 MB | +102% |
+| Incremental (1 modified file) wall | 1.35 s | 1.46 s | +8% |
+| Incremental peak RSS | 376 MB | 389 MB | +4% |
+| FTS cold/warm p50 | 392–437 / 139–146 ms | 441–449 / 117–155 ms | parity |
+| Exact `Widget` (500 declarations, limit 500) | n/a | 153–165 ms p50 | new |
+| Exact paging 10 × 50 | n/a | 1.49–1.92 s total | new |
 
-Exact-symbol first query (cold, includes workspace open) was 368 ms; warm
-single-name queries were ~118–136 ms. The 18.4 MB footprint is the structural
-model's declaration bodies: a class entity contains its members and each member
-is also stored separately, exactly as existing Rust/Java/TypeScript adapters
-already behave. The baseline text fallback stored each file once as chunks.
-This is a measured storage cost, not a correctness regression; no existing
-adapter changed.
+Exact-symbol cold queries were 423–634 ms; warm single-name queries 149–194 ms.
+The mixed footprint doubles; a declaration-dense corpus (300 files × ~40
+declarations) grows 6.7× (8.56 → 57.45 MB) and needs ~20× user CPU, dominated by
+one 1024-d f16 vector per declaration. Parent/child body overlap and FTS
+metadata prefixes account for the rest. High-symbol-density C# is therefore a
+real capacity cost, not a rounding error; no dedup was implemented because it
+changes retrieval semantics. Non-C# corpus bytes and results are identical.
 
 Raw receipts: `~/.cache/zvec-grep/out-csharp/bench/`
 (`baseline-*.json`, `after-*.json`, `*.time`).

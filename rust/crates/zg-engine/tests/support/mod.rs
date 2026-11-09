@@ -55,7 +55,11 @@ pub fn set_native_file_status(
     let document = collection.fetch(&[&key])?.pop().expect("stored file");
     let mut payload: Value =
         serde_json::from_str(&document.get_string("payload")?.expect("file payload"))?;
-    payload["index_status"] = json!({"kind": status});
+    payload["index_status"] = if status == "failed" {
+        json!({"kind": "failed", "error": "injected test failure"})
+    } else {
+        json!({"kind": status})
+    };
     let mut update = zvec_rust::Doc::new()?;
     update.set_pk(&key);
     update.add_string("payload", &serde_json::to_string(&payload)?)?;

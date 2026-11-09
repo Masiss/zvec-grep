@@ -8,7 +8,7 @@ use tree_sitter::{Language, Node, Parser};
 use crate::{
     EngineError,
     domain::{CodeMetadata, Content, EntityMetadata, FileFormat, Range, SymbolType},
-    utils::line_byte_offsets,
+    utils::{line_byte_offsets, text_range_from_offsets},
 };
 
 use self::adapter::{LanguageAdapter, named_children, resolve_adapter};
@@ -108,9 +108,14 @@ fn extract_code(
     let mut entities = Vec::new();
     walk_code_node(tree.root_node(), adapter, bytes, &[], &mut entities);
 
+    let coverage = (adapter.language() == crate::domain::Language::CSharp)
+        .then(|| csharp_coverage_ranges(&entities));
     let mut output = Vec::new();
-    for entity in entities {
-        append_entity(source, &entity, max_chars, overlap_chars, &mut output);
+    for entity in &entities {
+        append_entity(source, entity, max_chars, overlap_chars, &mut output);
+    }
+    if let Some(ranges) = coverage {
+        append_csharp_gap_entities(source, &ranges, max_chars, overlap_chars, &mut output)?;
     }
     if output.is_empty() {
         Ok(ExtractionOutput {
@@ -238,6 +243,118 @@ fn walk_code_node<'tree>(
             walk_code_node(child, adapter, source, active_breadcrumb, out);
         }
     }
+}
+
+/// Whole-declaration spans used to decide which C# source bytes are not covered.
+/// Field declarators and namespace name nodes are resolved entities; their
+/// enclosing declarations carry the actual source text.
+fn csharp_coverage_ranges(entities: &[CodeEntity<'_>]) -> Vec<(usize, usize)> {
+    let mut ranges = entities
+        .iter()
+        .map(|entity| {
+            let node = if matches!(entity.node.kind(), "identifier" | "qualified_name")
+                && entity.node.parent().is_some_and(|parent| {
+                    matches!(
+                        parent.kind(),
+                        "namespace_declaration" | "file_scoped_namespace_declaration"
+                    )
+                }) {
+                entity.node.parent().unwrap_or(entity.node)
+            } else if entity.node.kind() == "variable_declarator" {
+                entity
+                    .node
+                    .parent()
+                    .and_then(|declaration| declaration.parent())
+                    .filter(|holder| {
+                        matches!(
+                            holder.kind(),
+                            "field_declaration" | "event_field_declaration"
+                        )
+                    })
+                    .or_else(|| entity.node.parent())
+                    .unwrap_or(entity.node)
+            } else {
+                entity.node
+            };
+            (node.start_byte(), node.end_byte())
+        })
+        .collect::<Vec<_>>();
+    ranges.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::with_capacity(ranges.len());
+    for (start, end) in ranges {
+        if start >= end {
+            continue;
+        }
+        if let Some(last) = merged.last_mut()
+            && start <= last.1
+        {
+            last.1 = last.1.max(end);
+        } else {
+            merged.push((start, end));
+        }
+    }
+    merged
+}
+
+fn append_csharp_gap_entities(
+    source: &TextSource,
+    covered: &[(usize, usize)],
+    max_chars: usize,
+    overlap_chars: usize,
+    output: &mut Vec<ExtractedEntity>,
+) -> Result<(), EngineError> {
+    let line_offsets = line_byte_offsets(&source.text);
+    let mut cursor = 0;
+    for (start, end) in covered
+        .iter()
+        .copied()
+        .chain([(source.text.len(), source.text.len())])
+    {
+        if cursor < start {
+            append_gap(
+                source,
+                &line_offsets,
+                cursor,
+                start,
+                max_chars,
+                overlap_chars,
+                output,
+            )?;
+        }
+        cursor = cursor.max(end);
+    }
+    Ok(())
+}
+
+fn append_gap(
+    source: &TextSource,
+    line_offsets: &[usize],
+    start: usize,
+    end: usize,
+    max_chars: usize,
+    overlap_chars: usize,
+    output: &mut Vec<ExtractedEntity>,
+) -> Result<(), EngineError> {
+    let raw = crate::utils::slice_text(&source.text, start, end)?;
+    let Some(first) = raw.find(|character: char| !character.is_whitespace()) else {
+        return Ok(());
+    };
+    let last = raw
+        .char_indices()
+        .rfind(|(_, character)| !character.is_whitespace())
+        .map_or(first, |(offset, character)| offset + character.len_utf8());
+    let trimmed_start = start + first;
+    let trimmed_end = start + last;
+    let range = text_range_from_offsets(&source.text, line_offsets, trimmed_start, trimmed_end)?;
+    let content = crate::utils::slice_text(&source.text, trimmed_start, trimmed_end)?.to_owned();
+    output.push(ExtractedEntity {
+        index: output.len(),
+        source_range: Range::Text(range),
+        fragments: text_fragments(&content, max_chars, overlap_chars),
+        content: Content::Code(content),
+        metadata: None,
+    });
+    Ok(())
 }
 
 fn append_entity(

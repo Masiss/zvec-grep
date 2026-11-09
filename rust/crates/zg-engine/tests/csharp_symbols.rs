@@ -8,7 +8,10 @@ mod support;
 
 use std::{fs, path::Path};
 
-use support::{EmbeddingServer, configure_remote_model, index_options};
+use support::{
+    EmbeddingServer, configure_remote_model, index_options, info_options, native_file_records,
+    set_native_file_status,
+};
 use tempfile::tempdir;
 use zg_engine::{
     ZvecGrep,
@@ -403,5 +406,162 @@ async fn symbols_fail_closed_without_an_index_and_validate_bounds() -> TestResul
         .expect_err("unbounded enumeration is invalid");
     assert_eq!(error.code(), zg_engine::EngineError::INVALID_ARGUMENT);
     engine.close();
+    Ok(())
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)]
+async fn exact_symbol_pages_are_complete_and_cursor_safe() -> TestResult {
+    let temporary = tempdir()?;
+    let root = temporary.path();
+    let server = EmbeddingServer::start()?;
+    configure_remote_model(root, server.address)?;
+    fs::create_dir_all(root.join("Many"))?;
+    for index in 0..600 {
+        fs::write(
+            root.join("Many").join(format!("W{index:03}.cs")),
+            "namespace Many;\npublic class Widget { public void Run() { } }\n",
+        )?;
+    }
+    let engine = ZvecGrep::new();
+    let indexed = engine.index(index_options(root)).await?;
+    assert_eq!(indexed.files_failed, 0);
+
+    let mut collected = Vec::new();
+    let mut cursor = None;
+    let mut pages = 0;
+    loop {
+        let mut options = symbols(root, "Widget");
+        options.limit = Some(250);
+        options.cursor = cursor;
+        let page = engine.symbols(options).await?;
+        assert_eq!(page.total, 600);
+        assert!(page.coverage.complete);
+        if page.truncated {
+            assert!(page.next_cursor.is_some());
+        } else {
+            assert!(page.next_cursor.is_none());
+        }
+        collected.extend(page.items.iter().map(|item| item.entity_id.clone()));
+        pages += 1;
+        match page.next_cursor {
+            Some(next) => cursor = Some(next),
+            None => break,
+        }
+        assert!(pages < 10, "cursor must terminate");
+    }
+    assert_eq!(pages, 3);
+    assert_eq!(collected.len(), 600);
+    assert_eq!(
+        collected
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        600,
+        "pages contain every declaration exactly once"
+    );
+
+    // The paginated sequence equals a two-page run with the maximum page size.
+    let mut reference = Vec::new();
+    let mut cursor = None;
+    loop {
+        let mut options = symbols(root, "Widget");
+        options.limit = Some(500);
+        options.cursor = cursor;
+        let page = engine.symbols(options).await?;
+        reference.extend(page.items.iter().map(|item| item.entity_id.clone()));
+        match page.next_cursor {
+            Some(next) => cursor = Some(next),
+            None => break,
+        }
+    }
+    assert_eq!(reference, collected);
+
+    // A cursor is bound to the exact query parameters.
+    let mut first = symbols(root, "Widget");
+    first.limit = Some(10);
+    let first_page = engine.symbols(first).await?;
+    let cursor = first_page.next_cursor.expect("first page continues");
+    let mut wrong_name = symbols(root, "Run");
+    wrong_name.cursor = Some(cursor.clone());
+    let error = engine
+        .symbols(wrong_name)
+        .await
+        .expect_err("cross-query cursor must fail");
+    assert_eq!(error.code(), zg_engine::EngineError::INVALID_ARGUMENT);
+    let mut malformed = symbols(root, "Widget");
+    malformed.cursor = Some("not-a-cursor".to_owned());
+    let error = engine
+        .symbols(malformed)
+        .await
+        .expect_err("malformed cursor must fail");
+    assert_eq!(error.code(), zg_engine::EngineError::INVALID_ARGUMENT);
+
+    // A refresh changes the generation; the old cursor must not silently skip
+    // or duplicate rows across generations.
+    let before = fs::read_to_string(root.join(".zvec-grep/manifest.json"))?;
+    eprintln!(
+        "BEFORE {}",
+        before
+            .lines()
+            .find(|l| l.contains("storageGeneration"))
+            .unwrap_or("?")
+    );
+    fs::write(
+        root.join("Many/W000.cs"),
+        "namespace Many;\npublic class Widget { public void Renamed() { } }\n",
+    )?;
+    let refreshed = engine.index(index_options(root)).await?;
+    eprintln!(
+        "REFRESH added={} modified={} deleted={} failed={}",
+        refreshed.files_added,
+        refreshed.files_modified,
+        refreshed.files_deleted,
+        refreshed.files_failed
+    );
+    let after = fs::read_to_string(root.join(".zvec-grep/manifest.json"))?;
+    eprintln!(
+        "AFTER {}",
+        after
+            .lines()
+            .find(|l| l.contains("storageGeneration"))
+            .unwrap_or("?")
+    );
+    let mut stale = symbols(root, "Widget");
+    stale.cursor = Some(cursor);
+    let error = engine
+        .symbols(stale)
+        .await
+        .expect_err("stale-generation cursor must fail");
+    assert_eq!(error.code(), zg_engine::EngineError::INVALID_ARGUMENT);
+    assert!(error.message().contains("snapshot") || error.message().contains("cursor"));
+
+    // Coverage reports unfinished files instead of implying an exhaustive index.
+    let info = engine.info(info_options(root)).await?;
+    let files = native_file_records(&info.index_path)?;
+    let id = files
+        .iter()
+        .find(|record| {
+            record["relative_path"]["components"]
+                .as_array()
+                .is_some_and(|components| {
+                    components
+                        .iter()
+                        .filter_map(|component| component.as_str())
+                        .collect::<Vec<_>>()
+                        == ["Many", "W001.cs"]
+                })
+        })
+        .and_then(|record| record["id"].as_u64())
+        .expect("file id");
+    engine.close();
+    set_native_file_status(&info.index_path, u32::try_from(id)?, "failed")?;
+    let reopened = ZvecGrep::new();
+    let page = reopened.symbols(symbols(root, "Widget")).await?;
+    assert!(!page.coverage.complete);
+    assert!(page.coverage.failed_files >= 1);
+    assert!(page.coverage.unfinished_files >= 1);
+    reopened.close();
+    drop(server);
     Ok(())
 }

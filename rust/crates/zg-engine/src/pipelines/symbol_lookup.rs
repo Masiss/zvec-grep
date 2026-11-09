@@ -10,15 +10,18 @@ use crate::{
     api::{
         context::options::RefreshPolicy,
         index::IndexOptions,
-        symbols::{SymbolItem, SymbolRole, SymbolsOptions, SymbolsResult},
+        symbols::{SymbolCoverage, SymbolItem, SymbolRole, SymbolsOptions, SymbolsResult},
     },
     domain::{IndexState, Workspace},
     models::ModelRuntimeManager,
     pipelines::{
         indexed_search::context::file_freshness_status, indexing::service::WorkspaceIndexService,
     },
-    storage::{read_session::ReadSessionCache, types::SymbolDeclarationPage},
-    utils::{directory_exists, resolve_directory},
+    storage::{
+        read_session::ReadSessionCache,
+        types::{SymbolCursorKey, SymbolDeclarationPage, SymbolFileCoverage},
+    },
+    utils::{directory_exists, resolve_directory, sha256_hex},
     workspace::{
         find_nearest_workspace,
         lock::{LockWait, try_acquire_workspace_read},
@@ -26,6 +29,7 @@ use crate::{
     },
 };
 
+#[allow(clippy::too_many_lines)]
 pub(crate) async fn symbols(
     indexing: &WorkspaceIndexService,
     models: &ModelRuntimeManager,
@@ -89,14 +93,24 @@ pub(crate) async fn symbols(
             "index storage is missing",
         ));
     }
+    let generation = workspace
+        .storage_generation()
+        .expect("published index generation")
+        .to_owned();
+    let updated_ms = workspace.updated_epoch_ms();
+    let query_hash = symbol_query_hash(
+        &name,
+        options.scope.as_deref(),
+        &options.symbol_types,
+        path.as_deref(),
+    );
+    let after = options
+        .cursor
+        .as_deref()
+        .map(|cursor| decode_cursor(cursor, &generation, updated_ms, &query_hash))
+        .transpose()?;
     let storage = match read_sessions {
-        Some(cache) => cache.acquire(
-            &layout,
-            workspace.layout().index_dir(),
-            workspace
-                .storage_generation()
-                .expect("published index generation"),
-        )?,
+        Some(cache) => cache.acquire(&layout, workspace.layout().index_dir(), &generation)?,
         None => {
             crate::storage::read_session::ReadSessionLease::open(workspace.layout().index_dir())?
         }
@@ -106,19 +120,33 @@ pub(crate) async fn symbols(
         &options.symbol_types,
         options.scope.as_deref(),
         path.as_deref(),
+        after.as_ref(),
         limit,
     );
     let close = storage.close();
     let page = page?;
     close?;
+    let next_cursor = page
+        .has_more
+        .then(|| {
+            page.items
+                .last()
+                .map(crate::storage::types::SymbolDeclaration::cursor_key)
+        })
+        .flatten()
+        .map(|key| encode_cursor(&generation, updated_ms, &query_hash, &key));
     let total = page.total;
+    let coverage = page.coverage;
+    let truncated = page.has_more;
+    let next_cursor = next_cursor.filter(|_| truncated);
     let items = symbol_items(&workspace, page, &name);
-    let truncated = total > items.len();
     Ok(SymbolsResult {
         root: source_root,
         name,
         total,
         truncated,
+        next_cursor,
+        coverage: coverage.into(),
         items,
     })
 }
@@ -145,6 +173,103 @@ fn symbol_items(workspace: &Workspace, page: SymbolDeclarationPage, name: &str) 
             }
         })
         .collect()
+}
+
+const CURSOR_VERSION: u32 = 1;
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct SymbolCursorEnvelope {
+    v: u32,
+    generation: String,
+    updated_ms: u64,
+    query: String,
+    after: SymbolCursorKey,
+}
+
+fn symbol_query_hash(
+    name: &str,
+    scope: Option<&str>,
+    symbol_types: &[crate::domain::SymbolType],
+    path: Option<&str>,
+) -> String {
+    let mut types = symbol_types
+        .iter()
+        .map(|kind| kind.as_str())
+        .collect::<Vec<_>>();
+    types.sort_unstable();
+    types.dedup();
+    sha256_hex(
+        format!(
+            "{name}\0{}\0{}\0{}",
+            scope.unwrap_or(""),
+            types.join(","),
+            path.unwrap_or("")
+        )
+        .as_bytes(),
+    )
+}
+
+fn encode_cursor(generation: &str, updated_ms: u64, query: &str, key: &SymbolCursorKey) -> String {
+    let envelope = SymbolCursorEnvelope {
+        v: CURSOR_VERSION,
+        generation: generation.to_owned(),
+        updated_ms,
+        query: query.to_owned(),
+        after: key.clone(),
+    };
+    let bytes = serde_json::to_vec(&envelope).expect("symbol cursor serialization");
+    let checksum = sha256_hex(&bytes);
+    format!("v{CURSOR_VERSION}:{}:{checksum}", hex::encode(bytes))
+}
+
+fn decode_cursor(
+    cursor: &str,
+    generation: &str,
+    updated_ms: u64,
+    query: &str,
+) -> Result<SymbolCursorKey, EngineError> {
+    let mut parts = cursor.splitn(3, ':');
+    let version = parts.next().unwrap_or_default();
+    let payload = parts.next().unwrap_or_default();
+    let checksum = parts.next().unwrap_or_default();
+    if version != format!("v{CURSOR_VERSION}") {
+        return Err(invalid_cursor("unsupported cursor version"));
+    }
+    let bytes = hex::decode(payload).map_err(|_| invalid_cursor("cursor is not valid hex"))?;
+    if sha256_hex(&bytes) != checksum {
+        return Err(invalid_cursor("cursor checksum does not match"));
+    }
+    let envelope: SymbolCursorEnvelope =
+        serde_json::from_slice(&bytes).map_err(|_| invalid_cursor("cursor payload is invalid"))?;
+    if envelope.v != CURSOR_VERSION {
+        return Err(invalid_cursor("cursor payload version is unsupported"));
+    }
+    if envelope.generation != generation || envelope.updated_ms != updated_ms {
+        return Err(EngineError::invalid_argument(
+            "symbol cursor was issued for a different index snapshot; restart enumeration",
+        ));
+    }
+    if envelope.query != query {
+        return Err(invalid_cursor(
+            "cursor belongs to different symbol query parameters",
+        ));
+    }
+    Ok(envelope.after)
+}
+
+fn invalid_cursor(reason: &str) -> EngineError {
+    EngineError::invalid_argument(format!("invalid symbol cursor: {reason}"))
+}
+
+impl From<SymbolFileCoverage> for SymbolCoverage {
+    fn from(coverage: SymbolFileCoverage) -> Self {
+        Self {
+            indexed_files: coverage.indexed,
+            unfinished_files: coverage.unfinished,
+            failed_files: coverage.failed,
+            complete: coverage.unfinished == 0,
+        }
+    }
 }
 
 fn normalize_path(path: &str) -> String {

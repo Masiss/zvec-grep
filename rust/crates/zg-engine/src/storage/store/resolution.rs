@@ -9,10 +9,13 @@ use std::collections::{HashMap, HashSet};
 use super::{IndexStore, StoreState, graph_disabled, graph_error};
 use crate::{
     EngineError, EngineResult,
-    domain::{EntityId, FileId, SymbolType},
+    domain::{EntityId, FileId, FileIndexStatus, SymbolType},
     storage::{
         graph::{PendingRefPage, Resolution, ResolutionStats},
-        types::{ResolutionCandidate, SymbolDeclaration, SymbolDeclarationPage},
+        types::{
+            ResolutionCandidate, SymbolCursorKey, SymbolDeclaration, SymbolDeclarationPage,
+            SymbolFileCoverage, normalized_relative_path,
+        },
     },
 };
 
@@ -93,13 +96,16 @@ impl IndexStore {
 
     /// Enumerate exact-name declarations from indexed metadata, independent of
     /// fragment count and without FTS ranking. Results are ordered by relative
-    /// path, source offset and entity id; `limit` bounds the returned page.
+    /// path, scope, symbol type, signature and entity id; `limit` bounds the
+    /// returned page and `after` resumes strictly after a prior page.
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn enumerate_symbol_declarations(
         &self,
         name: &str,
         symbol_types: &[SymbolType],
         scope: Option<&str>,
         path: Option<&str>,
+        after: Option<&SymbolCursorKey>,
         limit: usize,
     ) -> EngineResult<SymbolDeclarationPage> {
         if name.trim().is_empty() {
@@ -144,24 +150,46 @@ impl IndexStore {
                     if !file.index_status().is_indexed() {
                         continue;
                     }
-                    if let Some(path) = path {
-                        let relative = file.relative_path().as_path().to_string_lossy();
-                        if relative != path {
-                            continue;
-                        }
+                    if let Some(path) = path
+                        && normalized_relative_path(file) != path
+                    {
+                        continue;
                     }
                     candidates.push((id.clone(), file.clone(), metadata));
                 }
             }
+            let mut candidates = candidates
+                .into_iter()
+                .map(|(entity_id, file, metadata)| {
+                    let key = SymbolCursorKey {
+                        relative_path: normalized_relative_path(&file),
+                        scope: metadata.scope.clone(),
+                        symbol_type: metadata.symbol_type.map(|kind| kind.as_str().to_owned()),
+                        signature: metadata.signature.clone(),
+                        entity_id: entity_id.as_str().to_owned(),
+                    };
+                    (key, entity_id, file, metadata)
+                })
+                .collect::<Vec<_>>();
+            candidates.sort_by(|left, right| left.0.cmp(&right.0));
             let total = candidates.len();
-            let ids = candidates
+            let start = after.map_or(0, |after| {
+                candidates.partition_point(|candidate| candidate.0 <= *after)
+            });
+            let mut page = candidates
+                .into_iter()
+                .skip(start)
+                .take(limit)
+                .collect::<Vec<_>>();
+            let has_more = start + page.len() < total;
+            let ids = page
                 .iter()
-                .map(|(id, _, _)| id.clone())
+                .map(|(_, entity_id, _, _)| entity_id.clone())
                 .collect::<Vec<_>>();
             let mut ranges = state.entities.fetch_source_ranges(&ids)?;
-            let mut items = candidates
-                .into_iter()
-                .filter_map(|(entity_id, file, metadata)| {
+            let items = page
+                .drain(..)
+                .filter_map(|(_, entity_id, file, metadata)| {
                     let source_range = ranges.remove(&entity_id)?;
                     Some(SymbolDeclaration {
                         entity_id,
@@ -171,21 +199,29 @@ impl IndexStore {
                     })
                 })
                 .collect::<Vec<_>>();
-            items.sort_by(|left, right| {
-                left.file
-                    .relative_path()
-                    .as_path()
-                    .cmp(right.file.relative_path().as_path())
-                    .then_with(|| {
-                        range_start(&left.source_range).cmp(&range_start(&right.source_range))
-                    })
-                    .then_with(|| {
-                        range_end(&left.source_range).cmp(&range_end(&right.source_range))
-                    })
-                    .then_with(|| left.entity_id.as_str().cmp(right.entity_id.as_str()))
-            });
-            items.truncate(limit);
-            Ok(SymbolDeclarationPage { total, items })
+            let mut coverage = SymbolFileCoverage {
+                indexed: 0,
+                unfinished: 0,
+                failed: 0,
+            };
+            for file in state.files.list()? {
+                match file.index_status() {
+                    FileIndexStatus::Indexed { .. } => coverage.indexed += 1,
+                    FileIndexStatus::Failed { .. } => {
+                        coverage.failed += 1;
+                        coverage.unfinished += 1;
+                    }
+                    FileIndexStatus::NotIndexed | FileIndexStatus::Deleting => {
+                        coverage.unfinished += 1;
+                    }
+                }
+            }
+            Ok(SymbolDeclarationPage {
+                total,
+                items,
+                has_more,
+                coverage,
+            })
         })
     }
 
@@ -268,20 +304,4 @@ fn visible_endpoints(state: &StoreState, ids: &[String]) -> EngineResult<HashMap
             .is_some_and(|file| file.index_status().is_indexed())
     });
     Ok(owners)
-}
-
-fn range_start(range: &crate::domain::Range) -> u64 {
-    match range {
-        crate::domain::Range::Full => 0,
-        crate::domain::Range::Byte(range) => range.start_offset(),
-        crate::domain::Range::Text(range) => range.start_byte_offset() as u64,
-    }
-}
-
-fn range_end(range: &crate::domain::Range) -> u64 {
-    match range {
-        crate::domain::Range::Full => 0,
-        crate::domain::Range::Byte(range) => range.end_offset(),
-        crate::domain::Range::Text(range) => range.end_byte_offset() as u64,
-    }
 }

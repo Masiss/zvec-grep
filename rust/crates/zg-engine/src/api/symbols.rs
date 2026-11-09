@@ -31,6 +31,9 @@ pub struct SymbolsOptions {
     pub path: Option<String>,
     /// Maximum returned declarations. Defaults to 50 and is capped at 500.
     pub limit: Option<usize>,
+    /// Opaque continuation from a prior `SymbolsResult::next_cursor`.
+    /// The cursor is bound to the workspace generation and query parameters.
+    pub cursor: Option<String>,
     /// Refresh policy. `Wait` reconciles the index before the query; `Off` uses
     /// the stored index as-is and may expose stale metadata.
     pub refresh: Option<RefreshPolicy>,
@@ -85,6 +88,16 @@ pub enum SymbolRole {
     Reference,
 }
 
+/// Workspace file-state coverage for the snapshot that produced a result.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SymbolCoverage {
+    pub indexed_files: u64,
+    pub unfinished_files: u64,
+    pub failed_files: u64,
+    /// True only when every workspace file is in the indexed state.
+    pub complete: bool,
+}
+
 /// One exact-name declaration. `content` is intentionally absent.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct SymbolItem {
@@ -109,10 +122,14 @@ pub struct SymbolItem {
 pub struct SymbolsResult {
     pub root: PathBuf,
     pub name: String,
-    /// Total matching declarations before `limit`.
+    /// Total matching declarations in this index snapshot.
     pub total: usize,
-    /// Whether `items` is a strict prefix of `total`.
+    /// Whether more matches exist after this page.
     pub truncated: bool,
+    /// Continuation for the next page, present iff `truncated` is true.
+    pub next_cursor: Option<String>,
+    /// File-state coverage of the snapshot used for this page.
+    pub coverage: SymbolCoverage,
     pub items: Vec<SymbolItem>,
 }
 

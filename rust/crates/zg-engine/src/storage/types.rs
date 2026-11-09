@@ -86,11 +86,53 @@ pub(crate) struct SymbolDeclaration {
     pub source_range: Range,
 }
 
+/// Metadata-only ordering key for exact-symbol continuation.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
+pub(crate) struct SymbolCursorKey {
+    pub relative_path: String,
+    pub scope: Option<String>,
+    pub symbol_type: Option<String>,
+    pub signature: Option<String>,
+    pub entity_id: String,
+}
+
+impl SymbolDeclaration {
+    pub(crate) fn cursor_key(&self) -> SymbolCursorKey {
+        SymbolCursorKey {
+            relative_path: normalized_relative_path(&self.file),
+            scope: self.metadata.scope.clone(),
+            symbol_type: self
+                .metadata
+                .symbol_type
+                .map(|kind| kind.as_str().to_owned()),
+            signature: self.metadata.signature.clone(),
+            entity_id: self.entity_id.as_str().to_owned(),
+        }
+    }
+}
+
+pub(crate) fn normalized_relative_path(file: &FileRecord) -> String {
+    file.relative_path()
+        .as_path()
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+/// Workspace-level completeness of the index the page was read from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SymbolFileCoverage {
+    pub indexed: u64,
+    pub unfinished: u64,
+    pub failed: u64,
+}
+
 /// Bounded exact-symbol page plus the total number of matching declarations.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SymbolDeclarationPage {
     pub total: usize,
     pub items: Vec<SymbolDeclaration>,
+    pub has_more: bool,
+    pub coverage: SymbolFileCoverage,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
