@@ -11,6 +11,9 @@ mod spi;
 pub(crate) mod sql_facts;
 mod text;
 
+#[cfg(test)]
+mod h7_e1s_tests;
+
 pub(crate) use code::code_outline;
 
 // Extraction sources.
