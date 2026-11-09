@@ -82,9 +82,23 @@ promoted. The gap prototype is archived at
 1. Owner decision on H7 resource: E1R is NO-GO at 74,028 KiB peak RSS / 69,387
    KiB PSS. Do not run E2 or tune caps against gold. Any further resource work
    needs a new bounded pre-registration and the same fixed 64 MiB gate.
-2. R1 public qualification: CLI/MCP/service integration, cache/version
+   E1S (branch `work/h7-e1s`) added a reconcile + scope-sharing result: refs-off
+   is a protocol artifact (20/25 full-fact vs 16/25 anchor-only) and the
+   pre-registered scope sharing is memory-neutral; the fixed gate stays NO-GO
+   for the E1R harness. See `rust/docs/rag-discovery-h7-e1s-reconcile-results.md`
+   on that branch.
+2. One-Index discovery (branch `work/onindex`): audit + two code arms + a
+   document prototype. Arm B (bounded lexical declaration selection) reaches
+   23/25 with 1.07 s/case p95 and 51.7 MiB peak (release, dev protocol); arm A
+   (index-assisted lookups through the public FTS surface) reaches 23/25 but
+   fails latency (10.8 s/case) and memory. Next work needs a bounded
+   anchor/frontier budget for independent sets and, for arm A, an exact-symbol
+   enumeration endpoint (internal `find_resolution_candidates` is not exposed;
+   the public `symbol_type` filter returns no matches). Do not add an index
+   format. See `rust/docs/rag-onindex-discovery-results.md`.
+3. R1 public qualification: CLI/MCP/service integration, cache/version
    invalidation, concurrency/performance, generated/results admission,
    PII/secret/auth/audit, independent validation and release/rollback.
-3. Selection/Expansion only after Discovery evidence is sufficient and
+4. Selection/Expansion only after Discovery evidence is sufficient and
    explicitly authorized.
-4. Continuity: `rust/docs/rag-v1-handoff-20261108.md`.
+5. Continuity: `rust/docs/rag-v1-handoff-20261109.md`.

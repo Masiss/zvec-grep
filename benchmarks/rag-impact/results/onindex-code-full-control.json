@@ -1,0 +1,646 @@
+{
+ "base": "9444eed",
+ "branch": "work/onindex",
+ "bytes_read": 0,
+ "case_count": 12,
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "end": {
+  "elapsed_ms": 2955.880876,
+  "label": "end",
+  "pss_kib": 43514,
+  "rss_hwm_kib": 48184,
+  "rss_kib": 47412
+ },
+ "file_reads": 0,
+ "lookup_summary": {
+  "resolved": 0,
+  "unresolved": {}
+ },
+ "measurement": "one mode per process; pre-built index opened read-only (refresh=off) for the index arm",
+ "mode": "full",
+ "phases": [
+  {
+   "elapsed_ms": 0.008592,
+   "label": "process_start",
+   "pss_kib": 19618,
+   "rss_hwm_kib": 23516,
+   "rss_kib": 23448
+  },
+  {
+   "elapsed_ms": 2.043581,
+   "label": "corpus_loaded",
+   "pss_kib": 21862,
+   "rss_hwm_kib": 25760,
+   "rss_kib": 25760
+  },
+  {
+   "elapsed_ms": 4.622947,
+   "label": "cases_loaded",
+   "pss_kib": 22022,
+   "rss_hwm_kib": 25920,
+   "rss_kib": 25920
+  },
+  {
+   "elapsed_ms": 1231.2703609999999,
+   "label": "declarations_built",
+   "pss_kib": 36238,
+   "rss_hwm_kib": 40136,
+   "rss_kib": 40136
+  },
+  {
+   "elapsed_ms": 1411.9523199999999,
+   "label": "after_case",
+   "pss_kib": 43574,
+   "rss_hwm_kib": 47472,
+   "rss_kib": 47472
+  },
+  {
+   "elapsed_ms": 1534.171519,
+   "label": "after_case",
+   "pss_kib": 42766,
+   "rss_hwm_kib": 47152,
+   "rss_kib": 46664
+  },
+  {
+   "elapsed_ms": 1716.878216,
+   "label": "after_case",
+   "pss_kib": 44734,
+   "rss_hwm_kib": 48632,
+   "rss_kib": 48632
+  },
+  {
+   "elapsed_ms": 1878.007451,
+   "label": "after_case",
+   "pss_kib": 43298,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47196
+  },
+  {
+   "elapsed_ms": 2020.2475949999998,
+   "label": "after_case",
+   "pss_kib": 43298,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47196
+  },
+  {
+   "elapsed_ms": 2165.606649,
+   "label": "after_case",
+   "pss_kib": 43506,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47404
+  },
+  {
+   "elapsed_ms": 2318.1166439999997,
+   "label": "after_case",
+   "pss_kib": 43506,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47404
+  },
+  {
+   "elapsed_ms": 2447.376764,
+   "label": "after_case",
+   "pss_kib": 43510,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47408
+  },
+  {
+   "elapsed_ms": 2575.5284739999997,
+   "label": "after_case",
+   "pss_kib": 43510,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47408
+  },
+  {
+   "elapsed_ms": 2705.280187,
+   "label": "after_case",
+   "pss_kib": 43510,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47408
+  },
+  {
+   "elapsed_ms": 2825.816002,
+   "label": "after_case",
+   "pss_kib": 43510,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47408
+  },
+  {
+   "elapsed_ms": 2954.95644,
+   "label": "after_case",
+   "pss_kib": 43514,
+   "rss_hwm_kib": 48184,
+   "rss_kib": 47412
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-DISCOVERY-PREREGISTRATION.md",
+ "profile": "release",
+ "pss_end_kib": 43514,
+ "rows": [
+  {
+   "anchor_files": 26,
+   "anchor_parse_ms": 174.790574,
+   "candidates": 390,
+   "case_ms": 180.505428,
+   "closure_hash": "5c5d5851fe921905",
+   "closure_items": 21,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "diagnostics": {
+    "closure_items": 21,
+    "resolved": 22,
+    "unresolved": {
+     "invocation_receiver_type_missing": 735,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 2,
+   "id": "D01",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 655586,
+    "read_bytes": 0,
+    "syscr": 56,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    9,
+    0
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 21,
+   "anchor_parse_ms": 117.565304,
+   "candidates": 500,
+   "case_ms": 121.25374699999999,
+   "closure_hash": "f371af4bf83075a6",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 3,
+    "250": 5,
+    "50": 3,
+    "500": 5
+   },
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 681,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 6,
+   "id": "D02",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 461573,
+    "read_bytes": 0,
+    "syscr": 46,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    166,
+    166,
+    40,
+    40,
+    45,
+    null
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 29,
+   "anchor_parse_ms": 176.377485,
+   "candidates": 385,
+   "case_ms": 182.06797799999998,
+   "closure_hash": "dc8de266d676c331",
+   "closure_items": 25,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 25,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 725,
+     "sql_binding_not_resolved": 16,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 1,
+   "id": "D03",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 663634,
+    "read_bytes": 0,
+    "syscr": 60,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    148
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 28,
+   "anchor_parse_ms": 153.977176,
+   "candidates": 344,
+   "case_ms": 160.121783,
+   "closure_hash": "079a10b9af31b817",
+   "closure_items": 26,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 660,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 39
+    }
+   },
+   "gold": 1,
+   "id": "D04",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 562987,
+    "read_bytes": 0,
+    "syscr": 60,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    4
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 21,
+   "anchor_parse_ms": 137.810235,
+   "candidates": 274,
+   "case_ms": 141.235825,
+   "closure_hash": "4dfbd1e35ce8dca7",
+   "closure_items": 29,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 29,
+    "resolved": 30,
+    "unresolved": {
+     "invocation_receiver_type_missing": 481,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 28
+    }
+   },
+   "gold": 1,
+   "id": "D05",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 527433,
+    "read_bytes": 0,
+    "syscr": 46,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    131
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 19,
+   "anchor_parse_ms": 141.441279,
+   "candidates": 271,
+   "case_ms": 144.63135,
+   "closure_hash": "6eca00c90fb9e71d",
+   "closure_items": 15,
+   "coverage": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "diagnostics": {
+    "closure_items": 15,
+    "resolved": 16,
+    "unresolved": {
+     "invocation_receiver_type_missing": 525,
+     "sql_binding_not_resolved": 8,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 3,
+   "id": "D06",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 546613,
+    "read_bytes": 0,
+    "syscr": 42,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    4,
+    4,
+    48
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 33,
+   "anchor_parse_ms": 147.779431,
+   "candidates": 500,
+   "case_ms": 151.87248400000001,
+   "closure_hash": "60c9531e3be593e0",
+   "closure_items": 338,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 3
+   },
+   "diagnostics": {
+    "closure_items": 338,
+    "resolved": 32,
+    "unresolved": {
+     "invocation_receiver_type_missing": 793,
+     "sql_binding_not_resolved": 7,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 3,
+   "id": "D07",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 531541,
+    "read_bytes": 0,
+    "syscr": 66,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    175,
+    313,
+    423
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 19,
+   "anchor_parse_ms": 124.844386,
+   "candidates": 307,
+   "case_ms": 128.322421,
+   "closure_hash": "7bfd159f8e5c74fe",
+   "closure_items": 26,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 531,
+     "sql_binding_not_resolved": 11,
+     "type_decl_missing": 35
+    }
+   },
+   "gold": 2,
+   "id": "D08",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 462138,
+    "read_bytes": 0,
+    "syscr": 42,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    0,
+    3
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 28,
+   "anchor_parse_ms": 123.804166,
+   "candidates": 500,
+   "case_ms": 127.578838,
+   "closure_hash": "7ee3b3b2d2e0eb5a",
+   "closure_items": 323,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 323,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 477,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 38
+    }
+   },
+   "gold": 1,
+   "id": "D09",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 447676,
+    "read_bytes": 0,
+    "syscr": 58,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    364
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 25,
+   "anchor_parse_ms": 125.62838900000001,
+   "candidates": 500,
+   "case_ms": 129.058467,
+   "closure_hash": "ea4503fd4948e3d8",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 453,
+     "sql_binding_not_resolved": 3,
+     "type_decl_missing": 36
+    }
+   },
+   "gold": 2,
+   "id": "D10",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 448041,
+    "read_bytes": 0,
+    "syscr": 54,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    51,
+    36
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 17,
+   "anchor_parse_ms": 116.737304,
+   "candidates": 257,
+   "case_ms": 119.871307,
+   "closure_hash": "da8bddf6928e0a75",
+   "closure_items": 27,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 27,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 467,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 33
+    }
+   },
+   "gold": 1,
+   "id": "D11",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 437291,
+    "read_bytes": 0,
+    "syscr": 38,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    3
+   ],
+   "rounds": 0
+  },
+  {
+   "anchor_files": 17,
+   "anchor_parse_ms": 125.57234000000001,
+   "candidates": 234,
+   "case_ms": 128.39045,
+   "closure_hash": "73a9a4d613c6382c",
+   "closure_items": 16,
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 16,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 419,
+     "sql_binding_not_resolved": 4,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 2,
+   "id": "D12",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 422567,
+    "read_bytes": 0,
+    "syscr": 36,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "lookup_ms": 0.0,
+   "ranks": [
+    41,
+    null
+   ],
+   "rounds": 0
+  }
+ ],
+ "rss_hwm_kib": 48184,
+ "schema_version": "1.0",
+ "search_calls": 0,
+ "source_root": "/home/masis/.local/share/zvec-grep/rag-impact/20261109-onindex/workspace",
+ "status": "ONINDEX_CODE_FULL_CONTROL",
+ "totals": {
+  "10": 8,
+  "100": 15,
+  "250": 20,
+  "50": 14,
+  "500": 23
+ },
+ "workspace": "/home/masis/.local/share/zvec-grep/rag-impact/20261109-onindex/workspace"
+}

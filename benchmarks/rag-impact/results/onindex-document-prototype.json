@@ -1,0 +1,172 @@
+{
+ "base": "9444eed",
+ "bounded_max_groups": 8,
+ "branch": "work/onindex",
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "fixtures": 5,
+ "measurement": "one mode per process; pre-built index opened read-only (refresh=off) for the index arm",
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-DISCOVERY-PREREGISTRATION.md",
+ "profile": "release",
+ "rows": [
+  {
+   "groups": [
+    {
+     "end_line": 7,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Markdown",
+      "group": "Handbook > Payroll",
+      "heading_level": "2",
+      "heading_path": "Handbook > Payroll"
+     },
+     "start_line": 4
+    },
+    {
+     "end_line": 11,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Markdown",
+      "group": "Handbook > Leave",
+      "heading_level": "2",
+      "heading_path": "Handbook > Leave"
+     },
+     "start_line": 8
+    }
+   ],
+   "matched_lines": [
+    7,
+    11
+   ],
+   "path": "docs/handbook.md"
+  },
+  {
+   "groups": [
+    {
+     "end_line": 3,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Json",
+      "group": "key:retry",
+      "key_path": "retry"
+     },
+     "start_line": 3
+    },
+    {
+     "end_line": 8,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Json",
+      "group": "key:value",
+      "key_path": "value"
+     },
+     "start_line": 8
+    }
+   ],
+   "matched_lines": [
+    3,
+    8
+   ],
+   "path": "config/service.json"
+  },
+  {
+   "groups": [
+    {
+     "end_line": 2,
+     "kind": "Document",
+     "provenance": {
+      "columns": "employee_id,name,department",
+      "document_kind": "Csv",
+      "group": "row:42",
+      "key": "42",
+      "row": "2"
+     },
+     "start_line": 2
+    },
+    {
+     "end_line": 4,
+     "kind": "Document",
+     "provenance": {
+      "columns": "employee_id,name,department",
+      "document_kind": "Csv",
+      "group": "row:44",
+      "key": "44",
+      "row": "4"
+     },
+     "start_line": 4
+    }
+   ],
+   "matched_lines": [
+    2,
+    4
+   ],
+   "path": "data/employees.csv"
+  },
+  {
+   "groups": [
+    {
+     "end_line": 1,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Log",
+      "event": "sync",
+      "group": "event:2026-11-09T10:00:00Z:INFO:sync",
+      "level": "INFO",
+      "timestamp": "2026-11-09T10:00:00Z"
+     },
+     "start_line": 1
+    },
+    {
+     "end_line": 2,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Log",
+      "event": "sync",
+      "group": "event:2026-11-09T10:00:01Z:ERROR:sync",
+      "level": "ERROR",
+      "timestamp": "2026-11-09T10:00:01Z"
+     },
+     "start_line": 2
+    },
+    {
+     "end_line": 3,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Log",
+      "event": "leave",
+      "group": "event:2026-11-09T10:00:02Z:INFO:leave",
+      "level": "INFO",
+      "timestamp": "2026-11-09T10:00:02Z"
+     },
+     "start_line": 3
+    }
+   ],
+   "matched_lines": [
+    1,
+    2,
+    3
+   ],
+   "path": "logs/sync.log"
+  },
+  {
+   "groups": [
+    {
+     "end_line": 3,
+     "kind": "Document",
+     "provenance": {
+      "document_kind": "Text",
+      "group": "text",
+      "matched_by": "text"
+     },
+     "start_line": 2
+    }
+   ],
+   "matched_lines": [
+    2,
+    3
+   ],
+   "path": "notes.txt"
+  }
+ ],
+ "schema_version": "1.0",
+ "status": "ONINDEX_DOCUMENT_PROTOTYPE"
+}
