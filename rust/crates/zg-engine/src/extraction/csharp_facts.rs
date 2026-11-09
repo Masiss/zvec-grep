@@ -11,6 +11,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
+use std::sync::Arc;
 
 use tree_sitter::{Node, Parser};
 
@@ -160,8 +161,8 @@ pub struct FieldFact {
 
 #[derive(Debug, Clone, Default)]
 pub struct ProjectScope {
-    pub fields_by_type: HashMap<(String, String), HashMap<String, String>>,
-    pub db_sets: Vec<DbSetFact>,
+    pub fields_by_type: Arc<HashMap<(String, String), HashMap<String, String>>>,
+    pub db_sets: Arc<Vec<DbSetFact>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,7 +172,7 @@ pub struct FileFacts {
     pub namespace: Option<String>,
     pub types: Vec<TypeFact>,
     pub methods: Vec<MethodFact>,
-    pub db_sets: Vec<DbSetFact>,
+    pub db_sets: Arc<Vec<DbSetFact>>,
     pub fields: Vec<FieldFact>,
     pub assignments: Vec<AssignmentFact>,
     pub invocations: Vec<InvocationFact>,
@@ -233,7 +234,7 @@ pub fn build_declaration_index(
         let facts = parse_file(project, path, source);
         declarations.types.extend(facts.types);
         declarations.fields.extend(facts.fields);
-        declarations.db_sets.extend(facts.db_sets);
+        declarations.db_sets.extend(facts.db_sets.iter().cloned());
     }
     declarations.types.sort_by(|left, right| {
         left.path
@@ -281,8 +282,8 @@ pub fn parse_anchor_facts(
             .insert(field.name.clone(), field.field_type.clone());
     }
     let scope = ProjectScope {
-        fields_by_type,
-        db_sets: declarations.db_sets.clone(),
+        fields_by_type: Arc::new(fields_by_type),
+        db_sets: Arc::new(declarations.db_sets.clone()),
     };
     let mut parsed = Vec::new();
     for (path, source) in files {
@@ -290,7 +291,10 @@ pub fn parse_anchor_facts(
             continue;
         }
         let mut facts = parse_file_with_scope(project, path, source, &scope);
-        facts.db_sets.clear();
+        // Anchor facts keep no project-scoped DbSet copy; the closure reads the
+        // declaration index directly. Replacing the shared Arc keeps the
+        // pre-optimization FileFacts shape without copying it per file.
+        facts.db_sets = Arc::new(Vec::new());
         parsed.push(facts);
     }
     let mut project_facts = ProjectFacts {
@@ -344,7 +348,7 @@ struct Context {
     locals: HashMap<String, String>,
     params: HashMap<String, String>,
     fields: HashMap<String, String>,
-    shared_fields: HashMap<(String, String), HashMap<String, String>>,
+    shared_fields: Arc<HashMap<(String, String), HashMap<String, String>>>,
 }
 
 impl Context {
@@ -383,7 +387,7 @@ fn parse_file_with_scope(
         namespace: None,
         types: Vec::new(),
         methods: Vec::new(),
-        db_sets: scope.db_sets.clone(),
+        db_sets: Arc::clone(&scope.db_sets),
         fields: Vec::new(),
         assignments: Vec::new(),
         invocations: Vec::new(),
@@ -403,7 +407,7 @@ fn parse_file_with_scope(
     };
     facts.parse_error = tree.root_node().has_error();
     let mut context = Context {
-        shared_fields: scope.fields_by_type.clone(),
+        shared_fields: Arc::clone(&scope.fields_by_type),
         ..Context::default()
     };
     walk(tree.root_node(), source, &mut context, project, &mut facts);
@@ -452,7 +456,7 @@ pub fn parse_project_with_references(
                 .or_default();
             entry.insert(field.name.clone(), field.field_type.clone());
         }
-        for db_set in &file.db_sets {
+        for db_set in file.db_sets.iter() {
             if !db_sets.iter().any(|existing: &DbSetFact| {
                 existing.context_type == db_set.context_type && existing.property == db_set.property
             }) {
@@ -461,8 +465,8 @@ pub fn parse_project_with_references(
         }
     }
     let scope = ProjectScope {
-        fields_by_type,
-        db_sets,
+        fields_by_type: Arc::new(fields_by_type),
+        db_sets: Arc::new(db_sets),
     };
     let parsed: Vec<FileFacts> = files
         .iter()
@@ -482,7 +486,7 @@ pub fn parse_project_with_references(
     for file in &parsed {
         project_facts.types.extend(file.types.clone());
         project_facts.methods.extend(file.methods.clone());
-        project_facts.db_sets.extend(file.db_sets.clone());
+        project_facts.db_sets.extend(file.db_sets.iter().cloned());
         project_facts.fields.extend(file.fields.clone());
         project_facts.assignments.extend(file.assignments.clone());
         project_facts.invocations.extend(file.invocations.clone());
@@ -901,7 +905,7 @@ fn record_property(node: Node<'_>, source: &str, context: &mut Context, out: &mu
         return;
     }
     if let Some(element) = db_set_element(&type_text) {
-        out.db_sets.push(DbSetFact {
+        Arc::make_mut(&mut out.db_sets).push(DbSetFact {
             path: out.path.clone(),
             context_type: context.type_name(),
             property: name.clone(),
