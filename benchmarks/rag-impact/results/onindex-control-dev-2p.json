@@ -1,0 +1,1672 @@
+{
+ "base": "59bc712",
+ "branch": "work/onindex",
+ "case_count": 12,
+ "cold_declarations": {
+  "cpu_ms": 1370,
+  "elapsed_ms": 1378.97723,
+  "label": "declarations_built",
+  "pss_kib": 36779,
+  "rss_hwm_kib": 40668,
+  "rss_kib": 40668
+ },
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "cpu_ms_total": 5110,
+ "determinism": {
+  "identical": true,
+  "passes": 2
+ },
+ "diagnostics": {
+  "invocation_receiver_type_missing": 6947,
+  "sql_binding_not_resolved": 105,
+  "type_decl_missing": 461
+ },
+ "end": {
+  "cpu_ms": 5110,
+  "elapsed_ms": 5125.7474,
+  "label": "end",
+  "pss_kib": 43991,
+  "rss_hwm_kib": 47880,
+  "rss_kib": 47880
+ },
+ "gold_total": 25,
+ "macro_recall": 0.9444444444444445,
+ "micro_recall": 23,
+ "per_case_ms": {
+  "p50": 149.107243,
+  "p95": 182.479473
+ },
+ "phase_stats": {
+  "anchor_parse_ms": {
+   "p50_ms": 145.174962,
+   "p95_ms": 175.704485
+  },
+  "anchor_read_ms": {
+   "p50_ms": 0.275894,
+   "p95_ms": 0.311756
+  },
+  "case_ms": {
+   "p50_ms": 149.107243,
+   "p95_ms": 182.479473
+  },
+  "closure_ms": {
+   "p50_ms": 2.945868,
+   "p95_ms": 5.368256
+  },
+  "delivery_ms": {
+   "p50_ms": 0.072784,
+   "p95_ms": 0.107526
+  }
+ },
+ "phases": [
+  {
+   "cpu_ms": 0,
+   "elapsed_ms": 0.033708,
+   "label": "process_start",
+   "pss_kib": 20007,
+   "rss_hwm_kib": 23896,
+   "rss_kib": 23768
+  },
+  {
+   "cpu_ms": 0,
+   "elapsed_ms": 1.4146079999999999,
+   "label": "corpus_loaded",
+   "pss_kib": 22187,
+   "rss_hwm_kib": 26076,
+   "rss_kib": 26076
+  },
+  {
+   "cpu_ms": 0,
+   "elapsed_ms": 2.159024,
+   "label": "cases_loaded",
+   "pss_kib": 22343,
+   "rss_hwm_kib": 26232,
+   "rss_kib": 26232
+  },
+  {
+   "cpu_ms": 90,
+   "db_sets": 234,
+   "elapsed_ms": 94.988426,
+   "fields": 4492,
+   "files": 164,
+   "io": {
+    "cancelled_write_bytes": 0,
+    "rchar": 317678,
+    "read_bytes": 0,
+    "syscr": 363,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "label": "declarations_P3",
+   "pss_kib": 28595,
+   "rss_hwm_kib": 32484,
+   "rss_kib": 32484,
+   "source_bytes": 298068,
+   "types": 254
+  },
+  {
+   "cpu_ms": 720,
+   "db_sets": 0,
+   "elapsed_ms": 722.1067909999999,
+   "fields": 3561,
+   "files": 426,
+   "io": {
+    "cancelled_write_bytes": 0,
+    "rchar": 2571123,
+    "read_bytes": 0,
+    "syscr": 887,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "label": "declarations_P2",
+   "pss_kib": 36655,
+   "rss_hwm_kib": 40544,
+   "rss_kib": 40544,
+   "source_bytes": 2523068,
+   "types": 832
+  },
+  {
+   "cpu_ms": 560,
+   "db_sets": 0,
+   "elapsed_ms": 558.094962,
+   "fields": 636,
+   "files": 227,
+   "io": {
+    "cancelled_write_bytes": 0,
+    "rchar": 2520554,
+    "read_bytes": 0,
+    "syscr": 489,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "label": "declarations_P1",
+   "pss_kib": 36779,
+   "rss_hwm_kib": 40668,
+   "rss_kib": 40668,
+   "source_bytes": 2070492,
+   "types": 286
+  },
+  {
+   "case_id": "D01",
+   "cpu_ms": 1590,
+   "elapsed_ms": 1593.867779,
+   "label": "after_cold_case",
+   "pss_kib": 41703,
+   "rss_hwm_kib": 46048,
+   "rss_kib": 45592
+  },
+  {
+   "case_id": "D02",
+   "cpu_ms": 1730,
+   "elapsed_ms": 1737.404936,
+   "label": "after_cold_pass",
+   "pss_kib": 42587,
+   "rss_hwm_kib": 46476,
+   "rss_kib": 46476
+  },
+  {
+   "case_id": "D03",
+   "cpu_ms": 1940,
+   "elapsed_ms": 1944.452144,
+   "label": "after_cold_pass",
+   "pss_kib": 43287,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47176
+  },
+  {
+   "case_id": "D04",
+   "cpu_ms": 2110,
+   "elapsed_ms": 2114.167617,
+   "label": "after_cold_pass",
+   "pss_kib": 43295,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47184
+  },
+  {
+   "case_id": "D05",
+   "cpu_ms": 2250,
+   "elapsed_ms": 2263.621718,
+   "label": "after_cold_pass",
+   "pss_kib": 43295,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47184
+  },
+  {
+   "case_id": "D06",
+   "cpu_ms": 2420,
+   "elapsed_ms": 2428.01563,
+   "label": "after_cold_pass",
+   "pss_kib": 43299,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47188
+  },
+  {
+   "case_id": "D07",
+   "cpu_ms": 2570,
+   "elapsed_ms": 2578.868861,
+   "label": "after_cold_pass",
+   "pss_kib": 43299,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47188
+  },
+  {
+   "case_id": "D08",
+   "cpu_ms": 2710,
+   "elapsed_ms": 2720.833119,
+   "label": "after_cold_pass",
+   "pss_kib": 43303,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47192
+  },
+  {
+   "case_id": "D09",
+   "cpu_ms": 2860,
+   "elapsed_ms": 2877.694612,
+   "label": "after_cold_pass",
+   "pss_kib": 43303,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47192
+  },
+  {
+   "case_id": "D10",
+   "cpu_ms": 3010,
+   "elapsed_ms": 3022.797966,
+   "label": "after_cold_pass",
+   "pss_kib": 43307,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47196
+  },
+  {
+   "case_id": "D11",
+   "cpu_ms": 3130,
+   "elapsed_ms": 3140.303838,
+   "label": "after_cold_pass",
+   "pss_kib": 43307,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47196
+  },
+  {
+   "case_id": "D12",
+   "cpu_ms": 3260,
+   "elapsed_ms": 3268.854793,
+   "label": "after_cold_pass",
+   "pss_kib": 43311,
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47200
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md",
+ "profile": "release",
+ "provenance_ok": true,
+ "pss_end_kib": 44055,
+ "rows": [
+  {
+   "anchor_bytes": 655478,
+   "anchor_files": 26,
+   "candidates": 390,
+   "closure_hash": "5c5d5851fe921905",
+   "closure_items": 21,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "cpu_ms": 210,
+   "delivery_bytes": 69086,
+   "diagnostics": {
+    "closure_items": 21,
+    "resolved": 22,
+    "unresolved": {
+     "invocation_receiver_type_missing": 735,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 2,
+   "id": "D01",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 655581,
+    "read_bytes": 0,
+    "syscr": 56,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 203.133698,
+    "anchor_read_ms": 0.307907,
+    "case_ms": 211.42755599999998,
+    "closure_ms": 7.571351,
+    "delivery_ms": 0.08462599999999999
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 21,
+    "closure_reasons_ok": 21,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43123,
+   "ranks": [
+    9,
+    0
+   ],
+   "rss_hwm_kib": 47012,
+   "rss_kib": 47012
+  },
+  {
+   "anchor_bytes": 461465,
+   "anchor_files": 21,
+   "candidates": 500,
+   "closure_hash": "f371af4bf83075a6",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 3,
+    "250": 5,
+    "50": 3,
+    "500": 5
+   },
+   "cpu_ms": 140,
+   "delivery_bytes": 176299,
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 681,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 6,
+   "id": "D02",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 461568,
+    "read_bytes": 0,
+    "syscr": 46,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 137.660395,
+    "anchor_read_ms": 0.246422,
+    "case_ms": 141.794965,
+    "closure_ms": 3.4637029999999998,
+    "delivery_ms": 0.116304
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 326,
+    "closure_reasons_ok": 326,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 42587,
+   "ranks": [
+    166,
+    166,
+    40,
+    40,
+    45,
+    null
+   ],
+   "rss_hwm_kib": 46476,
+   "rss_kib": 46476
+  },
+  {
+   "anchor_bytes": 663526,
+   "anchor_files": 29,
+   "candidates": 385,
+   "closure_hash": "dc8de266d676c331",
+   "closure_items": 25,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 210,
+   "delivery_bytes": 69530,
+   "diagnostics": {
+    "closure_items": 25,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 725,
+     "sql_binding_not_resolved": 16,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 1,
+   "id": "D03",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 663629,
+    "read_bytes": 0,
+    "syscr": 60,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 198.30398599999998,
+    "anchor_read_ms": 0.31234999999999996,
+    "case_ms": 204.844031,
+    "closure_ms": 5.957231999999999,
+    "delivery_ms": 0.066857
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 25,
+    "closure_reasons_ok": 25,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 44731,
+   "ranks": [
+    148
+   ],
+   "rss_hwm_kib": 48620,
+   "rss_kib": 48620
+  },
+  {
+   "anchor_bytes": 562879,
+   "anchor_files": 28,
+   "candidates": 344,
+   "closure_hash": "079a10b9af31b817",
+   "closure_items": 26,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 170,
+   "delivery_bytes": 69865,
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 660,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 39
+    }
+   },
+   "gold": 1,
+   "id": "D04",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 562982,
+    "read_bytes": 0,
+    "syscr": 60,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 163.707959,
+    "anchor_read_ms": 0.27299399999999996,
+    "case_ms": 167.889788,
+    "closure_ms": 3.694278,
+    "delivery_ms": 0.052161
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 26,
+    "closure_reasons_ok": 26,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43295,
+   "ranks": [
+    4
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47184
+  },
+  {
+   "anchor_bytes": 527324,
+   "anchor_files": 21,
+   "candidates": 274,
+   "closure_hash": "4dfbd1e35ce8dca7",
+   "closure_items": 29,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 140,
+   "delivery_bytes": 57517,
+   "diagnostics": {
+    "closure_items": 29,
+    "resolved": 30,
+    "unresolved": {
+     "invocation_receiver_type_missing": 481,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 28
+    }
+   },
+   "gold": 1,
+   "id": "D05",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 527428,
+    "read_bytes": 0,
+    "syscr": 46,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 144.43935,
+    "anchor_read_ms": 0.346262,
+    "case_ms": 147.700288,
+    "closure_ms": 2.7275720000000003,
+    "delivery_ms": 0.040621000000000004
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 29,
+    "closure_reasons_ok": 29,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43295,
+   "ranks": [
+    131
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47184
+  },
+  {
+   "anchor_bytes": 546504,
+   "anchor_files": 19,
+   "candidates": 271,
+   "closure_hash": "6eca00c90fb9e71d",
+   "closure_items": 15,
+   "coverage": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "cpu_ms": 170,
+   "delivery_bytes": 48918,
+   "diagnostics": {
+    "closure_items": 15,
+    "resolved": 16,
+    "unresolved": {
+     "invocation_receiver_type_missing": 525,
+     "sql_binding_not_resolved": 8,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 3,
+   "id": "D06",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 546608,
+    "read_bytes": 0,
+    "syscr": 42,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 159.58662800000002,
+    "anchor_read_ms": 0.276169,
+    "case_ms": 162.6118,
+    "closure_ms": 2.5705340000000003,
+    "delivery_ms": 0.03913
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 15,
+    "closure_reasons_ok": 15,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43299,
+   "ranks": [
+    4,
+    4,
+    48
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47188
+  },
+  {
+   "anchor_bytes": 531432,
+   "anchor_files": 33,
+   "candidates": 500,
+   "closure_hash": "60c9531e3be593e0",
+   "closure_items": 338,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 3
+   },
+   "cpu_ms": 140,
+   "delivery_bytes": 182782,
+   "diagnostics": {
+    "closure_items": 338,
+    "resolved": 32,
+    "unresolved": {
+     "invocation_receiver_type_missing": 793,
+     "sql_binding_not_resolved": 7,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 3,
+   "id": "D07",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 531536,
+    "read_bytes": 0,
+    "syscr": 66,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 144.524425,
+    "anchor_read_ms": 0.28902700000000003,
+    "case_ms": 148.601923,
+    "closure_ms": 3.308277,
+    "delivery_ms": 0.130853
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 338,
+    "closure_reasons_ok": 338,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43299,
+   "ranks": [
+    175,
+    313,
+    423
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47188
+  },
+  {
+   "anchor_bytes": 462029,
+   "anchor_files": 19,
+   "candidates": 307,
+   "closure_hash": "7bfd159f8e5c74fe",
+   "closure_items": 26,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "cpu_ms": 140,
+   "delivery_bytes": 61797,
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 531,
+     "sql_binding_not_resolved": 11,
+     "type_decl_missing": 35
+    }
+   },
+   "gold": 2,
+   "id": "D08",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 462133,
+    "read_bytes": 0,
+    "syscr": 42,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 136.318478,
+    "anchor_read_ms": 0.30099,
+    "case_ms": 139.947253,
+    "closure_ms": 3.10113,
+    "delivery_ms": 0.052479
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 26,
+    "closure_reasons_ok": 26,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43303,
+   "ranks": [
+    0,
+    3
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47192
+  },
+  {
+   "anchor_bytes": 447567,
+   "anchor_files": 28,
+   "candidates": 500,
+   "closure_hash": "7ee3b3b2d2e0eb5a",
+   "closure_items": 323,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 150,
+   "delivery_bytes": 177345,
+   "diagnostics": {
+    "closure_items": 323,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 477,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 38
+    }
+   },
+   "gold": 1,
+   "id": "D09",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 447671,
+    "read_bytes": 0,
+    "syscr": 58,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 149.82427900000002,
+    "anchor_read_ms": 0.268156,
+    "case_ms": 154.90468299999998,
+    "closure_ms": 4.334188,
+    "delivery_ms": 0.128106
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 323,
+    "closure_reasons_ok": 323,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43303,
+   "ranks": [
+    364
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47192
+  },
+  {
+   "anchor_bytes": 447932,
+   "anchor_files": 25,
+   "candidates": 500,
+   "closure_hash": "ea4503fd4948e3d8",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "cpu_ms": 140,
+   "delivery_bytes": 178694,
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 453,
+     "sql_binding_not_resolved": 3,
+     "type_decl_missing": 36
+    }
+   },
+   "gold": 2,
+   "id": "D10",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 448036,
+    "read_bytes": 0,
+    "syscr": 54,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 139.955038,
+    "anchor_read_ms": 0.320897,
+    "case_ms": 143.364071,
+    "closure_ms": 2.68436,
+    "delivery_ms": 0.111355
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 326,
+    "closure_reasons_ok": 326,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43307,
+   "ranks": [
+    51,
+    36
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47196
+  },
+  {
+   "anchor_bytes": 437182,
+   "anchor_files": 17,
+   "candidates": 257,
+   "closure_hash": "da8bddf6928e0a75",
+   "closure_items": 27,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 110,
+   "delivery_bytes": 51650,
+   "diagnostics": {
+    "closure_items": 27,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 467,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 33
+    }
+   },
+   "gold": 1,
+   "id": "D11",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 437286,
+    "read_bytes": 0,
+    "syscr": 38,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 113.11461100000001,
+    "anchor_read_ms": 0.227459,
+    "case_ms": 115.92651599999999,
+    "closure_ms": 2.414015,
+    "delivery_ms": 0.036967
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 27,
+    "closure_reasons_ok": 27,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43307,
+   "ranks": [
+    3
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47196
+  },
+  {
+   "anchor_bytes": 422458,
+   "anchor_files": 17,
+   "candidates": 234,
+   "closure_hash": "73a9a4d613c6382c",
+   "closure_items": 16,
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 130,
+   "delivery_bytes": 43046,
+   "diagnostics": {
+    "closure_items": 16,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 419,
+     "sql_binding_not_resolved": 4,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 2,
+   "id": "D12",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 422562,
+    "read_bytes": 0,
+    "syscr": 36,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 122.088611,
+    "anchor_read_ms": 0.224193,
+    "case_ms": 126.22788800000001,
+    "closure_ms": 3.6727589999999997,
+    "delivery_ms": 0.058148
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 16,
+    "closure_reasons_ok": 16,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43311,
+   "ranks": [
+    41,
+    null
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47200
+  },
+  {
+   "anchor_bytes": 655478,
+   "anchor_files": 26,
+   "candidates": 390,
+   "closure_hash": "5c5d5851fe921905",
+   "closure_items": 21,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "cpu_ms": 230,
+   "delivery_bytes": 69086,
+   "diagnostics": {
+    "closure_items": 21,
+    "resolved": 22,
+    "unresolved": {
+     "invocation_receiver_type_missing": 735,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 2,
+   "id": "D01",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 655582,
+    "read_bytes": 0,
+    "syscr": 56,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 231.34532299999998,
+    "anchor_read_ms": 0.460646,
+    "case_ms": 237.474671,
+    "closure_ms": 5.368256,
+    "delivery_ms": 0.06664300000000001
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 21,
+    "closure_reasons_ok": 21,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43683,
+   "ranks": [
+    9,
+    0
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47572
+  },
+  {
+   "anchor_bytes": 461465,
+   "anchor_files": 21,
+   "candidates": 500,
+   "closure_hash": "f371af4bf83075a6",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 3,
+    "250": 5,
+    "50": 3,
+    "500": 5
+   },
+   "cpu_ms": 140,
+   "delivery_bytes": 176299,
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 681,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 6,
+   "id": "D02",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 461569,
+    "read_bytes": 0,
+    "syscr": 46,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 136.19895300000002,
+    "anchor_read_ms": 0.274245,
+    "case_ms": 139.836386,
+    "closure_ms": 2.945868,
+    "delivery_ms": 0.096195
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 326,
+    "closure_reasons_ok": 326,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43683,
+   "ranks": [
+    166,
+    166,
+    40,
+    40,
+    45,
+    null
+   ],
+   "rss_hwm_kib": 47648,
+   "rss_kib": 47572
+  },
+  {
+   "anchor_bytes": 663526,
+   "anchor_files": 29,
+   "candidates": 385,
+   "closure_hash": "dc8de266d676c331",
+   "closure_items": 25,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 180,
+   "delivery_bytes": 69530,
+   "diagnostics": {
+    "closure_items": 25,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 725,
+     "sql_binding_not_resolved": 16,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 1,
+   "id": "D03",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 663630,
+    "read_bytes": 0,
+    "syscr": 60,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 175.704485,
+    "anchor_read_ms": 0.311756,
+    "case_ms": 182.479473,
+    "closure_ms": 6.134771,
+    "delivery_ms": 0.10222400000000001
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 25,
+    "closure_reasons_ok": 25,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43987,
+   "ranks": [
+    148
+   ],
+   "rss_hwm_kib": 47876,
+   "rss_kib": 47876
+  },
+  {
+   "anchor_bytes": 562879,
+   "anchor_files": 28,
+   "candidates": 344,
+   "closure_hash": "079a10b9af31b817",
+   "closure_items": 26,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 180,
+   "delivery_bytes": 69865,
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 660,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 39
+    }
+   },
+   "gold": 1,
+   "id": "D04",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 562983,
+    "read_bytes": 0,
+    "syscr": 60,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 174.49421800000002,
+    "anchor_read_ms": 0.275894,
+    "case_ms": 180.208561,
+    "closure_ms": 5.145239,
+    "delivery_ms": 0.072784
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 26,
+    "closure_reasons_ok": 26,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    4
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 527324,
+   "anchor_files": 21,
+   "candidates": 274,
+   "closure_hash": "4dfbd1e35ce8dca7",
+   "closure_items": 29,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 150,
+   "delivery_bytes": 57517,
+   "diagnostics": {
+    "closure_items": 29,
+    "resolved": 30,
+    "unresolved": {
+     "invocation_receiver_type_missing": 481,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 28
+    }
+   },
+   "gold": 1,
+   "id": "D05",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 527428,
+    "read_bytes": 0,
+    "syscr": 46,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 150.85394499999998,
+    "anchor_read_ms": 0.285036,
+    "case_ms": 154.2344,
+    "closure_ms": 2.89691,
+    "delivery_ms": 0.0458
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 29,
+    "closure_reasons_ok": 29,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    131
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 546504,
+   "anchor_files": 19,
+   "candidates": 271,
+   "closure_hash": "6eca00c90fb9e71d",
+   "closure_items": 15,
+   "coverage": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "cpu_ms": 160,
+   "delivery_bytes": 48918,
+   "diagnostics": {
+    "closure_items": 15,
+    "resolved": 16,
+    "unresolved": {
+     "invocation_receiver_type_missing": 525,
+     "sql_binding_not_resolved": 8,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 3,
+   "id": "D06",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 546608,
+    "read_bytes": 0,
+    "syscr": 42,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 148.918487,
+    "anchor_read_ms": 0.26155,
+    "case_ms": 151.849562,
+    "closure_ms": 2.4617910000000003,
+    "delivery_ms": 0.038151000000000004
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 15,
+    "closure_reasons_ok": 15,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    4,
+    4,
+    48
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 531432,
+   "anchor_files": 33,
+   "candidates": 500,
+   "closure_hash": "60c9531e3be593e0",
+   "closure_items": 338,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 3
+   },
+   "cpu_ms": 150,
+   "delivery_bytes": 182782,
+   "diagnostics": {
+    "closure_items": 338,
+    "resolved": 32,
+    "unresolved": {
+     "invocation_receiver_type_missing": 793,
+     "sql_binding_not_resolved": 7,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 3,
+   "id": "D07",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 531536,
+    "read_bytes": 0,
+    "syscr": 66,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 145.174962,
+    "anchor_read_ms": 0.308871,
+    "case_ms": 149.107243,
+    "closure_ms": 3.207869,
+    "delivery_ms": 0.107236
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 338,
+    "closure_reasons_ok": 338,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    175,
+    313,
+    423
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 462029,
+   "anchor_files": 19,
+   "candidates": 307,
+   "closure_hash": "7bfd159f8e5c74fe",
+   "closure_items": 26,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "cpu_ms": 120,
+   "delivery_bytes": 61797,
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 531,
+     "sql_binding_not_resolved": 11,
+     "type_decl_missing": 35
+    }
+   },
+   "gold": 2,
+   "id": "D08",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 462133,
+    "read_bytes": 0,
+    "syscr": 42,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 124.91804099999999,
+    "anchor_read_ms": 0.24548,
+    "case_ms": 128.140432,
+    "closure_ms": 2.777129,
+    "delivery_ms": 0.045856999999999995
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 26,
+    "closure_reasons_ok": 26,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    0,
+    3
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 447567,
+   "anchor_files": 28,
+   "candidates": 500,
+   "closure_hash": "7ee3b3b2d2e0eb5a",
+   "closure_items": 323,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 140,
+   "delivery_bytes": 177345,
+   "diagnostics": {
+    "closure_items": 323,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 477,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 38
+    }
+   },
+   "gold": 1,
+   "id": "D09",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 447671,
+    "read_bytes": 0,
+    "syscr": 58,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 132.057119,
+    "anchor_read_ms": 0.247514,
+    "case_ms": 136.087376,
+    "closure_ms": 3.244932,
+    "delivery_ms": 0.152949
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 323,
+    "closure_reasons_ok": 323,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    364
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 447932,
+   "anchor_files": 25,
+   "candidates": 500,
+   "closure_hash": "ea4503fd4948e3d8",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "cpu_ms": 130,
+   "delivery_bytes": 178694,
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 453,
+     "sql_binding_not_resolved": 3,
+     "type_decl_missing": 36
+    }
+   },
+   "gold": 2,
+   "id": "D10",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 448036,
+    "read_bytes": 0,
+    "syscr": 54,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 127.656519,
+    "anchor_read_ms": 0.279551,
+    "case_ms": 131.17915299999999,
+    "closure_ms": 2.854943,
+    "delivery_ms": 0.107526
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 326,
+    "closure_reasons_ok": 326,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    51,
+    36
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 437182,
+   "anchor_files": 17,
+   "candidates": 257,
+   "closure_hash": "da8bddf6928e0a75",
+   "closure_items": 27,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 130,
+   "delivery_bytes": 51650,
+   "diagnostics": {
+    "closure_items": 27,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 467,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 33
+    }
+   },
+   "gold": 1,
+   "id": "D11",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 437286,
+    "read_bytes": 0,
+    "syscr": 38,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 127.90911399999999,
+    "anchor_read_ms": 0.231569,
+    "case_ms": 130.973691,
+    "closure_ms": 2.6439139999999997,
+    "delivery_ms": 0.039239
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 27,
+    "closure_reasons_ok": 27,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    3
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  },
+  {
+   "anchor_bytes": 422458,
+   "anchor_files": 17,
+   "candidates": 234,
+   "closure_hash": "73a9a4d613c6382c",
+   "closure_items": 16,
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 120,
+   "delivery_bytes": 43046,
+   "diagnostics": {
+    "closure_items": 16,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 419,
+     "sql_binding_not_resolved": 4,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 2,
+   "id": "D12",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 422562,
+    "read_bytes": 0,
+    "syscr": 36,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 1,
+   "phases": {
+    "anchor_parse_ms": 112.432566,
+    "anchor_read_ms": 0.22905399999999998,
+    "case_ms": 114.710956,
+    "closure_ms": 1.878214,
+    "delivery_ms": 0.036804
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 16,
+    "closure_reasons_ok": 16,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 43991,
+   "ranks": [
+    41,
+    null
+   ],
+   "rss_hwm_kib": 47880,
+   "rss_kib": 47880
+  }
+ ],
+ "rss_hwm_kib": 47944,
+ "schema_version": "1.0",
+ "status": "ONINDEX_CONTROL_QUALIFICATION",
+ "totals": {
+  "10": 8,
+  "100": 15,
+  "250": 20,
+  "50": 14,
+  "500": 23
+ },
+ "workload": "dev"
+}

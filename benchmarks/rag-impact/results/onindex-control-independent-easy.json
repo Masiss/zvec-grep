@@ -1,0 +1,500 @@
+{
+ "base": "59bc712",
+ "branch": "work/onindex",
+ "case_count": 5,
+ "cold_declarations": {
+  "cpu_ms": 1570,
+  "elapsed_ms": 1575.0710100000001,
+  "label": "declarations_built",
+  "pss_kib": 36587,
+  "rss_hwm_kib": 40476,
+  "rss_kib": 40476
+ },
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "cpu_ms_total": 5710,
+ "determinism": {
+  "identical": true,
+  "passes": 1
+ },
+ "diagnostics": {
+  "invocation_receiver_type_missing": 13126,
+  "sql_binding_not_resolved": 141,
+  "type_decl_missing": 439
+ },
+ "end": {
+  "cpu_ms": 5710,
+  "elapsed_ms": 5735.828958,
+  "label": "end",
+  "pss_kib": 59855,
+  "rss_hwm_kib": 66776,
+  "rss_kib": 63744
+ },
+ "gold_total": 5,
+ "macro_recall": 1.0,
+ "micro_recall": 5,
+ "per_case_ms": {
+  "p50": 682.3528210000001,
+  "p95": 1377.804101
+ },
+ "phase_stats": {
+  "anchor_parse_ms": {
+   "p50_ms": 640.2359560000001,
+   "p95_ms": 1284.356471
+  },
+  "anchor_read_ms": {
+   "p50_ms": 0.869463,
+   "p95_ms": 1.840735
+  },
+  "case_ms": {
+   "p50_ms": 682.3528210000001,
+   "p95_ms": 1377.804101
+  },
+  "closure_ms": {
+   "p50_ms": 44.38984,
+   "p95_ms": 92.302573
+  },
+  "delivery_ms": {
+   "p50_ms": 0.248957,
+   "p95_ms": 0.384996
+  }
+ },
+ "phases": [
+  {
+   "cpu_ms": 0,
+   "elapsed_ms": 0.049912,
+   "label": "process_start",
+   "pss_kib": 20019,
+   "rss_hwm_kib": 23908,
+   "rss_kib": 23780
+  },
+  {
+   "cpu_ms": 0,
+   "elapsed_ms": 2.812835,
+   "label": "corpus_loaded",
+   "pss_kib": 21879,
+   "rss_hwm_kib": 25768,
+   "rss_kib": 25768
+  },
+  {
+   "cpu_ms": 0,
+   "elapsed_ms": 3.834161,
+   "label": "cases_loaded",
+   "pss_kib": 22071,
+   "rss_hwm_kib": 25960,
+   "rss_kib": 25960
+  },
+  {
+   "cpu_ms": 100,
+   "db_sets": 234,
+   "elapsed_ms": 98.198716,
+   "fields": 4492,
+   "files": 164,
+   "io": {
+    "cancelled_write_bytes": 0,
+    "rchar": 317678,
+    "read_bytes": 0,
+    "syscr": 363,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "label": "declarations_P3",
+   "pss_kib": 28259,
+   "rss_hwm_kib": 32148,
+   "rss_kib": 32148,
+   "source_bytes": 298068,
+   "types": 254
+  },
+  {
+   "cpu_ms": 770,
+   "db_sets": 0,
+   "elapsed_ms": 776.37121,
+   "fields": 3561,
+   "files": 426,
+   "io": {
+    "cancelled_write_bytes": 0,
+    "rchar": 2571123,
+    "read_bytes": 0,
+    "syscr": 887,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "label": "declarations_P2",
+   "pss_kib": 36463,
+   "rss_hwm_kib": 40352,
+   "rss_kib": 40352,
+   "source_bytes": 2523068,
+   "types": 832
+  },
+  {
+   "cpu_ms": 700,
+   "db_sets": 0,
+   "elapsed_ms": 694.964118,
+   "fields": 636,
+   "files": 227,
+   "io": {
+    "cancelled_write_bytes": 0,
+    "rchar": 2520554,
+    "read_bytes": 0,
+    "syscr": 489,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "label": "declarations_P1",
+   "pss_kib": 36587,
+   "rss_hwm_kib": 40476,
+   "rss_kib": 40476,
+   "source_bytes": 2070492,
+   "types": 286
+  },
+  {
+   "case_id": "E1",
+   "cpu_ms": 2230,
+   "elapsed_ms": 2236.673238,
+   "label": "after_cold_case",
+   "pss_kib": 52839,
+   "rss_hwm_kib": 58904,
+   "rss_kib": 56728
+  },
+  {
+   "case_id": "E2",
+   "cpu_ms": 2910,
+   "elapsed_ms": 2924.0782990000002,
+   "label": "after_cold_pass",
+   "pss_kib": 57719,
+   "rss_hwm_kib": 61608,
+   "rss_kib": 61608
+  },
+  {
+   "case_id": "E3",
+   "cpu_ms": 3510,
+   "elapsed_ms": 3521.895152,
+   "label": "after_cold_pass",
+   "pss_kib": 57787,
+   "rss_hwm_kib": 61676,
+   "rss_kib": 61676
+  },
+  {
+   "case_id": "E4",
+   "cpu_ms": 4340,
+   "elapsed_ms": 4348.800190999999,
+   "label": "after_cold_pass",
+   "pss_kib": 57786,
+   "rss_hwm_kib": 61676,
+   "rss_kib": 61676
+  },
+  {
+   "case_id": "E5",
+   "cpu_ms": 5710,
+   "elapsed_ms": 5734.993769,
+   "label": "after_cold_pass",
+   "pss_kib": 59855,
+   "rss_hwm_kib": 66776,
+   "rss_kib": 63744
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md",
+ "profile": "release",
+ "provenance_ok": true,
+ "pss_end_kib": 59855,
+ "rows": [
+  {
+   "anchor_bytes": 1481454,
+   "anchor_files": 71,
+   "candidates": 500,
+   "closure_hash": "480047f01a7bc155",
+   "closure_items": 385,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 650,
+   "delivery_bytes": 184192,
+   "diagnostics": {
+    "closure_items": 385,
+    "resolved": 82,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2391,
+     "sql_binding_not_resolved": 21,
+     "type_decl_missing": 83
+    }
+   },
+   "gold": 1,
+   "id": "E1",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 1481557,
+    "read_bytes": 0,
+    "syscr": 146,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 616.440162,
+    "anchor_read_ms": 0.790799,
+    "case_ms": 656.698539,
+    "closure_ms": 38.690955,
+    "delivery_ms": 0.278974
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 339,
+    "closure_reasons_ok": 339,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 56267,
+   "ranks": [
+    133
+   ],
+   "rss_hwm_kib": 60156,
+   "rss_kib": 60156
+  },
+  {
+   "anchor_bytes": 1536877,
+   "anchor_files": 76,
+   "candidates": 500,
+   "closure_hash": "9b67862e900771a4",
+   "closure_items": 393,
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 680,
+   "delivery_bytes": 180548,
+   "diagnostics": {
+    "closure_items": 393,
+    "resolved": 89,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2307,
+     "sql_binding_not_resolved": 29,
+     "type_decl_missing": 83
+    }
+   },
+   "gold": 1,
+   "id": "E2",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 1536980,
+    "read_bytes": 0,
+    "syscr": 156,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 640.2359560000001,
+    "anchor_read_ms": 0.882552,
+    "case_ms": 682.3528210000001,
+    "closure_ms": 40.52903,
+    "delivery_ms": 0.234347
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 328,
+    "closure_reasons_ok": 328,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 57719,
+   "ranks": [
+    42
+   ],
+   "rss_hwm_kib": 61608,
+   "rss_kib": 61608
+  },
+  {
+   "anchor_bytes": 1339584,
+   "anchor_files": 67,
+   "candidates": 500,
+   "closure_hash": "0e2fab06861174e0",
+   "closure_items": 368,
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "cpu_ms": 590,
+   "delivery_bytes": 176801,
+   "diagnostics": {
+    "closure_items": 368,
+    "resolved": 64,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2856,
+     "sql_binding_not_resolved": 21,
+     "type_decl_missing": 88
+    }
+   },
+   "gold": 1,
+   "id": "E3",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 1339688,
+    "read_bytes": 0,
+    "syscr": 138,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 546.981931,
+    "anchor_read_ms": 0.820918,
+    "case_ms": 592.862118,
+    "closure_ms": 44.38984,
+    "delivery_ms": 0.19492
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 325,
+    "closure_reasons_ok": 325,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 57787,
+   "ranks": [
+    94
+   ],
+   "rss_hwm_kib": 61676,
+   "rss_kib": 61676
+  },
+  {
+   "anchor_bytes": 1397085,
+   "anchor_files": 77,
+   "candidates": 500,
+   "closure_hash": "088bfa4befe44cc5",
+   "closure_items": 394,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 810,
+   "delivery_bytes": 170145,
+   "diagnostics": {
+    "closure_items": 394,
+    "resolved": 91,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2447,
+     "sql_binding_not_resolved": 41,
+     "type_decl_missing": 79
+    }
+   },
+   "gold": 1,
+   "id": "E4",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 1397189,
+    "read_bytes": 0,
+    "syscr": 158,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 722.670878,
+    "anchor_read_ms": 0.869463,
+    "case_ms": 817.346003,
+    "closure_ms": 92.302573,
+    "delivery_ms": 0.384996
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 291,
+    "closure_reasons_ok": 291,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 57787,
+   "ranks": [
+    0
+   ],
+   "rss_hwm_kib": 61676,
+   "rss_kib": 61676
+  },
+  {
+   "anchor_bytes": 1849218,
+   "anchor_files": 87,
+   "candidates": 500,
+   "closure_hash": "807fa3834d77bd8a",
+   "closure_items": 378,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "cpu_ms": 1360,
+   "delivery_bytes": 181184,
+   "diagnostics": {
+    "closure_items": 378,
+    "resolved": 74,
+    "unresolved": {
+     "invocation_receiver_type_missing": 3125,
+     "sql_binding_not_resolved": 29,
+     "type_decl_missing": 106
+    }
+   },
+   "gold": 1,
+   "id": "E5",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 1849322,
+    "read_bytes": 0,
+    "syscr": 176,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "pass": 0,
+   "phases": {
+    "anchor_parse_ms": 1284.356471,
+    "anchor_read_ms": 1.840735,
+    "case_ms": 1377.804101,
+    "closure_ms": 90.696401,
+    "delivery_ms": 0.248957
+   },
+   "provenance": {
+    "bad_ranges": 0,
+    "closure_items": 300,
+    "closure_reasons_ok": 300,
+    "empty_paths": 0,
+    "ok": true
+   },
+   "pss_kib": 64191,
+   "ranks": [
+    0
+   ],
+   "rss_hwm_kib": 68080,
+   "rss_kib": 68080
+  }
+ ],
+ "rss_hwm_kib": 66776,
+ "schema_version": "1.0",
+ "status": "ONINDEX_CONTROL_QUALIFICATION",
+ "totals": {
+  "10": 2,
+  "100": 4,
+  "250": 5,
+  "50": 3,
+  "500": 5
+ },
+ "workload": "independent-easy"
+}

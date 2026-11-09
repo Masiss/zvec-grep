@@ -1,0 +1,180 @@
+{
+ "base": "59bc712",
+ "branch": "work/onindex",
+ "case_count": 12,
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "cpu_ms_total": 6590,
+ "elapsed_ms": 6620.560537,
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md",
+ "profile": "release",
+ "pss_end_kib": 341254,
+ "rows": [
+  {
+   "candidates": 500,
+   "closure_hash": "00a1ca2d7df6e484",
+   "coverage": {
+    "10": 1,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "gold": 2,
+   "id": "D01"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "964bb133e26016cc",
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 2,
+    "50": 0,
+    "500": 2
+   },
+   "gold": 6,
+   "id": "D02"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "12b917251081c0dc",
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "gold": 1,
+   "id": "D03"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "a3a4260837085e3c",
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "gold": 1,
+   "id": "D04"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "fa6843a1175bc6cd",
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "gold": 1,
+   "id": "D05"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "b5241814ee21fb5a",
+   "coverage": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "gold": 3,
+   "id": "D06"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "2945d33d58e26b65",
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 3,
+    "50": 0,
+    "500": 3
+   },
+   "gold": 3,
+   "id": "D07"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "83c9713b45bd55dd",
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "gold": 2,
+   "id": "D08"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "48fdd27f15afa14a",
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "gold": 1,
+   "id": "D09"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "358def189b91e150",
+   "coverage": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "gold": 2,
+   "id": "D10"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "011fb8fd851bb4cf",
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "gold": 1,
+   "id": "D11"
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "e2390bf3d55ee2f3",
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "gold": 2,
+   "id": "D12"
+  }
+ ],
+ "rss_hwm_kib": 351412,
+ "schema_version": "1.0",
+ "status": "ONINDEX_CONTROL_REFS_OFF",
+ "totals": {
+  "10": 7,
+  "100": 14,
+  "250": 20,
+  "50": 12,
+  "500": 20
+ },
+ "workload": "dev"
+}

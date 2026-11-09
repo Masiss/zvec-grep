@@ -1,0 +1,38 @@
+{
+ "base": "59bc712",
+ "branch": "work/onindex",
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "cpu_ms_total": 770,
+ "phases": [
+  {
+   "cpu_ms": 0,
+   "elapsed_ms": 2.119011,
+   "label": "process_start",
+   "pss_kib": 22075,
+   "rss_hwm_kib": 25964,
+   "rss_kib": 25900
+  },
+  {
+   "cpu_ms": 760,
+   "elapsed_ms": 734.18386,
+   "label": "index_warm",
+   "pss_kib": 321862,
+   "rss_hwm_kib": 386344,
+   "rss_kib": 326192
+  },
+  {
+   "cpu_ms": 760,
+   "elapsed_ms": 2237.8317540000003,
+   "label": "index_idle",
+   "pss_kib": 321862,
+   "rss_hwm_kib": 386344,
+   "rss_kib": 326192
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md",
+ "profile": "release",
+ "pss_end_kib": 321862,
+ "rss_hwm_kib": 386344,
+ "schema_version": "1.0",
+ "status": "ONINDEX_INDEX_FOOTPRINT"
+}

@@ -61,12 +61,13 @@ Test-only prototype and measurement code plus docs/receipts:
 1. **Bounded frontier before promotion.** Define a fixed per-case anchor and
    verification-file budget that keeps the independent sets under the resource
    envelope, pre-register it, and re-measure; do not tune it against gold.
-2. **Arm A needs a metadata-only exact-symbol endpoint.** `IndexStore`
-   already enumerates exact hashed `symbol_name` definitions
-   (`find_resolution_candidates`), but the public API exposes only ranked
-   top-k. Expose `symbol_name → [{path, range, symbol_type, scope}]`, then
-   re-measure A; also fix the public `symbol_type` filter, which currently
-   returns no matches for every type.
+2. **Arm A needs C# symbol extraction first.** The read-only audit
+   (2026-11-09 control qualification §6) shows `.cs` is indexed as plain text:
+   `grammar()`/`resolve_adapter()` have no C# arm, so fragment documents carry
+   no `symbol_name`/`symbol_type`, `find_resolution_candidates` returns 0, and
+   the `symbol_type` filter has no data to match (the filter code and its unit
+   tests are correct). Add a C# adapter/grammar, then expose
+   `symbol_name → [{path, range, symbol_type, scope}]` and re-measure A.
 3. **Tiered retrieval** is the recommended architecture: resident index for seed
    recall, exact-symbol enumeration for declarations, bounded lexical fallback
    (B) while (2) is unavailable, then Selection (frozen).
@@ -74,6 +75,18 @@ Test-only prototype and measurement code plus docs/receipts:
    lexical scan’s ~12 MB/case I/O becomes the bottleneck; separate
    pre-registration, no new index format.
 5. R1 public qualification continues independently.
+
+## 4a. Control qualification (2026-11-09, branch `work/onindex`)
+
+The H7 control was qualified on release with the frozen index receipts:
+dev 23/25, independent easy 5/5, hard 5/5, refs-off 20/25, provenance and
+determinism pass. **Worker gate: NO-GO** — independent easy peaks at
+66,776 KiB RSS (limit 65,536) during anchor fact acquisition on the 87-anchor
+case; PSS stays under the gate on all workloads. The index/daemon process adds
+326,192 KiB RSS / 321,862 KiB PSS when resident. Concurrency (K≥2) also exceeds
+the worker envelope. No freeze, no tuning, no gate change. The exact-symbol
+audit found that C# is indexed as plain text (no symbol metadata), which is the
+real blocker for arm A. See `rust/docs/rag-onindex-control-qualification.md`.
 
 ## 5. Evidence index
 

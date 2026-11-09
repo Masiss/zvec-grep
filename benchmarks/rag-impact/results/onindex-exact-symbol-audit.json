@@ -1,0 +1,35 @@
+{
+ "b0_index": [
+  "exact name=Foo candidates=0",
+  "exact name=Bar candidates=0",
+  "exact name=IThing candidates=0",
+  "exact name=CoreDBContext candidates=0",
+  "exact name=EmployeeDetail candidates=0",
+  "fts Foo filter=none hits=1",
+  "fts Foo filter=class hits=0",
+  "fts Foo filter=function hits=0",
+  "fts Foo filter=interface hits=0",
+  "fts Foo unfiltered hits=1",
+  "  doc=000000ab4605b4d1f7b0179a2623220000000000 symbol_type=None symbol_name_field_present=false symbol_name_hashed=None"
+ ],
+ "base": "59bc712",
+ "branch": "work/onindex",
+ "finding": "C# indexes no symbol metadata: grammar()/resolve_adapter() have no CSharp arm, so .cs is indexed as plain text chunks",
+ "micro_index": [
+  "exact name=Foo candidates=0",
+  "exact name=Bar candidates=0",
+  "exact name=IThing candidates=0",
+  "exact name=CoreDBContext candidates=0",
+  "exact name=EmployeeDetail candidates=0",
+  "fts Foo filter=none hits=3",
+  "fts Foo filter=class hits=0",
+  "fts Foo filter=function hits=0",
+  "fts Foo filter=interface hits=0",
+  "fts Foo unfiltered hits=3",
+  "  doc=00000001b11706f89d25b865934c6a8a00000000 symbol_type=None symbol_name_field_present=false symbol_name_hashed=None",
+  "  doc=00000002d05eca71129bda087419181200000000 symbol_type=None symbol_name_field_present=false symbol_name_hashed=None",
+  "  doc=000000000f5ac33c49e9e961a381420e00000000 symbol_type=None symbol_name_field_present=false symbol_name_hashed=None"
+ ],
+ "schema_version": "1.0",
+ "status": "ONINDEX_EXACT_SYMBOL_AUDIT"
+}

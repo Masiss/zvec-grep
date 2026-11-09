@@ -1,0 +1,142 @@
+{
+ "base": "59bc712",
+ "baseline_mismatch": [],
+ "branch": "work/onindex",
+ "case_count": 12,
+ "case_ms": {
+  "p50": 223.770434,
+  "p95": 313.48193000000003
+ },
+ "cases_per_second": 8.337989776368277,
+ "concurrency": 2,
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "cpu_ms_total": 4480,
+ "cpu_wall_ratio": 1.9872208967011062,
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md",
+ "profile": "release",
+ "pss_end_kib": 61934,
+ "rows": [
+  {
+   "candidates": 390,
+   "case_ms": 315.948528,
+   "closure_hash": "5c5d5851fe921905",
+   "cpu_ms": 630,
+   "delivery_bytes": 69086,
+   "id": "D01",
+   "worker": 1
+  },
+  {
+   "candidates": 500,
+   "case_ms": 223.770434,
+   "closure_hash": "f371af4bf83075a6",
+   "cpu_ms": 440,
+   "delivery_bytes": 176299,
+   "id": "D02",
+   "worker": 0
+  },
+  {
+   "candidates": 385,
+   "case_ms": 313.48193000000003,
+   "closure_hash": "dc8de266d676c331",
+   "cpu_ms": 620,
+   "delivery_bytes": 69530,
+   "id": "D03",
+   "worker": 0
+  },
+  {
+   "candidates": 344,
+   "case_ms": 265.34042400000004,
+   "closure_hash": "079a10b9af31b817",
+   "cpu_ms": 530,
+   "delivery_bytes": 69865,
+   "id": "D04",
+   "worker": 1
+  },
+  {
+   "candidates": 274,
+   "case_ms": 222.784966,
+   "closure_hash": "4dfbd1e35ce8dca7",
+   "cpu_ms": 450,
+   "delivery_bytes": 57517,
+   "id": "D05",
+   "worker": 0
+  },
+  {
+   "candidates": 271,
+   "case_ms": 228.72692899999998,
+   "closure_hash": "6eca00c90fb9e71d",
+   "cpu_ms": 450,
+   "delivery_bytes": 48918,
+   "id": "D06",
+   "worker": 1
+  },
+  {
+   "candidates": 500,
+   "case_ms": 231.760679,
+   "closure_hash": "60c9531e3be593e0",
+   "cpu_ms": 460,
+   "delivery_bytes": 182782,
+   "id": "D07",
+   "worker": 0
+  },
+  {
+   "candidates": 307,
+   "case_ms": 199.986312,
+   "closure_hash": "7bfd159f8e5c74fe",
+   "cpu_ms": 390,
+   "delivery_bytes": 61797,
+   "id": "D08",
+   "worker": 1
+  },
+  {
+   "candidates": 500,
+   "case_ms": 222.477906,
+   "closure_hash": "7ee3b3b2d2e0eb5a",
+   "cpu_ms": 440,
+   "delivery_bytes": 177345,
+   "id": "D09",
+   "worker": 0
+  },
+  {
+   "candidates": 500,
+   "case_ms": 223.357902,
+   "closure_hash": "ea4503fd4948e3d8",
+   "cpu_ms": 440,
+   "delivery_bytes": 178694,
+   "id": "D10",
+   "worker": 1
+  },
+  {
+   "candidates": 257,
+   "case_ms": 217.465717,
+   "closure_hash": "da8bddf6928e0a75",
+   "cpu_ms": 430,
+   "delivery_bytes": 51650,
+   "id": "D11",
+   "worker": 0
+  },
+  {
+   "candidates": 234,
+   "case_ms": 194.10173,
+   "closure_hash": "73a9a4d613c6382c",
+   "cpu_ms": 400,
+   "delivery_bytes": 43046,
+   "id": "D12",
+   "worker": 1
+  }
+ ],
+ "rss_hwm_kib": 66008,
+ "schema_version": "1.0",
+ "status": "ONINDEX_CONTROL_CONCURRENCY",
+ "wall_ms": 1439.195816,
+ "worker_cpu_ms": 2860,
+ "worker_ready": {
+  "cpu_ms": 1620,
+  "elapsed_ms": 1623.989877,
+  "label": "worker_ready",
+  "pss_kib": 36459,
+  "rss_hwm_kib": 40344,
+  "rss_kib": 40344
+ },
+ "workload": "dev"
+}

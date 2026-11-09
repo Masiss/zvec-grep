@@ -93,9 +93,11 @@ promoted. The gap prototype is archived at
    (index-assisted lookups through the public FTS surface) reaches 23/25 but
    fails latency (10.8 s/case) and memory. Next work needs a bounded
    anchor/frontier budget for independent sets and, for arm A, an exact-symbol
-   enumeration endpoint (internal `find_resolution_candidates` is not exposed;
-   the public `symbol_type` filter returns no matches). Do not add an index
-   format. See `rust/docs/rag-onindex-discovery-results.md`.
+   enumeration endpoint. Audit: C# has no code-outline extractor, so `.cs` is
+   indexed as plain text with no `symbol_name`/`symbol_type`; the filter is not
+   the bug. Do not add an index format. See
+   `rust/docs/rag-onindex-discovery-results.md` and
+   `rust/docs/rag-onindex-control-qualification.md`.
 3. R1 public qualification: CLI/MCP/service integration, cache/version
    invalidation, concurrency/performance, generated/results admission,
    PII/secret/auth/audit, independent validation and release/rollback.

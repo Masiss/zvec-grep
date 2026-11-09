@@ -1,0 +1,79 @@
+{
+ "base": "59bc712",
+ "baseline_mismatch": [],
+ "branch": "work/onindex",
+ "case_count": 5,
+ "case_ms": {
+  "p50": 831.657293,
+  "p95": 1013.2346860000001
+ },
+ "cases_per_second": 2.7560210372686007,
+ "concurrency": 4,
+ "containment": "bwrap read-only host/repo; OUT + external CARGO_TARGET_DIR writable",
+ "cpu_ms_total": 6120,
+ "cpu_wall_ratio": 2.397738302423683,
+ "pre_registration": "benchmarks/rag-impact/ONINDEX-CONTROL-QUALIFICATION-PREREGISTRATION.md",
+ "profile": "release",
+ "pss_end_kib": 134885,
+ "rows": [
+  {
+   "candidates": 500,
+   "case_ms": 820.677386,
+   "closure_hash": "480047f01a7bc155",
+   "cpu_ms": 3260,
+   "delivery_bytes": 184192,
+   "id": "E1",
+   "worker": 1
+  },
+  {
+   "candidates": 500,
+   "case_ms": 884.4328399999999,
+   "closure_hash": "9b67862e900771a4",
+   "cpu_ms": 3410,
+   "delivery_bytes": 180548,
+   "id": "E2",
+   "worker": 0
+  },
+  {
+   "candidates": 500,
+   "case_ms": 791.94654,
+   "closure_hash": "0e2fab06861174e0",
+   "cpu_ms": 3150,
+   "delivery_bytes": 176801,
+   "id": "E3",
+   "worker": 2
+  },
+  {
+   "candidates": 500,
+   "case_ms": 831.657293,
+   "closure_hash": "088bfa4befe44cc5",
+   "cpu_ms": 3300,
+   "delivery_bytes": 170145,
+   "id": "E4",
+   "worker": 3
+  },
+  {
+   "candidates": 500,
+   "case_ms": 1013.2346860000001,
+   "closure_hash": "807fa3834d77bd8a",
+   "cpu_ms": 1170,
+   "delivery_bytes": 181184,
+   "id": "E5",
+   "worker": 2
+  }
+ ],
+ "rss_hwm_kib": 141484,
+ "schema_version": "1.0",
+ "status": "ONINDEX_CONTROL_CONCURRENCY",
+ "wall_ms": 1814.209664,
+ "worker_cpu_ms": 4350,
+ "worker_ready": {
+  "cpu_ms": 1770,
+  "elapsed_ms": 1776.1499569999999,
+  "label": "worker_ready",
+  "pss_kib": 36487,
+  "rss_hwm_kib": 40376,
+  "rss_kib": 40376
+ },
+ "workload": "independent-easy"
+}

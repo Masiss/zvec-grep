@@ -64,8 +64,8 @@ the entity payload, not as filterable scalars.
 |---|---|---|
 | Reference/declaration edges are not produced by indexing | `ExtractionOutput.graph` is `None` in every production extractor path; `edges` is written only by tests | The resolver/graph is scaffolding, not a usable discovery source |
 | No type/scope model in the index | `scope` is a string in `CodeMetadata`; no receiver types, no field types, no DbSet model | Receiver/type resolution needs the side parser or a parse |
-| No public exact-symbol enumeration | `find_resolution_candidates` is `pub(crate)`; public `ContextOptions` cannot filter by `symbol_name` | Public callers get ranked top-k, not all declaration sites |
-| `symbol_type` filter returns no matches | live probe: every type value returns 0 hits for names that do exist | Cannot restrict declaration recall to class/interface/module |
+| No public exact-symbol enumeration | `find_resolution_candidates` is `pub(crate)`; public `ContextOptions` cannot filter by `symbol_name` | Public callers get ranked top-k; for C# it returns **0** even internally because no symbols are indexed |
+| `symbol_type` filter returns no matches | live probe + read-only store probe: 0 hits; fragment docs have no `symbol_name`/`symbol_type` at all | **Data gap, not a filter defect**: C# has no code-outline extractor, so `.cs` is indexed as plain text (see control-qualification §6) |
 | No structural document model | Markdown has heading/scope/level only; JSON/CSV/log have no section/key/event metadata | Document discovery must group at read time |
 | Process residency is large | ~297 MB per CLI query, 398 MB in-process, 571 MB idle server | Absolute RSS gates measure the resident service, not per-case discovery |
 
