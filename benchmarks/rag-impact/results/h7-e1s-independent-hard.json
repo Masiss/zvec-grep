@@ -1,0 +1,163 @@
+{
+ "anchors_file": "benchmarks/rag-impact/results/h7-anchors-dev-independent-hard.json",
+ "base": "416a312",
+ "branch": "work/h7-e1s",
+ "cases": [
+  {
+   "candidates": 500,
+   "closure_hash": "8c3b88ccdf5f26f1",
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 384,
+    "resolved": 80,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2116,
+     "sql_binding_not_resolved": 23,
+     "type_decl_missing": 78
+    }
+   },
+   "gold": 1,
+   "id": "H1",
+   "refs_off": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   }
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "e3a1f48bf2314af4",
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 405,
+    "resolved": 102,
+    "unresolved": {
+     "invocation_receiver_type_missing": 1933,
+     "sql_binding_not_resolved": 66,
+     "type_decl_missing": 73
+    }
+   },
+   "gold": 1,
+   "id": "H2",
+   "refs_off": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   }
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "e7b50cea05a4e82a",
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 385,
+    "resolved": 82,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2505,
+     "sql_binding_not_resolved": 42,
+     "type_decl_missing": 77
+    }
+   },
+   "gold": 1,
+   "id": "H3",
+   "refs_off": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   }
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "fa3cee8d00e64800",
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 364,
+    "resolved": 61,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2360,
+     "sql_binding_not_resolved": 23,
+     "type_decl_missing": 92
+    }
+   },
+   "gold": 1,
+   "id": "H4",
+   "refs_off": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   }
+  },
+  {
+   "candidates": 500,
+   "closure_hash": "3ad7e8951e4fa5c9",
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 370,
+    "resolved": 68,
+    "unresolved": {
+     "invocation_receiver_type_missing": 2045,
+     "sql_binding_not_resolved": 26,
+     "type_decl_missing": 71
+    }
+   },
+   "gold": 1,
+   "id": "H5",
+   "refs_off": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   }
+  }
+ ],
+ "cases_file": "benchmarks/rag-impact/cases/dev-independent-hard.json",
+ "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-E1S-PREREGISTRATION.md",
+ "schema_version": "1.0",
+ "status": "H7_E1S_INDEPENDENT_HARD_AFTER",
+ "totals": {
+  "10": 1,
+  "100": 1,
+  "250": 4,
+  "50": 1,
+  "500": 5
+ }
+}

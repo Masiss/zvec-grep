@@ -1,0 +1,123 @@
+{
+ "base": "416a312",
+ "branch": "work/h7-e1s",
+ "declarations": {
+  "db_sets": 234,
+  "db_sets_bytes": 51607,
+  "fields": 8689,
+  "fields_bytes": 1451578,
+  "total_bytes": 1843091,
+  "types": 1372,
+  "types_bytes": 339906
+ },
+ "measurement": "single-test process, debug profile, bwrap containment, external CARGO_TARGET_DIR",
+ "phases": [
+  {
+   "elapsed_ms": 2944.485791,
+   "label": "declarations_ready",
+   "pss_kib": 55882,
+   "rss_hwm_kib": 59760,
+   "rss_kib": 59760
+  },
+  {
+   "elapsed_ms": 2945.502207,
+   "label": "empty_scope_1",
+   "methods_and_invocations": 0,
+   "pss_kib": 56138,
+   "rss_hwm_kib": 60016,
+   "rss_kib": 60016
+  },
+  {
+   "elapsed_ms": 2946.6164360000002,
+   "label": "empty_scope_2",
+   "methods_and_invocations": 1,
+   "pss_kib": 56138,
+   "rss_hwm_kib": 60016,
+   "rss_kib": 60016
+  },
+  {
+   "elapsed_ms": 2972.949716,
+   "label": "empty_scope_4",
+   "methods_and_invocations": 391,
+   "pss_kib": 57986,
+   "rss_hwm_kib": 61864,
+   "rss_kib": 61864
+  },
+  {
+   "elapsed_ms": 3038.764632,
+   "label": "empty_scope_8",
+   "methods_and_invocations": 695,
+   "pss_kib": 58542,
+   "rss_hwm_kib": 62420,
+   "rss_kib": 62420
+  },
+  {
+   "elapsed_ms": 3208.231439,
+   "label": "empty_scope_16",
+   "methods_and_invocations": 1879,
+   "pss_kib": 59694,
+   "rss_hwm_kib": 63572,
+   "rss_kib": 63572
+  },
+  {
+   "elapsed_ms": 3545.6019100000003,
+   "label": "empty_scope_26",
+   "methods_and_invocations": 3961,
+   "pss_kib": 62238,
+   "rss_hwm_kib": 66116,
+   "rss_kib": 66116
+  },
+  {
+   "elapsed_ms": 3557.59992,
+   "facts": 1,
+   "label": "project_scope_1",
+   "pss_kib": 62430,
+   "rss_hwm_kib": 66308,
+   "rss_kib": 66308
+  },
+  {
+   "elapsed_ms": 3570.597826,
+   "facts": 3,
+   "label": "project_scope_2",
+   "pss_kib": 62622,
+   "rss_hwm_kib": 66500,
+   "rss_kib": 66500
+  },
+  {
+   "elapsed_ms": 3613.138942,
+   "facts": 395,
+   "label": "project_scope_4",
+   "pss_kib": 62718,
+   "rss_hwm_kib": 66596,
+   "rss_kib": 66596
+  },
+  {
+   "elapsed_ms": 3702.3568400000004,
+   "facts": 703,
+   "label": "project_scope_8",
+   "pss_kib": 62882,
+   "rss_hwm_kib": 66760,
+   "rss_kib": 66760
+  },
+  {
+   "elapsed_ms": 3910.969996,
+   "facts": 1895,
+   "label": "project_scope_16",
+   "pss_kib": 64138,
+   "rss_hwm_kib": 68016,
+   "rss_kib": 68016
+  },
+  {
+   "elapsed_ms": 4304.169071,
+   "facts": 3987,
+   "label": "project_scope_26",
+   "pss_kib": 67809,
+   "rss_hwm_kib": 72052,
+   "rss_kib": 71688
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-E1S-PREREGISTRATION.md",
+ "rss_hwm_kib": 72052,
+ "schema_version": "1.0",
+ "status": "H7_E1S_ANCHOR_SCALING"
+}

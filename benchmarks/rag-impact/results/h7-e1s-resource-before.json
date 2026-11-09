@@ -1,0 +1,720 @@
+{
+ "base": "416a312",
+ "branch": "work/h7-e1s",
+ "declarations": {
+  "db_sets": 234,
+  "db_sets_bytes": 51607,
+  "fields": 8689,
+  "fields_bytes": 1451578,
+  "total_bytes": 1843091,
+  "types": 1372,
+  "types_bytes": 339906
+ },
+ "end": {
+  "elapsed_ms": 7412.344542,
+  "label": "end",
+  "pss_kib": 68910,
+  "rss_hwm_kib": 72956,
+  "rss_kib": 72784
+ },
+ "measurement": "single-test process, debug profile, bwrap containment, external CARGO_TARGET_DIR",
+ "phase_io": {
+  "cancelled_write_bytes": 0,
+  "rchar": 508927,
+  "read_bytes": 524288,
+  "syscr": 33,
+  "syscw": 0,
+  "wchar": 0,
+  "write_bytes": 0
+ },
+ "phases": [
+  {
+   "elapsed_ms": 0.047042999999999995,
+   "label": "process_start",
+   "pss_kib": 24186,
+   "rss_hwm_kib": 28060,
+   "rss_kib": 26904
+  },
+  {
+   "elapsed_ms": 81.708056,
+   "label": "corpus_loaded",
+   "pss_kib": 32738,
+   "rss_hwm_kib": 36612,
+   "rss_kib": 36612
+  },
+  {
+   "elapsed_ms": 2996.8749639999996,
+   "label": "declarations_built",
+   "pss_kib": 53122,
+   "rss_hwm_kib": 56996,
+   "rss_kib": 56996
+  },
+  {
+   "elapsed_ms": 3015.407811,
+   "label": "catalog_built",
+   "pss_kib": 53762,
+   "rss_hwm_kib": 57636,
+   "rss_kib": 57636
+  },
+  {
+   "elapsed_ms": 3016.9381839999996,
+   "label": "all_files_cloned",
+   "pss_kib": 55090,
+   "rss_hwm_kib": 58964,
+   "rss_kib": 58964
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-E1S-PREREGISTRATION.md",
+ "pss_end_kib": 68910,
+ "rows": [
+  {
+   "anchor_files": 26,
+   "anchor_pss_after_kib": 67442,
+   "anchor_pss_before_kib": 56486,
+   "candidates": 390,
+   "closure_hash": "5c5d5851fe921905",
+   "closure_items": 21,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "diagnostics": {
+    "closure_items": 21,
+    "resolved": 22,
+    "unresolved": {
+     "invocation_receiver_type_missing": 735,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 2,
+   "id": "D01",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    9,
+    0
+   ],
+   "ranks_on": [
+    9,
+    0
+   ],
+   "refs_off": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "rss_hwm_kib_after_case": 71956,
+   "wall_off_ms": 27.302607,
+   "wall_on_ms": 27.641972
+  },
+  {
+   "anchor_files": 21,
+   "anchor_pss_after_kib": 67974,
+   "anchor_pss_before_kib": 66918,
+   "candidates": 500,
+   "closure_hash": "f371af4bf83075a6",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 3,
+    "250": 5,
+    "50": 3,
+    "500": 5
+   },
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 681,
+     "sql_binding_not_resolved": 13,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 6,
+   "id": "D02",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "ranks_on": [
+    166,
+    166,
+    40,
+    40,
+    45,
+    null
+   ],
+   "refs_off": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 0
+   },
+   "rss_hwm_kib_after_case": 71976,
+   "wall_off_ms": 13.792174000000001,
+   "wall_on_ms": 16.55913
+  },
+  {
+   "anchor_files": 29,
+   "anchor_pss_after_kib": 70262,
+   "anchor_pss_before_kib": 68102,
+   "candidates": 385,
+   "closure_hash": "dc8de266d676c331",
+   "closure_items": 25,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 25,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 725,
+     "sql_binding_not_resolved": 16,
+     "type_decl_missing": 51
+    }
+   },
+   "gold": 1,
+   "id": "D03",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    123
+   ],
+   "ranks_on": [
+    148
+   ],
+   "refs_off": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "rss_hwm_kib_after_case": 74136,
+   "wall_off_ms": 26.587731,
+   "wall_on_ms": 27.926019999999998
+  },
+  {
+   "anchor_files": 28,
+   "anchor_pss_after_kib": 68826,
+   "anchor_pss_before_kib": 68818,
+   "candidates": 344,
+   "closure_hash": "079a10b9af31b817",
+   "closure_items": 26,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 660,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 39
+    }
+   },
+   "gold": 1,
+   "id": "D04",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    4
+   ],
+   "ranks_on": [
+    4
+   ],
+   "refs_off": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 22.87484,
+   "wall_on_ms": 24.189671
+  },
+  {
+   "anchor_files": 21,
+   "anchor_pss_after_kib": 68830,
+   "anchor_pss_before_kib": 68826,
+   "candidates": 274,
+   "closure_hash": "4dfbd1e35ce8dca7",
+   "closure_items": 29,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 29,
+    "resolved": 30,
+    "unresolved": {
+     "invocation_receiver_type_missing": 481,
+     "sql_binding_not_resolved": 10,
+     "type_decl_missing": 28
+    }
+   },
+   "gold": 1,
+   "id": "D05",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    102
+   ],
+   "ranks_on": [
+    131
+   ],
+   "refs_off": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 14.819494,
+   "wall_on_ms": 16.032269
+  },
+  {
+   "anchor_files": 19,
+   "anchor_pss_after_kib": 68834,
+   "anchor_pss_before_kib": 68830,
+   "candidates": 271,
+   "closure_hash": "6eca00c90fb9e71d",
+   "closure_items": 15,
+   "coverage": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "diagnostics": {
+    "closure_items": 15,
+    "resolved": 16,
+    "unresolved": {
+     "invocation_receiver_type_missing": 525,
+     "sql_binding_not_resolved": 8,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 3,
+   "id": "D06",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    4,
+    4,
+    33
+   ],
+   "ranks_on": [
+    4,
+    4,
+    48
+   ],
+   "refs_off": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 13.668572000000001,
+   "wall_on_ms": 13.979605000000001
+  },
+  {
+   "anchor_files": 33,
+   "anchor_pss_after_kib": 68838,
+   "anchor_pss_before_kib": 68834,
+   "candidates": 500,
+   "closure_hash": "60c9531e3be593e0",
+   "closure_items": 338,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 3
+   },
+   "diagnostics": {
+    "closure_items": 338,
+    "resolved": 32,
+    "unresolved": {
+     "invocation_receiver_type_missing": 793,
+     "sql_binding_not_resolved": 7,
+     "type_decl_missing": 44
+    }
+   },
+   "gold": 3,
+   "id": "D07",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    82,
+    null,
+    85
+   ],
+   "ranks_on": [
+    175,
+    313,
+    423
+   ],
+   "refs_off": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 0,
+    "500": 2
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 14.863752,
+   "wall_on_ms": 19.807119
+  },
+  {
+   "anchor_files": 19,
+   "anchor_pss_after_kib": 68842,
+   "anchor_pss_before_kib": 68838,
+   "candidates": 307,
+   "closure_hash": "7bfd159f8e5c74fe",
+   "closure_items": 26,
+   "coverage": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "diagnostics": {
+    "closure_items": 26,
+    "resolved": 27,
+    "unresolved": {
+     "invocation_receiver_type_missing": 531,
+     "sql_binding_not_resolved": 11,
+     "type_decl_missing": 35
+    }
+   },
+   "gold": 2,
+   "id": "D08",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    0,
+    3
+   ],
+   "ranks_on": [
+    0,
+    3
+   ],
+   "refs_off": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 14.842042999999999,
+   "wall_on_ms": 15.483973
+  },
+  {
+   "anchor_files": 28,
+   "anchor_pss_after_kib": 68846,
+   "anchor_pss_before_kib": 68842,
+   "candidates": 500,
+   "closure_hash": "7ee3b3b2d2e0eb5a",
+   "closure_items": 323,
+   "coverage": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 323,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 477,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 38
+    }
+   },
+   "gold": 1,
+   "id": "D09",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    41
+   ],
+   "ranks_on": [
+    364
+   ],
+   "refs_off": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 16.644862,
+   "wall_on_ms": 18.060665
+  },
+  {
+   "anchor_files": 25,
+   "anchor_pss_after_kib": 68846,
+   "anchor_pss_before_kib": 68846,
+   "candidates": 500,
+   "closure_hash": "ea4503fd4948e3d8",
+   "closure_items": 326,
+   "coverage": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "diagnostics": {
+    "closure_items": 326,
+    "resolved": 20,
+    "unresolved": {
+     "invocation_receiver_type_missing": 453,
+     "sql_binding_not_resolved": 3,
+     "type_decl_missing": 36
+    }
+   },
+   "gold": 2,
+   "id": "D10",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    42,
+    null
+   ],
+   "ranks_on": [
+    51,
+    36
+   ],
+   "refs_off": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 13.550434,
+   "wall_on_ms": 14.673254
+  },
+  {
+   "anchor_files": 17,
+   "anchor_pss_after_kib": 68910,
+   "anchor_pss_before_kib": 68910,
+   "candidates": 257,
+   "closure_hash": "da8bddf6928e0a75",
+   "closure_items": 27,
+   "coverage": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 27,
+    "resolved": 28,
+    "unresolved": {
+     "invocation_receiver_type_missing": 467,
+     "sql_binding_not_resolved": 5,
+     "type_decl_missing": 33
+    }
+   },
+   "gold": 1,
+   "id": "D11",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    3
+   ],
+   "ranks_on": [
+    3
+   ],
+   "refs_off": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 12.608869,
+   "wall_on_ms": 16.531657000000003
+  },
+  {
+   "anchor_files": 17,
+   "anchor_pss_after_kib": 68910,
+   "anchor_pss_before_kib": 68910,
+   "candidates": 234,
+   "closure_hash": "73a9a4d613c6382c",
+   "closure_items": 16,
+   "coverage": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "diagnostics": {
+    "closure_items": 16,
+    "resolved": 17,
+    "unresolved": {
+     "invocation_receiver_type_missing": 419,
+     "sql_binding_not_resolved": 4,
+     "type_decl_missing": 31
+    }
+   },
+   "gold": 2,
+   "id": "D12",
+   "io_case": {
+    "cancelled_write_bytes": 0,
+    "rchar": 106,
+    "read_bytes": 0,
+    "syscr": 4,
+    "syscw": 0,
+    "wchar": 0,
+    "write_bytes": 0
+   },
+   "ranks_off": [
+    25,
+    null
+   ],
+   "ranks_on": [
+    41,
+    null
+   ],
+   "refs_off": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "rss_hwm_kib_after_case": 72956,
+   "wall_off_ms": 7.773358999999999,
+   "wall_on_ms": 10.718492
+  }
+ ],
+ "rss_hwm_kib": 72956,
+ "schema_version": "1.0",
+ "source_bytes": 5400637,
+ "status": "H7_E1S_RESOURCE",
+ "totals": {
+  "10": 8,
+  "100": 15,
+  "250": 20,
+  "50": 14,
+  "500": 23
+ }
+}

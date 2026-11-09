@@ -1,0 +1,649 @@
+{
+ "base": "416a312",
+ "baseline": {
+  "elapsed_ms": 0.045326,
+  "label": "process_start",
+  "pss_kib": 24386,
+  "rss_hwm_kib": 28264,
+  "rss_kib": 27172
+ },
+ "branch": "work/h7-e1s",
+ "end": {
+  "elapsed_ms": 0.000901,
+  "label": "end",
+  "pss_kib": 363250,
+  "rss_hwm_kib": 384744,
+  "rss_kib": 367128
+ },
+ "measurement": "single-test process, debug profile, bwrap containment, external CARGO_TARGET_DIR",
+ "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-E1S-PREREGISTRATION.md",
+ "rows": [
+  {
+   "anchor_files": 26,
+   "candidates_off_compact": 369,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 390,
+   "candidates_on_full": 500,
+   "gold": 2,
+   "hash_on_compact": "5c5d5851fe921905",
+   "hash_on_full": "e523d5e72bdf6d8b",
+   "id": "D01",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "off_full": {
+    "10": 1,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "on_full": {
+    "10": 1,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "ranks_off_compact": [
+    9,
+    0
+   ],
+   "ranks_off_full": [
+    19,
+    2
+   ]
+  },
+  {
+   "anchor_files": 21,
+   "candidates_off_compact": 239,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 500,
+   "candidates_on_full": 500,
+   "gold": 6,
+   "hash_on_compact": "f371af4bf83075a6",
+   "hash_on_full": "a22804fe0ca486f3",
+   "id": "D02",
+   "lost_off_spans": [
+    {
+     "anchor_file": false,
+     "end": 285,
+     "full_rank": 240,
+     "full_reason": "assignment query match, invocation query match",
+     "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+     "start": 215
+    },
+    {
+     "anchor_file": false,
+     "end": 425,
+     "full_rank": 240,
+     "full_reason": "assignment query match, invocation query match",
+     "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+     "start": 287
+    }
+   ],
+   "off_compact": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 0
+   },
+   "off_full": {
+    "10": 0,
+    "100": 0,
+    "250": 2,
+    "50": 0,
+    "500": 2
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 0,
+    "100": 3,
+    "250": 5,
+    "50": 3,
+    "500": 5
+   },
+   "on_full": {
+    "10": 0,
+    "100": 3,
+    "250": 5,
+    "50": 3,
+    "500": 5
+   },
+   "ranks_off_compact": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "ranks_off_full": [
+    240,
+    240,
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "anchor_files": 29,
+   "candidates_off_compact": 360,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 385,
+   "candidates_on_full": 500,
+   "gold": 1,
+   "hash_on_compact": "dc8de266d676c331",
+   "hash_on_full": "d9d312b2ff3f437b",
+   "id": "D03",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "off_full": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "on_full": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "ranks_off_compact": [
+    123
+   ],
+   "ranks_off_full": [
+    171
+   ]
+  },
+  {
+   "anchor_files": 28,
+   "candidates_off_compact": 318,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 344,
+   "candidates_on_full": 500,
+   "gold": 1,
+   "hash_on_compact": "079a10b9af31b817",
+   "hash_on_full": "b0615a1d670b4bda",
+   "id": "D04",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "off_full": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "on_full": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "ranks_off_compact": [
+    4
+   ],
+   "ranks_off_full": [
+    4
+   ]
+  },
+  {
+   "anchor_files": 21,
+   "candidates_off_compact": 245,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 274,
+   "candidates_on_full": 500,
+   "gold": 1,
+   "hash_on_compact": "4dfbd1e35ce8dca7",
+   "hash_on_full": "0eb978878e7677fa",
+   "id": "D05",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "off_full": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "on_full": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 1
+   },
+   "ranks_off_compact": [
+    102
+   ],
+   "ranks_off_full": [
+    209
+   ]
+  },
+  {
+   "anchor_files": 19,
+   "candidates_off_compact": 256,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 271,
+   "candidates_on_full": 500,
+   "gold": 3,
+   "hash_on_compact": "6eca00c90fb9e71d",
+   "hash_on_full": "e1d7bd6cc2a7f549",
+   "id": "D06",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "off_full": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 3,
+    "500": 3
+   },
+   "on_full": {
+    "10": 2,
+    "100": 3,
+    "250": 3,
+    "50": 2,
+    "500": 3
+   },
+   "ranks_off_compact": [
+    4,
+    4,
+    33
+   ],
+   "ranks_off_full": [
+    3,
+    3,
+    40
+   ]
+  },
+  {
+   "anchor_files": 33,
+   "candidates_off_compact": 280,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 500,
+   "candidates_on_full": 500,
+   "gold": 3,
+   "hash_on_compact": "60c9531e3be593e0",
+   "hash_on_full": "ac55466f694e9a30",
+   "id": "D07",
+   "lost_off_spans": [
+    {
+     "anchor_file": false,
+     "end": 1074,
+     "full_rank": 67,
+     "full_reason": "invocation query match, callee of seed",
+     "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+     "start": 1057
+    }
+   ],
+   "off_compact": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 0,
+    "500": 2
+   },
+   "off_full": {
+    "10": 0,
+    "100": 1,
+    "250": 3,
+    "50": 0,
+    "500": 3
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 3
+   },
+   "on_full": {
+    "10": 0,
+    "100": 0,
+    "250": 1,
+    "50": 0,
+    "500": 3
+   },
+   "ranks_off_compact": [
+    82,
+    null,
+    85
+   ],
+   "ranks_off_full": [
+    119,
+    67,
+    122
+   ]
+  },
+  {
+   "anchor_files": 19,
+   "candidates_off_compact": 281,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 307,
+   "candidates_on_full": 500,
+   "gold": 2,
+   "hash_on_compact": "7bfd159f8e5c74fe",
+   "hash_on_full": "8ed83f6ce44c370a",
+   "id": "D08",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "off_full": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "on_full": {
+    "10": 2,
+    "100": 2,
+    "250": 2,
+    "50": 2,
+    "500": 2
+   },
+   "ranks_off_compact": [
+    0,
+    3
+   ],
+   "ranks_off_full": [
+    0,
+    3
+   ]
+  },
+  {
+   "anchor_files": 28,
+   "candidates_off_compact": 291,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 500,
+   "candidates_on_full": 500,
+   "gold": 1,
+   "hash_on_compact": "7ee3b3b2d2e0eb5a",
+   "hash_on_full": "563469b0b68b327d",
+   "id": "D09",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "off_full": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 1
+   },
+   "on_full": {
+    "10": 0,
+    "100": 0,
+    "250": 0,
+    "50": 0,
+    "500": 1
+   },
+   "ranks_off_compact": [
+    41
+   ],
+   "ranks_off_full": [
+    44
+   ]
+  },
+  {
+   "anchor_files": 25,
+   "candidates_off_compact": 282,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 500,
+   "candidates_on_full": 500,
+   "gold": 2,
+   "hash_on_compact": "ea4503fd4948e3d8",
+   "hash_on_full": "729eaeee6d3c11ed",
+   "id": "D10",
+   "lost_off_spans": [
+    {
+     "anchor_file": false,
+     "end": 20,
+     "full_rank": 90,
+     "full_reason": "method-name query match",
+     "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+     "start": 9
+    }
+   ],
+   "off_compact": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "off_full": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "on_full": {
+    "10": 0,
+    "100": 2,
+    "250": 2,
+    "50": 1,
+    "500": 2
+   },
+   "ranks_off_compact": [
+    42,
+    null
+   ],
+   "ranks_off_full": [
+    43,
+    90
+   ]
+  },
+  {
+   "anchor_files": 17,
+   "candidates_off_compact": 230,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 257,
+   "candidates_on_full": 500,
+   "gold": 1,
+   "hash_on_compact": "da8bddf6928e0a75",
+   "hash_on_full": "a719c59225fbd124",
+   "id": "D11",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "off_full": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "on_full": {
+    "10": 1,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "ranks_off_compact": [
+    3
+   ],
+   "ranks_off_full": [
+    1
+   ]
+  },
+  {
+   "anchor_files": 17,
+   "candidates_off_compact": 218,
+   "candidates_off_full": 500,
+   "candidates_on_compact": 234,
+   "candidates_on_full": 500,
+   "gold": 2,
+   "hash_on_compact": "73a9a4d613c6382c",
+   "hash_on_full": "ab201c0621f46f58",
+   "id": "D12",
+   "lost_off_spans": [],
+   "off_compact": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "off_full": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "on_arm_diff": [],
+   "on_compact": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "on_full": {
+    "10": 0,
+    "100": 1,
+    "250": 1,
+    "50": 1,
+    "500": 1
+   },
+   "ranks_off_compact": [
+    25,
+    null
+   ],
+   "ranks_off_full": [
+    27,
+    null
+   ]
+  }
+ ],
+ "schema_version": "1.0",
+ "status": "H7_E1S_RECONCILE"
+}

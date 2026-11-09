@@ -1,0 +1,47 @@
+{
+ "base": "416a312",
+ "branch": "work/h7-e1s",
+ "files": 817,
+ "measurement": "single-test process, debug profile, bwrap containment, external CARGO_TARGET_DIR",
+ "phases": [
+  {
+   "elapsed_ms": 31.339151,
+   "label": "sources_loaded",
+   "pss_kib": 34038,
+   "rss_hwm_kib": 37916,
+   "rss_kib": 37272
+  },
+  {
+   "elapsed_ms": 2022.234501,
+   "label": "fresh_1",
+   "pss_kib": 42786,
+   "rss_hwm_kib": 46664,
+   "rss_kib": 46664
+  },
+  {
+   "elapsed_ms": 3965.0384839999997,
+   "label": "reused_1",
+   "pss_kib": 42830,
+   "rss_hwm_kib": 46708,
+   "rss_kib": 46708
+  },
+  {
+   "elapsed_ms": 5982.943562,
+   "label": "fresh_2",
+   "pss_kib": 42842,
+   "rss_hwm_kib": 46720,
+   "rss_kib": 46720
+  },
+  {
+   "elapsed_ms": 7911.281811,
+   "label": "reused_2",
+   "pss_kib": 42858,
+   "rss_hwm_kib": 46736,
+   "rss_kib": 46736
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-E1S-PREREGISTRATION.md",
+ "rss_hwm_kib": 47312,
+ "schema_version": "1.0",
+ "status": "H7_E1S_PARSER_CHURN"
+}

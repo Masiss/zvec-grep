@@ -1,0 +1,99 @@
+{
+ "base": "416a312",
+ "branch": "work/h7-e1s",
+ "measurement": "single-test process, debug profile, bwrap containment, external CARGO_TARGET_DIR",
+ "phases": [
+  {
+   "elapsed_ms": 0.045448,
+   "label": "process_start",
+   "pss_kib": 24374,
+   "rss_hwm_kib": 28252,
+   "rss_kib": 27096
+  },
+  {
+   "elapsed_ms": 20.411473,
+   "label": "corpus_loaded",
+   "pss_kib": 33054,
+   "rss_hwm_kib": 36932,
+   "rss_kib": 36932
+  },
+  {
+   "files": 817,
+   "label": "corpus_held",
+   "source_bytes": 4948879
+  },
+  {
+   "elapsed_ms": 3004.698742,
+   "label": "declarations_built",
+   "pss_kib": 53682,
+   "rss_hwm_kib": 57560,
+   "rss_kib": 57560
+  },
+  {
+   "declarations": {
+    "db_sets": 234,
+    "db_sets_bytes": 51607,
+    "fields": 8689,
+    "fields_bytes": 1451578,
+    "total_bytes": 1843091,
+    "types": 1372,
+    "types_bytes": 339906
+   },
+   "label": "declarations_live"
+  },
+  {
+   "elapsed_ms": 3009.814903,
+   "label": "all_files_cloned",
+   "pss_kib": 55142,
+   "rss_hwm_kib": 59020,
+   "rss_kib": 59020
+  },
+  {
+   "elapsed_ms": 3418.3938989999997,
+   "label": "one_anchor_parsed",
+   "pss_kib": 67478,
+   "rss_hwm_kib": 71356,
+   "rss_kib": 71356
+  },
+  {
+   "assignments": 0,
+   "files": 26,
+   "invocations": 3633,
+   "label": "anchor_project_live",
+   "methods": 328,
+   "saves": 127
+  },
+  {
+   "elapsed_ms": 3421.856147,
+   "label": "anchor_project_dropped",
+   "pss_kib": 66058,
+   "rss_hwm_kib": 70520,
+   "rss_kib": 69936
+  },
+  {
+   "elapsed_ms": 3423.647484,
+   "label": "all_files_dropped",
+   "pss_kib": 66122,
+   "rss_hwm_kib": 70520,
+   "rss_kib": 70000
+  },
+  {
+   "elapsed_ms": 3427.212008,
+   "label": "declarations_dropped",
+   "pss_kib": 65306,
+   "rss_hwm_kib": 70520,
+   "rss_kib": 69184
+  },
+  {
+   "elapsed_ms": 3428.481508,
+   "label": "corpus_dropped",
+   "pss_kib": 65306,
+   "rss_hwm_kib": 70520,
+   "rss_kib": 69184
+  }
+ ],
+ "pre_registration": "benchmarks/rag-impact/DISCOVERY-H7-E1S-PREREGISTRATION.md",
+ "rss_hwm_kib": 70520,
+ "schema_version": "1.0",
+ "status": "H7_E1S_ATTRIBUTION"
+}
