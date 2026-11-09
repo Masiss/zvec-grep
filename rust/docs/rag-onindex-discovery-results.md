@@ -36,6 +36,8 @@ test-only).
 | **A `index`** (index lookups) | 8 | 14 | 15 | 20 | **23** | 9,334 / 12,423 ms | **443,512 KiB** | 426,618 KiB | 309 | 58.2 MB |
 | **B `lexical`** (bounded scan) | 8 | 14 | 15 | 20 | **23** | 541 / 1,014 ms | **52,524 KiB** | 48,266 KiB | 0 | 146.5 MB |
 
+- Micro/macro @500: refs-off **20/25 = 0.800 / 0.9028**; on-arm in every mode
+  **23/25 = 0.920 / 0.9444** (macro = mean per-case recall).
 - Per-case coverage matches the frozen E1R receipt exactly in all three arms
   (including D02 `[0,3,3,5,5]` and D07 `[0,0,0,1,3]`); closure hashes are
   identical between two fresh runs of each arm.
