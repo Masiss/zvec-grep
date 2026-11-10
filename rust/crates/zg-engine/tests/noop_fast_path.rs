@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use support::{
     EmbeddingServer, configure_remote_model, index_options, info_options, native_documents,
     native_file_records, set_native_file_status,
@@ -209,6 +209,35 @@ async fn changed_files_take_the_full_path_and_publish() -> TestResult {
         manifest_bytes(root),
         before,
         "no-op after changes publishes nothing"
+    );
+    engine.close();
+    Ok(())
+}
+
+#[tokio::test]
+async fn configuration_change_takes_the_full_path() -> TestResult {
+    let temporary = tempdir()?;
+    let root = temporary.path();
+    let server = EmbeddingServer::start()?;
+    configure_remote_model(root, server.address)?;
+    write_corpus(root)?;
+
+    let engine = ZvecGrep::new();
+    index_once(&engine, root).await?;
+    let updated_before = manifest_json(root)["updatedTime"].clone();
+
+    // A saved configuration change must be published even when no file changed.
+    let path = root.join(".zvec-grep/manifest.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&path)?)?;
+    manifest["index"]["descriptor"]["defaultEmbeddingModel"]["maxInputTokens"] = json!(4096);
+    fs::write(&path, serde_json::to_vec_pretty(&manifest)?)?;
+
+    let result = index_once(&engine, root).await?;
+    assert_no_changes(&result);
+    assert_ne!(
+        manifest_json(root)["updatedTime"],
+        updated_before,
+        "a configuration change must publish"
     );
     engine.close();
     Ok(())
