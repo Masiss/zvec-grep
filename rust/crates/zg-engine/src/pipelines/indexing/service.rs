@@ -267,6 +267,16 @@ impl WorkspaceIndexService {
         if planned.has_work() {
             return Ok(None);
         }
+        if let Some(reporter) = &options.on_progress {
+            reporter.report(crate::api::index::progress::IndexProgress {
+                phase: crate::api::index::progress::IndexProgressPhase::Done,
+                files_total: Some(planned.scanned_len),
+                files_indexed: Some(0),
+                files_failed: Some(0),
+                detail: Some("index is already up to date".to_owned()),
+                embedding: None,
+            });
+        }
         Ok(Some(IndexResult {
             files_scanned: planned.scanned_len,
             files_unchanged: planned.unchanged(),
