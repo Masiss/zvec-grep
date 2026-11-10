@@ -73,10 +73,7 @@ pub(super) fn write_file_membership(
     membership: &FileMembership<'_>,
 ) -> EngineResult<()> {
     native(
-        doc.add_array_u32(
-            "ancestor_directory_ids",
-            &membership.ancestor_directory_ids,
-        ),
+        doc.add_array_u32("ancestor_directory_ids", &membership.ancestor_directory_ids),
         "encode ancestor directories",
     )?;
     native(

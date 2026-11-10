@@ -2051,12 +2051,11 @@ public class Service {
                 let start = usize::try_from(range.start_offset()).expect("fragment start");
                 let end = usize::try_from(range.end_offset()).expect("fragment end");
                 let content = Content::Code(text[start..end].to_owned());
-                let vector =
-                    vector_content_for_fragment(
-                        std::borrow::Cow::Borrowed(&content),
-                        entity.metadata.as_ref(),
-                        Some(120),
-                    );
+                let vector = vector_content_for_fragment(
+                    std::borrow::Cow::Borrowed(&content),
+                    entity.metadata.as_ref(),
+                    Some(120),
+                );
                 let [Content::Code(vector)] = vector.as_slice() else {
                     panic!("text embedding");
                 };

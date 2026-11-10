@@ -1059,10 +1059,11 @@ fn reconcile_prepared_fragments(
     fragments: &mut [PreparedFragment],
 ) -> Result<ReconcileStats, EngineError> {
     if !embedding_reuse_enabled() {
-        let mut reasons = diagnostics::ReuseDiagnostics::default();
-        reasons.reuse_disabled = fragments.len();
         return Ok(ReconcileStats {
-            reasons,
+            reasons: diagnostics::ReuseDiagnostics {
+                reuse_disabled: fragments.len(),
+                ..diagnostics::ReuseDiagnostics::default()
+            },
             ..ReconcileStats::default()
         });
     }
@@ -1081,6 +1082,10 @@ fn reconcile_prepared_fragments(
     Ok(reconcile)
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "read, decode, extract, prepare, reuse and diagnostics are clearest as one linear pass"
+)]
 async fn prepare_candidate(
     context: &IndexingContext<'_>,
     control: &TaskControl,
@@ -1185,36 +1190,20 @@ async fn prepare_candidate(
         .filter(|fragment| fragment.reusable_vector.is_none())
         .count();
     if diagnostics::enabled() {
-        let mut entity_languages = std::collections::BTreeMap::new();
-        for entity in &entities {
-            let label = match entity.metadata() {
-                Some(EntityMetadata::Code(code)) => {
-                    code.language.map_or("code", Language::as_str)
-                }
-                Some(EntityMetadata::Markdown(_)) => "markdown",
-                None => entity.content().kind().as_str(),
-            };
-            *entity_languages.entry(label.to_owned()).or_insert(0) += 1;
-        }
-        diagnostics::record_file(diagnostics::FileDiagnostics {
-            relative_path: file.relative_path().as_path().to_string_lossy().into_owned(),
-            file_id: file.id().get(),
-            formats: formats.iter().map(|format| format.as_str().to_owned()).collect(),
-            source_bytes: u64::try_from(source.bytes.len()).unwrap_or(u64::MAX),
-            entity_count: entities.len(),
-            fragment_count: fragments.len(),
-            fts_input_bytes: fragments.iter().map(|fragment| fragment.fts_text.len()).sum(),
-            embedding_input_bytes: fragments
-                .iter()
-                .map(|fragment| diagnostics::content_bytes(&fragment.embedding_content))
-                .sum(),
-            entity_languages,
-            reuse: reconcile.reasons.clone(),
-            read_micros,
-            extract_micros,
-            prepare_micros,
-            reuse_micros,
-        });
+        record_prepared_diagnostics(
+            &file,
+            formats,
+            source.bytes.len(),
+            &entities,
+            &fragments,
+            &reconcile,
+            PreparedTimings {
+                read: read_micros,
+                extract: extract_micros,
+                prepare: prepare_micros,
+                reuse: reuse_micros,
+            },
+        );
     }
     Ok(PreparedCandidate::File(Box::new(PreparedFile {
         file,
@@ -1223,6 +1212,65 @@ async fn prepare_candidate(
         graph: extracted.graph.unwrap_or_default(),
         reconcile,
     })))
+}
+
+/// Stage durations, in microseconds, captured while preparing one candidate.
+#[derive(Clone, Copy)]
+struct PreparedTimings {
+    read: u64,
+    extract: u64,
+    prepare: u64,
+    reuse: u64,
+}
+
+/// Diagnostics are opt-in; callers check `diagnostics::enabled()` first.
+fn record_prepared_diagnostics(
+    file: &FileRecord,
+    formats: &[crate::domain::FileFormat],
+    source_bytes: usize,
+    entities: &[Entity],
+    fragments: &[PreparedFragment],
+    reconcile: &ReconcileStats,
+    timings: PreparedTimings,
+) {
+    let mut entity_languages = std::collections::BTreeMap::new();
+    for entity in entities {
+        let label = match entity.metadata() {
+            Some(EntityMetadata::Code(code)) => code.language.map_or("code", Language::as_str),
+            Some(EntityMetadata::Markdown(_)) => "markdown",
+            None => entity.content().kind().as_str(),
+        };
+        *entity_languages.entry(label.to_owned()).or_insert(0) += 1;
+    }
+    diagnostics::record_file(diagnostics::FileDiagnostics {
+        relative_path: file
+            .relative_path()
+            .as_path()
+            .to_string_lossy()
+            .into_owned(),
+        file_id: file.id().get(),
+        formats: formats
+            .iter()
+            .map(|format| format.as_str().to_owned())
+            .collect(),
+        source_bytes: u64::try_from(source_bytes).unwrap_or(u64::MAX),
+        entity_count: entities.len(),
+        fragment_count: fragments.len(),
+        fts_input_bytes: fragments
+            .iter()
+            .map(|fragment| fragment.fts_text.len())
+            .sum(),
+        embedding_input_bytes: fragments
+            .iter()
+            .map(|fragment| diagnostics::content_bytes(&fragment.embedding_content))
+            .sum(),
+        entity_languages,
+        reuse: reconcile.reasons.clone(),
+        read_micros: timings.read,
+        extract_micros: timings.extract,
+        prepare_micros: timings.prepare,
+        reuse_micros: timings.reuse,
+    });
 }
 
 /// Reuse vectors only when the manifest records the same fragment identity,
@@ -1297,9 +1345,7 @@ fn reuse_existing_vectors(
                 reuse.reasons.vector_absent += 1;
                 continue;
             };
-            if entry.vector_fingerprint
-                != crate::storage::manifest::vector_fingerprint(vector)
-            {
+            if entry.vector_fingerprint != crate::storage::manifest::vector_fingerprint(vector) {
                 reuse.reasons.vector_mismatch += 1;
                 continue;
             }

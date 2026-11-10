@@ -665,10 +665,15 @@ fn write_corpus(root: &Path, corpus: &str, files: usize) -> Result<(), Box<dyn s
 
 /// Applies one M3 scenario to the corpus. `none` leaves the workspace untouched.
 fn apply_change(root: &Path, change: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let target = ["src/cs/Type0.cs", "src/cs/Dense0.cs", "src/cs/Widget0.cs", "src/rust/mod0.rs"]
-        .iter()
-        .map(|path| root.join(path))
-        .find(|path| path.exists());
+    let target = [
+        "src/cs/Type0.cs",
+        "src/cs/Dense0.cs",
+        "src/cs/Widget0.cs",
+        "src/rust/mod0.rs",
+    ]
+    .iter()
+    .map(|path| root.join(path))
+    .find(|path| path.exists());
     let Some(target) = target else {
         if change == "none" {
             return Ok(());

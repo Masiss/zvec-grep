@@ -33,9 +33,9 @@ use crate::{
 use service::{chunk_options_for_metadata, validate_formats};
 
 #[cfg(test)]
-use service::{test_content, test_metadata, test_source};
-#[cfg(test)]
 pub(crate) use service::vector_metadata_text_for_test;
+#[cfg(test)]
+use service::{test_content, test_metadata, test_source};
 
 pub(crate) fn source_kind(formats: &[FileFormat]) -> Option<SourceKind> {
     service::source_kind(formats)

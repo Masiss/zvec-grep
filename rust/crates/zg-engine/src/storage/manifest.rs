@@ -472,11 +472,7 @@ mod tests {
         assert!(bytes.len() < legacy_json.len());
         assert_eq!(decoded.file_id(), FileId::new(7));
         let lookup = decoded.embedding_lookup();
-        assert!(
-            lookup
-                .find(&"a".repeat(40), "m", &"b".repeat(64))
-                .is_some()
-        );
+        assert!(lookup.find(&"a".repeat(40), "m", &"b".repeat(64)).is_some());
         assert!(lookup.find(&"a".repeat(40), "m", &"c".repeat(64)).is_none());
     }
 

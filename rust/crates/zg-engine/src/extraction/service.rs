@@ -125,20 +125,20 @@ pub(super) fn vector_content_for_fragment(
         Cow::Owned(content) => content,
     };
     match content {
-        Content::Text(text) => vec![Content::Text(prefixed_metadata(metadata, text))],
-        Content::Code(text) => vec![Content::Code(prefixed_metadata(metadata, text))],
-        image if metadata.is_empty() => vec![image],
-        image => vec![Content::Text(metadata), image],
+        Content::Text(text) => vec![Content::Text(prefixed_metadata(&metadata, text))],
+        Content::Code(text) => vec![Content::Code(prefixed_metadata(&metadata, text))],
+        Content::Image(image) if metadata.is_empty() => vec![Content::Image(image)],
+        Content::Image(image) => vec![Content::Text(metadata), Content::Image(image)],
     }
 }
 
 /// Prepends the metadata block exactly as the previous `format!` call did.
-fn prefixed_metadata(metadata: String, text: String) -> String {
+fn prefixed_metadata(metadata: &str, text: String) -> String {
     if metadata.is_empty() {
         return text;
     }
     let mut output = String::with_capacity(metadata.len() + 1 + text.len());
-    output.push_str(&metadata);
+    output.push_str(metadata);
     output.push('\n');
     output.push_str(&text);
     output
@@ -355,14 +355,14 @@ mod tests {
             for metadata in metadatas {
                 for max_chars in [None, Some(0), Some(24), Some(4_000)] {
                     let expected = legacy_vector_contents(content, metadata, max_chars);
-                    let borrowed = vector_content_for_fragment(
-                        Cow::Borrowed(content),
+                    let borrowed =
+                        vector_content_for_fragment(Cow::Borrowed(content), metadata, max_chars);
+                    assert_eq!(borrowed, expected, "borrowed mismatch: {content:?}");
+                    let owned = vector_content_for_fragment(
+                        Cow::Owned(content.clone()),
                         metadata,
                         max_chars,
                     );
-                    assert_eq!(borrowed, expected, "borrowed mismatch: {content:?}");
-                    let owned =
-                        vector_content_for_fragment(Cow::Owned(content.clone()), metadata, max_chars);
                     assert_eq!(owned, expected, "owned mismatch: {content:?}");
                 }
             }

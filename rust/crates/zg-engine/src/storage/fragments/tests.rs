@@ -186,7 +186,10 @@ fn metadata_projection_matches_the_json_tree_projection() {
         })),
     ];
     for metadata in variants {
-        let typed = metadata.as_ref().map(encode_metadata_fields).unwrap_or_default();
+        let typed = metadata
+            .as_ref()
+            .map(encode_metadata_fields)
+            .unwrap_or_default();
         let expected = metadata.as_ref().map(json_projection).unwrap_or_default();
         assert_eq!(typed, expected, "projection changed for {metadata:?}");
     }
@@ -849,7 +852,13 @@ fn projected_fetch_keeps_identity_and_vector_but_omits_unrequested_fields() {
         // zvec omits unrequested non-indexed columns but always materializes
         // inverted-indexed scalar strings, so `text` (the large FTS column) is
         // the one that must be absent here.
-        for omitted in ["text", "entity_id", "file_id", "ancestor_directory_ids", "file_name"] {
+        for omitted in [
+            "text",
+            "entity_id",
+            "file_id",
+            "ancestor_directory_ids",
+            "file_name",
+        ] {
             assert!(
                 !doc.has_field(omitted),
                 "unrequested field {omitted} must not be materialized"
@@ -876,8 +885,9 @@ fn ownership_projection_returns_only_the_owning_file() {
         .iter()
         .map(|entry| entry.fragment_id.as_str().to_owned())
         .collect::<Vec<_>>();
-    let owners = super::super::zvec::fetch_file_ids(store.index("fixture/fixture").expect("c"), &keys)
-        .expect("owners");
+    let owners =
+        super::super::zvec::fetch_file_ids(store.index("fixture/fixture").expect("c"), &keys)
+            .expect("owners");
     assert_eq!(owners.len(), keys.len());
     assert!(owners.values().all(|id| *id == 2));
 
@@ -890,7 +900,6 @@ fn ownership_projection_returns_only_the_owning_file() {
         "foreign file must be rejected"
     );
 }
-
 
 /// Legacy JSON-tree projection, kept as the timing oracle.
 fn encode_metadata_fields_from_json(value: &serde_json::Value) -> Vec<(IndexField, String)> {

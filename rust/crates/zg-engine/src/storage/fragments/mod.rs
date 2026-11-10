@@ -32,16 +32,15 @@ use zvec_rust::{
 
 use super::{
     path::{
-        FileMembership, file_membership_projection, file_membership_schema,
-        write_file_membership,
+        FileMembership, file_membership_projection, file_membership_schema, write_file_membership,
     },
     types::{
         IndexedFragment, StoragePathFilter, StorageSearchFilter, StorageSearchHit,
         StorageSearchPath,
     },
     zvec::{
-        collect_entity_ids, corrupt, doc_key, native, open_collection, quote, scalar,
-        string_field, u32_field, write_docs,
+        collect_entity_ids, corrupt, doc_key, native, open_collection, quote, scalar, string_field,
+        u32_field, write_docs,
     },
 };
 use crate::{
