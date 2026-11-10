@@ -288,9 +288,16 @@ impl IndexStore {
         let manifest = ManifestStore::open(&path, read_only)?;
         let optimize_marker = path.join("optimize.pending");
         let needs_optimize = file_exists(&optimize_marker)?;
-        // A persisted debt record is authoritative when it parses; an empty or
-        // unknown marker keeps the historical fail-safe "everything is dirty".
-        let (dirty, pending_writes) = match read_debt(&optimize_marker, needs_optimize)? {
+        // A persisted debt record is authoritative when it parses: the debt and
+        // its write counter are restored so the bound keeps applying across
+        // sessions. An empty or unknown marker keeps the historical fail-safe
+        // "everything is dirty, catch up now".
+        let record = if needs_optimize {
+            read_debt(&optimize_marker)?.and_then(|bytes| DebtRecord::decode(&bytes))
+        } else {
+            None
+        };
+        let (dirty, pending_writes) = match record {
             Some(record) => (record.dirty, record.pending),
             None if needs_optimize => (DIRTY_ALL, 0),
             None => (0, 0),
@@ -332,7 +339,7 @@ impl IndexStore {
                 needs_optimize,
                 dirty,
                 pending_writes,
-                forced_maintenance: needs_optimize,
+                forced_maintenance: needs_optimize && record.is_none(),
                 policy,
                 write_generation: 0,
                 optimizing: false,
@@ -1183,12 +1190,9 @@ fn load_schema(
     Ok(embeddings)
 }
 
-/// Reads the durable maintenance debt record. Any damage degrades to `None`,
-/// which callers interpret as the fail-safe "all dirty" marker.
-fn read_debt(path: &Path, present: bool) -> EngineResult<Option<DebtRecord>> {
-    if !present {
-        return Ok(None);
-    }
+/// Reads the raw debt record. Any damage degrades to `None`, which callers
+/// interpret as the fail-safe "all dirty, catch up now" marker.
+fn read_debt(path: &Path) -> EngineResult<Option<Vec<u8>>> {
     let Ok(file) = open_regular_file(path) else {
         return Ok(None);
     };
@@ -1196,7 +1200,7 @@ fn read_debt(path: &Path, present: bool) -> EngineResult<Option<DebtRecord>> {
     if file.take(4096).read_to_end(&mut bytes).is_err() {
         return Ok(None);
     }
-    Ok(DebtRecord::decode(&bytes))
+    Ok(Some(bytes))
 }
 
 fn write_debt(path: &Path, dirty: u8, pending: usize) -> EngineResult<()> {

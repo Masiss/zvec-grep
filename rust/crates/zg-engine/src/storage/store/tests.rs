@@ -3100,7 +3100,7 @@ fn legacy_empty_marker_forces_one_full_catch_up_under_deferral() {
 }
 
 #[test]
-fn deferred_debt_survives_reopen_and_is_caught_up() {
+fn deferred_debt_survives_reopen_without_forcing_maintenance() {
     use crate::storage::maintenance::MaintenancePolicy;
 
     let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
@@ -3121,9 +3121,18 @@ fn deferred_debt_survives_reopen_and_is_caught_up() {
         storage.close().expect("close");
     }
     let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 8 });
-    storage.finalize_writes().expect("recovery catch-up");
-    assert!(!marker_path(&directory).exists(), "reopen must settle debt");
-    assert_eq!(completeness(&storage), 1.0);
+    // Reopening restores the debt and its counter; it must not silently turn
+    // every session into an immediate optimize.
+    assert_eq!(marker_record(&directory).expect("debt survives").pending, 1);
+    storage
+        .finalize_writes()
+        .expect("deferred finalize after reopen");
+    assert_eq!(
+        completeness(&storage),
+        0.0,
+        "debt within the bound stays deferred across sessions"
+    );
+    assert_eq!(marker_record(&directory).expect("debt").pending, 1);
     assert_eq!(
         storage
             .search_fts("alpha reopen", 10, None)
