@@ -2,8 +2,10 @@
 //! model, then dump ranked hits per route so quality can be scored offline.
 //!
 //! Usage:
-//!   e3_spike --root DIR --out FILE --phase index|query --model REF
-//!            [--cache DIR] [--queries FILE] [--limit N] [--repeat N]
+//!   `e3_spike --root DIR --out FILE --phase index|query --model REF`
+//!   `[--cache DIR] [--queries FILE] [--limit N] [--repeat N]`
+//!
+//! `--repeat` runs each query route N times and keeps the fastest sample.
 //!
 //! This is a measurement tool only; it uses the public engine API.
 
@@ -67,13 +69,18 @@ fn parse_args() -> Args {
     }
 }
 
-fn configure_workspace(root: &std::path::Path, model: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn configure_workspace(
+    root: &std::path::Path,
+    model: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let home = root.join(".zvec-grep");
     if home.exists() {
         fs::remove_dir_all(&home)?;
     }
     fs::create_dir_all(&home)?;
-    let (provider, name) = model.split_once('/').expect("provider/name model reference");
+    let (provider, name) = model
+        .split_once('/')
+        .expect("provider/name model reference");
     let descriptor = json!({
         "defaultEmbeddingModel": {
             "model": {
@@ -102,6 +109,10 @@ fn configure_workspace(root: &std::path::Path, model: &str) -> Result<(), Box<dy
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one linear index/query harness with a single evidence map"
+)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args();
@@ -134,19 +145,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "failed": result.files_failed,
                 }),
             );
-            evidence.insert(
-                "timings",
-                serde_json::to_value(&result.timings)?,
-            );
+            evidence.insert("timings", serde_json::to_value(&result.timings)?);
             evidence.insert(
                 "index",
                 json!({ "path": args.root.join(".zvec-grep/index").display().to_string() }),
             );
         }
         "query" => {
-            let queries: Vec<Value> = serde_json::from_slice(&fs::read(
-                args.queries.as_ref().expect("--queries"),
-            )?)?;
+            let queries: Vec<Value> =
+                serde_json::from_slice(&fs::read(args.queries.as_ref().expect("--queries"))?)?;
             let mut results = Vec::new();
             for query in &queries {
                 let id = query["id"].as_str().expect("id").to_owned();
@@ -176,9 +183,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         limit: Some(args.limit),
                         ..ContextOptions::default()
                     };
-                    let started = std::time::Instant::now();
-                    let result = engine.context(options).await?;
-                    let elapsed = started.elapsed().as_micros();
+                    let mut best = u128::MAX;
+                    let mut result = None;
+                    for _ in 0..args.repeat.max(1) {
+                        let started = std::time::Instant::now();
+                        let measured = engine.context(options.clone()).await?;
+                        best = best.min(started.elapsed().as_micros());
+                        result = Some(measured);
+                    }
+                    let result = result.expect("at least one measurement");
+                    let elapsed = best;
                     let hits = result
                         .items
                         .iter()

@@ -31,11 +31,11 @@ use zg_engine::{
             ContextOptions,
             options::{ContextRoute, ContextRouteMode},
         },
-        info::InfoOptions,
         index::{
             IndexOptions,
             options::{Device, EmbeddingModelSpec},
         },
+        info::InfoOptions,
     },
 };
 
