@@ -1,5 +1,9 @@
 //! Canonical entities, content, metadata, and fragment selectors.
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
+};
 
 use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
@@ -12,33 +16,69 @@ use super::zvec::{
     WRITE_BATCH, collect_entity_ids, corrupt, doc_key, fetch_map, native, open_collection, scalar,
     string_field, u32_field, write_docs,
 };
+use crate::utils::directory_exists;
 
 mod codec;
 
 pub(super) struct Entities {
-    collection: Arc<Collection>,
+    path: PathBuf,
+    read_only: bool,
+    /// Opened on first use so a pass with no entity work never pays for the
+    /// native collection (the E1/no-op audit measured ~8 ms here, and the same
+    /// pattern removes the much larger vector-collection cost).
+    collection: OnceLock<Arc<Collection>>,
 }
 
 impl Entities {
     #[cfg(test)]
     pub(super) fn collection(&self) -> &Collection {
-        &self.collection
+        self.ensure_collection().expect("entities collection")
     }
 
     /// Clone a stable native handle for handle-lifetime regression tests.
     #[cfg(test)]
     pub(super) fn handle(&self) -> Arc<Collection> {
-        Arc::clone(&self.collection)
+        self.ensure_collection().expect("entities collection");
+        Arc::clone(self.collection.get().expect("entities collection"))
     }
 
     pub(super) fn open(path: &Path, read_only: bool) -> EngineResult<Self> {
-        Ok(Self {
-            collection: Arc::new(open_collection(
-                &path.join("entities"),
-                &schema()?,
-                read_only,
-            )?),
-        })
+        let entities = Self {
+            path: path.to_path_buf(),
+            read_only,
+            collection: OnceLock::new(),
+        };
+        // New storage must publish a complete layout immediately; existing
+        // collections are opened only when a pass actually needs them.
+        let collection_path = entities.path.join("entities");
+        if !directory_exists(&collection_path)? {
+            if read_only {
+                return Err(EngineError::not_found(format!(
+                    "index collection does not exist: {}",
+                    collection_path.display()
+                )));
+            }
+            entities.ensure_collection()?;
+        }
+        Ok(entities)
+    }
+
+    fn ensure_collection(&self) -> EngineResult<&Collection> {
+        if let Some(collection) = self.collection.get() {
+            return Ok(collection);
+        }
+        let opened = Arc::new(open_collection(
+            &self.path.join("entities"),
+            &schema()?,
+            self.read_only,
+        )?);
+        let _ = self.collection.set(opened);
+        Ok(self.collection.get().expect("initialized"))
+    }
+
+    #[cfg(test)]
+    pub(super) fn is_open(&self) -> bool {
+        self.collection.get().is_some()
     }
 
     /// Encode the full replacement before any existing records are removed.
@@ -49,7 +89,7 @@ impl Entities {
 
     pub(super) fn write(&self, docs: &[Doc]) -> EngineResult<()> {
         write_docs(
-            &self.collection,
+            self.ensure_collection()?,
             docs,
             "write entities and canonical fragments",
         )
@@ -60,7 +100,7 @@ impl Entities {
             .iter()
             .map(|id| id.as_str().to_owned())
             .collect::<Vec<_>>();
-        fetch_map(&self.collection, &keys)?
+        fetch_map(self.ensure_collection()?, &keys)?
             .into_values()
             .map(|doc| decode_doc(&doc).map(|entity| (entity.id().clone(), entity)))
             .collect()
@@ -75,8 +115,11 @@ impl Entities {
         for batch in ids.chunks(WRITE_BATCH) {
             let keys: Vec<_> = batch.iter().map(EntityId::as_str).collect();
             for doc in native(
-                self.collection
-                    .fetch_with_options(&keys, Some(&["entity_id", "file_id"]), false),
+                self.ensure_collection()?.fetch_with_options(
+                    &keys,
+                    Some(&["entity_id", "file_id"]),
+                    false,
+                ),
                 "fetch entity ownership",
             )? {
                 let id = string_field(&doc, "entity_id")?;
@@ -101,7 +144,7 @@ impl Entities {
         for batch in ids.chunks(WRITE_BATCH) {
             let keys: Vec<_> = batch.iter().map(EntityId::as_str).collect();
             for doc in native(
-                self.collection.fetch_with_options(
+                self.ensure_collection()?.fetch_with_options(
                     &keys,
                     Some(&["entity_id", "file_id", "metadata"]),
                     false,
@@ -133,8 +176,11 @@ impl Entities {
         for batch in ids.chunks(WRITE_BATCH) {
             let keys: Vec<_> = batch.iter().map(EntityId::as_str).collect();
             for doc in native(
-                self.collection
-                    .fetch_with_options(&keys, Some(&["entity_id", "payload"]), false),
+                self.ensure_collection()?.fetch_with_options(
+                    &keys,
+                    Some(&["entity_id", "payload"]),
+                    false,
+                ),
                 "fetch entity source ranges",
             )? {
                 let id = string_field(&doc, "entity_id")?;
@@ -154,7 +200,7 @@ impl Entities {
     /// limit cannot silently omit IDs needed to invalidate incoming graph edges.
     pub(super) fn list_ids_for_file(&self, file_id: FileId) -> EngineResult<Vec<String>> {
         collect_entity_ids(
-            &self.collection,
+            self.ensure_collection()?,
             &format!("file_id = {}", file_id.get()),
             |doc| {
                 if u32_field(doc, "file_id")? != file_id.get() {
@@ -177,7 +223,7 @@ impl Entities {
             .iter()
             .map(|entity| entity.id().as_str().to_owned())
             .collect::<Vec<_>>();
-        for owner in super::zvec::fetch_file_ids(&self.collection, &keys)?.into_values() {
+        for owner in super::zvec::fetch_file_ids(self.ensure_collection()?, &keys)?.into_values() {
             if owner != file_id.get() {
                 return Err(EngineError::invalid_argument(
                     "entity or fragment ID is already owned by another file",
@@ -189,18 +235,26 @@ impl Entities {
 
     pub(super) fn delete_file(&self, file_id: FileId) -> EngineResult<()> {
         native(
-            self.collection
+            self.ensure_collection()?
                 .delete_by_filter(&format!("file_id = {}", file_id.get())),
             "delete source entities",
         )
     }
 
+    /// Flushes only when the collection was opened, so a pass that touched no
+    /// entity leaves the native index untouched.
     pub(super) fn flush(&self) -> EngineResult<()> {
-        native(self.collection.flush(), "flush entities")
+        match self.collection.get() {
+            Some(collection) => native(collection.flush(), "flush entities"),
+            None => Ok(()),
+        }
     }
 
     pub(super) fn optimize(&self) -> EngineResult<()> {
-        native(self.collection.optimize(), "optimize entities")
+        match self.collection.get() {
+            Some(collection) => native(collection.optimize(), "optimize entities"),
+            None => Ok(()),
+        }
     }
 }
 

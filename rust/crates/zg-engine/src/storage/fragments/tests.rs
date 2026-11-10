@@ -200,7 +200,7 @@ fn metadata_fields_are_indexed_and_allow_entities_without_filter_values() {
     let temporary = tempfile::tempdir().expect("temporary storage");
     let store = metadata_store(temporary.path());
     {
-        let collection = &store.indexes["fixture/fixture"];
+        let collection = &store.indexes()["fixture/fixture"];
         let schema = collection.schema().expect("retrieval schema");
         for IndexField::String(name) in EntityMetadata::index_schema() {
             assert!(schema.has_field(name), "missing metadata field: {name}");
@@ -235,7 +235,7 @@ fn metadata_fields_are_indexed_and_allow_entities_without_filter_values() {
         write_fixture(&store, &source, &entities, &entries);
         store.flush().expect("flush fragments");
         {
-            let collection = &store.indexes["fixture/fixture"];
+            let collection = &store.indexes()["fixture/fixture"];
             for entry in &entries {
                 let doc = fragment_document(collection, entry.fragment_id.as_str());
                 for IndexField::String(name) in EntityMetadata::index_schema() {
@@ -425,7 +425,7 @@ fn filename_like_negation_propagates_native_query_errors() {
     ] {
         let mut query = SearchQuery::scalar(10).expect("native query");
         query.set_filter(sql).expect("native filter");
-        let native_error = store.indexes["fixture/fixture"]
+        let native_error = store.indexes()["fixture/fixture"]
             .query(&query)
             .err()
             .expect("the pinned zvec release does not parse NOT LIKE");
