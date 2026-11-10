@@ -486,7 +486,7 @@ async fn noop_pass_preserves_query_results_and_symbol_cursors() -> TestResult {
     source.push_str("// commit\n");
     fs::write(&edited, source)?;
     index_once(&engine, root).await?;
-    let stale_cursor = engine
+    let malformed = engine
         .symbols(SymbolsOptions {
             root: Some(root.to_path_buf()),
             name: "Type3".into(),
@@ -495,10 +495,7 @@ async fn noop_pass_preserves_query_results_and_symbol_cursors() -> TestResult {
             ..SymbolsOptions::default()
         })
         .await;
-    assert!(
-        stale_cursor.is_err(),
-        "a malformed or stale cursor is rejected"
-    );
+    assert!(malformed.is_err(), "a malformed cursor is rejected");
     engine.close();
     Ok(())
 }
@@ -557,6 +554,83 @@ async fn edit_racing_a_noop_pass_is_never_lost() -> TestResult {
     assert!(
         !context.items.is_empty(),
         "the racing edit is searchable after the settling pass"
+    );
+    engine.close();
+    Ok(())
+}
+
+#[tokio::test]
+async fn real_symbol_cursor_survives_a_noop_and_dies_on_commit() -> TestResult {
+    let temporary = tempdir()?;
+    let root = temporary.path();
+    let server = EmbeddingServer::start()?;
+    configure_remote_model(root, server.address)?;
+    fs::create_dir_all(root.join("src"))?;
+    for (name, body) in [
+        (
+            "src/SharedA.cs",
+            "namespace Bench;\npublic class Shared { public int A; }\n",
+        ),
+        (
+            "src/SharedB.cs",
+            "namespace Bench;\npublic class Shared { public int B; }\n",
+        ),
+    ] {
+        fs::write(root.join(name), body)?;
+    }
+
+    let engine = ZvecGrep::new();
+    index_once(&engine, root).await?;
+
+    let first_page = engine
+        .symbols(SymbolsOptions {
+            root: Some(root.to_path_buf()),
+            name: "Shared".into(),
+            limit: Some(1),
+            ..SymbolsOptions::default()
+        })
+        .await?;
+    assert_eq!(first_page.total, 2, "both declarations are visible");
+    let cursor = first_page
+        .next_cursor
+        .clone()
+        .expect("a second page exists");
+
+    // No file changed: the snapshot token stays valid.
+    let idle = index_once(&engine, root).await?;
+    assert_no_changes(&idle);
+    let second_page = engine
+        .symbols(SymbolsOptions {
+            root: Some(root.to_path_buf()),
+            name: "Shared".into(),
+            limit: Some(1),
+            cursor: Some(cursor.clone()),
+            ..SymbolsOptions::default()
+        })
+        .await?;
+    assert_eq!(
+        second_page.items.len(),
+        1,
+        "continuation succeeds after a no-op"
+    );
+
+    // A real commit invalidates the same cursor.
+    let mut source = fs::read_to_string(root.join("src/SharedB.cs"))?;
+    source.push_str("// committed\n");
+    fs::write(root.join("src/SharedB.cs"), source)?;
+    index_once(&engine, root).await?;
+    let stale = engine
+        .symbols(SymbolsOptions {
+            root: Some(root.to_path_buf()),
+            name: "Shared".into(),
+            limit: Some(1),
+            cursor: Some(cursor),
+            ..SymbolsOptions::default()
+        })
+        .await;
+    assert!(
+        stale.is_err(),
+        "a commit must invalidate the previous snapshot token"
     );
     engine.close();
     Ok(())
