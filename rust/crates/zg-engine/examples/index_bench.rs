@@ -12,15 +12,12 @@
 use std::{
     collections::BTreeMap,
     fmt::Write as _,
-    fs,
+    fs::{self, FileTimes},
     io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread::{self, JoinHandle},
+    process::{Child, Command, Stdio},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -42,13 +39,19 @@ use zg_engine::{
 };
 
 struct Args {
-    root: PathBuf,
-    out: PathBuf,
+    root: Option<PathBuf>,
+    out: Option<PathBuf>,
     phase: String,
     corpus: String,
     files: usize,
     index_version: u32,
     rebuild: bool,
+    change: String,
+    diagnostics: Option<PathBuf>,
+    mock_server: bool,
+    port_file: Option<PathBuf>,
+    stop_file: Option<PathBuf>,
+    stats_file: Option<PathBuf>,
 }
 
 fn parse_args() -> Args {
@@ -60,6 +63,12 @@ fn parse_args() -> Args {
     let mut files = 300;
     let mut index_version = 3;
     let mut rebuild = false;
+    let mut change = "append".to_owned();
+    let mut diagnostics = None;
+    let mut mock_server = false;
+    let mut port_file = None;
+    let mut stop_file = None;
+    let mut stats_file = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--root" => root = args.next().map(PathBuf::from),
@@ -71,17 +80,29 @@ fn parse_args() -> Args {
                 index_version = args.next().expect("version").parse().expect("version");
             }
             "--rebuild" => rebuild = true,
+            "--change" => change = args.next().expect("change"),
+            "--diagnostics" => diagnostics = args.next().map(PathBuf::from),
+            "--mock-server" => mock_server = true,
+            "--port-file" => port_file = args.next().map(PathBuf::from),
+            "--stop-file" => stop_file = args.next().map(PathBuf::from),
+            "--stats-file" => stats_file = args.next().map(PathBuf::from),
             other => panic!("unknown argument {other}"),
         }
     }
     Args {
-        root: root.expect("--root"),
-        out: out.expect("--out"),
+        root,
+        out,
         phase,
         corpus,
         files,
         index_version,
         rebuild,
+        change,
+        diagnostics,
+        mock_server,
+        port_file,
+        stop_file,
+        stats_file,
     }
 }
 
@@ -89,28 +110,43 @@ fn parse_args() -> Args {
 #[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args();
-    let server = MockEmbeddingServer::start()?;
+    if args.mock_server {
+        return run_mock_server(&args);
+    }
+    let root = args.root.clone().expect("--root");
+    let out = args.out.clone().expect("--out");
+    if let Some(diagnostics) = &args.diagnostics {
+        // The driver sets `ZVEC_GREP_INDEX_DIAGNOSTICS` for this process; stale
+        // output from an earlier run must not be mistaken for this one.
+        let _ = fs::remove_file(diagnostics);
+    }
+    let mut server = MockEmbeddingServer::start()?;
     let mut evidence = BTreeMap::new();
     evidence.insert("phase", json!(args.phase));
     evidence.insert("corpus", json!(args.corpus));
     evidence.insert("files_requested", json!(args.files));
+    evidence.insert("change", json!(args.change));
+    evidence.insert(
+        "diagnostics_env",
+        json!(std::env::var("ZVEC_GREP_INDEX_DIAGNOSTICS").ok()),
+    );
     match args.phase.as_str() {
         "full" | "incremental" => {
-            if args.phase == "full" || !args.root.join(".zvec-grep").exists() {
-                configure_workspace(&args.root, server.address, args.index_version)?;
+            if args.phase == "full" || !root.join(".zvec-grep").exists() {
+                configure_workspace(&root, server.address, args.index_version)?;
             } else {
-                set_endpoint(&args.root, server.address)?;
+                set_endpoint(&root, server.address)?;
             }
-            if args.phase == "full" || !args.root.join("src").exists() {
-                write_corpus(&args.root, &args.corpus, args.files)?;
+            if args.phase == "full" || !root.join("src").exists() {
+                write_corpus(&root, &args.corpus, args.files)?;
             } else {
-                incremental_change(&args.root)?;
+                apply_change(&root, &args.change)?;
             }
             let engine = ZvecGrep::new();
             let started = Instant::now();
             let result = engine
                 .index(IndexOptions {
-                    root: Some(args.root.clone()),
+                    root: Some(root.clone()),
                     rebuild: args.rebuild,
                     allow_remote: true,
                     api_key: Some("local-test-key".into()),
@@ -128,19 +164,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "failed": result.files_failed,
                 }),
             );
-            evidence.insert("index", index_bytes(&args.root.join(".zvec-grep/index"))?);
+            evidence.insert("index", index_bytes(&root.join(".zvec-grep/index"))?);
             evidence.insert("entities_created", json!(result.entities_created));
             evidence.insert("timings", json!(result.timings));
             evidence.insert("self", process_usage());
             engine.close();
         }
         "rebuild" => {
-            set_endpoint(&args.root, server.address)?;
+            set_endpoint(&root, server.address)?;
             let engine = ZvecGrep::new();
             let started = Instant::now();
             let result = engine
                 .index(IndexOptions {
-                    root: Some(args.root.clone()),
+                    root: Some(root.clone()),
                     rebuild: true,
                     allow_remote: true,
                     api_key: Some("local-test-key".into()),
@@ -165,20 +201,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "failed": result.files_failed,
                 }),
             );
-            evidence.insert("index", index_bytes(&args.root.join(".zvec-grep/index"))?);
+            evidence.insert("index", index_bytes(&root.join(".zvec-grep/index"))?);
             evidence.insert("entities_created", json!(result.entities_created));
             evidence.insert("timings", json!(result.timings));
             evidence.insert("self", process_usage());
             engine.close();
         }
         "monotonic" => {
-            set_endpoint(&args.root, server.address)?;
+            set_endpoint(&root, server.address)?;
             let engine = ZvecGrep::new();
             let mut ticks = Vec::new();
             for tick in 0..20 {
                 let path = ["src/cs/Type0.cs", "src/cs/Dense0.cs", "src/cs/Widget0.cs"]
                     .iter()
-                    .map(|path| args.root.join(path))
+                    .map(|path| root.join(path))
                     .find(|path| path.exists())
                     .expect("corpus file");
                 let mut source = fs::read_to_string(&path)?;
@@ -186,14 +222,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fs::write(&path, source)?;
                 let result = engine
                     .index(IndexOptions {
-                        root: Some(args.root.clone()),
+                        root: Some(root.clone()),
                         allow_remote: true,
                         api_key: Some("local-test-key".into()),
                         ..IndexOptions::default()
                     })
                     .await?;
                 let manifest: Value =
-                    serde_json::from_slice(&fs::read(args.root.join(".zvec-grep/manifest.json"))?)?;
+                    serde_json::from_slice(&fs::read(root.join(".zvec-grep/manifest.json"))?)?;
                 ticks.push(json!({
                     "tick": tick,
                     "updated_time": manifest["updatedTime"],
@@ -204,14 +240,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             engine.close();
         }
         "query" => {
-            set_endpoint(&args.root, server.address)?;
+            set_endpoint(&root, server.address)?;
             let engine = ZvecGrep::new();
             let mut queries = BTreeMap::new();
             let limit = if args.corpus == "quality" { 50 } else { 10 };
             for (label, mode, query) in query_cases(&args.corpus) {
                 queries.insert(
                     label,
-                    measure_query(&engine, &args.root, mode, &query, limit).await?,
+                    measure_query(&engine, &root, mode, &query, limit).await?,
                 );
             }
             evidence.insert("queries", json!(queries));
@@ -220,8 +256,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         other => panic!("unknown phase {other}"),
     }
-    drop(server);
-    fs::write(&args.out, serde_json::to_vec_pretty(&evidence)?)?;
+    evidence.insert("server", server.finish());
+    if let Some(diagnostics) = &args.diagnostics {
+        let value = fs::read(diagnostics)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            .unwrap_or(Value::Null);
+        evidence.insert("diagnostics", value);
+    }
+    fs::write(&out, serde_json::to_vec_pretty(&evidence)?)?;
     println!("{}", serde_json::to_string_pretty(&evidence)?);
     Ok(())
 }
@@ -620,26 +663,67 @@ fn write_corpus(root: &Path, corpus: &str, files: usize) -> Result<(), Box<dyn s
     Ok(())
 }
 
-fn incremental_change(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let path = root.join("src/cs/Type0.cs");
-    let path = if path.exists() {
-        path
-    } else {
-        root.join("src/cs/Dense0.cs")
+/// Applies one M3 scenario to the corpus. `none` leaves the workspace untouched.
+fn apply_change(root: &Path, change: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let target = ["src/cs/Type0.cs", "src/cs/Dense0.cs", "src/cs/Widget0.cs", "src/rust/mod0.rs"]
+        .iter()
+        .map(|path| root.join(path))
+        .find(|path| path.exists());
+    let Some(target) = target else {
+        if change == "none" {
+            return Ok(());
+        }
+        return Err("corpus has no change target".into());
     };
-    let path = if path.exists() {
-        path
-    } else {
-        root.join("src/cs/Widget0.cs")
-    };
-    let path = if path.exists() {
-        path
-    } else {
-        root.join("src/rust/mod0.rs")
-    };
-    let mut source = fs::read_to_string(&path)?;
-    source.push_str("public class IncrementalMarker { }\n");
-    fs::write(path, source)?;
+    match change {
+        "none" => {}
+        "append" => {
+            let mut source = fs::read_to_string(&target)?;
+            source.push_str("public class IncrementalMarker { }\n");
+            fs::write(target, source)?;
+        }
+        "touch" => {
+            // Same bytes, newer mtime: the snapshot check must treat it as modified
+            // metadata but unchanged content.
+            let bytes = fs::read(&target)?;
+            let modified = fs::metadata(&target)?.modified()?;
+            fs::write(&target, bytes)?;
+            let file = fs::File::options().write(true).open(&target)?;
+            file.set_times(FileTimes::new().set_modified(modified + Duration::from_secs(2)))?;
+        }
+        "body" => {
+            let mut source = fs::read_to_string(&target)?;
+            source = source.replace("return", "return /* edited */");
+            if source.is_empty() {
+                return Err("empty change target".into());
+            }
+            fs::write(target, source)?;
+        }
+        "prepend" => {
+            let source = fs::read_to_string(&target)?;
+            fs::write(&target, format!("// prepended line\n{source}"))?;
+        }
+        "samesize" => {
+            // Same length, different bytes, original mtime restored.
+            let mut bytes = fs::read(&target)?;
+            let modified = fs::metadata(&target)?.modified()?;
+            let index = bytes.len() / 2;
+            bytes[index] = if bytes[index] == b'a' { b'b' } else { b'a' };
+            let len = bytes.len();
+            fs::write(&target, bytes)?;
+            let file = fs::File::options().write(true).open(&target)?;
+            file.set_times(FileTimes::new().set_modified(modified))?;
+            debug_assert_eq!(fs::metadata(&target)?.len(), len as u64);
+        }
+        "rename" => {
+            let renamed = target.with_file_name("Renamed.cs");
+            fs::rename(&target, renamed)?;
+        }
+        "delete" => {
+            fs::remove_file(&target)?;
+        }
+        other => panic!("unknown change {other}"),
+    }
     Ok(())
 }
 
@@ -781,47 +865,148 @@ fn set_endpoint(root: &Path, address: SocketAddr) -> Result<(), Box<dyn std::err
 
 struct MockEmbeddingServer {
     address: SocketAddr,
-    stop: Arc<AtomicBool>,
-    worker: Option<JoinHandle<()>>,
+    child: Child,
+    stop_file: PathBuf,
+    stats_file: PathBuf,
 }
 
 impl MockEmbeddingServer {
+    /// Runs the mock provider in a child process so its CPU is attributable
+    /// separately from the engine under measurement.
     fn start() -> std::io::Result<Self> {
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let address = listener.local_addr()?;
-        let stop = Arc::new(AtomicBool::new(false));
-        let worker = thread::spawn({
-            let stop = Arc::clone(&stop);
-            move || {
-                for stream in listener.incoming() {
-                    if stop.load(Ordering::Acquire) {
-                        break;
-                    }
-                    if let Ok(stream) = stream {
-                        let _ = respond(stream);
-                    }
-                }
+        let base = std::env::temp_dir().join(format!(
+            "zg-mock-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        fs::create_dir_all(&base)?;
+        let port_file = base.join("port");
+        let stop_file = base.join("stop");
+        let stats_file = base.join("stats.json");
+        let child = Command::new(std::env::current_exe()?)
+            .arg("--mock-server")
+            .arg("--port-file")
+            .arg(&port_file)
+            .arg("--stop-file")
+            .arg(&stop_file)
+            .arg("--stats-file")
+            .arg(&stats_file)
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()?;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let address = loop {
+            if let Ok(text) = fs::read_to_string(&port_file)
+                && let Ok(address) = text.trim().parse::<SocketAddr>()
+            {
+                break address;
             }
-        });
+            if Instant::now() > deadline {
+                let mut child = child;
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(std::io::Error::other(
+                    "mock embedding server did not report a port",
+                ));
+            }
+            thread::sleep(Duration::from_millis(10));
+        };
         Ok(Self {
             address,
-            stop,
-            worker: Some(worker),
+            child,
+            stop_file,
+            stats_file,
         })
     }
-}
 
-impl Drop for MockEmbeddingServer {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Release);
+    fn finish(&mut self) -> Value {
+        let cpu = proc_cpu(self.child.id());
+        let _ = fs::write(&self.stop_file, b"stop");
+        // Wake the blocked accept loop, then let the child publish its counters.
         let _ = TcpStream::connect(self.address);
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(10)),
+                _ => {
+                    let _ = self.child.kill();
+                    let _ = self.child.wait();
+                    break;
+                }
+            }
         }
+        let stats: Value = fs::read(&self.stats_file)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or(Value::Null);
+        json!({ "model": "separate_process", "stats": stats, "cpu": cpu })
     }
 }
 
-fn respond(mut stream: TcpStream) -> std::io::Result<()> {
+/// `(user_ms, sys_ms, rss_kib)` from `/proc/<pid>/stat`.
+fn proc_cpu(pid: u32) -> Value {
+    let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return Value::Null;
+    };
+    let Some(rest) = stat.rsplit_once(')').map(|(_, rest)| rest) else {
+        return Value::Null;
+    };
+    let fields = rest.split_whitespace().collect::<Vec<_>>();
+    let ticks = |index: usize| {
+        fields
+            .get(index)
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(0)
+    };
+    // Fields 14/15 are utime/stime after the `comm` field; RSS is field 24.
+    let user = ticks(11);
+    let sys = ticks(12);
+    let rss_pages = ticks(21);
+    json!({
+        "pid": pid,
+        "user_ms": user.saturating_mul(1000) / 100,
+        "sys_ms": sys.saturating_mul(1000) / 100,
+        "rss_kib": rss_pages.saturating_mul(4),
+    })
+}
+
+fn run_mock_server(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
+    let port_file = args.port_file.clone().expect("--port-file");
+    let stop_file = args.stop_file.clone().expect("--stop-file");
+    let stats_file = args.stats_file.clone().expect("--stats-file");
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let address = listener.local_addr()?;
+    fs::write(&port_file, address.to_string())?;
+    let mut requests = 0_u64;
+    let mut inputs = 0_u64;
+    let mut wall_us = 0_u128;
+    loop {
+        let Ok((stream, _)) = listener.accept() else {
+            break;
+        };
+        if stop_file.exists() {
+            break;
+        }
+        let started = Instant::now();
+        let served = respond(stream)?;
+        wall_us += started.elapsed().as_micros();
+        requests += served.0;
+        inputs += served.1;
+    }
+    let stats = json!({
+        "requests": requests,
+        "inputs": inputs,
+        "wall_us": u64::try_from(wall_us).unwrap_or(u64::MAX),
+    });
+    fs::write(&stats_file, serde_json::to_vec(&stats)?)?;
+    Ok(())
+}
+
+fn respond(mut stream: TcpStream) -> std::io::Result<(u64, u64)> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
     let mut request = Vec::new();
@@ -879,5 +1064,6 @@ fn respond(mut stream: TcpStream) -> std::io::Result<()> {
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         response.len()
     )?;
-    stream.write_all(&response)
+    stream.write_all(&response)?;
+    Ok((1, items.len() as u64))
 }
