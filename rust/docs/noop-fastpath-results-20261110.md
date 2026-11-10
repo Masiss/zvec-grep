@@ -1,5 +1,10 @@
 # No-op indexing fast path — experiment results (2026-11-10)
 
+> Superseded in part by `noop-fastpath-final-qualification-20261110.md`: the
+> publication skip described in section 2 ("C") was reduced to the read-only
+> preflight after qualification found that storage newer than the manifest must
+> still publish.
+
 Status: experiment branch only. Nothing merged, pushed or released; the
 foundation branch and main are untouched.
 
