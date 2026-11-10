@@ -4,7 +4,7 @@
 //! file rows commit, and a missing or invalid manifest simply disables reuse.
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -43,6 +43,25 @@ pub(crate) struct FragmentManifestEntry {
     pub(crate) vector_fingerprint: String,
 }
 
+/// Lookup over one file's manifest entries. Works for sorted and unsorted
+/// manifests, including in-memory fixtures that never call `normalize`.
+pub(crate) struct EmbeddingLookup<'a> {
+    entries: HashMap<(&'a str, &'a str, &'a str), &'a FragmentManifestEntry>,
+}
+
+impl<'a> EmbeddingLookup<'a> {
+    pub(crate) fn find(
+        &self,
+        fragment_id: &str,
+        model: &str,
+        fingerprint: &str,
+    ) -> Option<&'a FragmentManifestEntry> {
+        self.entries
+            .get(&(fragment_id, model, fingerprint))
+            .copied()
+    }
+}
+
 impl FileManifest {
     pub(crate) fn new(file_id: FileId) -> Self {
         Self {
@@ -62,17 +81,21 @@ impl FileManifest {
         });
     }
 
-    pub(crate) fn find_embedding(
-        &self,
-        fragment_id: &str,
-        model: &str,
-        fingerprint: &str,
-    ) -> Option<&FragmentManifestEntry> {
-        self.fragments.iter().find(|entry| {
-            entry.fragment_id == fragment_id
-                && entry.model == model
-                && entry.embedding_fingerprint == fingerprint
-        })
+    /// Hash index over the manifest entries, so reconciliation stays linear in
+    /// the number of fragments instead of scanning the list per fragment.
+    pub(crate) fn embedding_lookup(&self) -> EmbeddingLookup<'_> {
+        let mut entries = HashMap::with_capacity(self.fragments.len());
+        for entry in &self.fragments {
+            entries.insert(
+                (
+                    entry.fragment_id.as_str(),
+                    entry.model.as_str(),
+                    entry.embedding_fingerprint.as_str(),
+                ),
+                entry,
+            );
+        }
+        EmbeddingLookup { entries }
     }
 
     fn validate(&self, expected_file_id: FileId) -> EngineResult<()> {
@@ -406,6 +429,38 @@ mod tests {
     }
 
     #[test]
+    fn embedding_lookup_matches_linear_scan_for_large_unsorted_manifests() {
+        let mut manifest = FileManifest::new(FileId::new(11));
+        for index in 0..400u32 {
+            let model = if index % 2 == 0 { "model-a" } else { "model-b" };
+            manifest.fragments.push(entry(
+                &format!("{index:040x}"),
+                model,
+                &format!("{index:064x}"),
+            ));
+        }
+        // In-memory manifests are not required to be sorted; the lookup must not
+        // depend on `normalize` having run.
+        manifest.fragments.reverse();
+        let lookup = manifest.embedding_lookup();
+        for expected in &manifest.fragments {
+            let found = lookup
+                .find(
+                    &expected.fragment_id,
+                    &expected.model,
+                    &expected.embedding_fingerprint,
+                )
+                .expect("entry is present");
+            assert!(std::ptr::eq(found, expected));
+        }
+        assert!(
+            lookup
+                .find(&"f".repeat(40), "model-a", &"e".repeat(64))
+                .is_none()
+        );
+    }
+
+    #[test]
     fn manifest_round_trips_and_requires_exact_fingerprint_match() {
         let mut manifest = FileManifest::new(FileId::new(7));
         manifest
@@ -416,16 +471,13 @@ mod tests {
         let legacy_json = serde_json::to_vec(&decoded).expect("legacy JSON encoding");
         assert!(bytes.len() < legacy_json.len());
         assert_eq!(decoded.file_id(), FileId::new(7));
+        let lookup = decoded.embedding_lookup();
         assert!(
-            decoded
-                .find_embedding(&"a".repeat(40), "m", &"b".repeat(64))
+            lookup
+                .find(&"a".repeat(40), "m", &"b".repeat(64))
                 .is_some()
         );
-        assert!(
-            decoded
-                .find_embedding(&"a".repeat(40), "m", &"c".repeat(64))
-                .is_none()
-        );
+        assert!(lookup.find(&"a".repeat(40), "m", &"c".repeat(64)).is_none());
     }
 
     #[test]
@@ -523,18 +575,19 @@ mod tests {
         });
         let bytes = manifest.encode_bounded().expect("encode").expect("bounded");
         let decoded = decode_compact(&bytes, file_id).expect("decode");
-        let entry = decoded
-            .find_embedding(&"a".repeat(40), "model-a", &"b".repeat(64))
+        let lookup = decoded.embedding_lookup();
+        let entry = lookup
+            .find(&"a".repeat(40), "model-a", &"b".repeat(64))
             .expect("exact reusable identity");
         assert_eq!(entry.vector_fingerprint, vector_fingerprint);
         assert!(
-            decoded
-                .find_embedding(&"a".repeat(40), "model-b", &"b".repeat(64))
+            lookup
+                .find(&"a".repeat(40), "model-b", &"b".repeat(64))
                 .is_none()
         );
         assert!(
-            decoded
-                .find_embedding(&"a".repeat(40), "model-a", &"c".repeat(64))
+            lookup
+                .find(&"a".repeat(40), "model-a", &"c".repeat(64))
                 .is_none()
         );
     }

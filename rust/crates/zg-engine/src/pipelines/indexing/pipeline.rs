@@ -1191,11 +1191,14 @@ fn reuse_existing_vectors(
     let Some(manifest) = manifest else {
         return Ok(reuse);
     };
+    // One index for the whole file: the previous code scanned the manifest for
+    // every fragment in both passes.
+    let lookup = manifest.embedding_lookup();
     let mut by_model: HashMap<String, Vec<String>> = HashMap::new();
     for fragment in fragments.iter() {
         if !fragment.embedding_fingerprint.is_empty()
-            && manifest
-                .find_embedding(
+            && lookup
+                .find(
                     fragment.fragment_id.as_str(),
                     &fragment.model,
                     &fragment.embedding_fingerprint,
@@ -1211,7 +1214,7 @@ fn reuse_existing_vectors(
     }
     for (model, ids) in by_model {
         let fetch_started = Instant::now();
-        let vectors = storage.load_reusable_vectors(file_id, &model, &ids)?;
+        let mut vectors = storage.load_reusable_vectors(file_id, &model, &ids)?;
         reuse.vector_fetch_micros = reuse
             .vector_fetch_micros
             .saturating_add(duration_micros(fetch_started.elapsed()));
@@ -1222,7 +1225,7 @@ fn reuse_existing_vectors(
             if fragment.model != model || fragment.embedding_fingerprint.is_empty() {
                 continue;
             }
-            let Some(entry) = manifest.find_embedding(
+            let Some(entry) = lookup.find(
                 fragment.fragment_id.as_str(),
                 &fragment.model,
                 &fragment.embedding_fingerprint,
@@ -1232,10 +1235,17 @@ fn reuse_existing_vectors(
             let Some(vector) = vectors.get(fragment.fragment_id.as_str()) else {
                 continue;
             };
-            if entry.vector_fingerprint == crate::storage::manifest::vector_fingerprint(vector) {
-                fragment.reusable_vector = Some(vector.clone());
-                reuse.vectors_reused += 1;
+            if entry.vector_fingerprint
+                != crate::storage::manifest::vector_fingerprint(vector)
+            {
+                continue;
             }
+            // Move the verified vector out of the fetch map instead of cloning it.
+            let Some(vector) = vectors.remove(fragment.fragment_id.as_str()) else {
+                continue;
+            };
+            fragment.reusable_vector = Some(vector);
+            reuse.vectors_reused += 1;
         }
     }
     Ok(reuse)
