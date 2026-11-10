@@ -692,11 +692,10 @@ fn apply_change(root: &Path, change: &str) -> Result<(), Box<dyn std::error::Err
             file.set_times(FileTimes::new().set_modified(modified + Duration::from_secs(2)))?;
         }
         "body" => {
+            // Trailing edit: declarations before it keep their identity, so this
+            // is the scenario that exercises vector reuse.
             let mut source = fs::read_to_string(&target)?;
-            source = source.replace("return", "return /* edited */");
-            if source.is_empty() {
-                return Err("empty change target".into());
-            }
+            source.push_str("// edited body\n");
             fs::write(target, source)?;
         }
         "prepend" => {
