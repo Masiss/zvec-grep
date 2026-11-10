@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, File, OpenOptions},
+    io::Read,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, OnceLock, Weak},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -99,11 +100,12 @@ use crate::{
     domain::{Entity, FileId, FileIndexStatus, FileRecord},
     utils::{
         atomic_write as write_record, directory_exists, ensure_directory, file_exists,
-        reject_symlink, sync_directory,
+        open_regular_file, reject_symlink, sync_directory,
     },
 };
 
 use super::{
+    maintenance::{DebtRecord, MaintenancePolicy},
     directories::Directories,
     entities::Entities,
     files::Files,
@@ -154,6 +156,11 @@ struct StoreState {
     optimize_marker: PathBuf,
     needs_optimize: bool,
     dirty: u8,
+    /// Writes since the last successful scalar optimization (deferral bound).
+    pending_writes: usize,
+    /// Set when a persisted debt record forces a catch-up on this session.
+    forced_maintenance: bool,
+    policy: MaintenancePolicy,
     write_generation: u64,
     optimizing: bool,
     closed: bool,
@@ -235,6 +242,14 @@ impl IndexStore {
         options: WorkspaceIndexStorageOptions,
         graph_enabled: bool,
     ) -> EngineResult<Self> {
+        Self::open_with_graph_policy(options, graph_enabled, MaintenancePolicy::from_env())
+    }
+
+    fn open_with_graph_policy(
+        options: WorkspaceIndexStorageOptions,
+        graph_enabled: bool,
+        policy: MaintenancePolicy,
+    ) -> EngineResult<Self> {
         if let WorkspaceIndexStorageOptions::ReadWrite { embeddings, .. } = &options {
             validate_models(embeddings)?;
         }
@@ -273,6 +288,13 @@ impl IndexStore {
         let manifest = ManifestStore::open(&path, read_only)?;
         let optimize_marker = path.join("optimize.pending");
         let needs_optimize = file_exists(&optimize_marker)?;
+        // A persisted debt record is authoritative when it parses; an empty or
+        // unknown marker keeps the historical fail-safe "everything is dirty".
+        let (dirty, pending_writes) = match read_debt(&optimize_marker, needs_optimize)? {
+            Some(record) => (record.dirty, record.pending),
+            None if needs_optimize => (DIRTY_ALL, 0),
+            None => (0, 0),
+        };
         let files = Files::open(&path, read_only)?;
         let directories = Directories::open(&path, read_only)?;
         let entities = Entities::open(&path, read_only)?;
@@ -308,7 +330,10 @@ impl IndexStore {
                 graph,
                 optimize_marker,
                 needs_optimize,
-                dirty: if needs_optimize { DIRTY_ALL } else { 0 },
+                dirty,
+                pending_writes,
+                forced_maintenance: needs_optimize,
+                policy,
                 write_generation: 0,
                 optimizing: false,
                 closed: false,
@@ -577,6 +602,7 @@ impl IndexStore {
             state.write_generation = state.write_generation.wrapping_add(1);
             state.needs_optimize = true;
             state.dirty = DIRTY_ALL;
+            state.pending_writes = state.pending_writes.saturating_add(1);
             let old_ids = invalidation_entity_ids(state, file_id)?;
             state.files.mark_deleting(file_id)?;
             if let Some(graph) = state.graph.as_mut() {
@@ -611,61 +637,39 @@ impl IndexStore {
 
     /// Same as [`Self::finalize_writes`], also returning each maintenance
     /// stage's wall duration.
+    ///
+    /// The deferred policies keep the same durability barrier: the debt record
+    /// is written before any native work starts and rewritten with whatever is
+    /// still owed after the pass. Only the bits optimized in this pass are
+    /// cleared, so a write that lands during native work keeps its debt.
     pub(crate) fn finalize_writes_detailed(&self) -> EngineResult<OptimizeStageTimings> {
         if self.read_only {
             return Ok(Vec::new());
         }
-        let work = self.write(|state| {
-            if state.optimizing {
-                return Ok(None);
-            }
-            let fragments_pending = state.fragments.needs_optimize()?;
-            if state.needs_optimize || fragments_pending || state.dirty != 0 {
-                state.needs_optimize = true;
-                state.optimizing = true;
-                if fragments_pending {
-                    state.dirty |= DIRTY_FRAGMENTS;
-                }
-                write_record(&state.optimize_marker, b"")?;
-                let fragments =
-                    (state.dirty & DIRTY_FRAGMENTS != 0).then(|| Arc::clone(&state.fragments));
-                return Ok(Some((fragments, state.dirty, state.write_generation)));
-            }
-            Ok(None)
-        })?;
-        let Some((fragments, dirty, generation)) = work else {
+        let plan = self.write(plan_maintenance)?;
+        let Some(plan) = plan else {
             return Ok(Vec::new());
         };
         let fragment_started = Instant::now();
-        let fragment_result = fragments
+        let fragment_result = plan
+            .fragments
             .as_ref()
             .map_or(Ok(()), |fragments| fragments.optimize());
         let fragment_elapsed = fragment_started.elapsed();
         let mut stage_timings = Vec::new();
-        if fragments.is_some() {
+        if plan.fragments.is_some() {
             stage_timings.push(("index_optimize_fragments".to_owned(), fragment_elapsed));
         }
         self.write(|state| {
             let mut dirty_timings = Vec::new();
-            let result =
-                fragment_result.and_then(|()| optimize_dirty(state, dirty, &mut dirty_timings));
+            let result = fragment_result
+                .and_then(|()| optimize_dirty(state, plan.scalar_dirty, &mut dirty_timings));
             stage_timings.extend(dirty_timings);
             state.optimizing = false;
-            match result {
-                Ok(()) => {
-                    // A concurrent write after the snapshot keeps the debt.
-                    if state.write_generation == generation {
-                        fs::remove_file(&state.optimize_marker).map_err(|error| {
-                            io_error("clear pending optimization", &state.optimize_marker, &error)
-                        })?;
-                        state.needs_optimize = false;
-                        state.dirty = 0;
-                    }
-                    Ok(stage_timings)
-                }
-                Err(error) => Err(error),
-            }
+            result?;
+            settle_debt_after_pass(state, &plan)
         })
+        .map(|()| stage_timings)
     }
 
     #[cfg(test)]
@@ -744,6 +748,93 @@ impl IndexStore {
             .map_or(Ok(()), |graph| graph.close().map_err(graph_error));
         flush_result.and(graph_close)
     }
+}
+
+/// One pass of maintenance: which collections run now and what they cover.
+struct MaintenancePlan {
+    fragments: Option<Arc<Fragments>>,
+    fragment_dirty: bool,
+    scalar_dirty: u8,
+    pending_at_snapshot: usize,
+    generation: u64,
+}
+
+/// Decides whether this pass optimizes now or defers under the debt record.
+/// Returns `None` when there is no work at all.
+fn plan_maintenance(state: &mut StoreState) -> EngineResult<Option<MaintenancePlan>> {
+    if state.optimizing {
+        return Ok(None);
+    }
+    if state.fragments.needs_optimize()? {
+        state.dirty |= DIRTY_FRAGMENTS;
+    }
+    if !state.needs_optimize && state.dirty == 0 {
+        return Ok(None);
+    }
+    let dirty = state.dirty;
+    let fragment_dirty = dirty & DIRTY_FRAGMENTS != 0;
+    let scalar_dirty = dirty & !DIRTY_FRAGMENTS;
+    let forced = state.forced_maintenance || MaintenancePolicy::forced();
+    let due = match state.policy.limit() {
+        None => true,
+        Some(limit) => forced || state.pending_writes >= limit.max(1),
+    };
+    let run_fragments = fragment_dirty && (!state.policy.defers_fragments() || due);
+    let run_scalar = scalar_dirty != 0 && due;
+
+    if !run_fragments && !run_scalar {
+        // Debt is real but under the bound: persist it and publish as usual.
+        state.needs_optimize = true;
+        write_debt(&state.optimize_marker, dirty, state.pending_writes)?;
+        return Ok(None);
+    }
+
+    let plan = MaintenancePlan {
+        fragments: (run_fragments && fragment_dirty).then(|| Arc::clone(&state.fragments)),
+        fragment_dirty: run_fragments && fragment_dirty,
+        scalar_dirty: if run_scalar { scalar_dirty } else { 0 },
+        pending_at_snapshot: state.pending_writes,
+        generation: state.write_generation,
+    };
+    state.needs_optimize = true;
+    state.optimizing = true;
+    state.forced_maintenance = false;
+    // Crash barrier: record what this pass intends to maintain.
+    let in_flight = (if plan.fragment_dirty {
+        DIRTY_FRAGMENTS
+    } else {
+        0
+    }) | plan.scalar_dirty;
+    write_debt(&state.optimize_marker, in_flight, state.pending_writes)?;
+    Ok(Some(plan))
+}
+
+/// Clears only the debt the pass actually settled and persists the remainder.
+fn settle_debt_after_pass(state: &mut StoreState, plan: &MaintenancePlan) -> EngineResult<()> {
+    let mut settled = 0u8;
+    if plan.fragment_dirty {
+        settled |= DIRTY_FRAGMENTS;
+    }
+    settled |= plan.scalar_dirty;
+    // A write that landed during native work was not part of this pass, so its
+    // debt is kept in full (the historical conservative behaviour).
+    if state.write_generation == plan.generation {
+        state.dirty &= !settled;
+        if plan.scalar_dirty != 0 {
+            state.pending_writes = 0;
+        }
+    }
+    state.needs_optimize = state.dirty != 0;
+    if state.dirty == 0 {
+        if file_exists(&state.optimize_marker)? {
+            fs::remove_file(&state.optimize_marker).map_err(|error| {
+                io_error("clear pending optimization", &state.optimize_marker, &error)
+            })?;
+        }
+    } else {
+        write_debt(&state.optimize_marker, state.dirty, state.pending_writes)?;
+    }
+    Ok(())
 }
 
 fn optimize_dirty(
@@ -853,6 +944,7 @@ fn replace_file(
     state.fragments.validate_ownership(entries, file.id())?;
     state.needs_optimize = true;
     state.dirty = DIRTY_ALL;
+    state.pending_writes = state.pending_writes.saturating_add(1);
     let directories = state.directories.ensure(file.relative_path())?;
     // Encode every projection before removing any of the previous file's data.
     let entity_docs = Entities::prepare(entities)?;
@@ -1091,6 +1183,31 @@ fn load_schema(
         &serde_json::to_vec(&SchemaRecord::new(&embeddings)).map_err(|error| json_error(&error))?,
     )?;
     Ok(embeddings)
+}
+
+
+/// Reads the durable maintenance debt record. Any damage degrades to `None`,
+/// which callers interpret as the fail-safe "all dirty" marker.
+fn read_debt(path: &Path, present: bool) -> EngineResult<Option<DebtRecord>> {
+    if !present {
+        return Ok(None);
+    }
+    let Ok(file) = open_regular_file(path) else {
+        return Ok(None);
+    };
+    let mut bytes = Vec::new();
+    if file.take(4096).read_to_end(&mut bytes).is_err() {
+        return Ok(None);
+    }
+    Ok(DebtRecord::decode(&bytes))
+}
+
+fn write_debt(path: &Path, dirty: u8, pending: usize) -> EngineResult<()> {
+    let record = DebtRecord::new(dirty, pending);
+    match record.encode() {
+        Some(bytes) => write_record(path, &bytes),
+        None => write_record(path, b""),
+    }
 }
 
 fn registry() -> EngineResult<MutexGuard<'static, HashMap<PathBuf, Weak<SharedStore>>>> {

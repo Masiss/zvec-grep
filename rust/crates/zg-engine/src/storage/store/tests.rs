@@ -2933,3 +2933,168 @@ fn native_query_and_write_during_optimize_on_pinned_zvec() {
     );
     storage.close().expect("close after reopen");
 }
+
+// --- E1 bounded maintenance prototype -------------------------------------
+
+fn open_policy(path: &Path, policy: crate::storage::maintenance::MaintenancePolicy) -> IndexStore {
+    IndexStore::open_with_graph_policy(
+        WorkspaceIndexStorageOptions::ReadWrite {
+            storage_path: path.to_owned(),
+            embeddings: vec![schema()],
+        },
+        false,
+        policy,
+    )
+    .expect("open storage with policy")
+}
+
+fn marker_path(directory: &tempfile::TempDir) -> std::path::PathBuf {
+    directory.path().join("optimize.pending")
+}
+
+fn marker_record(
+    directory: &tempfile::TempDir,
+) -> Option<crate::storage::maintenance::DebtRecord> {
+    let bytes = std::fs::read(marker_path(directory)).ok()?;
+    crate::storage::maintenance::DebtRecord::decode(&bytes)
+}
+
+fn completeness(storage: &IndexStore) -> f32 {
+    let pending = storage
+        .read(|state| state.fragments.needs_optimize())
+        .expect("fragment completeness");
+    if pending { 0.0 } else { 1.0 }
+}
+
+#[test]
+fn scalar_deferred_policy_optimizes_fragments_and_defers_scalars() {
+    use crate::storage::maintenance::MaintenancePolicy;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open_policy(directory.path(), MaintenancePolicy::ScalarDeferred { limit: 3 });
+    let (file, entry) = fixture(Some(&storage), "scalar-deferred", "deferred scalar", vec![1.0, 0.0, 0.0]);
+    storage
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write file");
+    storage.finalize_writes().expect("deferred finalize");
+
+    assert_eq!(
+        completeness(&storage),
+        1.0,
+        "fragments must keep optimizing under scalar deferral"
+    );
+    let record = marker_record(&directory).expect("debt record persists");
+    assert_eq!(record.pending, 1);
+    assert_eq!(
+        record.dirty & DIRTY_FRAGMENTS,
+        0,
+        "fragments were optimized in this pass"
+    );
+    assert_eq!(
+        record.dirty,
+        DIRTY_ALL & !DIRTY_FRAGMENTS,
+        "only the scalar collections remain owed"
+    );
+    storage.close().expect("close");
+}
+
+#[test]
+fn bounded_policy_defers_until_the_bound_then_catches_up() {
+    use crate::storage::maintenance::MaintenancePolicy;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 2 });
+    let (first, first_entry) = fixture(Some(&storage), "bounded-a", "alpha", vec![1.0, 0.0, 0.0]);
+    storage
+        .replace_fixture_file(&first, std::slice::from_ref(&first_entry))
+        .expect("first write");
+    storage.finalize_writes().expect("deferred finalize");
+
+    assert_eq!(completeness(&storage), 0.0, "fragments stay unoptimized");
+    assert_eq!(marker_record(&directory).expect("debt").pending, 1);
+    // Deferred state must still serve the written rows on both paths.
+    assert_eq!(storage.search_fts("alpha", 10, None).expect("fts").len(), 1);
+    let reference = schema().model().reference().to_owned();
+    assert_eq!(
+        storage
+            .search_vector(&reference, &[1.0, 0.0, 0.0], 10, None)
+            .expect("vector")
+            .len(),
+        1,
+        "deferred fragments must stay vector-searchable"
+    );
+
+    let (second, second_entry) = fixture(Some(&storage), "bounded-b", "beta", vec![0.0, 1.0, 0.0]);
+    storage
+        .replace_fixture_file(&second, std::slice::from_ref(&second_entry))
+        .expect("second write");
+    storage.finalize_writes().expect("catch-up finalize");
+
+    assert_eq!(completeness(&storage), 1.0, "the bound triggers optimization");
+    assert!(!marker_path(&directory).exists(), "settled debt is cleared");
+    assert_eq!(storage.search_fts("beta", 10, None).expect("fts").len(), 1);
+    let mut total = 0;
+    for (path, text) in [("bounded-a", "alpha"), ("bounded-b", "beta")] {
+        let hits = storage.search_fts(text, 10, None).expect("fts");
+        assert_eq!(hits.len(), 1, "row for {path} is present exactly once");
+        total += hits.len();
+    }
+    assert_eq!(total, 2, "no rows lost or duplicated across the deferred pass");
+    storage.close().expect("close");
+}
+
+#[test]
+fn legacy_empty_marker_forces_one_full_catch_up_under_deferral() {
+    use crate::storage::maintenance::MaintenancePolicy;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+    let directory = tempfile::tempdir().expect("fixture directory");
+    {
+        let storage = open_policy(directory.path(), MaintenancePolicy::Immediate);
+        let (file, entry) = fixture(Some(&storage), "legacy", "legacy marker", vec![1.0, 0.0, 0.0]);
+        storage
+            .replace_fixture_file(&file, std::slice::from_ref(&entry))
+            .expect("write file");
+        storage.finalize_writes().expect("optimize");
+        storage.close().expect("close");
+    }
+    // Simulate a crash barrier written by an older binary (zero-byte marker).
+    std::fs::write(marker_path(&directory), b"").expect("legacy marker");
+
+    let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 100 });
+    assert!(marker_record(&directory).is_none());
+    storage.finalize_writes().expect("legacy catch-up");
+    assert!(
+        !marker_path(&directory).exists(),
+        "legacy marker must be consumed by one catch-up"
+    );
+    assert_eq!(completeness(&storage), 1.0);
+    assert_eq!(storage.search_fts("legacy marker", 10, None).expect("fts").len(), 1);
+    storage.close().expect("close");
+}
+
+#[test]
+fn deferred_debt_survives_reopen_and_is_caught_up() {
+    use crate::storage::maintenance::MaintenancePolicy;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+    let directory = tempfile::tempdir().expect("fixture directory");
+    {
+        let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 8 });
+        let (file, entry) = fixture(Some(&storage), "reopen-debt", "alpha reopen", vec![1.0, 0.0, 0.0]);
+        storage
+            .replace_fixture_file(&file, std::slice::from_ref(&entry))
+            .expect("write file");
+        storage.finalize_writes().expect("defer");
+        assert!(marker_path(&directory).exists());
+        storage.close().expect("close");
+    }
+    let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 8 });
+    storage.finalize_writes().expect("recovery catch-up");
+    assert!(!marker_path(&directory).exists(), "reopen must settle debt");
+    assert_eq!(completeness(&storage), 1.0);
+    assert_eq!(storage.search_fts("alpha reopen", 10, None).expect("fts").len(), 1);
+    storage.close().expect("close");
+}

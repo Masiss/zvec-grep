@@ -4,6 +4,7 @@ mod entities;
 mod files;
 mod fragments;
 pub(crate) mod graph;
+mod maintenance;
 pub(crate) mod manifest;
 mod path;
 pub(crate) mod read_session;
