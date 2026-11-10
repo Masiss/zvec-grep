@@ -81,14 +81,19 @@ pub(crate) struct DebtRecord {
     pub(crate) dirty: u8,
     /// Writes observed since the last successful scalar optimization.
     pub(crate) pending: usize,
+    /// Set while an optimization is in flight or after one failed, so the next
+    /// session retries instead of waiting for the bound again.
+    #[serde(default)]
+    pub(crate) retry: bool,
 }
 
 impl DebtRecord {
-    pub(crate) const fn new(dirty: u8, pending: usize) -> Self {
+    pub(crate) const fn new(dirty: u8, pending: usize, retry: bool) -> Self {
         Self {
             version: DEBT_VERSION,
             dirty,
             pending,
+            retry,
         }
     }
 
@@ -127,11 +132,22 @@ mod tests {
 
     #[test]
     fn debt_records_round_trip_and_reject_empty_or_foreign_payloads() {
-        let record = DebtRecord::new(0b1111, 3);
+        let record = DebtRecord::new(0b1111, 3, true);
         let bytes = record.encode().expect("encode");
         assert_eq!(DebtRecord::decode(&bytes), Some(record));
+        assert!(DebtRecord::decode(&bytes).expect("decoded").retry);
         assert_eq!(DebtRecord::decode(b""), None);
         assert_eq!(DebtRecord::decode(b"not json"), None);
+        // Version-1 payloads written before the retry flag stay readable.
+        let legacy: serde_json::Value = serde_json::json!({
+            "version": DEBT_VERSION,
+            "dirty": 1,
+            "pending": 2,
+        });
+        let decoded =
+            DebtRecord::decode(&serde_json::to_vec(&legacy).expect("json")).expect("legacy");
+        assert!(!decoded.retry);
+        assert_eq!(decoded.pending, 2);
         let mut future: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
         future["version"] = serde_json::json!(DEBT_VERSION + 1);
         assert_eq!(

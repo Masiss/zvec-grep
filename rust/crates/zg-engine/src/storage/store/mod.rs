@@ -339,7 +339,7 @@ impl IndexStore {
                 needs_optimize,
                 dirty,
                 pending_writes,
-                forced_maintenance: needs_optimize && record.is_none(),
+                forced_maintenance: record.map_or(needs_optimize, |record| record.retry),
                 policy,
                 write_generation: 0,
                 optimizing: false,
@@ -791,7 +791,7 @@ fn plan_maintenance(state: &mut StoreState) -> EngineResult<Option<MaintenancePl
     if !run_fragments && !run_scalar {
         // Debt is real but under the bound: persist it and publish as usual.
         state.needs_optimize = true;
-        write_debt(&state.optimize_marker, dirty, state.pending_writes)?;
+        write_debt(&state.optimize_marker, dirty, state.pending_writes, false)?;
         return Ok(None);
     }
 
@@ -810,7 +810,12 @@ fn plan_maintenance(state: &mut StoreState) -> EngineResult<Option<MaintenancePl
     } else {
         0
     }) | plan.scalar_dirty;
-    write_debt(&state.optimize_marker, in_flight, state.pending_writes)?;
+    write_debt(
+        &state.optimize_marker,
+        in_flight,
+        state.pending_writes,
+        true,
+    )?;
     Ok(Some(plan))
 }
 
@@ -837,7 +842,12 @@ fn settle_debt_after_pass(state: &mut StoreState, plan: &MaintenancePlan) -> Eng
             })?;
         }
     } else {
-        write_debt(&state.optimize_marker, state.dirty, state.pending_writes)?;
+        write_debt(
+            &state.optimize_marker,
+            state.dirty,
+            state.pending_writes,
+            false,
+        )?;
     }
     Ok(())
 }
@@ -1203,8 +1213,8 @@ fn read_debt(path: &Path) -> EngineResult<Option<Vec<u8>>> {
     Ok(Some(bytes))
 }
 
-fn write_debt(path: &Path, dirty: u8, pending: usize) -> EngineResult<()> {
-    let record = DebtRecord::new(dirty, pending);
+fn write_debt(path: &Path, dirty: u8, pending: usize, retry: bool) -> EngineResult<()> {
+    let record = DebtRecord::new(dirty, pending, retry);
     match record.encode() {
         Some(bytes) => write_record(path, &bytes),
         None => write_record(path, b""),

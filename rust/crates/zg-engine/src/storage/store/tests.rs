@@ -3142,3 +3142,121 @@ fn deferred_debt_survives_reopen_without_forcing_maintenance() {
     );
     storage.close().expect("close");
 }
+
+#[test]
+fn deferred_catch_up_failure_keeps_debt_and_retries_after_reopen() {
+    use crate::storage::fragments::set_optimize_test_hook;
+    use crate::storage::maintenance::MaintenancePolicy;
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+    let directory = tempfile::tempdir().expect("fixture directory");
+    {
+        // limit 1 forces the catch-up so the native failure hits the marker path.
+        let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 1 });
+        let (file, entry) = fixture(
+            Some(&storage),
+            "deferred-failure",
+            "deferred failure",
+            vec![1.0, 0.0, 0.0],
+        );
+        storage
+            .replace_fixture_file(&file, std::slice::from_ref(&entry))
+            .expect("write file");
+        set_optimize_test_hook(0, true);
+        assert!(
+            storage.finalize_writes().is_err(),
+            "injected native failure must surface"
+        );
+        set_optimize_test_hook(0, false);
+        let record = marker_record(&directory).expect("debt survives the failure");
+        assert!(
+            record.dirty & DIRTY_FRAGMENTS != 0,
+            "failed fragment maintenance stays owed"
+        );
+        assert!(record.pending >= 1);
+        storage.close().expect("close");
+    }
+
+    let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 8 });
+    storage.finalize_writes().expect("retry after reopen");
+    assert!(
+        !marker_path(&directory).exists(),
+        "successful retry clears the debt"
+    );
+    assert_eq!(completeness(&storage), 1.0);
+    assert_eq!(
+        storage
+            .search_fts("deferred failure", 10, None)
+            .expect("fts")
+            .len(),
+        1
+    );
+    storage.close().expect("close");
+}
+
+#[test]
+fn write_during_deferred_optimize_keeps_the_new_debt() {
+    use crate::storage::fragments::{OPTIMIZE_TEST_ACTIVE, set_optimize_test_hook};
+    use crate::storage::maintenance::MaintenancePolicy;
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = Arc::new(open_policy(
+        directory.path(),
+        MaintenancePolicy::Bounded { limit: 1 },
+    ));
+    let (first, first_entry) = fixture(
+        Some(&storage),
+        "during-opt-a",
+        "alpha first",
+        vec![1.0, 0.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&first, std::slice::from_ref(&first_entry))
+        .expect("first write");
+
+    let finalizer = Arc::clone(&storage);
+    let worker = std::thread::spawn(move || {
+        set_optimize_test_hook(800, false);
+        finalizer.finalize_writes()
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !OPTIMIZE_TEST_ACTIVE.load(Ordering::Acquire) {
+        assert!(Instant::now() < deadline, "fragment optimize did not start");
+        std::thread::yield_now();
+    }
+
+    let (second, second_entry) = fixture(
+        Some(&storage),
+        "during-opt-b",
+        "beta second",
+        vec![0.0, 1.0, 0.0],
+    );
+    storage
+        .replace_fixture_file(&second, std::slice::from_ref(&second_entry))
+        .expect("concurrent write");
+    worker.join().expect("finalizer").expect("finalize");
+
+    let record = marker_record(&directory).expect("concurrent write keeps debt");
+    assert_eq!(
+        record.dirty, DIRTY_ALL,
+        "the new write re-dirties every table"
+    );
+    assert!(!record.retry, "the pass completed; only new debt remains");
+    assert_eq!(
+        storage.search_fts("beta", 10, None).expect("fts").len(),
+        1,
+        "the concurrent row is visible immediately"
+    );
+
+    storage.finalize_writes().expect("bounded retry");
+    assert!(
+        !marker_path(&directory).exists(),
+        "the next bounded pass settles the remaining debt"
+    );
+    assert_eq!(completeness(&storage), 1.0);
+    storage.close().expect("close");
+}
