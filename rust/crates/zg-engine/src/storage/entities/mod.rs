@@ -177,8 +177,8 @@ impl Entities {
             .iter()
             .map(|entity| entity.id().as_str().to_owned())
             .collect::<Vec<_>>();
-        for doc in fetch_map(&self.collection, &keys)?.into_values() {
-            if u32_field(&doc, "file_id")? != file_id.get() {
+        for owner in super::zvec::fetch_file_ids(&self.collection, &keys)?.into_values() {
+            if owner != file_id.get() {
                 return Err(EngineError::invalid_argument(
                     "entity or fragment ID is already owned by another file",
                 ));

@@ -40,7 +40,7 @@ use super::{
         StorageSearchPath,
     },
     zvec::{
-        collect_entity_ids, corrupt, doc_key, fetch_map, native, open_collection, quote, scalar,
+        collect_entity_ids, corrupt, doc_key, native, open_collection, quote, scalar,
         string_field, u32_field, write_docs,
     },
 };
@@ -189,7 +189,12 @@ impl Fragments {
         let mut vectors = HashMap::with_capacity(keys.len());
         for batch in keys.chunks(super::zvec::WRITE_BATCH) {
             let refs = batch.iter().map(String::as_str).collect::<Vec<_>>();
-            for doc in native(index.fetch(&refs), "fetch reusable embeddings")? {
+            // Only the key and the vector are needed; the FTS text and scalars are
+            // never read on this path, so they are left out of the projection.
+            for doc in native(
+                index.fetch_with_options(&refs, Some(&["document_id"]), true),
+                "fetch reusable embeddings",
+            )? {
                 let key = doc_key(&doc)?.to_owned();
                 let Some(vector) = zg_zvec_fp16::decode_embedding(&doc, "embedding")
                     .map_err(|error| corrupt(format!("decode reusable embedding: {error}")))?
@@ -707,8 +712,8 @@ fn reject_foreign_ids(
     keys: &[String],
     file_id: FileId,
 ) -> EngineResult<()> {
-    for doc in fetch_map(collection, keys)?.into_values() {
-        if u32_field(&doc, "file_id")? != file_id.get() {
+    for owner in super::zvec::fetch_file_ids(collection, keys)?.into_values() {
+        if owner != file_id.get() {
             return Err(EngineError::invalid_argument(
                 "entity or fragment ID is already owned by another file",
             ));

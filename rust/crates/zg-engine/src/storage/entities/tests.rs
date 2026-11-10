@@ -260,3 +260,4 @@ fn canonical_metadata_serialization_stays_key_sorted() {
         "stored metadata is expected to have sorted keys: {stored}"
     );
 }
+

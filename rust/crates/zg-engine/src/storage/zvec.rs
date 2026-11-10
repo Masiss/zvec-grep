@@ -127,6 +127,25 @@ pub(super) fn fetch_map(
     Ok(result)
 }
 
+/// Reads only the owning file ID for each key. Callers use the result to reject
+/// foreign ownership; the projected documents are never written back.
+pub(super) fn fetch_file_ids(
+    collection: &Collection,
+    keys: &[String],
+) -> EngineResult<HashMap<String, u32>> {
+    let mut owners = HashMap::with_capacity(keys.len());
+    for batch in keys.chunks(WRITE_BATCH) {
+        let refs = batch.iter().map(String::as_str).collect::<Vec<_>>();
+        for doc in native(
+            collection.fetch_with_options(&refs, Some(&["file_id"]), false),
+            "fetch stored ownership",
+        )? {
+            owners.insert(doc_key(&doc)?.to_owned(), u32_field(&doc, "file_id")?);
+        }
+    }
+    Ok(owners)
+}
+
 pub(super) fn write_docs(
     collection: &Collection,
     docs: &[Doc],

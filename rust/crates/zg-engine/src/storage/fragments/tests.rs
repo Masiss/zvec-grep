@@ -128,7 +128,7 @@ fn metadata_fragments(
 
 fn fragment_document(collection: &Collection, id: &str) -> Doc {
     let key = id.to_owned();
-    fetch_map(collection, std::slice::from_ref(&key))
+    super::super::zvec::fetch_map(collection, std::slice::from_ref(&key))
         .expect("stored documents")
         .remove(&key)
         .expect("stored fragment")
@@ -801,3 +801,93 @@ fn fts_expression_quotes_terms_and_rejects_empty_queries() {
         64
     );
 }
+
+/// Projected native fetches must still return the primary key, the requested
+/// scalar, and the vector, while leaving unrequested columns empty. These
+/// documents are read-only; nothing on this path writes them back.
+#[test]
+fn projected_fetch_keeps_identity_and_vector_but_omits_unrequested_fields() {
+    let root = tempfile::tempdir().expect("storage");
+    let store = metadata_store(root.path());
+    let (source, entities, entries) = metadata_fragments(1, "projection probe");
+    write_fixture(&store, &source, &entities, &entries);
+    let keys = entries
+        .iter()
+        .map(|entry| entry.fragment_id.as_str().to_owned())
+        .collect::<Vec<_>>();
+
+    let vectors = store
+        .load_vectors("fixture/fixture", &keys)
+        .expect("reusable vectors");
+    assert_eq!(vectors.len(), keys.len());
+    for (key, entry) in keys.iter().zip(&entries) {
+        assert_eq!(
+            vectors.get(key).expect("reused vector"),
+            &entry.vector,
+            "reused vector differs from the stored projection"
+        );
+    }
+
+    let collection = store.index("fixture/fixture").expect("collection");
+    let refs = keys.iter().map(String::as_str).collect::<Vec<_>>();
+    let docs = collection
+        .fetch_with_options(&refs, Some(&["document_id"]), true)
+        .expect("projected fetch");
+    assert_eq!(docs.len(), keys.len());
+    for doc in &docs {
+        let key = doc_key(doc).expect("primary key");
+        assert!(
+            keys.iter().any(|expected| expected == key),
+            "projected fetch returned an unknown key {key}"
+        );
+        assert_eq!(
+            doc.get_string("document_id")
+                .expect("document id read")
+                .expect("document id present"),
+            key
+        );
+        // zvec omits unrequested non-indexed columns but always materializes
+        // inverted-indexed scalar strings, so `text` (the large FTS column) is
+        // the one that must be absent here.
+        for omitted in ["text", "entity_id", "file_id", "ancestor_directory_ids", "file_name"] {
+            assert!(
+                !doc.has_field(omitted),
+                "unrequested field {omitted} must not be materialized"
+            );
+        }
+        assert!(
+            zg_zvec_fp16::decode_embedding(doc, "embedding")
+                .expect("embedding read")
+                .is_some(),
+            "requested vector must be present"
+        );
+    }
+}
+
+/// Ownership reads must reject a foreign file and never mistake a missing row
+/// for ownership.
+#[test]
+fn ownership_projection_returns_only_the_owning_file() {
+    let root = tempfile::tempdir().expect("storage");
+    let store = metadata_store(root.path());
+    let (source, entities, entries) = metadata_fragments(2, "ownership probe");
+    write_fixture(&store, &source, &entities, &entries);
+    let keys = entries
+        .iter()
+        .map(|entry| entry.fragment_id.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let owners = super::super::zvec::fetch_file_ids(store.index("fixture/fixture").expect("c"), &keys)
+        .expect("owners");
+    assert_eq!(owners.len(), keys.len());
+    assert!(owners.values().all(|id| *id == 2));
+
+    assert!(
+        store.validate_ownership(&entries, FileId::new(2)).is_ok(),
+        "own fragments must pass"
+    );
+    assert!(
+        store.validate_ownership(&entries, FileId::new(3)).is_err(),
+        "foreign file must be rejected"
+    );
+}
+
