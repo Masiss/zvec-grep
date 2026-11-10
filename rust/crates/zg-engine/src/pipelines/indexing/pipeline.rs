@@ -1329,7 +1329,7 @@ fn prepare_fragments(
                     fragment_id: fragment.id.clone(),
                     fts_text: lexical_text(&content, entity.metadata()),
                     embedding_content: vector_content_for_fragment(
-                        &content,
+                        content,
                         entity.metadata(),
                         max_chars,
                     ),

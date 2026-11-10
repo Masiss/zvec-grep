@@ -1,5 +1,7 @@
 //! Deterministic source extraction used by the indexing and lexical-enrichment paths.
 
+use std::borrow::Cow;
+
 pub(crate) mod candidate;
 mod chunking;
 mod code;
@@ -52,7 +54,7 @@ pub(crate) fn extract_for_indexing<'source>(
 }
 
 pub(crate) fn vector_content_for_fragment(
-    content: &Content,
+    content: Cow<'_, Content>,
     metadata: Option<&EntityMetadata>,
     max_chars: Option<usize>,
 ) -> Vec<Content> {

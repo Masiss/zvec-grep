@@ -443,9 +443,13 @@ fn extract_script_blocks(
     let line_offsets = line_byte_offsets(&source.text);
     let mut fragments = Vec::new();
     for block in find_script_blocks(&source.text) {
-        let mut block_source = source.clone();
-        block_source.formats = vec![block.format];
-        block.text.clone_into(&mut block_source.text);
+        // Build the block source directly: cloning the whole component text only to
+        // overwrite it with the script body copies every component twice.
+        let block_source = TextSource {
+            relative_path: source.relative_path.clone(),
+            formats: vec![block.format],
+            text: block.text.to_owned(),
+        };
         let block_fragments = extract_code(
             &block_source,
             ChunkOptions {
@@ -2048,7 +2052,11 @@ public class Service {
                 let end = usize::try_from(range.end_offset()).expect("fragment end");
                 let content = Content::Code(text[start..end].to_owned());
                 let vector =
-                    vector_content_for_fragment(&content, entity.metadata.as_ref(), Some(120));
+                    vector_content_for_fragment(
+                        std::borrow::Cow::Borrowed(&content),
+                        entity.metadata.as_ref(),
+                        Some(120),
+                    );
                 let [Content::Code(vector)] = vector.as_slice() else {
                     panic!("text embedding");
                 };

@@ -1,5 +1,7 @@
 //! Extraction routing and shared implementation helpers.
 
+use std::borrow::Cow;
+
 #[cfg(test)]
 use super::TextSource;
 use super::{
@@ -111,20 +113,35 @@ fn has_category(formats: &[FileFormat], category: FileCategory) -> bool {
 }
 
 pub(super) fn vector_content_for_fragment(
-    content: &Content,
+    content: Cow<'_, Content>,
     metadata: Option<&EntityMetadata>,
     max_chars: Option<usize>,
 ) -> Vec<Content> {
-    let mut contents = vec![content.clone()];
     let metadata = vector_metadata_text(metadata, metadata_budget(max_chars));
-    if !metadata.is_empty() {
-        if let Some(Content::Text(text) | Content::Code(text)) = contents.first_mut() {
-            *text = format!("{metadata}\n{text}");
-        } else {
-            contents.insert(0, Content::Text(metadata));
-        }
+    // A borrowed input needs one owned copy; an owned chunk is moved as-is so the
+    // caller's already-allocated text is not cloned again.
+    let content = match content {
+        Cow::Borrowed(content) => content.clone(),
+        Cow::Owned(content) => content,
+    };
+    match content {
+        Content::Text(text) => vec![Content::Text(prefixed_metadata(metadata, text))],
+        Content::Code(text) => vec![Content::Code(prefixed_metadata(metadata, text))],
+        image if metadata.is_empty() => vec![image],
+        image => vec![Content::Text(metadata), image],
     }
-    contents
+}
+
+/// Prepends the metadata block exactly as the previous `format!` call did.
+fn prefixed_metadata(metadata: String, text: String) -> String {
+    if metadata.is_empty() {
+        return text;
+    }
+    let mut output = String::with_capacity(metadata.len() + 1 + text.len());
+    output.push_str(&metadata);
+    output.push('\n');
+    output.push_str(&text);
+    output
 }
 
 pub(super) fn validate_formats(formats: &[FileFormat]) -> Result<(), EngineError> {
@@ -278,6 +295,69 @@ mod tests {
         ] {
             source.formats = formats;
             assert!(extract(&source, ChunkOptions::default()).is_err());
+        }
+    }
+
+    /// The previous implementation, kept verbatim as the byte-equality oracle.
+    fn legacy_vector_contents(
+        content: &Content,
+        metadata: Option<&EntityMetadata>,
+        max_chars: Option<usize>,
+    ) -> Vec<Content> {
+        let mut contents = vec![content.clone()];
+        let metadata = vector_metadata_text(metadata, metadata_budget(max_chars));
+        if !metadata.is_empty() {
+            if let Some(Content::Text(text) | Content::Code(text)) = contents.first_mut() {
+                *text = format!("{metadata}\n{text}");
+            } else {
+                contents.insert(0, Content::Text(metadata));
+            }
+        }
+        contents
+    }
+
+    #[test]
+    fn embedding_inputs_are_byte_identical_for_borrowed_and_owned_content() {
+        use crate::domain::{CodeMetadata, Content, ImageContent, Language, MarkdownMetadata};
+
+        let code = EntityMetadata::Code(CodeMetadata {
+            symbol_type: Some(crate::domain::SymbolType::Function),
+            symbol_name: Some("RunAsync".into()),
+            scope: Some("Bench.N0::Type0".into()),
+            signature: Some("public async Task RunAsync(string 名前)".into()),
+            documentation: Some("/// Doc với 😀 and \"quotes\"\\".into()),
+            visibility: None,
+            language: Some(Language::CSharp),
+        });
+        let markdown = EntityMetadata::Markdown(MarkdownMetadata {
+            heading: Some("Heading 😀".into()),
+            level: Some(2),
+            scope: Some("Parent::Child".into()),
+        });
+        let image = Content::Image(
+            ImageContent::new(vec![0x89, b'P', b'N', b'G'], FileFormat::Png).expect("image"),
+        );
+        let contents = [
+            Content::Code("class A {\r\n  void M() {}\r\n}".into()),
+            Content::Text("plain text\nsecond line".into()),
+            image,
+        ];
+        let metadatas = [None, Some(&code), Some(&markdown)];
+        for content in &contents {
+            for metadata in metadatas {
+                for max_chars in [None, Some(0), Some(24), Some(4_000)] {
+                    let expected = legacy_vector_contents(content, metadata, max_chars);
+                    let borrowed = vector_content_for_fragment(
+                        Cow::Borrowed(content),
+                        metadata,
+                        max_chars,
+                    );
+                    assert_eq!(borrowed, expected, "borrowed mismatch: {content:?}");
+                    let owned =
+                        vector_content_for_fragment(Cow::Owned(content.clone()), metadata, max_chars);
+                    assert_eq!(owned, expected, "owned mismatch: {content:?}");
+                }
+            }
         }
     }
 }
