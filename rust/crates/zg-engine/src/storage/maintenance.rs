@@ -120,10 +120,7 @@ mod tests {
             None,
             "immediate policy must not defer"
         );
-        assert_eq!(
-            MaintenancePolicy::Bounded { limit: 4 }.limit(),
-            Some(4)
-        );
+        assert_eq!(MaintenancePolicy::Bounded { limit: 4 }.limit(), Some(4));
         assert!(MaintenancePolicy::Bounded { limit: 4 }.defers_fragments());
         assert!(!MaintenancePolicy::ScalarDeferred { limit: 4 }.defers_fragments());
     }

@@ -48,6 +48,7 @@ struct Args {
     rebuild: bool,
     change: String,
     diagnostics: Option<PathBuf>,
+    query_repeats: usize,
     mock_server: bool,
     port_file: Option<PathBuf>,
     stop_file: Option<PathBuf>,
@@ -65,6 +66,7 @@ fn parse_args() -> Args {
     let mut rebuild = false;
     let mut change = "append".to_owned();
     let mut diagnostics = None;
+    let mut query_repeats = 20usize;
     let mut mock_server = false;
     let mut port_file = None;
     let mut stop_file = None;
@@ -82,6 +84,9 @@ fn parse_args() -> Args {
             "--rebuild" => rebuild = true,
             "--change" => change = args.next().expect("change"),
             "--diagnostics" => diagnostics = args.next().map(PathBuf::from),
+            "--query-repeats" => {
+                query_repeats = args.next().expect("repeats").parse().expect("repeats");
+            }
             "--mock-server" => mock_server = true,
             "--port-file" => port_file = args.next().map(PathBuf::from),
             "--stop-file" => stop_file = args.next().map(PathBuf::from),
@@ -99,6 +104,7 @@ fn parse_args() -> Args {
         rebuild,
         change,
         diagnostics,
+        query_repeats,
         mock_server,
         port_file,
         stop_file,
@@ -247,7 +253,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for (label, mode, query) in query_cases(&args.corpus) {
                 queries.insert(
                     label,
-                    measure_query(&engine, &root, mode, &query, limit).await?,
+                    measure_query(&engine, &root, mode, &query, limit, args.query_repeats).await?,
                 );
             }
             evidence.insert("queries", json!(queries));
@@ -382,6 +388,7 @@ async fn measure_query(
     modes: Vec<ContextRouteMode>,
     query: &str,
     limit: usize,
+    repeats: usize,
 ) -> Result<Value, Box<dyn std::error::Error>> {
     let run = |modes: &[ContextRouteMode]| {
         let options = ContextOptions {
@@ -419,7 +426,7 @@ async fn measure_query(
         .collect::<std::collections::BTreeSet<_>>()
         .len();
     let mut result_paths = Vec::new();
-    for _ in 0..20 {
+    for _ in 0..repeats.max(5) {
         let started = Instant::now();
         let result = run(&modes).await?;
         warm.push(started.elapsed().as_micros());

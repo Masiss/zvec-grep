@@ -105,12 +105,12 @@ use crate::{
 };
 
 use super::{
-    maintenance::{DebtRecord, MaintenancePolicy},
     directories::Directories,
     entities::Entities,
     files::Files,
     fragments::{self, Fragments},
     graph::{self, OpenMode, SqliteGraphStorage},
+    maintenance::{DebtRecord, MaintenancePolicy},
     manifest::{FileManifest, ManifestStore},
     types::{
         IndexedFragment, StorageSearchFilter, StorageSearchHit, StoredEntity, StoredFileAttributes,
@@ -755,7 +755,6 @@ struct MaintenancePlan {
     fragments: Option<Arc<Fragments>>,
     fragment_dirty: bool,
     scalar_dirty: u8,
-    pending_at_snapshot: usize,
     generation: u64,
 }
 
@@ -793,7 +792,6 @@ fn plan_maintenance(state: &mut StoreState) -> EngineResult<Option<MaintenancePl
         fragments: (run_fragments && fragment_dirty).then(|| Arc::clone(&state.fragments)),
         fragment_dirty: run_fragments && fragment_dirty,
         scalar_dirty: if run_scalar { scalar_dirty } else { 0 },
-        pending_at_snapshot: state.pending_writes,
         generation: state.write_generation,
     };
     state.needs_optimize = true;
@@ -1184,7 +1182,6 @@ fn load_schema(
     )?;
     Ok(embeddings)
 }
-
 
 /// Reads the durable maintenance debt record. Any damage degrades to `None`,
 /// which callers interpret as the fail-safe "all dirty" marker.

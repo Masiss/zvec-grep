@@ -2952,9 +2952,7 @@ fn marker_path(directory: &tempfile::TempDir) -> std::path::PathBuf {
     directory.path().join("optimize.pending")
 }
 
-fn marker_record(
-    directory: &tempfile::TempDir,
-) -> Option<crate::storage::maintenance::DebtRecord> {
+fn marker_record(directory: &tempfile::TempDir) -> Option<crate::storage::maintenance::DebtRecord> {
     let bytes = std::fs::read(marker_path(directory)).ok()?;
     crate::storage::maintenance::DebtRecord::decode(&bytes)
 }
@@ -2972,8 +2970,16 @@ fn scalar_deferred_policy_optimizes_fragments_and_defers_scalars() {
 
     let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
     let directory = tempfile::tempdir().expect("fixture directory");
-    let storage = open_policy(directory.path(), MaintenancePolicy::ScalarDeferred { limit: 3 });
-    let (file, entry) = fixture(Some(&storage), "scalar-deferred", "deferred scalar", vec![1.0, 0.0, 0.0]);
+    let storage = open_policy(
+        directory.path(),
+        MaintenancePolicy::ScalarDeferred { limit: 3 },
+    );
+    let (file, entry) = fixture(
+        Some(&storage),
+        "scalar-deferred",
+        "deferred scalar",
+        vec![1.0, 0.0, 0.0],
+    );
     storage
         .replace_fixture_file(&file, std::slice::from_ref(&entry))
         .expect("write file");
@@ -3032,7 +3038,11 @@ fn bounded_policy_defers_until_the_bound_then_catches_up() {
         .expect("second write");
     storage.finalize_writes().expect("catch-up finalize");
 
-    assert_eq!(completeness(&storage), 1.0, "the bound triggers optimization");
+    assert_eq!(
+        completeness(&storage),
+        1.0,
+        "the bound triggers optimization"
+    );
     assert!(!marker_path(&directory).exists(), "settled debt is cleared");
     assert_eq!(storage.search_fts("beta", 10, None).expect("fts").len(), 1);
     let mut total = 0;
@@ -3041,7 +3051,10 @@ fn bounded_policy_defers_until_the_bound_then_catches_up() {
         assert_eq!(hits.len(), 1, "row for {path} is present exactly once");
         total += hits.len();
     }
-    assert_eq!(total, 2, "no rows lost or duplicated across the deferred pass");
+    assert_eq!(
+        total, 2,
+        "no rows lost or duplicated across the deferred pass"
+    );
     storage.close().expect("close");
 }
 
@@ -3053,7 +3066,12 @@ fn legacy_empty_marker_forces_one_full_catch_up_under_deferral() {
     let directory = tempfile::tempdir().expect("fixture directory");
     {
         let storage = open_policy(directory.path(), MaintenancePolicy::Immediate);
-        let (file, entry) = fixture(Some(&storage), "legacy", "legacy marker", vec![1.0, 0.0, 0.0]);
+        let (file, entry) = fixture(
+            Some(&storage),
+            "legacy",
+            "legacy marker",
+            vec![1.0, 0.0, 0.0],
+        );
         storage
             .replace_fixture_file(&file, std::slice::from_ref(&entry))
             .expect("write file");
@@ -3071,7 +3089,13 @@ fn legacy_empty_marker_forces_one_full_catch_up_under_deferral() {
         "legacy marker must be consumed by one catch-up"
     );
     assert_eq!(completeness(&storage), 1.0);
-    assert_eq!(storage.search_fts("legacy marker", 10, None).expect("fts").len(), 1);
+    assert_eq!(
+        storage
+            .search_fts("legacy marker", 10, None)
+            .expect("fts")
+            .len(),
+        1
+    );
     storage.close().expect("close");
 }
 
@@ -3083,7 +3107,12 @@ fn deferred_debt_survives_reopen_and_is_caught_up() {
     let directory = tempfile::tempdir().expect("fixture directory");
     {
         let storage = open_policy(directory.path(), MaintenancePolicy::Bounded { limit: 8 });
-        let (file, entry) = fixture(Some(&storage), "reopen-debt", "alpha reopen", vec![1.0, 0.0, 0.0]);
+        let (file, entry) = fixture(
+            Some(&storage),
+            "reopen-debt",
+            "alpha reopen",
+            vec![1.0, 0.0, 0.0],
+        );
         storage
             .replace_fixture_file(&file, std::slice::from_ref(&entry))
             .expect("write file");
@@ -3095,6 +3124,12 @@ fn deferred_debt_survives_reopen_and_is_caught_up() {
     storage.finalize_writes().expect("recovery catch-up");
     assert!(!marker_path(&directory).exists(), "reopen must settle debt");
     assert_eq!(completeness(&storage), 1.0);
-    assert_eq!(storage.search_fts("alpha reopen", 10, None).expect("fts").len(), 1);
+    assert_eq!(
+        storage
+            .search_fts("alpha reopen", 10, None)
+            .expect("fts")
+            .len(),
+        1
+    );
     storage.close().expect("close");
 }
