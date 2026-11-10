@@ -144,6 +144,14 @@ fn prefixed_metadata(metadata: String, text: String) -> String {
     output
 }
 
+#[cfg(test)]
+pub(crate) fn vector_metadata_text_for_test(
+    metadata: Option<&EntityMetadata>,
+    max_chars: Option<usize>,
+) -> String {
+    vector_metadata_text(metadata, metadata_budget(max_chars))
+}
+
 pub(super) fn validate_formats(formats: &[FileFormat]) -> Result<(), EngineError> {
     if formats.is_empty()
         || (formats.len() > 1 && formats.contains(&FileFormat::Unknown))

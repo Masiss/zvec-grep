@@ -2876,6 +2876,120 @@ mod tests {
         }
     }
 
+    /// Previous embedding-input builder, kept verbatim as timing baseline.
+    fn legacy_vector_contents(
+        content: &Content,
+        metadata: Option<&EntityMetadata>,
+        max_chars: Option<usize>,
+    ) -> Vec<Content> {
+        let mut contents = vec![content.clone()];
+        let metadata = crate::extraction::vector_metadata_text_for_test(metadata, max_chars);
+        if !metadata.is_empty() {
+            if let Some(Content::Text(text) | Content::Code(text)) = contents.first_mut() {
+                *text = format!("{metadata}\n{text}");
+            } else {
+                contents.insert(0, Content::Text(metadata));
+            }
+        }
+        contents
+    }
+
+    /// Run with: `cargo test --release -p zg-engine --lib -- --ignored foundation_microbench --nocapture`
+    #[test]
+    #[ignore = "microbenchmark; run explicitly in release mode"]
+    fn foundation_microbench_g1_g4() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        fn time(label: &str, iterations: u32, mut body: impl FnMut()) {
+            body();
+            let started = Instant::now();
+            for _ in 0..iterations {
+                body();
+            }
+            let elapsed = started.elapsed();
+            println!(
+                "MICRO {label}: {iterations} iters, {:.3} us/iter",
+                elapsed.as_secs_f64() * 1e6 / f64::from(iterations)
+            );
+        }
+
+        let metadata = EntityMetadata::Code(crate::domain::CodeMetadata {
+            symbol_type: Some(crate::domain::SymbolType::Function),
+            symbol_name: Some("RunAsync".into()),
+            scope: Some("Bench.N0::Type0".into()),
+            signature: Some("public async Task RunAsync(string value)".into()),
+            documentation: Some("/// <summary>Runs the work.</summary>".into()),
+            visibility: None,
+            language: Some(crate::domain::Language::CSharp),
+        });
+        let content = Content::Code("x".repeat(2_500));
+        time("g1_embedding_input_legacy", 20_000, || {
+            black_box(legacy_vector_contents(
+                &content,
+                Some(&metadata),
+                Some(8192),
+            ));
+        });
+        time("g1_embedding_input_new", 20_000, || {
+            black_box(vector_content_for_fragment(
+                Cow::Borrowed(&content),
+                Some(&metadata),
+                Some(8192),
+            ));
+        });
+        time("g1_embedding_input_new_owned", 20_000, || {
+            black_box(vector_content_for_fragment(
+                Cow::Owned(content.clone()),
+                Some(&metadata),
+                Some(8192),
+            ));
+        });
+
+        let mut manifest = FileManifest::new(FileId::new(3));
+        for index in 0..200u32 {
+            manifest
+                .fragments
+                .push(crate::storage::manifest::FragmentManifestEntry {
+                    fragment_id: format!("{index:040x}"),
+                    model: "local/test".into(),
+                    embedding_fingerprint: format!("{index:064x}"),
+                    vector_fingerprint: "e".repeat(64),
+                });
+        }
+        let lookup = manifest.embedding_lookup();
+        let entries = manifest.fragments.clone();
+        time("g4_manifest_linear_200", 2_000, || {
+            let mut found = 0;
+            for entry in &entries {
+                if manifest.fragments.iter().any(|candidate| {
+                    candidate.fragment_id == entry.fragment_id
+                        && candidate.model == entry.model
+                        && candidate.embedding_fingerprint == entry.embedding_fingerprint
+                }) {
+                    found += 1;
+                }
+            }
+            black_box(found);
+        });
+        time("g4_manifest_lookup_200", 2_000, || {
+            let mut found = 0;
+            for entry in &entries {
+                if lookup
+                    .find(
+                        &entry.fragment_id,
+                        &entry.model,
+                        &entry.embedding_fingerprint,
+                    )
+                    .is_some()
+                {
+                    found += 1;
+                }
+            }
+            black_box(found);
+        });
+    }
+
     #[test]
     fn m2_reuse_requires_matching_fragment_identity_and_model() {
         let file_id = FileId::new(91);

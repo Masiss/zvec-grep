@@ -891,3 +891,92 @@ fn ownership_projection_returns_only_the_owning_file() {
     );
 }
 
+
+/// Legacy JSON-tree projection, kept as the timing oracle.
+fn encode_metadata_fields_from_json(value: &serde_json::Value) -> Vec<(IndexField, String)> {
+    let mut fields = Vec::new();
+    for field in EntityMetadata::index_schema() {
+        let Some(value) = value.get(field.name()).filter(|value| !value.is_null()) else {
+            continue;
+        };
+        let value = value.as_str().expect("indexed metadata field is a string");
+        fields.push((field, encode_metadata_value(field, value).into_owned()));
+    }
+    fields
+}
+
+#[test]
+#[ignore = "microbenchmark; run explicitly in release mode"]
+fn foundation_microbench_g2_g3() {
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    fn time(label: &str, iterations: u32, mut body: impl FnMut()) {
+        body();
+        let started = Instant::now();
+        for _ in 0..iterations {
+            body();
+        }
+        let elapsed = started.elapsed();
+        println!(
+            "MICRO {label}: {iterations} iters, {:.3} us/iter",
+            elapsed.as_secs_f64() * 1e6 / f64::from(iterations)
+        );
+    }
+
+    let metadata = EntityMetadata::Code(CodeMetadata {
+        symbol_type: Some(SymbolType::Function),
+        symbol_name: Some("RunAsync".into()),
+        scope: Some("Bench.N0::Type0".into()),
+        signature: Some("public async Task RunAsync(string value)".into()),
+        documentation: Some("/// <summary>Runs the work.</summary>".into()),
+        visibility: None,
+        language: Some(crate::domain::Language::CSharp),
+    });
+    let json = serde_json::to_value(&metadata).expect("metadata value");
+    time("g2_projection_json_value", 50_000, || {
+        black_box(encode_metadata_fields_from_json(&json));
+    });
+    time("g2_projection_typed", 50_000, || {
+        black_box(encode_metadata_fields(&metadata));
+    });
+
+    // G3: native projected fetch versus the previous all-field fetch.
+    let root = tempfile::tempdir().expect("storage");
+    let store = metadata_store(root.path());
+    let (source, entities, entries) = metadata_fragments(1, "fetch probe");
+    write_fixture(&store, &source, &entities, &entries);
+    let keys = entries
+        .iter()
+        .map(|entry| entry.fragment_id.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let collection = store.index("fixture/fixture").expect("collection");
+    let refs = keys.iter().map(String::as_str).collect::<Vec<_>>();
+    time("g3_fetch_full_fields", 2_000, || {
+        black_box(
+            collection
+                .fetch_with_options(&refs, None, false)
+                .expect("full fetch")
+                .len(),
+        );
+    });
+    time("g3_fetch_projected", 2_000, || {
+        black_box(
+            collection
+                .fetch_with_options(&refs, Some(&["file_id"]), false)
+                .expect("projected fetch")
+                .len(),
+        );
+    });
+    time("g3_vector_fetch_full", 2_000, || {
+        black_box(collection.fetch(&refs).expect("full vector fetch").len());
+    });
+    time("g3_vector_fetch_projected", 2_000, || {
+        black_box(
+            collection
+                .fetch_with_options(&refs, Some(&["document_id"]), true)
+                .expect("projected vector fetch")
+                .len(),
+        );
+    });
+}
