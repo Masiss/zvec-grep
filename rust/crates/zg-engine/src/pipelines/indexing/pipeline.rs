@@ -392,6 +392,84 @@ impl ScannedFile {
     }
 }
 
+/// One scan/classify/diff pass, shared by the real indexing pass and the
+/// read-only no-op preflight. `resolve_ids` allocates pending file IDs and must
+/// stay false for a read-only probe.
+pub(crate) struct PlannedPass {
+    diff: DiffPlan,
+    pub(crate) skipped: Vec<SkippedFile>,
+    pub(crate) skipped_counts: std::collections::BTreeMap<String, usize>,
+    pub(crate) scanned_len: usize,
+    pub(crate) scan_elapsed: Duration,
+    pub(crate) diff_elapsed: Duration,
+}
+
+impl PlannedPass {
+    /// `true` when the pass would add, modify, delete or retry any file.
+    pub(crate) fn has_work(&self) -> bool {
+        !self.diff.candidates.is_empty() || !self.diff.deleted.is_empty()
+    }
+
+    pub(crate) fn unchanged(&self) -> usize {
+        self.diff.unchanged
+    }
+}
+
+#[expect(
+    clippy::similar_names,
+    reason = "`scanner` is the host port; local `scanned` files are the scan result"
+)]
+pub(crate) async fn plan_pass(
+    workspace: &Workspace,
+    storage: &dyn IndexStorage,
+    scanner: &dyn WorkspaceScannerPort,
+    changes: &[WorkspaceChange],
+    signal: Option<CancellationToken>,
+    retry_paths: Option<&[PathBuf]>,
+    resolve_ids: bool,
+) -> Result<PlannedPass, EngineError> {
+    let root = workspace.source_root();
+    let mut scope = match retry_paths {
+        Some(paths) => ChangeScope::Paths(paths.iter().map(|path| root.join(path)).collect()),
+        None => ChangeScope::from_changes(root, changes)?,
+    };
+    let all_stored = storage.list_files()?;
+    scope.include_unfinished(root, &all_stored);
+    let existing = scope.filter_stored(root, &all_stored);
+    let scan_started = Instant::now();
+    let control = task_control(signal.clone());
+    let snapshot = scanner
+        .discover(
+            &ScanRequest {
+                roots: vec![host_root(workspace)?],
+                scope_paths: scope.scan_paths(),
+            },
+            &control,
+        )
+        .await
+        .map_err(map_host_error)?;
+    let (scanned, classification_skips) =
+        classify_files(workspace, snapshot.files, &all_stored, &control).await?;
+    let (skipped, skipped_counts) = collect_skips(&snapshot.diagnostics, classification_skips);
+    let mut scanned = scope.filter_scanned(root, scanned);
+    if resolve_ids {
+        resolve_scanned_identities(storage, &mut scanned)?;
+    }
+    let scan_elapsed = scan_started.elapsed();
+    let scanned_len = scanned.len();
+    let diff_started = Instant::now();
+    let diff = compute_diff(scanned, &existing);
+    let diff_elapsed = diff_started.elapsed();
+    Ok(PlannedPass {
+        diff,
+        skipped,
+        skipped_counts,
+        scanned_len,
+        scan_elapsed,
+        diff_elapsed,
+    })
+}
+
 async fn run_index_pass(
     context: &IndexingContext<'_>,
     timings: &mut TimingCollector,
@@ -418,38 +496,21 @@ async fn run_index_pass(
         },
     );
 
-    let root = context.workspace.source_root();
-    let mut scope = if progress_base.is_some() {
-        ChangeScope::Paths(retry_paths.iter().map(|path| root.join(path)).collect())
-    } else {
-        ChangeScope::from_changes(root, context.changes)?
-    };
-    let all_stored = context.storage.list_files()?;
-    scope.include_unfinished(root, &all_stored);
-    let existing = scope.filter_stored(root, &all_stored);
-    let scan_started = Instant::now();
-    let control = task_control(context.signal.clone());
-    let snapshot = context
-        .scanner
-        .discover(
-            &ScanRequest {
-                roots: vec![host_root(context.workspace)?],
-                scope_paths: scope.scan_paths(),
-            },
-            &control,
-        )
-        .await
-        .map_err(map_host_error)?;
-    let (scanned, classification_skips) =
-        classify_files(context.workspace, snapshot.files, &all_stored, &control).await?;
-    let (skipped, skipped_counts) = collect_skips(&snapshot.diagnostics, classification_skips);
-    let mut scanned = scope.filter_scanned(root, scanned);
-    resolve_scanned_identities(context.storage, &mut scanned)?;
-    timings.record("index_scan", scan_started.elapsed(), scanned.len());
-
-    let diff_started = Instant::now();
-    let mut diff = compute_diff(scanned, &existing);
-    timings.record("index_diff", diff_started.elapsed(), diff.files_scanned);
+    let planned = plan_pass(
+        context.workspace,
+        context.storage,
+        context.scanner,
+        context.changes,
+        context.signal.clone(),
+        progress_base.is_some().then_some(retry_paths),
+        true,
+    )
+    .await?;
+    timings.record("index_scan", planned.scan_elapsed, planned.scanned_len);
+    let mut diff = planned.diff;
+    timings.record("index_diff", planned.diff_elapsed, diff.files_scanned);
+    let skipped = planned.skipped;
+    let skipped_counts = planned.skipped_counts;
     report(
         context,
         IndexProgress {
@@ -467,6 +528,7 @@ async fn run_index_pass(
         },
     );
 
+    let control = task_control(context.signal.clone());
     let delete_started = Instant::now();
     delete_stale_files(context, &diff.deleted)?;
     timings.record(

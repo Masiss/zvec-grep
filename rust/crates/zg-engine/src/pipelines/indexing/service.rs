@@ -74,6 +74,10 @@ impl WorkspaceIndexService {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lock, validation, recovery, fast-path preflight and publication form one ordered protocol"
+    )]
     pub(crate) async fn index(
         &self,
         models: &ModelRuntimeManager,
@@ -146,6 +150,27 @@ impl WorkspaceIndexService {
             source_before_index.as_deref(),
             &options,
         )?;
+        // Read-only no-op preflight: when the workspace configuration matches the
+        // active manifest and nothing durable is owed, a pass that would change
+        // no file state must not open native storage read-write, flush, optimize
+        // or republish. The scan/diff below uses the same helper as the real pass.
+        if !rebuilding && !clean_scan_eligible && !options.rebuild {
+            let debt = workspace
+                .layout()
+                .index_dir()
+                .join("optimize.pending")
+                .exists();
+            if !debt
+                && !crate::workspace::index::needs_recovery(&layout)?
+                && manifest_state_matches(&workspace, existing.as_ref(), &layout)
+                && let Some(result) = self
+                    .read_only_noop_pass(&workspace, &options, Arc::clone(&home_lock))
+                    .await?
+            {
+                report_index_completion(&options, None);
+                return Ok(result);
+            }
+        }
         if rebuilding {
             options.changes.clear();
             if let Some(active) = existing.as_ref() {
@@ -153,6 +178,13 @@ impl WorkspaceIndexService {
             }
             prepare_build(&workspace)?;
         }
+        // A durable debt marker means native maintenance is owed even when no
+        // file changes, so such a pass must publish.
+        let debt_at_start = workspace
+            .layout()
+            .index_dir()
+            .join("optimize.pending")
+            .exists();
         let result = self
             .run_index(
                 &workspace,
@@ -166,17 +198,83 @@ impl WorkspaceIndexService {
             let _ = discard_build(&workspace);
         }
         let (indexed, completed) = result?;
-        publish_index_state(
-            workspace,
-            rebuilding,
-            epoch_millis(),
-            &requested_root,
-            clean_scan_eligible,
-            &options,
-            source_before_pipeline.as_deref(),
-        )?;
+        // Fast path: when the pass changed no file state, owed no maintenance and
+        // the workspace configuration is identical, rewriting the manifest would
+        // only bump `updatedTime` (which invalidates symbol cursors) and dirty the
+        // file. The scan/diff that proved this already ran.
+        let no_state_change = !rebuilding
+            && !clean_scan_eligible
+            && !debt_at_start
+            && indexed.files_added == 0
+            && indexed.files_modified == 0
+            && indexed.files_deleted == 0
+            && indexed.files_failed == 0
+            && indexed.files_pending == 0
+            && indexed.entities_created == 0
+            && manifest_state_matches(&workspace, existing.as_ref(), &layout);
+        if !no_state_change {
+            publish_index_state(
+                workspace,
+                rebuilding,
+                epoch_millis(),
+                &requested_root,
+                clean_scan_eligible,
+                &options,
+                source_before_pipeline.as_deref(),
+            )?;
+        }
         report_index_completion(&options, completed);
         Ok(indexed)
+    }
+
+    /// Returns `Some` only when the read-only plan proves the pass would change
+    /// nothing. Any error falls through to the full path.
+    async fn read_only_noop_pass(
+        &self,
+        workspace: &Workspace,
+        options: &IndexOptions,
+        _home_lock: Arc<LockGuard>,
+    ) -> Result<Option<IndexResult>, EngineError> {
+        let started = std::time::Instant::now();
+        let storage = match IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+            storage_path: workspace.layout().index_dir().to_path_buf(),
+        }) {
+            Ok(storage) => storage,
+            Err(error) => {
+                tracing::debug!(%error, "no-op preflight skipped: storage cannot be opened read-only");
+                return Ok(None);
+            }
+        };
+        let planned = crate::pipelines::indexing::pipeline::plan_pass(
+            workspace,
+            &storage,
+            &self.scanner,
+            &options.changes,
+            options.signal.clone(),
+            None,
+            false,
+        )
+        .await;
+        let close = storage.close();
+        let planned = match planned {
+            Ok(planned) => planned,
+            Err(error) => {
+                tracing::debug!(%error, "no-op preflight skipped: planning failed");
+                return Ok(None);
+            }
+        };
+        close?;
+        if planned.has_work() {
+            return Ok(None);
+        }
+        Ok(Some(IndexResult {
+            files_scanned: planned.scanned_len,
+            files_unchanged: planned.unchanged(),
+            duration_micros: u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX),
+            skipped: planned.skipped,
+            skipped_counts: planned.skipped_counts,
+            ..IndexResult::default()
+        }))
     }
 
     async fn run_index(
@@ -472,6 +570,81 @@ fn publish_index_state(
         }
     }
     Ok(())
+}
+
+/// Compares the workspace that this pass would publish with the active manifest,
+/// ignoring the timestamps that only record when a publication happened.
+/// Compares what this pass would publish with the active manifest.
+///
+/// Credentials are re-encrypted with a fresh nonce on every pass, so the stored
+/// ciphertext never compares equal; the plaintext is compared instead. Any
+/// difference (including a rotated key) keeps the full publication path.
+fn manifest_state_matches(
+    workspace: &Workspace,
+    existing: Option<&Workspace>,
+    layout: &WorkspaceLayout,
+) -> bool {
+    let Some(existing) = existing else {
+        return false;
+    };
+    workspace.index_version() == existing.index_version()
+        && workspace.storage_generation() == existing.storage_generation()
+        && workspace.scan() == existing.scan()
+        && workspace.source_root() == existing.source_root()
+        && match (workspace.index(), existing.index()) {
+            (crate::domain::IndexState::Disabled, crate::domain::IndexState::Disabled) => true,
+            (
+                crate::domain::IndexState::Enabled(current),
+                crate::domain::IndexState::Enabled(active),
+            ) => {
+                current.default_embedding_model() == active.default_embedding_model()
+                    && current.embedding_routes() == active.embedding_routes()
+                    && current.fts() == active.fts()
+                    && model_configs_match(
+                        current.embedding_configs(),
+                        active.embedding_configs(),
+                        layout,
+                    )
+            }
+            _ => false,
+        }
+}
+
+fn model_configs_match(
+    current: &std::collections::BTreeMap<
+        String,
+        crate::domain::model::ModelConfig<crate::domain::model::EncryptedApiKey>,
+    >,
+    active: &std::collections::BTreeMap<
+        String,
+        crate::domain::model::ModelConfig<crate::domain::model::EncryptedApiKey>,
+    >,
+    layout: &WorkspaceLayout,
+) -> bool {
+    if current.len() != active.len() {
+        return false;
+    }
+    current.iter().all(|(reference, left)| {
+        let Some(right) = active.get(reference) else {
+            return false;
+        };
+        left.endpoint == right.endpoint
+            && left.device == right.device
+            && left.cache_dir == right.cache_dir
+            && match (&left.api_key, &right.api_key) {
+                (None, None) => true,
+                (Some(left), Some(right)) => {
+                    let (Ok(left), Ok(right)) = (
+                        decrypt_api_key(left, layout, reference),
+                        decrypt_api_key(right, layout, reference),
+                    ) else {
+                        return false;
+                    };
+                    left == right
+                }
+                _ => false,
+            }
+    })
 }
 
 fn report_index_completion(options: &IndexOptions, completed: Option<IndexProgress>) {
