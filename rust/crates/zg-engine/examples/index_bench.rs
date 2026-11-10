@@ -31,6 +31,7 @@ use zg_engine::{
             ContextOptions,
             options::{ContextRoute, ContextRouteMode},
         },
+        info::InfoOptions,
         index::{
             IndexOptions,
             options::{Device, EmbeddingModelSpec},
@@ -238,6 +239,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             evidence.insert("ticks", json!(ticks));
             engine.close();
+        }
+        "profile" => {
+            // No-op cost attribution: one process, existing index, no changes.
+            // `info(include_status)` reproduces the scan/classify path without
+            // opening write storage; `index` then adds open/publish/close.
+            set_endpoint(&root, server.address)?;
+            let new_started = Instant::now();
+            let engine = ZvecGrep::new();
+            let new_us = new_started.elapsed().as_micros();
+            let mut samples = Vec::new();
+            for iteration in 0..3 {
+                let manifest_started = Instant::now();
+                let manifest = engine
+                    .info(InfoOptions {
+                        root: Some(root.clone()),
+                        include_status: false,
+                    })
+                    .await?;
+                let manifest_us = manifest_started.elapsed().as_micros();
+                let info_started = Instant::now();
+                let info = engine
+                    .info(InfoOptions {
+                        root: Some(root.clone()),
+                        include_status: true,
+                    })
+                    .await?;
+                let info_us = info_started.elapsed().as_micros();
+                let index_started = Instant::now();
+                let result = engine
+                    .index(IndexOptions {
+                        root: Some(root.clone()),
+                        allow_remote: true,
+                        api_key: Some("local-test-key".into()),
+                        ..IndexOptions::default()
+                    })
+                    .await?;
+                let index_us = index_started.elapsed().as_micros();
+                samples.push(json!({
+                    "iteration": iteration,
+                    "manifest_us": manifest_us,
+                    "manifest_indexed": manifest.indexed,
+                    "info_us": info_us,
+                    "index_us": index_us,
+                    "index_ms": index_us / 1000,
+                    "files_scanned": info.status.as_ref().map(|status| status.files_scanned),
+                    "timings": result.timings,
+                    "files": {
+                        "added": result.files_added,
+                        "modified": result.files_modified,
+                        "deleted": result.files_deleted,
+                        "failed": result.files_failed,
+                    },
+                }));
+            }
+            let close_started = Instant::now();
+            engine.close();
+            evidence.insert("new_us", json!(new_us));
+            evidence.insert("close_us", json!(close_started.elapsed().as_micros()));
+            evidence.insert("server_spawn_us", json!(server.spawn_us));
+            evidence.insert("samples", json!(samples));
+            evidence.insert("self", process_usage());
         }
         "query" => {
             set_endpoint(&root, server.address)?;
@@ -872,12 +934,14 @@ struct MockEmbeddingServer {
     child: Child,
     stop_file: PathBuf,
     stats_file: PathBuf,
+    spawn_us: u64,
 }
 
 impl MockEmbeddingServer {
     /// Runs the mock provider in a child process so its CPU is attributable
     /// separately from the engine under measurement.
     fn start() -> std::io::Result<Self> {
+        let spawn_started = Instant::now();
         let base = std::env::temp_dir().join(format!(
             "zg-mock-{}-{}",
             std::process::id(),
@@ -923,6 +987,7 @@ impl MockEmbeddingServer {
             child,
             stop_file,
             stats_file,
+            spawn_us: u64::try_from(spawn_started.elapsed().as_micros()).unwrap_or(u64::MAX),
         })
     }
 
