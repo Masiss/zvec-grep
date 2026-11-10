@@ -402,6 +402,10 @@ pub(crate) struct PlannedPass {
     pub(crate) scanned_len: usize,
     pub(crate) scan_elapsed: Duration,
     pub(crate) diff_elapsed: Duration,
+    /// Every stored row was written at or before the published manifest time.
+    /// A row newer than the manifest means a pass committed storage but died
+    /// before publication, so publication is still owed.
+    pub(crate) published_state_current: bool,
 }
 
 impl PlannedPass {
@@ -415,25 +419,44 @@ impl PlannedPass {
     }
 }
 
-#[expect(
-    clippy::similar_names,
-    reason = "`scanner` is the host port; local `scanned` files are the scan result"
-)]
+/// Options that differ between the real pass and the read-only probe.
+pub(crate) struct PlanOptions<'a> {
+    /// Retry only these paths (second pass after failures).
+    pub(crate) retry_paths: Option<&'a [PathBuf]>,
+    /// Allocate pending file IDs; must stay false for a read-only probe.
+    pub(crate) resolve_ids: bool,
+    /// Manifest time of the currently published index, when it is being probed.
+    pub(crate) published_ms: Option<u64>,
+}
+
 pub(crate) async fn plan_pass(
     workspace: &Workspace,
     storage: &dyn IndexStorage,
     scanner: &dyn WorkspaceScannerPort,
     changes: &[WorkspaceChange],
     signal: Option<CancellationToken>,
-    retry_paths: Option<&[PathBuf]>,
-    resolve_ids: bool,
+    options: PlanOptions<'_>,
 ) -> Result<PlannedPass, EngineError> {
+    let PlanOptions {
+        retry_paths,
+        resolve_ids,
+        published_ms,
+    } = options;
     let root = workspace.source_root();
     let mut scope = match retry_paths {
         Some(paths) => ChangeScope::Paths(paths.iter().map(|path| root.join(path)).collect()),
         None => ChangeScope::from_changes(root, changes)?,
     };
     let all_stored = storage.list_files()?;
+    // `workspace` already carries this pass's timestamp, so the comparison must
+    // use the manifest that is still published.
+    let published_state_current = published_ms.is_none_or(|published| {
+        all_stored.iter().all(|file| {
+            file.index_status()
+                .indexed_epoch_ms()
+                .is_none_or(|indexed| indexed <= published)
+        })
+    });
     scope.include_unfinished(root, &all_stored);
     let existing = scope.filter_stored(root, &all_stored);
     let scan_started = Instant::now();
@@ -448,17 +471,17 @@ pub(crate) async fn plan_pass(
         )
         .await
         .map_err(map_host_error)?;
-    let (scanned, classification_skips) =
+    let (scan_result, classification_skips) =
         classify_files(workspace, snapshot.files, &all_stored, &control).await?;
     let (skipped, skipped_counts) = collect_skips(&snapshot.diagnostics, classification_skips);
-    let mut scanned = scope.filter_scanned(root, scanned);
+    let mut scan_result = scope.filter_scanned(root, scan_result);
     if resolve_ids {
-        resolve_scanned_identities(storage, &mut scanned)?;
+        resolve_scanned_identities(storage, &mut scan_result)?;
     }
     let scan_elapsed = scan_started.elapsed();
-    let scanned_len = scanned.len();
+    let scanned_len = scan_result.len();
     let diff_started = Instant::now();
-    let diff = compute_diff(scanned, &existing);
+    let diff = compute_diff(scan_result, &existing);
     let diff_elapsed = diff_started.elapsed();
     Ok(PlannedPass {
         diff,
@@ -467,6 +490,7 @@ pub(crate) async fn plan_pass(
         scanned_len,
         scan_elapsed,
         diff_elapsed,
+        published_state_current,
     })
 }
 
@@ -502,8 +526,11 @@ async fn run_index_pass(
         context.scanner,
         context.changes,
         context.signal.clone(),
-        progress_base.is_some().then_some(retry_paths),
-        true,
+        PlanOptions {
+            retry_paths: progress_base.is_some().then_some(retry_paths),
+            resolve_ids: true,
+            published_ms: None,
+        },
     )
     .await?;
     timings.record("index_scan", planned.scan_elapsed, planned.scanned_len);
