@@ -164,7 +164,12 @@ impl WorkspaceIndexService {
                 && !crate::workspace::index::needs_recovery(&layout)?
                 && manifest_state_matches(&workspace, existing.as_ref(), &layout)
                 && let Some(result) = self
-                    .read_only_noop_pass(&workspace, &options, Arc::clone(&home_lock))
+                    .read_only_noop_pass(
+                        &workspace,
+                        &options,
+                        Arc::clone(&home_lock),
+                        existing.as_ref().map(Workspace::updated_epoch_ms),
+                    )
                     .await?
             {
                 report_index_completion(&options, None);
@@ -178,13 +183,6 @@ impl WorkspaceIndexService {
             }
             prepare_build(&workspace)?;
         }
-        // A durable debt marker means native maintenance is owed even when no
-        // file changes, so such a pass must publish.
-        let debt_at_start = workspace
-            .layout()
-            .index_dir()
-            .join("optimize.pending")
-            .exists();
         let result = self
             .run_index(
                 &workspace,
@@ -198,31 +196,18 @@ impl WorkspaceIndexService {
             let _ = discard_build(&workspace);
         }
         let (indexed, completed) = result?;
-        // Fast path: when the pass changed no file state, owed no maintenance and
-        // the workspace configuration is identical, rewriting the manifest would
-        // only bump `updatedTime` (which invalidates symbol cursors) and dirty the
-        // file. The scan/diff that proved this already ran.
-        let no_state_change = !rebuilding
-            && !clean_scan_eligible
-            && !debt_at_start
-            && indexed.files_added == 0
-            && indexed.files_modified == 0
-            && indexed.files_deleted == 0
-            && indexed.files_failed == 0
-            && indexed.files_pending == 0
-            && indexed.entities_created == 0
-            && manifest_state_matches(&workspace, existing.as_ref(), &layout);
-        if !no_state_change {
-            publish_index_state(
-                workspace,
-                rebuilding,
-                epoch_millis(),
-                &requested_root,
-                clean_scan_eligible,
-                &options,
-                source_before_pipeline.as_deref(),
-            )?;
-        }
+        // Every non-fast-path pass publishes, exactly as before. Skipping the
+        // manifest rewrite is reserved for the read-only preflight, which has
+        // proven that storage and manifest already agree.
+        publish_index_state(
+            workspace,
+            rebuilding,
+            epoch_millis(),
+            &requested_root,
+            clean_scan_eligible,
+            &options,
+            source_before_pipeline.as_deref(),
+        )?;
         report_index_completion(&options, completed);
         Ok(indexed)
     }
@@ -234,6 +219,7 @@ impl WorkspaceIndexService {
         workspace: &Workspace,
         options: &IndexOptions,
         _home_lock: Arc<LockGuard>,
+        published_ms: Option<u64>,
     ) -> Result<Option<IndexResult>, EngineError> {
         let started = std::time::Instant::now();
         let storage = match IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
@@ -251,8 +237,11 @@ impl WorkspaceIndexService {
             &self.scanner,
             &options.changes,
             options.signal.clone(),
-            None,
-            false,
+            crate::pipelines::indexing::pipeline::PlanOptions {
+                retry_paths: None,
+                resolve_ids: false,
+                published_ms,
+            },
         )
         .await;
         let close = storage.close();
@@ -264,7 +253,9 @@ impl WorkspaceIndexService {
             }
         };
         close?;
-        if planned.has_work() {
+        if planned.has_work() || !planned.published_state_current {
+            // Either there is work, or a previous pass committed rows without
+            // publishing: fall through so the pass publishes the manifest.
             return Ok(None);
         }
         if let Some(reporter) = &options.on_progress {

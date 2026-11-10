@@ -28,6 +28,11 @@ use zg_engine::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(bytes))
+}
+
 fn manifest_bytes(root: &Path) -> Vec<u8> {
     fs::read(root.join(".zvec-grep/manifest.json")).expect("manifest")
 }
@@ -209,6 +214,67 @@ async fn changed_files_take_the_full_path_and_publish() -> TestResult {
         manifest_bytes(root),
         before,
         "no-op after changes publishes nothing"
+    );
+    engine.close();
+    Ok(())
+}
+
+#[tokio::test]
+async fn storage_newer_than_the_manifest_republishes_instead_of_noop() -> TestResult {
+    let temporary = tempdir()?;
+    let root = temporary.path();
+    let server = EmbeddingServer::start()?;
+    configure_remote_model(root, server.address)?;
+    write_corpus(root)?;
+
+    let engine = ZvecGrep::new();
+    index_once(&engine, root).await?;
+    let published_manifest = manifest_bytes(root);
+    let published_time = manifest_json(root)["updatedTime"].clone();
+
+    // A real pass commits rows and then publishes.
+    let path = root.join("src/Type4.cs");
+    let mut source = fs::read_to_string(&path)?;
+    source.push_str("// published edit\n");
+    fs::write(&path, source)?;
+    let changed = index_once(&engine, root).await?;
+    assert_eq!(changed.files_modified, 1);
+    let newer_manifest = manifest_bytes(root);
+    assert_ne!(newer_manifest, published_manifest);
+
+    // Simulate a crash after the rows were committed but before publication: the
+    // manifest goes back to the older snapshot while storage already has the
+    // newer rows.
+    fs::write(root.join(".zvec-grep/manifest.json"), &published_manifest)?;
+    assert_eq!(manifest_json(root)["updatedTime"], published_time);
+
+    let repaired = index_once(&engine, root).await?;
+    assert_eq!(repaired.files_modified, 0, "storage already had the rows");
+    assert_ne!(
+        manifest_json(root)["updatedTime"],
+        published_time,
+        "a storage state newer than the manifest must be republished, not skipped"
+    );
+
+    // The edit is visible and the pre-crash snapshot token stayed valid only
+    // until this publication.
+    let context = engine
+        .context(ContextOptions {
+            root: Some(root.to_path_buf()),
+            routes: vec![ContextRoute {
+                mode: ContextRouteMode::Fts,
+                query: "Type4".to_owned(),
+            }],
+            fuse: false,
+            auto_update: false,
+            allow_remote: true,
+            limit: Some(5),
+            ..ContextOptions::default()
+        })
+        .await?;
+    assert!(
+        !context.items.is_empty(),
+        "edited file remains searchable after recovery"
     );
     engine.close();
     Ok(())
@@ -432,6 +498,65 @@ async fn noop_pass_preserves_query_results_and_symbol_cursors() -> TestResult {
     assert!(
         stale_cursor.is_err(),
         "a malformed or stale cursor is rejected"
+    );
+    engine.close();
+    Ok(())
+}
+
+#[tokio::test]
+async fn edit_racing_a_noop_pass_is_never_lost() -> TestResult {
+    let temporary = tempdir()?;
+    let root = temporary.path();
+    let server = EmbeddingServer::start()?;
+    configure_remote_model(root, server.address)?;
+    write_corpus(root)?;
+
+    let engine = ZvecGrep::new();
+    index_once(&engine, root).await?;
+
+    // Start a pass and edit a file while it runs. Whether the edit lands inside
+    // or after the pass, the following pass must observe it.
+    let path = root.join("src/Type5.cs");
+    let racing = {
+        let root = root.to_path_buf();
+        let engine = ZvecGrep::new();
+        tokio::spawn(async move { engine.index(index_options(&root)).await })
+    };
+    let mut source = fs::read_to_string(&path)?;
+    source.push_str("// racing edit\n");
+    fs::write(&path, source)?;
+    let _ = racing.await??;
+
+    let settled = index_once(&engine, root).await?;
+    assert_eq!(settled.files_failed, 0, "no file failed: {settled:?}");
+    let expected = sha256_hex(&fs::read(&path)?);
+    let stored = native_file_records(&root.join(".zvec-grep/index"))?
+        .into_iter()
+        .find(|record| record["relative_path"].to_string().contains("Type5.cs"))
+        .expect("stored record for the edited file");
+    assert_eq!(
+        stored["snapshot"]["content_hash"].as_str(),
+        Some(expected.as_str()),
+        "the stored snapshot must match the edited source"
+    );
+
+    let context = engine
+        .context(ContextOptions {
+            root: Some(root.to_path_buf()),
+            routes: vec![ContextRoute {
+                mode: ContextRouteMode::Fts,
+                query: "racing edit".to_owned(),
+            }],
+            fuse: false,
+            auto_update: false,
+            allow_remote: true,
+            limit: Some(5),
+            ..ContextOptions::default()
+        })
+        .await?;
+    assert!(
+        !context.items.is_empty(),
+        "the racing edit is searchable after the settling pass"
     );
     engine.close();
     Ok(())
