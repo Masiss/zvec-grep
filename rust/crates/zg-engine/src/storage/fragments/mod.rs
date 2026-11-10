@@ -31,7 +31,10 @@ use zvec_rust::{
 };
 
 use super::{
-    path::{file_membership_doc, file_membership_schema},
+    path::{
+        FileMembership, file_membership_projection, file_membership_schema,
+        write_file_membership,
+    },
     types::{
         IndexedFragment, StoragePathFilter, StorageSearchFilter, StorageSearchHit,
         StorageSearchPath,
@@ -104,18 +107,16 @@ impl Fragments {
         let owners = entities
             .iter()
             .map(|entity| {
+                // Scalar projections come straight from typed metadata; no JSON tree
+                // is built for values that the schema already indexes.
                 let fields = entity
                     .metadata()
-                    .map(|metadata| {
-                        let value = serde_json::to_value(metadata)
-                            .map_err(|error| corrupt(format!("encode entity metadata: {error}")))?;
-                        encode_metadata_fields(&value)
-                    })
-                    .transpose()?
+                    .map(encode_metadata_fields)
                     .unwrap_or_default();
-                Ok((entity.id(), (entity, fields)))
+                (entity.id(), (entity, fields))
             })
-            .collect::<EngineResult<HashMap<_, _>>>()?;
+            .collect::<HashMap<_, _>>();
+        let membership = file_membership_projection(file, directories);
         let fragments = entities
             .iter()
             .flat_map(Entity::fragments)
@@ -129,7 +130,7 @@ impl Fragments {
             let fragment = fragments.get(&entry.fragment_id).ok_or_else(|| {
                 EngineError::invalid_argument("search projection references a missing fragment")
             })?;
-            let mut doc = fragment_doc(owner, fragment, file, directories, fields)?;
+            let mut doc = fragment_doc(owner, fragment, &membership, fields)?;
             native(
                 doc.add_string("text", &index_text(&entry.fts_text)),
                 "encode searchable text",
@@ -438,12 +439,11 @@ fn identity_doc(entity: &Entity, fragment: &EntityFragment) -> EngineResult<Doc>
 fn fragment_doc(
     entity: &Entity,
     fragment: &EntityFragment,
-    file: &FileRecord,
-    directories: &[DirectoryId],
+    membership: &FileMembership<'_>,
     fields: &[(IndexField, String)],
 ) -> EngineResult<Doc> {
     let mut doc = identity_doc(entity, fragment)?;
-    file_membership_doc(&mut doc, file, directories)?;
+    write_file_membership(&mut doc, membership)?;
     for (field, value) in fields {
         native(
             doc.add_string(field.name(), value),
@@ -543,22 +543,15 @@ pub(super) fn build_filter(
     Ok((!clauses.is_empty()).then(|| clauses.join(" AND ")))
 }
 
-fn encode_metadata_fields(metadata: &serde_json::Value) -> EngineResult<Vec<(IndexField, String)>> {
+fn encode_metadata_fields(metadata: &EntityMetadata) -> Vec<(IndexField, String)> {
     let mut fields = Vec::new();
     for field in EntityMetadata::index_schema() {
-        let Some(value) = metadata.get(field.name()).filter(|value| !value.is_null()) else {
+        let Some(value) = metadata.index_value(field) else {
             continue;
         };
-        match field {
-            IndexField::String(name) => {
-                let value = value.as_str().ok_or_else(|| {
-                    corrupt(format!("metadata index field {name:?} must be a string"))
-                })?;
-                fields.push((field, encode_metadata_value(field, value).into_owned()));
-            }
-        }
+        fields.push((field, encode_metadata_value(field, value).into_owned()));
     }
-    Ok(fields)
+    fields
 }
 
 fn encode_metadata_value(field: IndexField, value: &str) -> Cow<'_, str> {

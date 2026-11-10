@@ -229,6 +229,8 @@ fn encode_doc(entity: &Entity) -> EngineResult<Doc> {
         "encode canonical entity",
     )?;
     if let Some(metadata) = entity.metadata() {
+        // The round trip is deliberate: `serde_json::Value` sorts object keys, so
+        // direct struct serialization would change the persisted metadata bytes.
         let value = serde_json::to_value(metadata)
             .map_err(|error| corrupt(format!("encode entity metadata: {error}")))?;
         let json = serde_json::to_string(&value)

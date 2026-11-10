@@ -45,27 +45,53 @@ pub(super) fn file_membership_schema(schema: &mut CollectionSchema) -> EngineRes
     wildcard_string(schema, "file_name", false)
 }
 
+/// Per-file membership values shared by every fragment projection of one file.
+pub(super) struct FileMembership<'a> {
+    ancestor_directory_ids: Vec<u32>,
+    file_name: &'a str,
+}
+
+/// Build the reusable projection once per file instead of once per fragment.
+pub(super) fn file_membership_projection<'a>(
+    file: &'a FileRecord,
+    directories: &[DirectoryId],
+) -> FileMembership<'a> {
+    FileMembership {
+        ancestor_directory_ids: directories.iter().map(|id| id.get()).collect(),
+        // Non-Unicode names have no STRING representation. The source-path cache disables name
+        // pushdown in this workspace; exact native paths remain in FileRecord.
+        file_name: file
+            .relative_path()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(""),
+    }
+}
+
+pub(super) fn write_file_membership(
+    doc: &mut Doc,
+    membership: &FileMembership<'_>,
+) -> EngineResult<()> {
+    native(
+        doc.add_array_u32(
+            "ancestor_directory_ids",
+            &membership.ancestor_directory_ids,
+        ),
+        "encode ancestor directories",
+    )?;
+    native(
+        doc.add_string("file_name", membership.file_name),
+        "encode file name",
+    )?;
+    Ok(())
+}
+
 pub(super) fn file_membership_doc(
     doc: &mut Doc,
     file: &FileRecord,
     directories: &[DirectoryId],
 ) -> EngineResult<()> {
-    native(
-        doc.add_array_u32(
-            "ancestor_directory_ids",
-            &directories.iter().map(|id| id.get()).collect::<Vec<_>>(),
-        ),
-        "encode ancestor directories",
-    )?;
-    // Non-Unicode names have no STRING representation. The source-path cache disables name
-    // pushdown in this workspace; exact native paths remain in FileRecord.
-    let name = file
-        .relative_path()
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("");
-    native(doc.add_string("file_name", name), "encode file name")?;
-    Ok(())
+    write_file_membership(doc, &file_membership_projection(file, directories))
 }
 
 #[cfg(test)]

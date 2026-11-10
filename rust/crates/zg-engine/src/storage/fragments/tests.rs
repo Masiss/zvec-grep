@@ -134,51 +134,61 @@ fn fragment_document(collection: &Collection, id: &str) -> Doc {
         .expect("stored fragment")
 }
 
-#[test]
-fn metadata_projection_skips_missing_and_null_fields_but_keeps_empty_strings() {
-    for json in [
-        serde_json::json!({}),
-        serde_json::json!({"symbol_name": null, "symbol_type": null}),
-    ] {
-        assert!(
-            encode_metadata_fields(&json)
-                .expect("empty projection")
-                .is_empty()
-        );
+/// The typed projection must equal the former JSON-tree projection byte for byte.
+fn json_projection(metadata: &EntityMetadata) -> Vec<(IndexField, String)> {
+    let value = serde_json::to_value(metadata).expect("metadata value");
+    let mut fields = Vec::new();
+    for field in EntityMetadata::index_schema() {
+        let Some(value) = value.get(field.name()).filter(|value| !value.is_null()) else {
+            continue;
+        };
+        let value = value.as_str().expect("indexed metadata field is a string");
+        fields.push((field, encode_metadata_value(field, value).into_owned()));
     }
-
-    assert_eq!(
-        encode_metadata_fields(&serde_json::json!({
-            "symbol_name": null,
-            "symbol_type": "function",
-        }))
-        .expect("present field"),
-        vec![(CodeMetadata::SYMBOL_TYPE, "function".into())]
-    );
-    assert_eq!(
-        encode_metadata_fields(&serde_json::json!({"symbol_name": ""}))
-            .expect("empty string is a value"),
-        vec![(CodeMetadata::SYMBOL_NAME, primary_key("symbol", ""))]
-    );
+    fields
 }
 
 #[test]
-fn metadata_projection_rejects_values_that_do_not_match_the_declared_type() {
-    for field in EntityMetadata::index_schema() {
-        for value in [
-            serde_json::json!(false),
-            serde_json::json!(2),
-            serde_json::json!(["function"]),
-            serde_json::json!({"value": "function"}),
-        ] {
-            let mut json = serde_json::json!({});
-            json[field.name()] = value;
-            assert!(
-                encode_metadata_fields(&json).is_err(),
-                "accepted a non-string value for {}: {json}",
-                field.name()
-            );
-        }
+fn metadata_projection_matches_the_json_tree_projection() {
+    let variants = [
+        None,
+        Some(EntityMetadata::Code(CodeMetadata {
+            symbol_type: None,
+            symbol_name: None,
+            scope: None,
+            signature: None,
+            documentation: None,
+            visibility: None,
+            language: None,
+        })),
+        Some(EntityMetadata::Code(CodeMetadata {
+            symbol_type: Some(SymbolType::Function),
+            symbol_name: Some(String::new()),
+            scope: Some("Ns::Type".into()),
+            signature: Some("fn f()".into()),
+            documentation: None,
+            visibility: None,
+            language: None,
+        })),
+        Some(EntityMetadata::Code(CodeMetadata {
+            symbol_type: Some(SymbolType::Class),
+            symbol_name: Some("Ünïcode 😀".into()),
+            scope: None,
+            signature: None,
+            documentation: None,
+            visibility: None,
+            language: Some(crate::domain::Language::CSharp),
+        })),
+        Some(EntityMetadata::Markdown(crate::domain::MarkdownMetadata {
+            heading: Some("Heading".into()),
+            level: Some(2),
+            scope: Some("Parent".into()),
+        })),
+    ];
+    for metadata in variants {
+        let typed = metadata.as_ref().map(encode_metadata_fields).unwrap_or_default();
+        let expected = metadata.as_ref().map(json_projection).unwrap_or_default();
+        assert_eq!(typed, expected, "projection changed for {metadata:?}");
     }
 }
 

@@ -224,3 +224,39 @@ fn file_id_listing_rejects_inconsistent_indexed_identity() {
         "entity identity differs from its index fields"
     );
 }
+
+/// The persisted metadata column must keep the exact bytes produced by the
+/// `to_value` -> `to_string` round trip, which sorts object keys.
+#[test]
+fn canonical_metadata_serialization_stays_key_sorted() {
+    let code = EntityMetadata::Code(CodeMetadata {
+        symbol_name: Some("Ünïcode \"name\" \\ path".into()),
+        symbol_type: Some(SymbolType::Class),
+        scope: Some("Ns::Type\nline".into()),
+        signature: Some("public void M<T>(T value) where T : class".into()),
+        documentation: Some("/// <summary>😀 &amp; \u{7f}</summary>".into()),
+        visibility: None,
+        language: Some(crate::domain::Language::CSharp),
+    });
+    let base = entity(7, false);
+    let entity = Entity::new(
+        base.id().clone(),
+        base.file_id(),
+        base.source_range(),
+        base.content().clone(),
+        Some(code.clone()),
+        base.fragments().to_vec(),
+    )
+    .expect("entity with metadata");
+    let docs = Entities::prepare(std::slice::from_ref(&entity)).expect("docs");
+    let stored = docs[0]
+        .get_string("metadata")
+        .expect("metadata read")
+        .unwrap_or_default();
+    let legacy = serde_json::to_string(&serde_json::to_value(&code).expect("value")).expect("json");
+    assert_eq!(stored, legacy);
+    assert!(
+        stored.starts_with("{\"documentation\":"),
+        "stored metadata is expected to have sorted keys: {stored}"
+    );
+}

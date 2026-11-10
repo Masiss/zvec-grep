@@ -17,6 +17,22 @@ impl EntityMetadata {
             .flatten()
             .copied()
     }
+
+    /// Returns the typed value of an indexed scalar without an intermediate JSON tree.
+    pub(crate) fn index_value(&self, field: IndexField) -> Option<&str> {
+        match self {
+            Self::Code(code) => {
+                if field == CodeMetadata::SYMBOL_NAME {
+                    code.symbol_name.as_deref()
+                } else if field == CodeMetadata::SYMBOL_TYPE {
+                    code.symbol_type.map(SymbolType::as_str)
+                } else {
+                    None
+                }
+            }
+            Self::Markdown(_) => None,
+        }
+    }
 }
 
 // --- Index ---
