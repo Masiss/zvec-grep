@@ -52,7 +52,9 @@ use crate::{
     utils::{collapse_whitespace, decode_index_text, sha256_hex},
 };
 
-use super::{input_budget::index_chunk_options, model_progress, storage::IndexStorage};
+use super::{
+    diagnostics, input_budget::index_chunk_options, model_progress, storage::IndexStorage,
+};
 
 const MAX_SKIPPED_FILE_SAMPLES: usize = 20;
 // All default file-size limits are at least this large.
@@ -201,11 +203,16 @@ pub(crate) async fn index_workspace(
     // Stages run sequentially. Fragment maintenance happens outside the store
     // state lock; scalar maintenance holds it. Durations are wall durations,
     // not additive shares of `index_optimize`.
-    for (name, duration) in optimize_stages {
-        timings.record(&name, duration, 1);
+    for (name, duration) in &optimize_stages {
+        timings.record(name, *duration, 1);
     }
+    for (name, duration) in &optimize_stages {
+        diagnostics::record_stage(name, *duration);
+    }
+    diagnostics::record_stage("index_pass_wall", started.elapsed());
 
     let result = build_index_result(&passes, started.elapsed(), timings);
+    diagnostics::flush();
     if result.files_failed > 0 {
         report(
             context,
@@ -648,7 +655,7 @@ impl PreparedFile {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 struct ReconcileStats {
     manifest_loaded: bool,
     manifest_hit: bool,
@@ -657,6 +664,7 @@ struct ReconcileStats {
     manifest_load_micros: u64,
     vector_fetch_micros: u64,
     manifest_publish_micros: u64,
+    reasons: diagnostics::ReuseDiagnostics,
 }
 
 struct PreparedFile {
@@ -1051,7 +1059,12 @@ fn reconcile_prepared_fragments(
     fragments: &mut [PreparedFragment],
 ) -> Result<ReconcileStats, EngineError> {
     if !embedding_reuse_enabled() {
-        return Ok(ReconcileStats::default());
+        let mut reasons = diagnostics::ReuseDiagnostics::default();
+        reasons.reuse_disabled = fragments.len();
+        return Ok(ReconcileStats {
+            reasons,
+            ..ReconcileStats::default()
+        });
     }
     let load_started = Instant::now();
     let manifest = storage.load_embedding_manifest(file_id)?;
@@ -1064,6 +1077,7 @@ fn reconcile_prepared_fragments(
     reconcile.manifest_hit = reuse.manifest_hits > 0;
     reconcile.vectors_reused = reuse.vectors_reused;
     reconcile.vector_fetch_micros = reuse.vector_fetch_micros;
+    reconcile.reasons = reuse.reasons;
     Ok(reconcile)
 }
 
@@ -1072,7 +1086,9 @@ async fn prepare_candidate(
     control: &TaskControl,
     candidate: &IndexCandidate,
 ) -> Result<PreparedCandidate, EngineError> {
+    let read_started = Instant::now();
     let source = read_source(context.scanner, control, &candidate.scanned.discovered).await?;
+    let read_micros = duration_micros(read_started.elapsed());
 
     let mut file = candidate.scanned.to_record()?;
     file.set_snapshot(FileSnapshot {
@@ -1122,7 +1138,9 @@ async fn prepare_candidate(
         formats: formats.clone(),
         text: source_text.into_owned(),
     };
+    let extract_started = Instant::now();
     let extracted = extract_for_indexing(&text, chunk_options)?;
+    let extract_micros = duration_micros(extract_started.elapsed());
     let entities = bind_entities(file.id(), extracted.fragments)?;
     let owners = entities
         .iter()
@@ -1136,6 +1154,7 @@ async fn prepare_candidate(
             ))
         })
         .collect::<Result<HashMap<_, _>, EngineError>>()?;
+    let prepare_started = Instant::now();
     let mut fragments = prepare_fragments(&entities, chunk_options.max_chunk_chars)?;
     for fragment in &mut fragments {
         let model = owners[&fragment.entity_id].clone();
@@ -1151,6 +1170,8 @@ async fn prepare_candidate(
         };
         fragment.model = model;
     }
+    let prepare_micros = duration_micros(prepare_started.elapsed());
+    let reuse_started = Instant::now();
     let mut reconcile = if candidate.kind == CandidateKind::Modified
         && let Some(existing) = candidate.existing.as_ref()
     {
@@ -1158,10 +1179,43 @@ async fn prepare_candidate(
     } else {
         ReconcileStats::default()
     };
+    let reuse_micros = duration_micros(reuse_started.elapsed());
     reconcile.embeddings_computed = fragments
         .iter()
         .filter(|fragment| fragment.reusable_vector.is_none())
         .count();
+    if diagnostics::enabled() {
+        let mut entity_languages = std::collections::BTreeMap::new();
+        for entity in &entities {
+            let label = match entity.metadata() {
+                Some(EntityMetadata::Code(code)) => {
+                    code.language.map_or("code", Language::as_str)
+                }
+                Some(EntityMetadata::Markdown(_)) => "markdown",
+                None => entity.content().kind().as_str(),
+            };
+            *entity_languages.entry(label.to_owned()).or_insert(0) += 1;
+        }
+        diagnostics::record_file(diagnostics::FileDiagnostics {
+            relative_path: file.relative_path().as_path().to_string_lossy().into_owned(),
+            file_id: file.id().get(),
+            formats: formats.iter().map(|format| format.as_str().to_owned()).collect(),
+            source_bytes: u64::try_from(source.bytes.len()).unwrap_or(u64::MAX),
+            entity_count: entities.len(),
+            fragment_count: fragments.len(),
+            fts_input_bytes: fragments.iter().map(|fragment| fragment.fts_text.len()).sum(),
+            embedding_input_bytes: fragments
+                .iter()
+                .map(|fragment| diagnostics::content_bytes(&fragment.embedding_content))
+                .sum(),
+            entity_languages,
+            reuse: reconcile.reasons.clone(),
+            read_micros,
+            extract_micros,
+            prepare_micros,
+            reuse_micros,
+        });
+    }
     Ok(PreparedCandidate::File(Box::new(PreparedFile {
         file,
         entities,
@@ -1179,6 +1233,7 @@ struct ReconcileReuse {
     manifest_hits: usize,
     vectors_reused: usize,
     vector_fetch_micros: u64,
+    reasons: diagnostics::ReuseDiagnostics,
 }
 
 fn reuse_existing_vectors(
@@ -1189,6 +1244,7 @@ fn reuse_existing_vectors(
 ) -> Result<ReconcileReuse, EngineError> {
     let mut reuse = ReconcileReuse::default();
     let Some(manifest) = manifest else {
+        reuse.reasons.manifest_absent = fragments.len();
         return Ok(reuse);
     };
     // One index for the whole file: the previous code scanned the manifest for
@@ -1196,21 +1252,26 @@ fn reuse_existing_vectors(
     let lookup = manifest.embedding_lookup();
     let mut by_model: HashMap<String, Vec<String>> = HashMap::new();
     for fragment in fragments.iter() {
-        if !fragment.embedding_fingerprint.is_empty()
-            && lookup
-                .find(
-                    fragment.fragment_id.as_str(),
-                    &fragment.model,
-                    &fragment.embedding_fingerprint,
-                )
-                .is_some()
-        {
-            reuse.manifest_hits += 1;
-            by_model
-                .entry(fragment.model.clone())
-                .or_default()
-                .push(fragment.fragment_id.as_str().to_owned());
+        if fragment.embedding_fingerprint.is_empty() {
+            reuse.reasons.identity_unavailable += 1;
+            continue;
         }
+        if lookup
+            .find(
+                fragment.fragment_id.as_str(),
+                &fragment.model,
+                &fragment.embedding_fingerprint,
+            )
+            .is_none()
+        {
+            reuse.reasons.entry_absent += 1;
+            continue;
+        }
+        reuse.manifest_hits += 1;
+        by_model
+            .entry(fragment.model.clone())
+            .or_default()
+            .push(fragment.fragment_id.as_str().to_owned());
     }
     for (model, ids) in by_model {
         let fetch_started = Instant::now();
@@ -1233,11 +1294,13 @@ fn reuse_existing_vectors(
                 continue;
             };
             let Some(vector) = vectors.get(fragment.fragment_id.as_str()) else {
+                reuse.reasons.vector_absent += 1;
                 continue;
             };
             if entry.vector_fingerprint
                 != crate::storage::manifest::vector_fingerprint(vector)
             {
+                reuse.reasons.vector_mismatch += 1;
                 continue;
             }
             // Move the verified vector out of the fetch map instead of cloning it.
@@ -1246,6 +1309,7 @@ fn reuse_existing_vectors(
             };
             fragment.reusable_vector = Some(vector);
             reuse.vectors_reused += 1;
+            reuse.reasons.reused += 1;
         }
     }
     Ok(reuse)
