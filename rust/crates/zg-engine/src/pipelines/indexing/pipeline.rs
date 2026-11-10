@@ -1268,9 +1268,11 @@ fn embedding_input_fingerprint(
     model: &crate::domain::model::EmbeddingModelInfo,
     input: &[Content],
 ) -> Result<String, EngineError> {
-    let encoded = serde_json::to_vec(&(1_u32, model, input))
-        .map_err(|error| EngineError::internal(format!("encode embedding fingerprint: {error}")))?;
-    Ok(crate::utils::sha256_hex(&encoded))
+    // Stream the serialized tuple into the digest instead of materializing it.
+    crate::utils::sha256_hex_with(|writer| serde_json::to_writer(writer, &(1_u32, model, input)))
+        .map_err(|error| {
+            EngineError::internal(format!("encode embedding fingerprint: {error}"))
+        })
 }
 
 fn model_for_content<'a>(
@@ -2809,6 +2811,45 @@ mod tests {
             };
             assert!(text.starts_with("heading: "));
             assert!(crate::utils::utf16_len(text) <= 64);
+        }
+    }
+
+    #[test]
+    fn embedding_input_fingerprint_matches_the_buffered_oracle() {
+        let model = crate::domain::model::EmbeddingModelInfo::new(
+            crate::domain::model::ModelInfo::new(
+                "local",
+                "test",
+                [
+                    crate::domain::ContentKind::Text,
+                    crate::domain::ContentKind::Code,
+                ],
+                32,
+            )
+            .expect("model info"),
+            2,
+            EmbeddingMetric::Cosine,
+            Some(64),
+            None,
+        )
+        .expect("model info");
+        let inputs = [
+            vec![Content::Text("plain \"quoted\" \\ body\n😀".into())],
+            vec![
+                Content::Text("symbol: function f".into()),
+                Content::Code("f() {}".into()),
+            ],
+            vec![Content::Text(String::new())],
+        ];
+        for input in inputs {
+            let expected = crate::utils::sha256_hex(
+                &serde_json::to_vec(&(1_u32, &model, &input)).expect("oracle bytes"),
+            );
+            assert_eq!(
+                embedding_input_fingerprint(&model, &input).expect("fingerprint"),
+                expected,
+                "fingerprint changed for {input:?}"
+            );
         }
     }
 

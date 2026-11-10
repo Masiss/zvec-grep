@@ -260,11 +260,7 @@ pub(crate) fn vector_fingerprint(vector: &[f32]) -> String {
     // The native collection stores FP16. Hash the exact FP16 representation so
     // the published manifest matches the vector decoded from storage; hashing
     // the original f32 would reject every non-representable embedding on reuse.
-    let mut bytes = Vec::with_capacity(vector.len().saturating_mul(2));
-    for value in vector {
-        bytes.extend_from_slice(&half::f16::from_f32(*value).to_bits().to_le_bytes());
-    }
-    crate::utils::sha256_hex(&bytes)
+    crate::utils::sha256_hex_fp16_le(vector)
 }
 
 fn is_lower_hex(value: &str) -> bool {

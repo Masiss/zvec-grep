@@ -22,6 +22,8 @@ pub(crate) use filesystem::sync_directory;
 
 // Hashes.
 pub(crate) use hash::sha256_hex;
+pub(crate) use hash::sha256_hex_fp16_le;
+pub(crate) use hash::sha256_hex_with;
 pub(crate) use hash::sha256_hex_parts;
 pub(crate) use hash::sha256_parts;
 
