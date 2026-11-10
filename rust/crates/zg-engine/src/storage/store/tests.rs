@@ -2933,3 +2933,36 @@ fn native_query_and_write_during_optimize_on_pinned_zvec() {
     );
     storage.close().expect("close after reopen");
 }
+
+#[test]
+fn read_write_session_opens_entity_and_fragment_collections_lazily() {
+    let _guard = M3_TEST_LOCK.lock().expect("M3 test lock");
+    let directory = tempfile::tempdir().expect("fixture directory");
+    {
+        let storage = open(directory.path(), false);
+        let (file, entry) = fixture(Some(&storage), "lazy-write", "alpha", vec![1.0, 0.0, 0.0]);
+        storage
+            .replace_fixture_file(&file, std::slice::from_ref(&entry))
+            .expect("write file");
+        assert_eq!(
+            storage.opened_collections_for_test(),
+            (true, true),
+            "a write opens both retrieval collections"
+        );
+        assert!(storage.wrote_anything_for_test());
+        storage.finalize_writes().expect("finalize");
+        storage.close().expect("close");
+    }
+
+    // Reopened for a read-only diff: the native retrieval collections stay closed.
+    let storage = open(directory.path(), false);
+    let files = storage.list_files().expect("list files");
+    assert_eq!(files.len(), 1, "stored file row is readable");
+    assert_eq!(
+        storage.opened_collections_for_test(),
+        (false, false),
+        "listing files must not open entity or fragment collections"
+    );
+    assert!(!storage.wrote_anything_for_test());
+    storage.close().expect("close");
+}

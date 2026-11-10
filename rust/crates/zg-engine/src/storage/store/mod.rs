@@ -155,6 +155,9 @@ struct StoreState {
     needs_optimize: bool,
     dirty: u8,
     write_generation: u64,
+    /// Number of accepted writes since the storage was opened. `close` uses it
+    /// to skip the native flush for a session that changed nothing.
+    writes: u64,
     optimizing: bool,
     closed: bool,
 }
@@ -310,6 +313,7 @@ impl IndexStore {
                 needs_optimize,
                 dirty: if needs_optimize { DIRTY_ALL } else { 0 },
                 write_generation: 0,
+                writes: 0,
                 optimizing: false,
                 closed: false,
             }),
@@ -390,6 +394,19 @@ impl IndexStore {
         );
         assert_usable(&state)?;
         operation(&mut state)
+    }
+
+    /// Whether the entity and fragment collections were opened in this session.
+    #[cfg(test)]
+    pub(crate) fn opened_collections_for_test(&self) -> (bool, bool) {
+        self.read(|state| Ok((state.entities.is_open(), state.fragments.is_open())))
+            .expect("storage state")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn wrote_anything_for_test(&self) -> bool {
+        self.read(|state| Ok(state.writes > 0))
+            .expect("storage state")
     }
 
     #[cfg(test)]
@@ -568,6 +585,7 @@ impl IndexStore {
                 ));
             }
             let directories = state.directories.ensure(file.relative_path())?;
+            state.writes = state.writes.saturating_add(1);
             state.files.put(file, &directories)
         })
     }
@@ -575,6 +593,7 @@ impl IndexStore {
     pub(crate) fn delete_file(&self, file_id: FileId) -> EngineResult<()> {
         self.write(|state| {
             state.write_generation = state.write_generation.wrapping_add(1);
+            state.writes = state.writes.saturating_add(1);
             state.needs_optimize = true;
             state.dirty = DIRTY_ALL;
             let old_ids = invalidation_entity_ids(state, file_id)?;
@@ -737,7 +756,13 @@ impl IndexStore {
         // Reject a write that acquired its Arc before close but is still waiting
         // for this lock. A successful close commits every accepted write.
         state.closed = true;
-        let flush_result = flush(&state);
+        // A session that accepted no write and owes no maintenance has nothing
+        // to flush; skipping it leaves the native collections byte-identical.
+        let flush_result = if state.writes == 0 && state.dirty == 0 && !state.needs_optimize {
+            Ok(())
+        } else {
+            flush(&state)
+        };
         let graph_close = state
             .graph
             .take()
@@ -848,6 +873,7 @@ fn replace_file(
         return Err(graph_disabled());
     }
     state.write_generation = state.write_generation.wrapping_add(1);
+    state.writes = state.writes.saturating_add(1);
     state.files.validate(file)?;
     state.entities.validate_ownership(entities, file.id())?;
     state.fragments.validate_ownership(entries, file.id())?;

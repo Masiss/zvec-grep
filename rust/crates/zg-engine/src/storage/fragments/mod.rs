@@ -3,7 +3,8 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
+    sync::OnceLock,
 };
 
 #[cfg(test)]
@@ -54,17 +55,78 @@ use crate::{
 const MAX_TOP_K: usize = 100_000;
 
 pub(super) struct Fragments {
-    indexes: BTreeMap<String, Collection>,
+    root: PathBuf,
+    embeddings: Vec<EmbeddingModelInfo>,
+    read_only: bool,
+    /// Native collections are opened on first use. A no-op indexing pass must
+    /// not pay the vector/FTS index initialization cost (measured at ~330 ms
+    /// cold on a 54 MB index, size-independent).
+    indexes: OnceLock<BTreeMap<String, Collection>>,
 }
 
 impl Fragments {
+    /// Validates the schema inputs and remembers them; no native collection is
+    /// opened here.
     pub(super) fn open(
         root: &Path,
         embeddings: &[EmbeddingModelInfo],
         read_only: bool,
     ) -> EngineResult<Self> {
-        let mut indexes = BTreeMap::new();
+        let mut names = BTreeSet::new();
         for embedding in embeddings {
+            u32::try_from(embedding.dimension())
+                .ok()
+                .filter(|value| (1..=20_000).contains(value))
+                .ok_or_else(|| {
+                    EngineError::invalid_argument(
+                        "storage embedding dimension must be between 1 and 20,000",
+                    )
+                })?;
+            if !names.insert(embedding.model().reference()) {
+                return Err(EngineError::invalid_argument("duplicate embedding model"));
+            }
+        }
+        let fragments = Self {
+            root: root.to_path_buf(),
+            embeddings: embeddings.to_vec(),
+            read_only,
+            indexes: OnceLock::new(),
+        };
+        // New storage must publish a complete layout immediately; existing
+        // collections are opened only when a pass actually needs them.
+        for embedding in &fragments.embeddings {
+            let collection_path = fragments.root.join(fragment_collection_name(embedding));
+            if !crate::utils::directory_exists(&collection_path)? {
+                if read_only {
+                    return Err(EngineError::not_found(format!(
+                        "index collection does not exist: {}",
+                        collection_path.display()
+                    )));
+                }
+                fragments.ensure_indexes()?;
+                break;
+            }
+        }
+        Ok(fragments)
+    }
+
+    #[cfg(test)]
+    pub(super) fn is_open(&self) -> bool {
+        self.indexes.get().is_some()
+    }
+
+    /// Test-only access to the opened native collections.
+    #[cfg(test)]
+    pub(super) fn indexes(&self) -> &BTreeMap<String, Collection> {
+        self.ensure_indexes().expect("fragment collections")
+    }
+
+    fn ensure_indexes(&self) -> EngineResult<&BTreeMap<String, Collection>> {
+        if let Some(indexes) = self.indexes.get() {
+            return Ok(indexes);
+        }
+        let mut indexes = BTreeMap::new();
+        for embedding in &self.embeddings {
             let dimension = u32::try_from(embedding.dimension())
                 .ok()
                 .filter(|value| (1..=20_000).contains(value))
@@ -80,18 +142,14 @@ impl Fragments {
             };
             let name = fragment_collection_name(embedding);
             let collection = open_collection(
-                &root.join(&name),
+                &self.root.join(&name),
                 &fragments_schema(dimension, metric)?,
-                read_only,
+                self.read_only,
             )?;
-            if indexes
-                .insert(embedding.model().reference(), collection)
-                .is_some()
-            {
-                return Err(EngineError::invalid_argument("duplicate embedding model"));
-            }
+            indexes.insert(embedding.model().reference(), collection);
         }
-        Ok(Self { indexes })
+        let _ = self.indexes.set(indexes);
+        Ok(self.indexes.get().expect("initialized"))
     }
 
     /// Encode the entire replacement before any stored rows are changed.
@@ -162,7 +220,7 @@ impl Fragments {
             .iter()
             .map(|entry| entry.fragment_id.as_str().to_owned())
             .collect::<Vec<_>>();
-        for index in self.indexes.values() {
+        for index in self.ensure_indexes()?.values() {
             reject_foreign_ids(index, &keys, file_id)?;
         }
         Ok(())
@@ -170,7 +228,7 @@ impl Fragments {
 
     pub(super) fn delete_file(&self, file_id: FileId) -> EngineResult<()> {
         let filter = format!("file_id = {}", file_id.get());
-        for index in self.indexes.values() {
+        for index in self.ensure_indexes()?.values() {
             native(index.delete_by_filter(&filter), "delete source fragments")?;
         }
         Ok(())
@@ -201,15 +259,24 @@ impl Fragments {
         Ok(vectors)
     }
 
+    /// Flushes only opened collections; an untouched pass writes nothing.
     pub(super) fn flush(&self) -> EngineResult<()> {
-        for index in self.indexes.values() {
-            native(index.flush(), "flush fragment collection")?;
+        if let Some(indexes) = self.indexes.get() {
+            for index in indexes.values() {
+                native(index.flush(), "flush fragment collection")?;
+            }
         }
         Ok(())
     }
 
+    /// Reports pending native maintenance. An unopened collection has no known
+    /// debt; the durable `optimize.pending` marker is the authority for that
+    /// case, so this must not force an open just to probe completeness.
     pub(super) fn needs_optimize(&self) -> EngineResult<bool> {
-        for index in self.indexes.values() {
+        let Some(indexes) = self.indexes.get() else {
+            return Ok(false);
+        };
+        for index in indexes.values() {
             let stats = native(index.stats(), "inspect fragment indexes")?;
             if stats.indexes.iter().any(|stat| stat.completeness < 1.0) {
                 return Ok(true);
@@ -234,7 +301,7 @@ impl Fragments {
                 ));
             }
         }
-        for index in self.indexes.values() {
+        for index in self.ensure_indexes()?.values() {
             native(index.optimize(), "optimize fragment collection")?;
         }
         Ok(())
@@ -263,15 +330,16 @@ impl Fragments {
             filter,
             &["document_id", "entity_id", "file_id"],
         )?;
+        let indexes = self.ensure_indexes()?;
         let mut hits = Vec::new();
-        for index in self.indexes.values() {
+        for index in indexes.values() {
             for (rank, doc) in native(index.query(&request), "search full-text index")?
                 .into_iter()
                 .enumerate()
             {
                 let mut hit = decode_search_hit(&doc, StorageSearchPath::Fts)?;
                 // BM25 is computed against each table's corpus; merge independent rankings.
-                if self.indexes.len() > 1 {
+                if indexes.len() > 1 {
                     let rank = u32::try_from(rank + 1)
                         .map_err(|_| corrupt("FTS rank exceeds query limit"))?;
                     hit.score = 1.0 / (60.0 + f64::from(rank));
@@ -302,7 +370,7 @@ impl Fragments {
             filter.push(')');
         }
         let mut ids = BTreeSet::new();
-        for index in self.indexes.values() {
+        for index in self.ensure_indexes()?.values() {
             ids.extend(collect_entity_ids(index, &filter, |_| Ok(()))?);
         }
         Ok(ids.into_iter().map(EntityId::from_string).collect())
@@ -335,7 +403,7 @@ impl Fragments {
     }
 
     fn index(&self, model: &str) -> EngineResult<&Collection> {
-        self.indexes.get(model).ok_or_else(|| {
+        self.ensure_indexes()?.get(model).ok_or_else(|| {
             EngineError::invalid_argument(format!("unknown embedding model {model:?}"))
         })
     }
