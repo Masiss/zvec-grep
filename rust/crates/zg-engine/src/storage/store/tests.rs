@@ -2957,11 +2957,11 @@ fn marker_record(directory: &tempfile::TempDir) -> Option<crate::storage::mainte
     crate::storage::maintenance::DebtRecord::decode(&bytes)
 }
 
-fn completeness(storage: &IndexStore) -> f32 {
-    let pending = storage
+/// `false` means the fragment indexes still owe maintenance.
+fn fragments_optimized(storage: &IndexStore) -> bool {
+    !storage
         .read(|state| state.fragments.needs_optimize())
-        .expect("fragment completeness");
-    if pending { 0.0 } else { 1.0 }
+        .expect("fragment completeness")
 }
 
 #[test]
@@ -2985,9 +2985,8 @@ fn scalar_deferred_policy_optimizes_fragments_and_defers_scalars() {
         .expect("write file");
     storage.finalize_writes().expect("deferred finalize");
 
-    assert_eq!(
-        completeness(&storage),
-        1.0,
+    assert!(
+        fragments_optimized(&storage),
         "fragments must keep optimizing under scalar deferral"
     );
     let record = marker_record(&directory).expect("debt record persists");
@@ -3018,11 +3017,14 @@ fn bounded_policy_defers_until_the_bound_then_catches_up() {
         .expect("first write");
     storage.finalize_writes().expect("deferred finalize");
 
-    assert_eq!(completeness(&storage), 0.0, "fragments stay unoptimized");
+    assert!(
+        !fragments_optimized(&storage),
+        "fragments stay unoptimized while deferred"
+    );
     assert_eq!(marker_record(&directory).expect("debt").pending, 1);
     // Deferred state must still serve the written rows on both paths.
     assert_eq!(storage.search_fts("alpha", 10, None).expect("fts").len(), 1);
-    let reference = schema().model().reference().to_owned();
+    let reference = schema().model().reference().clone();
     assert_eq!(
         storage
             .search_vector(&reference, &[1.0, 0.0, 0.0], 10, None)
@@ -3038,9 +3040,8 @@ fn bounded_policy_defers_until_the_bound_then_catches_up() {
         .expect("second write");
     storage.finalize_writes().expect("catch-up finalize");
 
-    assert_eq!(
-        completeness(&storage),
-        1.0,
+    assert!(
+        fragments_optimized(&storage),
         "the bound triggers optimization"
     );
     assert!(!marker_path(&directory).exists(), "settled debt is cleared");
@@ -3088,7 +3089,7 @@ fn legacy_empty_marker_forces_one_full_catch_up_under_deferral() {
         !marker_path(&directory).exists(),
         "legacy marker must be consumed by one catch-up"
     );
-    assert_eq!(completeness(&storage), 1.0);
+    assert!(fragments_optimized(&storage));
     assert_eq!(
         storage
             .search_fts("legacy marker", 10, None)
@@ -3127,9 +3128,8 @@ fn deferred_debt_survives_reopen_without_forcing_maintenance() {
     storage
         .finalize_writes()
         .expect("deferred finalize after reopen");
-    assert_eq!(
-        completeness(&storage),
-        0.0,
+    assert!(
+        !fragments_optimized(&storage),
         "debt within the bound stays deferred across sessions"
     );
     assert_eq!(marker_record(&directory).expect("debt").pending, 1);
@@ -3183,7 +3183,7 @@ fn deferred_catch_up_failure_keeps_debt_and_retries_after_reopen() {
         !marker_path(&directory).exists(),
         "successful retry clears the debt"
     );
-    assert_eq!(completeness(&storage), 1.0);
+    assert!(fragments_optimized(&storage));
     assert_eq!(
         storage
             .search_fts("deferred failure", 10, None)
@@ -3257,6 +3257,6 @@ fn write_during_deferred_optimize_keeps_the_new_debt() {
         !marker_path(&directory).exists(),
         "the next bounded pass settles the remaining debt"
     );
-    assert_eq!(completeness(&storage), 1.0);
+    assert!(fragments_optimized(&storage));
     storage.close().expect("close");
 }

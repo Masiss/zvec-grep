@@ -145,6 +145,10 @@ const DIRTY_FILES: u8 = 1 << 2;
 const DIRTY_FRAGMENTS: u8 = 1 << 3;
 const DIRTY_ALL: u8 = DIRTY_DIRECTORIES | DIRTY_ENTITIES | DIRTY_FILES | DIRTY_FRAGMENTS;
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent lifecycle gate with existing tests"
+)]
 struct StoreState {
     files: Files,
     directories: Directories,
@@ -293,7 +297,7 @@ impl IndexStore {
         // sessions. An empty or unknown marker keeps the historical fail-safe
         // "everything is dirty, catch up now".
         let record = if needs_optimize {
-            read_debt(&optimize_marker)?.and_then(|bytes| DebtRecord::decode(&bytes))
+            read_debt(&optimize_marker).and_then(|bytes| DebtRecord::decode(&bytes))
         } else {
             None
         };
@@ -1202,15 +1206,11 @@ fn load_schema(
 
 /// Reads the raw debt record. Any damage degrades to `None`, which callers
 /// interpret as the fail-safe "all dirty, catch up now" marker.
-fn read_debt(path: &Path) -> EngineResult<Option<Vec<u8>>> {
-    let Ok(file) = open_regular_file(path) else {
-        return Ok(None);
-    };
+fn read_debt(path: &Path) -> Option<Vec<u8>> {
+    let file = open_regular_file(path).ok()?;
     let mut bytes = Vec::new();
-    if file.take(4096).read_to_end(&mut bytes).is_err() {
-        return Ok(None);
-    }
-    Ok(Some(bytes))
+    file.take(4096).read_to_end(&mut bytes).ok()?;
+    Some(bytes)
 }
 
 fn write_debt(path: &Path, dirty: u8, pending: usize, retry: bool) -> EngineResult<()> {
