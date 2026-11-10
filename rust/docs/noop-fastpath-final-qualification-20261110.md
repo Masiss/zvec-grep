@@ -2,13 +2,14 @@
 
 Scope: audit only, plus one minimal correctness fix found during the audit.
 Nothing merged, pushed or released; main stays `9444eed` and the foundation branch
-stays `d64e54e`.
+stays `d64e54e`. Current HEAD, integration steps and open items:
+[`noop-fastpath-handoff-20261111.md`](noop-fastpath-handoff-20261111.md).
 
 | Item | Value |
 |---|---|
 | Worktree | `/home/masis/src/worktrees/zvec-grep/noop-fastpath-20261110` |
 | Branch | `work/noop-fastpath-20261110` |
-| HEAD | `0620189` |
+| HEAD at audit time | `0620189` (see the handoff for the current tip) |
 | Fast-path commits | `ddb591b` lazy collections · `42407a0` read-only preflight · `ddcc13d` completion event · `cb71a01` **fix: never fast-path storage newer than the manifest** · `0620189` real-cursor test |
 | Dev-only commits | `f6001e4` first results doc (partly superseded) · `52b6fca` local-model decomposition harness |
 | Measurement root | `~/.cache/zvec-grep/out-fastpath`, `~/.cache/zvec-grep/out-qual` |

@@ -326,3 +326,25 @@ E3 is the larger prize if quality allows; it should start only after the
 vector-contribution pre-spike above shows that excluding `value` declarations is
 retrieval-neutral, and its mechanism (split collections) should then be built
 once, with policy = all, before any policy number is claimed.
+
+## Outcome (2026-11-11)
+
+Both tracks were investigated on separate experiment branches; neither was
+merged.
+
+- **E1** (`work/e1-bounded-maintenance-20261110` @ `6012ef4`): bounded deferral
+  removes 62–84 % of process writes from K = 4 upward, but its wall gate
+  (≥ 50 %) did not pass — the per-edit floor is process and scan cost, not
+  maintenance. See `e1-bounded-maintenance-results-20261110.md`.
+- **No-op audit** (`work/foundation-investigation-20261110` @ `ff5ca06`):
+  re-measured the "0.79 s no-op" at **0.48 s** steady state, ~0.33 s of it the
+  native vector/FTS collection open and the rest flush/publication. See
+  `foundation-noop-and-e3-prespike-20261110.md`.
+- **The follow-up actually shipped** is the no-op fast path
+  (`work/noop-fastpath-20261110`): 0.50 → 0.06 s and ~7.8 k → ~0 FS blocks with
+  an unchanged index, READY_TO_INTEGRATE — see
+  `noop-fastpath-handoff-20261111.md`. That work also corrects the E1 wall
+  headroom: ~0.48 s of every incremental floor is the no-op pass itself.
+- **E3** remains INCONCLUSIVE for policy: no independent labelled corpus exists
+  locally, and source-derived labels leak into both FTS and vector text. The
+  storage mechanism was not started.

@@ -146,3 +146,14 @@ Observations:
 3. **E3 — declaration/lexical/vector decoupling**: still the only lever that
    changes dense disk (~54 MB) and CPU (~12 600 vectors), and it remains an
    experiment requiring a schema and quality gate.
+
+## Follow-up (2026-11-11)
+
+The 0.79 s no-op figure recorded above was a cache/host state, not a steady-state
+value: the follow-up audit measured 0.48 s with ~0.33 s spent opening the native
+vector/FTS collection and the rest in flush/publication. That cost was removed on
+`work/noop-fastpath-20261110` (0.50 → 0.06 s, no index writes), which also
+explains most of the per-edit floor seen here — see
+`noop-fastpath-handoff-20261111.md`, `foundation-noop-and-e3-prespike-20261110.md`
+and `noop-fastpath-final-qualification-20261110.md`. The rest of this report
+(G1–G5 dispositions, microbenchmarks, paired numbers) is unchanged.

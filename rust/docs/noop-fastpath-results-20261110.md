@@ -3,7 +3,8 @@
 > Superseded in part by `noop-fastpath-final-qualification-20261110.md`: the
 > publication skip described in section 2 ("C") was reduced to the read-only
 > preflight after qualification found that storage newer than the manifest must
-> still publish.
+> still publish (`cb71a01`). Numbers below still hold; see that document and
+> `noop-fastpath-handoff-20261111.md` for the current state.
 
 Status: experiment branch only. Nothing merged, pushed or released; the
 foundation branch and main are untouched.
