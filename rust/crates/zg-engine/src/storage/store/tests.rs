@@ -1958,6 +1958,35 @@ fn critical_storage_symlinks_are_rejected_before_opening_the_target() {
 }
 
 #[test]
+fn reusable_vectors_are_scoped_to_their_owning_file() {
+    let directory = tempfile::tempdir().expect("fixture directory");
+    let storage = open(directory.path(), false);
+    let (file_a, entry_a) = fixture(Some(&storage), "owner-a", "owner a", vec![1.0, 0.0, 0.0]);
+    let (file_b, _entry_b) = fixture(Some(&storage), "owner-b", "owner b", vec![0.0, 1.0, 0.0]);
+    storage
+        .replace_fixture_file(&file_a, std::slice::from_ref(&entry_a))
+        .expect("write owner a");
+    let fragment_id = entry_a.entity.fragments()[0].id.as_str().to_owned();
+    assert!(
+        storage
+            .load_reusable_vectors(
+                file_a.id(),
+                &entry_a.model,
+                std::slice::from_ref(&fragment_id)
+            )
+            .expect("owner fetch")
+            .contains_key(&fragment_id)
+    );
+    assert!(
+        storage
+            .load_reusable_vectors(file_b.id(), &entry_a.model, &[fragment_id])
+            .expect("foreign fetch")
+            .is_empty(),
+        "a per-file sidecar must not read another file's vector"
+    );
+}
+
+#[test]
 fn reconciliation_manifest_survives_reopen_and_is_removed_with_the_file() {
     use crate::storage::manifest::{FileManifest, FragmentManifestEntry};
 
@@ -1994,6 +2023,7 @@ fn reconciliation_manifest_survives_reopen_and_is_removed_with_the_file() {
     assert_eq!(loaded.fragments.len(), 1);
     let vectors = storage
         .load_reusable_vectors(
+            file.id(),
             &entry.model,
             &[entry.entity.fragments()[0].id.as_str().to_owned()],
         )
@@ -2965,4 +2995,149 @@ fn read_write_session_opens_entity_and_fragment_collections_lazily() {
     );
     assert!(!storage.wrote_anything_for_test());
     storage.close().expect("close");
+}
+
+/// Qualification-only helper: compare stored vectors between two real indexes.
+/// Run with `E2_VECTOR_INDEXES=a,b[,c]` and `--ignored`.
+#[test]
+#[ignore = "manual real-index vector equivalence"]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one self-contained qualification harness"
+)]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "diagnostic-only mean of a bounded vector count"
+)]
+fn e2_real_index_vector_equivalence() {
+    use std::collections::BTreeMap;
+
+    fn load_index(root: &Path) -> BTreeMap<String, (String, Vec<f32>)> {
+        let storage = open(root, true);
+        let reconciliation = root.join("reconciliation");
+        let mut by_model: BTreeMap<(u32, String), Vec<String>> = BTreeMap::new();
+        let mut entries = Vec::new();
+        for item in fs::read_dir(&reconciliation).expect("reconciliation directory") {
+            let item = item.expect("sidecar entry");
+            let name = item.file_name().to_string_lossy().into_owned();
+            let Some(hex) = name
+                .strip_prefix("file-")
+                .and_then(|name| name.strip_suffix(".json"))
+            else {
+                continue;
+            };
+            let Ok(id) = u32::from_str_radix(hex, 16) else {
+                continue;
+            };
+            let Some(manifest) = storage
+                .load_embedding_manifest(FileId::new(id))
+                .expect("load sidecar")
+            else {
+                continue;
+            };
+            for entry in manifest.fragments() {
+                by_model
+                    .entry((id, entry.model.clone()))
+                    .or_default()
+                    .push(entry.fragment_id.clone());
+                entries.push((entry.fragment_id.clone(), entry.model.clone()));
+            }
+        }
+        let mut vectors = BTreeMap::new();
+        for ((file_id, model), ids) in by_model {
+            let loaded = storage
+                .load_reusable_vectors(FileId::new(file_id), &model, &ids)
+                .expect("load vectors");
+            for (id, vector) in loaded {
+                vectors.insert(id, vector);
+            }
+        }
+        storage.close().expect("close storage");
+        entries
+            .into_iter()
+            .filter_map(|(id, model)| vectors.remove(&id).map(|vector| (id, (model, vector))))
+            .collect()
+    }
+
+    let roots = std::env::var("E2_VECTOR_INDEXES").expect("E2_VECTOR_INDEXES=a,b[,c]");
+    let roots = roots.split(',').map(Path::new).collect::<Vec<_>>();
+    assert!(roots.len() >= 2, "need at least reused and fresh indexes");
+    let indexes = roots
+        .iter()
+        .map(|root| load_index(root))
+        .collect::<Vec<_>>();
+    let reused = &indexes[0];
+    let fresh = &indexes[1];
+    let fresh2 = indexes.get(2);
+
+    let mut common = 0_usize;
+    let mut exact_fp = 0_usize;
+    let mut cosine = Vec::new();
+    let mut max_abs = Vec::new();
+    let mut norm_drift = Vec::new();
+    for (id, (model, reused_vector)) in reused {
+        let Some((fresh_model, fresh_vector)) = fresh.get(id) else {
+            continue;
+        };
+        if model != fresh_model || reused_vector.len() != fresh_vector.len() {
+            continue;
+        }
+        common += 1;
+        let dot = reused_vector
+            .iter()
+            .zip(fresh_vector)
+            .map(|(left, right)| left * right)
+            .sum::<f32>();
+        let left_norm = reused_vector.iter().map(|v| v * v).sum::<f32>().sqrt();
+        let right_norm = fresh_vector.iter().map(|v| v * v).sum::<f32>().sqrt();
+        cosine.push(dot / (left_norm * right_norm));
+        max_abs.push(
+            reused_vector
+                .iter()
+                .zip(fresh_vector)
+                .map(|(left, right)| (left - right).abs())
+                .fold(0.0_f32, f32::max),
+        );
+        norm_drift.push((left_norm - right_norm).abs());
+        if crate::storage::manifest::vector_fingerprint(reused_vector)
+            == crate::storage::manifest::vector_fingerprint(fresh_vector)
+        {
+            exact_fp += 1;
+        }
+    }
+
+    let mut baseline = Vec::new();
+    if let Some(fresh2) = fresh2 {
+        for (id, (model, first)) in fresh {
+            let Some((second_model, second)) = fresh2.get(id) else {
+                continue;
+            };
+            if model != second_model || first.len() != second.len() {
+                continue;
+            }
+            let dot = first
+                .iter()
+                .zip(second)
+                .map(|(left, right)| left * right)
+                .sum::<f32>();
+            let left_norm = first.iter().map(|v| v * v).sum::<f32>().sqrt();
+            let right_norm = second.iter().map(|v| v * v).sum::<f32>().sqrt();
+            baseline.push(dot / (left_norm * right_norm));
+        }
+    }
+
+    let summary = serde_json::json!({
+        "reused_entries": reused.len(),
+        "fresh_entries": fresh.len(),
+        "common": common,
+        "exact_vector_fingerprint": exact_fp,
+        "cosine_min": cosine.iter().copied().fold(f32::INFINITY, f32::min),
+        "cosine_mean": cosine.iter().sum::<f32>() / cosine.len().max(1) as f32,
+        "max_abs_max": max_abs.iter().copied().fold(0.0_f32, f32::max),
+        "norm_drift_max": norm_drift.iter().copied().fold(0.0_f32, f32::max),
+        "fresh_fresh_cosine_min": baseline.iter().copied().fold(f32::INFINITY, f32::min),
+        "fresh_fresh_cosine_mean": baseline.iter().sum::<f32>() / baseline.len().max(1) as f32,
+        "fresh_fresh_pairs": baseline.len(),
+    });
+    println!("{summary}");
 }

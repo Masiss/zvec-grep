@@ -1063,6 +1063,79 @@ fn apply_embedding_files(
     Ok(())
 }
 
+/// Bind manifest entries to the exact vector bytes the native collection
+/// returned, not to the encoder input: cosine collections may rotate or
+/// normalize FP16 payloads, so only a storage round trip proves what a later
+/// reuse will fetch. A readback failure disables reuse for this file but does
+/// not fail the already-committed rows.
+fn bind_manifest_to_stored_vectors(
+    storage: &dyn IndexStorage,
+    file_id: FileId,
+    manifest_inputs: Vec<(String, String, String)>,
+    manifest: &mut FileManifest,
+) -> u64 {
+    let readback_started = Instant::now();
+    let mut stored_by_model: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut inputs_by_model: HashMap<String, Vec<String>> = HashMap::new();
+    for (fragment_id, model, _) in &manifest_inputs {
+        inputs_by_model
+            .entry(model.clone())
+            .or_default()
+            .push(fragment_id.clone());
+    }
+    let mut readback_failed = false;
+    for (model, ids) in inputs_by_model {
+        let mut ids = ids;
+        ids.sort_unstable();
+        ids.dedup();
+        match storage.load_reusable_vectors(file_id, &model, &ids) {
+            Ok(vectors) => {
+                stored_by_model.insert(
+                    model,
+                    vectors
+                        .into_iter()
+                        .map(|(id, vector)| {
+                            (id, crate::storage::manifest::vector_fingerprint(&vector))
+                        })
+                        .collect(),
+                );
+            }
+            Err(error) => {
+                tracing::warn!(
+                    file_id = file_id.get(),
+                    %error,
+                    "cannot verify stored vectors; disabling reuse for this file"
+                );
+                readback_failed = true;
+                break;
+            }
+        }
+    }
+    if readback_failed {
+        manifest.fragments.clear();
+    } else {
+        for (fragment_id, model, embedding_fingerprint) in manifest_inputs {
+            let Some(stored) = stored_by_model
+                .get(&model)
+                .and_then(|vectors| vectors.get(&fragment_id))
+            else {
+                // A missing round-trip vector means the sidecar cannot
+                // authorize reuse for this fragment.
+                continue;
+            };
+            manifest
+                .fragments
+                .push(crate::storage::manifest::FragmentManifestEntry {
+                    fragment_id,
+                    model,
+                    embedding_fingerprint,
+                    vector_fingerprint: stored.clone(),
+                });
+        }
+    }
+    duration_micros(readback_started.elapsed())
+}
+
 fn commit_file(
     storage: &dyn IndexStorage,
     file: PreparedFile,
@@ -1120,51 +1193,8 @@ fn commit_file(
             file.file.relative_path().display()
         )));
     }
-    // Bind manifest entries to the exact vector bytes the native collection
-    // returned, not to the encoder input: cosine collections may rotate or
-    // normalize FP16 payloads, so only a storage round trip proves what a later
-    // reuse will fetch.
-    let readback_started = Instant::now();
-    let mut stored_by_model: HashMap<String, HashMap<String, String>> = HashMap::new();
-    let mut inputs_by_model: HashMap<String, Vec<String>> = HashMap::new();
-    for (fragment_id, model, _) in &manifest_inputs {
-        inputs_by_model
-            .entry(model.clone())
-            .or_default()
-            .push(fragment_id.clone());
-    }
-    for (model, ids) in inputs_by_model {
-        let mut ids = ids;
-        ids.sort_unstable();
-        ids.dedup();
-        let vectors = storage.load_reusable_vectors(file.file.id(), &model, &ids)?;
-        stored_by_model.insert(
-            model,
-            vectors
-                .into_iter()
-                .map(|(id, vector)| (id, crate::storage::manifest::vector_fingerprint(&vector)))
-                .collect(),
-        );
-    }
-    for (fragment_id, model, embedding_fingerprint) in manifest_inputs {
-        let Some(stored) = stored_by_model
-            .get(&model)
-            .and_then(|vectors| vectors.get(&fragment_id))
-        else {
-            // A missing round-trip vector means the sidecar cannot authorize
-            // reuse for this fragment.
-            continue;
-        };
-        manifest
-            .fragments
-            .push(crate::storage::manifest::FragmentManifestEntry {
-                fragment_id,
-                model,
-                embedding_fingerprint,
-                vector_fingerprint: stored.clone(),
-            });
-    }
-    reconcile.manifest_readback_micros = duration_micros(readback_started.elapsed());
+    reconcile.manifest_readback_micros =
+        bind_manifest_to_stored_vectors(storage, file.file.id(), manifest_inputs, &mut manifest);
     let publish_started = Instant::now();
     let publish_result = storage.publish_embedding_manifest(&mut manifest);
     reconcile.manifest_publish_micros = duration_micros(publish_started.elapsed());
@@ -3192,6 +3222,13 @@ mod tests {
             )
             .expect("other input"),
         );
+        // A v1 sidecar (pre-E2) hashes only (version=1, model, input). The
+        // version/identity change must make it a permanent cache miss rather
+        // than silently authorizing reuse under the new function identity.
+        let legacy = crate::utils::sha256_hex(
+            &serde_json::to_vec(&(1_u32, &info, &input)).expect("legacy fingerprint"),
+        );
+        assert_ne!(baseline, legacy);
     }
 
     #[test]
@@ -3252,6 +3289,28 @@ mod tests {
             "duplicate inputs must receive the same vector",
         );
         assert_ne!(result.embedding.vectors[0], result.embedding.vectors[1]);
+    }
+
+    #[test]
+    fn dedup_shares_vectors_without_merging_canonical_identity_or_fts() {
+        let mut first = prepared_fragment("alpha", 0);
+        let mut second = prepared_fragment("beta", 1);
+        first.embedding_fingerprint = "a".repeat(64);
+        second.embedding_fingerprint = first.embedding_fingerprint.clone();
+        first.fts_text = "first lexical projection".to_owned();
+        second.fts_text = "second lexical projection".to_owned();
+        let plan = plan_embedding_dedup(
+            [first.clone(), second.clone()]
+                .iter()
+                .enumerate()
+                .map(|(index, fragment)| (index, fragment)),
+        );
+        assert_eq!(plan.requested, 2);
+        assert_eq!(plan.contents.len(), 1, "identical inputs embed once");
+        assert_eq!(plan.positions, vec![0, 0]);
+        assert_ne!(first.fragment_id, second.fragment_id);
+        assert_ne!(first.fts_text, second.fts_text);
+        assert_ne!(first.embedding_content, second.embedding_content);
     }
 
     #[test]
@@ -3406,6 +3465,67 @@ mod tests {
     }
 
     #[test]
+    fn readback_failure_commits_file_but_publishes_no_reuse_evidence() {
+        let file_id = FileId::new(93);
+        let storage = MemoryStorage::default();
+        storage
+            .fail_vector_fetch
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        let content = Content::Text("readback failure".to_owned());
+        let entity_id = EntityId::new(file_id, &content, Range::Full).expect("entity id");
+        let entity = Entity::new(
+            entity_id.clone(),
+            file_id,
+            Range::Full,
+            content,
+            None,
+            vec![EntityFragment {
+                id: FragmentId::new(&entity_id, 0),
+                range: Range::Full,
+            }],
+        )
+        .expect("entity");
+        let mut fragment = prepared_fragment("readback failure", 0);
+        fragment.entity_id = entity_id;
+        fragment.model = "local/test".to_owned();
+        let prepared = PreparedFile {
+            file: FileRecord::new(
+                file_id,
+                SourcePath::new("readback-failure.txt").expect("path"),
+                FileSnapshot {
+                    size_bytes: 16,
+                    modified_epoch_ms: None,
+                    content_hash: Some("readback-failure".to_owned()),
+                },
+                FileIndexStatus::NotIndexed,
+            )
+            .expect("file"),
+            entities: vec![entity],
+            fragments: vec![fragment],
+            graph: FileGraphResult::default(),
+            reconcile: ReconcileStats::default(),
+        };
+        commit_file(
+            &storage,
+            prepared,
+            vec![vec![1.0, 2.0, 3.0]],
+            &mut IndexWriteStats::default(),
+        )
+        .expect("readback failure must not fail the committed file");
+        assert_eq!(
+            storage
+                .entries
+                .lock()
+                .expect("stored entries")
+                .get(&file_id)
+                .map(Vec::len),
+            Some(1)
+        );
+        let manifests = storage.published_entries.lock().expect("published entries");
+        assert_eq!(manifests.last().expect("empty manifest").fragments.len(), 0);
+    }
+
+    #[test]
     fn failed_replacement_does_not_publish_a_reconciliation_manifest() {
         let file_id = FileId::new(91);
         let storage = MemoryStorage::default();
@@ -3537,6 +3657,7 @@ mod tests {
         fail_snapshot_updates: AtomicBool,
         snapshot_update_failed: Notify,
         reusable_vectors: Mutex<HashMap<String, Vec<f32>>>,
+        fail_vector_fetch: AtomicBool,
         published_manifests: Mutex<Vec<FileId>>,
         published_entries: Mutex<Vec<FileManifest>>,
     }
@@ -3786,6 +3907,14 @@ mod tests {
             _model: &str,
             fragment_ids: &[String],
         ) -> EngineResult<HashMap<String, Vec<f32>>> {
+            if self
+                .fail_vector_fetch
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
+                return Err(EngineError::storage_failure(
+                    "injected vector readback failure",
+                ));
+            }
             let vectors = self.reusable_vectors.lock().expect("reusable vectors");
             Ok(fragment_ids
                 .iter()

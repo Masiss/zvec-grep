@@ -747,7 +747,7 @@ fn reusable_vectors_are_loaded_by_fragment_identity_and_model() {
         .map(|entry| entry.fragment_id.as_str().to_owned())
         .collect::<Vec<_>>();
     let vectors = store
-        .load_vectors("fixture/fixture", &ids)
+        .load_vectors("fixture/fixture", &ids, None)
         .expect("load reusable vectors");
     assert_eq!(vectors.len(), entries.len());
     let decoded = &vectors[entries[1].fragment_id.as_str()];
@@ -760,7 +760,7 @@ fn reusable_vectors_are_loaded_by_fragment_identity_and_model() {
     }
     assert_eq!(
         store
-            .load_vectors("fixture/other", &ids)
+            .load_vectors("fixture/other", &ids, None)
             .expect_err("unknown model")
             .code(),
         crate::EngineError::INVALID_ARGUMENT

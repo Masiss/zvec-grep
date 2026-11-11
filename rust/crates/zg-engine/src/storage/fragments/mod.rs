@@ -241,6 +241,7 @@ impl Fragments {
         &self,
         model: &str,
         keys: &[String],
+        expected_file_id: Option<u32>,
     ) -> EngineResult<HashMap<String, Vec<f32>>> {
         let index = self.index(model)?;
         let mut vectors = HashMap::with_capacity(keys.len());
@@ -248,6 +249,14 @@ impl Fragments {
             let refs = batch.iter().map(String::as_str).collect::<Vec<_>>();
             for doc in native(index.fetch(&refs), "fetch reusable embeddings")? {
                 let key = doc_key(&doc)?.to_owned();
+                if let Some(expected) = expected_file_id {
+                    let actual = crate::storage::zvec::u32_field(&doc, "file_id")?;
+                    if actual != expected {
+                        // A manifest is per-file; a row owned by another file
+                        // must never authorize this file's reuse.
+                        continue;
+                    }
+                }
                 let Some(vector) = zg_zvec_fp16::decode_embedding(&doc, "embedding")
                     .map_err(|error| corrupt(format!("decode reusable embedding: {error}")))?
                 else {

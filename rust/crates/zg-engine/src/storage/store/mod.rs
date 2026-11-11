@@ -525,10 +525,15 @@ impl IndexStore {
 
     pub(crate) fn load_reusable_vectors(
         &self,
+        file_id: FileId,
         model: &str,
         fragment_ids: &[String],
     ) -> EngineResult<HashMap<String, Vec<f32>>> {
-        self.read(|state| state.fragments.load_vectors(model, fragment_ids))
+        self.read(|state| {
+            state
+                .fragments
+                .load_vectors(model, fragment_ids, Some(file_id.get()))
+        })
     }
 
     /// Replace canonical content and relationships under the same store lock.
