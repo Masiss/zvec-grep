@@ -453,6 +453,10 @@ impl ModelRuntimeLease {
         self.entry.runtime.model.identity_is_stable()
     }
 
+    pub(crate) fn embedding_identity(&self) -> Option<String> {
+        self.entry.runtime.model.embedding_identity()
+    }
+
     pub(crate) async fn prepare(
         &self,
         mut options: EmbeddingPrepareOptions,

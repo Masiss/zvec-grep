@@ -295,6 +295,27 @@ impl EmbeddingModel for LlamaCppEmbeddingModel {
         &self.info
     }
 
+    fn embedding_identity(&self) -> Option<String> {
+        // The catalog URI pins the artifact revision; include every declared
+        // artifact digest plus the template/format and context limit because
+        // each can change the vector for identical text.
+        let mut artifacts = self
+            .entry
+            .download
+            .artifacts
+            .iter()
+            .map(|artifact| format!("{}:{}:{}", artifact.path, artifact.size, artifact.sha256))
+            .collect::<Vec<_>>();
+        artifacts.sort();
+        Some(format!(
+            "llama-cpp-embedding-v1|format={}|context={}|uri={}|artifacts={}",
+            self.entry.format,
+            self.entry.context_size,
+            self.entry.uri,
+            artifacts.join(","),
+        ))
+    }
+
     async fn prepare(&self, options: EmbeddingPrepareOptions) -> Result<(), ModelError> {
         self.ensure_loaded(options.on_progress, options.signal.as_ref())
             .await

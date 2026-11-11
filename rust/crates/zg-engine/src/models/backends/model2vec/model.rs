@@ -178,6 +178,29 @@ impl EmbeddingModel for Model2VecEmbeddingModel {
         &self.info
     }
 
+    fn embedding_identity(&self) -> Option<String> {
+        let mut artifacts = self
+            .entry
+            .download
+            .artifacts
+            .iter()
+            .map(|artifact| format!("{}:{}:{}", artifact.path, artifact.size, artifact.sha256))
+            .collect::<Vec<_>>();
+        artifacts.sort();
+        Some(format!(
+            "model2vec-embedding-v1|repo={}@{}|model_file={}|tokenizer={}|tensor={}|normalize={}|query_prefix={:?}|document_prefix={:?}|artifacts={}",
+            self.entry.repo,
+            self.entry.revision,
+            self.entry.model_file,
+            self.entry.tokenizer_file,
+            self.entry.embedding_tensor,
+            self.entry.normalize,
+            self.entry.query_prefix,
+            self.entry.document_prefix,
+            artifacts.join(","),
+        ))
+    }
+
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults {
         EmbeddingConcurrencyDefaults {
             initial: self.entry.default_concurrency.max(1),
