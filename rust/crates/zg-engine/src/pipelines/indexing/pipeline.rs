@@ -345,6 +345,7 @@ struct IndexWriteStats {
     reconcile_manifest_load_micros: u64,
     reconcile_vector_fetch_micros: u64,
     reconcile_manifest_publish_micros: u64,
+    reconcile_manifest_readback_micros: u64,
     embedding_requests: usize,
     embedding_unique_inputs: usize,
     embedding_cross_file_duplicates: usize,
@@ -760,6 +761,7 @@ struct ReconcileStats {
     manifest_load_micros: u64,
     vector_fetch_micros: u64,
     manifest_publish_micros: u64,
+    manifest_readback_micros: u64,
 }
 
 struct PreparedFile {
@@ -1077,6 +1079,7 @@ fn commit_file(
     let public_entities = file.entities.len();
     let mut reconcile = file.reconcile;
     let mut manifest = FileManifest::new(file.file.id());
+    let mut manifest_inputs: Vec<(String, String, String)> = Vec::new();
     let mut vectors = vectors.into_iter();
     let mut entries = Vec::with_capacity(file.fragments.len());
     for fragment in file.fragments {
@@ -1087,14 +1090,11 @@ fn commit_file(
                 .ok_or_else(|| EngineError::internal("missing embedding for a pending fragment"))?,
         };
         if !fragment.embedding_fingerprint.is_empty() {
-            manifest
-                .fragments
-                .push(crate::storage::manifest::FragmentManifestEntry {
-                    fragment_id: fragment.fragment_id.as_str().to_owned(),
-                    model: fragment.model.clone(),
-                    embedding_fingerprint: fragment.embedding_fingerprint,
-                    vector_fingerprint: crate::storage::manifest::vector_fingerprint(&vector),
-                });
+            manifest_inputs.push((
+                fragment.fragment_id.as_str().to_owned(),
+                fragment.model.clone(),
+                fragment.embedding_fingerprint,
+            ));
         }
         entries.push(IndexedFragment {
             model: fragment.model,
@@ -1120,6 +1120,51 @@ fn commit_file(
             file.file.relative_path().display()
         )));
     }
+    // Bind manifest entries to the exact vector bytes the native collection
+    // returned, not to the encoder input: cosine collections may rotate or
+    // normalize FP16 payloads, so only a storage round trip proves what a later
+    // reuse will fetch.
+    let readback_started = Instant::now();
+    let mut stored_by_model: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut inputs_by_model: HashMap<String, Vec<String>> = HashMap::new();
+    for (fragment_id, model, _) in &manifest_inputs {
+        inputs_by_model
+            .entry(model.clone())
+            .or_default()
+            .push(fragment_id.clone());
+    }
+    for (model, ids) in inputs_by_model {
+        let mut ids = ids;
+        ids.sort_unstable();
+        ids.dedup();
+        let vectors = storage.load_reusable_vectors(file.file.id(), &model, &ids)?;
+        stored_by_model.insert(
+            model,
+            vectors
+                .into_iter()
+                .map(|(id, vector)| (id, crate::storage::manifest::vector_fingerprint(&vector)))
+                .collect(),
+        );
+    }
+    for (fragment_id, model, embedding_fingerprint) in manifest_inputs {
+        let Some(stored) = stored_by_model
+            .get(&model)
+            .and_then(|vectors| vectors.get(&fragment_id))
+        else {
+            // A missing round-trip vector means the sidecar cannot authorize
+            // reuse for this fragment.
+            continue;
+        };
+        manifest
+            .fragments
+            .push(crate::storage::manifest::FragmentManifestEntry {
+                fragment_id,
+                model,
+                embedding_fingerprint,
+                vector_fingerprint: stored.clone(),
+            });
+    }
+    reconcile.manifest_readback_micros = duration_micros(readback_started.elapsed());
     let publish_started = Instant::now();
     let publish_result = storage.publish_embedding_manifest(&mut manifest);
     reconcile.manifest_publish_micros = duration_micros(publish_started.elapsed());
@@ -1147,6 +1192,9 @@ fn commit_file(
     stats.reconcile_manifest_publish_micros = stats
         .reconcile_manifest_publish_micros
         .saturating_add(reconcile.manifest_publish_micros);
+    stats.reconcile_manifest_readback_micros = stats
+        .reconcile_manifest_readback_micros
+        .saturating_add(reconcile.manifest_readback_micros);
     stats.files_indexed += 1;
     stats.entities_created += public_entities;
     Ok(format!("indexed {}", file.file.relative_path().display()))
@@ -1371,8 +1419,7 @@ fn reuse_existing_vectors(
                 let Some(vector) = vectors.get(&entry.fragment_id) else {
                     continue;
                 };
-                if entry.vector_fingerprint
-                    == crate::storage::manifest::vector_fingerprint(vector)
+                if entry.vector_fingerprint == crate::storage::manifest::vector_fingerprint(vector)
                 {
                     fragment.reusable_vector = Some(vector.clone());
                     reuse.vectors_reused += 1;
@@ -1925,9 +1972,7 @@ async fn embed_file(
         .iter()
         .enumerate()
         .filter_map(|(pending_index, position)| {
-            unique_truncated
-                .contains(position)
-                .then_some(pending_index)
+            unique_truncated.contains(position).then_some(pending_index)
         })
         .collect::<Vec<_>>();
     Ok(EmbedFileResult {
@@ -2831,6 +2876,7 @@ fn record_reconcile_timings(timings: &mut TimingCollector, passes: &[IndexPassRe
     let mut load_micros = 0_u64;
     let mut fetch_micros = 0_u64;
     let mut publish_micros = 0_u64;
+    let mut readback_micros = 0_u64;
     let mut embedding_requests = 0;
     let mut embedding_unique = 0;
     let mut cross_file_duplicates = 0;
@@ -2849,6 +2895,7 @@ fn record_reconcile_timings(timings: &mut TimingCollector, passes: &[IndexPassRe
         load_micros = load_micros.saturating_add(stats.reconcile_manifest_load_micros);
         fetch_micros = fetch_micros.saturating_add(stats.reconcile_vector_fetch_micros);
         publish_micros = publish_micros.saturating_add(stats.reconcile_manifest_publish_micros);
+        readback_micros = readback_micros.saturating_add(stats.reconcile_manifest_readback_micros);
     }
     timings.record(
         "index_reconcile_manifest_load",
@@ -2873,11 +2920,20 @@ fn record_reconcile_timings(timings: &mut TimingCollector, passes: &[IndexPassRe
         publishes,
     );
     timings.record(
+        "index_reconcile_manifest_readback",
+        Duration::from_micros(readback_micros),
+        hit_files,
+    );
+    timings.record(
         "index_reconcile_content_addressed_reused",
         Duration::ZERO,
         content_addressed,
     );
-    timings.record("index_embedding_requests", Duration::ZERO, embedding_requests);
+    timings.record(
+        "index_embedding_requests",
+        Duration::ZERO,
+        embedding_requests,
+    );
     timings.record(
         "index_embedding_unique_inputs",
         Duration::ZERO,
@@ -3116,7 +3172,8 @@ mod tests {
         )
         .expect("embedding info");
         let input = vec![Content::Text("same bytes".to_owned())];
-        let baseline = embedding_input_fingerprint(&info, "artifact-a", &input).expect("fingerprint");
+        let baseline =
+            embedding_input_fingerprint(&info, "artifact-a", &input).expect("fingerprint");
         assert_eq!(
             baseline,
             embedding_input_fingerprint(&info, "artifact-a", &input).expect("stable"),
@@ -3273,13 +3330,9 @@ mod tests {
         }];
         let mut different_input = prepared_fragment("alpha", 0);
         different_input.embedding_fingerprint = "c".repeat(64);
-        let reuse = reuse_existing_vectors(
-            &storage,
-            file_id,
-            Some(&manifest),
-            &mut [different_input],
-        )
-        .expect("reuse");
+        let reuse =
+            reuse_existing_vectors(&storage, file_id, Some(&manifest), &mut [different_input])
+                .expect("reuse");
         assert_eq!(reuse.vectors_reused, 0);
 
         let mut rolled_back = prepared_fragment("alpha", 0);
@@ -3289,6 +3342,67 @@ mod tests {
         let reuse = reuse_existing_vectors(&storage, file_id, Some(&manifest), &mut [rolled_back])
             .expect("reuse");
         assert_eq!(reuse.vectors_reused, 0);
+    }
+
+    #[test]
+    fn committed_manifest_binds_vector_fingerprint_to_stored_vector() {
+        let file_id = FileId::new(92);
+        let storage = MemoryStorage::default();
+        let content = Content::Text("round trip".to_owned());
+        let entity_id = EntityId::new(file_id, &content, Range::Full).expect("entity id");
+        let entity = Entity::new(
+            entity_id.clone(),
+            file_id,
+            Range::Full,
+            content,
+            None,
+            vec![EntityFragment {
+                id: FragmentId::new(&entity_id, 0),
+                range: Range::Full,
+            }],
+        )
+        .expect("entity");
+        let mut fragment = prepared_fragment("round trip", 0);
+        fragment.entity_id = entity_id;
+        fragment.model = "local/test".to_owned();
+        let prepared = PreparedFile {
+            file: FileRecord::new(
+                file_id,
+                SourcePath::new("round-trip.txt").expect("path"),
+                FileSnapshot {
+                    size_bytes: 11,
+                    modified_epoch_ms: None,
+                    content_hash: Some("round-trip".to_owned()),
+                },
+                FileIndexStatus::NotIndexed,
+            )
+            .expect("file"),
+            entities: vec![entity],
+            fragments: vec![fragment],
+            graph: FileGraphResult::default(),
+            reconcile: ReconcileStats::default(),
+        };
+        commit_file(
+            &storage,
+            prepared,
+            vec![vec![1.0, 2.0, 3.0]],
+            &mut IndexWriteStats::default(),
+        )
+        .expect("commit");
+
+        let manifests = storage.published_entries.lock().expect("published entries");
+        let entry = &manifests[0].fragments[0];
+        let stored = storage
+            .reusable_vectors
+            .lock()
+            .expect("reusable vectors")
+            .get(&entry.fragment_id)
+            .expect("stored vector")
+            .clone();
+        assert_eq!(
+            entry.vector_fingerprint,
+            crate::storage::manifest::vector_fingerprint(&stored)
+        );
     }
 
     #[test]
@@ -3424,6 +3538,7 @@ mod tests {
         snapshot_update_failed: Notify,
         reusable_vectors: Mutex<HashMap<String, Vec<f32>>>,
         published_manifests: Mutex<Vec<FileId>>,
+        published_entries: Mutex<Vec<FileManifest>>,
     }
 
     #[test]
@@ -3589,6 +3704,11 @@ mod tests {
                 .lock()
                 .expect("stored entries")
                 .insert(file.id(), entries.to_vec());
+            let mut vectors = self.reusable_vectors.lock().expect("reusable vectors");
+            for entry in entries {
+                vectors.insert(entry.fragment_id.as_str().to_owned(), entry.vector.clone());
+            }
+            drop(vectors);
             let mut files = self.files.lock().unwrap_or_else(PoisonError::into_inner);
             if let Some(existing) = files
                 .iter_mut()
@@ -3682,6 +3802,10 @@ mod tests {
                 .lock()
                 .expect("published manifests")
                 .push(manifest.file_id());
+            self.published_entries
+                .lock()
+                .expect("published entries")
+                .push(manifest.clone());
             Ok(true)
         }
 
@@ -3764,7 +3888,10 @@ mod tests {
                         for byte in text.bytes() {
                             hash = hash.wrapping_mul(131).wrapping_add(u64::from(byte));
                         }
-                        vec![hash as f32, 1.0]
+                        vec![
+                            f32::from(u16::try_from(hash & 0xffff).expect("low bits")),
+                            1.0,
+                        ]
                     })
                     .collect(),
                 truncated: Vec::new(),
