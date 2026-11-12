@@ -2,6 +2,18 @@ use super::*;
 use crate::models::catalog::{EmbeddingCatalogEntry, get_embedding_model_catalog_entry};
 
 #[test]
+fn backend_build_identity_is_content_addressed() {
+    let identity = env!("ZG_EMBEDDING_BACKEND_BUILD");
+    assert_eq!(identity.len(), 64, "SHA-256 hex identity");
+    assert!(identity.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_ne!(
+        identity,
+        "0".repeat(64),
+        "build.rs must provide a real backend fingerprint"
+    );
+}
+
+#[test]
 fn cpu_model_parameters_exclude_gpu_devices_and_layers() {
     let _registry = lock_backend_registry();
     let params = cpu_model_params().expect("CPU model parameters");

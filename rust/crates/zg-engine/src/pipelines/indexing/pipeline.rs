@@ -1710,9 +1710,12 @@ struct EmbeddingDedup {
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 enum EmbeddingInputKey {
-    /// Model identity and effective input digest. Only produced when both are
-    /// known; unverified inputs must never share a vector.
+    /// Complete persisted embedding-function identity + effective input.
     Verified(String, String),
+    /// Backend cannot prove a cross-run identity, but identical effective
+    /// inputs within this pass may still share one inference result. This key
+    /// is never written to a sidecar.
+    SamePass(String, String),
     Unverified(usize),
 }
 
@@ -1725,14 +1728,29 @@ fn plan_embedding_dedup<'a>(
     let mut unverified = 0_usize;
     let dedup_enabled = embedding_dedup_enabled();
     for (file_index, fragment) in items {
-        let key = if !dedup_enabled || fragment.embedding_fingerprint.is_empty() {
+        let key = if !dedup_enabled {
             unverified += 1;
             EmbeddingInputKey::Unverified(unverified)
-        } else {
+        } else if !fragment.embedding_fingerprint.is_empty() {
             EmbeddingInputKey::Verified(
                 fragment.model.clone(),
                 fragment.embedding_fingerprint.clone(),
             )
+        } else {
+            // Same-pass dedup does not authorize persisted reuse. It is safe
+            // for backends whose cross-run identity is unavailable, while
+            // E2-B remains disabled because the sidecar fingerprint is empty.
+            if let Ok(encoded) =
+                serde_json::to_vec(&(EMBEDDING_FINGERPRINT_VERSION, &fragment.embedding_content))
+            {
+                EmbeddingInputKey::SamePass(
+                    fragment.model.clone(),
+                    crate::utils::sha256_hex(&encoded),
+                )
+            } else {
+                unverified += 1;
+                EmbeddingInputKey::Unverified(unverified)
+            }
         };
         plan.requested += 1;
         let index = match indices.get(&key) {
@@ -3229,6 +3247,35 @@ mod tests {
             &serde_json::to_vec(&(1_u32, &info, &input)).expect("legacy fingerprint"),
         );
         assert_ne!(baseline, legacy);
+
+        // Artifact/config changes are represented in model metadata even when
+        // the opaque backend identity string is unchanged.
+        let changed_config = EmbeddingModelInfo::new(
+            crate::domain::model::ModelInfo::new(
+                "local".to_owned(),
+                "fixture".to_owned(),
+                [crate::domain::ContentKind::Text],
+                4,
+            )
+            .expect("model info"),
+            3,
+            EmbeddingMetric::Cosine,
+            Some(128),
+            None,
+        )
+        .expect("changed embedding info");
+        assert_ne!(
+            baseline,
+            embedding_input_fingerprint(&changed_config, "artifact-a", &input)
+                .expect("changed config fingerprint"),
+        );
+
+        // Backend implementation/revision upgrades use the same opaque
+        // identity contract as artifact/template changes.
+        assert_ne!(
+            embedding_input_fingerprint(&info, "backend-build-a", &input).expect("old backend"),
+            embedding_input_fingerprint(&info, "backend-build-b", &input).expect("new backend"),
+        );
     }
 
     #[test]
@@ -3314,20 +3361,27 @@ mod tests {
     }
 
     #[test]
-    fn dedup_fails_closed_for_unverified_inputs() {
+    fn dedup_without_persisted_identity_is_same_pass_only() {
         let mut first = prepared_fragment("alpha", 0);
         let mut second = prepared_fragment("alpha", 1);
-        first.embedding_fingerprint = String::new();
-        second.embedding_fingerprint = String::new();
+        let mut third = prepared_fragment("beta", 2);
+        for fragment in [&mut first, &mut second, &mut third] {
+            fragment.embedding_fingerprint = String::new();
+        }
         let plan = plan_embedding_dedup(
-            [first, second]
+            [first, second, third]
                 .iter()
                 .enumerate()
                 .map(|(index, fragment)| (index, fragment)),
         );
-        assert_eq!(plan.requested, 2);
-        assert_eq!(plan.contents.len(), 2);
-        assert_eq!(plan.cross_file_duplicates, 0);
+        assert_eq!(plan.requested, 3);
+        assert_eq!(
+            plan.contents.len(),
+            2,
+            "identical inputs share one same-pass inference"
+        );
+        assert_eq!(plan.positions, vec![0, 0, 1]);
+        assert_eq!(plan.cross_file_duplicates, 1);
     }
 
     #[test]
@@ -3526,6 +3580,74 @@ mod tests {
     }
 
     #[test]
+    fn stale_sidecar_after_failed_publication_cannot_reuse_replaced_vector() {
+        let file_id = FileId::new(94);
+        let storage = MemoryStorage::default();
+        let mut fragment = prepared_fragment("replaced input", 0);
+        fragment.model = "local/test".to_owned();
+        let old_input = fragment.embedding_fingerprint.clone();
+        let fragment_id = fragment.fragment_id.as_str().to_owned();
+        let mut old_manifest = FileManifest::new(file_id);
+        old_manifest
+            .fragments
+            .push(crate::storage::manifest::FragmentManifestEntry {
+                fragment_id: fragment_id.clone(),
+                model: fragment.model.clone(),
+                embedding_fingerprint: old_input.clone(),
+                vector_fingerprint: crate::storage::manifest::vector_fingerprint(&[9.0, 9.0]),
+            });
+        storage
+            .published_entries
+            .lock()
+            .expect("published entries")
+            .push(old_manifest);
+        storage
+            .fail_manifest_publish
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+
+        // Native rows commit with a different vector, but publication of the
+        // new sidecar fails. The stale sidecar must not authorize the new row.
+        let prepared = PreparedFile {
+            file: FileRecord::new(
+                file_id,
+                SourcePath::new("stale-publish.txt").expect("path"),
+                FileSnapshot {
+                    size_bytes: 14,
+                    modified_epoch_ms: None,
+                    content_hash: Some("stale-publish".to_owned()),
+                },
+                FileIndexStatus::NotIndexed,
+            )
+            .expect("file"),
+            entities: Vec::new(),
+            fragments: vec![fragment],
+            graph: FileGraphResult::default(),
+            reconcile: ReconcileStats::default(),
+        };
+        commit_file(
+            &storage,
+            prepared,
+            vec![vec![1.0, 2.0]],
+            &mut IndexWriteStats::default(),
+        )
+        .expect("commit");
+        let mut next = prepared_fragment("replaced input", 0);
+        next.model = "local/test".to_owned();
+        next.embedding_fingerprint = old_input;
+        let reuse = reuse_existing_vectors(
+            &storage,
+            file_id,
+            storage
+                .load_embedding_manifest(file_id)
+                .expect("stale sidecar")
+                .as_ref(),
+            &mut [next],
+        )
+        .expect("reuse check");
+        assert_eq!(reuse.vectors_reused, 0);
+    }
+
+    #[test]
     fn failed_replacement_does_not_publish_a_reconciliation_manifest() {
         let file_id = FileId::new(91);
         let storage = MemoryStorage::default();
@@ -3658,6 +3780,7 @@ mod tests {
         snapshot_update_failed: Notify,
         reusable_vectors: Mutex<HashMap<String, Vec<f32>>>,
         fail_vector_fetch: AtomicBool,
+        fail_manifest_publish: AtomicBool,
         published_manifests: Mutex<Vec<FileId>>,
         published_entries: Mutex<Vec<FileManifest>>,
     }
@@ -3923,10 +4046,23 @@ mod tests {
         }
 
         fn load_embedding_manifest(&self, _file_id: FileId) -> EngineResult<Option<FileManifest>> {
-            Ok(None)
+            Ok(self
+                .published_entries
+                .lock()
+                .expect("published entries")
+                .last()
+                .cloned())
         }
 
         fn publish_embedding_manifest(&self, manifest: &mut FileManifest) -> EngineResult<bool> {
+            if self
+                .fail_manifest_publish
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
+                return Err(EngineError::storage_failure(
+                    "injected manifest publish failure",
+                ));
+            }
             self.published_manifests
                 .lock()
                 .expect("published manifests")

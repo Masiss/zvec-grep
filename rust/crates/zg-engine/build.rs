@@ -1,5 +1,77 @@
+use std::fmt::Write;
+use std::path::{Path, PathBuf};
+
+use sha2::{Digest, Sha256};
+
+fn hash_file(path: &Path, hasher: &mut Sha256) {
+    println!("cargo:rerun-if-changed={}", path.display());
+    let bytes = std::fs::read(path).expect("read backend identity input");
+    hasher.update((bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+}
+
+fn hash_tree(path: &Path, hasher: &mut Sha256) {
+    let mut entries = std::fs::read_dir(path)
+        .expect("read backend identity directory")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    entries.sort();
+    for entry in entries {
+        if entry.is_dir() {
+            hash_tree(&entry, hasher);
+        } else if entry.is_file() {
+            hash_file(&entry, hasher);
+        }
+    }
+}
+
+/// Hash every source/input that can change an embedding vector without a
+/// catalog revision change. The resulting value is part of E2's persisted
+/// embedding identity, so a backend upgrade or wrapper edit invalidates
+/// cross-pass reuse automatically instead of relying on a hand-maintained
+/// revision constant.
+fn embedding_backend_build_identity(manifest: &Path) -> String {
+    let workspace = manifest
+        .ancestors()
+        .nth(2)
+        .expect("workspace root above crates/zg-engine");
+    let mut hasher = Sha256::new();
+    for path in [
+        workspace.join("Cargo.lock"),
+        manifest.join("src/models"),
+        workspace.join("crates/zg-llama-native"),
+        manifest.join("build.rs"),
+    ] {
+        if path.is_dir() {
+            hash_tree(&path, &mut hasher);
+        } else {
+            hash_file(&path, &mut hasher);
+        }
+    }
+    hasher
+        .finalize()
+        .iter()
+        .fold(String::new(), |mut hex, byte| {
+            write!(hex, "{byte:02x}").expect("write to String");
+            hex
+        })
+}
+
 fn main() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts");
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let backend_identity = embedding_backend_build_identity(&manifest);
+    println!("cargo:rustc-env=ZG_EMBEDDING_BACKEND_BUILD={backend_identity}");
+    for path in [
+        manifest.join("../../Cargo.lock"),
+        manifest.join("src/models"),
+        manifest.join("../zg-llama-native"),
+        manifest.join("build.rs"),
+    ] {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+
+    let root = manifest.join("../../scripts");
     let script = root.join("prepare-onnxruntime.py");
     println!("cargo:rerun-if-changed={}", script.display());
     println!(

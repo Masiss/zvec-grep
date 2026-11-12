@@ -296,10 +296,11 @@ impl EmbeddingModel for LlamaCppEmbeddingModel {
     }
 
     fn embedding_identity(&self) -> Option<String> {
-        // Keep this in lockstep with the pinned llama-cpp-2 git revision in
-        // rust/Cargo.toml. A backend upgrade can change embeddings even when
-        // the artifact, template and context stay identical.
-        const LLAMA_CPP_2_REVISION: &str = "b55399ac6c2035f2301120547c4c967e741d25d3";
+        // `ZG_EMBEDDING_BACKEND_BUILD` is produced by build.rs from Cargo.lock
+        // and the backend wrapper/native sources, so a backend upgrade or
+        // implementation edit cannot silently reuse vectors from the old
+        // embedding function.
+        const BACKEND_BUILD: &str = env!("ZG_EMBEDDING_BACKEND_BUILD");
         // The catalog URI pins the artifact revision; include every declared
         // artifact digest plus the template/format and context limit because
         // each can change the vector for identical text.
@@ -312,8 +313,8 @@ impl EmbeddingModel for LlamaCppEmbeddingModel {
             .collect::<Vec<_>>();
         artifacts.sort();
         Some(format!(
-            "llama-cpp-embedding-v2|backend=llama-cpp-2@{}|format={}|context={}|uri={}|artifacts={}",
-            LLAMA_CPP_2_REVISION,
+            "llama-cpp-embedding-v3|backend_build={}|format={}|context={}|uri={}|artifacts={}",
+            BACKEND_BUILD,
             self.entry.format,
             self.entry.context_size,
             self.entry.uri,

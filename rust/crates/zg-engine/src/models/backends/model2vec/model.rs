@@ -188,7 +188,8 @@ impl EmbeddingModel for Model2VecEmbeddingModel {
             .collect::<Vec<_>>();
         artifacts.sort();
         Some(format!(
-            "model2vec-embedding-v1|repo={}@{}|model_file={}|tokenizer={}|tensor={}|normalize={}|query_prefix={:?}|document_prefix={:?}|artifacts={}",
+            "model2vec-embedding-v2|backend_build={}|repo={}@{}|model_file={}|tokenizer={}|tensor={}|normalize={}|query_prefix={:?}|document_prefix={:?}|artifacts={}",
+            env!("ZG_EMBEDDING_BACKEND_BUILD"),
             self.entry.repo,
             self.entry.revision,
             self.entry.model_file,
