@@ -12,7 +12,7 @@ use zg_engine::{
     api::{
         context::{
             options::{ContextOptions, ContextRoute, ContextRouteMode, QueryFilter},
-            result::{ContentRange, ContextItem},
+            result::{ContentRange, ContextItem, EntityMetadata},
         },
         index::{
             options::{Device, EmbeddingModelSpec, ScanRulesUpdate},
@@ -170,7 +170,26 @@ struct Candidate {
     end_line: Option<usize>,
     score: Option<f64>,
     kind: String,
+    symbol_type: Option<String>,
+    symbol_name: Option<String>,
+    signature: Option<String>,
+    container_symbol_type: Option<String>,
+    container_symbol_name: Option<String>,
     excerpt: String,
+}
+
+fn code_fields(
+    metadata: Option<&EntityMetadata>,
+) -> (Option<String>, Option<String>, Option<String>) {
+    let Some(EntityMetadata::Code(code)) = metadata else {
+        return (None, None, None);
+    };
+    (
+        code.symbol_type
+            .map(|kind| format!("{kind:?}").to_ascii_lowercase()),
+        code.symbol_name.clone(),
+        code.signature.clone(),
+    )
 }
 
 fn candidate(item: ContextItem) -> Result<Candidate> {
@@ -187,6 +206,13 @@ fn candidate(item: ContextItem) -> Result<Candidate> {
         .to_str()
         .ok_or_else(|| anyhow!("non-UTF-8 relative path"))?
         .replace('\\', "/");
+    let (symbol_type, symbol_name, signature) = code_fields(item.metadata.as_ref());
+    let (container_symbol_type, container_symbol_name) = item
+        .container
+        .as_ref()
+        .map(|container| code_fields(container.metadata.as_ref()))
+        .map(|(kind, name, _)| (kind, name))
+        .unwrap_or((None, None));
     Ok(Candidate {
         rank: item.rank,
         path,
@@ -194,6 +220,11 @@ fn candidate(item: ContextItem) -> Result<Candidate> {
         end_line,
         score: item.score,
         kind: format!("{:?}", item.kind).to_ascii_lowercase(),
+        symbol_type,
+        symbol_name,
+        signature,
+        container_symbol_type,
+        container_symbol_name,
         excerpt: item.content.chars().take(240).collect(),
     })
 }
@@ -293,7 +324,7 @@ async fn run() -> Result<()> {
                 });
             }
             let run = serde_json::json!({
-                "dataset": "e3-01-v1",
+                "dataset": dataset["dataset"].as_str().unwrap_or("e3-01-v2"),
                 "run": {
                     "route": args.route,
                     "limit": args.limit,

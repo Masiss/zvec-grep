@@ -1,10 +1,10 @@
 {
   "corpus_files": 392,
   "corpus_lines": 98666,
-  "corpus_sha256": "6f87791413b383f65ef8fccc473d9f6af558a3566629280c5f2e57ad0b20940f",
-  "dataset": "e3-01-v1",
+  "corpus_sha256": "ac8c5d80b8dcc6f8ecc34cc235b71a30fe02773834efdb6334802ff54c07224f",
+  "dataset": "e3-01-v2",
   "frozen_at": "2026-11-12",
-  "queries_sha256": "5e35c3d6b3d1868864538320a0788bd3d2b76cc859cd9a8f2fe45e9089cb5662",
+  "queries_sha256": "a2d2210e759f948ddd8dfe3387069fb219f84a307546cb0f905502439e229650",
   "query_count": 32,
   "schema_version": 1
 }

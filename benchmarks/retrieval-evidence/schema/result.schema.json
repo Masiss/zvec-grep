@@ -3,40 +3,131 @@
   "$id": "https://example.invalid/zvec-grep/e3-01/result.schema.json",
   "title": "E3-01 retrieval run",
   "type": "object",
-  "required": ["dataset", "run", "results"],
+  "required": [
+    "dataset",
+    "run",
+    "results"
+  ],
   "properties": {
-    "dataset": {"const": "e3-01-v1"},
+    "dataset": {
+      "const": "e3-01-v2"
+    },
     "run": {
       "type": "object",
-      "required": ["route", "limit", "model", "root"],
+      "required": [
+        "route",
+        "limit",
+        "model",
+        "root"
+      ],
       "properties": {
-        "route": {"type": "string"},
-        "limit": {"type": "integer", "minimum": 1},
-        "model": {"type": "string"},
-        "root": {"type": "string"}
+        "route": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        }
       }
     },
     "results": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["query_id", "latency_ms", "items"],
+        "required": [
+          "query_id",
+          "latency_ms",
+          "items"
+        ],
         "properties": {
-          "query_id": {"type": "string"},
-          "latency_ms": {"type": "number", "minimum": 0},
+          "query_id": {
+            "type": "string"
+          },
+          "latency_ms": {
+            "type": "number",
+            "minimum": 0
+          },
           "items": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["rank", "path", "start_line", "end_line", "kind"],
+              "required": [
+                "rank",
+                "path",
+                "start_line",
+                "end_line",
+                "kind"
+              ],
               "properties": {
-                "rank": {"type": "integer", "minimum": 1},
-                "path": {"type": "string"},
-                "start_line": {"type": ["integer", "null"], "minimum": 1},
-                "end_line": {"type": ["integer", "null"], "minimum": 1},
-                "score": {"type": ["number", "null"]},
-                "kind": {"type": "string"},
-                "excerpt": {"type": "string"}
+                "rank": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "path": {
+                  "type": "string"
+                },
+                "start_line": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "end_line": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "score": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "excerpt": {
+                  "type": "string"
+                },
+                "symbol_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "symbol_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "signature": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "container_symbol_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "container_symbol_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
               }
             }
           }

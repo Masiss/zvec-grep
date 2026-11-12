@@ -1,0 +1,2400 @@
+{
+  "name": "e3-01-independent-retrieval-evidence",
+  "version": "e3-01-v1",
+  "schema_version": 1,
+  "frozen_at": "2026-11-12",
+  "repos": [
+    {
+      "id": "dapper",
+      "url": "https://github.com/DapperLib/Dapper",
+      "revision": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "tag": "2.1.89",
+      "license": "Apache-2.0",
+      "license_path": "dapper/License.txt",
+      "subset": "Dapper/",
+      "excluded": "tests, benchmark projects, EF/Rainbow/SqlBuilder packages",
+      "tarball_sha256": "2bec491ea26ac33dfa1c8f3f3b928b7f0c50c152066c2947a2432985aa81a7c4"
+    },
+    {
+      "id": "newtonsoft",
+      "url": "https://github.com/JamesNK/Newtonsoft.Json",
+      "revision": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "tag": "13.0.3",
+      "license": "MIT",
+      "license_path": "newtonsoft/LICENSE.md",
+      "subset": "Newtonsoft.Json/{Serialization,Linq,Utilities,Converters,*.cs}",
+      "excluded": "tests, benchmarks, documentation, BSON/Schema",
+      "tarball_sha256": "d88190702cc9b27c51dd1075b2773479f5f91e8256e73579beaa6cedf659a388"
+    },
+    {
+      "id": "antlr",
+      "url": "https://github.com/antlr/antlr4",
+      "revision": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "tag": "4.13.2",
+      "license": "BSD-3-Clause",
+      "license_path": "antlr/LICENSE.txt",
+      "subset": "runtime/CSharp/src/{Atn,Misc,*.cs}",
+      "excluded": "tests, tool/generator, other language runtimes",
+      "tarball_sha256": "05d8404b6f732b55d4beaf0d95b4eb1761d29be672a1da030c553f105b8d9d66"
+    }
+  ],
+  "files": [
+    {
+      "path": "antlr/Runtime/AntlrFileStream.cs",
+      "sha256": "de1a39927f879453d3e130b0371520b3f843222772a2d8cfc912b17bafacad29",
+      "bytes": 1589,
+      "lines": 60
+    },
+    {
+      "path": "antlr/Runtime/AntlrInputStream.cs",
+      "sha256": "2f96c6f8969e49df0871832b04e712ebd5214b06c97904d1fc5624021f49413d",
+      "bytes": 9783,
+      "lines": 329
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATN.cs",
+      "sha256": "ea4ceee93f8ac4f33565c8a9882f21cb6c334991f0cb1c55121b2373b2a862f3",
+      "bytes": 9731,
+      "lines": 262
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATNConfig.cs",
+      "sha256": "edeb160d6a587358a453590f3e8e7b788ec9af53b19c784caa55a59c263ce1d9",
+      "bytes": 6939,
+      "lines": 246
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATNConfigSet.cs",
+      "sha256": "83dac337a5e1d073bf2a90fa7afc84b9c6e886fd98b67067049fd683dd1afff8",
+      "bytes": 10437,
+      "lines": 423
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATNDeserializationOptions.cs",
+      "sha256": "1a2126217e1373ac8f1631eaeb11f7d62126acddb190e7859bb334589f1f6aca",
+      "bytes": 2910,
+      "lines": 116
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATNDeserializer.cs",
+      "sha256": "bf4e2541a21151d6f73d88cbdd6105884da6a51902a5ac31c7d99b7148bec7bb",
+      "bytes": 40956,
+      "lines": 1178
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATNSimulator.cs",
+      "sha256": "ea899a6a5bd38c155b9892440d9cea4becf8f787ee6a5c2bba895261031325cd",
+      "bytes": 3209,
+      "lines": 98
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATNState.cs",
+      "sha256": "745b259535c7d1920166258d5f4f6dcae0a3bf24f3960eda75eb338b702894ec",
+      "bytes": 5084,
+      "lines": 191
+    },
+    {
+      "path": "antlr/Runtime/Atn/ATNType.cs",
+      "sha256": "c2617255cfe6853bbd455651aa088b56b51d08eaa6fa2528e9ed73d8c15f962c",
+      "bytes": 550,
+      "lines": 18
+    },
+    {
+      "path": "antlr/Runtime/Atn/AbstractPredicateTransition.cs",
+      "sha256": "314cd891aafdd274618e9596a58f99006b69f6ab2ba352dac8b62b4686cbe65c",
+      "bytes": 510,
+      "lines": 18
+    },
+    {
+      "path": "antlr/Runtime/Atn/ActionTransition.cs",
+      "sha256": "1716398f9f4b0411280f76580d7009c0f415168092ca96e629203572490d235e",
+      "bytes": 1598,
+      "lines": 59
+    },
+    {
+      "path": "antlr/Runtime/Atn/AmbiguityInfo.cs",
+      "sha256": "4c5cbfcc847aa35b703cb078a6f9275b85cfe12dc41405c7d578c9368ae38de0",
+      "bytes": 3922,
+      "lines": 80
+    },
+    {
+      "path": "antlr/Runtime/Atn/ArrayPredictionContext.cs",
+      "sha256": "723b066b2d915f9dd6a8571d61704f1173b506f90e161fb8bb799341fec0af33",
+      "bytes": 2955,
+      "lines": 124
+    },
+    {
+      "path": "antlr/Runtime/Atn/AtomTransition.cs",
+      "sha256": "bd258842f42fda22997c6495caf1f96a427640448a72f12c25504ddbbc199bf2",
+      "bytes": 1410,
+      "lines": 51
+    },
+    {
+      "path": "antlr/Runtime/Atn/BasicBlockStartState.cs",
+      "sha256": "184c2714ab718c0b37a86ae1684e97a7b70f1a808a541255125b4340c6948563",
+      "bytes": 590,
+      "lines": 21
+    },
+    {
+      "path": "antlr/Runtime/Atn/BasicState.cs",
+      "sha256": "a5da3bce2afdcc3052e221a6653ccd1e8c68b6ce2ef1cfdc6abe3791ad7fe6c2",
+      "bytes": 568,
+      "lines": 21
+    },
+    {
+      "path": "antlr/Runtime/Atn/BlockEndState.cs",
+      "sha256": "981e0fd820725259d3ddea9e25d5572c38ec22c479141d87220c5586a0b79927",
+      "bytes": 690,
+      "lines": 27
+    },
+    {
+      "path": "antlr/Runtime/Atn/BlockStartState.cs",
+      "sha256": "edfbb57d39c71aebd0f4c88694edea6814a49ddda892d03a47f65c918d4b6447",
+      "bytes": 500,
+      "lines": 19
+    },
+    {
+      "path": "antlr/Runtime/Atn/ConflictInfo.cs",
+      "sha256": "108524f6c0b04d89d9ad9e8fe2dbbc1c61267ffbe60efd52c92ff199a94b8f62",
+      "bytes": 2751,
+      "lines": 80
+    },
+    {
+      "path": "antlr/Runtime/Atn/ContextSensitivityInfo.cs",
+      "sha256": "d85309335241cbe40f0f5c2696a8b663b2081ee26fcc1be49fd5352189c221fa",
+      "bytes": 2516,
+      "lines": 52
+    },
+    {
+      "path": "antlr/Runtime/Atn/DecisionEventInfo.cs",
+      "sha256": "f4538e59ade4bd6e5cf1b8408f155b7761301d98ee959be279824fa6de25a2d4",
+      "bytes": 3091,
+      "lines": 77
+    },
+    {
+      "path": "antlr/Runtime/Atn/DecisionInfo.cs",
+      "sha256": "0e644139abd5d44d75a01f030fc2cb4624ce2d2738ae81d7e95f24120dc8c798",
+      "bytes": 8972,
+      "lines": 248
+    },
+    {
+      "path": "antlr/Runtime/Atn/DecisionState.cs",
+      "sha256": "f4f0d4b1b5d568a79a30538a0e85e85daca577463b9e9c8d5905f2a66f4c1417",
+      "bytes": 416,
+      "lines": 16
+    },
+    {
+      "path": "antlr/Runtime/Atn/EmptyPredictionContext.cs",
+      "sha256": "c0db2db62b48a077374df29c3101f8746460d7a7db59fc73d61cb01eada50aea",
+      "bytes": 1675,
+      "lines": 69
+    },
+    {
+      "path": "antlr/Runtime/Atn/EpsilonTransition.cs",
+      "sha256": "969428afbf0aa0b983af8906a5a5c0a9feb1ac1e2818e6a3e2670d9670441983",
+      "bytes": 1877,
+      "lines": 68
+    },
+    {
+      "path": "antlr/Runtime/Atn/ErrorInfo.cs",
+      "sha256": "89fa05f557d55e2a988fe2e3ac60563adc67e27787303523aba0bc02f0e060d7",
+      "bytes": 2150,
+      "lines": 48
+    },
+    {
+      "path": "antlr/Runtime/Atn/ILexerAction.cs",
+      "sha256": "cee794f960cba6015730f2db8af2dfd5cf324e4453d0469fe5725955dcc77d29",
+      "bytes": 2820,
+      "lines": 78
+    },
+    {
+      "path": "antlr/Runtime/Atn/LL1Analyzer.cs",
+      "sha256": "74ec7f27a8252377a1d0a8cc3157d2acc1f425b69e14c5d53c9bcbda4f290c47",
+      "bytes": 10412,
+      "lines": 252
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerATNConfig.cs",
+      "sha256": "83a535ae54bc3fd453ae67a164dcf6c151ca8c76a54c36f252b9a8ac18b5023d",
+      "bytes": 3516,
+      "lines": 120
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerATNSimulator.cs",
+      "sha256": "ae884a139ca61f9fcf2993195f680567be452942e3a7b32b502bf97a6c9ab960",
+      "bytes": 24973,
+      "lines": 836
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerActionExecutor.cs",
+      "sha256": "5e7652ea4c394ad01a09564b4925a20518f4e2f6197d4791efe877f0efadf516",
+      "bytes": 10684,
+      "lines": 272
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerActionType.cs",
+      "sha256": "30674549f451a1a4ea998fb57009c084401674e49bd21cd0437dd1a446b9cf12",
+      "bytes": 518,
+      "lines": 23
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerChannelAction.cs",
+      "sha256": "992f64d7131488cc0c2160add90d28ac85605b0aab9560f34be34a64b9043f31",
+      "bytes": 3411,
+      "lines": 129
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerCustomAction.cs",
+      "sha256": "16a260918f193f17781b370a5ad538523e0c55299eeb5c66cc1b152d62918b4a",
+      "bytes": 5684,
+      "lines": 161
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerIndexedCustomAction.cs",
+      "sha256": "cbf8a6816a6ba80f5d29a1dda9630a1e3427098c7a8188cbee04c825976c4e00",
+      "bytes": 5429,
+      "lines": 176
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerModeAction.cs",
+      "sha256": "37c3e1067e370a953074e8b481b51b24826cd01b04d925ae9f56771f46850313",
+      "bytes": 3368,
+      "lines": 127
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerMoreAction.cs",
+      "sha256": "ead818eab243033b4144b310c85de1e1bd53680f161d37b9707db5f2c1e5bd1a",
+      "bytes": 2693,
+      "lines": 98
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerPopModeAction.cs",
+      "sha256": "aa17133ec17f5d3ab12df825170409af967a001940a70adc32a957272d72f5d9",
+      "bytes": 2732,
+      "lines": 98
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerPushModeAction.cs",
+      "sha256": "9359a9b013fa269352f9ef52b7365adb32b5cf470de735b9858816efd5374d02",
+      "bytes": 3404,
+      "lines": 126
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerSkipAction.cs",
+      "sha256": "d6b186606faff1cbf25c68322af8b5332b0b3b882a3a85b6f97257a89c2951a6",
+      "bytes": 2693,
+      "lines": 98
+    },
+    {
+      "path": "antlr/Runtime/Atn/LexerTypeAction.cs",
+      "sha256": "ac9b80ca39050126e4b01587a39b4a2cf6b2d1d1aabb5bb14273471f14c4cd11",
+      "bytes": 3289,
+      "lines": 122
+    },
+    {
+      "path": "antlr/Runtime/Atn/LookaheadEventInfo.cs",
+      "sha256": "8c9547744897d78c0c6d5c306d7a7df6224663749178aea9625a83ba61305f7f",
+      "bytes": 2497,
+      "lines": 58
+    },
+    {
+      "path": "antlr/Runtime/Atn/LoopEndState.cs",
+      "sha256": "2e8559f6a0ea9124eff4e513c78f31559d598a66806772be56afb8781f2750c1",
+      "bytes": 691,
+      "lines": 24
+    },
+    {
+      "path": "antlr/Runtime/Atn/MergeCache.cs",
+      "sha256": "90a8a9bcda806d8a27b9c3708c11ff9c19a81b87c0543e1a7d21f50b94443c80",
+      "bytes": 1112,
+      "lines": 38
+    },
+    {
+      "path": "antlr/Runtime/Atn/NotSetTransition.cs",
+      "sha256": "0892e5b610750688b3157692490d9571830f52a8664efd8f86654377d4001f04",
+      "bytes": 1050,
+      "lines": 36
+    },
+    {
+      "path": "antlr/Runtime/Atn/ParseInfo.cs",
+      "sha256": "5222c30648d21ba53bb764d06780af6ed8b8b3f0d4287ebec4f72346ab34e71e",
+      "bytes": 4799,
+      "lines": 185
+    },
+    {
+      "path": "antlr/Runtime/Atn/ParserATNSimulator.cs",
+      "sha256": "7eb30e978529d8abe527aa237313b153ae3b0814cdd27f3719f399730298f072",
+      "bytes": 84716,
+      "lines": 2341
+    },
+    {
+      "path": "antlr/Runtime/Atn/PlusBlockStartState.cs",
+      "sha256": "67589e197e2e5bdd1122accb021935deb69447c617b9b107a49e533fccb37a21",
+      "bytes": 986,
+      "lines": 34
+    },
+    {
+      "path": "antlr/Runtime/Atn/PlusLoopbackState.cs",
+      "sha256": "3638cb0939ebd0299b8fbd3ae3100012d82f2b01728cfcd622c43b1806cb3ab2",
+      "bytes": 769,
+      "lines": 28
+    },
+    {
+      "path": "antlr/Runtime/Atn/PrecedencePredicateTransition.cs",
+      "sha256": "d6d39615196c3205a30c5a5009eec30afa07e7e84be766cc0dd88a30876931a2",
+      "bytes": 1411,
+      "lines": 55
+    },
+    {
+      "path": "antlr/Runtime/Atn/PredicateEvalInfo.cs",
+      "sha256": "48f7b9f3b2091661c1eb4b192966183928ee5e8993d7a5c91a5fa0fcb5ad453c",
+      "bytes": 3685,
+      "lines": 85
+    },
+    {
+      "path": "antlr/Runtime/Atn/PredicateTransition.cs",
+      "sha256": "29e8e0e59690f907870dc69c95ae45365a2adc7895d840004f9822fdc1b251ca",
+      "bytes": 2185,
+      "lines": 74
+    },
+    {
+      "path": "antlr/Runtime/Atn/PredictionContext.cs",
+      "sha256": "6335424a2ac0a64f06c753a43e1dba206266776fba859878282970299773e8dd",
+      "bytes": 16910,
+      "lines": 590
+    },
+    {
+      "path": "antlr/Runtime/Atn/PredictionContextCache.cs",
+      "sha256": "4a11a95a484bfbafb6cf6e53287a10d6e5357b54fe82687d7d6a1e18236cd7b4",
+      "bytes": 1157,
+      "lines": 47
+    },
+    {
+      "path": "antlr/Runtime/Atn/PredictionMode.cs",
+      "sha256": "5141d96260b583f2e8199d3db302e3f32410fdf94d2a2588180b6a03ceea5487",
+      "bytes": 33749,
+      "lines": 887
+    },
+    {
+      "path": "antlr/Runtime/Atn/ProfilingATNSimulator.cs",
+      "sha256": "250581a2a5870e7f6a9bc7827a222dea75c3cc92ff25c1c33727340add30ce8a",
+      "bytes": 8106,
+      "lines": 242
+    },
+    {
+      "path": "antlr/Runtime/Atn/RangeTransition.cs",
+      "sha256": "70fa260490205d8b45d970820e4085c63d8f8e1bbc147d369bca2bffa4662f86",
+      "bytes": 1287,
+      "lines": 51
+    },
+    {
+      "path": "antlr/Runtime/Atn/RuleStartState.cs",
+      "sha256": "45e47ae71da541b4d792d67849385cffc0123c0d730981a881dfecfd00b64e03",
+      "bytes": 619,
+      "lines": 24
+    },
+    {
+      "path": "antlr/Runtime/Atn/RuleStopState.cs",
+      "sha256": "61940424ffb9933a6ff8a5249c3b6596eee98c655cb991bca1962a27e90d97e7",
+      "bytes": 1071,
+      "lines": 35
+    },
+    {
+      "path": "antlr/Runtime/Atn/RuleTransition.cs",
+      "sha256": "b2abaa0f66ebbba58dd86cfb6e2a8362cceda12da8b9fbacab29bb8925f7285e",
+      "bytes": 1765,
+      "lines": 61
+    },
+    {
+      "path": "antlr/Runtime/Atn/SemanticContext.cs",
+      "sha256": "c427e908c1e88bedf8ac68d05e5c9896d494f341d1d89bda44a6991ef26beee5",
+      "bytes": 15561,
+      "lines": 452
+    },
+    {
+      "path": "antlr/Runtime/Atn/SetTransition.cs",
+      "sha256": "ae23a98be0f1a0282ab538629244745c5c27f1ccb41650401e44253246e8aab3",
+      "bytes": 1498,
+      "lines": 56
+    },
+    {
+      "path": "antlr/Runtime/Atn/SimulatorState.cs",
+      "sha256": "889bb12f83a360e7ea86a9f1bb1abd7af74ab00ce0f779ae993ca5b0848d2900",
+      "bytes": 980,
+      "lines": 30
+    },
+    {
+      "path": "antlr/Runtime/Atn/SingletonPredictionContext.cs",
+      "sha256": "ac1853ced19eccb3d3ae434cbd4d17261795fb2cfa1b93cc4bd08b3de84ff0be",
+      "bytes": 2678,
+      "lines": 99
+    },
+    {
+      "path": "antlr/Runtime/Atn/StarBlockStartState.cs",
+      "sha256": "34ca54e5b6e440c0e29aea2f9a8a430b2359d1d42331043aa28f9d70b7eeb44f",
+      "bytes": 686,
+      "lines": 22
+    },
+    {
+      "path": "antlr/Runtime/Atn/StarLoopEntryState.cs",
+      "sha256": "a57490ac91064d0b824e19b69174672ea94602f0772b0a217af9e0447038142b",
+      "bytes": 1240,
+      "lines": 37
+    },
+    {
+      "path": "antlr/Runtime/Atn/StarLoopbackState.cs",
+      "sha256": "0900068fc228a36ce8ab23692f346ba4c3bf49fa49db9043ffdf146859a91b22",
+      "bytes": 668,
+      "lines": 26
+    },
+    {
+      "path": "antlr/Runtime/Atn/StateType.cs",
+      "sha256": "9d10eec1190c96dc36708247aa0c78385369847c52b7bc2b306c30d4f645b381",
+      "bytes": 531,
+      "lines": 24
+    },
+    {
+      "path": "antlr/Runtime/Atn/TokensStartState.cs",
+      "sha256": "bfe0f78015a62d74844f2ad0c0fdf55710d2ef1a973889ac743ba98cb2b3313e",
+      "bytes": 547,
+      "lines": 19
+    },
+    {
+      "path": "antlr/Runtime/Atn/Transition.cs",
+      "sha256": "5e4d687b94deec8405e037409745b270a9ea5890d2b632d70ebb0a5484fe8779",
+      "bytes": 2864,
+      "lines": 81
+    },
+    {
+      "path": "antlr/Runtime/Atn/TransitionType.cs",
+      "sha256": "c2c61f56b8707e79eff5fd577b7d97bdb73a0b02b95be08fb9d5644eb4d83b68",
+      "bytes": 447,
+      "lines": 22
+    },
+    {
+      "path": "antlr/Runtime/Atn/WildcardTransition.cs",
+      "sha256": "c63628fc423b74d16b46e5b3ae78eae96d25161eeca7e1d8c06b5060b1836c17",
+      "bytes": 925,
+      "lines": 35
+    },
+    {
+      "path": "antlr/Runtime/BailErrorStrategy.cs",
+      "sha256": "4d8616140d10fd286152282a2967f1198bc31d39ef501f32bbfbbe17cbb3343f",
+      "bytes": 3779,
+      "lines": 94
+    },
+    {
+      "path": "antlr/Runtime/BaseErrorListener.cs",
+      "sha256": "477a0f4ab79c019b9cd891a017d4aba3aa6714cbb89b8751178f427a0e9047f4",
+      "bytes": 1438,
+      "lines": 39
+    },
+    {
+      "path": "antlr/Runtime/BufferedTokenStream.cs",
+      "sha256": "a4e54ab1ee4fe1b39764cfc1d9553f8f307a69e02154299370918150ef51babf",
+      "bytes": 21550,
+      "lines": 701
+    },
+    {
+      "path": "antlr/Runtime/CharStreams.cs",
+      "sha256": "0ae47699c71c66c0b5500120a94b105fbb1e1324b659bb52271545de6c1657c5",
+      "bytes": 3500,
+      "lines": 93
+    },
+    {
+      "path": "antlr/Runtime/CommonToken.cs",
+      "sha256": "8ac1f7630434f53591933fbebe0f48257683d03bc13f336ba775b737cad14805",
+      "bytes": 9964,
+      "lines": 353
+    },
+    {
+      "path": "antlr/Runtime/CommonTokenFactory.cs",
+      "sha256": "cc3e082dc0192b1acd2d1379c801ae2a86d9b1be025fdca7362f6e1b1f4d0325",
+      "bytes": 4430,
+      "lines": 136
+    },
+    {
+      "path": "antlr/Runtime/CommonTokenStream.cs",
+      "sha256": "fdbdc555651d41a984cb03d1c8fcb1808614295b9858dd4d52c3f1d330498ec0",
+      "bytes": 5554,
+      "lines": 176
+    },
+    {
+      "path": "antlr/Runtime/ConsoleErrorListener.cs",
+      "sha256": "7dc6599cc0ab56e814ade6397870017bce7d9bd0380feb4b63156ede6e97ca36",
+      "bytes": 1468,
+      "lines": 43
+    },
+    {
+      "path": "antlr/Runtime/DefaultErrorStrategy.cs",
+      "sha256": "5569c75913fde9cf7f66d44a109e48390479d2c142021577a63d8866d2e04bf3",
+      "bytes": 35263,
+      "lines": 828
+    },
+    {
+      "path": "antlr/Runtime/Dependents.cs",
+      "sha256": "faf42c56a536db88ae7432dec4de19633ae47c1e1f81220f2817db5baf5c7044",
+      "bytes": 689,
+      "lines": 27
+    },
+    {
+      "path": "antlr/Runtime/DiagnosticErrorListener.cs",
+      "sha256": "b091c9851784027ed66ee48fda5265b210679e8ff71afee4a36cb2f6061ae7a1",
+      "bytes": 6614,
+      "lines": 163
+    },
+    {
+      "path": "antlr/Runtime/FailedPredicateException.cs",
+      "sha256": "f7c1afa036f42af76a7c8eb4f9879943b9febd7abb03a7877a4a27946c900e7e",
+      "bytes": 2910,
+      "lines": 95
+    },
+    {
+      "path": "antlr/Runtime/IAntlrErrorListener.cs",
+      "sha256": "08d13a22f6c0783a43bb62b3675f539a7369e1d49a399560e5195da51885cebf",
+      "bytes": 2679,
+      "lines": 56
+    },
+    {
+      "path": "antlr/Runtime/IAntlrErrorStrategy.cs",
+      "sha256": "46f93184d0b2133ff0828a77ef000d8aee305828a0f63a4a2dd571f8ba8e1095",
+      "bytes": 6400,
+      "lines": 156
+    },
+    {
+      "path": "antlr/Runtime/ICharStream.cs",
+      "sha256": "92a01ed40f456edbf68a57ae7c8ee27ad572dea07d532b0edf07f5f399b6609f",
+      "bytes": 1986,
+      "lines": 54
+    },
+    {
+      "path": "antlr/Runtime/IIntStream.cs",
+      "sha256": "94df49f4ae229236f88d656f8446e453265431d893769d419dd88a806fb109f8",
+      "bytes": 12640,
+      "lines": 338
+    },
+    {
+      "path": "antlr/Runtime/IParserErrorListener.cs",
+      "sha256": "b15c603f9a6b67aaf6e9a3a176e7df3f4f94a4e67b33f747b19422aad24f4290",
+      "bytes": 8652,
+      "lines": 178
+    },
+    {
+      "path": "antlr/Runtime/IRecognizer.cs",
+      "sha256": "daf905c4aab50b236ef90b69f1167aea39888c78338235a3c483c7d25372868d",
+      "bytes": 704,
+      "lines": 42
+    },
+    {
+      "path": "antlr/Runtime/IToken.cs",
+      "sha256": "87f495e0e3e309a6fafd0cf06f0bbe7c65779329aff4e9d21250da09995d4d06",
+      "bytes": 5727,
+      "lines": 181
+    },
+    {
+      "path": "antlr/Runtime/ITokenFactory.cs",
+      "sha256": "c88c0cc1e3dba81cde81c2e82a85b44e4344dbff400ac21cd19772da491f6e97",
+      "bytes": 1478,
+      "lines": 36
+    },
+    {
+      "path": "antlr/Runtime/ITokenSource.cs",
+      "sha256": "a4a301e1c01beec9c4a0d529fb2bfa7fad6617a58a2aba3f9b9724ad68717a37",
+      "bytes": 4763,
+      "lines": 141
+    },
+    {
+      "path": "antlr/Runtime/ITokenStream.cs",
+      "sha256": "7e81e7b6cf8b247bd6c88b2430507ea95c05b3a83eef4cd9d08008f94072fcab",
+      "bytes": 7803,
+      "lines": 215
+    },
+    {
+      "path": "antlr/Runtime/IVocabulary.cs",
+      "sha256": "929338a75424918c7b8e9a1b26310df24d727144d083a2fc0ba19086a1187620",
+      "bytes": 5621,
+      "lines": 173
+    },
+    {
+      "path": "antlr/Runtime/IWritableToken.cs",
+      "sha256": "b3808f5c389d98fcf31d7ee150e2d8dcdcff3e965f80dabd225ee09dcffb5541",
+      "bytes": 703,
+      "lines": 42
+    },
+    {
+      "path": "antlr/Runtime/InputMismatchException.cs",
+      "sha256": "e5896075a32ba887653b60b25c76b24840d4a5a34faf9f6334f980cb48d75563",
+      "bytes": 1019,
+      "lines": 29
+    },
+    {
+      "path": "antlr/Runtime/InterpreterRuleContext.cs",
+      "sha256": "d09ea9e5fe139099b424579dd4f2b66bed6d1c0a3d7ebefee2e844787b711e77",
+      "bytes": 2027,
+      "lines": 58
+    },
+    {
+      "path": "antlr/Runtime/Lexer.cs",
+      "sha256": "0824de7203e566e45ed1db1faa418182f55305d5b5babe7750b5e208b1110ac5",
+      "bytes": 19437,
+      "lines": 638
+    },
+    {
+      "path": "antlr/Runtime/LexerInterpreter.cs",
+      "sha256": "6fc4d88ff6d4fcaeb0ab9396fd9c326eb379813ebca35b3edb4644e066ee7ec4",
+      "bytes": 3120,
+      "lines": 109
+    },
+    {
+      "path": "antlr/Runtime/LexerNoViableAltException.cs",
+      "sha256": "2a66848660a7c44feba23f6254903282c0740ed0141517221ef6cc70403265f7",
+      "bytes": 2089,
+      "lines": 68
+    },
+    {
+      "path": "antlr/Runtime/ListTokenSource.cs",
+      "sha256": "d9aae4d10b498f9eb644c8d0f666c6493b1474b46bda8ec88a7327dd9feebeb9",
+      "bytes": 10571,
+      "lines": 320
+    },
+    {
+      "path": "antlr/Runtime/Misc/Args.cs",
+      "sha256": "708ac003806c7c42ce1f978b29e6c4da8c712dab5efca4888020234ae5e7d1de",
+      "bytes": 739,
+      "lines": 27
+    },
+    {
+      "path": "antlr/Runtime/Misc/ArrayList.cs",
+      "sha256": "408059d74189111571d1acb65f32ea8331378c156929fc686a1349c56f28a70e",
+      "bytes": 1095,
+      "lines": 54
+    },
+    {
+      "path": "antlr/Runtime/Misc/IIntSet.cs",
+      "sha256": "effb24b949fb0289860f3b2eeb1088d27e983cf796841d3d6efe17da31550e7b",
+      "bytes": 9163,
+      "lines": 286
+    },
+    {
+      "path": "antlr/Runtime/Misc/Interval.cs",
+      "sha256": "d716b26ef5f57eb107982db4c6a1d306a9743ee1a512c0de1198c20e6e8fe60c",
+      "bytes": 6304,
+      "lines": 178
+    },
+    {
+      "path": "antlr/Runtime/Misc/IntervalSet.cs",
+      "sha256": "4204a64a32871bf47e6a2c816a79e0a1a8055ad15ac8e42a7a989c2527381625",
+      "bytes": 30528,
+      "lines": 902
+    },
+    {
+      "path": "antlr/Runtime/Misc/MultiMap.cs",
+      "sha256": "622b508701bfbe8ec4fce91987f3b7ed2571f80086e054ae5fafa223fc67fde1",
+      "bytes": 1205,
+      "lines": 41
+    },
+    {
+      "path": "antlr/Runtime/Misc/MurmurHash.cs",
+      "sha256": "f5fb8987666cea5f1bf78bc2e2a253396027585b8eb8ba723b8650dbd728f423",
+      "bytes": 4243,
+      "lines": 117
+    },
+    {
+      "path": "antlr/Runtime/Misc/NotNullAttribute.cs",
+      "sha256": "2359cceb619dc4c2a7d19b504c506bcea001e5d3db78246b65fb2dc693be0a2f",
+      "bytes": 492,
+      "lines": 13
+    },
+    {
+      "path": "antlr/Runtime/Misc/NullableAttribute.cs",
+      "sha256": "6e57471a99a7540a71020f1ca9b5318ba31f958062da827d40dd03cffba995d4",
+      "bytes": 493,
+      "lines": 13
+    },
+    {
+      "path": "antlr/Runtime/Misc/Pair.cs",
+      "sha256": "2e26bd232a7aafce10aad8bfaa2ca9e77100179aebec9e8a3652fd49114fc333",
+      "bytes": 997,
+      "lines": 49
+    },
+    {
+      "path": "antlr/Runtime/Misc/ParseCanceledException.cs",
+      "sha256": "78916f08ce3b05b0ea43c877a24e0258e649fd5bd39363fbb6fd9b38f6d66ce0",
+      "bytes": 1297,
+      "lines": 43
+    },
+    {
+      "path": "antlr/Runtime/Misc/RuleDependencyChecker.cs",
+      "sha256": "17528ac2630a970acaafa2537ceb19b4e9c2cee7185b6e29affd4ee0b5fd04e3",
+      "bytes": 22889,
+      "lines": 538
+    },
+    {
+      "path": "antlr/Runtime/Misc/Utils.cs",
+      "sha256": "e32e9214ea0da833fedaf9dd36fdb98499a6e89643f5f2b1c021165879e1b3b3",
+      "bytes": 3584,
+      "lines": 129
+    },
+    {
+      "path": "antlr/Runtime/NoViableAltException.cs",
+      "sha256": "ad4932fd83bfd460436465ef98349eaf614733c5e92a5dec2162a8f75f2817d6",
+      "bytes": 2719,
+      "lines": 75
+    },
+    {
+      "path": "antlr/Runtime/Parser.cs",
+      "sha256": "7ab3106c7494487efbf2ec8b6981557ef117ffbeff16e454333098e7d8c2b5c8",
+      "bytes": 43352,
+      "lines": 1252
+    },
+    {
+      "path": "antlr/Runtime/ParserInterpreter.cs",
+      "sha256": "e7dce337a64e74380039021690fd986fdcbf38c9c375493fd0e55d7c3722e170",
+      "bytes": 10893,
+      "lines": 300
+    },
+    {
+      "path": "antlr/Runtime/ParserRuleContext.cs",
+      "sha256": "e8793446751214e48757354098cdbc02415fcadc145d91ef33274615f0a66eb9",
+      "bytes": 13822,
+      "lines": 396
+    },
+    {
+      "path": "antlr/Runtime/ProxyErrorListener.cs",
+      "sha256": "13f6e400321ba908abe6a743604307b35769db154681bb96411181e751ccd206",
+      "bytes": 1621,
+      "lines": 47
+    },
+    {
+      "path": "antlr/Runtime/ProxyParserErrorListener.cs",
+      "sha256": "63efc1fcf211a4ae9b3804f97f7dcb4d8e118dd83100ff09ecefca518f741971",
+      "bytes": 2472,
+      "lines": 59
+    },
+    {
+      "path": "antlr/Runtime/RecognitionException.cs",
+      "sha256": "8b51998c049dadbe58cf4edf4ca488842830c0702957b1a0b775f80005ace11d",
+      "bytes": 7064,
+      "lines": 224
+    },
+    {
+      "path": "antlr/Runtime/Recognizer.cs",
+      "sha256": "639e746b46fbcfd43e80c3c0e393245302c36110e92757cbe2696626ecdd4726",
+      "bytes": 12362,
+      "lines": 357
+    },
+    {
+      "path": "antlr/Runtime/RuleContext.cs",
+      "sha256": "8179c9566f31c396e2dc26544829d4ea1548f123e6e270cf369e31383dca3c27",
+      "bytes": 9842,
+      "lines": 320
+    },
+    {
+      "path": "antlr/Runtime/RuleDependencyAttribute.cs",
+      "sha256": "e8f5286be7a4cf5affab88b32518121a9371d7037485e16bcd9a55689950e188",
+      "bytes": 1661,
+      "lines": 66
+    },
+    {
+      "path": "antlr/Runtime/RuleVersionAttribute.cs",
+      "sha256": "7e3c0a6ebffcd74dfdf61af4581e9ca65dd91eeb152335fee8da563ef1634b3a",
+      "bytes": 672,
+      "lines": 28
+    },
+    {
+      "path": "antlr/Runtime/TokenStreamRewriter.cs",
+      "sha256": "2fec8f85ac381160669e654a0522fb1fca426f9e55ca4723bf1d0d2215d80b3c",
+      "bytes": 29042,
+      "lines": 720
+    },
+    {
+      "path": "antlr/Runtime/TokenTypes.cs",
+      "sha256": "3f16f9e2fb3ed5e26f0da5e1da6ceca9c53f8ab6f7a687ae9acff460660f0dbe",
+      "bytes": 349,
+      "lines": 13
+    },
+    {
+      "path": "antlr/Runtime/UnbufferedCharStream.cs",
+      "sha256": "3ae51bde685cdae0abb332cd6bd71340bb2d63c4a5dc9fcd3d12a6a1e4ada07a",
+      "bytes": 15076,
+      "lines": 462
+    },
+    {
+      "path": "antlr/Runtime/UnbufferedTokenStream.cs",
+      "sha256": "ce7caa8103b985904d61fc837364de494c062c094979b99a6c6958d5f1ec4e4e",
+      "bytes": 12321,
+      "lines": 405
+    },
+    {
+      "path": "antlr/Runtime/Vocabulary.cs",
+      "sha256": "133144d9c882ee25843c02f9964023ee9c867704cbd330712b5aee385c93c245",
+      "bytes": 5613,
+      "lines": 169
+    },
+    {
+      "path": "dapper/Dapper/CommandDefinition.cs",
+      "sha256": "3ce9d8efb1faa39f4b03698604d2be0f8f575a85595cd9850e337c2b820690f6",
+      "bytes": 8865,
+      "lines": 211
+    },
+    {
+      "path": "dapper/Dapper/CommandFlags.cs",
+      "sha256": "c54ad8230a73f7f82c99b974be0bb1c4f070fabbd39f02ba986c786d360f41b3",
+      "bytes": 660,
+      "lines": 28
+    },
+    {
+      "path": "dapper/Dapper/CompiledRegex.cs",
+      "sha256": "9ee1ca4d350229249c14f3d41932d957811a16b1f100163023c8d5befc0f7b11",
+      "bytes": 2637,
+      "lines": 45
+    },
+    {
+      "path": "dapper/Dapper/CustomPropertyTypeMap.cs",
+      "sha256": "6852ea19449787a2fc7a1b69f1a041883473c765ff4431caa8407a521fa0994e",
+      "bytes": 2530,
+      "lines": 62
+    },
+    {
+      "path": "dapper/Dapper/DataTableHandler.cs",
+      "sha256": "ed3142f8c5ae9f080bc5518d29e4419127e8d71986e220a8401a50a2e5787253",
+      "bytes": 454,
+      "lines": 17
+    },
+    {
+      "path": "dapper/Dapper/DbString.cs",
+      "sha256": "0f0632805a367c63c1dbfe616d068a50590575ea68ae1f1f5692c27984be1bb6",
+      "bytes": 3615,
+      "lines": 106
+    },
+    {
+      "path": "dapper/Dapper/DefaultTypeMap.cs",
+      "sha256": "fa978e3cc3b1f8b9df3607a267f68b238c8608df924f7112e095c5b319d69dc6",
+      "bytes": 11959,
+      "lines": 260
+    },
+    {
+      "path": "dapper/Dapper/DynamicParameters.CachedOutputSetters.cs",
+      "sha256": "6de3c29a9454fe757a56610a406c6eef8b4e14836696621ffc892654185c166e",
+      "bytes": 533,
+      "lines": 16
+    },
+    {
+      "path": "dapper/Dapper/DynamicParameters.ParamInfo.cs",
+      "sha256": "7d4c05fc0323e77bf737a490a13db63d11cbb739cfd55300e99564a90781276d",
+      "bytes": 833,
+      "lines": 24
+    },
+    {
+      "path": "dapper/Dapper/DynamicParameters.cs",
+      "sha256": "ed0379c8f8e79af4f1a49add9f46c672e6d03fe1c25ed0a3865e10e9f3ac87e6",
+      "bytes": 22177,
+      "lines": 506
+    },
+    {
+      "path": "dapper/Dapper/ExplicitConstructorAttribute.cs",
+      "sha256": "bc2c19f09042af817e67a961705a80290551e94b628d81c0a9d0cf1400a7f7ff",
+      "bytes": 502,
+      "lines": 15
+    },
+    {
+      "path": "dapper/Dapper/Extensions.cs",
+      "sha256": "c194f03173064d8af2dec6c7405aec319c4d7c365d03b1a9ba08ae146dc426f3",
+      "bytes": 1598,
+      "lines": 44
+    },
+    {
+      "path": "dapper/Dapper/FeatureSupport.cs",
+      "sha256": "d0ebc64779183c684a7eddaf406240bc85eb95146c195b52aab64a820eba4e46",
+      "bytes": 1269,
+      "lines": 38
+    },
+    {
+      "path": "dapper/Dapper/Global.cs",
+      "sha256": "c765489073f9fc340944d178f8e950ceeb4883a4bd3daf03e24a3def0099134f",
+      "bytes": 117,
+      "lines": 4
+    },
+    {
+      "path": "dapper/Dapper/NRT.cs",
+      "sha256": "7abf7e7c131e82623f103ca63359f3ab194745ad73953c83de7e38ed68e144df",
+      "bytes": 679,
+      "lines": 20
+    },
+    {
+      "path": "dapper/Dapper/Properties/AssemblyInfo.cs",
+      "sha256": "cd67a01f734616d5b604abcfaeae4b310712ac49a82c62fa5b9ba563731d322a",
+      "bytes": 833,
+      "lines": 19
+    },
+    {
+      "path": "dapper/Dapper/SimpleMemberMap.cs",
+      "sha256": "f631e47bfcd61714bac871b95092ef9fac454ca1cd6572242dd073e974bfbcd7",
+      "bytes": 2550,
+      "lines": 69
+    },
+    {
+      "path": "dapper/Dapper/SqlDataRecordHandler.cs",
+      "sha256": "5ad02fc704f3f9396eca82e690671dba3070c59188b2a34afac421a2d58fd45a",
+      "bytes": 544,
+      "lines": 20
+    },
+    {
+      "path": "dapper/Dapper/SqlDataRecordListTVPParameter.cs",
+      "sha256": "14d777afcd36baf7a3b4e0a2ce738a10775978fad5c51698aae3bf8b762c5260",
+      "bytes": 4970,
+      "lines": 109
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.Async.cs",
+      "sha256": "db398197bcf0ab46a130924adda9d23eb95004867e1a01a0869eaf405db5c647",
+      "bytes": 92926,
+      "lines": 1352
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.CacheInfo.cs",
+      "sha256": "a6463e370b0a945a620fd1fb00d9519d913e45bba30d7432469a2f3ed0d68b88",
+      "bytes": 669,
+      "lines": 20
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.DapperRow.Descriptor.cs",
+      "sha256": "f599c9f80397c41059de8acdabd68fb00ce53553410964a2b2567c638b1b2442",
+      "bytes": 5592,
+      "lines": 105
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.DapperRow.cs",
+      "sha256": "fc2738f97ba0c64b6e1414b79f5fef835b36a0d9be5bcef7c1084d9413a69f79",
+      "bytes": 9032,
+      "lines": 250
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.DapperRowMetaObject.cs",
+      "sha256": "c336ba9d4807252881cd356c99d1db5494331d6770ec68a3336685a1dc4dddc3",
+      "bytes": 4282,
+      "lines": 99
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.DapperTable.cs",
+      "sha256": "bb9ec8a655b5f921a870fcfd7e3a09981eec8f3f739bebd54cde80373e85ff87",
+      "bytes": 1949,
+      "lines": 49
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.DeserializerState.cs",
+      "sha256": "0ce548db6e0050309e5e2b5878c0b8941c6ecc728fdd35fc5e18235003a53614",
+      "bytes": 495,
+      "lines": 21
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.DontMap.cs",
+      "sha256": "7c26b187a05dca205f93c149a80c0145611c0025a8e3fa4225b7dc52e14c6f4f",
+      "bytes": 251,
+      "lines": 10
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.GridReader.Async.cs",
+      "sha256": "34e975c7d8b3f0d3ce46ee4c85dba50f92e00f4acca4c73cc5d8a85215098e35",
+      "bytes": 14246,
+      "lines": 314
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.GridReader.cs",
+      "sha256": "84d730081b8fa908e786c15802c09f1b94162e14f10903aaa619d0254caad9cb",
+      "bytes": 26144,
+      "lines": 494
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.ICustomQueryParameter.cs",
+      "sha256": "36a81e3dec6cf0242abc775bc5412ce08ba13a72ecb2ebeb4d626662fe160827",
+      "bytes": 651,
+      "lines": 20
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.IDataReader.cs",
+      "sha256": "dd1795f7ab62ef1467595afe687b753f79e37bf687f6313987e1d0c64a6fe3aa",
+      "bytes": 9861,
+      "lines": 194
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.IDynamicParameters.cs",
+      "sha256": "9998aaa76256b727c14dca5846c469e6fab6308543f1ee9e458ba571cf9d8c43",
+      "bytes": 690,
+      "lines": 20
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.IMemberMap.cs",
+      "sha256": "35edaa9e0e62fea57b76f738e721cbdb509a8e3e98c6a3cdf020bf29eb43422c",
+      "bytes": 990,
+      "lines": 39
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.IParameterCallbacks.cs",
+      "sha256": "837fd48177f38234e1cf379c3b1994920caffe0c6c7e65b2669094000ebe3b3a",
+      "bytes": 473,
+      "lines": 16
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.IParameterLookup.cs",
+      "sha256": "15d81820ba7db52a10e533785bd2af48bea701d4fc67f4a1cb8d7949f5aa0f6e",
+      "bytes": 568,
+      "lines": 17
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.ITypeHandler.cs",
+      "sha256": "66d59c1057f46916acf9c2634d3c699a4cb70a039f91397d0a322e7abb4437cb",
+      "bytes": 1054,
+      "lines": 29
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.ITypeMap.cs",
+      "sha256": "0b439ed27b292a6f85aec4e721f30c18fc7988d3ff180afc81e95656703528ef",
+      "bytes": 1859,
+      "lines": 46
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.Identity.cs",
+      "sha256": "66220e23d789a493e1e10eddeafc1fd62a6a01ff9b779e083d859ac0c630a7ac",
+      "bytes": 13378,
+      "lines": 284
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.Link.cs",
+      "sha256": "9441ea192b154081e4a85296e6213922d5f9892212a56cbbb160a18a9a78f032",
+      "bytes": 2511,
+      "lines": 63
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.LiteralToken.cs",
+      "sha256": "c9ee67b1358d347fa6254ebbf0fa613ca733359ac9eb4c63ca3735a987bf0bd5",
+      "bytes": 952,
+      "lines": 32
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.Settings.cs",
+      "sha256": "9c947b217a34b1d51b5acff58b1435bef94e360b6a13bda120928ccf4060a66f",
+      "bytes": 7643,
+      "lines": 142
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.TypeDeserializerCache.cs",
+      "sha256": "ed5c0599a54f2b12091e26127fffdac24ecdbacd675318a91fad3644b5074fea",
+      "bytes": 6599,
+      "lines": 161
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.TypeHandler.cs",
+      "sha256": "ee49ca2d80d3299c34a6fda21840a5a2490f040589f2f24d5aefe310854adf4a",
+      "bytes": 3271,
+      "lines": 86
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.TypeHandlerCache.cs",
+      "sha256": "6afb07849cf73521235996ae89a380ba7b855648d52ae83b7e2d2e4018e9e275",
+      "bytes": 1485,
+      "lines": 41
+    },
+    {
+      "path": "dapper/Dapper/SqlMapper.cs",
+      "sha256": "86b7b8e2fec90482eda1d87807c850d495131270175e11b188446c39fcc87cec",
+      "bytes": 221360,
+      "lines": 4207
+    },
+    {
+      "path": "dapper/Dapper/TableValuedParameter.cs",
+      "sha256": "a8ffc7fe58db05fef770f59ba65ab999e5ad0331fe43396263b57dce90598f9a",
+      "bytes": 1921,
+      "lines": 50
+    },
+    {
+      "path": "dapper/Dapper/TypeExtensions.cs",
+      "sha256": "503cfd466c49f8ca76b30adceaa6d2ae81a4bd88a8eeda2317fd882d848a3628",
+      "bytes": 519,
+      "lines": 13
+    },
+    {
+      "path": "dapper/Dapper/UdtTypeHandler.cs",
+      "sha256": "09ca65159843c4b4d10d4cf4eeae12be47951b96c8f91c511396ef172c21cb7c",
+      "bytes": 1450,
+      "lines": 39
+    },
+    {
+      "path": "dapper/Dapper/WrappedDataReader.cs",
+      "sha256": "3789e143889dfaa7e9d70f821061c88935440e1e03f2873a22a8a55430da55a8",
+      "bytes": 560,
+      "lines": 20
+    },
+    {
+      "path": "dapper/Dapper/WrappedReader.cs",
+      "sha256": "02c9ddf40e5a987dcb93b60372bfbca52bb84e7735f8565e624ce5e8e746dcfc",
+      "bytes": 17456,
+      "lines": 364
+    },
+    {
+      "path": "dapper/Dapper/XmlHandlers.cs",
+      "sha256": "576406f56fa9fa8210c61d6fab78f4dd5465d6345ce2130600eda693beed4a6e",
+      "bytes": 1208,
+      "lines": 39
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/ConstructorHandling.cs",
+      "sha256": "f6115545bc32e78f70ff9effa4fbae5c93f4c4bf832c8750254f7c6644e5b274",
+      "bytes": 1834,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/BinaryConverter.cs",
+      "sha256": "a51d27befafcb68146f782dba4ba6a30ab55a6cf99e52c2f673b1abe9a8fd67b",
+      "bytes": 7567,
+      "lines": 212
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/BsonObjectIdConverter.cs",
+      "sha256": "2e63d487b58618b6085cbf3c8235b4808cbafe0ed18547148e05de38ffc3b117",
+      "bytes": 3765,
+      "lines": 93
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/CustomCreationConverter.cs",
+      "sha256": "b42caddb2ee504dda924e7147aa2a53498d40534c310bf89e4ba93946bda53df",
+      "bytes": 4097,
+      "lines": 101
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/DataSetConverter.cs",
+      "sha256": "696511924c7e56f186c880b90a5c893962b28330900df6a808e8ff4f61f4959e",
+      "bytes": 4541,
+      "lines": 125
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/DataTableConverter.cs",
+      "sha256": "5458ce0690e881068bb29cb67a3bfa983ee581568fbbddc43e646d33123d1245",
+      "bytes": 9190,
+      "lines": 254
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/DateTimeConverterBase.cs",
+      "sha256": "9243e24bae2c32feae9064d0a98af497f1b6b9ef6dc51289b120b66ad3a1a474",
+      "bytes": 2185,
+      "lines": 58
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/DiscriminatedUnionConverter.cs",
+      "sha256": "ff82adb139960ba0a3b41b146a0e1045db9a95ed515146ea5226b8cbeeab5836",
+      "bytes": 11734,
+      "lines": 298
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/EntityKeyMemberConverter.cs",
+      "sha256": "565b718b397ff415474d4a774e1531f18b78dac878404846ba7157fe33cf3e8a",
+      "bytes": 6633,
+      "lines": 165
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/ExpandoObjectConverter.cs",
+      "sha256": "b81a53d919ab1851ce10345a7abd33930b92fc7c9d8a0e4722486520a5093958",
+      "bytes": 6098,
+      "lines": 165
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/IsoDateTimeConverter.cs",
+      "sha256": "c27bbacbc9f8a4c12fe0522f8e1707ef5a0a69af2a4d204ee97a807515bc9e3e",
+      "bytes": 7707,
+      "lines": 196
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/JavaScriptDateTimeConverter.cs",
+      "sha256": "adbbb1524b6c250469e5f433d63ad8ce43114c8dacda492e989fb96c3308c390",
+      "bytes": 4687,
+      "lines": 111
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/KeyValuePairConverter.cs",
+      "sha256": "e31b2bed99d61d2bc446f150abbab6abf91f539bd1bc2343028a031096589b06",
+      "bytes": 6676,
+      "lines": 159
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/RegexConverter.cs",
+      "sha256": "40dc4efaf5c4d66964523bb6bb38b166c46510035b78fe7d42dd496a0618c051",
+      "bytes": 8973,
+      "lines": 235
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/StringEnumConverter.cs",
+      "sha256": "c340d30ad3384302c21d8b7973d144258d39e717365f04518ec0dd82c93a7108",
+      "bytes": 12336,
+      "lines": 276
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/UnixDateTimeConverter.cs",
+      "sha256": "d004e6cc19d897dcf7bb3d7b8745af3d64c71b4967818bce46f802790833bb4a",
+      "bytes": 6592,
+      "lines": 163
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/VersionConverter.cs",
+      "sha256": "d02374191c11735bcd2b748ee74fadc7ce968c07dd126707a63a0b7cef829973",
+      "bytes": 4282,
+      "lines": 106
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Converters/XmlNodeConverter.cs",
+      "sha256": "aa75c000ba1bb3ed9cdbf25a494dbbc08122cd7da39a40480c900f24ff91d074",
+      "bytes": 82925,
+      "lines": 2234
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/DateFormatHandling.cs",
+      "sha256": "19180114e5062b0e3883eb6594c58799ab5fa76576eb872d7009a6ea8223f29e",
+      "bytes": 1659,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/DateParseHandling.cs",
+      "sha256": "1ccdad19b671ef1f8930d16891446cc91e45abaa283d1e99b438574b41210902",
+      "bytes": 2053,
+      "lines": 49
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/DateTimeZoneHandling.cs",
+      "sha256": "007ad607d377308fc5d510d27b780ca5cd5c9b47d4dad916e260ee9541577652",
+      "bytes": 2213,
+      "lines": 56
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/DefaultJsonNameTable.cs",
+      "sha256": "5d0610e4b23a7faeda232c0335bf49b737129d0dd442370e8b7aecaa83c1d956",
+      "bytes": 7001,
+      "lines": 208
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/DefaultValueHandling.cs",
+      "sha256": "a13285dd690338e8b2c299a00ef36c00d24d1366916e53373ddfced6c96f01bc",
+      "bytes": 3145,
+      "lines": 67
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/FloatFormatHandling.cs",
+      "sha256": "af75f8eb17c3e1da55dc10e511fbe6b6bae0a910bdd523c634cda7d161296bf5",
+      "bytes": 2244,
+      "lines": 52
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/FloatParseHandling.cs",
+      "sha256": "422875f4d0c0f95db43ef2cd41c3d4db43488df7eaa937c0693eb7c15eb73fdf",
+      "bytes": 1641,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/FormatterAssemblyStyle.cs",
+      "sha256": "7b60e9d1dac745d61ebec826c7b5b9c518765f26de67103628202b1192e90277",
+      "bytes": 1032,
+      "lines": 24
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Formatting.cs",
+      "sha256": "812860f9f3120fa2e0e878d614cb8eb3f13ae2db0e7b6bbf568c0d3b1465e107",
+      "bytes": 1689,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/IArrayPool.cs",
+      "sha256": "ca70ced9e0a826ebc2e235ae6d5bb71df4d6e8c45a0587838f6a48e4b79ce123",
+      "bytes": 853,
+      "lines": 22
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/IJsonLineInfo.cs",
+      "sha256": "87b6c0af8c8024c241afe089e6d25c0873e7af3441155a2bb9c92b50a470d1ed",
+      "bytes": 2250,
+      "lines": 53
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonArrayAttribute.cs",
+      "sha256": "f04a2e2183fbc0c700377e27f28e3ec8e1e8ac9b571d409df5c2e1db7aa85711",
+      "bytes": 2841,
+      "lines": 73
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonConstructorAttribute.cs",
+      "sha256": "69d35e9d677bf8c9d697e9d04b2e410a47c0a6d1f96ac618321e6fa8b1811ee0",
+      "bytes": 1499,
+      "lines": 37
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonContainerAttribute.cs",
+      "sha256": "6a0704c76c87a379bfb400929f573234eb0d5407147f0f88be46eb1452c73594",
+      "bytes": 6970,
+      "lines": 180
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonConvert.cs",
+      "sha256": "1e5dbc94b20b66bd488c48066ff0e254b7a9b382f3bd6e0bf358afc6f41997e4",
+      "bytes": 49912,
+      "lines": 1085
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonConverter.cs",
+      "sha256": "da22e112ceefe277c3a2be5441d3c897071706d3eb534855684dbdb8dca72e58",
+      "bytes": 7167,
+      "lines": 149
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonConverterAttribute.cs",
+      "sha256": "5d4c0b06fbffeda12e3cc458baea42263ecb58276238b7ddefbc4010dee46330",
+      "bytes": 3396,
+      "lines": 77
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonConverterCollection.cs",
+      "sha256": "8e77acf4ac495d1007475bbef6a2806ec63b4576db92aa56f40e81688e38fdce",
+      "bytes": 1469,
+      "lines": 39
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonDictionaryAttribute.cs",
+      "sha256": "a7524a9a17b0af9359935b876552e6f17199f73a8713f9abb45d5bfe50305d88",
+      "bytes": 2016,
+      "lines": 52
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonException.cs",
+      "sha256": "e776a7057db527728363f59b4c666d23a5933255dd01480b8e32f833cd39f42a",
+      "bytes": 3891,
+      "lines": 92
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonExtensionDataAttribute.cs",
+      "sha256": "84dcdbfe5e5e21a6934d878e36c8b9e4789d9e6c16896cfd201ec7f09fb76979",
+      "bytes": 1437,
+      "lines": 37
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonIgnoreAttribute.cs",
+      "sha256": "ded5d2ed50e5a2f1c4b50e975b5ddb971979d316b05a0d552395e044225e0e7a",
+      "bytes": 1572,
+      "lines": 39
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonNameTable.cs",
+      "sha256": "de81a15fc63459de11badc03b6ada830c7ef6a0f01c9f134644d6f2c89e743fd",
+      "bytes": 826,
+      "lines": 17
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonObjectAttribute.cs",
+      "sha256": "41d244d1662da2dc4a066bb4fae0d7e40948e0f2d20cdfa820b4f0b1e5ac8443",
+      "bytes": 4383,
+      "lines": 111
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonPosition.cs",
+      "sha256": "4f9e601f9d0be45c4f60f15bf1b6ca8f85dec51e353ebb50e405cc6f8e422c14",
+      "bytes": 5986,
+      "lines": 177
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonPropertyAttribute.cs",
+      "sha256": "e32fd2e949e98ec2098f08bc3c27f0162df7bb598efe8dc1c4d23c2439ddcfdd",
+      "bytes": 9095,
+      "lines": 223
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonReader.Async.cs",
+      "sha256": "725797300f107c65b27c76f41a7a2d69302aba31eb65d80be9563cc9a82f76fa",
+      "bytes": 14124,
+      "lines": 264
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonReader.cs",
+      "sha256": "eda80d41e20e057cd0ac63c60ceb42697185217681b44fe26d09e0657b2a6672",
+      "bytes": 44034,
+      "lines": 1278
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonReaderException.cs",
+      "sha256": "bd55e8bb5fbc450876ebb4a2f8519c450de858447e8e600e48926d1dfc94b34f",
+      "bytes": 6485,
+      "lines": 148
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonRequiredAttribute.cs",
+      "sha256": "c5aaa82a2afe704902e6c64030e68af9a6f7e55fcf233cc6caa958707af218bf",
+      "bytes": 1582,
+      "lines": 39
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonSerializationException.cs",
+      "sha256": "afdac152abed19deaa5405aecadcdb528f2a5e55a0db4bd2d56807b44266ae63",
+      "bytes": 6603,
+      "lines": 148
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonSerializer.cs",
+      "sha256": "1aa48b9cedf9cc9dc8c491ceb9368f2179d05ae732c804e4b83c8a00059da86b",
+      "bytes": 50756,
+      "lines": 1226
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs",
+      "sha256": "6746cd4d5b7c2c15613284e07ee308b67edd6665e58b1b5cc027960138440e31",
+      "bytes": 22890,
+      "lines": 501
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonTextReader.Async.cs",
+      "sha256": "5e9108b54ae08ec9635f7ec5be733134a4a09e4c047738dac9bc68884e57417f",
+      "bytes": 79476,
+      "lines": 1806
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonTextReader.cs",
+      "sha256": "a90a4b5899e60963dabfcfabe225a7ff23c6b46e310cf18a5afe7f4ac1b4f0a0",
+      "bytes": 101731,
+      "lines": 2656
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonTextWriter.Async.cs",
+      "sha256": "016a828282afac76f12ff58f8efe5767478ea4d91021a39600c03a50e7f72d41",
+      "bytes": 79233,
+      "lines": 1388
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonTextWriter.cs",
+      "sha256": "65cedb29bbec9e82057d06f5eaa3a464240b385d84f8aa295abe760148d58f7f",
+      "bytes": 29679,
+      "lines": 927
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonToken.cs",
+      "sha256": "83199fbfdc09b8fad2256186107bbf73a79875644a0073df367cc0c857fb16c0",
+      "bytes": 3175,
+      "lines": 127
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonValidatingReader.cs",
+      "sha256": "bfe9c4a0f7d683f129dde30fdae0596f5fb1a04f1137c4816cdaecf94db66e32",
+      "bytes": 39004,
+      "lines": 1025
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonWriter.Async.cs",
+      "sha256": "0beddcd3e10f155f058596b0873ef1d59eb55ab83585f8a0cff4d844c2d22f78",
+      "bytes": 92609,
+      "lines": 1810
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonWriter.cs",
+      "sha256": "75b69b3ebed4305947adeed867ea8780ab2b03f0f3cbe6ffaa391ef56cdb4c73",
+      "bytes": 63246,
+      "lines": 1789
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/JsonWriterException.cs",
+      "sha256": "290822527620cb882c3eb14f66c12085df05cdab6d2d401225ed14939b5e1342",
+      "bytes": 5070,
+      "lines": 114
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/CommentHandling.cs",
+      "sha256": "0190b65d0375a1611170f1e418d5271ba0566b0b83a22373da56c245062689c8",
+      "bytes": 1590,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/DuplicatePropertyNameHandling.cs",
+      "sha256": "406ecc33593b969012e21c9cab3cbdaed72526464a94779b951a6f8e04b51ffa",
+      "bytes": 1925,
+      "lines": 46
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/Extensions.cs",
+      "sha256": "f93a637be6910d6d5af09f415e161d2c8721952b09783096b758a0691ebab508",
+      "bytes": 15922,
+      "lines": 336
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/IJEnumerable.cs",
+      "sha256": "9abc5cac81836167073d71cd296c0548839008b6ff6c7ed901dfd5ebf447ea92",
+      "bytes": 1760,
+      "lines": 46
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JArray.Async.cs",
+      "sha256": "6e2da590d033763eb2ea0aa5b6e5474c7743786420a739691ef356dc7adbc964",
+      "bytes": 5267,
+      "lines": 103
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JArray.cs",
+      "sha256": "ad530867a11c4a567cf9a257fc1f44a2d31ee26a36f1b3a545c68a5d2b1c6911",
+      "bytes": 15832,
+      "lines": 408
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JConstructor.Async.cs",
+      "sha256": "7a721011feaaa328f4a2f1c770fc1424467018d730a93b59116a4ed3f50f3062",
+      "bytes": 5467,
+      "lines": 106
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JConstructor.cs",
+      "sha256": "4713a78663299dae0e8c358dc10d7d97a282d4f57a46111bb7c1d59e349002f8",
+      "bytes": 9493,
+      "lines": 262
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JContainer.Async.cs",
+      "sha256": "5e72567c906499bdebc1bea2dfe6c235601b1f4ba8b9283b1794bd267452b17f",
+      "bytes": 6848,
+      "lines": 172
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JContainer.cs",
+      "sha256": "f8a49367db0f3f92ec03ac87af341279386e799f0ec966a10d631390e08f25db",
+      "bytes": 40500,
+      "lines": 1266
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JEnumerable.cs",
+      "sha256": "953393f471d0a1c7dff466b6c9c2a8c872e40173e6e04e6724ff546eb974cf82",
+      "bytes": 4937,
+      "lines": 140
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JObject.Async.cs",
+      "sha256": "f4e297fcb8b87a42a43782b720d0f556786387cc5f412d20b51e1c25a5900223",
+      "bytes": 6328,
+      "lines": 129
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JObject.cs",
+      "sha256": "9c5766caac22f92368a83992ce2de7fc7a30dd617a6783b55b43f32b5a09890a",
+      "bytes": 32214,
+      "lines": 862
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JProperty.Async.cs",
+      "sha256": "347e15ea9b4f1b56cca090390d3035acd0dfc182be85b4a91ee9e6f646fe3cf9",
+      "bytes": 5958,
+      "lines": 118
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JProperty.cs",
+      "sha256": "18a59c78c57ee995e0ffac6103ba8d0a78c430f89380401a2c2c3d0f26b2fcb4",
+      "bytes": 12903,
+      "lines": 413
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JPropertyDescriptor.cs",
+      "sha256": "ec1315dfaf08dd0060432a3a9aebb7feb942a332278d4bdfe103d31eed0d2739",
+      "bytes": 6010,
+      "lines": 156
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JPropertyKeyedCollection.cs",
+      "sha256": "521ac4df9968e360267062b5e247e49a67955f945f00dbe0f21aa38ffecfecfc",
+      "bytes": 7661,
+      "lines": 284
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JRaw.Async.cs",
+      "sha256": "baa826e1510bc370e1c87dfe634678be9171ce7f8d6e4ea4f16b0cb76ea85193",
+      "bytes": 2461,
+      "lines": 57
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JRaw.cs",
+      "sha256": "a26399a7a0d1e4ee143f5beae34b600e15e181ae77409caeeac3d1d0ccb01913",
+      "bytes": 2894,
+      "lines": 80
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JToken.Async.cs",
+      "sha256": "aacf5a67660358a4edbcc7cd6048cd01fa589755408b55073fd14b8092c59b0f",
+      "bytes": 9794,
+      "lines": 178
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JToken.cs",
+      "sha256": "ce8e32a8743732d190d9be3838c5ec41304a4c0978fd5f40b3e7e5adca60b166",
+      "bytes": 106694,
+      "lines": 2768
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JTokenEqualityComparer.cs",
+      "sha256": "c913306a800a2827faefda64c8e83eba423450eeeebe74c91c50f017acee8328",
+      "bytes": 2585,
+      "lines": 64
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JTokenReader.cs",
+      "sha256": "d553ba739a7f86850fe6fb310f08ab523ef6fb8dad439cd5033a9644542fe11d",
+      "bytes": 10959,
+      "lines": 345
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JTokenType.cs",
+      "sha256": "b88428e54c9d53d0b8e8f0f66ba74ccac68db1d40c2661e9a171dad0520805e0",
+      "bytes": 3028,
+      "lines": 123
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JTokenWriter.Async.cs",
+      "sha256": "53071d8c7ed371e89a31db0164007eee314fb55d4b5ac3e7e7d8502646785e97",
+      "bytes": 2122,
+      "lines": 53
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JTokenWriter.cs",
+      "sha256": "3320a0118184d75f22c510616c959b6a45a168cbc72bd8e72d4eac9dbe8b767c",
+      "bytes": 17989,
+      "lines": 544
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JValue.Async.cs",
+      "sha256": "1610ba44db56459a8174f2701fb370e5ad068aa105ad3f1e1b8ab4c8af4ebe91",
+      "bytes": 6110,
+      "lines": 138
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JValue.cs",
+      "sha256": "b0b4d9321d8ce001ad7196a5a802c8f16a6235cb57daf4e6fc066984a443115f",
+      "bytes": 42103,
+      "lines": 1195
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonCloneSettings.cs",
+      "sha256": "ee599b07053d268feb84fed6cddb862e7426aad6cb789a164fdb8737f6c6778f",
+      "bytes": 2108,
+      "lines": 57
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonLoadSettings.cs",
+      "sha256": "f2dcdf1b0065cfdd393f7a436ff65e062a737b024907b892a1153b521c01bf88",
+      "bytes": 3945,
+      "lines": 106
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonMergeSettings.cs",
+      "sha256": "aea8207e49a925ffa1847e933096aa5230ea7eaf2be86551935f9d04d9068393",
+      "bytes": 3788,
+      "lines": 103
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/ArrayIndexFilter.cs",
+      "sha256": "e35a7c52dc886a4a8ed1f55f5f4e4e26d6732e13077f1c718ea105d05ca73f57",
+      "bytes": 1369,
+      "lines": 44
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/ArrayMultipleIndexFilter.cs",
+      "sha256": "bf14e6ab44437e67933424b4c7b256dfb79652a431b36cf259d52f88e68b8c82",
+      "bytes": 777,
+      "lines": 30
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/ArraySliceFilter.cs",
+      "sha256": "713b9481e817032fe0140afdc69ae28558434cd847cc73d1423751b2e43e7839",
+      "bytes": 3288,
+      "lines": 87
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/FieldFilter.cs",
+      "sha256": "422ed9206d090a1a02e57472be28cdb1c86b70bb1177aae049ce1e9bb9c14242",
+      "bytes": 1698,
+      "lines": 53
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/FieldMultipleFilter.cs",
+      "sha256": "13639ab681269204f36c70eb067ac13b68fe10c8bdd2c6350df8a3d91beaceaa",
+      "bytes": 1738,
+      "lines": 56
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/JPath.cs",
+      "sha256": "e7ac7a35fa94d22f421fc3adc20ba6a5657f91aa3a87d029cadfef47ae1874b0",
+      "bytes": 29468,
+      "lines": 893
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/PathFilter.cs",
+      "sha256": "35a7c09968db63a8153d0b3afa11fe128d3383e6d41ec8be975ea0abb519484a",
+      "bytes": 2506,
+      "lines": 80
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/QueryExpression.cs",
+      "sha256": "ea3b4dee34fe1e32df60a31e87ff16e6f944164aac190916b42c93c6da1b76aa",
+      "bytes": 11464,
+      "lines": 328
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/QueryFilter.cs",
+      "sha256": "9eac601f07843a96db2d60ed045c8a1a49dd793d2df286583e6696a61021248f",
+      "bytes": 750,
+      "lines": 29
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/QueryScanFilter.cs",
+      "sha256": "9383400fb2520c4ad13dfbd76eaf1de8009b05797a6f2866410ae8dc7d2374cd",
+      "bytes": 1086,
+      "lines": 39
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/RootFilter.cs",
+      "sha256": "ff78e6dc491e05b50344d18e6f66f77b6327e8ad5dc0726af07143230e9d3835",
+      "bytes": 440,
+      "lines": 18
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/ScanFilter.cs",
+      "sha256": "0eb3c633d1044d915855f800977cafcd0ebf1b394c1b31380d7cc2694c113253",
+      "bytes": 1395,
+      "lines": 53
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonPath/ScanMultipleFilter.cs",
+      "sha256": "09c4ba2e449ec150046400f5cd2c7a35ac81f955d5d6db2fd4b344c042df24cc",
+      "bytes": 1232,
+      "lines": 44
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/JsonSelectSettings.cs",
+      "sha256": "11bb7848437f6d142907edd4ff751cc4449443b704a9ec29bff4d82d57e70d7a",
+      "bytes": 2099,
+      "lines": 53
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/LineInfoHandling.cs",
+      "sha256": "bc723828a424b9f35ce70d1bda0361bccac51955db7a8e74e46cb3612fc35287",
+      "bytes": 1540,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/MergeArrayHandling.cs",
+      "sha256": "82ef9a7cd8f0225f7ea3d8c8dbf08b7808b9b0763e59d42f3528471e897d71d8",
+      "bytes": 1670,
+      "lines": 45
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Linq/MergeNullValueHandling.cs",
+      "sha256": "4d6b8b94b904751778dea9b0ace6bdd7f7b1a048db80da5a11364d7c6b97791c",
+      "bytes": 1634,
+      "lines": 46
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/MemberSerialization.cs",
+      "sha256": "e20a39318ba387f93f56d05b9814c31a376a04f841d36f9af103abf7da9bf96c",
+      "bytes": 2614,
+      "lines": 58
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/MetadataPropertyHandling.cs",
+      "sha256": "c34cadfd48067b2bb1293eeb008ef2b70c7f5ceb20998546c104017a443d7257",
+      "bytes": 1881,
+      "lines": 52
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/MissingMemberHandling.cs",
+      "sha256": "e355fe880c80f4425a76eea5ad8382a8520a514c645e28a9ae91069ddd669161",
+      "bytes": 1752,
+      "lines": 47
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/NullValueHandling.cs",
+      "sha256": "b0906c7834be22f36b1ca6e45aa2abd0f34383946583926512239cc72c95369f",
+      "bytes": 2068,
+      "lines": 47
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/ObjectCreationHandling.cs",
+      "sha256": "d84c62dca063f42a09ddc3426c274e664ab32a7a809f26bbe7119e9cc11b44c9",
+      "bytes": 1700,
+      "lines": 48
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/PreserveReferencesHandling.cs",
+      "sha256": "f51e33e29b2019e49a03919931ea88da07aa20566d9319e58b1ec25a1e29d99a",
+      "bytes": 2390,
+      "lines": 62
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/ReferenceLoopHandling.cs",
+      "sha256": "03bbefbd75eb039854436016612052b94f1c0f39e9b9f4344129ee42163e360b",
+      "bytes": 1810,
+      "lines": 52
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Required.cs",
+      "sha256": "7230dec56281506404f3704fb0674f2c239248b7187f7184bb9a5d3a39fb1d7e",
+      "bytes": 1862,
+      "lines": 53
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/CachedAttributeGetter.cs",
+      "sha256": "ce8edcfbd2eb12960e6cc76b21073acff48550141f1b5f526fa2437179fed991",
+      "bytes": 1624,
+      "lines": 41
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/CamelCaseNamingStrategy.cs",
+      "sha256": "e736540b98f976eee9cb4ba86337aae9252153cb138935895fa4e181072e7a05",
+      "bytes": 3678,
+      "lines": 87
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/CamelCasePropertyNamesContractResolver.cs",
+      "sha256": "45fd127147ae9ea08375e13c224654654016cece9004eab7b369620c3ded6a6b",
+      "bytes": 3851,
+      "lines": 94
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/DefaultContractResolver.cs",
+      "sha256": "9bd3162a41f430969850fb6ac11a96b1fc3c6c2acce56850339fe605277f91c5",
+      "bytes": 75655,
+      "lines": 1738
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/DefaultNamingStrategy.cs",
+      "sha256": "9870b15c54b0d7e6e5469ff1094cc5a71c1291406d2c2a0a3f3d1714c98a3abb",
+      "bytes": 573,
+      "lines": 18
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/DefaultReferenceResolver.cs",
+      "sha256": "616add9c7da2db21f8203ae94a5dd9c5ed02920abf182be2430d90427a01de61",
+      "bytes": 2970,
+      "lines": 83
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/DefaultSerializationBinder.cs",
+      "sha256": "7489e2cc46bbd51865fdf2bce766bfdb4b9f6e61fdccf9cb4e385cdca3a3457c",
+      "bytes": 9246,
+      "lines": 215
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/DiagnosticsTraceWriter.cs",
+      "sha256": "925f515a45a4be8c3205351efd293286b088a788efee1c3a0bf39406dade0220",
+      "bytes": 2949,
+      "lines": 79
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/DynamicValueProvider.cs",
+      "sha256": "146e637f43c4e57c52fdf89db3224f7d92d83cb8b552b26b5a3cb5727eb750c1",
+      "bytes": 4596,
+      "lines": 120
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ErrorContext.cs",
+      "sha256": "e3dc6ad14637abf28c4270dddd336f25fbc73d7f47a9182e97a0094b4205a283",
+      "bytes": 2703,
+      "lines": 75
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ErrorEventArgs.cs",
+      "sha256": "ce8d740827ba8ab12b0e5173d71e7aecb906ca1522ae27e9a62f734012057e58",
+      "bytes": 2228,
+      "lines": 58
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ExpressionValueProvider.cs",
+      "sha256": "d1eb83c43d79b4b573b41a89178a1f4c722f92b48609d640f56047e5b7fcdb4e",
+      "bytes": 4609,
+      "lines": 121
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/FormatterConverter.cs",
+      "sha256": "e9d04058934dc9575555fe82d11fb6fb93425e7c8c5acd24d687abb7a590656a",
+      "bytes": 3996,
+      "lines": 117
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/IAttributeProvider.cs",
+      "sha256": "1aa9e0f6349a58ae5ad46a902fbe99e0149064cf30d6db52ca3f63a58d4de123",
+      "bytes": 2343,
+      "lines": 51
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/IContractResolver.cs",
+      "sha256": "82b173bfbdf92d56676add09c8aebad3cf67a52d98c8afe90ee520a85bec4f40",
+      "bytes": 2127,
+      "lines": 46
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/IReferenceResolver.cs",
+      "sha256": "23066b64d3f9f085c097d6beba037fe852459600937860a891247c5b9f730427",
+      "bytes": 2961,
+      "lines": 67
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ISerializationBinder.cs",
+      "sha256": "6e6973b1e64ccb974ef93ed40f3444c0cd3b5c4922f28b2e19e81ba0cb32d4b5",
+      "bytes": 2527,
+      "lines": 53
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ITraceWriter.cs",
+      "sha256": "21caf4892145ba9719c50885e86a7c0532a07a1d9e0bd895100af8af94ae8fb9",
+      "bytes": 1263,
+      "lines": 28
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/IValueProvider.cs",
+      "sha256": "9147ba0e78dc5004f257260b6a62baef6bd16eb40c312c8599f1a5ec96d291e9",
+      "bytes": 1834,
+      "lines": 47
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonArrayContract.cs",
+      "sha256": "0f3953fd44773b230c3b45c67bd755e467550275f4c95901e845620ee441054c",
+      "bytes": 14194,
+      "lines": 327
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonContainerContract.cs",
+      "sha256": "f3f1c4480e7e62336bc42f04c2f7dc502a3acb032c5a1ac39e95337209bb8582",
+      "bytes": 4622,
+      "lines": 117
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonContract.cs",
+      "sha256": "31cb62e23f68f0698c5a14ccdbc64819ed1de4be3fe6ef07778d78446b17c7d4",
+      "bytes": 12153,
+      "lines": 326
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonDictionaryContract.cs",
+      "sha256": "3be969dae1b3db8748dd9c9b7aef2d530587d41fa1d8edb16c37e08be509a31e",
+      "bytes": 10519,
+      "lines": 247
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonDynamicContract.cs",
+      "sha256": "4a26dabcb586b28e2ce94a03939bc39d65a4d0e3ca2f3d363ac653f7c1d665fa",
+      "bytes": 4723,
+      "lines": 116
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonFormatterConverter.cs",
+      "sha256": "326e8672139473f2b066cd65fd6a56d0b9885da411836113b5d90eb7e8d40133",
+      "bytes": 4702,
+      "lines": 157
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonISerializableContract.cs",
+      "sha256": "b57662b44f002b253dc4e8817d79dd888b8190d656096e97f85192077500ed6b",
+      "bytes": 2174,
+      "lines": 55
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonLinqContract.cs",
+      "sha256": "dc949d2af393babffffe3f74585b152f3f68f4d9ccc87a868301eed9f6e332f7",
+      "bytes": 1777,
+      "lines": 45
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonObjectContract.cs",
+      "sha256": "87cdd3398e07e6f3d369671d9d3b12c651d1f127c67744508a74d939bfa0ad85",
+      "bytes": 7790,
+      "lines": 199
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonPrimitiveContract.cs",
+      "sha256": "32606f63c4f4be300121b326d596310030011c97d8f3f54fd4d506774381cf1b",
+      "bytes": 3006,
+      "lines": 75
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonProperty.cs",
+      "sha256": "93ceb6abf30d7c3ad07c9f913b105df80513c589210314720bf8af664a96be9b",
+      "bytes": 12070,
+      "lines": 322
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonPropertyCollection.cs",
+      "sha256": "3174fb0ac88501ca188bf899d6683b02484f8965ba17cc15328c4c1f2ede3649",
+      "bytes": 7556,
+      "lines": 190
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalBase.cs",
+      "sha256": "e541da7176fb5b068c64faa913a9366873ef05c4d7281cd49a2485c77904a065",
+      "bytes": 6227,
+      "lines": 159
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalReader.cs",
+      "sha256": "476b09c58f279a00838ed92807c4242bb4610ece7333e963d5fa4e0301556b0c",
+      "bytes": 121840,
+      "lines": 2645
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalWriter.cs",
+      "sha256": "dd0ff1d9427f1368e7fa40b31ca2adb0f02af462a6a3965f59fc41b6a2b62635",
+      "bytes": 52309,
+      "lines": 1257
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerProxy.cs",
+      "sha256": "4e7f2a141f9ba2dc05f7dcf25ad238c55e59857f6eeea36320bbb45ecc4ad7ed",
+      "bytes": 9597,
+      "lines": 289
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonStringContract.cs",
+      "sha256": "2fa8eef567d38c7978040afbda57dc3e36ee95fb9ed849ed6a6a4357ad11a6e4",
+      "bytes": 1791,
+      "lines": 45
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonTypeReflector.cs",
+      "sha256": "e2cf3e63d14519156e02151211fab69a9990486f58a4b5446ad8929ea77d7059",
+      "bytes": 19503,
+      "lines": 534
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/KebabCaseNamingStrategy.cs",
+      "sha256": "dcedca44f267e594cc83689f4556f671b433bced47928f996cf357d185be7150",
+      "bytes": 3642,
+      "lines": 84
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/MemoryTraceWriter.cs",
+      "sha256": "b43c25877929702256fa083a186a4aff466b53bac6cb39d8446687a8c2174e8b",
+      "bytes": 3531,
+      "lines": 100
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/NamingStrategy.cs",
+      "sha256": "dd075b30ace21d2a109f6d9f837e230d6b62874a2c8a3f49c44821a4a2f42d53",
+      "bytes": 5486,
+      "lines": 146
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ObjectConstructor.cs",
+      "sha256": "7fb88e57be528049372a389aa64ab53a055669d54ef52789769aad3a1b60f4fc",
+      "bytes": 1426,
+      "lines": 33
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/OnErrorAttribute.cs",
+      "sha256": "c171f84ea4356ad7b090f14f083c75fdc1bdd2835ee4d0f229f0469469281956",
+      "bytes": 1494,
+      "lines": 37
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ReflectionAttributeProvider.cs",
+      "sha256": "888a0b4f465f3a5c2c293112f628e20b22db8869d21a0a2f16ff373bb63f9d02",
+      "bytes": 3424,
+      "lines": 71
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/ReflectionValueProvider.cs",
+      "sha256": "6853974ecbc83300e6db4b7f863c1bfa8fee22ea5e1f15a71e4234de3508df0e",
+      "bytes": 3589,
+      "lines": 90
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/SerializationBinderAdapter.cs",
+      "sha256": "ba3cadf6eb0dea57d411a3cc74e360acb77e9bca1a4fc40cac2c4daa4d9bef1a",
+      "bytes": 2165,
+      "lines": 59
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/SnakeCaseNamingStrategy.cs",
+      "sha256": "5e9e0bdec4d7bff5b62a9825d387abd21defb4b9300d3e959332baad59dc6500",
+      "bytes": 3678,
+      "lines": 87
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/TraceJsonReader.cs",
+      "sha256": "77008510db48c1b3c5e724dcde1b559c1ea05955a065ea2fcc885a1bf3ef76d6",
+      "bytes": 4890,
+      "lines": 157
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Serialization/TraceJsonWriter.cs",
+      "sha256": "1b8c656db0a29a9d3316ff4c7f2d144d06512b4b6a694e1e20be252fd70cd7cd",
+      "bytes": 16938,
+      "lines": 598
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/SerializationBinder.cs",
+      "sha256": "68cb57a7875bae9ef8a561d2e8dce50a12c0fb54ae43482b5398659f6d01c213",
+      "bytes": 1610,
+      "lines": 36
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/StringEscapeHandling.cs",
+      "sha256": "db01e74cb9b3f4b372fb7c5911a8ae59c1b3f768685630e185add919bc3e1362",
+      "bytes": 1787,
+      "lines": 48
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/TraceLevel.cs",
+      "sha256": "2ffb1a9293ee8adc744571c713b3af58cd95f71e7655e6909f2407921ae6eed8",
+      "bytes": 878,
+      "lines": 39
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/TypeNameAssemblyFormatHandling.cs",
+      "sha256": "d85eb293679ddfcfe76933f6509add6e1949dc3a66a500156d51ec9e47efea94",
+      "bytes": 2051,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/TypeNameHandling.cs",
+      "sha256": "6a31363472601cb7cdd8506177d50fabe2e188dab497eb45fffdb518595c759c",
+      "bytes": 2897,
+      "lines": 70
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/AsyncUtils.cs",
+      "sha256": "68dc37d0d5beca8966c11a1936a96c3dd774b815fc58ca704569905c0aeeef9c",
+      "bytes": 4823,
+      "lines": 110
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/Base64Encoder.cs",
+      "sha256": "ca7a4450c71b22074e67c0dbfd7205e9b0fcde9e2b16fd5c454616d13d349c77",
+      "bytes": 6959,
+      "lines": 217
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/BidirectionalDictionary.cs",
+      "sha256": "62ef3f62b9bd312b1e21fb7c6fcdbef5cad1581557b062eef3d99bb36fa405d4",
+      "bytes": 3962,
+      "lines": 97
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/BoxedPrimitives.cs",
+      "sha256": "d26393d0043b6130273cef55abb9e718d28f9730ee44e20db680dd0632449532",
+      "bytes": 5948,
+      "lines": 154
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/CollectionUtils.cs",
+      "sha256": "892b07589c0ad0e568a34d718d4605a617f26781b049c13471e43e636e86de53",
+      "bytes": 12399,
+      "lines": 388
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/CollectionWrapper.cs",
+      "sha256": "c1dc8d476ca685214bb0e0ef5151b0091032fb4f4254c7f79ecc844f6cafb7fa",
+      "bytes": 8569,
+      "lines": 320
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ConvertUtils.cs",
+      "sha256": "c218a880f8450becccf0d0a9a6ac72d61e62896821ac0758d55f5355757a9645",
+      "bytes": 54841,
+      "lines": 1589
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/DateTimeParser.cs",
+      "sha256": "86af1cf8a1fe84c6c0b4001d074db60cd948bd69a087012acd2f4a11c6a51fd0",
+      "bytes": 9082,
+      "lines": 277
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/DateTimeUtils.cs",
+      "sha256": "50ac164a240b692bbea1eec080fe08aba3a7bf1e89734feae6dfeb60a5eac3b6",
+      "bytes": 29240,
+      "lines": 825
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/DictionaryWrapper.cs",
+      "sha256": "ade9550fb22392180124a9fbc55f88363b14c854d3adadaca80f3dab840bfb7e",
+      "bytes": 20329,
+      "lines": 719
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/DynamicProxy.cs",
+      "sha256": "1ace6b0fd1d4cdf6b8f20baf990ecadd41c96caee8d01966307ee30b6c74f0ec",
+      "bytes": 3514,
+      "lines": 109
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/DynamicProxyMetaObject.cs",
+      "sha256": "945809829ef799d9650dfe997283d1b7d3534204d798b1a3a9a05e66cb5dd5c6",
+      "bytes": 16653,
+      "lines": 391
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/DynamicReflectionDelegateFactory.cs",
+      "sha256": "65eaddf8978984bd54362d57b8b9f0941153d8b406ed8a52e553e0b914b81a6f",
+      "bytes": 17187,
+      "lines": 404
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/DynamicUtils.cs",
+      "sha256": "52eb73acb23e7c2dc9ea2bcab7c8048d10132fcdd7c3942da6184dfb41886104",
+      "bytes": 9755,
+      "lines": 215
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/EnumInfo.cs",
+      "sha256": "38c3713eae6d221b3317c636b9d05fc0e82b3931c004314d70f33931f6aa3a59",
+      "bytes": 1645,
+      "lines": 43
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/EnumUtils.cs",
+      "sha256": "d2f108fe90bc61c0d7da94501bb3598fcb63f67a516919d53836f0354f4d5824",
+      "bytes": 16345,
+      "lines": 407
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ExpressionReflectionDelegateFactory.cs",
+      "sha256": "0049076d36924a7a3a572c1c1ff49403547d335d90e5ad6cdbc66d647f63a7d7",
+      "bytes": 15687,
+      "lines": 398
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/FSharpUtils.cs",
+      "sha256": "5cda12c89ac10ac1a605ed35406e4d260e8addd9f35bf3cf505d8b505ecd9fc7",
+      "bytes": 9119,
+      "lines": 205
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ILGeneratorExtensions.cs",
+      "sha256": "192474270b97f6d9b6f7afb2578a3c94fd94273fb391380545600a3b1bf042eb",
+      "bytes": 3131,
+      "lines": 98
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ImmutableCollectionsUtils.cs",
+      "sha256": "6dd3abd38cd228c95b26e833e53d059f5c0f5e223bb5d26a54aebee0872fdb8e",
+      "bytes": 10868,
+      "lines": 183
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/JavaScriptUtils.cs",
+      "sha256": "93131cb6065f06ac6da30cc15c77f7e2a96ef2d3dc171fec34c227590d930a1a",
+      "bytes": 25775,
+      "lines": 657
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/JsonTokenUtils.cs",
+      "sha256": "5c2dc421274a4825a4180b44757fe5dce909b4e95aa70b629e356671770182b5",
+      "bytes": 2506,
+      "lines": 74
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/LateBoundReflectionDelegateFactory.cs",
+      "sha256": "353ca15513af7d41b2349a2d271b30a2b0ad55260132067766290fb2bc20dc2e",
+      "bytes": 4041,
+      "lines": 114
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/LinqBridge.cs",
+      "sha256": "462b9ef421152ee99df728c5e0d2811497c5693bffd82346f754d3f606764f61",
+      "bytes": 89278,
+      "lines": 3073
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/MathUtils.cs",
+      "sha256": "426587acd7f1f50c3d3dc94f13e9c27726c32c1bbe22d0291d86485afa368640",
+      "bytes": 5016,
+      "lines": 187
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/MethodBinder.cs",
+      "sha256": "a030a3d0e4624e57bbbf458e418d1fbada28334d9698638e1edea7d97514161a",
+      "bytes": 13004,
+      "lines": 346
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/MethodCall.cs",
+      "sha256": "fe7320426c5315a94f889f2e539360864957a847a933f5b2acfed567e95b9861",
+      "bytes": 1278,
+      "lines": 29
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/MiscellaneousUtils.cs",
+      "sha256": "9226dfa7b4a1a662f8e808de6e9997a801273cd303ac0c29992c3c40b9cfad75",
+      "bytes": 5930,
+      "lines": 174
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/NullableAttributes.cs",
+      "sha256": "a0220e2a1e4707a0348dd3987e3ef7d5df684eb14507437d06ca1415234f4ed7",
+      "bytes": 3886,
+      "lines": 78
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ReflectionDelegateFactory.cs",
+      "sha256": "83a275c1a10d3f75659b0c2027aa347099936361716e84341fcddce0665473d6",
+      "bytes": 3307,
+      "lines": 83
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ReflectionObject.cs",
+      "sha256": "17b457c3acb6946c9fcc6a57d3175ece02c6f5171f7ccb2d6a263c9bb2ff16fc",
+      "bytes": 6125,
+      "lines": 156
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ReflectionUtils.cs",
+      "sha256": "b1df1b028ddca9a9782eae7ea47578e2fa1655b7434ecf3f7a334e6ffdbfe59e",
+      "bytes": 43435,
+      "lines": 1112
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/StringBuffer.cs",
+      "sha256": "36a21b9b46b4c78af9c2911d3eef628cb80308473217b44fee8f7857eae51db9",
+      "bytes": 3658,
+      "lines": 116
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/StringReference.cs",
+      "sha256": "6c5151a9c0c7311fef661219f3b513e18841a9fd926743f31fb36df5c375d217",
+      "bytes": 3242,
+      "lines": 111
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/StringUtils.cs",
+      "sha256": "540b9d609c568bc93e5105b2cbbca4f607574a39ae544a7f14394ccdb4632581",
+      "bytes": 12615,
+      "lines": 372
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/StructMultiKey.cs",
+      "sha256": "efeba64aa2c51945701ca7122621b57eaa54afdd256ef393cce22b7cd7d85ce6",
+      "bytes": 2014,
+      "lines": 61
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ThreadSafeStore.cs",
+      "sha256": "05c7feadb9ac9783223dbd14bc5cba558e0f0fd68ca73857a8c0694ca428dd6a",
+      "bytes": 3391,
+      "lines": 109
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/TypeExtensions.cs",
+      "sha256": "1951904a04c82170397d46f4d0e5908d8fce53eee199234634eef2b3fe3e92fc",
+      "bytes": 20226,
+      "lines": 634
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/Utilities/ValidationUtils.cs",
+      "sha256": "00145bf6596194cefbcd606fc5520685dc91ae4e118cb65d8e549ca6c977d9da",
+      "bytes": 1570,
+      "lines": 42
+    },
+    {
+      "path": "newtonsoft/Newtonsoft.Json/WriteState.cs",
+      "sha256": "06444d28b1d4de6bf7d5718362ffe86eba892e4e3f568eb2b48d219bd7afe0fe",
+      "bytes": 2475,
+      "lines": 72
+    }
+  ],
+  "counts": {
+    "files": 392,
+    "lines": 98666,
+    "repos": 3
+  }
+}

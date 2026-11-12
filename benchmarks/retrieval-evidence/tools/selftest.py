@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from evaluate import overlaps, query_metrics  # noqa: E402
 DATASET = HERE.parent / "dataset" / "queries.json"
 
 
@@ -80,7 +82,23 @@ def main() -> int:
     row = next(item for item in report["queries"] if item["category"] == "multi_hop")
     assert row["solved_at_10"] == 0, row
     assert row["required_anchor_coverage_at_10"] < 1.0, row
-    print("OK: perfect, trap, and partial-chain metric behavior")
+    # Boundary, path, and duplicate-fragment fixture.
+    query = next(item for item in queries if item["answerable"] and len(item["evidence"]) >= 2)
+    anchor = query["evidence"][0]
+    boundary = {
+        "path": anchor["path"],
+        "start_line": anchor["end_line"],
+        "end_line": anchor["end_line"],
+    }
+    assert overlaps(boundary, anchor)
+    assert not overlaps({**boundary, "path": "wrong/" + anchor["path"]}, anchor)
+    duplicate = [boundary, dict(boundary)]
+    hits, ids, first = __import__("evaluate").ranked_hits(query, duplicate, 10)
+    assert len(hits) == 1 and len(ids) == 1 and first == 1
+    perfect_row = next(row for row in report["queries"] if row["id"] == query["id"])
+    assert perfect_row["ndcg_at_10"] <= 1.0
+
+    print("OK: perfect, trap, partial-chain, boundary, path, and duplicate metrics")
     return 0
 
 

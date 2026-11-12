@@ -4,6 +4,11 @@
 complete. E3-02 is the consumer; this report does **not** declare a retrieval-
 quality winner.
 
+**Update:** E3-02A created `e3-01-v2` after source review; see
+`benchmarks/retrieval-evidence/GOLD-AUDIT.md` and
+`rust/docs/e3-02a-independent-gold-and-attribution-20261112.md`. This document
+remains the E3-01 v1 record.
+
 **Branch:** `work/e3-01-retrieval-corpus-20261112`
 
 **Base:** `work/e2-integration-20261112` @ `96d543c`

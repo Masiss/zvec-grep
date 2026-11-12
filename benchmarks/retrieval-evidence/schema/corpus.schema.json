@@ -3,28 +3,84 @@
   "$id": "https://example.invalid/zvec-grep/e3-01/corpus.schema.json",
   "title": "E3-01 frozen corpus manifest",
   "type": "object",
-  "required": ["name", "version", "schema_version", "frozen_at", "repos", "files", "counts"],
+  "required": [
+    "name",
+    "version",
+    "schema_version",
+    "frozen_at",
+    "repos",
+    "files",
+    "counts"
+  ],
   "properties": {
-    "name": {"const": "e3-01-independent-retrieval-evidence"},
-    "version": {"const": "e3-01-v1"},
-    "schema_version": {"const": 1},
-    "frozen_at": {"type": "string", "format": "date"},
+    "name": {
+      "const": "e3-01-independent-retrieval-evidence"
+    },
+    "version": {
+      "const": "e3-01-v2"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "frozen_at": {
+      "type": "string",
+      "format": "date"
+    },
     "repos": {
       "type": "array",
       "minItems": 3,
       "items": {
         "type": "object",
-        "required": ["id", "url", "revision", "tag", "license", "license_path", "subset", "excluded", "tarball_sha256"],
+        "required": [
+          "id",
+          "url",
+          "revision",
+          "tag",
+          "license",
+          "license_path",
+          "subset",
+          "excluded",
+          "tarball_sha256"
+        ],
         "properties": {
-          "id": {"enum": ["dapper", "newtonsoft", "antlr"]},
-          "url": {"type": "string", "format": "uri"},
-          "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-          "tag": {"type": "string"},
-          "license": {"enum": ["Apache-2.0", "MIT", "BSD-3-Clause"]},
-          "license_path": {"type": "string"},
-          "subset": {"type": "string"},
-          "excluded": {"type": "string"},
-          "tarball_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          "id": {
+            "enum": [
+              "dapper",
+              "newtonsoft",
+              "antlr"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "license": {
+            "enum": [
+              "Apache-2.0",
+              "MIT",
+              "BSD-3-Clause"
+            ]
+          },
+          "license_path": {
+            "type": "string"
+          },
+          "subset": {
+            "type": "string"
+          },
+          "excluded": {
+            "type": "string"
+          },
+          "tarball_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
         }
       }
     },
@@ -32,22 +88,51 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["path", "sha256", "bytes", "lines"],
+        "required": [
+          "path",
+          "sha256",
+          "bytes",
+          "lines"
+        ],
         "properties": {
-          "path": {"type": "string"},
-          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-          "bytes": {"type": "integer", "minimum": 1},
-          "lines": {"type": "integer", "minimum": 1}
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1
+          }
         }
       }
     },
     "counts": {
       "type": "object",
-      "required": ["files", "lines", "repos"],
+      "required": [
+        "files",
+        "lines",
+        "repos"
+      ],
       "properties": {
-        "files": {"type": "integer", "minimum": 1},
-        "lines": {"type": "integer", "minimum": 1},
-        "repos": {"type": "integer", "minimum": 1}
+        "files": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "repos": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     }
   }

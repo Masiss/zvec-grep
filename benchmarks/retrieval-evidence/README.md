@@ -8,6 +8,9 @@ retrieval outputs.
 
 ## 1. What is frozen
 
+The current dataset is **v2**. See `GOLD-AUDIT.md` for the v1→v2 errata;
+v1 remains under `dataset/archive/v1/`.
+
 | Repository | Revision | Tag | License | Included subset | Files |
 |---|---|---|---|---|---|
 | Dapper | `eb47546a408bbf6c178bda4f04dc205bc51ffbfe` | 2.1.89 | Apache-2.0 | `Dapper/` core | 51 |
@@ -53,7 +56,7 @@ noise and, for no-answer questions, would make absence claims ambiguous.
 
 ## 3. Query set
 
-**32 queries / 27 answerable / 5 no-answer.** Categories:
+**32 queries / 27 answerable / 5 no-answer (v2), 54 evidence anchors.** Categories:
 
 | Category | Count | What it asks for |
 |---|---:|---|
@@ -77,7 +80,7 @@ behavioral paraphrases, and hybrid-favorable cross-file/call-flow questions.
 No-answer scopes are explicit (`dapper/`, `newtonsoft/`, `antlr/`) and backed by
 regex absence checks over the frozen files.
 
-Leakage is annotated from the question text and gold symbols: 9 queries intentionally contain an identifier; 23 do not. Use this field to report leakage-stratified results; do not infer it from retrieval scores.
+Leakage is annotated from the question text and gold symbols: 8 queries intentionally contain an identifier; 24 do not. Use this field to report leakage-stratified results; do not infer it from retrieval scores.
 E3-02 should report both overall and leakage-stratified metrics.
 
 ### Evidence and hard negatives
@@ -136,7 +139,7 @@ CARGO_TARGET_DIR=/external/target cargo build --release
 cd ..
 tools/run_harness.sh index --root=/external/work/corpus \
   --cache=/external/model-cache --rebuild=true \
-  --model=local/potion-code-16m-v2
+  --model=local/embeddinggemma-300m
 
 tools/run_harness.sh query --root=/external/work/corpus \
   --cache=/external/model-cache --dataset=dataset/queries.json \
@@ -146,6 +149,13 @@ python3 tools/evaluate.py --dataset=dataset/queries.json \
   --results=/external/receipts/hybrid.json \
   --output=/external/receipts/hybrid-report.json \
   --markdown=/external/receipts/hybrid-report.md
+
+# Optional fixed-order repeated baseline (3 runs per route):
+tools/run_matrix.sh /external/work/corpus /external/model-cache \
+  /external/receipts/matrix local/embeddinggemma-300m 3 dataset/queries.json
+python3 tools/aggregate_matrix.py --dataset=dataset/queries.json \
+  --matrix-dir=/external/receipts/matrix \
+  --output=/external/receipts/matrix-summary.json
 ```
 
 Routes are explicit (`fts`, `vector`, `hybrid`, `hybrid-symbol`). The harness
@@ -173,7 +183,9 @@ does not alter the index between routes and returns only public context items.
 
 ```
 THIRD_PARTY.md            source attribution and license references
-dataset/queries.json       frozen queries + evidence + hard negatives
+dataset/queries.json       frozen v2 queries + evidence + hard negatives
+GOLD-AUDIT.md              v1→v2 errata and per-query source audit
+dataset/archive/v1/        preserved v1 manifest and files
 dataset/corpus.json        source provenance and per-file hashes
 dataset/manifest.json      SHA-256 bindings
 schema/*.json              JSON Schema for query, corpus, and run results
@@ -181,6 +193,9 @@ tools/build_dataset.py     source-only builder (no retrieval calls)
 tools/validate.py          checksum/range/group/absence validator
 tools/evaluate.py          deterministic scoring and bootstrap CIs
 tools/selftest.py          synthetic metric assertions
+tools/attribute.py         FTS/vector overlap and declaration-type attribution
+tools/aggregate_matrix.py  repeated-run variance and route aggregation
+tools/run_matrix.sh        fixed-order repeated route runner
 tools/requirements.txt     validator dependency
 tools/run_harness.sh       native-library wrapper
 harness/                   minimal public-API Rust runner

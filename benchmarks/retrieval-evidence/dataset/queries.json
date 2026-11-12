@@ -1,11 +1,11 @@
 {
-  "dataset": "e3-01-v1",
+  "dataset": "e3-01-v2",
   "schema_version": 1,
   "queries": [
     {
       "id": "dapper-01-query-buffered",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "exact_symbol",
       "question": "Find the synchronous Query<T> overload that materializes a plain SQL result set and returns it as a sequence, with the buffered flag controlling eager consumption.",
       "intent": "Locate the implementation entry point an agent would open to understand Query<T> buffering.",
@@ -61,7 +61,7 @@
     {
       "id": "dapper-02-column-name-map",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "nl_implementation",
       "question": "When a database column name differs from the C# member only by letter case or underscores, how does row materialization still find the right member?",
       "intent": "Find the case/underscore fallback used by the default type map.",
@@ -132,7 +132,7 @@
     {
       "id": "dapper-03-string-param-size",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "hardcoded_value",
       "question": "If a caller wraps a short string in DbString without setting a length, what size is assigned to the provider parameter, and which constant controls it?",
       "intent": "Extract the default string parameter size behavior.",
@@ -203,7 +203,7 @@
     {
       "id": "dapper-04-bypass-plan-cache",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "configuration",
       "question": "Which command flag prevents a query from using the cached execution plan?",
       "intent": "Locate the public flag and the cache-bypass behavior.",
@@ -274,7 +274,7 @@
     {
       "id": "dapper-05-type-map-selection",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "cross_file",
       "question": "How does a row-materialization call decide which ITypeMap to use, and where is the default implementation?",
       "intent": "Connect the public type-map lookup to the default mapper.",
@@ -282,7 +282,7 @@
       "leakage": "identifier",
       "evidence": [
         {
-          "group": "primary",
+          "group": "lookup",
           "path": "dapper/Dapper/SqlMapper.cs",
           "start_line": 3271,
           "end_line": 3290,
@@ -295,7 +295,7 @@
           "id": "dapper-05-type-map-selection-e1"
         },
         {
-          "group": "supporting",
+          "group": "default_constructor",
           "path": "dapper/Dapper/DefaultTypeMap.cs",
           "start_line": 21,
           "end_line": 29,
@@ -306,18 +306,33 @@
           "content_sha256": "c027bd44a2755f3110da1517968c4bbb47972898ff1a96a1fb7b3690792ec480",
           "preview": "        public DefaultTypeMap(Type type)         {             if (type is null)                 throw new ArgumentNullException(nameof(type));              _fields = GetSettableFields(type);             Properties = GetSettableProps(type);",
           "id": "dapper-05-type-map-selection-e2"
+        },
+        {
+          "group": "default_provider",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 3263,
+          "end_line": 3263,
+          "symbol": "SqlMapper.TypeMapProvider",
+          "role": "supporting",
+          "rationale": "Installs DefaultTypeMap as the default provider.",
+          "confidence": "high",
+          "content_sha256": "fa0f1870ac125576d4525b3e740b5e9c7f630d83e415f44c288f38c1132a1abb",
+          "preview": "        public static Func<Type, ITypeMap> TypeMapProvider = (Type type) => new DefaultTypeMap(type); ",
+          "id": "dapper-05-type-map-selection-e3"
         }
       ],
       "hard_negatives": [],
       "absence_checks": [],
       "solved_when": {
         "required_groups": [
-          "primary",
-          "supporting"
+          "lookup",
+          "default_constructor",
+          "default_provider"
         ],
         "required_anchor_ids": [
           "dapper-05-type-map-selection-e1",
-          "dapper-05-type-map-selection-e2"
+          "dapper-05-type-map-selection-e2",
+          "dapper-05-type-map-selection-e3"
         ],
         "min_primary_evidence": 1
       },
@@ -331,7 +346,7 @@
     {
       "id": "dapper-06-literal-substitution",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "sql_database",
       "question": "How are literal placeholders such as {=name} replaced before a command is executed?",
       "intent": "Find the literal-token parser and replacement routine.",
@@ -402,7 +417,7 @@
     {
       "id": "dapper-07-multimap-split-default",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "hardcoded_value",
       "question": "What column name does multi-mapping use by default to split a joined row into the first and second objects?",
       "intent": "Identify the default splitOn value in the public multi-map overload.",
@@ -458,7 +473,7 @@
     {
       "id": "dapper-08-async-cancellation",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "data_flow",
       "question": "When an async command supplies a cancellation token, where is it passed into ADO.NET opening and reader operations?",
       "intent": "Trace the cancellation token through the async execution path.",
@@ -515,7 +530,7 @@
     {
       "id": "dapper-09-buffered-false",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "docs_vs_impl",
       "question": "What actually happens when Query<T> is called with buffered set to false, as opposed to the eager path?",
       "intent": "Distinguish the deferred iterator from the eager implementation.",
@@ -586,7 +601,7 @@
     {
       "id": "dapper-10-no-copy-encoding",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "no_answer",
       "question": "Does this corpus implement PostgreSQL binary COPY encoding or a COPY stream writer for bulk export?",
       "intent": "Check that Dapper's included core does not contain the out-of-scope provider-tools COPY implementation.",
@@ -635,7 +650,7 @@
     {
       "id": "dapper-12-no-connection-pool",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "no_answer",
       "question": "Does Dapper's core implement connection pooling or manage a reusable pool of ADO.NET connections?",
       "intent": "Check that pooling remains an ADO.NET provider concern and is absent from the frozen core.",
@@ -684,7 +699,7 @@
     {
       "id": "newtonsoft-01-camel-case",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "exact_symbol",
       "question": "Which method turns a C# property name into camelCase when the camel-case naming strategy is selected?",
       "intent": "Locate the naming strategy override.",
@@ -740,7 +755,7 @@
     {
       "id": "newtonsoft-02-ignore-defaults",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "nl_implementation",
       "question": "How can a serializer omit members whose value equals the C# default, and where is that decision made while writing an object?",
       "intent": "Find the setting and the writer-side value comparison.",
@@ -811,7 +826,7 @@
     {
       "id": "newtonsoft-03-max-depth",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "hardcoded_value",
       "question": "What is the serializer's default maximum nesting depth when the caller does not override it?",
       "intent": "Extract the built-in default depth constant.",
@@ -882,7 +897,7 @@
     {
       "id": "newtonsoft-04-settings-to-contract",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "configuration_flow",
       "question": "How do serializer settings such as the contract resolver and default value handling reach the object being serialized?",
       "intent": "Trace settings into the serializer and contract resolver.",
@@ -969,7 +984,7 @@
     {
       "id": "newtonsoft-05-enum-as-string",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "serialization",
       "question": "How is an enum written as its symbolic name rather than its numeric value?",
       "intent": "Locate the converter that serializes enum names.",
@@ -1025,7 +1040,7 @@
     {
       "id": "newtonsoft-06-nan-infinity",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "serialization",
       "question": "What happens when a float or double being written is NaN or infinity, and which setting controls the output form?",
       "intent": "Trace the float writer and the FloatFormatHandling policy.",
@@ -1082,7 +1097,7 @@
     {
       "id": "newtonsoft-07-linq-property-case",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "linq",
       "question": "How can a JObject child property be looked up with a case-insensitive comparison?",
       "intent": "Find the JObject property overload with StringComparison.",
@@ -1138,7 +1153,7 @@
     {
       "id": "newtonsoft-08-iso-date-format",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "hardcoded_value",
       "question": "What exact format string does the ISO date converter use when no custom format is supplied?",
       "intent": "Extract the default ISO date format literal.",
@@ -1194,7 +1209,7 @@
     {
       "id": "newtonsoft-09-preserve-references",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "serialization",
       "question": "How are object references preserved during serialization so that repeated objects become identifiers instead of duplicated JSON?",
       "intent": "Find the reference-writing path and its settings flag.",
@@ -1265,7 +1280,7 @@
     {
       "id": "newtonsoft-10-no-msgpack",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "no_answer",
       "question": "Does this corpus contain a MessagePack serializer or MessagePack wire-format support?",
       "intent": "Verify that only JSON/BSON-oriented serialization is present in the selected subset.",
@@ -1314,7 +1329,7 @@
     {
       "id": "newtonsoft-12-no-yaml",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "no_answer",
       "question": "Does this corpus contain a YAML serializer or YAML wire-format support?",
       "intent": "Verify that the selected Newtonsoft subset supports JSON-family formats but not YAML.",
@@ -1363,7 +1378,7 @@
     {
       "id": "antlr-01-adaptive-predict",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "exact_symbol",
       "question": "Where does the parser simulator choose the next alternative using adaptive prediction?",
       "intent": "Locate the AdaptivePredict implementation.",
@@ -1419,7 +1434,7 @@
     {
       "id": "antlr-02-bail-on-error",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "nl_implementation",
       "question": "Which error strategy aborts parsing immediately instead of attempting recovery, and how does it do that?",
       "intent": "Find the bail strategy's Recover override.",
@@ -1475,7 +1490,7 @@
     {
       "id": "antlr-03-invalid-state-number",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "hardcoded_value",
       "question": "What sentinel state number marks an ATN state as invalid or unassigned?",
       "intent": "Extract the ATNState constant.",
@@ -1531,7 +1546,7 @@
     {
       "id": "antlr-04-parser-recovery",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "cross_file",
       "question": "When generated parser code encounters a recognition error, how is recovery delegated to the configured strategy, and which strategy is installed by default?",
       "intent": "Connect parser error-handler delegation to the default strategy without claiming a Parser.Recover method.",
@@ -1552,17 +1567,30 @@
           "id": "antlr-04-parser-recovery-e1"
         },
         {
-          "group": "delegation",
+          "group": "delegation_call",
+          "path": "antlr/Runtime/Parser.cs",
+          "start_line": 246,
+          "end_line": 246,
+          "symbol": "Parser.Match delegation",
+          "role": "supporting",
+          "rationale": "The parser's Match path calls the configured error strategy with the current token type.",
+          "confidence": "high",
+          "content_sha256": "d781764e1b30389c12598964bff015ba97a6a7b73936de40e49f0d09f9d530aa",
+          "preview": "                t = _errHandler.RecoverInline(this); ",
+          "id": "antlr-04-parser-recovery-e2"
+        },
+        {
+          "group": "delegation_config",
           "path": "antlr/Runtime/Parser.cs",
           "start_line": 621,
           "end_line": 632,
           "symbol": "Parser.ErrorHandler",
           "role": "supporting",
-          "rationale": "Exposes the strategy used by generated parser code and allows replacement.",
+          "rationale": "Exposes the configured strategy for replacement.",
           "confidence": "high",
           "content_sha256": "6605ce585999baad1fd1dd422ecadfdcda2ca8236873bbbab201bec70431b359",
           "preview": "        public virtual IAntlrErrorStrategy ErrorHandler         {             get             {                 return _errHandler;             }             set             {                 IAntlrErrorStrategy handler = value;            ",
-          "id": "antlr-04-parser-recovery-e2"
+          "id": "antlr-04-parser-recovery-e3"
         },
         {
           "group": "recovery_behavior",
@@ -1575,7 +1603,7 @@
           "confidence": "high",
           "content_sha256": "979a6eb6874f2ff9e8519c84670f89453169b43a8b7cc6826d813b913c79e736",
           "preview": "        public virtual void Recover(Parser recognizer, RecognitionException e)         {             //\t\tSystem.out.println(\"recover in \"+recognizer.getRuleInvocationStack()+             //\t\t\t\t\t\t   \" index=\"+recognizer.getInputStream().inde",
-          "id": "antlr-04-parser-recovery-e3"
+          "id": "antlr-04-parser-recovery-e4"
         }
       ],
       "hard_negatives": [],
@@ -1583,13 +1611,15 @@
       "solved_when": {
         "required_groups": [
           "default_strategy",
-          "delegation",
+          "delegation_call",
+          "delegation_config",
           "recovery_behavior"
         ],
         "required_anchor_ids": [
           "antlr-04-parser-recovery-e1",
           "antlr-04-parser-recovery-e2",
-          "antlr-04-parser-recovery-e3"
+          "antlr-04-parser-recovery-e3",
+          "antlr-04-parser-recovery-e4"
         ],
         "min_primary_evidence": 1
       },
@@ -1603,7 +1633,7 @@
     {
       "id": "antlr-05-atn-deserialize",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "serialization",
       "question": "How is a serialized ATN represented as integer data turned back into runtime ATN states and rules?",
       "intent": "Locate the ATN deserialization entry point.",
@@ -1645,7 +1675,7 @@
     {
       "id": "antlr-06-interval-complement",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "data_structure",
       "question": "How does IntervalSet compute the complement of a token or character range?",
       "intent": "Find the complement implementation.",
@@ -1687,7 +1717,7 @@
     {
       "id": "antlr-07-multihop-error",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "multi_hop",
       "question": "Contrast the two error-recovery paths: how inline recovery supplies a missing token, and how rule-level recovery resynchronizes input and reports diagnostics.",
       "intent": "Requires the inline recovery path, rule-level synchronization, and listener notification as separate pieces, not one causal chain.",
@@ -1759,7 +1789,7 @@
     {
       "id": "antlr-08-no-left-recursion",
       "corpus": "antlr",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "no_answer",
       "question": "Does the C# runtime in this corpus eliminate left recursion or rewrite grammar rules?",
       "intent": "Verify that left-recursion elimination belongs to the tool/generator, not the selected runtime.",
@@ -1803,7 +1833,7 @@
     {
       "id": "dapper-11-parameter-flow",
       "corpus": "dapper",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "multi_hop",
       "question": "Trace how a named value added to DynamicParameters becomes provider parameters, including type and size handling.",
       "intent": "Requires the public Add path, ParamInfo storage, and AddParameters projection.",
@@ -1875,7 +1905,7 @@
     {
       "id": "newtonsoft-11-property-name-flow",
       "corpus": "newtonsoft",
-      "corpus_revision": "e3-01-v1",
+      "corpus_revision": "e3-01-v2",
       "category": "multi_hop",
       "question": "Trace how a JsonProperty attribute's explicit property name reaches the contract used by the writer.",
       "intent": "Requires attribute metadata, contract-property creation, and writer name emission.",
@@ -1898,15 +1928,28 @@
         {
           "group": "contract_property",
           "path": "newtonsoft/Newtonsoft.Json/Serialization/DefaultContractResolver.cs",
-          "start_line": 1499,
-          "end_line": 1507,
-          "symbol": "DefaultContractResolver property name",
+          "start_line": 1533,
+          "end_line": 1533,
+          "symbol": "DefaultContractResolver property name assignment",
           "role": "supporting",
-          "rationale": "Copies the explicit attribute name into the contract property.",
+          "rationale": "Assigns the resolved name to the contract property.",
           "confidence": "high",
-          "content_sha256": "e588333c0c17f41184fc0a926a2ad34456982ce97ae7bac004570cd6c3faf5ae",
-          "preview": "                mappedName = propertyAttribute.PropertyName;                 hasSpecifiedName = true;             } #if HAVE_DATA_CONTRACTS             else if (dataMemberAttribute?.Name != null)             {                 mappedName = d",
+          "content_sha256": "ba994e3b696b41eee37fb5bc0d8bfc323f6bdd1cb5e12865cb2502ed691b3904",
+          "preview": "                property.PropertyName = namingStrategy.GetPropertyName(mappedName, hasSpecifiedName); ",
           "id": "newtonsoft-11-property-name-flow-e2"
+        },
+        {
+          "group": "attribute_name",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/DefaultContractResolver.cs",
+          "start_line": 1499,
+          "end_line": 1499,
+          "symbol": "DefaultContractResolver mapped name",
+          "role": "supporting",
+          "rationale": "Takes the explicit attribute name into the local mapped name; the assignment above reaches the contract.",
+          "confidence": "high",
+          "content_sha256": "2b87e75a2a19d9c42af4e086d308a65d910d76903440fd7fee66c10407910212",
+          "preview": "                mappedName = propertyAttribute.PropertyName; ",
+          "id": "newtonsoft-11-property-name-flow-e3"
         },
         {
           "group": "json_emission",
@@ -1919,7 +1962,7 @@
           "confidence": "high",
           "content_sha256": "7d31c1e673f260cce0fc6e05658b798f210e976f09ced8cabddb948919a7065b",
           "preview": "                    property.WritePropertyName(writer); ",
-          "id": "newtonsoft-11-property-name-flow-e3"
+          "id": "newtonsoft-11-property-name-flow-e4"
         }
       ],
       "hard_negatives": [],
@@ -1927,13 +1970,15 @@
       "solved_when": {
         "required_groups": [
           "attribute",
+          "attribute_name",
           "contract_property",
           "json_emission"
         ],
         "required_anchor_ids": [
           "newtonsoft-11-property-name-flow-e1",
           "newtonsoft-11-property-name-flow-e2",
-          "newtonsoft-11-property-name-flow-e3"
+          "newtonsoft-11-property-name-flow-e3",
+          "newtonsoft-11-property-name-flow-e4"
         ],
         "min_primary_evidence": 1
       },

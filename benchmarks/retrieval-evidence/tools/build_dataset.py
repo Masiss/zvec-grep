@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
-DATASET_VERSION = "e3-01-v1"
+DATASET_VERSION = "e3-01-v2"
 SCHEMA_VERSION = 1
 FROZEN_AT = "2026-11-12"
 
@@ -334,10 +334,12 @@ def build_queries(source: Path) -> list[dict]:
         "How does a row-materialization call decide which ITypeMap to use, and where is the default implementation?",
         "Connect the public type-map lookup to the default mapper.",
         [
-            A("dapper/Dapper/SqlMapper.cs", "public static ITypeMap GetTypeMap(Type type)", "SqlMapper.GetTypeMap", "primary", "Resolves an explicit or default type map."),
-            A("dapper/Dapper/DefaultTypeMap.cs", "public DefaultTypeMap(Type type)", "DefaultTypeMap(Type)", "supporting", "Constructs the default mapper for a CLR type."),
+            A("dapper/Dapper/SqlMapper.cs", "public static ITypeMap GetTypeMap(Type type)", "SqlMapper.GetTypeMap", "primary", "Resolves an explicit or default type map.", group="lookup"),
+            A("dapper/Dapper/DefaultTypeMap.cs", "public DefaultTypeMap(Type type)", "DefaultTypeMap(Type)", "supporting", "Constructs the default mapper for a CLR type.", group="default_constructor"),
+            A("dapper/Dapper/SqlMapper.cs", "public static Func<Type, ITypeMap> TypeMapProvider = (Type type) => new DefaultTypeMap(type);", "SqlMapper.TypeMapProvider", "supporting", "Installs DefaultTypeMap as the default provider.", group="default_provider", scope="line"),
         ],
         leakage="identifier",
+        required_groups=["lookup", "default_constructor", "default_provider"],
     ))
     queries.append(q(
         "dapper-06-literal-substitution", "dapper", "sql_database",
@@ -545,10 +547,11 @@ def build_queries(source: Path) -> list[dict]:
         "Connect parser error-handler delegation to the default strategy without claiming a Parser.Recover method.",
         [
             A("antlr/Runtime/Parser.cs", "private IAntlrErrorStrategy _errHandler = new DefaultErrorStrategy();", "Parser._errHandler", "primary", "Installs DefaultErrorStrategy when a parser is constructed.", group="default_strategy", scope="line"),
-            A("antlr/Runtime/Parser.cs", "public virtual IAntlrErrorStrategy ErrorHandler", "Parser.ErrorHandler", "supporting", "Exposes the strategy used by generated parser code and allows replacement.", group="delegation"),
+            A("antlr/Runtime/Parser.cs", "t = _errHandler.RecoverInline(this);", "Parser.Match delegation", "supporting", "The parser's Match path calls the configured error strategy with the current token type.", group="delegation_call", scope="line"),
+            A("antlr/Runtime/Parser.cs", "public virtual IAntlrErrorStrategy ErrorHandler", "Parser.ErrorHandler", "supporting", "Exposes the configured strategy for replacement.", group="delegation_config"),
             A("antlr/Runtime/DefaultErrorStrategy.cs", "public virtual void Recover(Parser recognizer, RecognitionException e)", "DefaultErrorStrategy.Recover", "supporting", "Implements the default rule-level recovery behavior.", group="recovery_behavior"),
         ],
-        required_groups=["default_strategy", "delegation", "recovery_behavior"],
+        required_groups=["default_strategy", "delegation_call", "delegation_config", "recovery_behavior"],
     ))
     queries.append(q(
         "antlr-05-atn-deserialize", "antlr", "serialization",
@@ -605,10 +608,11 @@ def build_queries(source: Path) -> list[dict]:
         "Requires attribute metadata, contract-property creation, and writer name emission.",
         [
             A("newtonsoft/Newtonsoft.Json/JsonPropertyAttribute.cs", "public string? PropertyName", "JsonPropertyAttribute.PropertyName", "primary", "Carries the explicit JSON name from the attribute.", group="attribute", scope="line"),
-            A("newtonsoft/Newtonsoft.Json/Serialization/DefaultContractResolver.cs", "mappedName = propertyAttribute.PropertyName", "DefaultContractResolver property name", "supporting", "Copies the explicit attribute name into the contract property.", group="contract_property"),
+            A("newtonsoft/Newtonsoft.Json/Serialization/DefaultContractResolver.cs", "property.PropertyName = namingStrategy.GetPropertyName(mappedName, hasSpecifiedName);", "DefaultContractResolver property name assignment", "supporting", "Assigns the resolved name to the contract property.", group="contract_property", scope="line"),
+            A("newtonsoft/Newtonsoft.Json/Serialization/DefaultContractResolver.cs", "mappedName = propertyAttribute.PropertyName;", "DefaultContractResolver mapped name", "supporting", "Takes the explicit attribute name into the local mapped name; the assignment above reaches the contract.", group="attribute_name", scope="line"),
             A("newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalWriter.cs", "property.WritePropertyName(writer);", "JsonSerializerInternalWriter property name", "supporting", "Writes using the resolved contract property name.", group="json_emission", scope="line"),
         ],
-        required_groups=["attribute", "contract_property", "json_emission"],
+        required_groups=["attribute", "attribute_name", "contract_property", "json_emission"],
     ))
     return queries
 

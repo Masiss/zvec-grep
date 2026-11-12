@@ -11,7 +11,7 @@
   ],
   "properties": {
     "dataset": {
-      "const": "e3-01-v1"
+      "const": "e3-01-v2"
     },
     "schema_version": {
       "const": 1
@@ -57,7 +57,7 @@
           ]
         },
         "corpus_revision": {
-          "const": "e3-01-v1"
+          "const": "e3-01-v2"
         },
         "category": {
           "enum": [

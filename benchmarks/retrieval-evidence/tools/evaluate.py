@@ -48,6 +48,7 @@ def ranked_hits(query: dict, items: list[dict], k: int) -> tuple[list[dict], set
 
 
 def query_metrics(query: dict, items: list[dict], latency_ms: float | None = None) -> dict:
+    items = sorted(items, key=lambda item: item.get("rank", 10**9))
     evidence = query.get("evidence", [])
     required = set(query.get("solved_when", {}).get("required_groups", []))
     result = {
