@@ -164,9 +164,12 @@ tools. Their blocking findings were repaired before this report:
   separate any-result rate;
 - added two scoped no-answer questions and exact/hard-coded hard negatives.
 
-Final re-audit/re-review verdicts are recorded in the commit message when they
-complete; see `benchmarks/retrieval-evidence/README.md` for the maintained
-contract.
+The repaired dataset passes the automated validator, schema checks, absence
+checks, deterministic rebuild, and metric selftest. A second full independent
+pass was started but did not complete within the review budget; no claim of a
+second independent PASS is made. Residual risk is therefore annotation judgment,
+not unchecked hashes or unexecuted negative checks. E3-02 should inspect any
+surprising query before attributing a score to the retriever.
 
 ## 6. Limitations
 
