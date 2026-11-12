@@ -1,0 +1,1948 @@
+{
+  "dataset": "e3-01-v1",
+  "schema_version": 1,
+  "queries": [
+    {
+      "id": "dapper-01-query-buffered",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "exact_symbol",
+      "question": "Find the synchronous Query<T> overload that materializes a plain SQL result set and returns it as a sequence, with the buffered flag controlling eager consumption.",
+      "intent": "Locate the implementation entry point an agent would open to understand Query<T> buffering.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 846,
+          "end_line": 851,
+          "symbol": "SqlMapper.Query<T>(string)",
+          "role": "primary",
+          "rationale": "Declares the buffered Query<T> overload and forwards to QueryImpl.",
+          "confidence": "high",
+          "content_sha256": "958eee840525a8459af3500f6c9fb2d77053890b44551d4270b7180ed6b5ec0e",
+          "preview": "        public static IEnumerable<T> Query<T>(this IDbConnection cnn, string sql, object? param = null, IDbTransaction? transaction = null, bool buffered = true, int? commandTimeout = null, CommandType? commandType = null)         {        ",
+          "id": "dapper-01-query-buffered-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 868,
+          "end_line": 872,
+          "symbol": "SqlMapper.QueryFirst<T>",
+          "role": "hard_negative",
+          "rationale": "Returns a single row; it does not materialize the full buffered sequence.",
+          "confidence": "high",
+          "content_sha256": "3136cbc74539a8dac53851fbf5f5244ad8cd364deea1d09d909638153d0c82af",
+          "preview": "        public static T QueryFirst<T>(this IDbConnection cnn, string sql, object? param = null, IDbTransaction? transaction = null, int? commandTimeout = null, CommandType? commandType = null)         {             var command = new Command",
+          "id": "dapper-01-query-buffered-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "dapper-01-query-buffered-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": "The API name is intentionally part of the task; keep separate from natural-language queries."
+    },
+    {
+      "id": "dapper-02-column-name-map",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "nl_implementation",
+      "question": "When a database column name differs from the C# member only by letter case or underscores, how does row materialization still find the right member?",
+      "intent": "Find the case/underscore fallback used by the default type map.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "dapper/Dapper/DefaultTypeMap.cs",
+          "start_line": 151,
+          "end_line": 183,
+          "symbol": "DefaultTypeMap.GetMember",
+          "role": "primary",
+          "rationale": "Implements exact, case-insensitive, underscore and suffix matching for a column.",
+          "confidence": "high",
+          "content_sha256": "44459fb7135c5dd315bcddcbf65bde9cec5c7ca70faebaedaaeae156b570ad9c",
+          "preview": "        public SqlMapper.IMemberMap? GetMember(string columnName)         {             var property = MatchFirstOrDefault(Properties, columnName, static p => p.Name);              if (property is not null)                 return new Simple",
+          "id": "dapper-02-column-name-map-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "dapper/Dapper/DefaultTypeMap.cs",
+          "start_line": 187,
+          "end_line": 187,
+          "symbol": "DefaultTypeMap.MatchNamesWithUnderscores",
+          "role": "supporting",
+          "rationale": "Controls the underscore fallback.",
+          "confidence": "high",
+          "content_sha256": "f8b42136621f9bd6330ce4ac132d438839f39bbcf7ea787dad032694ddb77097",
+          "preview": "        public static bool MatchNamesWithUnderscores { get; set; } ",
+          "id": "dapper-02-column-name-map-e2"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/CustomPropertyTypeMap.cs",
+          "start_line": 56,
+          "end_line": 60,
+          "symbol": "CustomPropertyTypeMap.GetMember",
+          "role": "hard_negative",
+          "rationale": "Explicit property map path; does not implement the default name fallback.",
+          "confidence": "high",
+          "content_sha256": "f23d97b501a43d6dbcc7c943224e3b453ae3b5b3c412a267f845469ed52a4483",
+          "preview": "        public SqlMapper.IMemberMap? GetMember(string columnName)         {             var prop = _propertySelector(_type, columnName);             return prop is not null ? new SimpleMemberMap(columnName, prop) : null;         } ",
+          "id": "dapper-02-column-name-map-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "dapper-02-column-name-map-e1",
+          "dapper-02-column-name-map-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "dapper-03-string-param-size",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "hardcoded_value",
+      "question": "If a caller wraps a short string in DbString without setting a length, what size is assigned to the provider parameter, and which constant controls it?",
+      "intent": "Extract the default string parameter size behavior.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "dapper/Dapper/DbString.cs",
+          "start_line": 91,
+          "end_line": 94,
+          "symbol": "DbString.AddParameters default size",
+          "role": "primary",
+          "rationale": "Uses DefaultLength when no explicit length was supplied and the value fits.",
+          "confidence": "high",
+          "content_sha256": "9ccd3617cf263e2a8e5e98c242e7494184b2c7350f216d331fe6e68d02a7d166",
+          "preview": "            if (Length == -1 && Value is not null && Value.Length <= DefaultLength)             {                 param.Size = DefaultLength;             } ",
+          "id": "dapper-03-string-param-size-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "dapper/Dapper/DbString.cs",
+          "start_line": 21,
+          "end_line": 21,
+          "symbol": "DbString.DefaultLength",
+          "role": "supporting",
+          "rationale": "Defines the concrete default size.",
+          "confidence": "high",
+          "content_sha256": "e7a9314e6fccd3ac0d1631a0ab4350f6d2721f40b99a70142f46f7b30772883a",
+          "preview": "        public const int DefaultLength = 4000; ",
+          "id": "dapper-03-string-param-size-e2"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/DbString.cs",
+          "start_line": 14,
+          "end_line": 14,
+          "symbol": "DbString.IsAnsiDefault",
+          "role": "hard_negative",
+          "rationale": "Selects ANSI encoding; it does not set the default parameter size.",
+          "confidence": "high",
+          "content_sha256": "85a195983d0c81eea085a93cdb302c2b0970dabac663de9724ce6039d1b366de",
+          "preview": "        public static bool IsAnsiDefault { get; set; } ",
+          "id": "dapper-03-string-param-size-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "dapper-03-string-param-size-e1",
+          "dapper-03-string-param-size-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "dapper-04-bypass-plan-cache",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "configuration",
+      "question": "Which command flag prevents a query from using the cached execution plan?",
+      "intent": "Locate the public flag and the cache-bypass behavior.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "dapper/Dapper/CommandFlags.cs",
+          "start_line": 26,
+          "end_line": 26,
+          "symbol": "CommandFlags.NoCache",
+          "role": "primary",
+          "rationale": "Declares the cache-bypass flag.",
+          "confidence": "high",
+          "content_sha256": "aa783cdffbd0ae6554b2050c93dfedf2d114840158d4b0807c641ac367efde32",
+          "preview": "        NoCache = 4, ",
+          "id": "dapper-04-bypass-plan-cache-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "dapper/Dapper/CommandDefinition.cs",
+          "start_line": 62,
+          "end_line": 62,
+          "symbol": "CommandDefinition.AddToCache",
+          "role": "supporting",
+          "rationale": "Derives cache eligibility from the NoCache flag.",
+          "confidence": "high",
+          "content_sha256": "ea69766d901fac9e2ae626632ca4062393d75533249ee50c2ddffbf7accacfc2",
+          "preview": "        internal bool AddToCache => (Flags & CommandFlags.NoCache) == 0; ",
+          "id": "dapper-04-bypass-plan-cache-e2"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/CommandFlags.cs",
+          "start_line": 22,
+          "end_line": 22,
+          "symbol": "CommandFlags.Pipelined",
+          "role": "hard_negative",
+          "rationale": "Controls async pipelining, not the plan cache.",
+          "confidence": "high",
+          "content_sha256": "d5c0eff87b94d58895b3095676ef34cb8ba7f2957ba368a9711dbf0f0c694283",
+          "preview": "        Pipelined = 2, ",
+          "id": "dapper-04-bypass-plan-cache-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "dapper-04-bypass-plan-cache-e1",
+          "dapper-04-bypass-plan-cache-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "dapper-05-type-map-selection",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "cross_file",
+      "question": "How does a row-materialization call decide which ITypeMap to use, and where is the default implementation?",
+      "intent": "Connect the public type-map lookup to the default mapper.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 3271,
+          "end_line": 3290,
+          "symbol": "SqlMapper.GetTypeMap",
+          "role": "primary",
+          "rationale": "Resolves an explicit or default type map.",
+          "confidence": "high",
+          "content_sha256": "9c841557ab1fdf7a1414da611c4a74d725414e396cb7b18ab0b7c67e3df3af02",
+          "preview": "        public static ITypeMap GetTypeMap(Type type)         {             if (type is null) throw new ArgumentNullException(nameof(type));             var map = (ITypeMap?)_typeMaps[type];             if (map is null)             {        ",
+          "id": "dapper-05-type-map-selection-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "dapper/Dapper/DefaultTypeMap.cs",
+          "start_line": 21,
+          "end_line": 29,
+          "symbol": "DefaultTypeMap(Type)",
+          "role": "supporting",
+          "rationale": "Constructs the default mapper for a CLR type.",
+          "confidence": "high",
+          "content_sha256": "c027bd44a2755f3110da1517968c4bbb47972898ff1a96a1fb7b3690792ec480",
+          "preview": "        public DefaultTypeMap(Type type)         {             if (type is null)                 throw new ArgumentNullException(nameof(type));              _fields = GetSettableFields(type);             Properties = GetSettableProps(type);",
+          "id": "dapper-05-type-map-selection-e2"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "dapper-05-type-map-selection-e1",
+          "dapper-05-type-map-selection-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "dapper-06-literal-substitution",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "sql_database",
+      "question": "How are literal placeholders such as {=name} replaced before a command is executed?",
+      "intent": "Find the literal-token parser and replacement routine.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 2430,
+          "end_line": 2434,
+          "symbol": "SqlMapper.ReplaceLiterals",
+          "role": "primary",
+          "rationale": "Public replacement entry point.",
+          "confidence": "high",
+          "content_sha256": "675b08b9f28ea0aa833c056c98de1c168264ebc9218a3b15ecee24081e3a931b",
+          "preview": "        public static void ReplaceLiterals(this IParameterLookup parameters, IDbCommand command)         {             var tokens = GetLiteralTokens(command.CommandText);             if (tokens.Count != 0) ReplaceLiterals(parameters, comman",
+          "id": "dapper-06-literal-substitution-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 2527,
+          "end_line": 2544,
+          "symbol": "SqlMapper.GetLiteralTokens",
+          "role": "supporting",
+          "rationale": "Parses literal tokens from SQL.",
+          "confidence": "high",
+          "content_sha256": "e4ddce8795ec9e07e0a4eebf283afa8d06f45938eeeb65ae3293913ca26a9a4e",
+          "preview": "        internal static IList<LiteralToken> GetLiteralTokens(string sql)         {             if (string.IsNullOrEmpty(sql)) return LiteralToken.None;             if (!CompiledRegex.LiteralTokens.IsMatch(sql)) return LiteralToken.None;    ",
+          "id": "dapper-06-literal-substitution-e2"
+        },
+        {
+          "group": "supporting",
+          "path": "dapper/Dapper/SqlMapper.LiteralToken.cs",
+          "start_line": 11,
+          "end_line": 30,
+          "symbol": "LiteralToken",
+          "role": "supporting",
+          "rationale": "Carries the parsed token and literal text.",
+          "confidence": "high",
+          "content_sha256": "1915c1100dd294435342944ba5ef94fdc48193f3f7d15010b056f533c81a416d",
+          "preview": "        internal readonly struct LiteralToken         {             /// <summary>             /// The text in the original command that should be replaced             /// </summary>             public string Token { get; }              /// ",
+          "id": "dapper-06-literal-substitution-e3"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "dapper-06-literal-substitution-e1",
+          "dapper-06-literal-substitution-e2",
+          "dapper-06-literal-substitution-e3"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "dapper-07-multimap-split-default",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "hardcoded_value",
+      "question": "What column name does multi-mapping use by default to split a joined row into the first and second objects?",
+      "intent": "Identify the default splitOn value in the public multi-map overload.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 1432,
+          "end_line": 1432,
+          "symbol": "SqlMapper.Query<TFirst,TSecond,TReturn> splitOn",
+          "role": "primary",
+          "rationale": "The default split column is the literal Id.",
+          "confidence": "high",
+          "content_sha256": "6e52de12f15b5dfa4ee78a06db967a89017901fcccddf4cc0ee97d0aae10fd44",
+          "preview": "        public static IEnumerable<TReturn> Query<TFirst, TSecond, TReturn>(this IDbConnection cnn, string sql, Func<TFirst, TSecond, TReturn> map, object? param = null, IDbTransaction? transaction = null, bool buffered = true, string splitO",
+          "id": "dapper-07-multimap-split-default-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 1587,
+          "end_line": 1646,
+          "symbol": "SqlMapper.MultiMapImpl",
+          "role": "hard_negative",
+          "rationale": "Consumes an explicit splitOn value; it does not define the default.",
+          "confidence": "high",
+          "content_sha256": "8e64070362eecdc98ae20f8d3a25fcf23523937b6bb80075dccec210365b5aa4",
+          "preview": "        private static IEnumerable<TReturn> MultiMapImpl<TFirst, TSecond, TThird, TFourth, TFifth, TSixth, TSeventh, TReturn>(this IDbConnection? cnn, CommandDefinition command, Delegate map, string splitOn, DbDataReader? reader, Identity? ",
+          "id": "dapper-07-multimap-split-default-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "dapper-07-multimap-split-default-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "dapper-08-async-cancellation",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "data_flow",
+      "question": "When an async command supplies a cancellation token, where is it passed into ADO.NET opening and reader operations?",
+      "intent": "Trace the cancellation token through the async execution path.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "query_path",
+          "path": "dapper/Dapper/SqlMapper.Async.cs",
+          "start_line": 422,
+          "end_line": 475,
+          "symbol": "SqlMapper.QueryAsync<T>",
+          "role": "primary",
+          "rationale": "Captures the command token and passes it to connection opening and reader calls.",
+          "confidence": "high",
+          "content_sha256": "d61386452acde955d0309dde354c4d510ad049c5428846a3a04c9c2e4849a8d1",
+          "preview": "        private static async Task<IEnumerable<T>> QueryAsync<T>(this IDbConnection cnn, Type effectiveType, CommandDefinition command)         {             object? param = command.Parameters;             var identity = new Identity(command",
+          "id": "dapper-08-async-cancellation-e1"
+        },
+        {
+          "group": "reader_call",
+          "path": "dapper/Dapper/SqlMapper.Async.cs",
+          "start_line": 382,
+          "end_line": 390,
+          "symbol": "SqlMapper.ExecuteReaderWithFlagsFallbackAsync",
+          "role": "supporting",
+          "rationale": "Forwards the token to DbCommand.ExecuteReaderAsync.",
+          "confidence": "high",
+          "content_sha256": "6cb6aa91c226cfff86d5938c9f7411d71b86ce3a92620b5308e6f1fe10209fd6",
+          "preview": "        private static Task<DbDataReader> ExecuteReaderWithFlagsFallbackAsync(DbCommand cmd, bool wasClosed, CommandBehavior behavior, CancellationToken cancellationToken)         {             var task = cmd.ExecuteReaderAsync(GetBehavior(",
+          "id": "dapper-08-async-cancellation-e2"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "query_path",
+          "reader_call"
+        ],
+        "required_anchor_ids": [
+          "dapper-08-async-cancellation-e1",
+          "dapper-08-async-cancellation-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": "The supporting anchor is a single call-site line; the evaluator should match the containing candidate, not require the line itself to be a chunk."
+    },
+    {
+      "id": "dapper-09-buffered-false",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "docs_vs_impl",
+      "question": "What actually happens when Query<T> is called with buffered set to false, as opposed to the eager path?",
+      "intent": "Distinguish the deferred iterator from the eager implementation.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "implementation",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 1204,
+          "end_line": 1265,
+          "symbol": "SqlMapper.QueryImpl<T>",
+          "role": "primary",
+          "rationale": "Chooses between eager and deferred row consumption.",
+          "confidence": "high",
+          "content_sha256": "243910ed77f9286df7f6e2c8a474d0b536e42e9df53698673241e64103cccb22",
+          "preview": "        private static IEnumerable<T> QueryImpl<T>(this IDbConnection cnn, CommandDefinition command, Type effectiveType)         {             object? param = command.Parameters;             var identity = new Identity(command.CommandText,",
+          "id": "dapper-09-buffered-false-e1"
+        },
+        {
+          "group": "selection",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 850,
+          "end_line": 850,
+          "symbol": "SqlMapper.Query<T> buffered branch",
+          "role": "supporting",
+          "rationale": "The buffered flag selects eager ToList materialization versus the deferred iterator.",
+          "confidence": "high",
+          "content_sha256": "8b364c789f9adeeec966a56b62c15eebb33df5f10e36eb63b032318cf0b6942f",
+          "preview": "            return command.Buffered ? data.ToList() : data; ",
+          "id": "dapper-09-buffered-false-e2"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 910,
+          "end_line": 914,
+          "symbol": "SqlMapper.QuerySingle<T>",
+          "role": "hard_negative",
+          "rationale": "Returns one row eagerly; it is not the deferred full-result behavior controlled by buffered=false.",
+          "confidence": "high",
+          "content_sha256": "3d3ac3cff717ab14a07d85454f9f7ffc13740355ba293141bfb866746b8c5d0a",
+          "preview": "        public static T QuerySingle<T>(this IDbConnection cnn, string sql, object? param = null, IDbTransaction? transaction = null, int? commandTimeout = null, CommandType? commandType = null)         {             var command = new Comman",
+          "id": "dapper-09-buffered-false-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "implementation",
+          "selection"
+        ],
+        "required_anchor_ids": [
+          "dapper-09-buffered-false-e1",
+          "dapper-09-buffered-false-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "dapper-10-no-copy-encoding",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "no_answer",
+      "question": "Does this corpus implement PostgreSQL binary COPY encoding or a COPY stream writer for bulk export?",
+      "intent": "Check that Dapper's included core does not contain the out-of-scope provider-tools COPY implementation.",
+      "answerable": false,
+      "leakage": "none",
+      "evidence": [],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/DbString.cs",
+          "start_line": 99,
+          "end_line": 103,
+          "symbol": "DbString.DbType assignment",
+          "role": "hard_negative",
+          "rationale": "Selects string DbType values; it is not binary COPY encoding.",
+          "confidence": "high",
+          "content_sha256": "58235589839d9680995d76cbaa0b13533ff937727b8431bb41b30c695aebc784",
+          "preview": "            param.DbType = IsAnsi ? (IsFixedLength ? DbType.AnsiStringFixedLength : DbType.AnsiString) : (IsFixedLength ? DbType.StringFixedLength : DbType.String);             if (add)             {                 command.Parameters.Add(p",
+          "id": "dapper-10-no-copy-encoding-n1"
+        }
+      ],
+      "absence_checks": [
+        {
+          "pattern": "BinaryCopy|COPY\\s+.*BINARY|NpgsqlBinaryImporter",
+          "scope": "dapper/",
+          "expected_matches": 0
+        },
+        {
+          "pattern": "class\\s+\\w*Copy\\w*",
+          "scope": "dapper/",
+          "expected_matches": 0
+        }
+      ],
+      "solved_when": {
+        "required_groups": [],
+        "min_primary_evidence": 0,
+        "max_false_positives": 0
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": "ProviderTools was deliberately excluded; absence is scoped to the frozen corpus, not the upstream project."
+    },
+    {
+      "id": "dapper-12-no-connection-pool",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "no_answer",
+      "question": "Does Dapper's core implement connection pooling or manage a reusable pool of ADO.NET connections?",
+      "intent": "Check that pooling remains an ADO.NET provider concern and is absent from the frozen core.",
+      "answerable": false,
+      "leakage": "none",
+      "evidence": [],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "dapper/Dapper/SqlMapper.Settings.cs",
+          "start_line": 76,
+          "end_line": 76,
+          "symbol": "SqlMapper.Settings.CommandTimeout",
+          "role": "hard_negative",
+          "rationale": "Configures command timeout; it does not pool or own connections.",
+          "confidence": "high",
+          "content_sha256": "f62d4f8411ddbd5e864c5d8025432d2b25d1a94e4d85a9c6c0f0c0954398f920",
+          "preview": "            public static int? CommandTimeout { get; set; } ",
+          "id": "dapper-12-no-connection-pool-n1"
+        }
+      ],
+      "absence_checks": [
+        {
+          "pattern": "ConnectionPool|DbConnectionPool|PooledConnection|ConnectionPooling",
+          "scope": "dapper/",
+          "expected_matches": 0
+        },
+        {
+          "pattern": "class\\s+\\w*Pool\\w*",
+          "scope": "dapper/",
+          "expected_matches": 0
+        }
+      ],
+      "solved_when": {
+        "required_groups": [],
+        "min_primary_evidence": 0,
+        "max_false_positives": 0
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": "Absence is scoped to Dapper's frozen core; provider packages were excluded."
+    },
+    {
+      "id": "newtonsoft-01-camel-case",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "exact_symbol",
+      "question": "Which method turns a C# property name into camelCase when the camel-case naming strategy is selected?",
+      "intent": "Locate the naming strategy override.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/CamelCaseNamingStrategy.cs",
+          "start_line": 82,
+          "end_line": 85,
+          "symbol": "CamelCaseNamingStrategy.ResolvePropertyName",
+          "role": "primary",
+          "rationale": "Implements the camelCase property-name transform.",
+          "confidence": "high",
+          "content_sha256": "7ece34f4a002bd7ba1ae7aa6bab8905db1dfb37a6058ba4a9359d67041dd9268",
+          "preview": "        protected override string ResolvePropertyName(string name)         {             return StringUtils.ToCamelCase(name);         } ",
+          "id": "newtonsoft-01-camel-case-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/SnakeCaseNamingStrategy.cs",
+          "start_line": 82,
+          "end_line": 85,
+          "symbol": "SnakeCaseNamingStrategy.ResolvePropertyName",
+          "role": "hard_negative",
+          "rationale": "Produces snake_case, not camelCase.",
+          "confidence": "high",
+          "content_sha256": "ea88cf8e2210ee85a6ad452fb9c93f71c4cc741c62fa2225b8ae0a135a45d7a7",
+          "preview": "        protected override string ResolvePropertyName(string name)         {             return StringUtils.ToSnakeCase(name);         } ",
+          "id": "newtonsoft-01-camel-case-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-01-camel-case-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-02-ignore-defaults",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "nl_implementation",
+      "question": "How can a serializer omit members whose value equals the C# default, and where is that decision made while writing an object?",
+      "intent": "Find the setting and the writer-side value comparison.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "setting",
+          "path": "newtonsoft/Newtonsoft.Json/DefaultValueHandling.cs",
+          "start_line": 54,
+          "end_line": 54,
+          "symbol": "DefaultValueHandling.Ignore",
+          "role": "primary",
+          "rationale": "Public flag for omitting default-valued members.",
+          "confidence": "high",
+          "content_sha256": "4ee28863d2d54669cd62da066cf43d0ffee85d6640fe238251a95263aaab496b",
+          "preview": "        Ignore = 1, ",
+          "id": "newtonsoft-02-ignore-defaults-e1"
+        },
+        {
+          "group": "writer",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalWriter.cs",
+          "start_line": 284,
+          "end_line": 298,
+          "symbol": "JsonSerializerInternalWriter.ShouldWriteProperty",
+          "role": "supporting",
+          "rationale": "Compares the member value with its resolved default before writing.",
+          "confidence": "high",
+          "content_sha256": "1e6cd9a23cd419beb25f8e16cf933092e19d5374cb1b8a1f96d2b1d4652b95e7",
+          "preview": "        private bool ShouldWriteProperty(object? memberValue, JsonObjectContract? containerContract, JsonProperty property)         {             if (memberValue == null && ResolvedNullValueHandling(containerContract, property) == NullValue",
+          "id": "newtonsoft-02-ignore-defaults-e2"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/NullValueHandling.cs",
+          "start_line": 45,
+          "end_line": 45,
+          "symbol": "NullValueHandling.Ignore",
+          "role": "hard_negative",
+          "rationale": "Omits nulls only; does not compare arbitrary CLR defaults.",
+          "confidence": "high",
+          "content_sha256": "d69c0b35b9e31ff5f58b8c17c9a1ad1b5b1bb95ead151536044d7ca787c9db9c",
+          "preview": "        Ignore = 1 ",
+          "id": "newtonsoft-02-ignore-defaults-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "setting",
+          "writer"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-02-ignore-defaults-e1",
+          "newtonsoft-02-ignore-defaults-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-03-max-depth",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "hardcoded_value",
+      "question": "What is the serializer's default maximum nesting depth when the caller does not override it?",
+      "intent": "Extract the built-in default depth constant.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs",
+          "start_line": 70,
+          "end_line": 70,
+          "symbol": "JsonSerializerSettings.DefaultMaxDepth",
+          "role": "primary",
+          "rationale": "The default nesting limit is 64.",
+          "confidence": "high",
+          "content_sha256": "e7055b2bdd18bcd2f9a07fbc9575c71f0fccf8cda8b3e87218f8e51067ec8dd4",
+          "preview": "        internal const int DefaultMaxDepth = 64; ",
+          "id": "newtonsoft-03-max-depth-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs",
+          "start_line": 339,
+          "end_line": 349,
+          "symbol": "JsonSerializerSettings.MaxDepth",
+          "role": "supporting",
+          "rationale": "Uses the constant only when no explicit depth was set.",
+          "confidence": "high",
+          "content_sha256": "62353811ece13a9f50db61cfb0cda3bd48f24611178ad9fcd2c892ed85997393",
+          "preview": "            get => _maxDepthSet ? _maxDepth : DefaultMaxDepth;             set             {                 if (value <= 0)                 {                     throw new ArgumentException(\"Value must be positive.\", nameof(value));       ",
+          "id": "newtonsoft-03-max-depth-e2"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/JsonReader.cs",
+          "start_line": 233,
+          "end_line": 245,
+          "symbol": "JsonReader.MaxDepth",
+          "role": "hard_negative",
+          "rationale": "Reader-side override; its default is null, not the serializer's 64.",
+          "confidence": "high",
+          "content_sha256": "9d5190d2d26ddee9a9d2687729273b8c0093df10aa9621a8f66022fc5bd3b917",
+          "preview": "        public int? MaxDepth         {             get => _maxDepth;             set             {                 if (value <= 0)                 {                     throw new ArgumentException(\"Value must be positive.\", nameof(value)); ",
+          "id": "newtonsoft-03-max-depth-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-03-max-depth-e1",
+          "newtonsoft-03-max-depth-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-04-settings-to-contract",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "configuration_flow",
+      "question": "How do serializer settings such as the contract resolver and default value handling reach the object being serialized?",
+      "intent": "Trace settings into the serializer and contract resolver.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "setting",
+          "path": "newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs",
+          "start_line": 146,
+          "end_line": 150,
+          "symbol": "JsonSerializerSettings.DefaultValueHandling",
+          "role": "primary",
+          "rationale": "Public setting that distinguishes an omitted value from an explicit default.",
+          "confidence": "high",
+          "content_sha256": "921c889b04cf236f47ccf66610461f69013f7c3125038c2c0321a15a99e26a15",
+          "preview": "        public DefaultValueHandling DefaultValueHandling         {             get => _defaultValueHandling ?? DefaultDefaultValueHandling;             set => _defaultValueHandling = value;         } ",
+          "id": "newtonsoft-04-settings-to-contract-e1"
+        },
+        {
+          "group": "apply",
+          "path": "newtonsoft/Newtonsoft.Json/JsonSerializer.cs",
+          "start_line": 698,
+          "end_line": 698,
+          "symbol": "JsonSerializer.ApplySerializerSettings default handling",
+          "role": "supporting",
+          "rationale": "Applies the setting only when the settings object explicitly supplied it.",
+          "confidence": "high",
+          "content_sha256": "d007114e04f0fc71237688a4c08725ed0776ce6e37b588eab03f4963ff969dd9",
+          "preview": "                serializer.DefaultValueHandling = settings.DefaultValueHandling; ",
+          "id": "newtonsoft-04-settings-to-contract-e2"
+        },
+        {
+          "group": "apply_resolver",
+          "path": "newtonsoft/Newtonsoft.Json/JsonSerializer.cs",
+          "start_line": 720,
+          "end_line": 720,
+          "symbol": "JsonSerializer.ApplySerializerSettings contract resolver",
+          "role": "supporting",
+          "rationale": "Applies the configured contract resolver.",
+          "confidence": "high",
+          "content_sha256": "744ba58aa7332fec439813570d98146c42a1d721aa0d7225f142a09ac3430100",
+          "preview": "                serializer.ContractResolver = settings.ContractResolver; ",
+          "id": "newtonsoft-04-settings-to-contract-e3"
+        },
+        {
+          "group": "writer",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalWriter.cs",
+          "start_line": 284,
+          "end_line": 298,
+          "symbol": "JsonSerializerInternalWriter.ShouldWriteProperty",
+          "role": "supporting",
+          "rationale": "Writer reads the resolved default handling during output.",
+          "confidence": "high",
+          "content_sha256": "1e6cd9a23cd419beb25f8e16cf933092e19d5374cb1b8a1f96d2b1d4652b95e7",
+          "preview": "        private bool ShouldWriteProperty(object? memberValue, JsonObjectContract? containerContract, JsonProperty property)         {             if (memberValue == null && ResolvedNullValueHandling(containerContract, property) == NullValue",
+          "id": "newtonsoft-04-settings-to-contract-e4"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "setting",
+          "apply",
+          "apply_resolver",
+          "writer"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-04-settings-to-contract-e1",
+          "newtonsoft-04-settings-to-contract-e2",
+          "newtonsoft-04-settings-to-contract-e3",
+          "newtonsoft-04-settings-to-contract-e4"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-05-enum-as-string",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "serialization",
+      "question": "How is an enum written as its symbolic name rather than its numeric value?",
+      "intent": "Locate the converter that serializes enum names.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "newtonsoft/Newtonsoft.Json/Converters/StringEnumConverter.cs",
+          "start_line": 178,
+          "end_line": 202,
+          "symbol": "StringEnumConverter.WriteJson",
+          "role": "primary",
+          "rationale": "Writes the resolved enum name, falling back to numeric output when configured.",
+          "confidence": "high",
+          "content_sha256": "0d91f413c65c64be4cdf331da0d90d05e2267a15f5a3644aecb71002ba10bf98",
+          "preview": "        public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)         {             if (value == null)             {                 writer.WriteNull();                 return;             }            ",
+          "id": "newtonsoft-05-enum-as-string-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/Converters/IsoDateTimeConverter.cs",
+          "start_line": 35,
+          "end_line": 195,
+          "symbol": "IsoDateTimeConverter",
+          "role": "hard_negative",
+          "rationale": "Serializes dates, not enum names.",
+          "confidence": "high",
+          "content_sha256": "8f1f04d5d96f6d77a953b2261cf13abaca6e1b23dffcf82e00b01f031cae7e81",
+          "preview": "    public class IsoDateTimeConverter : DateTimeConverterBase     {         private const string DefaultDateTimeFormat = \"yyyy'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFK\";          private DateTimeStyles _dateTimeStyles = DateTimeStyles.RoundtripKin",
+          "id": "newtonsoft-05-enum-as-string-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-05-enum-as-string-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-06-nan-infinity",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "serialization",
+      "question": "What happens when a float or double being written is NaN or infinity, and which setting controls the output form?",
+      "intent": "Trace the float writer and the FloatFormatHandling policy.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "newtonsoft/Newtonsoft.Json/FloatFormatHandling.cs",
+          "start_line": 34,
+          "end_line": 51,
+          "symbol": "FloatFormatHandling",
+          "role": "primary",
+          "rationale": "Defines string/symbol/null handling for non-finite floats.",
+          "confidence": "high",
+          "content_sha256": "5dd85a75cb537e8b37538b17429cefc74d1e2d0eb5e16db2facfb4af714afbd2",
+          "preview": "    public enum FloatFormatHandling     {         /// <summary>         /// Write special floating point values as strings in JSON, e.g. <c>\"NaN\"</c>, <c>\"Infinity\"</c>, <c>\"-Infinity\"</c>.         /// </summary>         String = 0,        ",
+          "id": "newtonsoft-06-nan-infinity-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "newtonsoft/Newtonsoft.Json/JsonTextWriter.cs",
+          "start_line": 506,
+          "end_line": 510,
+          "symbol": "JsonTextWriter.WriteValue(float)",
+          "role": "supporting",
+          "rationale": "Applies the configured float format while writing.",
+          "confidence": "high",
+          "content_sha256": "f2bc5cb48f9be315c7b388449529c5df39eea084b6732dbd11aa48befe80db7e",
+          "preview": "        public override void WriteValue(float value)         {             InternalWriteValue(JsonToken.Float);             WriteValueInternal(JsonConvert.ToString(value, FloatFormatHandling, QuoteChar, false), JsonToken.Float);         } ",
+          "id": "newtonsoft-06-nan-infinity-e2"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-06-nan-infinity-e1",
+          "newtonsoft-06-nan-infinity-e2"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-07-linq-property-case",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "linq",
+      "question": "How can a JObject child property be looked up with a case-insensitive comparison?",
+      "intent": "Find the JObject property overload with StringComparison.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "newtonsoft/Newtonsoft.Json/Linq/JObject.cs",
+          "start_line": 290,
+          "end_line": 316,
+          "symbol": "JObject.Property(string,StringComparison)",
+          "role": "primary",
+          "rationale": "Supports caller-selected string comparison for property lookup.",
+          "confidence": "high",
+          "content_sha256": "6e5079572f5640a8d68e6e2c6c8a9964bb82c646bb0bc7b69024bac397706bdf",
+          "preview": "        public JProperty? Property(string name, StringComparison comparison)         {             if (name == null)             {                 return null;             }              if (_properties.TryGetValue(name, out JToken? propert",
+          "id": "newtonsoft-07-linq-property-case-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/Linq/JObject.cs",
+          "start_line": 277,
+          "end_line": 280,
+          "symbol": "JObject.Property(string)",
+          "role": "hard_negative",
+          "rationale": "Ordinal/exact overload; it does not expose case-insensitive comparison.",
+          "confidence": "high",
+          "content_sha256": "3eaa198126ab8feb4394e1af3d074e66729cf1d8d9db6fe830119329279ffc46",
+          "preview": "        public JProperty? Property(string name)         {             return Property(name, StringComparison.Ordinal);         } ",
+          "id": "newtonsoft-07-linq-property-case-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-07-linq-property-case-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-08-iso-date-format",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "hardcoded_value",
+      "question": "What exact format string does the ISO date converter use when no custom format is supplied?",
+      "intent": "Extract the default ISO date format literal.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "newtonsoft/Newtonsoft.Json/Converters/IsoDateTimeConverter.cs",
+          "start_line": 37,
+          "end_line": 37,
+          "symbol": "IsoDateTimeConverter.DefaultDateTimeFormat",
+          "role": "primary",
+          "rationale": "Defines the round-trip ISO format including fractional seconds and K.",
+          "confidence": "high",
+          "content_sha256": "7e5caf4d208247190c66766296be5ebd5b8edfb8ba184f22c51e717a8e91c88d",
+          "preview": "        private const string DefaultDateTimeFormat = \"yyyy'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFK\"; ",
+          "id": "newtonsoft-08-iso-date-format-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/Utilities/DateTimeUtils.cs",
+          "start_line": 77,
+          "end_line": 90,
+          "symbol": "DateTimeUtils.ToDateTimeFormat",
+          "role": "hard_negative",
+          "rationale": "Chooses a DateTimeKind suffix helper; it is not the converter's default format string.",
+          "confidence": "high",
+          "content_sha256": "e487c317e99d78ce9f526ae77546cab3685896eba2b029be2a3d88ff5ccf9aff",
+          "preview": "        public static string ToDateTimeFormat(DateTimeKind kind)         {             switch (kind)             {                 case DateTimeKind.Local:                     return IsoDateFormat;                 case DateTimeKind.Unspecif",
+          "id": "newtonsoft-08-iso-date-format-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-08-iso-date-format-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-09-preserve-references",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "serialization",
+      "question": "How are object references preserved during serialization so that repeated objects become identifiers instead of duplicated JSON?",
+      "intent": "Find the reference-writing path and its settings flag.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "newtonsoft/Newtonsoft.Json/PreserveReferencesHandling.cs",
+          "start_line": 40,
+          "end_line": 61,
+          "symbol": "PreserveReferencesHandling",
+          "role": "primary",
+          "rationale": "Declares the reference-preservation policy.",
+          "confidence": "high",
+          "content_sha256": "475751aa754ab3f36b89063d1a490c7e5f3032885388d859e0ef18c84316128d",
+          "preview": "    public enum PreserveReferencesHandling     {         /// <summary>         /// Do not preserve references when serializing types.         /// </summary>         None = 0,          /// <summary>         /// Preserve references when seria",
+          "id": "newtonsoft-09-preserve-references-e1"
+        },
+        {
+          "group": "supporting",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalWriter.cs",
+          "start_line": 368,
+          "end_line": 381,
+          "symbol": "JsonSerializerInternalWriter.WriteReference",
+          "role": "supporting",
+          "rationale": "Writes the reference marker for an already-seen object.",
+          "confidence": "high",
+          "content_sha256": "f1d14ec79b9943ba4f4547d667ac142b78ac19d880bf94b43346c77d6a3fe862",
+          "preview": "        private void WriteReference(JsonWriter writer, object value)         {             string reference = GetReference(writer, value);              if (TraceWriter != null && TraceWriter.LevelFilter >= TraceLevel.Info)             {    ",
+          "id": "newtonsoft-09-preserve-references-e2"
+        },
+        {
+          "group": "supporting",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalWriter.cs",
+          "start_line": 621,
+          "end_line": 632,
+          "symbol": "JsonSerializerInternalWriter.WriteReferenceIdProperty",
+          "role": "supporting",
+          "rationale": "Writes the id metadata for the first occurrence.",
+          "confidence": "high",
+          "content_sha256": "f6da7282e749e5ce13970c0842cc5957922b7bdd49218596f404d7d29bf1fe19",
+          "preview": "        private void WriteReferenceIdProperty(JsonWriter writer, Type type, object value)         {             string reference = GetReference(writer, value);              if (TraceWriter != null && TraceWriter.LevelFilter >= TraceLevel.Ve",
+          "id": "newtonsoft-09-preserve-references-e3"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary",
+          "supporting"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-09-preserve-references-e1",
+          "newtonsoft-09-preserve-references-e2",
+          "newtonsoft-09-preserve-references-e3"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-10-no-msgpack",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "no_answer",
+      "question": "Does this corpus contain a MessagePack serializer or MessagePack wire-format support?",
+      "intent": "Verify that only JSON/BSON-oriented serialization is present in the selected subset.",
+      "answerable": false,
+      "leakage": "none",
+      "evidence": [],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/Converters/BsonObjectIdConverter.cs",
+          "start_line": 39,
+          "end_line": 92,
+          "symbol": "BsonObjectIdConverter",
+          "role": "hard_negative",
+          "rationale": "BSON object-id support, not MessagePack.",
+          "confidence": "high",
+          "content_sha256": "6b3fabc09e8dd89e3b3f436bbc83e1bbca0b4d8799aab2c80da73e6bbb66fea9",
+          "preview": "    public class BsonObjectIdConverter : JsonConverter     {         /// <summary>         /// Writes the JSON representation of the object.         /// </summary>         /// <param name=\"writer\">The <see cref=\"JsonWriter\"/> to write to.</",
+          "id": "newtonsoft-10-no-msgpack-n1"
+        }
+      ],
+      "absence_checks": [
+        {
+          "pattern": "MessagePack|msgpack",
+          "scope": "newtonsoft/",
+          "expected_matches": 0
+        },
+        {
+          "pattern": "class\\s+\\w*MsgPack\\w*",
+          "scope": "newtonsoft/",
+          "expected_matches": 0
+        }
+      ],
+      "solved_when": {
+        "required_groups": [],
+        "min_primary_evidence": 0,
+        "max_false_positives": 0
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": "BSON exists in the wider project; the selected frozen subset contains no MessagePack implementation."
+    },
+    {
+      "id": "newtonsoft-12-no-yaml",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "no_answer",
+      "question": "Does this corpus contain a YAML serializer or YAML wire-format support?",
+      "intent": "Verify that the selected Newtonsoft subset supports JSON-family formats but not YAML.",
+      "answerable": false,
+      "leakage": "none",
+      "evidence": [],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "newtonsoft/Newtonsoft.Json/Converters/XmlNodeConverter.cs",
+          "start_line": 942,
+          "end_line": 2231,
+          "symbol": "XmlNodeConverter",
+          "role": "hard_negative",
+          "rationale": "Serializes XML nodes; it is not YAML support.",
+          "confidence": "high",
+          "content_sha256": "aa6a73866c2bebf3d4a2c571fb919dea98bc5151187ce9dc81917faa0d1824c0",
+          "preview": "    public class XmlNodeConverter : JsonConverter     {         internal static readonly List<IXmlNode> EmptyChildNodes = new List<IXmlNode>();          private const string TextName = \"#text\";         private const string CommentName = \"#c",
+          "id": "newtonsoft-12-no-yaml-n1"
+        }
+      ],
+      "absence_checks": [
+        {
+          "pattern": "Yaml|YAML|YamlDotNet",
+          "scope": "newtonsoft/",
+          "expected_matches": 0
+        },
+        {
+          "pattern": "class\\s+\\w*Yaml\\w*",
+          "scope": "newtonsoft/",
+          "expected_matches": 0
+        }
+      ],
+      "solved_when": {
+        "required_groups": [],
+        "min_primary_evidence": 0,
+        "max_false_positives": 0
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": "Absence is scoped to the frozen subset; YAML support would require another package."
+    },
+    {
+      "id": "antlr-01-adaptive-predict",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "exact_symbol",
+      "question": "Where does the parser simulator choose the next alternative using adaptive prediction?",
+      "intent": "Locate the AdaptivePredict implementation.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "antlr/Runtime/Atn/ParserATNSimulator.cs",
+          "start_line": 304,
+          "end_line": 386,
+          "symbol": "ParserATNSimulator.AdaptivePredict",
+          "role": "primary",
+          "rationale": "Implements adaptive alternative selection.",
+          "confidence": "high",
+          "content_sha256": "d5e68cb258dce46af295ca22740ef6d10985a82741f2bb60e855c99455ba959e",
+          "preview": "\t\tpublic virtual int AdaptivePredict(ITokenStream input, int decision, \t\t\t\t\t\t\t\t   ParserRuleContext outerContext) \t\t{ \t\t\tif (debug || trace_atn_sim) \t\t\t{ \t\t\t\tConsole.WriteLine(\"adaptivePredict decision \" + decision + \t\t\t\t\t\t\t\t\t   \" exec LA(1",
+          "id": "antlr-01-adaptive-predict-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "antlr/Runtime/Atn/LL1Analyzer.cs",
+          "start_line": 11,
+          "end_line": 251,
+          "symbol": "LL1Analyzer",
+          "role": "hard_negative",
+          "rationale": "Computes lookahead sets; it does not select the next alternative.",
+          "confidence": "high",
+          "content_sha256": "31fe6fce02c75a21aa4828edc5bbe06917f1518395e5e626124764e8cdb99ae5",
+          "preview": "    public class LL1Analyzer     {         /** Special value added to the lookahead sets to indicate that we hit          *  a predicate during analysis if {@code seeThruPreds==false}.          */         public const int HitPred = TokenCon",
+          "id": "antlr-01-adaptive-predict-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "antlr-01-adaptive-predict-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "antlr-02-bail-on-error",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "nl_implementation",
+      "question": "Which error strategy aborts parsing immediately instead of attempting recovery, and how does it do that?",
+      "intent": "Find the bail strategy's Recover override.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "antlr/Runtime/BailErrorStrategy.cs",
+          "start_line": 60,
+          "end_line": 67,
+          "symbol": "BailErrorStrategy.Recover",
+          "role": "primary",
+          "rationale": "Consumes until the rule start and throws a cancellation-style exception.",
+          "confidence": "high",
+          "content_sha256": "a6aabb84335e277cf2f139e88175d4a20dc4f4f14e1dffdfc5d26892378df723",
+          "preview": "        public override void Recover(Parser recognizer, RecognitionException e)         {             for (ParserRuleContext context = recognizer.Context; context != null; context = ((ParserRuleContext)context.Parent))             {        ",
+          "id": "antlr-02-bail-on-error-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "antlr/Runtime/DefaultErrorStrategy.cs",
+          "start_line": 196,
+          "end_line": 222,
+          "symbol": "DefaultErrorStrategy.Recover",
+          "role": "hard_negative",
+          "rationale": "Performs recovery rather than aborting.",
+          "confidence": "high",
+          "content_sha256": "979a6eb6874f2ff9e8519c84670f89453169b43a8b7cc6826d813b913c79e736",
+          "preview": "        public virtual void Recover(Parser recognizer, RecognitionException e)         {             //\t\tSystem.out.println(\"recover in \"+recognizer.getRuleInvocationStack()+             //\t\t\t\t\t\t   \" index=\"+recognizer.getInputStream().inde",
+          "id": "antlr-02-bail-on-error-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "antlr-02-bail-on-error-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "antlr-03-invalid-state-number",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "hardcoded_value",
+      "question": "What sentinel state number marks an ATN state as invalid or unassigned?",
+      "intent": "Extract the ATNState constant.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "antlr/Runtime/Atn/ATNState.cs",
+          "start_line": 19,
+          "end_line": 19,
+          "symbol": "ATNState.InvalidStateNumber",
+          "role": "primary",
+          "rationale": "Uses -1 as the invalid state sentinel.",
+          "confidence": "high",
+          "content_sha256": "564418c6e168806215d36e90b521e9af4f6d79ee65249c6edf9aaf98c5bd3306",
+          "preview": "        public const int InvalidStateNumber = -1; ",
+          "id": "antlr-03-invalid-state-number-e1"
+        }
+      ],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "antlr/Runtime/Atn/ATNState.cs",
+          "start_line": 23,
+          "end_line": 23,
+          "symbol": "ATNState.stateNumber",
+          "role": "hard_negative",
+          "rationale": "An instance field initialized from the sentinel; it is not the sentinel declaration.",
+          "confidence": "high",
+          "content_sha256": "cfe88ae982857a4eb534391d26c4ab782a9d02746c7904760b39c0a9ae3316af",
+          "preview": "        public int stateNumber = InvalidStateNumber; ",
+          "id": "antlr-03-invalid-state-number-n1"
+        }
+      ],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "antlr-03-invalid-state-number-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "antlr-04-parser-recovery",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "cross_file",
+      "question": "When generated parser code encounters a recognition error, how is recovery delegated to the configured strategy, and which strategy is installed by default?",
+      "intent": "Connect parser error-handler delegation to the default strategy without claiming a Parser.Recover method.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "default_strategy",
+          "path": "antlr/Runtime/Parser.cs",
+          "start_line": 105,
+          "end_line": 105,
+          "symbol": "Parser._errHandler",
+          "role": "primary",
+          "rationale": "Installs DefaultErrorStrategy when a parser is constructed.",
+          "confidence": "high",
+          "content_sha256": "43c64ce2aff5d2b7a938da60703435576a1a058aec22fd344f58d72a48cc322f",
+          "preview": "\t\tprivate IAntlrErrorStrategy _errHandler = new DefaultErrorStrategy(); ",
+          "id": "antlr-04-parser-recovery-e1"
+        },
+        {
+          "group": "delegation",
+          "path": "antlr/Runtime/Parser.cs",
+          "start_line": 621,
+          "end_line": 632,
+          "symbol": "Parser.ErrorHandler",
+          "role": "supporting",
+          "rationale": "Exposes the strategy used by generated parser code and allows replacement.",
+          "confidence": "high",
+          "content_sha256": "6605ce585999baad1fd1dd422ecadfdcda2ca8236873bbbab201bec70431b359",
+          "preview": "        public virtual IAntlrErrorStrategy ErrorHandler         {             get             {                 return _errHandler;             }             set             {                 IAntlrErrorStrategy handler = value;            ",
+          "id": "antlr-04-parser-recovery-e2"
+        },
+        {
+          "group": "recovery_behavior",
+          "path": "antlr/Runtime/DefaultErrorStrategy.cs",
+          "start_line": 196,
+          "end_line": 222,
+          "symbol": "DefaultErrorStrategy.Recover",
+          "role": "supporting",
+          "rationale": "Implements the default rule-level recovery behavior.",
+          "confidence": "high",
+          "content_sha256": "979a6eb6874f2ff9e8519c84670f89453169b43a8b7cc6826d813b913c79e736",
+          "preview": "        public virtual void Recover(Parser recognizer, RecognitionException e)         {             //\t\tSystem.out.println(\"recover in \"+recognizer.getRuleInvocationStack()+             //\t\t\t\t\t\t   \" index=\"+recognizer.getInputStream().inde",
+          "id": "antlr-04-parser-recovery-e3"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "default_strategy",
+          "delegation",
+          "recovery_behavior"
+        ],
+        "required_anchor_ids": [
+          "antlr-04-parser-recovery-e1",
+          "antlr-04-parser-recovery-e2",
+          "antlr-04-parser-recovery-e3"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "antlr-05-atn-deserialize",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "serialization",
+      "question": "How is a serialized ATN represented as integer data turned back into runtime ATN states and rules?",
+      "intent": "Locate the ATN deserialization entry point.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "antlr/Runtime/Atn/ATNDeserializer.cs",
+          "start_line": 39,
+          "end_line": 65,
+          "symbol": "ATNDeserializer.Deserialize",
+          "role": "primary",
+          "rationale": "Reads the serialized integer stream into an ATN.",
+          "confidence": "high",
+          "content_sha256": "068d5861376b74b6c6c8835630213d17efcab69a9e79dfd37305cc00cbfdb0eb",
+          "preview": "        public virtual ATN Deserialize(int[] data)         { \t        this.data = data; \t\t\tCheckVersion (); \t\t\tATN atn = ReadATN (); \t\t\tReadStates (atn); \t\t\tReadRules (atn); \t\t\tReadModes (atn); \t\t\tIList<IntervalSet> sets = new List<Interval",
+          "id": "antlr-05-atn-deserialize-e1"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "antlr-05-atn-deserialize-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "antlr-06-interval-complement",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "data_structure",
+      "question": "How does IntervalSet compute the complement of a token or character range?",
+      "intent": "Find the complement implementation.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "primary",
+          "path": "antlr/Runtime/Misc/IntervalSet.cs",
+          "start_line": 236,
+          "end_line": 254,
+          "symbol": "IntervalSet.Complement",
+          "role": "primary",
+          "rationale": "Computes the complement against a vocabulary set.",
+          "confidence": "high",
+          "content_sha256": "fb27885812c7d32b8c60cf7263e1467fcab68e8b0cb240e65615ce3eec3ce1d6",
+          "preview": "        public virtual Antlr4.Runtime.Misc.IntervalSet Complement(IIntSet vocabulary)         {             if (vocabulary == null || vocabulary.IsNil)             {                 return null;             }             // nothing in commo",
+          "id": "antlr-06-interval-complement-e1"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "primary"
+        ],
+        "required_anchor_ids": [
+          "antlr-06-interval-complement-e1"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "antlr-07-multihop-error",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "multi_hop",
+      "question": "Contrast the two error-recovery paths: how inline recovery supplies a missing token, and how rule-level recovery resynchronizes input and reports diagnostics.",
+      "intent": "Requires the inline recovery path, rule-level synchronization, and listener notification as separate pieces, not one causal chain.",
+      "answerable": true,
+      "leakage": "none",
+      "evidence": [
+        {
+          "group": "inline_recovery",
+          "path": "antlr/Runtime/DefaultErrorStrategy.cs",
+          "start_line": 557,
+          "end_line": 575,
+          "symbol": "DefaultErrorStrategy.RecoverInline",
+          "role": "primary",
+          "rationale": "Produces a synthetic missing token or throws.",
+          "confidence": "high",
+          "content_sha256": "7141ff94262892e1d7f5f051038ff00fc4f0db3e9c53f6dae8e3046518c3ffef",
+          "preview": "        public virtual IToken RecoverInline(Parser recognizer)         {             // SINGLE TOKEN DELETION             IToken matchedSymbol = SingleTokenDeletion(recognizer);             if (matchedSymbol != null)             {          ",
+          "id": "antlr-07-multihop-error-e1"
+        },
+        {
+          "group": "rule_sync",
+          "path": "antlr/Runtime/DefaultErrorStrategy.cs",
+          "start_line": 269,
+          "end_line": 332,
+          "symbol": "DefaultErrorStrategy.Sync",
+          "role": "supporting",
+          "rationale": "Rule-level recovery consumes tokens until the follow set can continue.",
+          "confidence": "high",
+          "content_sha256": "b394b8284ffec24080aa4e885f2ea36509ea8943b0bbc70da5b4016fc4870bd0",
+          "preview": "        public virtual void Sync(Parser recognizer)         {             ATNState s = recognizer.Interpreter.atn.states[recognizer.State];             //\t\tSystem.err.println(\"sync @ \"+s.stateNumber+\"=\"+s.getClass().getSimpleName());       ",
+          "id": "antlr-07-multihop-error-e2"
+        },
+        {
+          "group": "diagnostics",
+          "path": "antlr/Runtime/Parser.cs",
+          "start_line": 677,
+          "end_line": 689,
+          "symbol": "Parser.NotifyErrorListeners",
+          "role": "supporting",
+          "rationale": "Dispatches diagnostics independently of the recovery path.",
+          "confidence": "high",
+          "content_sha256": "ff6680e3a5c81c38a6f41cc7f1d3ec02af0c9b2e8a50a8d891b53ea1a6ac99a3",
+          "preview": "        public virtual void NotifyErrorListeners(IToken offendingToken, string msg, RecognitionException e)         {             _syntaxErrors++;             int line = -1;             int charPositionInLine = -1;             if (offending",
+          "id": "antlr-07-multihop-error-e3"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "inline_recovery",
+          "rule_sync",
+          "diagnostics"
+        ],
+        "required_anchor_ids": [
+          "antlr-07-multihop-error-e1",
+          "antlr-07-multihop-error-e2",
+          "antlr-07-multihop-error-e3"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "antlr-08-no-left-recursion",
+      "corpus": "antlr",
+      "corpus_revision": "e3-01-v1",
+      "category": "no_answer",
+      "question": "Does the C# runtime in this corpus eliminate left recursion or rewrite grammar rules?",
+      "intent": "Verify that left-recursion elimination belongs to the tool/generator, not the selected runtime.",
+      "answerable": false,
+      "leakage": "none",
+      "evidence": [],
+      "hard_negatives": [
+        {
+          "group": "hard_negative",
+          "path": "antlr/Runtime/Atn/ParserATNSimulator.cs",
+          "start_line": 304,
+          "end_line": 386,
+          "symbol": "ParserATNSimulator.AdaptivePredict",
+          "role": "hard_negative",
+          "rationale": "Predicts alternatives at runtime; it does not rewrite left-recursive grammar rules.",
+          "confidence": "high",
+          "content_sha256": "d5e68cb258dce46af295ca22740ef6d10985a82741f2bb60e855c99455ba959e",
+          "preview": "\t\tpublic virtual int AdaptivePredict(ITokenStream input, int decision, \t\t\t\t\t\t\t\t   ParserRuleContext outerContext) \t\t{ \t\t\tif (debug || trace_atn_sim) \t\t\t{ \t\t\t\tConsole.WriteLine(\"adaptivePredict decision \" + decision + \t\t\t\t\t\t\t\t\t   \" exec LA(1",
+          "id": "antlr-08-no-left-recursion-n1"
+        }
+      ],
+      "absence_checks": [
+        {
+          "pattern": "eliminateLeftRecursion|LeftRecursiveRuleTransformer|LeftRecursiveRuleAnalyzer|rewriteLeftRecursion",
+          "scope": "antlr/",
+          "expected_matches": 0
+        }
+      ],
+      "solved_when": {
+        "required_groups": [],
+        "min_primary_evidence": 0,
+        "max_false_positives": 0
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": "Generator/tool sources were excluded; absence is scoped to the frozen runtime subset."
+    },
+    {
+      "id": "dapper-11-parameter-flow",
+      "corpus": "dapper",
+      "corpus_revision": "e3-01-v1",
+      "category": "multi_hop",
+      "question": "Trace how a named value added to DynamicParameters becomes provider parameters, including type and size handling.",
+      "intent": "Requires the public Add path, ParamInfo storage, and AddParameters projection.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "parameter_store",
+          "path": "dapper/Dapper/DynamicParameters.cs",
+          "start_line": 116,
+          "end_line": 128,
+          "symbol": "DynamicParameters.Add",
+          "role": "primary",
+          "rationale": "Stores a named value and optional provider metadata.",
+          "confidence": "high",
+          "content_sha256": "20a5921e5a0494fb649ae3b86fd7318a051221d44527e7443113c9bc45a6465c",
+          "preview": "        public void Add(string name, object? value = null, DbType? dbType = null, ParameterDirection? direction = null, int? size = null, byte? precision = null, byte? scale = null)         {             parameters[Clean(name)] = new ParamI",
+          "id": "dapper-11-parameter-flow-e1"
+        },
+        {
+          "group": "parameter_metadata",
+          "path": "dapper/Dapper/DynamicParameters.ParamInfo.cs",
+          "start_line": 8,
+          "end_line": 22,
+          "symbol": "DynamicParameters.ParamInfo",
+          "role": "supporting",
+          "rationale": "Holds the value, DbType, direction and size.",
+          "confidence": "high",
+          "content_sha256": "ab7dcf4e213437a8cbb9ce3166fabbba8fa5a7230e1c940dc5b1c89838e73d46",
+          "preview": "        private sealed class ParamInfo         {             public string Name { get; set; } = null!;             public object? Value { get; set; }             public ParameterDirection ParameterDirection { get; set; }             public ",
+          "id": "dapper-11-parameter-flow-e2"
+        },
+        {
+          "group": "command_projection",
+          "path": "dapper/Dapper/DynamicParameters.cs",
+          "start_line": 182,
+          "end_line": 309,
+          "symbol": "DynamicParameters.AddParameters",
+          "role": "supporting",
+          "rationale": "Projects stored values into the provider command.",
+          "confidence": "high",
+          "content_sha256": "3a43f70aaa80f794fde4579a782343a73a3aaa6a63893a3fd95bf6d1277ea10c",
+          "preview": "        protected void AddParameters(IDbCommand command, SqlMapper.Identity identity)         {             var literals = SqlMapper.GetLiteralTokens(identity.Sql);              if (templates is not null)             {                 forea",
+          "id": "dapper-11-parameter-flow-e3"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "parameter_store",
+          "parameter_metadata",
+          "command_projection"
+        ],
+        "required_anchor_ids": [
+          "dapper-11-parameter-flow-e1",
+          "dapper-11-parameter-flow-e2",
+          "dapper-11-parameter-flow-e3"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    },
+    {
+      "id": "newtonsoft-11-property-name-flow",
+      "corpus": "newtonsoft",
+      "corpus_revision": "e3-01-v1",
+      "category": "multi_hop",
+      "question": "Trace how a JsonProperty attribute's explicit property name reaches the contract used by the writer.",
+      "intent": "Requires attribute metadata, contract-property creation, and writer name emission.",
+      "answerable": true,
+      "leakage": "identifier",
+      "evidence": [
+        {
+          "group": "attribute",
+          "path": "newtonsoft/Newtonsoft.Json/JsonPropertyAttribute.cs",
+          "start_line": 175,
+          "end_line": 175,
+          "symbol": "JsonPropertyAttribute.PropertyName",
+          "role": "primary",
+          "rationale": "Carries the explicit JSON name from the attribute.",
+          "confidence": "high",
+          "content_sha256": "d58571249c1adfd592575d902ffe111b04138aab35c654c872435f42c641c83f",
+          "preview": "        public string? PropertyName { get; set; } ",
+          "id": "newtonsoft-11-property-name-flow-e1"
+        },
+        {
+          "group": "contract_property",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/DefaultContractResolver.cs",
+          "start_line": 1499,
+          "end_line": 1507,
+          "symbol": "DefaultContractResolver property name",
+          "role": "supporting",
+          "rationale": "Copies the explicit attribute name into the contract property.",
+          "confidence": "high",
+          "content_sha256": "e588333c0c17f41184fc0a926a2ad34456982ce97ae7bac004570cd6c3faf5ae",
+          "preview": "                mappedName = propertyAttribute.PropertyName;                 hasSpecifiedName = true;             } #if HAVE_DATA_CONTRACTS             else if (dataMemberAttribute?.Name != null)             {                 mappedName = d",
+          "id": "newtonsoft-11-property-name-flow-e2"
+        },
+        {
+          "group": "json_emission",
+          "path": "newtonsoft/Newtonsoft.Json/Serialization/JsonSerializerInternalWriter.cs",
+          "start_line": 488,
+          "end_line": 488,
+          "symbol": "JsonSerializerInternalWriter property name",
+          "role": "supporting",
+          "rationale": "Writes using the resolved contract property name.",
+          "confidence": "high",
+          "content_sha256": "7d31c1e673f260cce0fc6e05658b798f210e976f09ced8cabddb948919a7065b",
+          "preview": "                    property.WritePropertyName(writer); ",
+          "id": "newtonsoft-11-property-name-flow-e3"
+        }
+      ],
+      "hard_negatives": [],
+      "absence_checks": [],
+      "solved_when": {
+        "required_groups": [
+          "attribute",
+          "contract_property",
+          "json_emission"
+        ],
+        "required_anchor_ids": [
+          "newtonsoft-11-property-name-flow-e1",
+          "newtonsoft-11-property-name-flow-e2",
+          "newtonsoft-11-property-name-flow-e3"
+        ],
+        "min_primary_evidence": 1
+      },
+      "annotation": {
+        "provenance": "source-first manual annotation; no zg results consulted",
+        "confidence": "high",
+        "review": "second-pass source review"
+      },
+      "notes": ""
+    }
+  ]
+}

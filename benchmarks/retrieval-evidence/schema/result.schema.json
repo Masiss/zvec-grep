@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/zvec-grep/e3-01/result.schema.json",
+  "title": "E3-01 retrieval run",
+  "type": "object",
+  "required": ["dataset", "run", "results"],
+  "properties": {
+    "dataset": {"const": "e3-01-v1"},
+    "run": {
+      "type": "object",
+      "required": ["route", "limit", "model", "root"],
+      "properties": {
+        "route": {"type": "string"},
+        "limit": {"type": "integer", "minimum": 1},
+        "model": {"type": "string"},
+        "root": {"type": "string"}
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["query_id", "latency_ms", "items"],
+        "properties": {
+          "query_id": {"type": "string"},
+          "latency_ms": {"type": "number", "minimum": 0},
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["rank", "path", "start_line", "end_line", "kind"],
+              "properties": {
+                "rank": {"type": "integer", "minimum": 1},
+                "path": {"type": "string"},
+                "start_line": {"type": ["integer", "null"], "minimum": 1},
+                "end_line": {"type": ["integer", "null"], "minimum": 1},
+                "score": {"type": ["number", "null"]},
+                "kind": {"type": "string"},
+                "excerpt": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
