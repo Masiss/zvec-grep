@@ -37,7 +37,7 @@ Dataset manifest:
 
 ```json
 {
-  "queries_sha256": "e4ecdc3c2b7b900a2be23188fb62d635a630b58ea0ff0e3454989335861a4796",
+  "queries_sha256": "5e35c3d6b3d1868864538320a0788bd3d2b76cc859cd9a8f2fe45e9089cb5662",
   "corpus_sha256": "6f87791413b383f65ef8fccc473d9f6af558a3566629280c5f2e57ad0b20940f",
   "query_count": 32,
   "corpus_files": 392,
@@ -141,7 +141,7 @@ that the dataset and evaluator execute; they are **not** an E3-02 verdict.
 No-answer behavior on the smoke run: trap-FP@10 **0.0**, any-result@10 **1.0**,
 hard-negative hits **0**. The engine returns adjacent code for absence questions
 but does not return the declared traps. Answerable hard-negative rate@10 was
-0.06 (FTS), 0.09 (hybrid), 0.13 (vector), showing the distractors can be
+0.03 (FTS), 0.06 (hybrid), 0.09 (vector), showing the distractors can be
 retrieved and are not inert.
 
 ## 5. Independent review
