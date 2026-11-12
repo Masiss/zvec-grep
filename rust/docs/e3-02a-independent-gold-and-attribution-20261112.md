@@ -291,3 +291,8 @@ next task should be bounded instrumentation, not a policy experiment:
    saving hypothesis and a no-regression gate.
 
 No P1–P3 collection split, ranking change, schema change or release was made.
+
+Raw receipts (outside the repository, preserved):
+`/home/masis/.cache/zvec-grep/e3-02a/receipts/gemma-matrix/` (9 JSON runs + time),
+`gemma-matrix-summary.json`, `potion-control-summary.json`,
+`index-gemma.log`, `index-noop.log`, `push.log`.
