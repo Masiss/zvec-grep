@@ -434,7 +434,7 @@ def build_queries(source: Path) -> list[dict]:
             A("newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs", "internal const int DefaultMaxDepth = 64", "JsonSerializerSettings.DefaultMaxDepth", "primary", "The default nesting limit is 64.", scope="line"),
             A("newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs", "get => _maxDepthSet ? _maxDepth : DefaultMaxDepth", "JsonSerializerSettings.MaxDepth", "supporting", "Uses the constant only when no explicit depth was set."),
         ],
-        hard_negatives=[N("newtonsoft/Newtonsoft.Json/JsonReader.cs", "public int? MaxDepth", "JsonReader.MaxDepth", "Reader-side override; its default is null, not the serializer's 64.")],
+        hard_negatives=[N("newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs", "internal const string DefaultDateFormatString", "JsonSerializerSettings.DefaultDateFormatString", "Another serializer default; it is a date format, not the depth limit.", scope="line")],
     ))
     queries.append(q(
         "newtonsoft-04-settings-to-contract", "newtonsoft", "configuration_flow",

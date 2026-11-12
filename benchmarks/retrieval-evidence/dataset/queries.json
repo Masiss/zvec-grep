@@ -848,15 +848,15 @@
       "hard_negatives": [
         {
           "group": "hard_negative",
-          "path": "newtonsoft/Newtonsoft.Json/JsonReader.cs",
-          "start_line": 233,
-          "end_line": 245,
-          "symbol": "JsonReader.MaxDepth",
+          "path": "newtonsoft/Newtonsoft.Json/JsonSerializerSettings.cs",
+          "start_line": 69,
+          "end_line": 69,
+          "symbol": "JsonSerializerSettings.DefaultDateFormatString",
           "role": "hard_negative",
-          "rationale": "Reader-side override; its default is null, not the serializer's 64.",
+          "rationale": "Another serializer default; it is a date format, not the depth limit.",
           "confidence": "high",
-          "content_sha256": "9d5190d2d26ddee9a9d2687729273b8c0093df10aa9621a8f66022fc5bd3b917",
-          "preview": "        public int? MaxDepth         {             get => _maxDepth;             set             {                 if (value <= 0)                 {                     throw new ArgumentException(\"Value must be positive.\", nameof(value)); ",
+          "content_sha256": "a07fb87c0e3f3d327f847f1b5c59245dbc0ce79e2582ed801731d290faf7ea3b",
+          "preview": "        internal const string DefaultDateFormatString = @\"yyyy'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFK\"; ",
           "id": "newtonsoft-03-max-depth-n1"
         }
       ],
