@@ -142,3 +142,52 @@ Do not inflate progress through test counts, documentation volume, or infrastruc
 **The governing principle: deliver the intended engineering outcome with the least necessary complexity, while preserving correctness, safety, and user control.**
 
 Domain-specific invariants, benchmark procedures, and resource policies belong in applicable nested guidance rather than this root file.
+
+## 9. Worktrees, external storage, and long benchmark hygiene
+
+These are repository workflow rules, not permission to start a benchmark or a
+new research track. The active user request still controls scope.
+
+### Worktrees
+
+- Before creating anything, run `git worktree list` and inspect the current
+  branch/status. Keep at most **two local worktrees**: the main worktree and at
+  most one experiment worktree.
+- Create an experiment worktree from a named, already-committed branch; do not
+  reuse a dirty or ambiguous worktree for a new task.
+- Record the worktree path, branch, and base SHA in the task handoff.
+- Commit and push the experiment branch **before** removing its worktree. Never
+  force-remove a worktree with uncommitted changes. Remove it with Git
+  (`git worktree remove <path>`), then verify `git worktree list` shows only the
+  main worktree.
+- Do not use the main worktree for a long-running experiment that needs a
+  different branch; that destroys the “main clean” invariant.
+
+### External storage
+
+- Put Cargo targets, temporary directories, indexes, model caches, and raw
+  receipts for an experiment under a task-specific external directory, e.g.
+  `/home/masis/.cache/zvec-grep/<task-id>/`. Do not put large build or index
+  artifacts in the repository, `rust/target`, or a directory that workspace
+  discovery can walk.
+- Before a build/download/index, check `df -h` and `free -h`; state the expected
+  model/artifact size and an abort threshold. A 300M GGUF plus a full index can
+  exceed 350 MB and a CPU index can take an hour.
+- Preserve raw receipts, summary JSON, and reports. Clean task-specific
+  targets/work/model caches only after the receipts and hashes are recorded;
+  never delete historical or shared receipts.
+- If a run is long, launch it in the background, capture wall time, user/system
+  CPU, peak RSS, index/model disk, and cardinality where available, and inspect
+  without busy-waiting. If exact resource counters were not captured, say so
+  instead of estimating them as measured facts.
+- Do not rerun an expensive index merely to obtain a nicer metric if the
+  manifest/receipt already records the wall time; record the measurement gap.
+
+### Handoff and freeze
+
+- Freeze a benchmark dataset with a version and manifest before looking at
+  retrieval results. Never edit a frozen v1 silently: preserve it and issue a
+  versioned errata/manifest when source review finds a defect.
+- A handoff must include branch/HEAD, remote SHA, model/artifact identity,
+  dataset hash/version, worktree and external artifact paths, cleanup state,
+  verdict, and the exact next authorized action.
