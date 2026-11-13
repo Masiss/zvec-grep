@@ -868,13 +868,36 @@ fn create_llama_context(
 }
 
 fn llama_micro_batch_capacity(architecture: &str, batch_capacity: u32) -> u32 {
-    if architecture == "gemma-embedding" {
-        // The non-causal encoder must process the whole input in one physical
+    if encoder_requires_full_ubatch(architecture) {
+        // Non-causal encoders must process the whole input in one physical
         // batch. Splitting at 256 tokens triggers a native assertion.
         batch_capacity.max(1)
     } else {
         batch_capacity.clamp(1, 256)
     }
+}
+
+// Product builds keep the historical gemma-embedding-only special case. The
+// E4 experiment adds the other non-causal encoder architectures it evaluates.
+#[cfg(feature = "e4-experiment")]
+fn encoder_requires_full_ubatch(architecture: &str) -> bool {
+    matches!(
+        architecture,
+        "gemma-embedding"
+            | "bert"
+            | "nomic-bert"
+            | "jina-bert-v2"
+            | "jina-bert-v3"
+            | "modern-bert"
+            | "neo-bert"
+            | "eurobert"
+            | "t5encoder"
+    )
+}
+
+#[cfg(not(feature = "e4-experiment"))]
+fn encoder_requires_full_ubatch(architecture: &str) -> bool {
+    matches!(architecture, "gemma-embedding")
 }
 
 fn run_llama_worker_job(
@@ -916,17 +939,26 @@ fn lock_llama_mutex<T>(mutex: &StdMutex<T>) -> StdMutexGuard<'_, T> {
 }
 
 fn format_text(text: &str, purpose: EmbeddingPurpose, format: &str) -> String {
-    if format == "qwen3" {
-        return match purpose {
+    match format {
+        "qwen3" => match purpose {
             EmbeddingPurpose::Query => {
                 format!("Instruct: Retrieve relevant documents for the given query\nQuery: {text}")
             }
             EmbeddingPurpose::Document => text.to_owned(),
-        };
-    }
-    match purpose {
-        EmbeddingPurpose::Query => format!("task: search result | query: {text}"),
-        EmbeddingPurpose::Document => format!("title: none | text: {text}"),
+        },
+        // Models with symmetric embeddings and no instruction prefix.
+        "none" => text.to_owned(),
+        // CodeRankEmbed requires this instruction on queries only.
+        "coderank" => match purpose {
+            EmbeddingPurpose::Query => {
+                format!("Represent this query for searching relevant code: {text}")
+            }
+            EmbeddingPurpose::Document => text.to_owned(),
+        },
+        _ => match purpose {
+            EmbeddingPurpose::Query => format!("task: search result | query: {text}"),
+            EmbeddingPurpose::Document => format!("title: none | text: {text}"),
+        },
     }
 }
 

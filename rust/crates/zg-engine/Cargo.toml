@@ -18,6 +18,9 @@ cuda = [
     "ort/cuda",
 ]
 vulkan = ["llama-cpp-2/vulkan", "ort/webgpu"]
+# E4 experiment only: adds uncatalogued candidate GGUF entries for the
+# embedding-model selection benchmark. Never enabled in production builds.
+e4-experiment = []
 
 [dependencies]
 async-trait.workspace = true

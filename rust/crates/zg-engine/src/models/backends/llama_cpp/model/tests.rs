@@ -67,6 +67,22 @@ fn formats_embeddinggemma_and_qwen_inputs_like_main() {
         format_text("hello", EmbeddingPurpose::Document, "qwen3"),
         "hello"
     );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Query, "none"),
+        "hello"
+    );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Document, "none"),
+        "hello"
+    );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Query, "coderank"),
+        "Represent this query for searching relevant code: hello"
+    );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Document, "coderank"),
+        "hello"
+    );
 }
 
 #[test]

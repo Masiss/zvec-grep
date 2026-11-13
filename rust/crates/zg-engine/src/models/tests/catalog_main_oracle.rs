@@ -12,9 +12,11 @@ use crate::{
 };
 
 // Last commit that changed src/engine/models/catalog.ts when this fixture was refreshed.
+#[cfg(not(feature = "e4-experiment"))]
 const MAIN_CATALOG_SOURCE_REVISION: &str = "8d0d5e277f37d897e83749cdaa0e9c07f5e92efe";
 
 #[test]
+#[cfg(not(feature = "e4-experiment"))]
 fn catalog_matches_main_typescript_field_for_field() {
     let expected: Value = serde_json::from_str(include_str!("fixtures/catalog-main-oracle.json"))
         .unwrap_or_else(|error| {
