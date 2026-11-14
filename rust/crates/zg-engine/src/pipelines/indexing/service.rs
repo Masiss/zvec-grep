@@ -278,6 +278,44 @@ impl WorkspaceIndexService {
         }))
     }
 
+    fn ensure_incremental_write_is_safe(
+        workspace: &Workspace,
+        rebuilding: bool,
+    ) -> Result<(), EngineError> {
+        let Some(descriptor) = workspace.index().descriptor() else {
+            return Ok(());
+        };
+        for config in descriptor.embedding_configs().values() {
+            Self::ensure_device_write_is_safe(config.device, rebuilding)?;
+        }
+        Ok(())
+    }
+
+    fn ensure_device_write_is_safe(
+        device: Option<Device>,
+        rebuilding: bool,
+    ) -> Result<(), EngineError> {
+        match device {
+            Some(Device::Auto) => Err(EngineError::unsupported(
+                "legacy auto-device indexes do not have a concrete execution identity",
+            )
+            .with_help(if rebuilding {
+                "Rebuild with an explicit --device cpu, vulkan, cuda, or metal; do not infer the legacy backend."
+            } else {
+                "This index is read-only for queries. Rebuild with an explicit --device before any incremental write."
+            })),
+            Some(Device::Vulkan | Device::Cuda | Device::Metal) if !rebuilding => {
+                Err(EngineError::unsupported(
+                    "incremental writes to accelerator-backed indexes are not supported",
+                )
+                .with_help(
+                    "Use --rebuild=true to regenerate the index with one explicit execution identity; query-only access remains available.",
+                ))
+            }
+            _ => Ok(()),
+        }
+    }
+
     async fn run_index(
         &self,
         workspace: &Workspace,
@@ -286,6 +324,9 @@ impl WorkspaceIndexService {
         options: &IndexOptions,
         home_lock: Arc<LockGuard>,
     ) -> Result<(IndexResult, Option<IndexProgress>), EngineError> {
+        // No-op passes return before this point. Any call here is a real write,
+        // so the conservative accelerator/legacy-auto contract applies.
+        Self::ensure_incremental_write_is_safe(workspace, rebuilding)?;
         let storage_path = if rebuilding {
             workspace.layout().staged_index_dir()
         } else {
@@ -3120,6 +3161,29 @@ mod tests {
 #[cfg(test)]
 mod e8_device_guard_tests {
     use super::*;
+
+    #[test]
+    fn legacy_auto_and_accelerator_incremental_writes_fail_closed() {
+        for rebuilding in [false, true] {
+            assert!(
+                WorkspaceIndexService::ensure_device_write_is_safe(Some(Device::Auto), rebuilding)
+                    .is_err()
+            );
+        }
+        for device in [Device::Vulkan, Device::Cuda, Device::Metal] {
+            assert!(
+                WorkspaceIndexService::ensure_device_write_is_safe(Some(device), false).is_err()
+            );
+            assert!(WorkspaceIndexService::ensure_device_write_is_safe(Some(device), true).is_ok());
+        }
+        for rebuilding in [false, true] {
+            assert!(
+                WorkspaceIndexService::ensure_device_write_is_safe(Some(Device::Cpu), rebuilding)
+                    .is_ok()
+            );
+            assert!(WorkspaceIndexService::ensure_device_write_is_safe(None, rebuilding).is_ok());
+        }
+    }
 
     #[test]
     fn device_change_requires_rebuild_guard() {

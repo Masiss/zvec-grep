@@ -1,5 +1,13 @@
 # E8-P1 — Vulkan Integration Hardening & Promotion Readiness
 
+> **E8-P2 erratum (supersedes the incremental-write claim):** same-device
+> Vulkan incremental writes are now fail-closed. Accelerator indexes are
+> rebuild-only because runtime/driver compatibility cannot be proven at the
+> required granularity. Legacy `auto` indexes are query-only and fail-closed
+> for writes. No-op and query-only workflows remain supported. See
+> `e8p2-integration-20261115.md`.
+
+
 Date: 2026-11-14  
 Base: E8 `b565472` (`work/e8-embedding-acceleration-20261114`)  
 Branch: `work/e8p1-vulkan-hardening-20261114`  

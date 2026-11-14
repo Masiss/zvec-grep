@@ -271,6 +271,15 @@ with `existing index was built with a different embedding device`; use
 `--rebuild=true` to migrate. This guard also applies after workspace relocation:
 the saved device survives relocation (machine-local cache paths do not), so a
 moved CPU/GPU index cannot be mixed with a different backend by accident.
+
+**E8-P2 write contract:** incremental writes to Vulkan/CUDA/Metal-backed
+indexes are intentionally rejected. There is no index-level proof that a
+different driver/runtime produces bitwise-compatible vectors, so accelerator
+indexes are rebuild-only. CPU incremental writes remain supported. A legacy
+index saved as `auto` is read-only for queries and fail-closed for every write;
+rebuild it with an explicit concrete device. A no-op that changes nothing is
+still allowed for these indexes because it performs no write.
+
 Explicit query devices are honored independently of write devices through the
 same environment variable. Record the requested device, resolved backend,
 receipts, and command in every run manifest.
