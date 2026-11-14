@@ -312,13 +312,26 @@ impl EmbeddingModel for LlamaCppEmbeddingModel {
             .map(|artifact| format!("{}:{}:{}", artifact.path, artifact.size, artifact.sha256))
             .collect::<Vec<_>>();
         artifacts.sort();
+        // CPU and accelerator executions do not produce bit-identical vectors
+        // (FP16 shader arithmetic and kernel reduction order differ). Keep the
+        // historical CPU identity unchanged, but bind an explicitly requested
+        // accelerator to its own cross-pass reuse domain so a CPU sidecar cannot
+        // be silently mixed into a GPU index (and vice versa).
+        let device = match self.device {
+            None | Some(Device::Cpu) => String::new(),
+            Some(Device::Auto) => "|device=auto".to_owned(),
+            Some(Device::Vulkan) => "|device=vulkan".to_owned(),
+            Some(Device::Cuda) => "|device=cuda".to_owned(),
+            Some(Device::Metal) => "|device=metal".to_owned(),
+        };
         Some(format!(
-            "llama-cpp-embedding-v3|backend_build={}|format={}|context={}|uri={}|artifacts={}",
+            "llama-cpp-embedding-v3|backend_build={}|format={}|context={}|uri={}|artifacts={}{}",
             BACKEND_BUILD,
             self.entry.format,
             self.entry.context_size,
             self.entry.uri,
             artifacts.join(","),
+            device,
         ))
     }
 

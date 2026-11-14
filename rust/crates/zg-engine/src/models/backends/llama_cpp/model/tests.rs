@@ -494,3 +494,131 @@ async fn cached_qwen3_runs_real_llama_cpp_inference() {
     assert!(result.vectors[0].iter().all(|value| value.is_finite()));
     assert!(result.truncated.is_empty());
 }
+
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[tokio::test]
+#[ignore = "E8 experiment: requires cached embeddinggemma GGUF and explicit input/output paths"]
+async fn e8_vector_parity_profile() {
+    use std::{fs, time::Instant};
+    let cache = env::var_os("ZVEC_GREP_E8_CACHE")
+        .map(PathBuf::from)
+        .expect("ZVEC_GREP_E8_CACHE");
+    let inputs_path = env::var_os("ZVEC_GREP_E8_INPUTS")
+        .map(PathBuf::from)
+        .expect("ZVEC_GREP_E8_INPUTS");
+    let out_path = env::var_os("ZVEC_GREP_E8_OUT")
+        .map(PathBuf::from)
+        .expect("ZVEC_GREP_E8_OUT");
+    let device = match env::var("ZVEC_GREP_E8_DEVICE").as_deref() {
+        Ok("vulkan") => Device::Vulkan,
+        Ok("auto") => Device::Auto,
+        Ok("cuda") => Device::Cuda,
+        _ => Device::Cpu,
+    };
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_slice(&fs::read(&inputs_path).expect("read E8 inputs"))
+            .expect("parse E8 inputs");
+    let texts = cases
+        .iter()
+        .map(|case| case["text"].as_str().expect("text").to_owned())
+        .collect::<Vec<_>>();
+    let model = LlamaCppEmbeddingModel::new(
+        entry("local/embeddinggemma-300m"),
+        ModelConfig {
+            cache_dir: Some(cache),
+            device: Some(device),
+            ..ModelConfig::default()
+        },
+        ModelComputeRuntime::shared(),
+    );
+    model
+        .prepare(EmbeddingPrepareOptions::default())
+        .await
+        .expect("prepare model");
+    let loaded = model.ensure_loaded(None, None).await.expect("load model");
+    let inputs = texts
+        .iter()
+        .map(|text| vec![Content::Text(text.clone())])
+        .collect::<Vec<_>>();
+    let started = Instant::now();
+    let result = model
+        .embed(
+            &inputs,
+            EmbeddingOptions {
+                purpose: EmbeddingPurpose::Document,
+                ..EmbeddingOptions::default()
+            },
+        )
+        .await
+        .expect("E8 embedding");
+    let wall_micros = started.elapsed().as_micros();
+    let mut outputs = Vec::with_capacity(texts.len());
+    for (case, vector) in cases.iter().zip(result.vectors.iter()) {
+        let text = format_text(
+            case["text"].as_str().expect("text"),
+            EmbeddingPurpose::Document,
+            "embeddinggemma",
+        );
+        let tokens = loaded
+            .model
+            .str_to_token(&text, AddBos::Always)
+            .expect("tokenize")
+            .len();
+        let norm = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+        let finite = vector.iter().all(|value| value.is_finite());
+        outputs.push(serde_json::json!({
+            "id": case["id"],
+            "chars": text.chars().count(),
+            "tokens": tokens,
+            "dim": vector.len(),
+            "norm": norm,
+            "finite": finite,
+            "vector": vector,
+        }));
+    }
+    let payload = serde_json::json!({
+        "device": format!("{device:?}"),
+        "wall_micros": wall_micros,
+        "inputs": outputs,
+    });
+    fs::write(
+        out_path,
+        serde_json::to_vec(&payload).expect("serialize E8 profile"),
+    )
+    .expect("write E8 profile");
+}
+
+#[test]
+fn embedding_identity_binds_explicit_accelerator_device() {
+    let make = |device: Option<Device>| {
+        LlamaCppEmbeddingModel::new(
+            entry("local/embeddinggemma-300m"),
+            ModelConfig {
+                device,
+                ..ModelConfig::default()
+            },
+            ModelComputeRuntime::shared(),
+        )
+    };
+    let cpu = make(None).embedding_identity().expect("CPU identity");
+    let explicit_cpu = make(Some(Device::Cpu))
+        .embedding_identity()
+        .expect("explicit CPU identity");
+    let vulkan = make(Some(Device::Vulkan))
+        .embedding_identity()
+        .expect("Vulkan identity");
+    let cuda = make(Some(Device::Cuda))
+        .embedding_identity()
+        .expect("CUDA identity");
+    let auto = make(Some(Device::Auto))
+        .embedding_identity()
+        .expect("auto identity");
+    assert_eq!(
+        cpu, explicit_cpu,
+        "the default CPU identity stays compatible"
+    );
+    assert_ne!(cpu, vulkan);
+    assert_ne!(cpu, cuda);
+    assert_ne!(cpu, auto);
+    assert_ne!(vulkan, cuda);
+}

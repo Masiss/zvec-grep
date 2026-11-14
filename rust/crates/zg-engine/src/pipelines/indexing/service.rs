@@ -946,6 +946,20 @@ fn acquire_index_models(
     })
 }
 
+fn device_change_requires_rebuild(
+    existing: Option<Device>,
+    requested: Option<Device>,
+    rebuild: bool,
+) -> bool {
+    if rebuild {
+        return false;
+    }
+    let (Some(existing), Some(requested)) = (existing, requested) else {
+        return false;
+    };
+    requested != Device::Auto && requested != existing
+}
+
 fn acquire_model(
     models: &ModelRuntimeManager,
     existing: Option<&Workspace>,
@@ -1031,6 +1045,16 @@ fn acquire_model(
     } else {
         None
     };
+    if device_change_requires_rebuild(
+        existing_runtime.and_then(|runtime| runtime.device),
+        device,
+        options.rebuild,
+    ) {
+        return Err(EngineError::invalid_argument(
+            "existing index was built with a different embedding device",
+        )
+        .with_help("Rebuild the index with `zg --index --rebuild` or use the same --device."));
+    }
     models
         .acquire(ModelRuntimeRequest::new(
             reference.clone(),
@@ -3071,5 +3095,39 @@ mod tests {
             !super::directory_exists(rebuilt.layout().index_dir()).expect("storage was deleted")
         );
         models.close();
+    }
+}
+
+#[cfg(test)]
+mod e8_device_guard_tests {
+    use super::*;
+
+    #[test]
+    fn device_change_requires_rebuild_guard() {
+        assert!(!device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Cpu),
+            false
+        ));
+        assert!(device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Vulkan),
+            false
+        ));
+        assert!(!device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Vulkan),
+            true
+        ));
+        assert!(!device_change_requires_rebuild(
+            None,
+            Some(Device::Vulkan),
+            false
+        ));
+        assert!(!device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Auto),
+            false
+        ));
     }
 }

@@ -124,7 +124,12 @@ fn model_spec(args: &Args) -> EmbeddingModelSpec {
         revision: None,
         cache_dir: args.cache.clone(),
         endpoint: None,
-        device: Device::Cpu,
+        device: match std::env::var("ZVEC_GREP_E8_DEVICE").as_deref() {
+            Ok("vulkan") => Device::Vulkan,
+            Ok("auto") => Device::Auto,
+            Ok("cuda") => Device::Cuda,
+            _ => Device::Cpu,
+        },
     }
 }
 
