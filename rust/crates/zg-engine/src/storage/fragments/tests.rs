@@ -791,3 +791,81 @@ fn fts_expression_quotes_terms_and_rejects_empty_queries() {
         64
     );
 }
+
+fn model_named(name: &str) -> EmbeddingModelInfo {
+    EmbeddingModelInfo::new(
+        crate::domain::model::ModelInfo::new(
+            "fixture",
+            name,
+            [
+                crate::domain::ContentKind::Text,
+                crate::domain::ContentKind::Code,
+                crate::domain::ContentKind::Image,
+            ],
+            32,
+        )
+        .expect("valid model metadata"),
+        3,
+        EmbeddingMetric::Cosine,
+        None,
+        None,
+    )
+    .expect("valid embedding metadata")
+}
+
+fn fts_scores(store: &Fragments, query: &str) -> Vec<(String, f64)> {
+    let mut hits = store
+        .search_fts(query, 20, None)
+        .expect("fts search")
+        .into_iter()
+        .map(|hit| (hit.document_id, hit.score))
+        .collect::<Vec<_>>();
+    hits.sort_by(|a, b| a.0.cmp(&b.0));
+    hits
+}
+
+fn e5_projection(dir: &Path, model_name: &str, vectors: [Vec<f32>; 2]) -> Fragments {
+    super::super::zvec::initialize().expect("initialize zvec");
+    let embedding = model_named(model_name);
+    let store = Fragments::open(dir, &[embedding], false).expect("fragment storage");
+    let (source, entities, mut entries) = metadata_fragments(1, "harvest");
+    for (entry, vector) in entries.iter_mut().zip(vectors) {
+        entry.model = format!("fixture/{model_name}");
+        entry.vector = vector;
+    }
+    write_fixture(&store, &source, &entities, &entries);
+    store.flush().expect("flush");
+    store
+}
+
+#[test]
+fn e5_fts_is_independent_of_embedding_values() {
+    let a_dir = tempfile::tempdir().expect("store a");
+    let b_dir = tempfile::tempdir().expect("store b");
+    let a = e5_projection(
+        a_dir.path(),
+        "fixture-a",
+        [vec![0.0, 1.0, 0.0], vec![1.0, 0.0, 0.0]],
+    );
+    let b = e5_projection(
+        b_dir.path(),
+        "fixture-b",
+        [vec![0.7, -0.2, 0.5], vec![-0.3, 0.9, 0.1]],
+    );
+    let before_a = fts_scores(&a, "harvest");
+    let before_b = fts_scores(&b, "harvest");
+    eprintln!("before optimize: a={before_a:?} b={before_b:?}");
+    assert_eq!(
+        before_a, before_b,
+        "FTS changed with embedding values before optimize"
+    );
+    a.optimize().expect("optimize a");
+    b.optimize().expect("optimize b");
+    let after_a = fts_scores(&a, "harvest");
+    let after_b = fts_scores(&b, "harvest");
+    eprintln!("after optimize: a={after_a:?} b={after_b:?}");
+    assert_eq!(
+        after_a, after_b,
+        "FTS changed with embedding values after optimize"
+    );
+}

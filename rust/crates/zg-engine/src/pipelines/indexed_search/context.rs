@@ -1016,6 +1016,30 @@ mod tests {
     }
 
     #[test]
+    fn explicit_fts_route_without_query_does_not_add_a_vector_route() {
+        let request = normalize_context_request(&ContextOptions {
+            routes: vec![ContextRoute {
+                mode: ContextRouteMode::Fts,
+                query: "alpha".to_owned(),
+            }],
+            ..ContextOptions::default()
+        })
+        .expect("normalized context request");
+
+        assert_eq!(request.groups.len(), 1);
+        assert_eq!(request.groups[0].role, ContextQueryGroupRole::Supplemental);
+        assert_eq!(request.groups[0].routes.len(), 1);
+        assert_eq!(request.groups[0].routes[0].mode, ContextRouteMode::Fts);
+        assert!(
+            !request
+                .routes
+                .iter()
+                .any(|route| route.mode == ContextRouteMode::Vector),
+            "explicit FTS-only routes must not gain an implicit vector route"
+        );
+    }
+
+    #[test]
     fn deduplicates_cross_group_hits_and_preserves_primary_coverage() {
         let items = vec![
             item("shared", group("Q1", 1, MatchedBy::Fts)),

@@ -13,6 +13,16 @@ changes on this branch are experiment-only: the two new catalog entries are
 behind the non-default `e4-experiment` feature, and the workload/sanity probes
 are ignored manual tests.
 
+> **E5 erratum (2026-11-14):** the `FTS` rows in this report were **not pure
+> FTS**. The harness set both `ContextOptions.query` and an explicit route, so
+> each request contained a primary **FTS+Vector** group plus the supplemental
+> route. The apparent cross-model FTS spread was caused by the implicit vector
+> route, not by native collection identity, document IDs, insertion order or
+> FTS scoring. Pure FTS is identical across the tested models. The vector rows
+> are also route-contaminated. See
+> `rust/docs/e5-fts-reproducibility-20261114.md`; do not quote the absolute
+> route metrics without re-running the corrected harness.
+
 ## 1. Preflight
 
 | Item | Value |

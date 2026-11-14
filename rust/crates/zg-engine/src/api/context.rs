@@ -52,11 +52,16 @@ pub mod options {
     #[serde(deny_unknown_fields)]
     #[allow(clippy::struct_excessive_bools)]
     pub struct ContextOptions {
+        /// Primary query. Each primary query searches both FTS and vector;
+        /// omit it (and `queries`) to run only the explicit `routes`.
         pub query: Option<String>,
+        /// Additional primary queries with the same FTS+vector semantics.
         pub queries: Vec<String>,
         pub rg: bool,
         pub rg_options: RgOptions,
         pub rg_paths: Vec<PathBuf>,
+        /// Supplemental routes searched exactly as given, in addition to any
+        /// primary `query`/`queries` groups.
         pub routes: Vec<ContextRoute>,
         pub fuse: bool,
         /// Workspace root. `None` uses the process working directory.

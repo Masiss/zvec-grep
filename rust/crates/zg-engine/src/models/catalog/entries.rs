@@ -559,7 +559,7 @@ const CATALOG: [EmbeddingCatalogEntry; 14] = [
 ];
 
 #[cfg(feature = "e4-experiment")]
-const E4_EXPERIMENT: [EmbeddingCatalogEntry; 3] = [
+const E4_EXPERIMENT: [EmbeddingCatalogEntry; 6] = [
     EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
         reference: "local/jina-embeddings-v2-base-code-q5-k-m",
         provider: "local",
@@ -590,6 +590,83 @@ const E4_EXPERIMENT: [EmbeddingCatalogEntry; 3] = [
         reference: "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
         provider: "local",
         model: "jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+        uri: "hf:second-state/jina-embeddings-v2-base-code-GGUF/jina-embeddings-v2-base-code-Q5_K_M.gguf#5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+        cache_file: "hf_second-state_jina-embeddings-v2-base-code-Q5_K_M.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            artifacts: JINA_CODE_Q5_K_M_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "none",
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+    // E5 controlled test: same artifact and text extraction as the Gemma
+    // entry, but "format: none" changes the embedding vectors only.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/embeddinggemma-300m-noprefix",
+        provider: "local",
+        model: "embeddinggemma-300m-noprefix",
+        uri: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf#0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+        cache_file: "hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "e2fab2963ac0943b1dc320cf0e267bd0e06e2e97",
+            },
+            artifacts: EMBEDDINGGEMMA_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "none",
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+    // E5 controlled test: same artifact, preprocessing, dimension and 2048
+    // context as the reference Gemma entry; only max_batch_size (8 vs 16) and
+    // the model name differ.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/embeddinggemma-300m-b8",
+        provider: "local",
+        model: "embeddinggemma-300m-b8",
+        uri: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf#0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+        cache_file: "hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "e2fab2963ac0943b1dc320cf0e267bd0e06e2e97",
+            },
+            artifacts: EMBEDDINGGEMMA_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "embeddinggemma",
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+    // E5 controlled test: same artifact, preprocessing, dimension and 2048
+    // context as the ctx2048 entry; only the model name (and therefore the
+    // native fragment collection name) differs.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/jina-embeddings-v2-base-code-q5-k-m-alias",
+        provider: "local",
+        model: "jina-embeddings-v2-base-code-q5-k-m-alias",
         uri: "hf:second-state/jina-embeddings-v2-base-code-GGUF/jina-embeddings-v2-base-code-Q5_K_M.gguf#5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
         cache_file: "hf_second-state_jina-embeddings-v2-base-code-Q5_K_M.gguf",
         download: &ArtifactDownloadConfig {
@@ -722,6 +799,9 @@ mod tests {
             &[
                 "local/jina-embeddings-v2-base-code-q5-k-m",
                 "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+                "local/embeddinggemma-300m-noprefix",
+                "local/embeddinggemma-300m-b8",
+                "local/jina-embeddings-v2-base-code-q5-k-m-alias",
                 "local/coderankembed-q8",
             ]
         );
@@ -747,6 +827,9 @@ mod tests {
         let candidates = [
             "local/jina-embeddings-v2-base-code-q5-k-m",
             "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+            "local/jina-embeddings-v2-base-code-q5-k-m-alias",
+            "local/embeddinggemma-300m-b8",
+            "local/embeddinggemma-300m-noprefix",
             "local/coderankembed-q8",
         ];
         for reference in candidates {

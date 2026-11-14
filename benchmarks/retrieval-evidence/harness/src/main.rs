@@ -35,6 +35,9 @@ struct Args {
     route: String,
     limit: usize,
     output: Option<PathBuf>,
+    /// Reproduce the E4 harness defect: a bare `query` adds a primary
+    /// FTS+Vector group in addition to the explicit routes.
+    legacy_primary: bool,
 }
 
 impl Args {
@@ -89,6 +92,10 @@ impl Args {
             .transpose()?
             .unwrap_or(50);
         let output = values.remove("output").map(PathBuf::from);
+        let legacy_primary = values
+            .remove("legacy-primary")
+            .map(|value| value == "true" || value == "1")
+            .unwrap_or(false);
         if let Some((key, _)) = values.iter().next() {
             bail!("unknown option --{key}");
         }
@@ -103,6 +110,7 @@ impl Args {
             route,
             limit,
             output,
+            legacy_primary,
         })
     }
 }
@@ -315,7 +323,7 @@ async fn run() -> Result<()> {
                 let started = Instant::now();
                 let result = engine
                     .context(ContextOptions {
-                        query: Some(text.to_owned()),
+                        query: args.legacy_primary.then(|| text.to_owned()),
                         routes,
                         fuse,
                         root: Some(args.root.clone()),
