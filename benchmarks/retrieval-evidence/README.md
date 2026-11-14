@@ -283,3 +283,6 @@ still allowed for these indexes because it performs no write.
 Explicit query devices are honored independently of write devices through the
 same environment variable. Record the requested device, resolved backend,
 receipts, and command in every run manifest.
+
+See `rust/docs/handoff-e8p2-20261115.md` for the integrated write/query contract,
+owned limitations and rollback plan.

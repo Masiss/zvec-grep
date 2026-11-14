@@ -3,7 +3,8 @@
 Date: 2026-11-15  
 Integration branch: `work/e8p2-integration-20261115`  
 Base: E8-P1 `7b0aab8`; merged current main docs `6d5b523`  
-Main worktree: `work/zg-recovered` @ `6d5b523` (untouched)
+Main worktree: `work/zg-recovered` @ `6d5b523` (untouched)  
+Handoff: `rust/docs/handoff-e8p2-20261115.md`
 
 ## 1. Verdict
 
@@ -194,6 +195,7 @@ all three files.
 
 ## 11. Artifacts
 
+- Handoff: `rust/docs/handoff-e8p2-20261115.md`
 - Integration receipts: `/home/masis/.cache/zvec-grep/e8p2-20261115/receipts/`
   (`SHA256SUMS`, provenance, verifier, workload logs, selected manifests).
 - E8 full-quality receipts:

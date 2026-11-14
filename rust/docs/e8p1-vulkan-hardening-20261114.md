@@ -5,7 +5,7 @@
 > rebuild-only because runtime/driver compatibility cannot be proven at the
 > required granularity. Legacy `auto` indexes are query-only and fail-closed
 > for writes. No-op and query-only workflows remain supported. See
-> `e8p2-integration-20261115.md`.
+> `e8p2-integration-20261115.md` and `handoff-e8p2-20261115.md`.
 
 
 Date: 2026-11-14  
