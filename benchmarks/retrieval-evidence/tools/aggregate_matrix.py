@@ -47,6 +47,11 @@ def main() -> int:
     parser.add_argument("--dataset", type=Path, default=Path("dataset/queries.json"))
     parser.add_argument("--matrix-dir", required=True, type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--allow-uncontracted",
+        action="store_true",
+        help="audit a historical matrix that predates the measurement contract",
+    )
     args = parser.parse_args()
     dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
     queries = dataset["queries"]
@@ -59,6 +64,14 @@ def main() -> int:
         runs = []
         for path in paths:
             run = json.loads(path.read_text(encoding="utf-8"))
+            contract = run.get("run", {}).get("measurement_contract")
+            if not args.allow_uncontracted:
+                if not isinstance(contract, dict) or contract.get("status") != "PASS":
+                    print(f"{path}: measurement contract missing or not PASS", file=sys.stderr)
+                    return 2
+                if contract.get("intended_route") != run.get("run", {}).get("route"):
+                    print(f"{path}: declared route differs from contract", file=sys.stderr)
+                    return 2
             rows = {row["query_id"]: row for row in run["results"]}
             metrics = [query_metrics(query, rows[query["id"]]["items"], rows[query["id"]].get("latency_ms")) for query in queries]
             hit_ids = {}

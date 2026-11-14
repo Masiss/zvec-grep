@@ -161,6 +161,20 @@ python3 tools/aggregate_matrix.py --dataset=dataset/queries.json \
 Routes are explicit (`fts`, `vector`, `hybrid`, `hybrid-symbol`). The harness
 does not alter the index between routes and returns only public context items.
 
+`run_matrix.sh` is the **legacy E3/E4 runner**: it passes `query` plus a route,
+so every request also executes an implicit primary FTS+Vector group. It is kept
+for reproducing historical receipts, not for new route claims. Use
+`run_e6_matrix.sh`, which issues route-only requests and refuses to write a run
+without a PASS `run.measurement_contract`. `evaluate.py`, `aggregate_matrix.py`,
+`attribute.py` and `verify_e6.py` reject an uncontracted run;
+`--allow-uncontracted` is audit-only.
+
+Every result now records `run.measurement_contract`: declared/normalized/actual
+route, route modes, group count, duplicate contributions, filters, limit, corpus
+bounds, dataset hash, index-model identity and per-query result presence. A
+route-only request that executes an extra vector/FTS group fails closed. See
+`rust/docs/e6-benchmark-integrity-20261114.md`.
+
 ## 6. Scope and limitations
 
 - This is a **C# evidence-retrieval** benchmark. It does not cover other
@@ -195,8 +209,47 @@ tools/evaluate.py          deterministic scoring and bootstrap CIs
 tools/selftest.py          synthetic metric assertions
 tools/attribute.py         FTS/vector overlap and declaration-type attribution
 tools/aggregate_matrix.py  repeated-run variance and route aggregation
-tools/run_matrix.sh        fixed-order repeated route runner
+tools/aggregate_e6.py      contract-gated repeated-run aggregation
+tools/verify_e6.py         independent metric/provenance/FTS verifier
+tools/compare_e6.py        paired corrected-model comparison
+tools/test_e6_negative.py  verifier negative tests
+tools/run_e6_matrix.sh     route-only corrected runner (contract-gated)
+tools/make_e6_manifest.py  receipt SHA-256 + provenance manifest
+tools/run_matrix.sh        legacy fixed-order runner (historical only)
 tools/requirements.txt     validator dependency
 tools/run_harness.sh       native-library wrapper
 harness/                   minimal public-API Rust runner
 ```
+
+## 8. Measurement contract (E6)
+
+The harness now refuses to emit a result unless the declared route equals the
+normalized and observed execution plan. Each run carries
+`run.measurement_contract`:
+
+```json
+{
+  "status": "PASS",
+  "intended_route": "fts",
+  "expected": {"route_modes": ["fts"], "group_count": 1, "primary_groups": 0},
+  "actual":   {"route_modes": ["fts"], "group_count": 1, "primary_groups": 0},
+  "dataset":  {"version": "e3-01-v2", "sha256": "...", "hash_status": "PASS"},
+  "model":    {"requested": "local/embeddinggemma-300m", "indexed": "...", "status": "PASS"}
+}
+```
+
+Rules:
+
+- `query`/`queries` are **primary** groups and always search FTS+Vector.
+- `routes` are **supplemental** and are searched exactly as given.
+- A route-only benchmark must set `query: None`; the harness does this.
+- `--legacy-primary=true` reproduces the E4 request (primary hybrid plus the
+  supplemental route). It writes a receipt with `status: "FAIL"` for audit.
+- `evaluate.py`, `aggregate_matrix.py`, `attribute.py` and `verify_e6.py`
+  refuse a result without `status: "PASS"`. Use `--allow-uncontracted` only to
+  inspect a historical receipt; it is never acceptable for a decision.
+- `verify_e6.py` independently re-derives metrics, checks raw `matched_by`
+  provenance, and compares pure-FTS hit sets only within the same index layout.
+
+Additional E6 tools: `tools/verify_e6.py`, `tools/test_e6_negative.py`,
+`tools/run_e6_matrix.sh`, `tools/aggregate_e6.py`, `tools/compare_e6.py`.

@@ -18,6 +18,15 @@ remains the E3-01 v1 record.
 No production schema, index version, vector policy, installed binary, daemon,
 held-out/gold set, RAG/Selection/Expansion data, or main branch was changed.
 
+> **E6 erratum (2026-11-14):** the §4 smoke route table is **INVALID as a
+> route measurement**. The harness set both `ContextOptions.query` and an
+> explicit route, so every request ran a primary FTS+Vector group plus the
+> supplemental route. A corrected run on the preserved Potion index and the
+> same v1 dataset gives FTS R@10 0.4136 (was 0.4630), vector 0.4136 (was
+> 0.4815), hybrid 0.4815 (unchanged). The dataset, hashes, validator and
+> evaluator remain valid. See
+> `rust/docs/e6-benchmark-integrity-20261114.md`.
+
 ## 1. What was built
 
 ```

@@ -19,6 +19,17 @@ not opened.
 | Retrieval attribution | **SUFFICIENT** for a P0 decision; not a production generalization |
 | E3-02B | **NO-GO** for a broad split-collection / vector-policy experiment |
 
+> **E6 erratum (2026-11-14):** the baseline route table, unique-anchor
+> attribution and any conclusion derived from them are **INVALID**. The
+> harness passed both `ContextOptions.query` and explicit routes, so each
+> "FTS"/"Vector" request actually ran a primary FTS+Vector group plus the
+> supplemental route. The v2 gold review, hashes, index cost and resource
+> measurements remain valid. Corrected Gemma: FTS 0.4444, vector 0.5679,
+> hybrid 0.6142 R@10; unique-anchor attribution 7 FTS / 12 vector / 16 both,
+> not 5/3/25. The E3-02B NO-GO rationale now has an invalid attribution
+> dependency and requires owner review, not automatic reopening. See
+> `rust/docs/e6-benchmark-integrity-20261114.md`.
+
 The NO-GO is about the proposed **split-collection complexity**, not about
 whether hybrid retrieval is useful. Hybrid is the strongest route at top-10.
 The observed complement is real but small, container candidates dominate the

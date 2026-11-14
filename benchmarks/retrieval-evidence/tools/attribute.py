@@ -52,6 +52,11 @@ def main() -> int:
                         help="route=/path/to/results.json, repeatable")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--k", type=int, default=10)
+    parser.add_argument(
+        "--allow-uncontracted",
+        action="store_true",
+        help="audit historical results that predate the measurement contract",
+    )
     args = parser.parse_args()
     dataset = load(args.dataset)
     queries = dataset["queries"]
@@ -59,7 +64,16 @@ def main() -> int:
     runs = {}
     for spec in args.results:
         route, path = spec.split("=", 1)
-        runs[route] = load(Path(path))
+        run = load(Path(path))
+        contract = run.get("run", {}).get("measurement_contract")
+        if not args.allow_uncontracted:
+            if not isinstance(contract, dict) or contract.get("status") != "PASS":
+                print(f"{path}: measurement contract missing or not PASS", file=sys.stderr)
+                return 2
+            if contract.get("intended_route") != route:
+                print(f"{path}: declared route {route!r} differs from contract", file=sys.stderr)
+                return 2
+        runs[route] = run
 
     route_rows = {}
     hit_sets = {}

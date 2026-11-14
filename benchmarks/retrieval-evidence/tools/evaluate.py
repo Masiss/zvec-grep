@@ -184,10 +184,34 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--markdown", type=Path)
     parser.add_argument("--bootstrap-seed", type=int, default=20261112)
+    parser.add_argument(
+        "--allow-uncontracted",
+        action="store_true",
+        help="audit a historical result that predates the measurement contract",
+    )
     args = parser.parse_args()
     dataset_bytes = args.dataset.read_bytes()
     queries = json.loads(dataset_bytes)["queries"]
     run = json.loads(args.results.read_text(encoding="utf-8"))
+    contract = run.get("run", {}).get("measurement_contract")
+    if not args.allow_uncontracted:
+        if not isinstance(contract, dict):
+            print("measurement contract missing; refusing to score", file=sys.stderr)
+            return 2
+        if contract.get("status") != "PASS":
+            print(
+                f"measurement contract status {contract.get('status')!r}; refusing to score",
+                file=sys.stderr,
+            )
+            return 2
+        if contract.get("intended_route") != run.get("run", {}).get("route"):
+            print("declared route differs from the contract; refusing to score", file=sys.stderr)
+            return 2
+        expected = contract.get("expected", {}).get("route_modes")
+        actual = contract.get("actual", {}).get("route_modes")
+        if expected != actual:
+            print("expected/actual route modes differ; refusing to score", file=sys.stderr)
+            return 2
     results_by_id = {item["query_id"]: item for item in run.get("results", [])}
     items_by_id = {key: value.get("items", []) for key, value in results_by_id.items()}
     missing = [query["id"] for query in queries if query["id"] not in items_by_id]
@@ -204,6 +228,7 @@ def main() -> int:
         "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
         "route": run.get("run", {}).get("route", "unknown"),
         "retrieval": run.get("run", {}),
+        "measurement_contract": contract,
         "overall": aggregate(rows, args.bootstrap_seed),
         "by_category": group_rows(rows, "category", args.bootstrap_seed),
         "by_corpus": group_rows(rows, "corpus", args.bootstrap_seed),

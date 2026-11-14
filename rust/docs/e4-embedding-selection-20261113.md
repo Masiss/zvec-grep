@@ -22,6 +22,16 @@ are ignored manual tests.
 > are also route-contaminated. See
 > `rust/docs/e5-fts-reproducibility-20261114.md`; do not quote the absolute
 > route metrics without re-running the corrected harness.
+>
+> **E6 erratum (2026-11-14):** the **FTS** and **Vector** rows are also not pure
+> route measurements. `route=vector` ran a primary FTS+Vector group plus the
+> supplemental vector route; `route=hybrid` duplicated hybrid groups. FTS and
+> vector metrics/deltas are invalid. Hybrid rows reproduced the legacy numbers
+> for all five arms, but they remain contract-invalid and are replaced by the
+> corrected runs. The inference/throughput/RAM table and the QAT conversion
+> blocker are independent and remain valid. Corrected full-corpus metrics and
+> revised model verdicts are in
+> `rust/docs/e6-benchmark-integrity-20261114.md`.
 
 ## 1. Preflight
 
