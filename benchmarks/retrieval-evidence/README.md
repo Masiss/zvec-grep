@@ -215,6 +215,9 @@ tools/compare_e6.py        paired corrected-model comparison
 tools/test_e6_negative.py  verifier negative tests
 tools/run_e6_matrix.sh     route-only corrected runner (contract-gated)
 tools/make_e6_manifest.py  receipt SHA-256 + provenance manifest
+tools/r0_analyze.py        R0 structural/attribution/policy analysis
+tools/r0_verify.py         independent R0 verifier
+tools/r0_negative.py       R0 verifier negative tests
 tools/run_matrix.sh        legacy fixed-order runner (historical only)
 tools/requirements.txt     validator dependency
 tools/run_harness.sh       native-library wrapper
