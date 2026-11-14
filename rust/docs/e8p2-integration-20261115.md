@@ -202,3 +202,20 @@ all three files.
   (historical, preserved).
 - External target/work/dependency prefixes are temporary and are removed after
   receipts are checksummed.
+
+## 12. Promotion checklist (not executed)
+
+- [ ] Review the E8-P2 diff and the E8-P1 erratum.
+- [ ] Confirm CPU remains the default and no production default/schema change
+      is included.
+- [ ] Accept the explicit accelerator rebuild-only contract and legacy-`auto`
+      query-only contract.
+- [ ] Run the final default/Vulkan tests, focused integration tests, E6 verifier
+      and `verify_e8p2.py` from the exact merge candidate.
+- [ ] Merge without force-push; do not merge research-only E4/R0/E7 docs into a
+      different production line unless the owner wants that provenance.
+- [ ] If rejected, remove the branch/worktree; no index migration is needed.
+
+Rollback: remove the P2 commit or integration branch and return to E8-P1. No
+index/storage migration is introduced by E8-P2. P2-built indexes remain readable
+by P1, but P1 does not enforce the P2 write guards.
