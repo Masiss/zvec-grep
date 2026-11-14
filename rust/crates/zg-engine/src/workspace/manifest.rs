@@ -1084,7 +1084,7 @@ mod tests {
                 .expect("manifest");
             let descriptor = loaded.index().descriptor().expect("enabled index");
             let config = &descriptor.embedding_configs()["local/minilm"];
-            assert_eq!(config.device, None);
+            assert_eq!(config.device, Some(crate::domain::model::Device::Cpu));
             assert_eq!(config.cache_dir, None);
             assert_eq!(config.api_key, Some(key.clone()));
             assert_eq!(
@@ -1144,7 +1144,6 @@ mod tests {
             let config = expected["index"]["descriptor"]["embeddingConfigs"]["local/minilm"]
                 .as_object_mut()
                 .expect("saved configuration");
-            config.remove("device");
             config.remove("cacheDir");
         }
         assert_eq!(serde_json::to_value(&restored).expect("JSON"), expected);

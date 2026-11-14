@@ -124,12 +124,16 @@ fn model_spec(args: &Args) -> EmbeddingModelSpec {
         revision: None,
         cache_dir: args.cache.clone(),
         endpoint: None,
-        device: match std::env::var("ZVEC_GREP_E8_DEVICE").as_deref() {
-            Ok("vulkan") => Device::Vulkan,
-            Ok("auto") => Device::Auto,
-            Ok("cuda") => Device::Cuda,
-            _ => Device::Cpu,
-        },
+        device: e8_device(),
+    }
+}
+
+fn e8_device() -> Device {
+    match std::env::var("ZVEC_GREP_E8_DEVICE").as_deref() {
+        Ok("vulkan") => Device::Vulkan,
+        Ok("auto") => Device::Auto,
+        Ok("cuda") => Device::Cuda,
+        _ => Device::Cpu,
     }
 }
 
@@ -648,6 +652,7 @@ async fn run() -> Result<()> {
                         limit: Some(args.limit),
                         auto_update: false,
                         prefer_symbol,
+                        device: Some(e8_device()),
                         model_cache: args.cache.clone(),
                         filter: QueryFilter {
                             globs: vec![format!("{corpus}/**").into()],

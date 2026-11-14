@@ -256,3 +256,21 @@ Rules:
 
 Additional E6 tools: `tools/verify_e6.py`, `tools/test_e6_negative.py`,
 `tools/run_e6_matrix.sh`, `tools/aggregate_e6.py`, `tools/compare_e6.py`.
+
+## 9. Execution-device contract (E8-P1)
+
+Local llama.cpp benchmark runs select the backend with `ZVEC_GREP_E8_DEVICE`:
+`cpu` (default), `vulkan`, or `cuda` when compiled. An explicit accelerator is
+**fail-closed**: if the backend/device cannot initialize, the run errors instead
+of silently producing CPU vectors under an accelerator identity. Index writes
+also reject `Auto` for a first build or a device relabel; `Auto` may refresh a
+non-CUDA index only when that index already carries a concrete saved device.
+
+An index is device-bound. Incrementing it with a different explicit device fails
+with `existing index was built with a different embedding device`; use
+`--rebuild=true` to migrate. This guard also applies after workspace relocation:
+the saved device survives relocation (machine-local cache paths do not), so a
+moved CPU/GPU index cannot be mixed with a different backend by accident.
+Explicit query devices are honored independently of write devices through the
+same environment variable. Record the requested device, resolved backend,
+receipts, and command in every run manifest.

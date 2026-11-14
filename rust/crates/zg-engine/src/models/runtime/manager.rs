@@ -434,6 +434,10 @@ impl ModelRuntimeLease {
         self.key.endpoint.as_deref()
     }
 
+    pub(crate) fn device(&self) -> Option<Device> {
+        self.key.device
+    }
+
     pub(crate) fn matches_query_request(&self, request: &ModelRuntimeRequest) -> bool {
         // Queries may borrow writer storage while using a separate native budget.
         let mut key = ModelRuntimeKey::new(&request.reference, &request.options);

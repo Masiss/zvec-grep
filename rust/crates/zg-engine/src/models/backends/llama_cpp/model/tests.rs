@@ -622,3 +622,21 @@ fn embedding_identity_binds_explicit_accelerator_device() {
     assert_ne!(cpu, auto);
     assert_ne!(vulkan, cuda);
 }
+
+#[cfg(not(any(feature = "vulkan", feature = "cuda")))]
+#[test]
+fn explicit_accelerator_unavailable_is_fail_closed() {
+    let reporter = ModelDownloadProgressReporter::new("e8p1-test", None, std::iter::empty());
+    let error = match load_model_with_fallback(
+        Path::new("/nonexistent/e8p1-model.gguf"),
+        Some(Device::Vulkan),
+        &reporter,
+    ) {
+        Ok(_) => panic!("explicit Vulkan must not silently fall back to CPU"),
+        Err(error) => error,
+    };
+    assert!(
+        error.to_string().contains("refusing CPU fallback"),
+        "unexpected error: {error}"
+    );
+}

@@ -33,7 +33,11 @@ impl IndexState {
     pub(crate) fn invalidate_runtime_settings(&mut self) {
         if let Self::Enabled(index) = self {
             for config in index.embedding_configs.values_mut() {
-                config.device = None;
+                // Device is execution identity, not a machine-local path. Keep it
+                // across relocation so a moved index cannot silently be updated by
+                // a different backend. The guard requires an explicit rebuild if the
+                // requested device disagrees; an unavailable saved accelerator fails
+                // closed. Cache paths remain machine-local and are cleared.
                 config.cache_dir = None;
             }
         }

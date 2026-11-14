@@ -1029,22 +1029,44 @@ fn acquire_model(
         )?;
         Some(endpoint)
     };
-    let device = if local {
+    let mut device = if local {
         crate::config::runtime_device(
             &config,
             &reference,
-            options.runtime_device.or(options.device).or_else(|| {
-                options
-                    .embedding
-                    .as_ref()
-                    .map(|e| e.device)
-                    .filter(|device| *device != Device::Auto)
-            }),
+            options
+                .runtime_device
+                .or(options.device)
+                .or_else(|| options.embedding.as_ref().map(|e| e.device)),
             existing_runtime.and_then(|runtime| runtime.device),
         )?
     } else {
         None
     };
+    if device == Some(Device::Auto) {
+        // Auto is only safe for a refresh of an already-device-bound index: it
+        // resolves to that index's concrete saved device and cannot relabel a
+        // new or unknown-device index. A first build must select explicitly.
+        let requested_auto = options
+            .runtime_device
+            .or(options.device)
+            .or_else(|| options.embedding.as_ref().map(|e| e.device))
+            == Some(Device::Auto);
+        let saved = existing_runtime.and_then(|runtime| runtime.device);
+        if requested_auto {
+            let Some(existing_device) = saved.filter(|saved| *saved != Device::Auto) else {
+                return Err(EngineError::invalid_argument(
+                    "Auto device cannot create or relabel an index without a saved execution device",
+                )
+                .with_help("Use an explicit --device cpu, vulkan, cuda, or metal."));
+            };
+            device = Some(existing_device);
+        } else if saved != Some(Device::Auto) {
+            return Err(EngineError::invalid_argument(
+                "Auto device cannot create or relabel an index without a saved execution device",
+            )
+            .with_help("Use an explicit --device cpu, vulkan, cuda, or metal."));
+        }
+    }
     if device_change_requires_rebuild(
         existing_runtime.and_then(|runtime| runtime.device),
         device,
@@ -1161,15 +1183,12 @@ fn saved_embedding_config(
         })
         .unwrap_or_default();
     if model.info().model().provider() == "local" {
-        stored.device = options
-            .device
-            .or_else(|| {
-                options
-                    .embedding
-                    .as_ref()
-                    .map(|embedding| embedding.device)
-                    .filter(|device| *device != Device::Auto)
-            })
+        // Persist the device that actually acquired the runtime, not the raw
+        // Auto refresh request, so an index remains device-bound.
+        stored.device = model
+            .device()
+            .or(options.device)
+            .or_else(|| options.embedding.as_ref().map(|embedding| embedding.device))
             .or(stored.device);
         stored.cache_dir = options
             .model_cache
@@ -2060,7 +2079,7 @@ mod tests {
             .expect("runtimes")
             .values()
         {
-            assert_eq!(runtime["device"], "auto");
+            assert_eq!(runtime["device"], "cpu");
             assert_eq!(
                 runtime["cacheDir"],
                 serde_json::json!(directory.path().join("saved-models"))

@@ -90,6 +90,10 @@ struct LoadedLlamaModel {
     model: Arc<LlamaModel>,
     model_path: PathBuf,
     gpu: bool,
+    /// Explicit accelerators must never silently produce CPU vectors under an
+    /// accelerator identity. Auto remains allowed to fall back for legacy
+    /// compatibility; explicit Vulkan/CUDA/Metal do not.
+    fail_closed: bool,
 }
 
 struct LlamaContextPool {
@@ -378,7 +382,7 @@ impl EmbeddingModel for LlamaCppEmbeddingModel {
             .await?;
         let result = match first {
             Ok(result) => result,
-            Err(error) if model.gpu => {
+            Err(error) if model.gpu && !model.fail_closed => {
                 let cpu = self
                     .fallback_to_cpu(model, on_progress, &error)
                     .await
@@ -404,11 +408,13 @@ fn load_model_with_fallback(
 ) -> Result<LoadedLlamaModel, ModelError> {
     let device = resolve_device(device);
     let wants_gpu = !matches!(device, None | Some(Device::Cpu));
+    let explicit_accelerator =
+        matches!(device, Some(Device::Vulkan | Device::Cuda | Device::Metal));
     let registry = lock_backend_registry();
     let backend = initialize_llama_backend(wants_gpu, &registry)?;
     if wants_gpu {
         if let Some(selected) = select_gpu_device(device) {
-            match load_gpu_model(backend, path, selected.index) {
+            match load_gpu_model(backend, path, selected.index, explicit_accelerator) {
                 Ok(model) => {
                     tracing::debug!(
                         requested_device = requested_device_name(device),
@@ -418,6 +424,13 @@ fn load_model_with_fallback(
                     );
                     return Ok(model);
                 }
+                Err(error) if explicit_accelerator => {
+                    return Err(ModelError::internal(format!(
+                        "explicit {} llama.cpp accelerator failed to initialize; refusing CPU fallback",
+                        requested_device_name(device)
+                    ))
+                    .with_cause(error));
+                }
                 Err(error) => {
                     let warning =
                         format!("llama.cpp GPU model load failed ({error}), falling back to CPU.");
@@ -426,6 +439,11 @@ fn load_model_with_fallback(
                     }
                 }
             }
+        } else if explicit_accelerator {
+            return Err(ModelError::unsupported(format!(
+                "explicit {} llama.cpp accelerator is unavailable; refusing CPU fallback",
+                requested_device_name(device)
+            )));
         } else {
             let warning = format!(
                 "llama.cpp {} GPU backend is unavailable, falling back to CPU.",
@@ -452,6 +470,7 @@ fn load_gpu_model(
     backend: &LlamaBackend,
     path: &Path,
     device_index: usize,
+    fail_closed: bool,
 ) -> Result<LoadedLlamaModel, ModelError> {
     let params = LlamaModelParams::default()
         .with_devices(&[device_index])
@@ -460,7 +479,7 @@ fn load_gpu_model(
         })?
         .with_n_gpu_layers(u32::MAX);
     LlamaModel::load_from_file(backend, path, &params)
-        .map(|model| loaded_llama_model(model, path, true))
+        .map(|model| loaded_llama_model(model, path, true, fail_closed))
         .map_err(|error| {
             ModelError::storage_failure("Unable to load llama.cpp GPU embedding model")
                 .with_cause(error)
@@ -470,7 +489,7 @@ fn load_gpu_model(
 fn load_cpu_model(backend: &LlamaBackend, path: &Path) -> Result<LoadedLlamaModel, ModelError> {
     let params = cpu_model_params()?;
     LlamaModel::load_from_file(backend, path, &params)
-        .map(|model| loaded_llama_model(model, path, false))
+        .map(|model| loaded_llama_model(model, path, false, false))
         .map_err(|error| {
             ModelError::storage_failure("Unable to load llama.cpp embedding model")
                 .with_cause(error)
@@ -486,13 +505,19 @@ fn cpu_model_params() -> Result<LlamaModelParams, ModelError> {
         })
 }
 
-fn loaded_llama_model(model: LlamaModel, path: &Path, gpu: bool) -> LoadedLlamaModel {
+fn loaded_llama_model(
+    model: LlamaModel,
+    path: &Path,
+    gpu: bool,
+    fail_closed: bool,
+) -> LoadedLlamaModel {
     let model = Arc::new(model);
     LoadedLlamaModel {
         contexts: LlamaContextPool::new(Arc::clone(&model)),
         model,
         model_path: path.to_path_buf(),
         gpu,
+        fail_closed,
     }
 }
 
