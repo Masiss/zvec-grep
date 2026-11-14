@@ -536,11 +536,24 @@ fn report_warning(
 }
 
 fn threads_per_context(gpu: bool, execution_concurrency: usize) -> i32 {
-    if gpu || execution_concurrency <= 1 {
+    if gpu {
         return 0;
     }
+    // E7 experiment-only override: allow a single llama.cpp context to use
+    // more than llama.cpp's conservative default thread count.
+    let e7_threads = std::env::var("ZVEC_GREP_E7_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0);
+    if execution_concurrency <= 1 {
+        return e7_threads
+            .map(|value| i32::try_from(value).unwrap_or(i32::MAX))
+            .unwrap_or(0);
+    }
     let cores = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
-    let threads = (cores / execution_concurrency).max(1);
+    let threads = e7_threads
+        .map(|value| value.clamp(1, cores))
+        .unwrap_or_else(|| (cores / execution_concurrency).max(1));
     i32::try_from(threads).unwrap_or(i32::MAX)
 }
 
@@ -850,16 +863,22 @@ fn create_llama_context(
         .map_err(|error| {
             ModelError::internal("Unable to read llama.cpp model architecture").with_cause(error)
         })?;
-    let params = LlamaContextParams::default()
+    let batch_sequences = e7_batch_sequences();
+    let batch_capacity = if batch_sequences > 1 {
+        profile.context_size
+    } else {
+        profile.batch_capacity
+    };
+    let mut params = LlamaContextParams::default()
         .with_n_ctx(NonZeroU32::new(profile.context_size))
-        .with_n_batch(profile.batch_capacity)
-        .with_n_ubatch(llama_micro_batch_capacity(
-            &architecture,
-            profile.batch_capacity,
-        ))
+        .with_n_batch(batch_capacity)
+        .with_n_ubatch(llama_micro_batch_capacity(&architecture, batch_capacity))
         .with_n_threads(profile.threads)
         .with_n_threads_batch(profile.threads)
         .with_embeddings(true);
+    if batch_sequences > 1 {
+        params = params.with_n_seq_max(u32::try_from(batch_sequences).unwrap_or(1));
+    }
     model
         .new_context(initialize_llama_backend(false, &registry)?, params)
         .map_err(|error| {
@@ -900,29 +919,94 @@ fn encoder_requires_full_ubatch(architecture: &str) -> bool {
     matches!(architecture, "gemma-embedding")
 }
 
+fn e7_batch_sequences() -> usize {
+    std::env::var("ZVEC_GREP_E7_BATCH")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(0)
+        .min(crate::models::runtime::LOCAL_CONCURRENCY_CAP)
+}
+
 fn run_llama_worker_job(
     context: &mut LlamaContext<'_>,
     job: &LlamaWorkerJob,
 ) -> Result<Vec<(usize, Vec<f32>)>, ModelError> {
+    let max_sequences = e7_batch_sequences();
     let mut vectors = Vec::with_capacity(job.inputs.len());
-    for input in &job.inputs {
+    if max_sequences <= 1 {
+        for input in &job.inputs {
+            check_cancelled(job.signal.as_ref())?;
+            context.clear_kv_cache();
+            let mut batch = LlamaBatch::new(input.tokens.len(), 1);
+            batch
+                .add_sequence(&input.tokens, 0, false)
+                .map_err(|error| {
+                    ModelError::internal("Unable to prepare llama.cpp embedding batch")
+                        .with_cause(error)
+                })?;
+            context.decode(&mut batch).map_err(|error| {
+                ModelError::internal("llama.cpp embedding inference failed").with_cause(error)
+            })?;
+            let vector = context.embeddings_seq_ith(0).map_err(|error| {
+                ModelError::internal("Unable to read llama.cpp embedding output").with_cause(error)
+            })?;
+            vectors.push((input.index, vector.to_vec()));
+        }
+        return Ok(vectors);
+    }
+
+    // E7 experiment: group independent embedding inputs into one llama.cpp
+    // batch when their total token count fits the context. Sequence ids are
+    // reset per group; every input keeps its original position.
+    let mut group: Vec<&PreparedLlamaInput> = Vec::new();
+    let mut group_tokens = 0usize;
+    let flush = |context: &mut LlamaContext<'_>,
+                 group: &mut Vec<&PreparedLlamaInput>,
+                 tokens: &mut usize,
+                 vectors: &mut Vec<(usize, Vec<f32>)>|
+     -> Result<(), ModelError> {
+        if group.is_empty() {
+            return Ok(());
+        }
         check_cancelled(job.signal.as_ref())?;
         context.clear_kv_cache();
-        let mut batch = LlamaBatch::new(input.tokens.len(), 1);
-        batch
-            .add_sequence(&input.tokens, 0, false)
-            .map_err(|error| {
-                ModelError::internal("Unable to prepare llama.cpp embedding batch")
-                    .with_cause(error)
-            })?;
+        let mut batch = LlamaBatch::new(*tokens, i32::try_from(group.len()).unwrap_or(i32::MAX));
+        for (seq, input) in group.iter().enumerate() {
+            batch
+                .add_sequence(&input.tokens, i32::try_from(seq).unwrap_or(i32::MAX), false)
+                .map_err(|error| {
+                    ModelError::internal("Unable to prepare llama.cpp embedding batch")
+                        .with_cause(error)
+                })?;
+        }
         context.decode(&mut batch).map_err(|error| {
             ModelError::internal("llama.cpp embedding inference failed").with_cause(error)
         })?;
-        let vector = context.embeddings_seq_ith(0).map_err(|error| {
-            ModelError::internal("Unable to read llama.cpp embedding output").with_cause(error)
-        })?;
-        vectors.push((input.index, vector.to_vec()));
+        for (seq, input) in group.iter().enumerate() {
+            let vector = context
+                .embeddings_seq_ith(i32::try_from(seq).unwrap_or(i32::MAX))
+                .map_err(|error| {
+                    ModelError::internal("Unable to read llama.cpp embedding output")
+                        .with_cause(error)
+                })?;
+            vectors.push((input.index, vector.to_vec()));
+        }
+        group.clear();
+        *tokens = 0;
+        Ok(())
+    };
+    for input in &job.inputs {
+        let next = input.tokens.len();
+        if !group.is_empty()
+            && (group.len() >= max_sequences
+                || group_tokens.saturating_add(next) > job.context_size as usize)
+        {
+            flush(context, &mut group, &mut group_tokens, &mut vectors)?;
+        }
+        group_tokens += next;
+        group.push(input);
     }
+    flush(context, &mut group, &mut group_tokens, &mut vectors)?;
     Ok(vectors)
 }
 

@@ -86,7 +86,12 @@ pub(crate) fn local_runtime_limit(reference: &str, requested: Option<usize>) -> 
 /// by allowing several batches to execute on the same cached model.
 pub(crate) fn batch_concurrency(reference: &str, requested: Option<usize>) -> Option<usize> {
     if is_llama(reference) {
-        Some(1)
+        let e7_contexts = std::env::var("ZVEC_GREP_E7_CONTEXTS")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(1);
+        Some(e7_contexts)
     } else if is_transformers(reference) {
         Some(requested.unwrap_or(1).clamp(1, LOCAL_CONCURRENCY_CAP))
     } else {

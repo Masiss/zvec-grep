@@ -546,6 +546,19 @@ async fn run() -> Result<()> {
                 result.files_failed,
                 result.entities_created
             );
+            if let Some(path) = args.output.as_ref() {
+                let payload = serde_json::json!({
+                    "duration_micros": result.duration_micros,
+                    "timings": result.timings,
+                    "files_scanned": result.files_scanned,
+                    "files_added": result.files_added,
+                    "files_modified": result.files_modified,
+                    "files_deleted": result.files_deleted,
+                    "files_failed": result.files_failed,
+                    "entities_created": result.entities_created,
+                });
+                std::fs::write(path, serde_json::to_vec_pretty(&payload)?)?;
+            }
         }
         "query" => {
             let dataset_path = args
