@@ -188,8 +188,11 @@ opt-in, not a default promotion.
 
 ## 8. Artifacts
 
-- Receipts: `/home/masis/.cache/zvec-grep/e8p1-20261114/receipts/`
-- Workloads: `/home/masis/.cache/zvec-grep/e8p1-20261114/work/`
+- Receipts: `/home/masis/.cache/zvec-grep/e8p1-20261114/receipts/` (logs,
+  summaries, selected manifest snapshots; `SHA256SUMS`).
 - E8 full-quality source receipts:
-  `/home/masis/.cache/zvec-grep/e8-20261114/receipts/`
+  `/home/masis/.cache/zvec-grep/e8-20261114/receipts/` (historical, preserved).
 - Report: this file.
+- Temporary workloads, target directories and dependency prefixes were removed
+  after the receipts were checksummed. The receipts, not the deleted working
+  trees, are the durable evidence.
