@@ -1,6 +1,6 @@
 # E4 — embedding model selection and quantization
 
-**Status:** DONE (experiment only; no merge/promotion)
+**Status:** DONE — addendum complete (experiment only; no merge/promotion)
 **Branch:** `work/e4-embedding-selection-20261113`
 **Base:** `work/e3-02a-attribution-20261112` @ `95fd0f3`
 **Main baseline:** `work/zg-recovered` @ `6d5b523` (untouched)
@@ -162,6 +162,9 @@ every route.
 | Jina Q5_K_M | FTS | 0.4537 | 0.5802 | 0.7963 | 0.3333 | 0.5926 | 0.5461 | 0.4610 | 398 / 509 ms |
 | Jina Q5_K_M | Vector | 0.4537 | 0.5710 | **0.8580** | 0.3704 | 0.6667 | 0.4942 | 0.4176 | 406 / 599 ms |
 | Jina Q5_K_M | Hybrid | 0.4660 | 0.6019 | **0.8333** | 0.3704 | 0.6296 | 0.5448 | 0.4821 | 415 / 573 ms |
+| Jina Q5_K_M @2048* | FTS | 0.3951 | 0.4969 | 0.7315 | 0.2963 | 0.5185 | 0.5183 | 0.4334 | 344 / 420 ms |
+| Jina Q5_K_M @2048* | Vector | 0.4259 | **0.5957** | 0.8241 | 0.3704 | 0.6296 | 0.5111 | 0.4583 | 504 / 712 ms |
+| Jina Q5_K_M @2048* | Hybrid | 0.4259 | 0.5864 | 0.7685 | 0.3704 | 0.5185 | 0.5437 | 0.4747 | 443 / 599 ms |
 | BGE Small | FTS | 0.2685 | 0.3735 | 0.5556 | 0.1852 | 0.3333 | 0.3904 | 0.3038 | 404 / 541 ms |
 | BGE Small | Vector | 0.2932 | 0.3889 | 0.6111 | 0.1852 | 0.4074 | 0.3738 | 0.3157 | 529 / 821 ms |
 | BGE Small | Hybrid | 0.2685 | 0.4043 | 0.5185 | 0.2222 | 0.2963 | 0.3710 | 0.3187 | 409 / 572 ms |
@@ -180,8 +183,38 @@ remains 1.0 for all arms (not correctness).
 | Gemma Q8 | 2048 | 9,223 | 943 | 1:10:36 | 16,619 s | 2.99 GiB | 63.2 MB |
 | CodeRank Q8 | 2048 | 9,223 | 943 | 1:10:59 | 16,872 s | 1.01 GiB | 63.2 MB |
 | Jina Q5_K_M | 8192 | 8,326 | 957 | 1:44:59 | 24,959 s | 2.11 GiB | 60.4 MB |
+| Jina Q5_K_M @2048 | 2048 | 9,223 | 943 | 1:32:34 | 22,011 s | 1.10 GiB | 60.4 MB |
 | BGE Small | 512 | 15,531 | 745 | 13:10 | 10,700 s | 0.96 GiB | 74.4 MB |
 | Potion 16M | 1024 | 10,905 | 881 | 0:19 | 24 s | 0.68 GiB | 58.9 MB |
+
+### Controlled-chunking Jina experiment
+
+The 8192-token Jina arm builds 8,326 fragments, while the 2048-token reference
+builds 9,223, so its native result mixes model quality with chunking. A
+feature-gated alias (`...-ctx2048`, identical artifact, prompts and pooling,
+`context_size=2048`) produced exactly the reference layout: **9,223 fragments,
+mean 942.95 chars, p95 3,742, max 13,385** — identical to Gemma and CodeRank.
+Index cost 1:32:34, 22,011 s user CPU, 1.10 GiB peak RSS, 60 MB disk.
+
+At matched layout the vector comparison is clean:
+
+| Vector metric | Gemma Q8 | Jina @2048 | Delta |
+|---|---:|---:|---:|
+| R@5 | **0.5370** | 0.4259 | **−0.1111** |
+| R@10 | 0.5741 | **0.5957** | +0.0216 |
+| R@50 | 0.8179 | 0.8241 | +0.0062 |
+| Solved@10 | 0.3704 | 0.3704 | 0.0000 |
+| Solved@50 | **0.7037** | 0.6296 | −0.0741 |
+| MRR@10 | **0.5733** | 0.5111 | −0.0622 |
+| nDCG@10 | **0.5117** | 0.4583 | −0.0533 |
+| No-answer trap-FP@10 | **0.0** | 0.2 | +0.2 |
+
+Paired vector deltas: R@10 mean **+0.0216** (4 wins / 4 losses / 19 ties),
+solved@10 0.0000, MRR −0.0622 (3/8/16), nDCG −0.0533 (5/9/13). Hybrid is worse:
+R@10 −0.0278, solved@10 −0.0741, MRR −0.0526, nDCG −0.0639. The 2048-token
+chunking improves Jina over its own 8192 arm (vector R@10 0.5710 → 0.5957,
+nDCG 0.4176 → 0.4583) but it still trades top-5 precision and rank quality for
+a small recall@10 gain.
 
 ### FTS is not model-independent
 
@@ -197,19 +230,22 @@ Two distinct effects were found:
    byte-identical (`4e854852…`), document ids and row order are identical, and
    `manifest.3` is identical. A tiny-index probe with identical source produced
    BM25 1.41455 on the Gemma index vs 1.42262 on the CodeRank index; on the full
-   corpus this moved some top-10 orderings (FTS R@10 0.5494 vs 0.5062). The
+   corpus this moved some top-10 orderings. With matched layouts the FTS R@10
+   spread is **0.5494 (Gemma), 0.5062 (CodeRank), 0.4969 (Jina @2048)** and the
+   MRR spread is **0.5660 / 0.5436 / 0.5183** — a material 5.2 pp lexical
+   difference with byte-identical documents. The
    query model does not affect FTS: querying the CodeRank index with the Gemma
    model produced the same 32/32 FTS results. The difference originates in the
    native collection, whose name is hashed from the embedding model identity,
    not in query preprocessing.
 
 Consequence: **vector-only on matched layouts is the clean model-quality
-comparison.** Gemma vs CodeRank is a matched-layout comparison (identical
-fragments). Jina's 8192-token layout differs (8,326 fragments), so its hybrid/FTS
-numbers include a chunking effect and its isolated embedding quality is
-INCONCLUSIVE. BGE/Potion are inherently limited to 512/1024-token chunks; their
-numbers describe deployment under their native context, not a chunking-controlled
-comparison.
+comparison.** Gemma vs CodeRank and Gemma vs Jina @2048 are matched-layout
+comparisons (identical 9,223 fragments). Jina's native 8192-token layout
+(8,326 fragments) is a separate deployment arm whose numbers include the
+chunking effect. BGE/Potion are inherently limited to 512/1024-token chunks;
+their numbers describe deployment under their native context, not a
+chunking-controlled comparison.
 
 ### Paired per-query deltas vs Gemma (three-run mean)
 
@@ -219,6 +255,8 @@ comparison.
 | CodeRank | Hybrid | −0.0679 | −0.1111 | −0.0591 | −0.0805 |
 | Jina | Vector | −0.0031 | 0.0000 | −0.0790 | −0.0940 |
 | Jina | Hybrid | −0.0123 | −0.0741 | −0.0515 | −0.0566 |
+| Jina @2048 | Vector | +0.0216 | 0.0000 | −0.0622 | −0.0533 |
+| Jina @2048 | Hybrid | −0.0278 | −0.0741 | −0.0526 | −0.0639 |
 | BGE | Vector | −0.1852 | −0.1852 | −0.1994 | −0.1960 |
 | BGE | Hybrid | −0.2099 | −0.2222 | −0.2253 | −0.2200 |
 | Potion | Vector | −0.0864 | −0.0741 | −0.0284 | −0.0932 |
@@ -243,6 +281,34 @@ Jina retrieves more method/value entities and fewer containers; CodeRank/BGE/
 Potion move in the same direction but with lower recall. Container dominance for
 Gemma is partly overlap: a class entity can contain several anchors.
 
+### Non-C# generalization pilot (directional)
+
+A frozen, source-grounded pilot (`e4-noncsharp-pilot-v1`) was built outside the
+repository under `receipts/pilot/`: 8 files / 131 entities across Rust, SQL,
+Markdown, TOML config and a system-package log; 10 answerable + 2 no-answer
+queries, anchors chosen from the source before any retrieval run. Gemma,
+Jina @2048 and CodeRank all used the same corpus copy, globs and 2048-token
+layout.
+
+| Arm | Vector R@5/10/50 | Vector solved@10 | Vector MRR | Vector nDCG |
+|---|---|---:|---:|---:|
+| Gemma Q8 | 1.0 / 1.0 / 1.0 | 1.0 | **0.9500** | **0.9631** |
+| Jina @2048 | 1.0 / 1.0 / 1.0 | 1.0 | 0.9250 | 0.9431 |
+| CodeRank Q8 | 1.0 / 1.0 / 1.0 | 1.0 | 0.7900 | 0.8405 |
+
+No-answer trap-FP@10 was 0.0 for all three. Ordering is Gemma ≥ Jina >
+CodeRank, consistent with the C# result; no reversal. **The pilot is not
+decision-grade:** recall saturates at 1.0 because non-code entities are whole
+sections/files and the anchors lie inside them; n=10; the ranking differences
+are therefore the only informative signal. It is directional evidence, not a
+production benchmark and not comparable to `e3-01-v2`.
+
+Two operational findings from the pilot: `logs/` is a default-ignored
+directory (the domain had to be renamed to `journal/`), and indexing a full
+614 KB log was superlinear (1,000 lines ≈ 126–195 s; 3,000 lines exceeded a
+300 s timeout and the full file was skipped/killed). The frozen pilot uses a
+1,000-line slice.
+
 ## 6. Decision
 
 | Candidate | Verdict | Reason |
@@ -250,33 +316,54 @@ Gemma is partly overlap: a class entity can contain several anchors.
 | EmbeddingGemma 300M Q8 | **PROVISIONAL REFERENCE (unchanged)** | Best hybrid R@10/solved@10/MRR/nDCG on the frozen corpus; no tested candidate dominates its quality–cost trade-off. |
 | EmbeddingGemma QAT Q4_0 | **BLOCKED** | Published GGUFs omit the `dense_2`/`dense_3` projection head; not a faithful quantization. Tokens dominate the file, so Q4_0 only saves 16.7% anyway. |
 | CodeRankEmbed Q8 | **NO_GO** | Matched-layout comparison: −7.7 pp vector R@10, −11.1 pp hybrid solved@10, −8.6 pp vector nDCG. Memory halved, CPU roughly equal, but the quality loss is material. |
-| Jina v2 Base Code Q5_K_M | **NO_GO as a drop-in; INCONCLUSIVE on isolated quality** | Vector R@10 parity and better R@50 with 57% less RAM, but 1.5× index time, ~30% lower doc throughput, −7.9 pp MRR / −9.4 pp nDCG, −7.4 pp hybrid solved@10, one absence-query FP. 8192 context is a real advantage this corpus cannot evaluate, and chunking differs. |
+| Jina v2 Base Code Q5_K_M | **NO_GO** | Matched-layout vector test: R@10 +2.2 pp but R@5 −11.1 pp, MRR −6.2 pp, nDCG −5.3 pp, solved@10 equal, no-answer trap-FP 0.2; hybrid solved@10 −7.4 pp. 57% less RAM, but 1.5× index time (1:45 native, 1:33 at 2048) and ~30% lower document throughput. The 8192 context remains a qualitative long-document advantage this corpus cannot price in. |
 | Potion Code 16M v2 | **NO_GO for quality parity; resource champion** | 227× faster index, 1,650× model-layer throughput, 116 MB PSS, but −8.6 pp vector R@10, −14.8 pp hybrid solved@10, −9.3 pp vector nDCG. Only viable if a lower quality floor is explicitly accepted. |
 | BGE Small EN v1.5 | **NO_GO** | −18.5 pp vector R@10, −22.2 pp hybrid solved@10, −19.6 pp nDCG, plus a no-answer FP. |
 
 No model is called a production default: the evidence is 27 answerable C#
-queries, one corpus and one host. EmbeddingGemma Q8 stays the provisional
-reference for this repository; the decision does not generalise to Rust, SQL,
-Markdown, logs or non-code text.
+queries plus a directional non-C# pilot, one corpus family and one host.
+EmbeddingGemma Q8 stays the provisional reference for this repository; the
+decision does not generalise to Rust, SQL, Markdown, logs or non-code text.
+
+**No integration was made.** The experiment-only catalog entries and prompt
+formats stay behind the non-default `e4-experiment` feature; the default catalog,
+production index, daemon and binaries are untouched. There is no promotion-ready
+candidate to package.
+
+### Owner promotion checklist (if a candidate is revisited)
+
+1. Freeze a held-out, independently annotated non-C# dataset with tight anchors
+   (needle-level, not whole-file) and enough queries for CIs.
+2. Resolve the native FTS collection-identity dependence described above, or
+   exclude FTS/hybrid from cross-model comparisons until it is fixed.
+3. Repair the QAT GGUF projection head, then run a matched-layout Q8-vs-Q4
+   comparison.
+4. For Jina, define a chunking policy first (native 8192 vs fixed 2048); the
+   current data show the 2048 layout improves Jina's ranking but still loses
+   top-5 precision to Gemma.
+5. Require a no-regression gate on solved@10/MRR/nDCG and no-answer trap-FP
+   before changing the default.
 
 ### What is not proven
 
-- No non-C# / documentation / SQL / configuration / log retrieval evidence.
+- No decision-grade non-C# / documentation / SQL / configuration / log evidence.
+  The pilot is directional only (recall saturates, n=10).
 - No independent second annotation pass (inherited E3 limitation).
 - Community GGUF fidelity is unverified for CodeRankEmbed (llama.cpp
   `nomic-bert` implementation vs upstream custom model) and Jina Q5_K_M
   (community conversion). The compatibility gate was load + semantic sanity, not
   vector parity with a reference implementation.
-- Jina's isolated embedding quality is confounded by its 8192-token chunking.
+- Jina's isolated embedding quality was resolved by the matched-layout 2048
+  experiment; its 8192 long-document behaviour remains unmeasured.
 - No GPU, ANN-concurrency or cold-start-under-page-cache study.
 - The exact CPU seconds for query processes were not captured; index CPU/RSS are
   exact from `/usr/bin/time -v`.
 
 ### Minimal next steps
 
-1. **If long context matters:** rerun Jina with a fixed 2048-token chunking mode
-   (override `max_input_tokens` for the benchmark only) to separate embedding
-   quality from chunk layout; compare against Gemma on identical fragments.
+1. **If long context matters:** evaluate Jina's native 8192-token layout on a
+   long-document corpus; the 2048 controlled run already separates its embedding
+   quality from chunking and shows lower top-5 precision than Gemma.
 2. **If quantization remains a goal:** repair the QAT GGUF conversion
    (`dense_2`/`dense_3`) or convert the base model Q4_0 with the projection
    preserved, then rerun the matched-layout comparison.
@@ -318,6 +405,49 @@ cargo test -p zg-engine --release --lib -- models::catalog models::backends::lla
 cargo test -p zg-engine --release --features e4-experiment --lib -- models::catalog models::backends::llama_cpp models::tests::model_layer_bench
 ```
 
+### Controlled-chunking alias
+
+`local/jina-embeddings-v2-base-code-q5-k-m-ctx2048` is a feature-gated catalog
+alias of the same Jina artifact with `context_size=2048`; it exists only to hold
+the fragment layout fixed. It is not a promotion candidate.
+
+### Non-C# pilot
+
+The pilot corpus and queries live outside Git under
+`/home/masis/.cache/zvec-grep/e4-20261113/pilot/` (proprietary/system files are
+not redistributed). Frozen hashes: `queries.json`
+`f0dca2c1dac0d25af217621ea3de5c16221ca2b484bdca495925bdebb33721e6`,
+`corpus-sha256.txt`, `manifest.json`. Rebuild rooted at
+`pilot/arms/<arm>/corpus` with globs
+`*.rs,*.sql,*.md,*.toml,*.log` and the same harness.
+
+### Independent verification
+
+`pilot/independent_check.py` re-implements R@10, solved@10, MRR@10 and nDCG@10
+without importing the repository evaluator. For the Jina @2048 vector run
+(27 answerable queries) and the pilot Gemma vector run it matched `evaluate.py`
+to 0.0 delta; `INDEPENDENT_MATCH_OK`. Three repeats of every Jina @2048 route
+had identical top-10 hit sets; macro metric stdev was 0.0.
+
 Frozen dataset hashes: `queries.json` `a2d2210e…`, `corpus.json` `ac8c5d80…`.
 Workload hash: `70dea2014773c96360ce19ce64c25de9a770554085f75aad6ee19626f54f9c40`.
-Combined final summary: `receipts/e4-final-summary.json`.
+Combined summary: `receipts/e4-final-summary.json`; addendum summary:
+`receipts/e4-addendum-summary.json`.
+
+
+## 8. Autonomous completion addendum
+
+Completed after the first E4 pass without re-running valid earlier measurements:
+
+| Item | Result |
+|---|---|
+| Jina chunking confound | **Resolved.** Feature-gated `...-ctx2048` alias produced the exact reference fragment layout; matched-layout vector test shows R@10 +2.2 pp but R@5 −11.1 pp, MRR −6.2 pp, nDCG −5.3 pp, solved@10 equal, trap-FP 0.2. Jina verdict is now **NO_GO**, not INCONCLUSIVE. |
+| Non-C# pilot | **Directional only.** 8 files / 131 entities / 12 queries across Rust, SQL, Markdown, TOML and a log slice; Gemma ≥ Jina > CodeRank on MRR/nDCG, recall saturated at 1.0. No reversal; not decision-grade. |
+| Independent verification | A separate metric implementation matched `evaluate.py` to 0.0 delta on the Jina @2048 vector run and the pilot Gemma vector run; three repeats had identical top-10 sets. |
+| Regression / rollback | Default-feature catalog oracle and prompt-format tests pass; experiment entries are absent with the feature off; the non-causal ubatch change is feature-gated and tested in both modes; invalid-GGUF removal test passes. |
+| Integration | **None.** No candidate is promotion-ready; default catalog, production index, daemon and binaries are untouched. |
+| FTS finding | With byte-identical 9,223-fragment layouts, FTS R@10 spans 0.4969–0.5494 and MRR 0.5183–0.5660 purely by collection identity. This is an engine-level reproducibility issue for cross-model lexical/hybrid comparisons and needs a separate bounded investigation. |
+
+The final owner decision is unchanged: **NO-GO for replacing EmbeddingGemma Q8**
+on the current evidence; keep it as the provisional reference and do not call it
+production-qualified.

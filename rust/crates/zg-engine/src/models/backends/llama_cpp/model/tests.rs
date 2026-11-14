@@ -50,6 +50,33 @@ fn entry(reference: &str) -> LlamaCppConfig {
 }
 
 #[test]
+fn non_causal_encoder_ubatch_policy_is_feature_gated() {
+    // Product builds keep the historical gemma-embedding-only special case.
+    assert_eq!(llama_micro_batch_capacity("gemma-embedding", 512), 512);
+    assert_eq!(llama_micro_batch_capacity("qwen3", 512), 256);
+    #[cfg(feature = "e4-experiment")]
+    {
+        for architecture in ["bert", "nomic-bert", "jina-bert-v2", "modern-bert"] {
+            assert_eq!(
+                llama_micro_batch_capacity(architecture, 512),
+                512,
+                "{architecture}"
+            );
+        }
+    }
+    #[cfg(not(feature = "e4-experiment"))]
+    {
+        for architecture in ["bert", "nomic-bert", "jina-bert-v2", "modern-bert"] {
+            assert_eq!(
+                llama_micro_batch_capacity(architecture, 512),
+                256,
+                "{architecture}"
+            );
+        }
+    }
+}
+
+#[test]
 fn formats_embeddinggemma_and_qwen_inputs_like_main() {
     assert_eq!(
         format_text("hello", EmbeddingPurpose::Query, "embeddinggemma"),

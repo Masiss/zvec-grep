@@ -559,7 +559,7 @@ const CATALOG: [EmbeddingCatalogEntry; 14] = [
 ];
 
 #[cfg(feature = "e4-experiment")]
-const E4_EXPERIMENT: [EmbeddingCatalogEntry; 2] = [
+const E4_EXPERIMENT: [EmbeddingCatalogEntry; 3] = [
     EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
         reference: "local/jina-embeddings-v2-base-code-q5-k-m",
         provider: "local",
@@ -581,6 +581,32 @@ const E4_EXPERIMENT: [EmbeddingCatalogEntry; 2] = [
         metric: EmbeddingMetric::Cosine,
         format: "none",
         context_size: 8_192,
+        max_batch_size: 8,
+    }),
+    // Controlled-chunking arm: identical artifact and preprocessing as the
+    // 8192-token Jina entry, but a 2048-token context so the indexer builds the
+    // same fragment layout as the reference arm.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+        provider: "local",
+        model: "jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+        uri: "hf:second-state/jina-embeddings-v2-base-code-GGUF/jina-embeddings-v2-base-code-Q5_K_M.gguf#5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+        cache_file: "hf_second-state_jina-embeddings-v2-base-code-Q5_K_M.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            artifacts: JINA_CODE_Q5_K_M_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "none",
+        context_size: 2_048,
         max_batch_size: 8,
     }),
     EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
@@ -695,6 +721,7 @@ mod tests {
             &references[14..],
             &[
                 "local/jina-embeddings-v2-base-code-q5-k-m",
+                "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
                 "local/coderankembed-q8",
             ]
         );
@@ -713,5 +740,26 @@ mod tests {
             .expect("Transformers entry must exist");
         assert_eq!(minilm.backend(), "transformers");
         assert!(minilm.transformers_config().is_some());
+    }
+
+    #[test]
+    fn e4_experiment_entries_are_gated_by_the_feature() {
+        let candidates = [
+            "local/jina-embeddings-v2-base-code-q5-k-m",
+            "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+            "local/coderankembed-q8",
+        ];
+        for reference in candidates {
+            #[cfg(feature = "e4-experiment")]
+            assert!(
+                get_embedding_model_catalog_entry(reference).is_some(),
+                "{reference} must be present with e4-experiment"
+            );
+            #[cfg(not(feature = "e4-experiment"))]
+            assert!(
+                get_embedding_model_catalog_entry(reference).is_none(),
+                "{reference} must not leak into the default catalog"
+            );
+        }
     }
 }

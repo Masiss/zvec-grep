@@ -31,6 +31,7 @@ struct Args {
     model: String,
     rebuild: bool,
     dataset: Option<PathBuf>,
+    globs: Vec<String>,
     route: String,
     limit: usize,
     output: Option<PathBuf>,
@@ -67,6 +68,18 @@ impl Args {
             .map(|value| value == "true" || value == "1")
             .unwrap_or(false);
         let dataset = values.remove("dataset").map(PathBuf::from);
+        let globs = values
+            .remove("globs")
+            .map(|value| {
+                value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|glob| !glob.is_empty())
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|globs| !globs.is_empty())
+            .unwrap_or_else(|| vec!["*.cs".to_owned()]);
         let route = values
             .remove("route")
             .unwrap_or_else(|| "hybrid".to_owned());
@@ -86,6 +99,7 @@ impl Args {
             model,
             rebuild,
             dataset,
+            globs,
             route,
             limit,
             output,
@@ -241,7 +255,12 @@ async fn run() -> Result<()> {
                     embedding: Some(model_spec(&args)),
                     model_cache: args.cache.clone(),
                     scan: ScanRulesUpdate {
-                        globs: Some(vec!["*.cs".into()]),
+                        globs: Some(
+                            args.globs
+                                .iter()
+                                .map(|glob| zg_engine::api::index::options::GlobRule::from(glob.as_str()))
+                                .collect(),
+                        ),
                         ..ScanRulesUpdate::default()
                     },
                     ..IndexOptions::default()
@@ -330,6 +349,7 @@ async fn run() -> Result<()> {
                     "limit": args.limit,
                     "model": args.model,
                     "root": args.root,
+                    "globs": args.globs,
                     "index": index_status.as_ref().map(|status| serde_json::json!({
                         "files_scanned": status.files_scanned,
                         "files_indexed": status.files_indexed,
