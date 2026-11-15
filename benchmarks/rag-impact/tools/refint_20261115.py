@@ -15,6 +15,7 @@ import json
 import math
 import re
 from pathlib import Path
+from liveness_20261115 import scan, LIVE, INACTIVE, UNKNOWN
 
 from selection_s1_20261115 import (
     Source, code_tokens, gold_for, matched, run_counter, sha256_file, stem,
@@ -80,15 +81,21 @@ class RefIndex:
 
     def _load(self):
         for p in sorted(self.corpus.rglob("*.cs")):
-            rel = str(p.relative_to(self.corpus)); lines = self.text_lines(rel)
+            rel = str(p.relative_to(self.corpus))
+            raw = (self.corpus / rel).read_bytes().decode("utf-8", "replace")
+            sc = scan(raw); lines = sc.lines; live = sc.line_liveness
+            self.lines[rel] = lines
             depth = []; d = 0
             for line in lines: depth.append(d); d += line.count("{") - line.count("}")
             ns = ""; local = []
+            def lv(a,b):
+                xs=live[a-1:b]
+                return UNKNOWN if UNKNOWN in xs else (INACTIVE if xs and all(x==INACTIVE for x in xs) else LIVE)
             for i, line in enumerate(lines):
                 nm = NS_RE.match(line)
                 if nm: ns = nm.group(1)
                 tm = TYPE_RE.match(line)
-                if tm:
+                if tm and live[i]==LIVE:
                     b = i
                     while b < len(lines) and "{" not in lines[b] and b - i <= 3: b += 1
                     if b >= len(lines): continue
@@ -97,19 +104,18 @@ class RefIndex:
                         dd += lines[j].count("{") - lines[j].count("}"); last = j
                         if dd <= 0: break
                     if dd > 0: last = len(lines) - 1
-                    t = {"path": rel, "name": tm.group(2), "kind": tm.group(1), "start": i + 1, "end": last + 1, "depth": depth[i], "ns": ns}
+                    t = {"path": rel, "name": tm.group(2), "kind": tm.group(1), "start": i + 1, "end": last + 1, "depth": depth[i], "ns": ns, "liveness": lv(i+1,last+1)}
                     self.types.append(t); local.append(t); self.type_by[t["name"]].append(t)
                     continue
                 parent = min([t for t in local if t["start"] <= i + 1 <= t["end"] and depth[i] == t["depth"] + 1], key=lambda t: t["end"] - t["start"], default=None)
                 if parent is None: continue
                 pm = PROP_RE.match(line)
-                if pm:
-                    typ = pm.group(1) or pm.group(2)
-                    name = pm.group(3)
-                    self.props.append({"path": rel, "name": name, "type": typ, "start": i + 1, "end": i + 1, "parent": parent["name"], "ns": ns})
-                    self.prop_by_name[name].append(self.props[-1])
+                if pm and live[i]==LIVE:
+                    typ = pm.group(1) or pm.group(2); name = pm.group(3)
+                    prop={"path": rel, "name": name, "type": typ, "start": i + 1, "end": i + 1, "parent": parent["name"], "ns": ns, "liveness": lv(i+1,i+1), "is_dbset": bool(pm.group(1))}
+                    self.props.append(prop); self.prop_by_name[name].append(prop)
                     continue
-                if "(" in line:
+                if "(" in line and live[i]==LIVE:
                     pre = line[:line.index("(")]; mm = re.search(r"([A-Za-z_]\w*)\s*(?:<[^>]*>)?\s*$", pre)
                     if not mm or mm.group(1) in CONTROL or len(mm.group(1)) <= 2: continue
                     b = i
@@ -122,13 +128,18 @@ class RefIndex:
                     if dd > 0: last = len(lines) - 1
                     text = "\n".join(lines[i:last + 1])
                     calls = set(CALL_RE.findall(text)) | set(DOT_RE.findall(text))
-                    procs = set(SQL_RE.findall(text))
-                    m = {"path": rel, "name": mm.group(1), "start": i + 1, "end": last + 1, "parent": parent["name"], "ns": ns, "calls": calls, "procs": procs, "text": text}
+                    procs=set(); dynamic=False; strings=[]
+                    for st in sc.strings:
+                        if st["end_line"] < i+1 or st["start_line"] > last+1: continue
+                        strings.append(st["value"])
+                        if re.search(r"\b(?:execute|exec)\b", st["value"], re.I): dynamic=True
+                        procs |= set(SQL_RE.findall(st["value"]))
+                    m = {"path": rel, "name": mm.group(1), "start": i + 1, "end": last + 1, "parent": parent["name"], "ns": ns, "calls": calls, "procs": procs, "text": text, "liveness": lv(i+1,last+1), "strings": strings, "dynamic_sql": dynamic}
                     self.methods.append(m); self.method_by[m["name"]].append(m)
         for p in sorted(self.corpus.rglob("*.sql")):
             rel = str(p.relative_to(self.corpus)); lines = self.text_lines(rel); text = "\n".join(lines)
             name = CREATE_RE.search(text)
-            self.sqls.append({"path": rel, "name": name.group(1) if name else p.stem, "start": 1, "end": len(lines), "text": text, "tables": set(re.findall(r"\b(?:FROM|JOIN|UPDATE|INTO)\s+\[?dbo\]?\.?\[?([A-Za-z_]\w+)", text, re.I))})
+            self.sqls.append({"path": rel, "name": name.group(1) if name else p.stem, "start": 1, "end": len(lines), "text": text, "liveness": LIVE, "tables": set(re.findall(r"\b(?:FROM|JOIN|UPDATE|INTO)\s+\[?dbo\]?\.?\[?([A-Za-z_]\w+)", text, re.I))})
 
     def type_at(self, path, start, end):
         for t in self.type_by.values():

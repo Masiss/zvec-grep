@@ -1,0 +1,405 @@
+{
+  "schema": "rag-gq2-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "cases": [
+    {
+      "id": "GQ2-01",
+      "question": "Which DbSet property in CoreDBContext maps EmployeeAuth, and where is EmployeeAuth declared?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "property",
+          "role": "REQUIRED",
+          "description": "DbSet property",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 27,
+              "end_line": 27,
+              "role": "REQUIRED",
+              "group": "property"
+            }
+          ]
+        },
+        {
+          "id": "type",
+          "role": "REQUIRED",
+          "description": "entity declaration",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeAuth.cs",
+              "start_line": 15,
+              "end_line": 29,
+              "role": "REQUIRED",
+              "group": "type"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 27,
+          "end_line": 27,
+          "role": "REQUIRED",
+          "group": "property"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeAuth.cs",
+          "start_line": 15,
+          "end_line": 29,
+          "role": "REQUIRED",
+          "group": "type"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 29,
+          "end_line": 29,
+          "role": "SUPPORTING",
+          "note": "nearby DbSet"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "unrelated procedure"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeAuths is a DbSet of EmployeeAuth.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "property",
+            "type"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Line 27 and entity class 15-29.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ2-02",
+      "question": "UpdateEmployeeType cập nhật tổng nhân sự qua procedure nào?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "control",
+          "role": "REQUIRED",
+          "description": "entry method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 690,
+              "end_line": 704,
+              "role": "REQUIRED",
+              "group": "control"
+            }
+          ]
+        },
+        {
+          "id": "wrapper",
+          "role": "REQUIRED",
+          "description": "wrapper method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1057,
+              "end_line": 1073,
+              "role": "REQUIRED",
+              "group": "wrapper"
+            }
+          ]
+        },
+        {
+          "id": "sql",
+          "role": "REQUIRED",
+          "description": "procedure definition",
+          "any_of": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 1,
+              "end_line": 103,
+              "role": "REQUIRED",
+              "group": "sql"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 690,
+          "end_line": 704,
+          "role": "REQUIRED",
+          "group": "control"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1073,
+          "role": "REQUIRED",
+          "group": "wrapper"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "REQUIRED",
+          "group": "sql"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 58,
+          "end_line": 95,
+          "role": "SUPPORTING",
+          "group": "sql"
+        },
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "MISLEADING",
+          "note": "different object"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "UpdateEmployeeType reaches UpdateOrgTotalEmployee, which executes sp_UpdateOrgTotalEmployee.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "control",
+            "wrapper",
+            "sql"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Live call at 700 and explicit SQL at 1062.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ2-03",
+      "question": "Which entities does EditEmployeeSecurity write before and after its two SaveChanges calls?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "first",
+          "role": "REQUIRED",
+          "description": "first write window",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 575,
+              "end_line": 609,
+              "role": "REQUIRED",
+              "group": "first"
+            }
+          ]
+        },
+        {
+          "id": "second",
+          "role": "REQUIRED",
+          "description": "second write window",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 610,
+              "end_line": 616,
+              "role": "REQUIRED",
+              "group": "second"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 575,
+          "end_line": 609,
+          "role": "REQUIRED",
+          "group": "first"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 610,
+          "end_line": 616,
+          "role": "REQUIRED",
+          "group": "second"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 575,
+          "end_line": 625,
+          "role": "SUPPORTING",
+          "note": "full method"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "no proc in method"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeAuth is saved first; EmployeeDetail is saved second.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "first",
+            "second"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "SaveChanges at 609 and 616; two entity sets.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ2-04",
+      "question": "Does EditEmployeeSecurity invoke sp_UpdateOrgTotalEmployee?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "evidence",
+          "role": "REQUIRED",
+          "description": "method body",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 575,
+              "end_line": 625,
+              "role": "REQUIRED",
+              "group": "evidence"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 575,
+          "end_line": 625,
+          "role": "REQUIRED",
+          "group": "evidence"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "not invoked"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1073,
+          "role": "MISLEADING",
+          "note": "different method"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EditEmployeeSecurity invokes sp_UpdateOrgTotalEmployee.",
+          "status": "REFUTED",
+          "evidence_groups": [
+            "evidence"
+          ],
+          "negative": true
+        }
+      ],
+      "rationale": "No execute/proc string in this method; it uses SaveChanges only.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ2-05",
+      "question": "Which UpdateEmployeeType declaration updates Employees and then calls the total wrapper?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "service",
+          "role": "REQUIRED",
+          "description": "service declaration",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 690,
+              "end_line": 704,
+              "role": "REQUIRED",
+              "group": "service"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 690,
+          "end_line": 704,
+          "role": "REQUIRED",
+          "group": "service"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 860,
+          "end_line": 864,
+          "role": "MISLEADING",
+          "note": "thin controller action"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "not direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "The service declaration at 690-704 updates Employees and calls UpdateOrgTotalEmployee.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "service"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Service body contains EmployeeType assignment, SaveChanges, and wrapper call; controller only delegates.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    }
+  ]
+}

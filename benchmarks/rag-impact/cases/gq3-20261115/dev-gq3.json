@@ -1,0 +1,259 @@
+{
+  "schema": "rag-gq3-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "cases": [
+    {
+      "id": "GQ3-01",
+      "question": "Which DbSet property maps EmployeeUnion, and where is EmployeeUnion declared?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "property",
+          "role": "REQUIRED",
+          "description": "DbSet property",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 22,
+              "end_line": 22,
+              "role": "REQUIRED",
+              "group": "property"
+            }
+          ]
+        },
+        {
+          "id": "type",
+          "role": "REQUIRED",
+          "description": "entity declaration",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeUnion.cs",
+              "start_line": 6,
+              "end_line": 22,
+              "role": "REQUIRED",
+              "group": "type"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 22,
+          "end_line": 22,
+          "role": "REQUIRED",
+          "group": "property"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeUnion.cs",
+          "start_line": 6,
+          "end_line": 22,
+          "role": "REQUIRED",
+          "group": "type"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 27,
+          "end_line": 27,
+          "role": "SUPPORTING",
+          "note": "nearby DbSet"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "unrelated SQL"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeUnions is a DbSet of EmployeeUnion.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "property",
+            "type"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Line 22 and entity class 6-22.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ3-02",
+      "question": "UpdateEmployeeStaffCode writes which entity before SaveChanges?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "method",
+          "role": "REQUIRED",
+          "description": "write method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 706,
+              "end_line": 720,
+              "role": "REQUIRED",
+              "group": "method"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 706,
+          "end_line": 720,
+          "role": "REQUIRED",
+          "group": "method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 690,
+          "end_line": 704,
+          "role": "SUPPORTING",
+          "note": "sibling update"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "no SQL in method"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "UpdateEmployeeStaffCode updates Employees and calls SaveChanges.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "method"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Method body has StaffCode assignment and SaveChanges.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ3-03",
+      "question": "UpdateTrangThaiCongViec cập nhật tổng nhân sự qua procedure nào?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "control",
+          "role": "REQUIRED",
+          "description": "entry method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 830,
+              "end_line": 864,
+              "role": "REQUIRED",
+              "group": "control"
+            }
+          ]
+        },
+        {
+          "id": "wrapper",
+          "role": "REQUIRED",
+          "description": "wrapper method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1057,
+              "end_line": 1073,
+              "role": "REQUIRED",
+              "group": "wrapper"
+            }
+          ]
+        },
+        {
+          "id": "sql",
+          "role": "REQUIRED",
+          "description": "procedure definition",
+          "any_of": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 1,
+              "end_line": 103,
+              "role": "REQUIRED",
+              "group": "sql"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 830,
+          "end_line": 864,
+          "role": "REQUIRED",
+          "group": "control"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1073,
+          "role": "REQUIRED",
+          "group": "wrapper"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "REQUIRED",
+          "group": "sql"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 58,
+          "end_line": 95,
+          "role": "SUPPORTING",
+          "group": "sql"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeUnion.cs",
+          "start_line": 6,
+          "end_line": 22,
+          "role": "MISLEADING",
+          "note": "unrelated entity"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "UpdateTrangThaiCongViec calls UpdateOrgTotalEmployee, which executes sp_UpdateOrgTotalEmployee.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "control",
+            "wrapper",
+            "sql"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Live wrapper call in 830-864.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    }
+  ]
+}

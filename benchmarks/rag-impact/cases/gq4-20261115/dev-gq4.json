@@ -1,0 +1,201 @@
+{
+  "schema": "rag-gq4-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "cases": [
+    {
+      "id": "GQ4-01",
+      "question": "Which DbSet property maps EmployeeBaseView, and where is EmployeeBaseView declared?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "property",
+          "role": "REQUIRED",
+          "description": "DbSet property",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 42,
+              "end_line": 42,
+              "role": "REQUIRED",
+              "group": "property"
+            }
+          ]
+        },
+        {
+          "id": "type",
+          "role": "REQUIRED",
+          "description": "entity declaration",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+              "start_line": 64,
+              "end_line": 81,
+              "role": "REQUIRED",
+              "group": "type"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 42,
+          "end_line": 42,
+          "role": "REQUIRED",
+          "group": "property"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "start_line": 64,
+          "end_line": 81,
+          "role": "REQUIRED",
+          "group": "type"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "unrelated proc"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeBaseViews is a DbSet of EmployeeBaseView.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "property",
+            "type"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Line 42 and class 64-81.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ4-02",
+      "question": "UpdateEmployeeAttr writes which entity and which field?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "method",
+          "role": "REQUIRED",
+          "description": "write method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 866,
+              "end_line": 887,
+              "role": "REQUIRED",
+              "group": "method"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 866,
+          "end_line": 887,
+          "role": "REQUIRED",
+          "group": "method"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 706,
+          "end_line": 720,
+          "role": "SUPPORTING",
+          "note": "sibling write method"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "no proc in method"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "UpdateEmployeeAttr updates Employees.Avatar and calls SaveChanges.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "method"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Avatar assignment and SaveChanges at 882.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ4-03",
+      "question": "Does UpdateEmployeeAttr invoke sp_UpdateOrgTotalEmployee?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "method",
+          "role": "REQUIRED",
+          "description": "live method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 866,
+              "end_line": 887,
+              "role": "REQUIRED",
+              "group": "method"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 866,
+          "end_line": 887,
+          "role": "REQUIRED",
+          "group": "method"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "not invoked"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "UpdateEmployeeAttr invokes sp_UpdateOrgTotalEmployee.",
+          "status": "REFUTED",
+          "evidence_groups": [
+            "method"
+          ],
+          "negative": true
+        }
+      ],
+      "rationale": "No execute/proc string in method; SaveChanges only.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    }
+  ]
+}

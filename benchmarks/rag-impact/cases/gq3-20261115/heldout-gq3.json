@@ -1,0 +1,146 @@
+{
+  "schema": "rag-gq3-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "cases": [
+    {
+      "id": "GQ3-04",
+      "question": "Which UpdateOrgTotalEmployee declaration directly executes sp_UpdateOrgTotalEmployee?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "service",
+          "role": "REQUIRED",
+          "description": "service method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1057,
+              "end_line": 1073,
+              "role": "REQUIRED",
+              "group": "service"
+            }
+          ]
+        },
+        {
+          "id": "sql",
+          "role": "REQUIRED",
+          "description": "procedure definition",
+          "any_of": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 1,
+              "end_line": 103,
+              "role": "REQUIRED",
+              "group": "sql"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1073,
+          "role": "REQUIRED",
+          "group": "service"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "REQUIRED",
+          "group": "sql"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 181,
+          "end_line": 220,
+          "role": "MISLEADING",
+          "note": "controller action, not direct SQL"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "The service method at 1057-1073 directly executes the procedure.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "service",
+            "sql"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "Explicit execute string is only in service method.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "heldout"
+    },
+    {
+      "id": "GQ3-05",
+      "question": "Where is EmployeeSalaryHistoryMany declared?",
+      "language": "en",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees/CbEmployeeMany.cs",
+          "start_line": 15,
+          "end_line": 30,
+          "role": "MISLEADING",
+          "note": "commented-out declaration only"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeSalaryHistoryMany is a live method.",
+          "status": "INSUFFICIENT",
+          "evidence_groups": [],
+          "negative": false
+        }
+      ],
+      "rationale": "Only commented declaration exists; abstain.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "heldout"
+    },
+    {
+      "id": "GQ3-06",
+      "question": "Where is sp_UpdateOrgTotalEmployee_2028 defined?",
+      "language": "en",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "near-name proc"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "sp_UpdateOrgTotalEmployee_2028 is defined in the corpus.",
+          "status": "INSUFFICIENT",
+          "evidence_groups": [],
+          "negative": false
+        }
+      ],
+      "rationale": "Exact name absent; abstain.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "heldout"
+    }
+  ]
+}

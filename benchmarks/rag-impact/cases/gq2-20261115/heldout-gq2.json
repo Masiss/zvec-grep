@@ -1,0 +1,131 @@
+{
+  "schema": "rag-gq2-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "cases": [
+    {
+      "id": "GQ2-06",
+      "question": "Where is sp_UpdateOrgTotalEmployee_2027 defined?",
+      "language": "en",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "near-name proc"
+        },
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "MISLEADING",
+          "note": "different object"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "sp_UpdateOrgTotalEmployee_2027 is defined in this corpus.",
+          "status": "INSUFFICIENT",
+          "evidence_groups": [],
+          "negative": false
+        }
+      ],
+      "rationale": "Exact name absent; abstain.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "heldout"
+    },
+    {
+      "id": "GQ2-07",
+      "question": "EmployeeBaseViews is a view or a procedure, and which tables does it read?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "view",
+          "role": "REQUIRED",
+          "description": "view definition",
+          "any_of": [
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 1,
+              "end_line": 10,
+              "role": "REQUIRED",
+              "group": "view"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "REQUIRED",
+          "group": "view"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "different object"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeBaseViews is a VIEW over Employees and related tables.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "view"
+          ],
+          "negative": false
+        }
+      ],
+      "rationale": "CREATE VIEW and FROM/JOIN source.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "heldout"
+    },
+    {
+      "id": "GQ2-08",
+      "question": "Where is the CbEmployeeMany method declared?",
+      "language": "en",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees/CbEmployeeMany.cs",
+          "start_line": 296,
+          "end_line": 320,
+          "role": "MISLEADING",
+          "note": "commented-out declaration, not executable"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "CbEmployeeMany is a live method in this corpus.",
+          "status": "INSUFFICIENT",
+          "evidence_groups": [],
+          "negative": false
+        }
+      ],
+      "rationale": "Only a commented declaration exists; abstain rather than treat comment as live.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "heldout"
+    }
+  ]
+}

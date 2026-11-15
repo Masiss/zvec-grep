@@ -18,12 +18,13 @@ def overlaps(a,b): return a['path']==b['path'] and a['start_line']<=b['end_line'
 
 def analyze(question, refs, binds, source_ref):
     qt=set(qterms(question)); intent=intent_of(question); qlow=question.lower()
-    ct=[x for x in code_tokens(question) if len(x)>=4]
+    ct=[x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]*', question) if len(x)>=4 and (x[0].isupper() or '_' in x or any(c.isupper() for c in x[1:]))]
     # exact declarations named in the question
-    methods=[]; types=[]; sqls=[]
+    methods=[]; types=[]; sqls=[]; props=[]
     for name in ct:
         methods += [m for m in refs.method_by.get(name,[]) if name.lower() in m['name'].lower() or m['name'].lower()==name.lower()]
         types += [t for t in refs.type_by.get(name,[]) if t['name'].lower()==name.lower()]
+        props += [p for p in refs.prop_by_name.get(name,[]) if p['name'].lower()==name.lower() and (p.get('is_dbset') or p['parent'] in ('CoreDBContext','HRMLocalContext'))]
     # SQL names are case-insensitive and may be prefixed
     for s in refs.sqls:
         sn=norm(s['name'].replace('sp_','')); 
@@ -36,9 +37,12 @@ def analyze(question, refs, binds, source_ref):
             if norm(s['name'])==norm(name): sqls.append(s)
     unknown_sql = bool(sp) and not sqls
     # view exact name
-    views=[s for s in refs.sqls if any(norm(x)==norm(s['name']) or norm(x) in norm(s['name']) for x in ct)]
-    negative = bool(re.search(r'(?:does|có|co)\b.{0,80}\b(?:invoke|call|goi|gọi|use|dùng|dung)\b|\b(?:không|khong)\s*\?', qlow, re.I)) and not re.search(r'wrapper|indirect|through|gián tiếp|gian tiep', qlow, re.I)
-    wants_sql = (bool(sp) or ('sql' in intent) or bool(re.search(r'\b(procedure|proc|sql|table|bảng)\b', qlow, re.I))) and not (negative and methods)
+    views=[s for s in refs.sqls if re.search(r'CREATE\s+VIEW', s.get('text',''), re.I) and any(norm(x)==norm(s['name']) or norm(x) in norm(s['name']) for x in ct)]
+    negative = bool(re.search(r'(?:does|có|co)\b.{0,80}\b(?:invoke|call|goi|gọi|use|dùng|dung)\b|\b(?:không|khong)\s*\?', qlow, re.I)) and not re.search(r'only through|indirect|gián tiếp|gian tiep', qlow, re.I)
+    wants_property = bool(re.search(r'\b(property|dbset|dbcontext|entity|maps?|type)\b', qlow, re.I))
+    wants_sql = (bool(sp) or ('sql' in intent) or bool(re.search(r'\b(procedure|proc|sql|table|bảng)\b', qlow, re.I))) and not wants_property and not (negative and methods)
+    if wants_property and not re.search(r'\b(write|writes|saved?|update|delete|create|read|call|invoke|method|function|gọi)\b', qlow, re.I):
+        methods = []
     if negative and methods:
         sqls = []
     # verified bindings by source key
@@ -50,9 +54,23 @@ def analyze(question, refs, binds, source_ref):
     def add(path,start,end,role,score,source,chain=None):
         if start<1 or end<start: return
         cands.append({'path':path,'start_line':start,'end_line':end,'last_line':end,'role':role,'score':score,'source':source,'chain':chain or []})
+    # Exact type -> DbSet/entity properties and their type declarations.
+    if wants_property or (types and not methods and not sqls):
+        for t in types:
+            add(t['path'],t['start'],t['end'],'TYPE',3.0,{'type':t['name']})
+            for p in refs.props:
+                if p.get('is_dbset') and p['type']==t['name'] and p['parent'] in ('CoreDBContext','HRMLocalContext'):
+                    add(p['path'],p['start'],p['end'],'PROPERTY',3.1,{'property':p['name'],'type':t['name']})
+        for p in props:
+            add(p['path'],p['start'],p['end'],'PROPERTY',3.1,{'property':p['name']})
+            for t in refs.type_target(p['type']):
+                add(t['path'],t['start'],t['end'],'TYPE',3.0,{'type':t['name']})
     # Pick one primary declaration per exact method name: a bound service
     # implementation outranks a thin controller wrapper; otherwise the larger
     # body is the implementation.
+    if methods:
+        maxlen=max(len(m['name']) for m in methods)
+        methods=[m for m in methods if len(m['name'])>=max(5,int(maxlen*0.7))]
     primary={}
     for m in methods:
         key=(m['path'],m['start'],m['end']); bs=bmap.get(key,[])
@@ -84,7 +102,6 @@ def analyze(question, refs, binds, source_ref):
             add(m['path'],m['start'],m['end'],'CONTROL',3.0,{'method':m['name']})
         if wants_sql:
             for b in bs[:4]:
-                add(m['path'],m['start'],m['end'],'WRAPPER',2.7,{'method':m['name']},b['chain'])
                 for mid in b['chain'][1:]:
                     for mm in refs.method_by.get(mid,[]):
                         if mm.get('parent')==m.get('parent'):
@@ -100,25 +117,29 @@ def analyze(question, refs, binds, source_ref):
     for s in views:
         add(s['path'],s['start'],s['end'],'VIEW',3.0,{'sql':s['name']})
     # de-duplicate exact ranges, prefer stronger role
-    rank={'SQL':4,'VIEW':4,'WRAPPER':3,'CONTROL':2,'DATA':1}
+    rank={'SQL':5,'VIEW':5,'TYPE':4,'PROPERTY':4,'CONTROL':4,'WRAPPER':3,'DATA':1}
     uniq={}
     for c in cands:
         k=(c['path'],c['start_line'],c['end_line'])
         if k not in uniq or rank.get(c['role'],0)>rank.get(uniq[k]['role'],0): uniq[k]=c
     cands=list(uniq.values())
     # relevance filters by question intent; do not add entity noise
-    if sqls or views or ('sql' in intent):
+    if wants_property and not sqls and not views:
+        cands=[c for c in cands if c['role'] in ('TYPE','PROPERTY','CONTROL','DATA')]
+    elif sqls or views or ('sql' in intent):
         keep=('SQL','VIEW','WRAPPER','CONTROL') if methods else ('SQL','VIEW','WRAPPER')
         cands=[c for c in cands if c['role'] in keep]
+    elif types or props:
+        cands=[c for c in cands if c['role'] in ('TYPE','PROPERTY','CONTROL','DATA')]
     elif methods:
         cands=[c for c in cands if c['role'] in ('CONTROL','WRAPPER','SQL','DATA')]
     else:
         cands=[]
     abstain = (not cands) and (unknown_sql or not methods)
-    return {'intent':sorted(intent),'code_tokens':ct,'unknown_sql':unknown_sql,'methods':[m['name'] for m in methods],'sqls':[s['name'] for s in sqls],'views':[s['name'] for s in views],'candidates':cands,'abstain':abstain}
+    return {'intent':sorted(intent),'code_tokens':ct,'unknown_sql':unknown_sql,'methods':[m['name'] for m in methods],'sqls':[s['name'] for s in sqls],'views':[s['name'] for s in views],'properties':[p['name'] for p in props],'candidates':cands,'abstain':abstain}
 
 def select(analysis, source, counter, tokenizer, budget):
-    c=[x for x in analysis['candidates'] if x['role'] in ('SQL','VIEW','WRAPPER','CONTROL','DATA')]
+    c=[x for x in analysis['candidates'] if x['role'] in ('SQL','VIEW','TYPE','PROPERTY','WRAPPER','CONTROL','DATA')]
     c.sort(key=lambda x:(-x['score'], -int(x['role'] in ('SQL','VIEW','WRAPPER')), x['end_line']-x['start_line']+1, x['path']))
     out=[]; seen=[]
     for x in c:

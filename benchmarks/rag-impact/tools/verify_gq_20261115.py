@@ -24,7 +24,7 @@ def main():
     ok(freeze['frozen'] is True,'candidate freeze not frozen')
     ok(rec['identity']['bindings_sha256']==sha256_file(a.bindings),'candidate receipt binding identity mismatch')
     ok(rec['identity']['cases_sha256']==sha256_file(a.cases),'candidate receipt case identity mismatch')
-    ok(freeze['frozen_bindings_sha256']==sha256_file(a.bindings),'frozen binding identity mismatch')
+    ok(freeze.get('frozen_bindings_sha256', freeze.get('bindings_sha256'))==sha256_file(a.bindings),'frozen binding identity mismatch')
     # dataset source identity and claims
     for c in cases.values():
         ok(c.get('frozen') is True,f'{c["id"]} not frozen')
@@ -79,7 +79,9 @@ def main():
     gate={'required_group_recall_dev':None,'required_group_recall_heldout':None,'role_precision':s['role_precision'],'misleading_admissions':s['misleading'],'correct_abstention':s['correct_abstain'],'negative_claim_safety':(neg_safe/neg_total if neg_total else None)}
     ok(gate['misleading_admissions']<=gates['misleading_admissions_max'],'misleading admission gate')
     ok(gate['role_precision'] is None or gate['role_precision']>=gates['role_precision'],'role precision gate')
-    if neg_total: ok(gate['negative_claim_safety']>=gates['negative_claim_safety'],'negative claim safety gate')
+    ok((groups_hit/groups_total if groups_total else 1.0)>=gates['required_group_recall_dev'],'required group recall gate')
+    neg_gate=gates.get('negative_claim_safety', 1.0 if gates.get('unsafe_negative_claim_acceptance')==0 else 0.0)
+    if neg_total: ok(gate['negative_claim_safety']>=neg_gate,'negative claim safety gate')
     # sanitized
     if a.sanitized:
         san=json.loads(a.sanitized.read_text())
