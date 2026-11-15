@@ -165,5 +165,6 @@ reviewed; the corpus/index (~89 MB) and receipts (~3 MB) are retained. The
 experiment worktree is committed and pushed as `work/rag-requal-20261115`; the
 main worktree is unchanged. No production index, binary or daemon was touched.
 
-Final commit: recorded in the branch tip and remote ref after the documentation
-commit.
+Implementation/docs commit: `64631052260fbcd4977bad60172e1fa7f75d2577`
+(`docs(rag): requalify Discovery on the E8 Foundation`). Branch tip after the
+final handoff amendment is recorded in the remote ref.
