@@ -143,5 +143,6 @@ proposal. Do not continue ranking heuristics on the same metadata.
 | **D-S1b-2** | Optionally authorize a separate reference-aware Discovery proposal with false-edge/resource gates; do not open it here. |
 | **D-S1b-3** | Keep installed `0.0.1`/v2; no release/install unit. |
 
-Implementation/docs commit: recorded in the branch tip and remote ref after the
-documentation commit.
+Implementation/docs commit: `707713a1663094198c4f11639e713765ea78ed28`
+(`docs(rag): test query-to-evidence signals for Selection`). The branch tip
+after this handoff amendment is recorded in the remote ref.
