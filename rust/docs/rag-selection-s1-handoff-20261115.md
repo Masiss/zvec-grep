@@ -159,5 +159,6 @@ Do not open S2, Discovery-D1, Expansion or R1 delivery as part of this task.
 | **D-S1-2** | Authorize (or refuse) one bounded signal experiment for the 11 locatable spans. |
 | **D-S1-3** | Keep installed `0.0.1`/v2 and defer any release/install unit. |
 
-Final commit: recorded in the branch tip and remote ref after the documentation
-commit.
+Implementation/docs commit: `7d912c1ac8721f591a28ed89cbef0a635a22cd93`
+(`docs(rag): evaluate Selection feasibility on the frozen v3 pool`). The branch
+tip after this handoff amendment is recorded in the remote ref.
