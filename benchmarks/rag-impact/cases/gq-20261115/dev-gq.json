@@ -1,0 +1,446 @@
+{
+  "schema": "rag-gq-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "cases": [
+    {
+      "id": "GQ-01",
+      "question": "Which DbSet property maps EmployeeChangeRequestDetail, and where is that entity declared?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "property",
+          "role": "REQUIRED",
+          "description": "property mapping",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+              "start_line": 29,
+              "end_line": 29,
+              "role": "REQUIRED",
+              "group": "property"
+            }
+          ]
+        },
+        {
+          "id": "type",
+          "role": "REQUIRED",
+          "description": "entity declaration",
+          "any_of": [
+            {
+              "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestDetail.cs",
+              "start_line": 15,
+              "end_line": 93,
+              "role": "REQUIRED",
+              "group": "type"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 29,
+          "end_line": 29,
+          "role": "REQUIRED",
+          "group": "property"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestDetail.cs",
+          "start_line": 15,
+          "end_line": 93,
+          "role": "REQUIRED",
+          "group": "type"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 41,
+          "end_line": 55,
+          "role": "SUPPORTING",
+          "note": "other DbSets"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "IRRELEVANT",
+          "note": "unrelated procedure"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeChangeRequestDetails is a DbSet of EmployeeChangeRequestDetail.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "property",
+            "type"
+          ]
+        }
+      ],
+      "rationale": "Property line 29 and entity class declaration; source-only.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ-02",
+      "question": "CreateFullOrganization cập nhật tổng nhân sự qua procedure nào?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "control",
+          "role": "REQUIRED",
+          "description": "entry method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 15,
+              "end_line": 273,
+              "role": "REQUIRED",
+              "group": "control"
+            }
+          ]
+        },
+        {
+          "id": "wrapper",
+          "role": "REQUIRED",
+          "description": "wrapper method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1057,
+              "end_line": 1073,
+              "role": "REQUIRED",
+              "group": "wrapper"
+            }
+          ]
+        },
+        {
+          "id": "sql",
+          "role": "REQUIRED",
+          "description": "procedure definition",
+          "any_of": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 1,
+              "end_line": 103,
+              "role": "REQUIRED",
+              "group": "sql"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 15,
+          "end_line": 273,
+          "role": "REQUIRED",
+          "group": "control"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1073,
+          "role": "REQUIRED",
+          "group": "wrapper"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "REQUIRED",
+          "group": "sql"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 58,
+          "end_line": 95,
+          "role": "SUPPORTING",
+          "group": "sql"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 550,
+          "end_line": 560,
+          "role": "MISLEADING",
+          "note": "different entry point"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "CreateFullOrganization reaches UpdateOrgTotalEmployee, which executes sp_UpdateOrgTotalEmployee.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "control",
+            "wrapper",
+            "sql"
+          ]
+        }
+      ],
+      "rationale": "Source range 15-273 contains the call; wrapper body has explicit execute.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ-03",
+      "question": "Does EditEmployeeJobAndGroup invoke sp_UpdateOrgTotalEmployee through ChangeWorkProcess?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "control",
+          "role": "REQUIRED",
+          "description": "method body",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 461,
+              "end_line": 520,
+              "role": "REQUIRED",
+              "group": "control"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 461,
+          "end_line": 520,
+          "role": "REQUIRED",
+          "group": "control"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+          "start_line": 164,
+          "end_line": 274,
+          "role": "MISLEADING",
+          "note": "commented-out declaration/call"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "not invoked by live code"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EditEmployeeJobAndGroup invokes ChangeWorkProcess and sp_UpdateOrgTotalEmployee.",
+          "status": "REFUTED",
+          "evidence_groups": [
+            "control"
+          ],
+          "negative": true
+        }
+      ],
+      "rationale": "The ChangeWorkProcess call is commented out; method body contains only SaveChanges and cache deletes.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ-04",
+      "question": "Does ChangeWorkProcess update Organizations.TotalEmployee?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+          "start_line": 164,
+          "end_line": 274,
+          "role": "MISLEADING",
+          "note": "commented-out code, not executable"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "unrelated to live method"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "ChangeWorkProcess updates total employees.",
+          "status": "INSUFFICIENT",
+          "evidence_groups": []
+        }
+      ],
+      "rationale": "The declaration and calls are commented out; no live executable evidence. Abstain rather than assert.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ-05",
+      "question": "EditOrganization invokes which SQL procedure to update totals?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "control",
+          "role": "REQUIRED",
+          "description": "entry method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 686,
+              "end_line": 875,
+              "role": "REQUIRED",
+              "group": "control"
+            }
+          ]
+        },
+        {
+          "id": "wrapper",
+          "role": "REQUIRED",
+          "description": "wrapper method",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1057,
+              "end_line": 1073,
+              "role": "REQUIRED",
+              "group": "wrapper"
+            }
+          ]
+        },
+        {
+          "id": "sql",
+          "role": "REQUIRED",
+          "description": "procedure",
+          "any_of": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 1,
+              "end_line": 103,
+              "role": "REQUIRED",
+              "group": "sql"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 686,
+          "end_line": 875,
+          "role": "REQUIRED",
+          "group": "control"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1073,
+          "role": "REQUIRED",
+          "group": "wrapper"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "REQUIRED",
+          "group": "sql"
+        },
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "MISLEADING",
+          "note": "different object"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EditOrganization reaches the wrapper that executes sp_UpdateOrgTotalEmployee.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "control",
+            "wrapper",
+            "sql"
+          ]
+        }
+      ],
+      "rationale": "Call at 852 and wrapper explicit execute at 1062.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    },
+    {
+      "id": "GQ-06",
+      "question": "EmployeeBaseViews is what kind of database object and which tables does it read?",
+      "language": "en",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "view",
+          "role": "REQUIRED",
+          "description": "view definition",
+          "any_of": [
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 1,
+              "end_line": 10,
+              "role": "REQUIRED",
+              "group": "view"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "REQUIRED",
+          "group": "view"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "different object"
+        }
+      ],
+      "claims": [
+        {
+          "id": "c1",
+          "text": "EmployeeBaseViews is a view over Employees, EmployeeOrganizations, Organizations, JobPositions and JobTitles.",
+          "status": "SUPPORTED",
+          "evidence_groups": [
+            "view"
+          ]
+        }
+      ],
+      "rationale": "CREATE VIEW plus FROM/JOIN source.",
+      "frozen": true,
+      "adjudication": "VERIFIED",
+      "adjudicator": "machine-assisted source review",
+      "split": "dev"
+    }
+  ]
+}
