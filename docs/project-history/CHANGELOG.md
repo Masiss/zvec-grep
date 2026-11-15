@@ -43,6 +43,13 @@ PROPOSED plans.
 research branches, installed binary/daemon/index, original plans, receipts.
 No GQ5, merge, release or promotion was performed.
 
+## 2026-11-15 — handoff checkpoint
+
+Added `HANDOFF-20261115.md` with the resumable Git/runtime state, external-copy
+paths, corrections, unresolved conflicts, owner-reported preferences, safe
+first commands and next-session constraints. Updated the START HERE reading
+order and manifest.
+
 ## 2026-11-15 — initial knowledge base
 
 Commit `70036c66a20756e1ee8ebcea587f2a8f9169d97b` created
