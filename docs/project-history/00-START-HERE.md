@@ -42,7 +42,6 @@ The current verified snapshot and conflicts are collected in
 | 10 | [09-RAG-EXECUTION-DELTA.md](09-RAG-EXECUTION-DELTA.md) | Canonical R0–R6 vs verified reality; shortest justified MVP path |
 | 11 | [10-REVIEW-AND-VERIFICATION.md](10-REVIEW-AND-VERIFICATION.md) | Independent review, negative controls, residual gaps |
 | 12 | [CHANGELOG.md](CHANGELOG.md) | Knowledge-base change log; not engine history |
-| 13 | [HANDOFF-20261115.md](HANDOFF-20261115.md) | Resumable checkpoint and next-session constraints |
 
 ## 3. Canonical sources (priority order)
 
@@ -127,7 +126,6 @@ Never infer a higher layer from a lower one. `MERGED_INTERNAL` ≠ `INSTALLED`;
 | Independent review / negative controls | 10 |
 | ChatGPT Project instructions | PROJECT-CHAT-INSTRUCTIONS |
 | Documentation change log | CHANGELOG |
-| Resumable handoff | HANDOFF-20261115 |
 
 ## 7. Explicit non-goals of this documentation branch
 

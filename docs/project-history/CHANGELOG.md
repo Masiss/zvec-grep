@@ -43,12 +43,12 @@ PROPOSED plans.
 research branches, installed binary/daemon/index, original plans, receipts.
 No GQ5, merge, release or promotion was performed.
 
-## 2026-11-15 — handoff checkpoint
+## 2026-11-15 — handoff scope cleanup
 
-Added `HANDOFF-20261115.md` with the resumable Git/runtime state, external-copy
-paths, corrections, unresolved conflicts, owner-reported preferences, safe
-first commands and next-session constraints. Updated the START HERE reading
-order and manifest.
+The resumable handoff was moved out of this documentation KB. It is maintained
+in the source-main worktree as `HANDOFF-20261115-NEXT.md`. This KB remains the
+canonical **documentation package**; the handoff is an engineering/session
+artifact and should not be part of the portable documentation set.
 
 ## 2026-11-15 — initial knowledge base
 
