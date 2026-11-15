@@ -1,0 +1,77 @@
+{
+  "schema": "rag-evidence-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "purpose": "post-freeze adversarial negative probes; not used for policy selection",
+  "cases": [
+    {
+      "id": "RE-A01",
+      "question": "Where is RestoreEmployeeByIdX invoked, and which SQL procedure does it call?",
+      "language": "en",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "unknown method near-name"
+        }
+      ],
+      "expected_answer": "No matching declaration; abstain.",
+      "forbidden_claims": [
+        "the near name is the requested symbol"
+      ],
+      "rationale": "unknown method near-name",
+      "frozen": true
+    },
+    {
+      "id": "RE-A02",
+      "question": "Where is sp_UpdateOrgTotalEmployeeX defined?",
+      "language": "en",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "unknown procedure near-name"
+        }
+      ],
+      "expected_answer": "No matching declaration; abstain.",
+      "forbidden_claims": [
+        "the near name is the requested symbol"
+      ],
+      "rationale": "unknown procedure near-name",
+      "frozen": true
+    },
+    {
+      "id": "RE-A03",
+      "question": "Which method invokes sp_NotDeployedSQL and what table does it update?",
+      "language": "en",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 103,
+          "role": "MISLEADING",
+          "note": "unknown procedure plus no method"
+        }
+      ],
+      "expected_answer": "No matching declaration; abstain.",
+      "forbidden_claims": [
+        "the near name is the requested symbol"
+      ],
+      "rationale": "unknown procedure plus no method",
+      "frozen": true
+    }
+  ]
+}

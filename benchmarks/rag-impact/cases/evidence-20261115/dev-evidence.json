@@ -1,0 +1,391 @@
+{
+  "schema": "rag-evidence-cases/v1",
+  "version": "20261115",
+  "frozen": true,
+  "annotation": "source-grounded role labels; no gold in runtime",
+  "cases": [
+    {
+      "id": "RE-D01",
+      "question": "RestoreEmployeeById ảnh hưởng đến bảng nào và qua procedure nào?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "control",
+          "role": "REQUIRED",
+          "description": "Restore entry point",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 550,
+              "end_line": 560,
+              "role": "REQUIRED",
+              "group": "control"
+            }
+          ]
+        },
+        {
+          "id": "wrapper",
+          "role": "REQUIRED",
+          "description": "method that invokes the procedure",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1057,
+              "end_line": 1074,
+              "role": "REQUIRED",
+              "group": "wrapper"
+            }
+          ]
+        },
+        {
+          "id": "sql",
+          "role": "REQUIRED",
+          "description": "stored-procedure definition",
+          "any_of": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 1,
+              "end_line": 102,
+              "role": "REQUIRED",
+              "group": "sql"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 550,
+          "end_line": 560,
+          "role": "REQUIRED",
+          "group": "control"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1074,
+          "role": "REQUIRED",
+          "group": "wrapper"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 102,
+          "role": "REQUIRED",
+          "group": "sql"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 58,
+          "end_line": 95,
+          "role": "SUPPORTING",
+          "group": "sql-update"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539,
+          "end_line": 548,
+          "role": "MISLEADING",
+          "note": "sibling delete"
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 181,
+          "end_line": 220,
+          "role": "IRRELEVANT",
+          "note": "controller wrapper, not SQL binding"
+        }
+      ],
+      "expected_answer": "Employees update + wrapper + sp_UpdateOrgTotalEmployee updates Organizations.TotalEmployee.",
+      "forbidden_claims": "restore affects only Employees; sp_UpdateOrgTotalEmployee is not invoked",
+      "rationale": "Source shows a direct Employees update, a wrapper call, and a proc UPDATE of Organizations.TotalEmployee.",
+      "frozen": true
+    },
+    {
+      "id": "RE-D02",
+      "question": "EmployeeEditThongTinCaNhan ghi vào entity nào trước và sau SaveChanges?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "first_write",
+          "role": "REQUIRED",
+          "description": "first employee assignment + SaveChanges",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 215,
+              "end_line": 285,
+              "role": "REQUIRED",
+              "group": "first_write"
+            }
+          ]
+        },
+        {
+          "id": "second_write",
+          "role": "REQUIRED",
+          "description": "detail assignment + second SaveChanges",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 287,
+              "end_line": 425,
+              "role": "REQUIRED",
+              "group": "second_write"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215,
+          "end_line": 285,
+          "role": "REQUIRED",
+          "group": "first_write"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 287,
+          "end_line": 425,
+          "role": "REQUIRED",
+          "group": "second_write"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "start_line": 5,
+          "end_line": 62,
+          "role": "SUPPORTING",
+          "note": "Employee entity"
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 41,
+          "end_line": 55,
+          "role": "SUPPORTING",
+          "note": "DbSet properties"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 562,
+          "end_line": 573,
+          "role": "MISLEADING",
+          "note": "sibling EmployeeUpdateInfo"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539,
+          "end_line": 548,
+          "role": "IRRELEVANT",
+          "note": "delete sibling"
+        }
+      ],
+      "expected_answer": "Employee is saved first; EmployeeDetail is loaded and saved second; not one atomic transaction.",
+      "forbidden_claims": "the two writes are one atomic transaction; every model field is always written",
+      "rationale": "Two SaveChanges blocks on the two entity sets.",
+      "frozen": true
+    },
+    {
+      "id": "RE-D03",
+      "question": "sp_UpdateOrgTotalEmployee cập nhật bảng nào, và method nào gọi nó?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "sql",
+          "role": "REQUIRED",
+          "description": "procedure definition",
+          "any_of": [
+            {
+              "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+              "start_line": 1,
+              "end_line": 102,
+              "role": "REQUIRED",
+              "group": "sql"
+            }
+          ]
+        },
+        {
+          "id": "wrapper",
+          "role": "REQUIRED",
+          "description": "verified invoker",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+              "start_line": 1057,
+              "end_line": 1074,
+              "role": "REQUIRED",
+              "group": "wrapper"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 102,
+          "role": "REQUIRED",
+          "group": "sql"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1074,
+          "role": "REQUIRED",
+          "group": "wrapper"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 58,
+          "end_line": 95,
+          "role": "SUPPORTING",
+          "group": "sql-update"
+        },
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "MISLEADING",
+          "note": "different database object"
+        }
+      ],
+      "expected_answer": "Organizations.TotalEmployee is updated; UpdateOrgTotalEmployee invokes the procedure explicitly.",
+      "forbidden_claims": "sp_UpdateOrgTotalEmployee updates EmployeeBaseViews; name-only call is proof",
+      "rationale": "SQL shows UPDATE Organizations; wrapper body contains execute sp_UpdateOrgTotalEmployee.",
+      "frozen": true
+    },
+    {
+      "id": "RE-D04",
+      "question": "EmployeeBaseViews là view hay bảng, định nghĩa ở đâu?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "view",
+          "role": "REQUIRED",
+          "description": "view definition",
+          "any_of": [
+            {
+              "path": "DB/Views/EmployeeBaseViews.sql",
+              "start_line": 1,
+              "end_line": 10,
+              "role": "REQUIRED",
+              "group": "view"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "REQUIRED",
+          "group": "view"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 102,
+          "role": "MISLEADING",
+          "note": "different database object"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215,
+          "end_line": 285,
+          "role": "IRRELEVANT",
+          "note": "unrelated write method"
+        }
+      ],
+      "expected_answer": "EmployeeBaseViews is a CREATE VIEW over Employees/EmployeeOrganizations/Organizations/JobPositions/JobTitles.",
+      "forbidden_claims": "EmployeeBaseViews is a table; the procedure defines it",
+      "rationale": "SQL starts CREATE VIEW and has FROM joins.",
+      "frozen": true
+    },
+    {
+      "id": "RE-D05",
+      "question": "sp_NotDeployed được định nghĩa ở đâu?",
+      "language": "vi",
+      "answerable": false,
+      "expected_abstain": true,
+      "required_groups": [],
+      "units": [
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 102,
+          "role": "MISLEADING",
+          "note": "nearest but wrong procedure"
+        },
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10,
+          "role": "MISLEADING",
+          "note": "different object"
+        }
+      ],
+      "expected_answer": "No definition exists in the frozen corpus; abstain.",
+      "forbidden_claims": "sp_NotDeployed is defined in this repository",
+      "rationale": "Exact procedure name is absent from both SQL files.",
+      "frozen": true
+    },
+    {
+      "id": "RE-D06",
+      "question": "DeleteEmployeeByIds có gọi stored procedure nào không?",
+      "language": "vi",
+      "answerable": true,
+      "expected_abstain": false,
+      "required_groups": [
+        {
+          "id": "evidence",
+          "role": "REQUIRED",
+          "description": "method body with inline SQL",
+          "any_of": [
+            {
+              "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+              "start_line": 539,
+              "end_line": 548,
+              "role": "REQUIRED",
+              "group": "inline"
+            }
+          ]
+        }
+      ],
+      "units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539,
+          "end_line": 548,
+          "role": "REQUIRED",
+          "group": "inline"
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057,
+          "end_line": 1074,
+          "role": "MISLEADING",
+          "note": "different wrapper"
+        },
+        {
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1,
+          "end_line": 102,
+          "role": "MISLEADING",
+          "note": "different procedure"
+        }
+      ],
+      "expected_answer": "No stored procedure; it executes an inline UPDATE Employees statement.",
+      "forbidden_claims": "DeleteEmployeeByIds calls sp_UpdateOrgTotalEmployee",
+      "rationale": "Method body contains ExecuteSqlCommand with an inline update, not a proc name.",
+      "frozen": true
+    }
+  ]
+}
