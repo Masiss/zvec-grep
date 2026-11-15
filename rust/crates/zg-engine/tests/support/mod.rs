@@ -55,7 +55,11 @@ pub fn set_native_file_status(
     let document = collection.fetch(&[&key])?.pop().expect("stored file");
     let mut payload: Value =
         serde_json::from_str(&document.get_string("payload")?.expect("file payload"))?;
-    payload["index_status"] = json!({"kind": status});
+    payload["index_status"] = if status == "failed" {
+        json!({"kind": "failed", "error": "injected test failure"})
+    } else {
+        json!({"kind": status})
+    };
     let mut update = zvec_rust::Doc::new()?;
     update.set_pk(&key);
     update.add_string("payload", &serde_json::to_string(&payload)?)?;
@@ -93,7 +97,7 @@ pub fn configure_remote_model(root: &Path, address: SocketAddr) -> std::io::Resu
             "recordedUsername": std::env::var(if cfg!(windows) { "USERNAME" } else { "USER" }).ok(),
         },
         "scan": {},
-        "indexVersion": 2,
+        "indexVersion": 3,
         "storageGeneration": generation,
         "createdTime": 1,
         "updatedTime": 1,

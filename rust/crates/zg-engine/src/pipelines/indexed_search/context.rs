@@ -539,7 +539,10 @@ fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError
     })
 }
 
-fn file_freshness_status(workspace_root: &Path, file: &FileRecord) -> ContextItemStatus {
+pub(in crate::pipelines) fn file_freshness_status(
+    workspace_root: &Path,
+    file: &FileRecord,
+) -> ContextItemStatus {
     let absolute_path = workspace_root.join(file.relative_path());
     let metadata = match fs::metadata(&absolute_path) {
         Ok(metadata) => metadata,
@@ -1010,6 +1013,30 @@ mod tests {
         assert_eq!(request.groups[2].id, "Q3");
         assert_eq!(request.groups[2].role, ContextQueryGroupRole::Supplemental);
         assert_eq!(request.routes.len(), 5);
+    }
+
+    #[test]
+    fn explicit_fts_route_without_query_does_not_add_a_vector_route() {
+        let request = normalize_context_request(&ContextOptions {
+            routes: vec![ContextRoute {
+                mode: ContextRouteMode::Fts,
+                query: "alpha".to_owned(),
+            }],
+            ..ContextOptions::default()
+        })
+        .expect("normalized context request");
+
+        assert_eq!(request.groups.len(), 1);
+        assert_eq!(request.groups[0].role, ContextQueryGroupRole::Supplemental);
+        assert_eq!(request.groups[0].routes.len(), 1);
+        assert_eq!(request.groups[0].routes[0].mode, ContextRouteMode::Fts);
+        assert!(
+            !request
+                .routes
+                .iter()
+                .any(|route| route.mode == ContextRouteMode::Vector),
+            "explicit FTS-only routes must not gain an implicit vector route"
+        );
     }
 
     #[test]

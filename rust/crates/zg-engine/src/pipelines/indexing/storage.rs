@@ -97,11 +97,11 @@ impl IndexStorage for IndexStore {
 
     fn load_reusable_vectors(
         &self,
-        _file_id: FileId,
+        file_id: FileId,
         model: &str,
         fragment_ids: &[String],
     ) -> EngineResult<std::collections::HashMap<String, Vec<f32>>> {
-        self.load_reusable_vectors(model, fragment_ids)
+        self.load_reusable_vectors(file_id, model, fragment_ids)
     }
 
     fn load_embedding_manifest(&self, file_id: FileId) -> EngineResult<Option<FileManifest>> {

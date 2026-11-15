@@ -1,0 +1,10 @@
+{
+  "corpus_files": 392,
+  "corpus_lines": 98666,
+  "corpus_sha256": "6f87791413b383f65ef8fccc473d9f6af558a3566629280c5f2e57ad0b20940f",
+  "dataset": "e3-01-v1",
+  "frozen_at": "2026-11-12",
+  "queries_sha256": "5e35c3d6b3d1868864538320a0788bd3d2b76cc859cd9a8f2fe45e9089cb5662",
+  "query_count": 32,
+  "schema_version": 1
+}

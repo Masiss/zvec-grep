@@ -207,6 +207,23 @@ const NOMIC_ARTIFACTS: &[ArtifactConfig] = &[
     },
 ];
 
+// E4 experiment artifacts. These are catalogued only when the non-default
+// `e4-experiment` feature is enabled so the production catalog keeps matching
+// the TypeScript catalog oracle.
+#[cfg(feature = "e4-experiment")]
+const JINA_CODE_Q5_K_M_ARTIFACTS: &[ArtifactConfig] = &[ArtifactConfig {
+    path: "jina-embeddings-v2-base-code-Q5_K_M.gguf",
+    size: 121_395_616,
+    sha256: "4fb1c5f15462f12a083e19721c7a43e9eddfe6377dc845fa73bedf2461089919",
+}];
+
+#[cfg(feature = "e4-experiment")]
+const CODERANKEMBED_Q8_ARTIFACTS: &[ArtifactConfig] = &[ArtifactConfig {
+    path: "coderankembed-q8_0.gguf",
+    size: 146_029_792,
+    sha256: "666db8df27c88570cdc07adca28646260038b8ca65354911d57b936ebf56efaa",
+}];
+
 const CATALOG: [EmbeddingCatalogEntry; 14] = [
     EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
         reference: "local/embeddinggemma-300m",
@@ -541,13 +558,185 @@ const CATALOG: [EmbeddingCatalogEntry; 14] = [
     }),
 ];
 
+#[cfg(feature = "e4-experiment")]
+const E4_EXPERIMENT: [EmbeddingCatalogEntry; 6] = [
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/jina-embeddings-v2-base-code-q5-k-m",
+        provider: "local",
+        model: "jina-embeddings-v2-base-code-q5-k-m",
+        uri: "hf:second-state/jina-embeddings-v2-base-code-GGUF/jina-embeddings-v2-base-code-Q5_K_M.gguf#5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+        cache_file: "hf_second-state_jina-embeddings-v2-base-code-Q5_K_M.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            artifacts: JINA_CODE_Q5_K_M_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "none",
+        context_size: 8_192,
+        max_batch_size: 8,
+    }),
+    // Controlled-chunking arm: identical artifact and preprocessing as the
+    // 8192-token Jina entry, but a 2048-token context so the indexer builds the
+    // same fragment layout as the reference arm.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+        provider: "local",
+        model: "jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+        uri: "hf:second-state/jina-embeddings-v2-base-code-GGUF/jina-embeddings-v2-base-code-Q5_K_M.gguf#5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+        cache_file: "hf_second-state_jina-embeddings-v2-base-code-Q5_K_M.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            artifacts: JINA_CODE_Q5_K_M_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "none",
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+    // E5 controlled test: same artifact and text extraction as the Gemma
+    // entry, but "format: none" changes the embedding vectors only.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/embeddinggemma-300m-noprefix",
+        provider: "local",
+        model: "embeddinggemma-300m-noprefix",
+        uri: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf#0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+        cache_file: "hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "e2fab2963ac0943b1dc320cf0e267bd0e06e2e97",
+            },
+            artifacts: EMBEDDINGGEMMA_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "none",
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+    // E5 controlled test: same artifact, preprocessing, dimension and 2048
+    // context as the reference Gemma entry; only max_batch_size (8 vs 16) and
+    // the model name differ.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/embeddinggemma-300m-b8",
+        provider: "local",
+        model: "embeddinggemma-300m-b8",
+        uri: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf#0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+        cache_file: "hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "ggml-org/embeddinggemma-300M-GGUF",
+                revision: "e2fab2963ac0943b1dc320cf0e267bd0e06e2e97",
+            },
+            artifacts: EMBEDDINGGEMMA_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "embeddinggemma",
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+    // E5 controlled test: same artifact, preprocessing, dimension and 2048
+    // context as the ctx2048 entry; only the model name (and therefore the
+    // native fragment collection name) differs.
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/jina-embeddings-v2-base-code-q5-k-m-alias",
+        provider: "local",
+        model: "jina-embeddings-v2-base-code-q5-k-m-alias",
+        uri: "hf:second-state/jina-embeddings-v2-base-code-GGUF/jina-embeddings-v2-base-code-Q5_K_M.gguf#5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+        cache_file: "hf_second-state_jina-embeddings-v2-base-code-Q5_K_M.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "second-state/jina-embeddings-v2-base-code-GGUF",
+                revision: "5a9d2a5183c6a23a30d98741ffe3a594feeb10aa",
+            },
+            artifacts: JINA_CODE_Q5_K_M_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "none",
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+    EmbeddingCatalogEntry::LlamaCpp(LlamaCppConfig {
+        reference: "local/coderankembed-q8",
+        provider: "local",
+        model: "coderankembed-q8",
+        uri: "hf:brandtcormorant/CodeRankEmbed-Q8_0-GGUF/coderankembed-q8_0.gguf#33bd774d16ed49b07e79e89c192751d11f47fec0",
+        cache_file: "hf_brandtcormorant_CodeRankEmbed-Q8_0.gguf",
+        download: &ArtifactDownloadConfig {
+            hugging_face: ArtifactSourceConfig {
+                repo: "brandtcormorant/CodeRankEmbed-Q8_0-GGUF",
+                revision: "33bd774d16ed49b07e79e89c192751d11f47fec0",
+            },
+            model_scope: ArtifactSourceConfig {
+                repo: "brandtcormorant/CodeRankEmbed-Q8_0-GGUF",
+                revision: "33bd774d16ed49b07e79e89c192751d11f47fec0",
+            },
+            artifacts: CODERANKEMBED_Q8_ARTIFACTS,
+        },
+        dimension: 768,
+        metric: EmbeddingMetric::Cosine,
+        format: "coderank",
+        // The published GGUF was converted with the 2048-token nomic-bert
+        // context, although the upstream model card advertises 8192.
+        context_size: 2_048,
+        max_batch_size: 8,
+    }),
+];
+
 #[must_use]
 pub fn list_embedding_models() -> Vec<EmbeddingCatalogEntry> {
-    CATALOG.to_vec()
+    #[cfg(feature = "e4-experiment")]
+    {
+        let mut models = CATALOG.to_vec();
+        models.extend_from_slice(&E4_EXPERIMENT);
+        models
+    }
+    #[cfg(not(feature = "e4-experiment"))]
+    {
+        CATALOG.to_vec()
+    }
 }
 
 #[must_use]
 pub fn get_embedding_model_catalog_entry(reference: &str) -> Option<EmbeddingCatalogEntry> {
+    #[cfg(feature = "e4-experiment")]
+    if let Some(entry) = E4_EXPERIMENT
+        .iter()
+        .copied()
+        .find(|entry| entry.reference() == reference)
+    {
+        return Some(entry);
+    }
     CATALOG
         .iter()
         .copied()
@@ -564,6 +753,7 @@ mod tests {
             .into_iter()
             .map(EmbeddingCatalogEntry::reference)
             .collect::<Vec<_>>();
+        #[cfg(not(feature = "e4-experiment"))]
         assert_eq!(
             references,
             [
@@ -583,6 +773,38 @@ mod tests {
                 "local/nomic-embed-text-v1.5",
             ]
         );
+        #[cfg(feature = "e4-experiment")]
+        assert_eq!(
+            &references[..14],
+            &[
+                "local/embeddinggemma-300m",
+                "local/qwen3-embedding-0.6b",
+                "qwen/text-embedding-v4",
+                "qwen/qwen3.7-text-embedding",
+                "qwen/qwen3-vl-embedding",
+                "local/bge-small-en-v1.5",
+                "local/all-minilm-l6-v2",
+                "local/potion-retrieval-32m",
+                "local/potion-multilingual-128m",
+                "local/potion-code-16m-v2",
+                "local/multilingual-e5-small",
+                "local/jina-embeddings-v2-base-code",
+                "local/gte-modernbert-base",
+                "local/nomic-embed-text-v1.5",
+            ]
+        );
+        #[cfg(feature = "e4-experiment")]
+        assert_eq!(
+            &references[14..],
+            &[
+                "local/jina-embeddings-v2-base-code-q5-k-m",
+                "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+                "local/embeddinggemma-300m-noprefix",
+                "local/embeddinggemma-300m-b8",
+                "local/jina-embeddings-v2-base-code-q5-k-m-alias",
+                "local/coderankembed-q8",
+            ]
+        );
         let code = get_embedding_model_catalog_entry("local/potion-code-16m-v2")
             .expect("TypeScript default Model2Vec entry must exist");
         assert_eq!(code.backend(), "model2vec");
@@ -598,5 +820,29 @@ mod tests {
             .expect("Transformers entry must exist");
         assert_eq!(minilm.backend(), "transformers");
         assert!(minilm.transformers_config().is_some());
+    }
+
+    #[test]
+    fn e4_experiment_entries_are_gated_by_the_feature() {
+        let candidates = [
+            "local/jina-embeddings-v2-base-code-q5-k-m",
+            "local/jina-embeddings-v2-base-code-q5-k-m-ctx2048",
+            "local/jina-embeddings-v2-base-code-q5-k-m-alias",
+            "local/embeddinggemma-300m-b8",
+            "local/embeddinggemma-300m-noprefix",
+            "local/coderankembed-q8",
+        ];
+        for reference in candidates {
+            #[cfg(feature = "e4-experiment")]
+            assert!(
+                get_embedding_model_catalog_entry(reference).is_some(),
+                "{reference} must be present with e4-experiment"
+            );
+            #[cfg(not(feature = "e4-experiment"))]
+            assert!(
+                get_embedding_model_catalog_entry(reference).is_none(),
+                "{reference} must not leak into the default catalog"
+            );
+        }
     }
 }

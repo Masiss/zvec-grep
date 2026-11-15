@@ -9,6 +9,7 @@ use crate::{
         context::{ContextOptions, ContextResult},
         index::{IndexOptions, IndexResult},
         info::{InfoOptions, InfoResult},
+        symbols::{SymbolsOptions, SymbolsResult},
     },
     models::ModelRuntimeManager,
     pipelines::{
@@ -93,6 +94,31 @@ impl EngineService {
     pub(crate) async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
         self.ensure_open()?;
         self.indexing.index(&self.models, options).await
+    }
+
+    /// Enumerates exact-name declarations from indexed metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns an engine error when the request is invalid or its workspace index
+    /// is unavailable.
+    pub(crate) async fn symbols(
+        &self,
+        options: SymbolsOptions,
+    ) -> Result<SymbolsResult, EngineError> {
+        self.ensure_open()?;
+        let cache = self
+            .read_sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        crate::pipelines::symbol_lookup::symbols(
+            &self.indexing,
+            &self.models,
+            &options,
+            cache.as_ref(),
+        )
+        .await
     }
 
     pub(crate) async fn paths(

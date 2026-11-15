@@ -90,6 +90,10 @@ struct LoadedLlamaModel {
     model: Arc<LlamaModel>,
     model_path: PathBuf,
     gpu: bool,
+    /// Explicit accelerators must never silently produce CPU vectors under an
+    /// accelerator identity. Auto remains allowed to fall back for legacy
+    /// compatibility; explicit Vulkan/CUDA/Metal do not.
+    fail_closed: bool,
 }
 
 struct LlamaContextPool {
@@ -295,6 +299,46 @@ impl EmbeddingModel for LlamaCppEmbeddingModel {
         &self.info
     }
 
+    fn embedding_identity(&self) -> Option<String> {
+        // `ZG_EMBEDDING_BACKEND_BUILD` is produced by build.rs from Cargo.lock
+        // and the backend wrapper/native sources, so a backend upgrade or
+        // implementation edit cannot silently reuse vectors from the old
+        // embedding function.
+        const BACKEND_BUILD: &str = env!("ZG_EMBEDDING_BACKEND_BUILD");
+        // The catalog URI pins the artifact revision; include every declared
+        // artifact digest plus the template/format and context limit because
+        // each can change the vector for identical text.
+        let mut artifacts = self
+            .entry
+            .download
+            .artifacts
+            .iter()
+            .map(|artifact| format!("{}:{}:{}", artifact.path, artifact.size, artifact.sha256))
+            .collect::<Vec<_>>();
+        artifacts.sort();
+        // CPU and accelerator executions do not produce bit-identical vectors
+        // (FP16 shader arithmetic and kernel reduction order differ). Keep the
+        // historical CPU identity unchanged, but bind an explicitly requested
+        // accelerator to its own cross-pass reuse domain so a CPU sidecar cannot
+        // be silently mixed into a GPU index (and vice versa).
+        let device = match self.device {
+            None | Some(Device::Cpu) => String::new(),
+            Some(Device::Auto) => "|device=auto".to_owned(),
+            Some(Device::Vulkan) => "|device=vulkan".to_owned(),
+            Some(Device::Cuda) => "|device=cuda".to_owned(),
+            Some(Device::Metal) => "|device=metal".to_owned(),
+        };
+        Some(format!(
+            "llama-cpp-embedding-v3|backend_build={}|format={}|context={}|uri={}|artifacts={}{}",
+            BACKEND_BUILD,
+            self.entry.format,
+            self.entry.context_size,
+            self.entry.uri,
+            artifacts.join(","),
+            device,
+        ))
+    }
+
     async fn prepare(&self, options: EmbeddingPrepareOptions) -> Result<(), ModelError> {
         self.ensure_loaded(options.on_progress, options.signal.as_ref())
             .await
@@ -338,7 +382,7 @@ impl EmbeddingModel for LlamaCppEmbeddingModel {
             .await?;
         let result = match first {
             Ok(result) => result,
-            Err(error) if model.gpu => {
+            Err(error) if model.gpu && !model.fail_closed => {
                 let cpu = self
                     .fallback_to_cpu(model, on_progress, &error)
                     .await
@@ -364,11 +408,13 @@ fn load_model_with_fallback(
 ) -> Result<LoadedLlamaModel, ModelError> {
     let device = resolve_device(device);
     let wants_gpu = !matches!(device, None | Some(Device::Cpu));
+    let explicit_accelerator =
+        matches!(device, Some(Device::Vulkan | Device::Cuda | Device::Metal));
     let registry = lock_backend_registry();
     let backend = initialize_llama_backend(wants_gpu, &registry)?;
     if wants_gpu {
         if let Some(selected) = select_gpu_device(device) {
-            match load_gpu_model(backend, path, selected.index) {
+            match load_gpu_model(backend, path, selected.index, explicit_accelerator) {
                 Ok(model) => {
                     tracing::debug!(
                         requested_device = requested_device_name(device),
@@ -378,6 +424,13 @@ fn load_model_with_fallback(
                     );
                     return Ok(model);
                 }
+                Err(error) if explicit_accelerator => {
+                    return Err(ModelError::internal(format!(
+                        "explicit {} llama.cpp accelerator failed to initialize; refusing CPU fallback",
+                        requested_device_name(device)
+                    ))
+                    .with_cause(error));
+                }
                 Err(error) => {
                     let warning =
                         format!("llama.cpp GPU model load failed ({error}), falling back to CPU.");
@@ -386,6 +439,11 @@ fn load_model_with_fallback(
                     }
                 }
             }
+        } else if explicit_accelerator {
+            return Err(ModelError::unsupported(format!(
+                "explicit {} llama.cpp accelerator is unavailable; refusing CPU fallback",
+                requested_device_name(device)
+            )));
         } else {
             let warning = format!(
                 "llama.cpp {} GPU backend is unavailable, falling back to CPU.",
@@ -412,6 +470,7 @@ fn load_gpu_model(
     backend: &LlamaBackend,
     path: &Path,
     device_index: usize,
+    fail_closed: bool,
 ) -> Result<LoadedLlamaModel, ModelError> {
     let params = LlamaModelParams::default()
         .with_devices(&[device_index])
@@ -420,7 +479,7 @@ fn load_gpu_model(
         })?
         .with_n_gpu_layers(u32::MAX);
     LlamaModel::load_from_file(backend, path, &params)
-        .map(|model| loaded_llama_model(model, path, true))
+        .map(|model| loaded_llama_model(model, path, true, fail_closed))
         .map_err(|error| {
             ModelError::storage_failure("Unable to load llama.cpp GPU embedding model")
                 .with_cause(error)
@@ -430,7 +489,7 @@ fn load_gpu_model(
 fn load_cpu_model(backend: &LlamaBackend, path: &Path) -> Result<LoadedLlamaModel, ModelError> {
     let params = cpu_model_params()?;
     LlamaModel::load_from_file(backend, path, &params)
-        .map(|model| loaded_llama_model(model, path, false))
+        .map(|model| loaded_llama_model(model, path, false, false))
         .map_err(|error| {
             ModelError::storage_failure("Unable to load llama.cpp embedding model")
                 .with_cause(error)
@@ -446,13 +505,19 @@ fn cpu_model_params() -> Result<LlamaModelParams, ModelError> {
         })
 }
 
-fn loaded_llama_model(model: LlamaModel, path: &Path, gpu: bool) -> LoadedLlamaModel {
+fn loaded_llama_model(
+    model: LlamaModel,
+    path: &Path,
+    gpu: bool,
+    fail_closed: bool,
+) -> LoadedLlamaModel {
     let model = Arc::new(model);
     LoadedLlamaModel {
         contexts: LlamaContextPool::new(Arc::clone(&model)),
         model,
         model_path: path.to_path_buf(),
         gpu,
+        fail_closed,
     }
 }
 
@@ -841,13 +906,36 @@ fn create_llama_context(
 }
 
 fn llama_micro_batch_capacity(architecture: &str, batch_capacity: u32) -> u32 {
-    if architecture == "gemma-embedding" {
-        // The non-causal encoder must process the whole input in one physical
+    if encoder_requires_full_ubatch(architecture) {
+        // Non-causal encoders must process the whole input in one physical
         // batch. Splitting at 256 tokens triggers a native assertion.
         batch_capacity.max(1)
     } else {
         batch_capacity.clamp(1, 256)
     }
+}
+
+// Product builds keep the historical gemma-embedding-only special case. The
+// E4 experiment adds the other non-causal encoder architectures it evaluates.
+#[cfg(feature = "e4-experiment")]
+fn encoder_requires_full_ubatch(architecture: &str) -> bool {
+    matches!(
+        architecture,
+        "gemma-embedding"
+            | "bert"
+            | "nomic-bert"
+            | "jina-bert-v2"
+            | "jina-bert-v3"
+            | "modern-bert"
+            | "neo-bert"
+            | "eurobert"
+            | "t5encoder"
+    )
+}
+
+#[cfg(not(feature = "e4-experiment"))]
+fn encoder_requires_full_ubatch(architecture: &str) -> bool {
+    matches!(architecture, "gemma-embedding")
 }
 
 fn run_llama_worker_job(
@@ -889,17 +977,26 @@ fn lock_llama_mutex<T>(mutex: &StdMutex<T>) -> StdMutexGuard<'_, T> {
 }
 
 fn format_text(text: &str, purpose: EmbeddingPurpose, format: &str) -> String {
-    if format == "qwen3" {
-        return match purpose {
+    match format {
+        "qwen3" => match purpose {
             EmbeddingPurpose::Query => {
                 format!("Instruct: Retrieve relevant documents for the given query\nQuery: {text}")
             }
             EmbeddingPurpose::Document => text.to_owned(),
-        };
-    }
-    match purpose {
-        EmbeddingPurpose::Query => format!("task: search result | query: {text}"),
-        EmbeddingPurpose::Document => format!("title: none | text: {text}"),
+        },
+        // Models with symmetric embeddings and no instruction prefix.
+        "none" => text.to_owned(),
+        // CodeRankEmbed requires this instruction on queries only.
+        "coderank" => match purpose {
+            EmbeddingPurpose::Query => {
+                format!("Represent this query for searching relevant code: {text}")
+            }
+            EmbeddingPurpose::Document => text.to_owned(),
+        },
+        _ => match purpose {
+            EmbeddingPurpose::Query => format!("task: search result | query: {text}"),
+            EmbeddingPurpose::Document => format!("title: none | text: {text}"),
+        },
     }
 }
 

@@ -112,6 +112,14 @@ pub trait EmbeddingModel: Send + Sync {
         true
     }
 
+    /// Opaque identity of the complete embedding function: model artifact,
+    /// preprocessing/template, and inference parameters that can change the
+    /// produced vector. Reuse is allowed only when this identity is present
+    /// and equal; the default fails closed.
+    fn embedding_identity(&self) -> Option<String> {
+        None
+    }
+
     fn concurrency_defaults(&self) -> EmbeddingConcurrencyDefaults {
         EmbeddingConcurrencyDefaults::default()
     }

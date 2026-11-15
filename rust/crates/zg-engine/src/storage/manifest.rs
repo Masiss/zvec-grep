@@ -56,12 +56,17 @@ impl FileManifest {
         FileId::new(self.file_id)
     }
 
+    pub(crate) fn fragments(&self) -> &[FragmentManifestEntry] {
+        &self.fragments
+    }
+
     pub(crate) fn normalize(&mut self) {
         self.fragments.sort_unstable_by(|left, right| {
             (&left.model, &left.fragment_id).cmp(&(&right.model, &right.fragment_id))
         });
     }
 
+    #[cfg(test)]
     pub(crate) fn find_embedding(
         &self,
         fragment_id: &str,

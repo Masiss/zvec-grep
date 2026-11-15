@@ -9,10 +9,13 @@ use std::collections::{HashMap, HashSet};
 use super::{IndexStore, StoreState, graph_disabled, graph_error};
 use crate::{
     EngineError, EngineResult,
-    domain::{EntityId, FileId},
+    domain::{EntityId, FileId, FileIndexStatus, SymbolType},
     storage::{
         graph::{PendingRefPage, Resolution, ResolutionStats},
-        types::ResolutionCandidate,
+        types::{
+            ResolutionCandidate, SymbolCursorKey, SymbolDeclaration, SymbolDeclarationPage,
+            SymbolFileCoverage, normalized_relative_path,
+        },
     },
 };
 
@@ -88,6 +91,137 @@ impl IndexStore {
                 }
             }
             Ok(result)
+        })
+    }
+
+    /// Enumerate exact-name declarations from indexed metadata, independent of
+    /// fragment count and without FTS ranking. Results are ordered by relative
+    /// path, scope, symbol type, signature and entity id; `limit` bounds the
+    /// returned page and `after` resumes strictly after a prior page.
+    #[allow(clippy::too_many_lines)]
+    pub(crate) fn enumerate_symbol_declarations(
+        &self,
+        name: &str,
+        symbol_types: &[SymbolType],
+        scope: Option<&str>,
+        path: Option<&str>,
+        after: Option<&SymbolCursorKey>,
+        limit: usize,
+    ) -> EngineResult<SymbolDeclarationPage> {
+        if name.trim().is_empty() {
+            return Err(EngineError::invalid_argument(
+                "symbol name must not be empty",
+            ));
+        }
+        self.read(|state| {
+            let ids = state.fragments.find_symbol_entity_ids(name, None)?;
+            let mut candidates = Vec::new();
+            for batch in ids.chunks(128) {
+                let mut metadata = state.entities.fetch_code_metadata(batch)?;
+                let file_ids = metadata
+                    .values()
+                    .map(|(file_id, _)| *file_id)
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                let files = state.files.fetch(&file_ids)?;
+                for id in batch {
+                    let Some((file_id, metadata)) = metadata.remove(id) else {
+                        continue;
+                    };
+                    if metadata.symbol_name.as_deref() != Some(name) {
+                        continue;
+                    }
+                    if !symbol_types.is_empty()
+                        && !metadata
+                            .symbol_type
+                            .is_some_and(|kind| symbol_types.contains(&kind))
+                    {
+                        continue;
+                    }
+                    if let Some(scope) = scope
+                        && metadata.scope.as_deref() != Some(scope)
+                    {
+                        continue;
+                    }
+                    let Some(file) = files.get(&file_id) else {
+                        continue;
+                    };
+                    if !file.index_status().is_indexed() {
+                        continue;
+                    }
+                    if let Some(path) = path
+                        && normalized_relative_path(file) != path
+                    {
+                        continue;
+                    }
+                    candidates.push((id.clone(), file.clone(), metadata));
+                }
+            }
+            let mut candidates = candidates
+                .into_iter()
+                .map(|(entity_id, file, metadata)| {
+                    let key = SymbolCursorKey {
+                        relative_path: normalized_relative_path(&file),
+                        scope: metadata.scope.clone(),
+                        symbol_type: metadata.symbol_type.map(|kind| kind.as_str().to_owned()),
+                        signature: metadata.signature.clone(),
+                        entity_id: entity_id.as_str().to_owned(),
+                    };
+                    (key, entity_id, file, metadata)
+                })
+                .collect::<Vec<_>>();
+            candidates.sort_by(|left, right| left.0.cmp(&right.0));
+            let total = candidates.len();
+            let start = after.map_or(0, |after| {
+                candidates.partition_point(|candidate| candidate.0 <= *after)
+            });
+            let mut page = candidates
+                .into_iter()
+                .skip(start)
+                .take(limit)
+                .collect::<Vec<_>>();
+            let has_more = start + page.len() < total;
+            let ids = page
+                .iter()
+                .map(|(_, entity_id, _, _)| entity_id.clone())
+                .collect::<Vec<_>>();
+            let mut ranges = state.entities.fetch_source_ranges(&ids)?;
+            let items = page
+                .drain(..)
+                .filter_map(|(_, entity_id, file, metadata)| {
+                    let source_range = ranges.remove(&entity_id)?;
+                    Some(SymbolDeclaration {
+                        entity_id,
+                        file,
+                        metadata,
+                        source_range,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let mut coverage = SymbolFileCoverage {
+                indexed: 0,
+                unfinished: 0,
+                failed: 0,
+            };
+            for file in state.files.list()? {
+                match file.index_status() {
+                    FileIndexStatus::Indexed { .. } => coverage.indexed += 1,
+                    FileIndexStatus::Failed { .. } => {
+                        coverage.failed += 1;
+                        coverage.unfinished += 1;
+                    }
+                    FileIndexStatus::NotIndexed | FileIndexStatus::Deleting => {
+                        coverage.unfinished += 1;
+                    }
+                }
+            }
+            Ok(SymbolDeclarationPage {
+                total,
+                items,
+                has_more,
+                coverage,
+            })
         })
     }
 

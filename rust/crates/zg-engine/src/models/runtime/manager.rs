@@ -434,6 +434,10 @@ impl ModelRuntimeLease {
         self.key.endpoint.as_deref()
     }
 
+    pub(crate) fn device(&self) -> Option<Device> {
+        self.key.device
+    }
+
     pub(crate) fn matches_query_request(&self, request: &ModelRuntimeRequest) -> bool {
         // Queries may borrow writer storage while using a separate native budget.
         let mut key = ModelRuntimeKey::new(&request.reference, &request.options);
@@ -451,6 +455,10 @@ impl ModelRuntimeLease {
 
     pub(crate) fn identity_is_stable(&self) -> bool {
         self.entry.runtime.model.identity_is_stable()
+    }
+
+    pub(crate) fn embedding_identity(&self) -> Option<String> {
+        self.entry.runtime.model.embedding_identity()
     }
 
     pub(crate) async fn prepare(

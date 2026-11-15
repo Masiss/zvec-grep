@@ -74,6 +74,10 @@ impl WorkspaceIndexService {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lock, validation, recovery, fast-path preflight and publication form one ordered protocol"
+    )]
     pub(crate) async fn index(
         &self,
         models: &ModelRuntimeManager,
@@ -146,6 +150,32 @@ impl WorkspaceIndexService {
             source_before_index.as_deref(),
             &options,
         )?;
+        // Read-only no-op preflight: when the workspace configuration matches the
+        // active manifest and nothing durable is owed, a pass that would change
+        // no file state must not open native storage read-write, flush, optimize
+        // or republish. The scan/diff below uses the same helper as the real pass.
+        if !rebuilding && !clean_scan_eligible && !options.rebuild {
+            let debt = workspace
+                .layout()
+                .index_dir()
+                .join("optimize.pending")
+                .exists();
+            if !debt
+                && !crate::workspace::index::needs_recovery(&layout)?
+                && manifest_state_matches(&workspace, existing.as_ref(), &layout)
+                && let Some(result) = self
+                    .read_only_noop_pass(
+                        &workspace,
+                        &options,
+                        Arc::clone(&home_lock),
+                        existing.as_ref().map(Workspace::updated_epoch_ms),
+                    )
+                    .await?
+            {
+                report_index_completion(&options, None);
+                return Ok(result);
+            }
+        }
         if rebuilding {
             options.changes.clear();
             if let Some(active) = existing.as_ref() {
@@ -166,6 +196,9 @@ impl WorkspaceIndexService {
             let _ = discard_build(&workspace);
         }
         let (indexed, completed) = result?;
+        // Every non-fast-path pass publishes, exactly as before. Skipping the
+        // manifest rewrite is reserved for the read-only preflight, which has
+        // proven that storage and manifest already agree.
         publish_index_state(
             workspace,
             rebuilding,
@@ -179,6 +212,110 @@ impl WorkspaceIndexService {
         Ok(indexed)
     }
 
+    /// Returns `Some` only when the read-only plan proves the pass would change
+    /// nothing. Any error falls through to the full path.
+    async fn read_only_noop_pass(
+        &self,
+        workspace: &Workspace,
+        options: &IndexOptions,
+        _home_lock: Arc<LockGuard>,
+        published_ms: Option<u64>,
+    ) -> Result<Option<IndexResult>, EngineError> {
+        let started = std::time::Instant::now();
+        let storage = match IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+            storage_path: workspace.layout().index_dir().to_path_buf(),
+        }) {
+            Ok(storage) => storage,
+            Err(error) => {
+                tracing::debug!(%error, "no-op preflight skipped: storage cannot be opened read-only");
+                return Ok(None);
+            }
+        };
+        let planned = crate::pipelines::indexing::pipeline::plan_pass(
+            workspace,
+            &storage,
+            &self.scanner,
+            &options.changes,
+            options.signal.clone(),
+            crate::pipelines::indexing::pipeline::PlanOptions {
+                retry_paths: None,
+                resolve_ids: false,
+                published_ms,
+            },
+        )
+        .await;
+        let close = storage.close();
+        let planned = match planned {
+            Ok(planned) => planned,
+            Err(error) => {
+                tracing::debug!(%error, "no-op preflight skipped: planning failed");
+                return Ok(None);
+            }
+        };
+        close?;
+        if planned.has_work() || !planned.published_state_current {
+            // Either there is work, or a previous pass committed rows without
+            // publishing: fall through so the pass publishes the manifest.
+            return Ok(None);
+        }
+        if let Some(reporter) = &options.on_progress {
+            reporter.report(crate::api::index::progress::IndexProgress {
+                phase: crate::api::index::progress::IndexProgressPhase::Done,
+                files_total: Some(planned.scanned_len),
+                files_indexed: Some(0),
+                files_failed: Some(0),
+                detail: Some("index is already up to date".to_owned()),
+                embedding: None,
+            });
+        }
+        Ok(Some(IndexResult {
+            files_scanned: planned.scanned_len,
+            files_unchanged: planned.unchanged(),
+            duration_micros: u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX),
+            skipped: planned.skipped,
+            skipped_counts: planned.skipped_counts,
+            ..IndexResult::default()
+        }))
+    }
+
+    fn ensure_incremental_write_is_safe(
+        workspace: &Workspace,
+        rebuilding: bool,
+    ) -> Result<(), EngineError> {
+        let Some(descriptor) = workspace.index().descriptor() else {
+            return Ok(());
+        };
+        for config in descriptor.embedding_configs().values() {
+            Self::ensure_device_write_is_safe(config.device, rebuilding)?;
+        }
+        Ok(())
+    }
+
+    fn ensure_device_write_is_safe(
+        device: Option<Device>,
+        rebuilding: bool,
+    ) -> Result<(), EngineError> {
+        match device {
+            Some(Device::Auto) => Err(EngineError::unsupported(
+                "legacy auto-device indexes do not have a concrete execution identity",
+            )
+            .with_help(if rebuilding {
+                "Rebuild with an explicit --device cpu, vulkan, cuda, or metal; do not infer the legacy backend."
+            } else {
+                "This index is read-only for queries. Rebuild with an explicit --device before any incremental write."
+            })),
+            Some(Device::Vulkan | Device::Cuda | Device::Metal) if !rebuilding => {
+                Err(EngineError::unsupported(
+                    "incremental writes to accelerator-backed indexes are not supported",
+                )
+                .with_help(
+                    "Use --rebuild=true to regenerate the index with one explicit execution identity; query-only access remains available.",
+                ))
+            }
+            _ => Ok(()),
+        }
+    }
+
     async fn run_index(
         &self,
         workspace: &Workspace,
@@ -187,6 +324,9 @@ impl WorkspaceIndexService {
         options: &IndexOptions,
         home_lock: Arc<LockGuard>,
     ) -> Result<(IndexResult, Option<IndexProgress>), EngineError> {
+        // No-op passes return before this point. Any call here is a real write,
+        // so the conservative accelerator/legacy-auto contract applies.
+        Self::ensure_incremental_write_is_safe(workspace, rebuilding)?;
         let storage_path = if rebuilding {
             workspace.layout().staged_index_dir()
         } else {
@@ -472,6 +612,81 @@ fn publish_index_state(
         }
     }
     Ok(())
+}
+
+/// Compares the workspace that this pass would publish with the active manifest,
+/// ignoring the timestamps that only record when a publication happened.
+/// Compares what this pass would publish with the active manifest.
+///
+/// Credentials are re-encrypted with a fresh nonce on every pass, so the stored
+/// ciphertext never compares equal; the plaintext is compared instead. Any
+/// difference (including a rotated key) keeps the full publication path.
+fn manifest_state_matches(
+    workspace: &Workspace,
+    existing: Option<&Workspace>,
+    layout: &WorkspaceLayout,
+) -> bool {
+    let Some(existing) = existing else {
+        return false;
+    };
+    workspace.index_version() == existing.index_version()
+        && workspace.storage_generation() == existing.storage_generation()
+        && workspace.scan() == existing.scan()
+        && workspace.source_root() == existing.source_root()
+        && match (workspace.index(), existing.index()) {
+            (crate::domain::IndexState::Disabled, crate::domain::IndexState::Disabled) => true,
+            (
+                crate::domain::IndexState::Enabled(current),
+                crate::domain::IndexState::Enabled(active),
+            ) => {
+                current.default_embedding_model() == active.default_embedding_model()
+                    && current.embedding_routes() == active.embedding_routes()
+                    && current.fts() == active.fts()
+                    && model_configs_match(
+                        current.embedding_configs(),
+                        active.embedding_configs(),
+                        layout,
+                    )
+            }
+            _ => false,
+        }
+}
+
+fn model_configs_match(
+    current: &std::collections::BTreeMap<
+        String,
+        crate::domain::model::ModelConfig<crate::domain::model::EncryptedApiKey>,
+    >,
+    active: &std::collections::BTreeMap<
+        String,
+        crate::domain::model::ModelConfig<crate::domain::model::EncryptedApiKey>,
+    >,
+    layout: &WorkspaceLayout,
+) -> bool {
+    if current.len() != active.len() {
+        return false;
+    }
+    current.iter().all(|(reference, left)| {
+        let Some(right) = active.get(reference) else {
+            return false;
+        };
+        left.endpoint == right.endpoint
+            && left.device == right.device
+            && left.cache_dir == right.cache_dir
+            && match (&left.api_key, &right.api_key) {
+                (None, None) => true,
+                (Some(left), Some(right)) => {
+                    let (Ok(left), Ok(right)) = (
+                        decrypt_api_key(left, layout, reference),
+                        decrypt_api_key(right, layout, reference),
+                    ) else {
+                        return false;
+                    };
+                    left == right
+                }
+                _ => false,
+            }
+    })
 }
 
 fn report_index_completion(options: &IndexOptions, completed: Option<IndexProgress>) {
@@ -772,6 +987,20 @@ fn acquire_index_models(
     })
 }
 
+fn device_change_requires_rebuild(
+    existing: Option<Device>,
+    requested: Option<Device>,
+    rebuild: bool,
+) -> bool {
+    if rebuild {
+        return false;
+    }
+    let (Some(existing), Some(requested)) = (existing, requested) else {
+        return false;
+    };
+    requested != Device::Auto && requested != existing
+}
+
 fn acquire_model(
     models: &ModelRuntimeManager,
     existing: Option<&Workspace>,
@@ -841,22 +1070,54 @@ fn acquire_model(
         )?;
         Some(endpoint)
     };
-    let device = if local {
+    let mut device = if local {
         crate::config::runtime_device(
             &config,
             &reference,
-            options.runtime_device.or(options.device).or_else(|| {
-                options
-                    .embedding
-                    .as_ref()
-                    .map(|e| e.device)
-                    .filter(|device| *device != Device::Auto)
-            }),
+            options
+                .runtime_device
+                .or(options.device)
+                .or_else(|| options.embedding.as_ref().map(|e| e.device)),
             existing_runtime.and_then(|runtime| runtime.device),
         )?
     } else {
         None
     };
+    if device == Some(Device::Auto) {
+        // Auto is only safe for a refresh of an already-device-bound index: it
+        // resolves to that index's concrete saved device and cannot relabel a
+        // new or unknown-device index. A first build must select explicitly.
+        let requested_auto = options
+            .runtime_device
+            .or(options.device)
+            .or_else(|| options.embedding.as_ref().map(|e| e.device))
+            == Some(Device::Auto);
+        let saved = existing_runtime.and_then(|runtime| runtime.device);
+        if requested_auto {
+            let Some(existing_device) = saved.filter(|saved| *saved != Device::Auto) else {
+                return Err(EngineError::invalid_argument(
+                    "Auto device cannot create or relabel an index without a saved execution device",
+                )
+                .with_help("Use an explicit --device cpu, vulkan, cuda, or metal."));
+            };
+            device = Some(existing_device);
+        } else if saved != Some(Device::Auto) {
+            return Err(EngineError::invalid_argument(
+                "Auto device cannot create or relabel an index without a saved execution device",
+            )
+            .with_help("Use an explicit --device cpu, vulkan, cuda, or metal."));
+        }
+    }
+    if device_change_requires_rebuild(
+        existing_runtime.and_then(|runtime| runtime.device),
+        device,
+        options.rebuild,
+    ) {
+        return Err(EngineError::invalid_argument(
+            "existing index was built with a different embedding device",
+        )
+        .with_help("Rebuild the index with `zg --index --rebuild` or use the same --device."));
+    }
     models
         .acquire(ModelRuntimeRequest::new(
             reference.clone(),
@@ -963,15 +1224,12 @@ fn saved_embedding_config(
         })
         .unwrap_or_default();
     if model.info().model().provider() == "local" {
-        stored.device = options
-            .device
-            .or_else(|| {
-                options
-                    .embedding
-                    .as_ref()
-                    .map(|embedding| embedding.device)
-                    .filter(|device| *device != Device::Auto)
-            })
+        // Persist the device that actually acquired the runtime, not the raw
+        // Auto refresh request, so an index remains device-bound.
+        stored.device = model
+            .device()
+            .or(options.device)
+            .or_else(|| options.embedding.as_ref().map(|embedding| embedding.device))
             .or(stored.device);
         stored.cache_dir = options
             .model_cache
@@ -1265,7 +1523,7 @@ mod tests {
             super::CURRENT_INDEX_VERSION,
         ))
         .expect("current index");
-        for version in [None, Some(0), Some(1), Some(3), Some(5), Some(u32::MAX)] {
+        for version in [None, Some(0), Some(1), Some(2), Some(4), Some(u32::MAX)] {
             let error = crate::workspace::manifest::require_current_index_version(version)
                 .expect_err("incompatible index format");
             assert_eq!(error.code(), crate::EngineError::INDEX_INCOMPATIBLE);
@@ -1862,7 +2120,7 @@ mod tests {
             .expect("runtimes")
             .values()
         {
-            assert_eq!(runtime["device"], "auto");
+            assert_eq!(runtime["device"], "cpu");
             assert_eq!(
                 runtime["cacheDir"],
                 serde_json::json!(directory.path().join("saved-models"))
@@ -2897,5 +3155,62 @@ mod tests {
             !super::directory_exists(rebuilt.layout().index_dir()).expect("storage was deleted")
         );
         models.close();
+    }
+}
+
+#[cfg(test)]
+mod e8_device_guard_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_auto_and_accelerator_incremental_writes_fail_closed() {
+        for rebuilding in [false, true] {
+            assert!(
+                WorkspaceIndexService::ensure_device_write_is_safe(Some(Device::Auto), rebuilding)
+                    .is_err()
+            );
+        }
+        for device in [Device::Vulkan, Device::Cuda, Device::Metal] {
+            assert!(
+                WorkspaceIndexService::ensure_device_write_is_safe(Some(device), false).is_err()
+            );
+            assert!(WorkspaceIndexService::ensure_device_write_is_safe(Some(device), true).is_ok());
+        }
+        for rebuilding in [false, true] {
+            assert!(
+                WorkspaceIndexService::ensure_device_write_is_safe(Some(Device::Cpu), rebuilding)
+                    .is_ok()
+            );
+            assert!(WorkspaceIndexService::ensure_device_write_is_safe(None, rebuilding).is_ok());
+        }
+    }
+
+    #[test]
+    fn device_change_requires_rebuild_guard() {
+        assert!(!device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Cpu),
+            false
+        ));
+        assert!(device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Vulkan),
+            false
+        ));
+        assert!(!device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Vulkan),
+            true
+        ));
+        assert!(!device_change_requires_rebuild(
+            None,
+            Some(Device::Vulkan),
+            false
+        ));
+        assert!(!device_change_requires_rebuild(
+            Some(Device::Cpu),
+            Some(Device::Auto),
+            false
+        ));
     }
 }

@@ -1084,7 +1084,7 @@ mod tests {
                 .expect("manifest");
             let descriptor = loaded.index().descriptor().expect("enabled index");
             let config = &descriptor.embedding_configs()["local/minilm"];
-            assert_eq!(config.device, None);
+            assert_eq!(config.device, Some(crate::domain::model::Device::Cpu));
             assert_eq!(config.cache_dir, None);
             assert_eq!(config.api_key, Some(key.clone()));
             assert_eq!(
@@ -1144,7 +1144,6 @@ mod tests {
             let config = expected["index"]["descriptor"]["embeddingConfigs"]["local/minilm"]
                 .as_object_mut()
                 .expect("saved configuration");
-            config.remove("device");
             config.remove("cacheDir");
         }
         assert_eq!(serde_json::to_value(&restored).expect("JSON"), expected);
@@ -1170,7 +1169,7 @@ mod tests {
         let current = fixture_manifest(&layout);
         write_workspace_manifest(layout.manifest_path(), &current).expect("current manifest");
         let bytes = fs::read(layout.manifest_path()).expect("persisted manifest");
-        for version in [0, 1, 3, 4, 5, u32::MAX] {
+        for version in [0, 1, 2, 4, 5, u32::MAX] {
             let mut unsupported = current.clone();
             unsupported = crate::domain::Workspace::new(
                 directory.path(),
@@ -1209,7 +1208,10 @@ mod tests {
             );
             let diagnostics = error.help().expect("version diagnostics");
             assert!(diagnostics.contains(&format!("unsupported index version {version}")));
-            assert!(diagnostics.contains("expected 2"));
+            assert!(diagnostics.contains(&format!(
+                "expected {}",
+                crate::workspace::CURRENT_INDEX_VERSION
+            )));
             assert!(diagnostics.contains("zg --index --rebuild"));
             fs::write(layout.manifest_path(), &bytes).expect("restore current manifest");
         }

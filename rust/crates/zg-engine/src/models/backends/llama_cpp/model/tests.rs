@@ -2,6 +2,18 @@ use super::*;
 use crate::models::catalog::{EmbeddingCatalogEntry, get_embedding_model_catalog_entry};
 
 #[test]
+fn backend_build_identity_is_content_addressed() {
+    let identity = env!("ZG_EMBEDDING_BACKEND_BUILD");
+    assert_eq!(identity.len(), 64, "SHA-256 hex identity");
+    assert!(identity.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_ne!(
+        identity,
+        "0".repeat(64),
+        "build.rs must provide a real backend fingerprint"
+    );
+}
+
+#[test]
 fn cpu_model_parameters_exclude_gpu_devices_and_layers() {
     let _registry = lock_backend_registry();
     let params = cpu_model_params().expect("CPU model parameters");
@@ -38,6 +50,33 @@ fn entry(reference: &str) -> LlamaCppConfig {
 }
 
 #[test]
+fn non_causal_encoder_ubatch_policy_is_feature_gated() {
+    // Product builds keep the historical gemma-embedding-only special case.
+    assert_eq!(llama_micro_batch_capacity("gemma-embedding", 512), 512);
+    assert_eq!(llama_micro_batch_capacity("qwen3", 512), 256);
+    #[cfg(feature = "e4-experiment")]
+    {
+        for architecture in ["bert", "nomic-bert", "jina-bert-v2", "modern-bert"] {
+            assert_eq!(
+                llama_micro_batch_capacity(architecture, 512),
+                512,
+                "{architecture}"
+            );
+        }
+    }
+    #[cfg(not(feature = "e4-experiment"))]
+    {
+        for architecture in ["bert", "nomic-bert", "jina-bert-v2", "modern-bert"] {
+            assert_eq!(
+                llama_micro_batch_capacity(architecture, 512),
+                256,
+                "{architecture}"
+            );
+        }
+    }
+}
+
+#[test]
 fn formats_embeddinggemma_and_qwen_inputs_like_main() {
     assert_eq!(
         format_text("hello", EmbeddingPurpose::Query, "embeddinggemma"),
@@ -53,6 +92,22 @@ fn formats_embeddinggemma_and_qwen_inputs_like_main() {
     );
     assert_eq!(
         format_text("hello", EmbeddingPurpose::Document, "qwen3"),
+        "hello"
+    );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Query, "none"),
+        "hello"
+    );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Document, "none"),
+        "hello"
+    );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Query, "coderank"),
+        "Represent this query for searching relevant code: hello"
+    );
+    assert_eq!(
+        format_text("hello", EmbeddingPurpose::Document, "coderank"),
         "hello"
     );
 }
@@ -438,4 +493,150 @@ async fn cached_qwen3_runs_real_llama_cpp_inference() {
     assert_eq!(result.vectors[0].len(), 1_024);
     assert!(result.vectors[0].iter().all(|value| value.is_finite()));
     assert!(result.truncated.is_empty());
+}
+
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[tokio::test]
+#[ignore = "E8 experiment: requires cached embeddinggemma GGUF and explicit input/output paths"]
+async fn e8_vector_parity_profile() {
+    use std::{fs, time::Instant};
+    let cache = env::var_os("ZVEC_GREP_E8_CACHE")
+        .map(PathBuf::from)
+        .expect("ZVEC_GREP_E8_CACHE");
+    let inputs_path = env::var_os("ZVEC_GREP_E8_INPUTS")
+        .map(PathBuf::from)
+        .expect("ZVEC_GREP_E8_INPUTS");
+    let out_path = env::var_os("ZVEC_GREP_E8_OUT")
+        .map(PathBuf::from)
+        .expect("ZVEC_GREP_E8_OUT");
+    let device = match env::var("ZVEC_GREP_E8_DEVICE").as_deref() {
+        Ok("vulkan") => Device::Vulkan,
+        Ok("auto") => Device::Auto,
+        Ok("cuda") => Device::Cuda,
+        _ => Device::Cpu,
+    };
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_slice(&fs::read(&inputs_path).expect("read E8 inputs"))
+            .expect("parse E8 inputs");
+    let texts = cases
+        .iter()
+        .map(|case| case["text"].as_str().expect("text").to_owned())
+        .collect::<Vec<_>>();
+    let model = LlamaCppEmbeddingModel::new(
+        entry("local/embeddinggemma-300m"),
+        ModelConfig {
+            cache_dir: Some(cache),
+            device: Some(device),
+            ..ModelConfig::default()
+        },
+        ModelComputeRuntime::shared(),
+    );
+    model
+        .prepare(EmbeddingPrepareOptions::default())
+        .await
+        .expect("prepare model");
+    let loaded = model.ensure_loaded(None, None).await.expect("load model");
+    let inputs = texts
+        .iter()
+        .map(|text| vec![Content::Text(text.clone())])
+        .collect::<Vec<_>>();
+    let started = Instant::now();
+    let result = model
+        .embed(
+            &inputs,
+            EmbeddingOptions {
+                purpose: EmbeddingPurpose::Document,
+                ..EmbeddingOptions::default()
+            },
+        )
+        .await
+        .expect("E8 embedding");
+    let wall_micros = started.elapsed().as_micros();
+    let mut outputs = Vec::with_capacity(texts.len());
+    for (case, vector) in cases.iter().zip(result.vectors.iter()) {
+        let text = format_text(
+            case["text"].as_str().expect("text"),
+            EmbeddingPurpose::Document,
+            "embeddinggemma",
+        );
+        let tokens = loaded
+            .model
+            .str_to_token(&text, AddBos::Always)
+            .expect("tokenize")
+            .len();
+        let norm = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+        let finite = vector.iter().all(|value| value.is_finite());
+        outputs.push(serde_json::json!({
+            "id": case["id"],
+            "chars": text.chars().count(),
+            "tokens": tokens,
+            "dim": vector.len(),
+            "norm": norm,
+            "finite": finite,
+            "vector": vector,
+        }));
+    }
+    let payload = serde_json::json!({
+        "device": format!("{device:?}"),
+        "wall_micros": wall_micros,
+        "inputs": outputs,
+    });
+    fs::write(
+        out_path,
+        serde_json::to_vec(&payload).expect("serialize E8 profile"),
+    )
+    .expect("write E8 profile");
+}
+
+#[test]
+fn embedding_identity_binds_explicit_accelerator_device() {
+    let make = |device: Option<Device>| {
+        LlamaCppEmbeddingModel::new(
+            entry("local/embeddinggemma-300m"),
+            ModelConfig {
+                device,
+                ..ModelConfig::default()
+            },
+            ModelComputeRuntime::shared(),
+        )
+    };
+    let cpu = make(None).embedding_identity().expect("CPU identity");
+    let explicit_cpu = make(Some(Device::Cpu))
+        .embedding_identity()
+        .expect("explicit CPU identity");
+    let vulkan = make(Some(Device::Vulkan))
+        .embedding_identity()
+        .expect("Vulkan identity");
+    let cuda = make(Some(Device::Cuda))
+        .embedding_identity()
+        .expect("CUDA identity");
+    let auto = make(Some(Device::Auto))
+        .embedding_identity()
+        .expect("auto identity");
+    assert_eq!(
+        cpu, explicit_cpu,
+        "the default CPU identity stays compatible"
+    );
+    assert_ne!(cpu, vulkan);
+    assert_ne!(cpu, cuda);
+    assert_ne!(cpu, auto);
+    assert_ne!(vulkan, cuda);
+}
+
+#[cfg(not(any(feature = "vulkan", feature = "cuda")))]
+#[test]
+fn explicit_accelerator_unavailable_is_fail_closed() {
+    let reporter = ModelDownloadProgressReporter::new("e8p1-test", None, std::iter::empty());
+    let error = match load_model_with_fallback(
+        Path::new("/nonexistent/e8p1-model.gguf"),
+        Some(Device::Vulkan),
+        &reporter,
+    ) {
+        Ok(_) => panic!("explicit Vulkan must not silently fall back to CPU"),
+        Err(error) => error,
+    };
+    assert!(
+        error.to_string().contains("refusing CPU fallback"),
+        "unexpected error: {error}"
+    );
 }

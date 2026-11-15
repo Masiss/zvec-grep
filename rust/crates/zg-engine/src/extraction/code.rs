@@ -8,7 +8,7 @@ use tree_sitter::{Language, Node, Parser};
 use crate::{
     EngineError,
     domain::{CodeMetadata, Content, EntityMetadata, FileFormat, Range, SymbolType},
-    utils::line_byte_offsets,
+    utils::{line_byte_offsets, text_range_from_offsets},
 };
 
 use self::adapter::{LanguageAdapter, named_children, resolve_adapter};
@@ -108,9 +108,14 @@ fn extract_code(
     let mut entities = Vec::new();
     walk_code_node(tree.root_node(), adapter, bytes, &[], &mut entities);
 
+    let coverage = (adapter.language() == crate::domain::Language::CSharp)
+        .then(|| csharp_coverage_ranges(&entities));
     let mut output = Vec::new();
-    for entity in entities {
-        append_entity(source, &entity, max_chars, overlap_chars, &mut output);
+    for entity in &entities {
+        append_entity(source, entity, max_chars, overlap_chars, &mut output);
+    }
+    if let Some(ranges) = coverage {
+        append_csharp_gap_entities(source, &ranges, max_chars, overlap_chars, &mut output)?;
     }
     if output.is_empty() {
         Ok(ExtractionOutput {
@@ -129,6 +134,7 @@ fn grammar(format: FileFormat, jsx: bool) -> Option<Language> {
     Some(match format {
         FileFormat::C => tree_sitter_c::LANGUAGE.into(),
         FileFormat::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        FileFormat::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
         FileFormat::Go => tree_sitter_go::LANGUAGE.into(),
         FileFormat::Java => tree_sitter_java::LANGUAGE.into(),
         FileFormat::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
@@ -180,13 +186,34 @@ fn walk_code_node<'tree>(
     breadcrumb: &[String],
     out: &mut Vec<CodeEntity<'tree>>,
 ) {
+    // A file-scoped namespace applies to its following siblings in the compilation
+    // unit, not to its own children (the grammar keeps the declaration standalone).
+    let file_namespace = (adapter.language() == crate::domain::Language::CSharp
+        && node.kind() == "compilation_unit")
+        .then(|| {
+            named_children(node).into_iter().find_map(|child| {
+                (child.kind() == "file_scoped_namespace_declaration")
+                    .then(|| child.child_by_field_name("name"))
+                    .flatten()
+                    .map(|name| name.utf8_text(source).unwrap_or_default().trim().to_owned())
+            })
+        })
+        .flatten()
+        .filter(|name| !name.is_empty());
+    let file_breadcrumb = file_namespace.as_deref().map(|name| vec![name.to_owned()]);
     for child in named_children(node) {
+        let in_file_namespace = child.kind() != "file_scoped_namespace_declaration";
+        let active_breadcrumb: &[String] = if in_file_namespace {
+            file_breadcrumb.as_deref().unwrap_or(breadcrumb)
+        } else {
+            breadcrumb
+        };
         let is_scope = adapter.is_scope(child);
         let is_entity = adapter.is_entity(child);
         if is_entity {
             for entity in adapter.resolve_entities(child, source) {
                 let name = adapter.extract_name(entity, source);
-                let entity_breadcrumb = adapter.scope_breadcrumb(entity, source, breadcrumb);
+                let entity_breadcrumb = adapter.scope_breadcrumb(entity, source, active_breadcrumb);
                 out.push(CodeEntity {
                     node: entity,
                     language: adapter.language(),
@@ -201,7 +228,7 @@ fn walk_code_node<'tree>(
 
         if is_scope {
             let name = adapter.extract_name(child, source);
-            let mut child_breadcrumb = breadcrumb.to_vec();
+            let mut child_breadcrumb = active_breadcrumb.to_vec();
             if let Some(name) = name {
                 child_breadcrumb.push(name);
             }
@@ -213,9 +240,144 @@ fn walk_code_node<'tree>(
                 out,
             );
         } else if !is_entity {
-            walk_code_node(child, adapter, source, breadcrumb, out);
+            walk_code_node(child, adapter, source, active_breadcrumb, out);
         }
     }
+}
+
+/// Whole-declaration spans used to decide which C# source bytes are not covered.
+/// Field declarators and namespace name nodes are resolved entities; their
+/// enclosing declarations carry the actual source text.
+fn csharp_coverage_ranges(entities: &[CodeEntity<'_>]) -> Vec<(usize, usize)> {
+    let mut ranges = entities
+        .iter()
+        .map(|entity| {
+            if matches!(entity.node.kind(), "identifier" | "qualified_name")
+                && entity.node.parent().is_some_and(|parent| {
+                    matches!(
+                        parent.kind(),
+                        "namespace_declaration" | "file_scoped_namespace_declaration"
+                    )
+                })
+            {
+                // A block namespace entity carries only its name; covering its body
+                // would hide comments/usings inside it without indexing them. Cover
+                // the declaration header instead and let gaps cover the rest.
+                return entity.node.parent().map_or(
+                    (entity.node.start_byte(), entity.node.end_byte()),
+                    |parent| {
+                        if parent.kind() == "namespace_declaration" {
+                            let end = parent
+                                .child_by_field_name("body")
+                                .map_or(parent.end_byte(), |body| body.start_byte());
+                            (parent.start_byte(), end)
+                        } else {
+                            (parent.start_byte(), parent.end_byte())
+                        }
+                    },
+                );
+            }
+            let node = if entity.node.kind() == "variable_declarator" {
+                entity
+                    .node
+                    .parent()
+                    .and_then(|declaration| declaration.parent())
+                    .filter(|holder| {
+                        matches!(
+                            holder.kind(),
+                            "field_declaration" | "event_field_declaration"
+                        )
+                    })
+                    .or_else(|| entity.node.parent())
+                    .unwrap_or(entity.node)
+            } else {
+                entity.node
+            };
+            (node.start_byte(), node.end_byte())
+        })
+        .collect::<Vec<_>>();
+    ranges.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::with_capacity(ranges.len());
+    for (start, end) in ranges {
+        if start >= end {
+            continue;
+        }
+        if let Some(last) = merged.last_mut()
+            && start <= last.1
+        {
+            last.1 = last.1.max(end);
+        } else {
+            merged.push((start, end));
+        }
+    }
+    merged
+}
+
+fn append_csharp_gap_entities(
+    source: &TextSource,
+    covered: &[(usize, usize)],
+    max_chars: usize,
+    overlap_chars: usize,
+    output: &mut Vec<ExtractedEntity>,
+) -> Result<(), EngineError> {
+    let line_offsets = line_byte_offsets(&source.text);
+    let mut cursor = 0;
+    for (start, end) in covered
+        .iter()
+        .copied()
+        .chain([(source.text.len(), source.text.len())])
+    {
+        if cursor < start {
+            append_gap(
+                source,
+                &line_offsets,
+                cursor,
+                start,
+                max_chars,
+                overlap_chars,
+                output,
+            )?;
+        }
+        cursor = cursor.max(end);
+    }
+    Ok(())
+}
+
+fn append_gap(
+    source: &TextSource,
+    line_offsets: &[usize],
+    start: usize,
+    end: usize,
+    max_chars: usize,
+    overlap_chars: usize,
+    output: &mut Vec<ExtractedEntity>,
+) -> Result<(), EngineError> {
+    let raw = crate::utils::slice_text(&source.text, start, end)?;
+    let Some(first) = raw.find(|character: char| !character.is_whitespace()) else {
+        return Ok(());
+    };
+    if raw
+        .chars()
+        .all(|character| character.is_whitespace() || matches!(character, '{' | '}' | ';' | ','))
+    {
+        return Ok(());
+    }
+    let last = raw
+        .char_indices()
+        .rfind(|(_, character)| !character.is_whitespace())
+        .map_or(first, |(offset, character)| offset + character.len_utf8());
+    let trimmed_start = start + first;
+    let trimmed_end = start + last;
+    let range = text_range_from_offsets(&source.text, line_offsets, trimmed_start, trimmed_end)?;
+    let content = crate::utils::slice_text(&source.text, trimmed_start, trimmed_end)?.to_owned();
+    output.push(ExtractedEntity {
+        index: output.len(),
+        source_range: Range::Text(range),
+        fragments: text_fragments(&content, max_chars, overlap_chars),
+        content: Content::Code(content),
+        metadata: None,
+    });
+    Ok(())
 }
 
 fn append_entity(
@@ -413,7 +575,7 @@ fn remap_script_block_entities(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::{BTreeSet, HashSet};
 
     use crate::domain::{
         CodeMetadata, Content, EntityMetadata, FileFormat, Language as CodeLanguage, Range,
@@ -577,6 +739,295 @@ mod tests {
                 .enumerate()
                 .all(|(index, fragment)| fragment.index() == index)
         );
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn preserves_csharp_declarations_scope_signatures_and_ranges() {
+        let source = test_source(
+            FileFormat::CSharp,
+            "Order.cs",
+            &[
+                "namespace Acme.Core;",
+                "/// <summary>Order.</summary>",
+                "public partial class Order : Entity",
+                "{",
+                "    /// Cached limit.",
+                "    private const int Limit = 3;",
+                "    public int Id { get; init; }",
+                "    public string Name => _name;",
+                "    public event EventHandler? Saved;",
+                "    public int Add(int a, int b) => a + b;",
+                "    public void Save() { }",
+                "    public record Line(int Qty);",
+                "    public struct Point { public int X; }",
+                "    public interface IThing { void Run(); }",
+                "    public enum Kind { A, B }",
+                "}",
+            ]
+            .join("\n"),
+        );
+        let fragments = extract(&source, ChunkOptions::default()).expect("csharp extraction");
+        for name in [
+            "Acme.Core",
+            "Order",
+            "Limit",
+            "Id",
+            "Name",
+            "Saved",
+            "Add",
+            "Save",
+            "Line",
+            "Point",
+            "X",
+            "IThing",
+            "Run",
+            "Kind",
+            "A",
+            "B",
+        ] {
+            assert_source_backed(&source, named(&fragments, name));
+        }
+        let metadata = |name| {
+            let Some(EntityMetadata::Code(metadata)) = test_metadata(named(&fragments, name))
+            else {
+                panic!("code metadata expected for {name}");
+            };
+            metadata
+        };
+        assert_eq!(metadata("Acme.Core").symbol_type, Some(SymbolType::Module));
+        assert_eq!(metadata("Acme.Core").scope, None);
+        assert_eq!(
+            metadata("Acme.Core").signature.as_deref(),
+            Some("namespace Acme.Core")
+        );
+        assert_eq!(metadata("Order").symbol_type, Some(SymbolType::Class));
+        assert_eq!(metadata("Order").scope.as_deref(), Some("Acme.Core"));
+        assert_eq!(
+            metadata("Order").signature.as_deref(),
+            Some("public partial class Order : Entity")
+        );
+        assert_eq!(
+            metadata("Order").documentation.as_deref(),
+            Some("<summary>Order.</summary>")
+        );
+        assert_eq!(metadata("Limit").symbol_type, Some(SymbolType::Value));
+        assert_eq!(metadata("Limit").scope.as_deref(), Some("Acme.Core::Order"));
+        assert_eq!(
+            metadata("Limit").signature.as_deref(),
+            Some("private const int Limit")
+        );
+        assert_eq!(
+            metadata("Limit").documentation.as_deref(),
+            Some("Cached limit.")
+        );
+        assert_eq!(metadata("Id").symbol_type, Some(SymbolType::Value));
+        assert_eq!(metadata("Id").signature.as_deref(), Some("public int Id"));
+        assert_eq!(
+            metadata("Name").signature.as_deref(),
+            Some("public string Name")
+        );
+        assert_eq!(
+            metadata("Saved").signature.as_deref(),
+            Some("public event EventHandler? Saved")
+        );
+        assert_eq!(metadata("Add").symbol_type, Some(SymbolType::Function));
+        assert_eq!(
+            metadata("Add").signature.as_deref(),
+            Some("public int Add(int a, int b)")
+        );
+        assert_eq!(
+            metadata("Save").signature.as_deref(),
+            Some("public void Save()")
+        );
+        assert_eq!(metadata("Line").symbol_type, Some(SymbolType::Class));
+        assert_eq!(metadata("Line").scope.as_deref(), Some("Acme.Core::Order"));
+        assert_eq!(metadata("Point").symbol_type, Some(SymbolType::Class));
+        assert_eq!(
+            metadata("X").scope.as_deref(),
+            Some("Acme.Core::Order::Point")
+        );
+        assert_eq!(metadata("IThing").symbol_type, Some(SymbolType::Interface));
+        assert_eq!(
+            metadata("Run").scope.as_deref(),
+            Some("Acme.Core::Order::IThing")
+        );
+        assert_eq!(metadata("Kind").symbol_type, Some(SymbolType::Enum));
+        assert_eq!(
+            metadata("A").scope.as_deref(),
+            Some("Acme.Core::Order::Kind")
+        );
+        assert!(matches!(
+            *named(&fragments, "Order").source_range(),
+            Range::Text(range) if range.start_line() == 3 && range.end_line() == 16
+        ));
+        assert!(matches!(
+            *named(&fragments, "Acme.Core").source_range(),
+            Range::Text(range) if range.start_line() == 1 && range.end_line() == 1
+        ));
+        assert_eq!(metadata("Order").language, Some(CodeLanguage::CSharp));
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn csharp_adversarial_declarations_and_gaps_are_source_backed() {
+        let source = test_source(
+            FileFormat::CSharp,
+            "Edge.cs",
+            &[
+                "using System; // edge_using_marker",
+                "namespace Edge",
+                "{",
+                "    // edge_comment_marker",
+                "    [Obsolete]",
+                "    public record struct Point(int X, int Y)",
+                "    {",
+                "        public int this[int index] => index;",
+                "        public static Point operator +(Point left, Point right) => left;",
+                "        void IFoo.Run<T>(T value) where T : class { }",
+                "    }",
+                "    public interface IFoo { void Run<T>(T value) where T : class; }",
+                "    /// <summary>Documented class.</summary>",
+                "    public class Documented { }",
+                "    public class Café { public string Naïve { get; set; } = \"ok\"; }",
+                "}",
+            ]
+            .join("\r\n"),
+        );
+        let fragments = extract(&source, ChunkOptions::default()).expect("csharp edge extraction");
+        for name in [
+            "Point",
+            "this",
+            "operator+",
+            "Run",
+            "IFoo",
+            "Café",
+            "Naïve",
+            "Documented",
+        ] {
+            let entity = named(&fragments, name);
+            assert_source_backed(&source, entity);
+        }
+        let metadata = |name| {
+            let Some(EntityMetadata::Code(metadata)) = test_metadata(named(&fragments, name))
+            else {
+                panic!("code metadata expected for {name}");
+            };
+            metadata
+        };
+        assert_eq!(metadata("Point").documentation, None);
+        assert_eq!(
+            metadata("Documented").documentation.as_deref(),
+            Some("<summary>Documented class.</summary>")
+        );
+        assert_eq!(metadata("Point").symbol_type, Some(SymbolType::Class));
+        assert_eq!(metadata("Point").scope.as_deref(), Some("Edge"));
+        assert!(
+            metadata("Point")
+                .signature
+                .as_deref()
+                .is_some_and(|s| s.contains("record struct Point"))
+        );
+        assert_eq!(metadata("this").symbol_type, Some(SymbolType::Value));
+        assert_eq!(
+            metadata("operator+").symbol_type,
+            Some(SymbolType::Function)
+        );
+        assert_eq!(metadata("Café").symbol_type, Some(SymbolType::Class));
+        assert_eq!(metadata("Naïve").symbol_type, Some(SymbolType::Value));
+        assert_eq!(metadata("Naïve").scope.as_deref(), Some("Edge::Café"));
+        let gap = fragments
+            .iter()
+            .find(|fragment| {
+                matches!(&fragment.content, Content::Code(text) if text.contains("edge_using_marker"))
+            })
+            .expect("using directive gap entity");
+        assert!(test_metadata(gap).is_none());
+        let comment_gap = fragments
+            .iter()
+            .find(|fragment| {
+                matches!(&fragment.content, Content::Code(text) if text.contains("edge_comment_marker"))
+            })
+            .expect("comment gap entity");
+        let Range::Text(range) = comment_gap.source_range else {
+            panic!("gap range");
+        };
+        assert_eq!(range.start_line(), 3);
+    }
+
+    #[test]
+    fn csharp_emits_overloads_partial_declarations_and_each_field_declarator() {
+        let source = test_source(
+            FileFormat::CSharp,
+            "Overloads.cs",
+            &[
+                "namespace Demo",
+                "{",
+                "    public partial class Widget",
+                "    {",
+                "        public int A = 1, B = 2;",
+                "        public void Run() => Helper();",
+                "        public void Run(int value) { void Nested() { } Local(); }",
+                "        void Local() { }",
+                "    }",
+                "}",
+            ]
+            .join("\n"),
+        );
+        let fragments = extract(&source, ChunkOptions::default()).expect("csharp extraction");
+        let names = fragments
+            .iter()
+            .filter_map(|fragment| match test_metadata(fragment) {
+                Some(EntityMetadata::Code(metadata)) => metadata.symbol_name.clone(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let count = |name: &str| names.iter().filter(|candidate| *candidate == name).count();
+        assert_eq!(count("Widget"), 1);
+        assert_eq!(count("A"), 1);
+        assert_eq!(count("B"), 1);
+        assert_eq!(count("Run"), 2, "overloads remain separate declarations");
+        assert_eq!(count("Local"), 1, "member methods are declarations");
+        assert_eq!(
+            count("Nested"),
+            0,
+            "method bodies are not walked for locals"
+        );
+        assert_eq!(count("Helper"), 0);
+        for name in ["A", "B", "Run"] {
+            assert_source_backed(&source, named(&fragments, name));
+        }
+        let run = fragments
+            .iter()
+            .filter(|fragment| {
+                matches!(test_metadata(fragment), Some(EntityMetadata::Code(metadata))
+                    if metadata.symbol_name.as_deref() == Some("Run"))
+            })
+            .collect::<Vec<_>>();
+        let signatures = run
+            .iter()
+            .map(|fragment| match test_metadata(fragment) {
+                Some(EntityMetadata::Code(metadata)) => metadata
+                    .signature
+                    .as_deref()
+                    .expect("overload signature")
+                    .to_owned(),
+                _ => panic!("code metadata"),
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            signatures,
+            BTreeSet::from([
+                "public void Run()".to_owned(),
+                "public void Run(int value)".to_owned()
+            ])
+        );
+        let b = named(&fragments, "B");
+        assert!(matches!(
+            test_metadata(b),
+            Some(EntityMetadata::Code(CodeMetadata { scope: Some(scope), signature: Some(signature), .. }))
+                if scope == "Demo::Widget" && signature == "public int B"
+        ));
     }
 
     #[test]

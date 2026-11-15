@@ -179,6 +179,7 @@ fn vector_metadata_text(metadata: Option<&EntityMetadata>, max_chars: Option<usi
             scope,
             signature,
             documentation,
+            language,
             ..
         }) => vec![
             match (symbol_type, symbol_name) {
@@ -187,7 +188,9 @@ fn vector_metadata_text(metadata: Option<&EntityMetadata>, max_chars: Option<usi
                 (None, Some(name)) => Some(format!("symbol: {name}")),
                 (None, None) => None,
             },
-            scope.as_ref().map(|value| format!("scope: {value}")),
+            (*language != Some(crate::domain::Language::CSharp))
+                .then(|| scope.as_ref().map(|value| format!("scope: {value}")))
+                .flatten(),
             signature
                 .as_ref()
                 .map(|value| format!("signature: {}", collapse_whitespace(value))),

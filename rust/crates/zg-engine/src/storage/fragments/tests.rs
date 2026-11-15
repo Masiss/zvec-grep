@@ -187,7 +187,7 @@ fn metadata_fields_are_indexed_and_allow_entities_without_filter_values() {
     let temporary = tempfile::tempdir().expect("temporary storage");
     let store = metadata_store(temporary.path());
     {
-        let collection = &store.indexes["fixture/fixture"];
+        let collection = &store.indexes()["fixture/fixture"];
         let schema = collection.schema().expect("retrieval schema");
         for IndexField::String(name) in EntityMetadata::index_schema() {
             assert!(schema.has_field(name), "missing metadata field: {name}");
@@ -222,7 +222,7 @@ fn metadata_fields_are_indexed_and_allow_entities_without_filter_values() {
         write_fixture(&store, &source, &entities, &entries);
         store.flush().expect("flush fragments");
         {
-            let collection = &store.indexes["fixture/fixture"];
+            let collection = &store.indexes()["fixture/fixture"];
             for entry in &entries {
                 let doc = fragment_document(collection, entry.fragment_id.as_str());
                 for IndexField::String(name) in EntityMetadata::index_schema() {
@@ -412,7 +412,7 @@ fn filename_like_negation_propagates_native_query_errors() {
     ] {
         let mut query = SearchQuery::scalar(10).expect("native query");
         query.set_filter(sql).expect("native filter");
-        let native_error = store.indexes["fixture/fixture"]
+        let native_error = store.indexes()["fixture/fixture"]
             .query(&query)
             .err()
             .expect("the pinned zvec release does not parse NOT LIKE");
@@ -747,7 +747,7 @@ fn reusable_vectors_are_loaded_by_fragment_identity_and_model() {
         .map(|entry| entry.fragment_id.as_str().to_owned())
         .collect::<Vec<_>>();
     let vectors = store
-        .load_vectors("fixture/fixture", &ids)
+        .load_vectors("fixture/fixture", &ids, None)
         .expect("load reusable vectors");
     assert_eq!(vectors.len(), entries.len());
     let decoded = &vectors[entries[1].fragment_id.as_str()];
@@ -760,9 +760,112 @@ fn reusable_vectors_are_loaded_by_fragment_identity_and_model() {
     }
     assert_eq!(
         store
-            .load_vectors("fixture/other", &ids)
+            .load_vectors("fixture/other", &ids, None)
             .expect_err("unknown model")
             .code(),
         crate::EngineError::INVALID_ARGUMENT
+    );
+}
+
+#[test]
+fn fts_expression_quotes_terms_and_rejects_empty_queries() {
+    assert_eq!(
+        fts_query_expression("access control"),
+        Some("\"access\" OR \"control\"".to_owned())
+    );
+    assert_eq!(
+        fts_query_expression("C++ \"quoted\" back\\slash"),
+        Some("\"C++\" OR \"quoted\" OR \"back\" OR \"slash\"".to_owned())
+    );
+    assert_eq!(fts_query_expression("   ---   "), None);
+    assert_eq!(fts_query_expression(""), None);
+    let long = (0..80)
+        .map(|index| format!("term{index}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        fts_query_expression(&long)
+            .expect("terms")
+            .split(" OR ")
+            .count(),
+        64
+    );
+}
+
+fn model_named(name: &str) -> EmbeddingModelInfo {
+    EmbeddingModelInfo::new(
+        crate::domain::model::ModelInfo::new(
+            "fixture",
+            name,
+            [
+                crate::domain::ContentKind::Text,
+                crate::domain::ContentKind::Code,
+                crate::domain::ContentKind::Image,
+            ],
+            32,
+        )
+        .expect("valid model metadata"),
+        3,
+        EmbeddingMetric::Cosine,
+        None,
+        None,
+    )
+    .expect("valid embedding metadata")
+}
+
+fn fts_scores(store: &Fragments, query: &str) -> Vec<(String, f64)> {
+    let mut hits = store
+        .search_fts(query, 20, None)
+        .expect("fts search")
+        .into_iter()
+        .map(|hit| (hit.document_id, hit.score))
+        .collect::<Vec<_>>();
+    hits.sort_by(|a, b| a.0.cmp(&b.0));
+    hits
+}
+
+fn e5_projection(dir: &Path, model_name: &str, vectors: [Vec<f32>; 2]) -> Fragments {
+    super::super::zvec::initialize().expect("initialize zvec");
+    let embedding = model_named(model_name);
+    let store = Fragments::open(dir, &[embedding], false).expect("fragment storage");
+    let (source, entities, mut entries) = metadata_fragments(1, "harvest");
+    for (entry, vector) in entries.iter_mut().zip(vectors) {
+        entry.model = format!("fixture/{model_name}");
+        entry.vector = vector;
+    }
+    write_fixture(&store, &source, &entities, &entries);
+    store.flush().expect("flush");
+    store
+}
+
+#[test]
+fn e5_fts_is_independent_of_embedding_values() {
+    let a_dir = tempfile::tempdir().expect("store a");
+    let b_dir = tempfile::tempdir().expect("store b");
+    let a = e5_projection(
+        a_dir.path(),
+        "fixture-a",
+        [vec![0.0, 1.0, 0.0], vec![1.0, 0.0, 0.0]],
+    );
+    let b = e5_projection(
+        b_dir.path(),
+        "fixture-b",
+        [vec![0.7, -0.2, 0.5], vec![-0.3, 0.9, 0.1]],
+    );
+    let before_a = fts_scores(&a, "harvest");
+    let before_b = fts_scores(&b, "harvest");
+    eprintln!("before optimize: a={before_a:?} b={before_b:?}");
+    assert_eq!(
+        before_a, before_b,
+        "FTS changed with embedding values before optimize"
+    );
+    a.optimize().expect("optimize a");
+    b.optimize().expect("optimize b");
+    let after_a = fts_scores(&a, "harvest");
+    let after_b = fts_scores(&b, "harvest");
+    eprintln!("after optimize: a={after_a:?} b={after_b:?}");
+    assert_eq!(
+        after_a, after_b,
+        "FTS changed with embedding values after optimize"
     );
 }

@@ -154,6 +154,7 @@ fn outline_format(path: &Path, language: Option<Language>) -> Option<FileFormat>
         return Some(match language {
             Language::C => FileFormat::C,
             Language::Cpp => FileFormat::Cpp,
+            Language::CSharp => FileFormat::CSharp,
             Language::Go => FileFormat::Go,
             Language::Java => FileFormat::Java,
             Language::JavaScript => FileFormat::JavaScript,
