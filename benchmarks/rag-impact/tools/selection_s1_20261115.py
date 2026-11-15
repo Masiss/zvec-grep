@@ -189,10 +189,10 @@ class Source:
 
     def text_lines(self, path: str) -> list[str]:
         if path not in self.lines:
-            data = (self.root / path).read_text(encoding="utf-8", errors="replace")
+            data = (self.root / path).read_bytes().decode("utf-8", "replace")
             self.reads.add(path)
             self.read_bytes += len(data.encode())
-            self.lines[path] = data.splitlines()
+            self.lines[path] = re.sub(r"\r+\n", "\n", data).replace("\r", "\n").splitlines()
         return self.lines[path]
 
     def declarations(self, path: str) -> list[dict]:

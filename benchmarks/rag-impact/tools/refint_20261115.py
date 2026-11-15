@@ -75,7 +75,7 @@ class RefIndex:
 
     def text_lines(self, path):
         if path not in self.lines:
-            self.lines[path] = (self.corpus / path).read_text(errors="replace").splitlines()
+            self.lines[path] = re.sub(r"\r+\n", "\n", (self.corpus / path).read_bytes().decode("utf-8", "replace")).replace("\r", "\n").splitlines()
         return self.lines[path]
 
     def _load(self):
