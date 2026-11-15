@@ -1,0 +1,647 @@
+{
+  "status": "R1_EVIDENCE_SURFACE_PAIRED",
+  "date": "1794754341",
+  "branch_head": "d9a9b1abad0711a3e77d0ec031ff44b771ea3d01",
+  "corpus_source_root": "/home/masis/itc/Ricons/HRM2.0",
+  "corpus_manifest_sha256": "c706c8dd9b560572a2c1739c2c2bda676982f4c3b5da4cd4b32bcfeb66359cdb",
+  "cases": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "D06",
+    "D07",
+    "D08",
+    "D09",
+    "D10",
+    "D11",
+    "D12"
+  ],
+  "spans": 25,
+  "spans_by_case": {
+    "D01": 2,
+    "D02": 6,
+    "D03": 1,
+    "D04": 1,
+    "D05": 1,
+    "D06": 3,
+    "D07": 3,
+    "D08": 2,
+    "D09": 1,
+    "D10": 2,
+    "D11": 1,
+    "D12": 2
+  },
+  "files": 9,
+  "budget": {
+    "max_bytes": 24576,
+    "max_items": 32
+  },
+  "host": {
+    "loadavg": "4.09 3.54 2.98 3/1950 444413",
+    "mem_available_kib": 7597068,
+    "pss_kib_before": 3045,
+    "pss_kib_after": 3118
+  },
+  "conditions": [
+    {
+      "id": "unchanged",
+      "description": "no mutation",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.014246
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 224257,
+            "elapsed_ms": 11.665034
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 224257,
+            "elapsed_ms": 42.653735999999995
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 224257,
+            "elapsed_ms": 73.117224
+          }
+        ]
+      ]
+    },
+    {
+      "id": "edit_outside_range",
+      "description": "append a line at EOF (outside the cited span)",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.021339999999999998
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 1,
+            "not_detected": 24,
+            "gap_codes": {
+              "text_changed": 1
+            },
+            "bytes_read": 224545,
+            "elapsed_ms": 11.004514
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "stalehash": 25
+            },
+            "bytes_read": 224545,
+            "elapsed_ms": 21.547608
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 224545,
+            "elapsed_ms": 73.310531
+          }
+        ]
+      ]
+    },
+    {
+      "id": "edit_inside_range",
+      "description": "append a marker to the first cited line",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.01284
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 17,
+            "not_detected": 8,
+            "gap_codes": {
+              "text_changed": 17
+            },
+            "bytes_read": 224383,
+            "elapsed_ms": 11.333106
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "stalehash": 25
+            },
+            "bytes_read": 224383,
+            "elapsed_ms": 21.702642
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 224383,
+            "elapsed_ms": 81.250799
+          }
+        ]
+      ]
+    },
+    {
+      "id": "same_size_substitution_inside_range",
+      "description": "replace the first 8 bytes of the first cited line",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.083991
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 17,
+            "not_detected": 8,
+            "gap_codes": {
+              "text_changed": 17
+            },
+            "bytes_read": 224257,
+            "elapsed_ms": 18.965431000000002
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "stalehash": 25
+            },
+            "bytes_read": 224257,
+            "elapsed_ms": 24.252967
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 224257,
+            "elapsed_ms": 86.387527
+          }
+        ]
+      ]
+    },
+    {
+      "id": "line_inserted_above_range",
+      "description": "insert one line at the top of the file (shifts line numbers)",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.022327000000000003
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "text_changed": 25
+            },
+            "bytes_read": 224527,
+            "elapsed_ms": 14.840944
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "stalehash": 25
+            },
+            "bytes_read": 224527,
+            "elapsed_ms": 26.777758
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 224527,
+            "elapsed_ms": 91.987628
+          }
+        ]
+      ]
+    },
+    {
+      "id": "renamed",
+      "description": "rename the cited file",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.051878
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "missing": 25
+            },
+            "bytes_read": 0,
+            "elapsed_ms": 0.097488
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "missing": 25
+            },
+            "bytes_read": 0,
+            "elapsed_ms": 0.468568
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "missing": 25
+            },
+            "bytes_read": 0,
+            "elapsed_ms": 0.408031
+          }
+        ]
+      ]
+    },
+    {
+      "id": "deleted",
+      "description": "delete the cited file",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.009131
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "missing": 25
+            },
+            "bytes_read": 0,
+            "elapsed_ms": 0.053050999999999994
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "missing": 25
+            },
+            "bytes_read": 0,
+            "elapsed_ms": 0.420442
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "missing": 25
+            },
+            "bytes_read": 0,
+            "elapsed_ms": 0.401049
+          }
+        ]
+      ]
+    },
+    {
+      "id": "crlf_lf_conversion",
+      "description": "convert line endings across the whole file",
+      "arms": [
+        [
+          "a",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 0,
+            "elapsed_ms": 0.025395
+          }
+        ],
+        [
+          "b",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "text_changed": 25
+            },
+            "bytes_read": 229212,
+            "elapsed_ms": 14.352986999999999
+          }
+        ],
+        [
+          "c",
+          {
+            "tested": 25,
+            "detected": 25,
+            "not_detected": 0,
+            "gap_codes": {
+              "stalehash": 25
+            },
+            "bytes_read": 229212,
+            "elapsed_ms": 28.67095
+          }
+        ],
+        [
+          "d",
+          {
+            "tested": 25,
+            "detected": 0,
+            "not_detected": 25,
+            "gap_codes": {},
+            "bytes_read": 229212,
+            "elapsed_ms": 92.334148
+          }
+        ]
+      ]
+    }
+  ],
+  "per_case_packs": [
+    {
+      "case": "D01",
+      "requested_spans": 2,
+      "items": 2,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 11507,
+      "serialized_bytes": 12642,
+      "assemble_ms": 5.934686,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 4.180251
+    },
+    {
+      "case": "D02",
+      "requested_spans": 6,
+      "items": 6,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 19030,
+      "serialized_bytes": 21814,
+      "assemble_ms": 8.210894,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 7.287012
+    },
+    {
+      "case": "D03",
+      "requested_spans": 1,
+      "items": 1,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 3403,
+      "serialized_bytes": 3970,
+      "assemble_ms": 2.495533,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 1.8008410000000001
+    },
+    {
+      "case": "D04",
+      "requested_spans": 1,
+      "items": 1,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 414,
+      "serialized_bytes": 880,
+      "assemble_ms": 2.503262,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 1.784472
+    },
+    {
+      "case": "D05",
+      "requested_spans": 1,
+      "items": 1,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 10444,
+      "serialized_bytes": 11209,
+      "assemble_ms": 2.473269,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 1.785529
+    },
+    {
+      "case": "D06",
+      "requested_spans": 3,
+      "items": 3,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 5215,
+      "serialized_bytes": 6619,
+      "assemble_ms": 7.309246,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 6.477196
+    },
+    {
+      "case": "D07",
+      "requested_spans": 3,
+      "items": 3,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 3103,
+      "serialized_bytes": 4485,
+      "assemble_ms": 6.490487,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 4.5416229999999995
+    },
+    {
+      "case": "D08",
+      "requested_spans": 2,
+      "items": 2,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 935,
+      "serialized_bytes": 1790,
+      "assemble_ms": 5.862928,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 4.180059
+    },
+    {
+      "case": "D09",
+      "requested_spans": 1,
+      "items": 1,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 857,
+      "serialized_bytes": 1287,
+      "assemble_ms": 0.107594,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 0.06815500000000001
+    },
+    {
+      "case": "D10",
+      "requested_spans": 2,
+      "items": 2,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 668,
+      "serialized_bytes": 1479,
+      "assemble_ms": 1.734549,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 1.274283
+    },
+    {
+      "case": "D11",
+      "requested_spans": 1,
+      "items": 1,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 697,
+      "serialized_bytes": 1177,
+      "assemble_ms": 2.499,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 1.7821799999999999
+    },
+    {
+      "case": "D12",
+      "requested_spans": 2,
+      "items": 2,
+      "gaps": 0,
+      "deduplicated": 0,
+      "gap_codes": {},
+      "content_bytes": 3503,
+      "serialized_bytes": 4617,
+      "assemble_ms": 3.820373,
+      "revalidate_gaps": 0,
+      "revalidate_ms": 2.718461
+    }
+  ],
+  "per_case_totals": {
+    "requested_spans": 25,
+    "items": 25,
+    "gaps": 0,
+    "max_content_bytes": 19030,
+    "assemble_ms_total": 49.441821000000004,
+    "revalidate_ms_total": 37.88006199999999
+  }
+}

@@ -1,8 +1,10 @@
 //! Bounded, hash-checked source evidence for externally driven retrieval.
 //!
 //! This is the R1 internal contract: it reuses [`ContentRange`] coordinates and
-//! returns typed items plus explicit gaps. It does not search, generate text or
-//! publish a new MCP/CLI response shape.
+//! returns typed items plus explicit gaps. It does not search or generate text.
+//! [`surface`] exposes the opt-in caller-addressed variant of the same contract.
+
+pub mod surface;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -245,12 +247,7 @@ pub fn assemble(
         });
     }
 
-    let status = match (items.is_empty(), gaps.is_empty()) {
-        (true, true) => EvidenceStatus::Empty,
-        (true, false) => EvidenceStatus::Failed,
-        (false, true) => EvidenceStatus::Ok,
-        (false, false) => EvidenceStatus::Partial,
-    };
+    let status = pack_status(items.is_empty(), gaps.is_empty());
     Ok(EvidencePack {
         schema_version: EVIDENCE_SCHEMA_VERSION,
         status,
@@ -342,6 +339,15 @@ pub fn revalidate(root: &Path, pack: &EvidencePack) -> Result<Vec<EvidenceGap>, 
     Ok(gaps)
 }
 
+fn pack_status(items_empty: bool, gaps_empty: bool) -> EvidenceStatus {
+    match (items_empty, gaps_empty) {
+        (true, true) => EvidenceStatus::Empty,
+        (true, false) => EvidenceStatus::Failed,
+        (false, true) => EvidenceStatus::Ok,
+        (false, false) => EvidenceStatus::Partial,
+    }
+}
+
 fn item_gap(code: EvidenceGapCode, item: &EvidenceItem, detail: &str) -> EvidenceGap {
     EvidenceGap {
         code,
@@ -351,13 +357,13 @@ fn item_gap(code: EvidenceGapCode, item: &EvidenceItem, detail: &str) -> Evidenc
     }
 }
 
-struct CachedSource {
-    sha256: String,
-    text: Option<String>,
+pub(crate) struct CachedSource {
+    pub(crate) sha256: String,
+    pub(crate) text: Option<String>,
 }
 
 impl CachedSource {
-    fn read(path: &Path) -> Result<Self, EvidenceGapCode> {
+    pub(crate) fn read(path: &Path) -> Result<Self, EvidenceGapCode> {
         let bytes = std::fs::read(path).map_err(|error| {
             if error.kind() == std::io::ErrorKind::NotFound {
                 EvidenceGapCode::Missing
@@ -371,7 +377,7 @@ impl CachedSource {
     }
 }
 
-fn resolve_path(
+pub(crate) fn resolve_path(
     root: &Path,
     root_canonical: &Path,
     relative: &Path,
@@ -436,7 +442,7 @@ fn range_for(text: &str, request: &EvidenceRequest) -> Result<ContentRange, Evid
     Ok(range)
 }
 
-fn range_for_offsets(
+pub(crate) fn range_for_offsets(
     text: &str,
     start_byte: usize,
     end_byte: usize,
@@ -461,7 +467,7 @@ fn range_for_offsets(
     })
 }
 
-fn line_starts(bytes: &[u8]) -> Vec<usize> {
+pub(crate) fn line_starts(bytes: &[u8]) -> Vec<usize> {
     let mut starts = vec![0];
     for (index, byte) in bytes.iter().enumerate() {
         if *byte == b'\n' {

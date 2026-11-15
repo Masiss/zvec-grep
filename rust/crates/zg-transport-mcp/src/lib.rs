@@ -42,6 +42,10 @@ use zg_engine::{
                 RefreshPolicy, SymbolType,
             },
         },
+        evidence::{
+            EvidenceBudget,
+            surface::{MAX_PACK_BYTES, MAX_PACK_ITEMS, SpanAddress, SpanRequest, assemble_spans},
+        },
         index::{
             IndexOptions,
             options::{
@@ -57,7 +61,9 @@ use zg_engine::{
 };
 
 pub const AGENT_TOOL_NAME: &str = "zvec_grep_search";
-pub const FULL_TOOL_NAMES: [&str; 6] = [
+pub const EVIDENCE_TOOL_NAME: &str = "zvec_grep_evidence";
+pub const FULL_TOOL_NAMES: [&str; 7] = [
+    "zvec_grep_evidence",
     "zvec_grep_index",
     "zvec_grep_index_drop",
     "zvec_grep_index_status",
@@ -417,6 +423,39 @@ impl ZvecGrepMcpServer {
             }
             Err(error) => error_result(&error).into(),
         })
+    }
+
+    #[tool(
+        name = "zvec_grep_evidence",
+        description = "Fetch hash-checked source evidence for caller-supplied spans. Each span is addressed by UTF-8 byte offsets or by one-based line numbers and is served only from the file version whose SHA-256 the response reports. Supplying expected_sha256 makes an item `verified`; omitting it makes it `observed`, and observed is never reported as verified. Missing, changed, absolute, traversal, symlinked, out-of-root, non-UTF-8 or over-budget spans return typed gaps instead of replacement content. Read-only: it does not search, index, embed or write source.",
+        annotations(
+            title = "Fetch hash-checked source evidence",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn zvec_grep_evidence(
+        &self,
+        Parameters(input): Parameters<EvidenceInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let root = PathBuf::from(&input.root);
+        if !root.is_absolute() {
+            return Err(ErrorData::invalid_params(
+                "root must be an absolute workspace path",
+                None,
+            ));
+        }
+        let spans = input.spans.iter().map(span_request).collect::<Vec<_>>();
+        let budget = EvidenceBudget {
+            max_bytes: input.max_bytes.unwrap_or(MAX_PACK_BYTES),
+            max_items: input.max_items.unwrap_or(MAX_PACK_ITEMS),
+        };
+        match assemble_spans(&root, &spans, budget) {
+            Ok(pack) => Ok(structured_result(pack)),
+            Err(error) => Err(ErrorData::invalid_params(error.to_string(), None)),
+        }
     }
 
     #[tool(
@@ -888,6 +927,59 @@ pub struct RootInput {
     /// Absolute workspace root visible to the daemon.
     #[schemars(length(min = 1, max = 1024))]
     pub root: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema)]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+pub enum EvidenceAddressInput {
+    /// Half-open UTF-8 byte offsets into the source.
+    Bytes {
+        /// Inclusive start byte offset.
+        start: usize,
+        /// Exclusive end byte offset.
+        end: usize,
+    },
+    /// One-based inclusive line numbers; the trailing terminator is excluded.
+    Lines {
+        /// First cited line.
+        start_line: usize,
+        /// Last cited line.
+        end_line: usize,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceSpanInput {
+    /// Non-empty project label; items keep it separate.
+    #[schemars(length(min = 1, max = 128))]
+    pub project: String,
+    /// Path relative to `root`.
+    #[schemars(length(min = 1, max = 1024))]
+    pub relative_path: String,
+    /// Optional SHA-256 the caller observed for the whole file. Supplying it makes
+    /// the item `verified`; omitting it makes the item `observed`.
+    #[schemars(length(min = 64, max = 64))]
+    pub expected_sha256: Option<String>,
+    /// Address of the requested span.
+    pub address: EvidenceAddressInput,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceInput {
+    /// Absolute workspace root visible to the daemon.
+    #[schemars(length(min = 1, max = 1024))]
+    pub root: String,
+    /// Requested spans; a rejected span becomes a typed gap, never replacement content.
+    #[schemars(length(max = 256))]
+    pub spans: Vec<EvidenceSpanInput>,
+    /// Pack byte ceiling; defaults to the frozen 24 KiB contract ceiling.
+    #[schemars(range(min = 1, max = 24576), extend("type" = "integer"))]
+    pub max_bytes: Option<usize>,
+    /// Pack item ceiling; defaults to the frozen 32-item contract ceiling.
+    #[schemars(range(min = 1, max = 32), extend("type" = "integer"))]
+    pub max_items: Option<usize>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -2036,6 +2128,24 @@ fn epoch_millis(value: i64, name: &str) -> Result<u64, String> {
     u64::try_from(value).map_err(|_| format!("{name} must not be before the Unix epoch"))
 }
 
+fn span_request(input: &EvidenceSpanInput) -> SpanRequest {
+    SpanRequest {
+        project: input.project.clone(),
+        relative_path: PathBuf::from(&input.relative_path),
+        expected_sha256: input.expected_sha256.clone(),
+        address: match input.address {
+            EvidenceAddressInput::Bytes { start, end } => SpanAddress::Bytes { start, end },
+            EvidenceAddressInput::Lines {
+                start_line,
+                end_line,
+            } => SpanAddress::Lines {
+                start_line,
+                end_line,
+            },
+        },
+    }
+}
+
 fn error_result(error: &EngineError) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(format!(
         "{}\nretryable: {}",
@@ -2858,7 +2968,7 @@ mod tests {
     }
 
     #[test]
-    fn full_server_exposes_all_six_tools() {
+    fn full_server_exposes_all_seven_tools() {
         let server =
             ZvecGrepMcpServer::full_direct(Arc::new(ZvecGrep::new()), Arc::new(FixedStatus));
         let names = server
@@ -2873,6 +2983,118 @@ mod tests {
                 .instructions
                 .is_some_and(|instructions| instructions.contains("zvec_grep_index"))
         );
+    }
+
+    #[tokio::test]
+    async fn evidence_tool_serves_hash_checked_spans_and_stays_out_of_agent_toolset() {
+        use rmcp::ServiceExt;
+        use rmcp::model::CallToolRequestParams;
+
+        let dir = tempfile::tempdir().expect("valid evidence fixture");
+        std::fs::write(dir.path().join("a.txt"), b"alpha\nbeta\ngamma\n").expect("fixture file");
+        let root = dir.path().display().to_string();
+
+        let server =
+            ZvecGrepMcpServer::full_direct(Arc::new(ZvecGrep::new()), Arc::new(FixedStatus));
+        let (server_io, client_io) = tokio::io::duplex(8192);
+        let task = tokio::spawn(async move {
+            server
+                .serve(server_io)
+                .await
+                .expect("server")
+                .waiting()
+                .await
+        });
+        let client = ().serve(client_io).await.expect("client");
+
+        let mut request = CallToolRequestParams::new("zvec_grep_evidence");
+        request.arguments = serde_json::json!({
+            "root": root,
+            "spans": [{
+                "project": "p",
+                "relative_path": "a.txt",
+                "address": {"mode": "lines", "start_line": 2, "end_line": 2}
+            }]
+        })
+        .as_object()
+        .cloned();
+        let reply = client.call_tool(request).await.expect("evidence result");
+        assert_ne!(reply.is_error, Some(true));
+        let pack = reply.structured_content.expect("structured pack");
+        assert_eq!(pack["schema_version"], 1);
+        assert_eq!(pack["status"], "ok");
+        assert_eq!(pack["items"][0]["content"], "beta");
+        assert_eq!(pack["items"][0]["verification"], "observed");
+        assert_eq!(
+            pack["items"][0]["source_sha256"]
+                .as_str()
+                .expect("hash")
+                .len(),
+            64
+        );
+        assert_eq!(pack["items"][0]["range"]["start_line"], 2);
+        assert_eq!(pack["gaps"], serde_json::json!([]));
+
+        let sha = pack["items"][0]["source_sha256"].clone();
+        let mut verified = CallToolRequestParams::new("zvec_grep_evidence");
+        verified.arguments = serde_json::json!({
+            "root": root,
+            "spans": [{
+                "project": "p",
+                "relative_path": "a.txt",
+                "expected_sha256": sha,
+                "address": {"mode": "bytes", "start": 6, "end": 10}
+            }]
+        })
+        .as_object()
+        .cloned();
+        let reply = client.call_tool(verified).await.expect("verified result");
+        let pack = reply.structured_content.expect("structured pack");
+        assert_eq!(pack["items"][0]["verification"], "verified");
+        assert_eq!(pack["items"][0]["content"], "beta");
+
+        let mut stale = CallToolRequestParams::new("zvec_grep_evidence");
+        stale.arguments = serde_json::json!({
+            "root": root,
+            "spans": [{
+                "project": "p",
+                "relative_path": "a.txt",
+                "expected_sha256": "0".repeat(64),
+                "address": {"mode": "lines", "start_line": 1, "end_line": 1}
+            }]
+        })
+        .as_object()
+        .cloned();
+        let reply = client.call_tool(stale).await.expect("stale result");
+        let pack = reply.structured_content.expect("structured pack");
+        assert_eq!(pack["status"], "failed");
+        assert_eq!(pack["items"], serde_json::json!([]));
+        assert_eq!(pack["gaps"][0]["code"], "stale_hash");
+
+        client.cancel().await.expect("close client");
+        task.await.expect("server task").expect("server stop");
+
+        let agent = ZvecGrepMcpServer::agent_direct(Arc::new(ZvecGrep::new()));
+        let (server_io, client_io) = tokio::io::duplex(8192);
+        let task = tokio::spawn(async move {
+            agent
+                .serve(server_io)
+                .await
+                .expect("server")
+                .waiting()
+                .await
+        });
+        let client = ().serve(client_io).await.expect("client");
+        let mut hidden = CallToolRequestParams::new("zvec_grep_evidence");
+        hidden.arguments = serde_json::json!({"root": root, "spans": []})
+            .as_object()
+            .cloned();
+        assert!(
+            client.call_tool(hidden).await.is_err(),
+            "agent toolset must not expose evidence"
+        );
+        client.cancel().await.expect("close client");
+        task.await.expect("server task").expect("server stop");
     }
 
     #[test]
