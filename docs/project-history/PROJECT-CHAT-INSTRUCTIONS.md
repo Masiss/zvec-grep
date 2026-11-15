@@ -12,8 +12,11 @@ readiness verdict or installed version masquerade as another state.
 code/receipts > design/handoff docs > runtime read-only observation > owner/chat seed
 ```
 
-If a claim is not traceable, label it `UNVERIFIED` or `CONFLICT_UNRESOLVED`.
-Do not invent SHAs, paths, metrics, branches or release status.
+If a claim is not traceable, label it `HISTORICAL_USER_REPORTED`,
+`INFERRED`, `SUPERSEDED`, `UNRESOLVED`/`CONFLICT_UNRESOLVED` as appropriate.
+Do not invent SHAs, paths, metrics, branches or release status. A statement in
+the supplied ChatGPT package is historical context until a repo/receipt confirms
+it.
 
 ## Required distinctions
 
@@ -39,6 +42,11 @@ Always distinguish:
   `161009`, index **v2**, **Potion 16M v2**.
 - RAG: R1 library/internal; R4 expander NO-GO; R5/R6 absent; post-R4 GS
   `typed-grounding-v1` readiness only, GQ5 not run.
+- R0 frozen set: **16 dev + 8 held-out**; B0 official receipt measured **12
+  real-source dev** cases. Do not collapse the two numbers.
+- Reported owner preference: outcome-driven autonomy; select a product/MVP
+  acceptance contract before choosing another micro-experiment. GQ5 is
+  conditional, not a ritual.
 
 For exact numbers/hashes, use [PROJECT-STATE.md](PROJECT-STATE.md) and
 [SOURCE-REGISTER.md](SOURCE-REGISTER.md), not memory.
@@ -67,8 +75,9 @@ copying the source.
   but not active. Cite manifest.
 - “What is the index version?” → Source v3, installed v2. Name which.
 - “What did R4 prove?” → Bounded expander failed; no full agent loop.
-- “Can we merge GS?” → Not without owner authorization and GQ5/public integration
-  decisions.
+- “Can we merge GS?” → Not without owner authorization and the selected
+  qualification/public-integration contract. GQ5 only if that contract requires
+  it; readiness is not qualification.
 - “What should we do next?” → Use the decision sequence in
   `09-RAG-EXECUTION-DELTA.md`; do not invent a new roadmap.
 
@@ -79,6 +88,8 @@ copying the source.
   question.
 - Do not query an app business database or execute repository source.
 - Do not claim absence merely because this repository scan did not find it.
+- Do not copy the external ChatGPT package as a second canon; use it only for
+  historical context/provenance and update the canonical docs.
 - Preserve conflicting evidence; do not fabricate reconciliation.
 
 ## Refresh

@@ -91,12 +91,17 @@ Therefore:
 
 Status: **evidence exists**.
 
-- `benchmarks/rag-impact/` contains scope manifest, corpus manifest, 12 dev
-  cases, 8 held-out cases, preregistration, B0 receipts and report contract.
-- 12 development cases / 25 requested spans; held-out not inspected during
-  implementation claims.
+- `benchmarks/rag-impact/` freezes **16 development cases** (D01–D16; D01–D12
+  real HRM source, D13–D16 synthetic/minimized boundary fixtures) and **8
+  held-out cases** (H01–H08), plus scope/corpus manifests, preregistration and
+  report contract (`benchmarks/rag-impact/PREREGISTRATION.md:81-84`).
+- The official B0 receipt measured **12 real-source development cases / 25
+  requested spans**; D13–D16 were not engine-measured in that receipt. Held-out
+  was not inspected during implementation claims.
 - B0 best-call pack: Recall@10 **0.4722**; fixed deployable FTS baseline
   **0.3750**; targets are owner-frozen.
+- Do not say “12 dev cases” for the frozen set, and do not say “16 measured” for
+  B0: the set and the measured subset are different facts.
 - The frozen target is +10pp over B0, fewer source reads/tokens, correctness
   proxy ≥ B0.
 

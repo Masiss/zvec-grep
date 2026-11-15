@@ -1,9 +1,12 @@
 # zvec-grep project history — START HERE
 
-**Project:** zvec-grep / `zg`  
-**Knowledge-base snapshot:** 2026-11-15T20:16+07:00  
+**Project:** zvec-grep / `zg`
+**Single entrypoint:** upload/read this file first; it links every canonical
+topic and the current snapshot.
+**Knowledge-base consolidation:** 2026-11-15T20:41+07:00
+**Runtime snapshot:** 2026-11-15T20:16+07:00
 **Repository revision:** `27b81c0e0472644820955fd69d1a080fb76b16ca` on
-`work/zg-recovered` (see [PROJECT-STATE.md](PROJECT-STATE.md))  
+`work/zg-recovered` (see [PROJECT-STATE.md](PROJECT-STATE.md))
 **Audience:** ChatGPT Project / engineers who need verifiable project context,
 not a new implementation plan.
 
@@ -38,6 +41,7 @@ The current verified snapshot and conflicts are collected in
 | 9 | [08-DECISIONS-AND-OPEN-QUESTIONS.md](08-DECISIONS-AND-OPEN-QUESTIONS.md) | Owner decisions, blockers, authority gates, non-goals |
 | 10 | [09-RAG-EXECUTION-DELTA.md](09-RAG-EXECUTION-DELTA.md) | Canonical R0–R6 vs verified reality; shortest justified MVP path |
 | 11 | [10-REVIEW-AND-VERIFICATION.md](10-REVIEW-AND-VERIFICATION.md) | Independent review, negative controls, residual gaps |
+| 12 | [CHANGELOG.md](CHANGELOG.md) | Knowledge-base change log; not engine history |
 
 ## 3. Canonical sources (priority order)
 
@@ -77,10 +81,34 @@ Use these labels in new analysis:
 
 - `VERIFIED`: direct source/receipt/runtime evidence.
 - `VERIFIED_READ_ONLY`: runtime observation; snapshot-sensitive.
+- `HISTORICAL_USER_REPORTED`: a user/chat report from a named date, not
+  independently repo-fetched; may be accurate but is not a receipt.
+- `INFERRED`: conclusion derived from stated evidence; state the inference step.
+- `SUPERSEDED`: replaced by a later, better-scoped result; retained as history.
 - `HISTORICAL_ONLY`: superseded measurement or branch, retained for history.
-- `CONFLICT_UNRESOLVED`: two credible sources disagree.
+- `CONFLICT_UNRESOLVED` / `UNRESOLVED`: two credible sources disagree or no
+  sufficient source exists; do not force a PASS.
 - `OWNER_REPORTED_UNVERIFIED`: only a chat/owner summary supports it.
 - `NOT_FOUND_IN_SCOPE`: scan scope did not find it; **not** proof of absence.
+
+### 5b. Capability status vocabulary
+
+These describe **capability layers**, not interchangeable praise:
+
+| Status | Meaning |
+|---|---|
+| `PROPOSED` | documented intent only; no execution authority |
+| `IMPLEMENTED_EXPERIMENTAL` | branch/fixture code; not main |
+| `MERGED_INTERNAL` | code in `work/zg-recovered`; no public guarantee |
+| `TESTED_PASS` | measured inside a named protocol |
+| `QUALIFIED` | independent qualification inside a named scope |
+| `INSTALLED` | executable/native artifact on disk checked |
+| `ACTIVE_RUNTIME` | running process/model/index checked |
+| `PUBLIC_EXPOSED` | tested CLI/MCP/daemon contract |
+| `NO_GO` / `BLOCKED` / `UNKNOWN` | named gate failed, blocked, or not measured |
+
+Never infer a higher layer from a lower one. `MERGED_INTERNAL` ≠ `INSTALLED`;
+`TESTED_PASS` ≠ `QUALIFIED`; `QUALIFIED` ≠ `PUBLIC_EXPOSED`.
 
 ## 6. Coverage matrix
 
@@ -97,6 +125,7 @@ Use these labels in new analysis:
 | Claim-to-source map | SOURCE-REGISTER |
 | Independent review / negative controls | 10 |
 | ChatGPT Project instructions | PROJECT-CHAT-INSTRUCTIONS |
+| Documentation change log | CHANGELOG |
 
 ## 7. Explicit non-goals of this documentation branch
 

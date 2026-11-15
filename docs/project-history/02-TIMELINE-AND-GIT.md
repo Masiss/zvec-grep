@@ -72,11 +72,12 @@ rollout remains outside that completed recovery task.
 
 | Track | Branch / tip | Outcome |
 |---|---|---|
-| E1 bounded maintenance | `work/e1-bounded-maintenance-20261110` | experimental; not merged; deferred maintenance showed bounded gains but needs policy |
-| No-op fast path | `work/noop-fastpath-integration-20261111` | integrated into later foundation line |
-| E2 content-addressed reuse | `work/e2-content-addressed-20261111`, integration `work/e2-integration-20261112` | READY_FOR_PROMOTION_REVIEW; integrated into E8-P2 |
-| E3 retrieval benchmark | `work/e3-01-retrieval-corpus-20261112` | corpus/gold/benchmark; later measurements contaminated |
-| E3-02A attribution | `work/e3-02a-attribution-20261112` | gold v2 qualified; route table later invalidated |
+| Foundation G1–G4/G5 | `work/foundation-opt-20261110` @ `d64e54e` | microbench wins; no end-to-end win; G5 streaming hash slower/rolled back |
+| E1 bounded maintenance | `work/e1-bounded-maintenance-20261110` @ `6012ef4` | experimental; not merged; deferred maintenance showed bounded gains but needs policy |
+| No-op fast path | `work/noop-fastpath-integration-20261111` @ `24af3e6` | integrated into later foundation line; ~89–92% no-op wall reduction |
+| E2 content-addressed reuse | `work/e2-content-addressed-20261111` @ `8ee9790`; integration `work/e2-integration-20261112` @ `96d543c` | READY_FOR_PROMOTION_REVIEW; integrated into E8-P2 |
+| E3 retrieval benchmark | `work/e3-01-retrieval-corpus-20261112` @ `ae3aab2` | corpus/gold/benchmark; later measurements contaminated |
+| E3-02A attribution | `work/e3-02a-attribution-20261112` @ `95fd0f3` | gold v2 qualified; route table later invalidated |
 | E3-02B vector policy | `work/e3-02b-r0-vector-policy-20261114` | NO-GO rationale depends on invalid attribution; owner review required |
 | E4 model selection | `work/e4-embedding-selection-20261113` | inference/RAM measurements valid; retrieval table later corrected |
 | E5 FTS reproducibility | `work/e5-fts-reproducibility-20261114` | root cause = harness primary query + route; E4 FTS claim retracted |
@@ -95,7 +96,7 @@ docs follow at `27b81c0`. Rollback tag
 
 | RAG phase | Actual artifact | Status |
 |---|---|---|
-| R0 | `benchmarks/rag-impact/` scope, 12 dev + 8 held-out cases, budgets, B0 receipt | frozen pilot exists |
+| R0 | `benchmarks/rag-impact/` scope, **16 frozen dev + 8 held-out** cases, budgets, B0 receipt | frozen pilot exists; B0 measured 12 real-source dev cases |
 | R1 | `rust/crates/zg-engine/src/api/evidence.rs`; `r1-dev` pilot | correctness PASS; library-only |
 | R2 | `extraction/csharp_facts.rs` | implemented source-visible C# facts |
 | R3 | `extraction/sql_facts.rs`; `rag-r3-sql-facts.md` | implemented selected SQL facts |

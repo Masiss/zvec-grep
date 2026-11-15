@@ -46,6 +46,15 @@ task-relevant evidence. Therefore:
 
 This is a decision sequence, not a new schedule.
 
+### Decision 0 — execution contract
+
+Before choosing techniques, write one short contract: product outcome, named
+scope, acceptance evidence, authority/budget, owner gates, stop conditions, and
+the branch/rollback boundary. The owner preference reported in the historical
+context is **outcome-driven autonomy**: no prompt per heuristic, no research
+mission treated as production authorization. This KB records the preference as
+`HISTORICAL_USER_REPORTED`, not as an approved plan.
+
 ### Decision A — R1 product shape
 
 Choose one:
@@ -81,7 +90,12 @@ prototypes.
 If R4 is not resumed, explicitly declare the RAG program paused. Do not keep
 launching selection micro-missions.
 
-### Decision C — GQ5
+### Decision C — GQ5 (only if the selected MVP needs it)
+
+GQ5 is **not** a default ritual. The reported owner preference is outcome-level
+autonomy: define the product outcome/acceptance and let the agent choose the
+necessary qualifications. Run GQ5 only if the chosen R1/R4 contract needs
+independent grounding qualification.
 
 If GS is continued:
 
@@ -171,7 +185,9 @@ The shortest honest path is:
    external-agent RAG MVP.
 2. **Do not start another selection/grounding micro-mission** unless R4
    discovery is explicitly re-authorized with a new preregistration.
-3. **If continuing GS**, run GQ5; do not merge readiness.
+3. **If continuing GS**, run GQ5 only when the selected MVP contract requires
+   it; do not merge readiness. For a product outcome that does not depend on
+   typed grounding, archive GS rather than running a standalone GQ5.
 4. **If not continuing**, archive post-R4 branches and keep R1 as documented
    internal capability.
 5. **Do not claim R5/R6** until a full R4 loop and public R1 contract exist.

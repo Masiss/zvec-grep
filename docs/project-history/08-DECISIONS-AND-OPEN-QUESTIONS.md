@@ -10,6 +10,7 @@ Statuses: `ACCEPTED`, `REJECTED`, `DEFERRED`, `OWNER_DECISION_REQUIRED`,
 | D-ARCH-1 | Rust workspace is the maintained release line in this fork; Node/TS remains a separate product implementation | ACCEPTED | `rust/ARCHITECTURE.md`, `README.md:48`, recovery docs |
 | D-ARCH-2 | CPU is default; accelerator is explicit opt-in, not silent fallback | ACCEPTED | E8/E8-P1 docs, catalog/default code |
 | D-ARCH-3 | TypeScript/Node and Rust are not interchangeable identities | ACCEPTED | `package.json` v0.2.1 vs Rust 0.3.0-rc.2; README |
+| D-ARCH-4 | A structural fragment carries FTS + scalar + vector/HNSW together; reducing embeddings is an index-format/retrieval-contract change | ACCEPTED with limits | historical design discussion; native schema; [03](03-NATIVE-DB-INDEX-AND-STORAGE.md) §4b |
 | D-STORE-1 | No in-place index migration; incompatible versions require explicit rebuild | ACCEPTED | `rust/docs/rag-r1-release-gates.md:20-25`, release notes |
 | D-STORE-2 | Index v3 is conditional on FTS/scope fixes; deferred format/schema work not approved | ACCEPTED with limits | `index-v3-promotion-qualification.md:150-160` |
 | D-STORE-3 | E1 bounded maintenance is experimental, not merged | ACCEPTED | E1 branch doc |
@@ -31,7 +32,11 @@ Statuses: `ACCEPTED`, `REJECTED`, `DEFERRED`, `OWNER_DECISION_REQUIRED`,
 | D-GS-2 | GQ5 has not been run | OPEN / owner authorization required | GS docs |
 | D-OPS-1 | Installed v2/Potion is not replaced by source v3/E8-P2 | ACCEPTED / no action | runtime state |
 | D-OPS-2 | Rollback pair must be verified before any replacement | ACCEPTED | recovery/release docs |
+| D-OPS-3 | A chat statement allowed binary replacement, but no release/install prompt was sent and no replacement was executed | HISTORICAL_USER_REPORTED / NO_ACTION | supplement `04-CURRENT-STATE-DECISIONS.md`; runtime audit |
+| D-RAG-8 | Legacy business dead-code exclusion and compiler source-liveness are separate concepts: an owner-excluded method is not thereby live, and a commented/inactive method cannot create a `VERIFIED` binding | ACCEPTED safety invariant | GQ/GQR liveness; supplement owner note |
+| D-GS-3 | GQ5 is not a default standalone goal; it is justified only if a selected MVP/qualification contract needs it | HISTORICAL_USER_REPORTED / OPEN | supplement `04-CURRENT-STATE-DECISIONS.md`; [09](09-RAG-EXECUTION-DELTA.md) |
 | D-GOV-1 | `docs/rag` still says PROPOSED and has not been reconciled with post-R4 work | OPEN | `docs/rag/README.md:3`; plan `:5` |
+| D-GOV-2 | Owner preference (reported): outcome-driven autonomy — define objective, acceptance, authority and dependencies, then let the agent run bounded phases; owner gates only product/contract/safety/budget/production changes | HISTORICAL_USER_REPORTED | supplement `04-CURRENT-STATE-DECISIONS.md`; not a production authorization |
 
 ## 2. Owner-only gates
 
@@ -113,7 +118,8 @@ decision to release RAG or to expose R1 publicly.
 |---:|---|
 | P0 | Keep installed v2/Potion unchanged until a release/rollback rehearsal is authorized. |
 | P0 | Decide whether `docs/rag` remains the canonical R0–R6 plan or is amended with a post-R4 grounding track. |
-| P1 | Authorize or decline GQ5 for `typed-grounding-v1`; do not merge before it. |
+| P1 | Record an explicit execution contract/acceptance for the chosen RAG MVP; the reported owner preference is outcome-level autonomy, not one prompt per heuristic. |
+| P1 | Decide whether GQ5 is actually required by the selected MVP/qualification contract; do not run it as a standalone ritual. If used, do not merge `typed-grounding-v1` before it. |
 | P1 | Decide R1 product path: library-only, public CLI/MCP evidence, or no RAG integration. |
 | P2 | If R4 is revisited, write a new preregistration for retrieval/discovery, not another packing/selection tweak. |
 | P2 | Close E3-02B owner review; do not reopen based on invalid attribution. |

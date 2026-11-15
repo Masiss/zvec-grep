@@ -180,6 +180,21 @@ E8-P2 merges Index v3, no-op, E2, P1; source is not installed. Its docs say no
 installed binary/daemon/index change. Current main test receipts: 765 tests,
 0 failed, 28 ignored in default/Vulkan; focused E6/P2 verifier PASS.
 
+### Binary replacement — authorization vs execution
+
+A historical chat statement allowed binary replacement **in principle**, but the
+supplement also records that no release/install prompt was actually sent to the
+execution agent. The runtime audit confirms the installed pair is still the old
+binary/library and the active index is v2.
+
+Therefore:
+
+- do not cite the chat statement as proof of replacement;
+- do not treat it as standing authorization to rebuild/replace now;
+- replacement still requires release gates, backup, rollback rehearsal and
+  post-install verification, as an owner decision;
+- `MERGED_INTERNAL` no-op/E8-P2 does not imply `INSTALLED` or `ACTIVE_RUNTIME`.
+
 ### RAG
 
 No RAG release: R1 internal; R4 NO-GO; R5/R6 absent; post-R4 candidate not

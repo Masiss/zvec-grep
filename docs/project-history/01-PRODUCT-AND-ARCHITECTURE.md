@@ -16,6 +16,39 @@ The recovery branch is the Rust/release line. The TypeScript implementation is
 still present and is not “deleted history”; its README and package are the
 Node-facing product.
 
+## 1b. Design rationale and trade-offs
+
+The following is the recorded product rationale (`HISTORICAL_USER_REPORTED`
+where it comes from the development conversation; it is not a benchmark claim):
+
+- **External agent, not an internal chatbot.** The calling agent owns reasoning,
+  planning and answer generation. `zg` supplies search, source evidence,
+  provenance and budgeted context. Keeping the generative loop outside avoids a
+  second model/runtime and keeps the tool composable with different agents.
+- **Local-first and deterministic by default.** Indexing/retrieval must work
+  without mandatory cloud/LLM calls; remote embeddings are permissioned. This
+  also explains the emphasis on exact ranges, source hashes, fail-closed
+  identity and no silent CPU/device fallback.
+- **Incremental, lightweight, extensible.** A full re-embed/re-index is not an
+  acceptable normal edit path. No-op fast path and content-addressed reuse are
+  preferred over speculative SIMD/mmap rewrites because end-to-end cost, not a
+  microbenchmark, is the target.
+- **One workspace embedding model at a time.** Text and code share the selected
+  model for consistency and index simplicity; changing it is an index/model
+  identity event, not a per-query toggle. The model is replaceable, but not
+  weightless: changing it can force a vector rebuild.
+- **Avoid graph/LSP/LLM infrastructure until proven necessary.** Structural
+  references and typed resolution are useful, but reachability is not task
+  relevance; the post-R4 failures show why a graph alone is not an answer.
+- **Correctness before coverage.** A missing/ambiguous relation stays
+  `UNKNOWN`/candidate; it is not promoted to `VERIFIED` to make a demo pass.
+  This is why negative claims and commented/inactive code are hard cases.
+
+These are design constraints, not proof that the current implementation meets
+them everywhere. Open violations/limits are tracked in
+[03](03-NATIVE-DB-INDEX-AND-STORAGE.md) and
+[08](08-DECISIONS-AND-OPEN-QUESTIONS.md).
+
 ## 2. External contract
 
 ```

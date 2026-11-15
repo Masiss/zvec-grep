@@ -126,6 +126,38 @@ dominates selection.
 
 Evidence: `rust/docs/rag-refint-handoff-20261115.md` at `89c182e7`.
 
+## 6b. Discovery side experiments — H-A/H-B/H-C
+
+These bounded experiments were run during requalification/S1 and are preserved
+because they explain **why not to retry** certain “obvious” refinements.
+
+| ID | Hypothesis / gate | Result |
+|---|---|---|
+| H-A | Split >200-line containers to best-matching declaration: recall loss ≤2 pp, strict ≥0.30, lines −30% | **FAIL** |
+| H-B | Exact-symbol channel for query identifiers: +≥2 gold spans in union or strict +≥0.10 | **FAIL** |
+| H-C | Cross-file/SQL structural closure: bounded reads, ≤64 MiB, candidate gain, deterministic | **DEFERRED** |
+
+H-A detail: refined top-10 recall **0.5556 → 0.3750**, strict unchanged 0.2917,
+mean lines **2,542.5 → 995.5** (−61%), with 76 files/2.17 MB audit reads. It is a
+cost-only transformation; density/query-token overlap did not reliably retain the
+gold declaration.
+
+H-B detail: symbol channel covered **5/25** gold spans (D04, D08×2, D10, D11),
+but marginal candidate-union gain over search was **0 spans**; all five were
+already retrievable. Some exact names returned 100/51 items, so it needs a
+selector. It is a precision signal for Selection, not a standalone discovery
+channel.
+
+H-C detail: the remaining seven precise spans are D02×3 (two
+`CoreDBContext` ranges + `Employee`), D07×2 (`OrganizationCommand` + SQL),
+D10×1 (`CoreDBContext`) and D12×1 (SQL). Structural closure would
+require a production reference graph or SQL procedure binding; the E1
+typed-reference feature is non-default and its resource gates failed
+(67.8/72.3 MiB > 64 MiB). No H-C run/resource claim exists. Do not implement it
+as a “quick” Discovery fix while Selection/Expansion are frozen.
+
+Evidence: `rust/docs/rag-discovery-experiments-20261115.md` at the S1b/GS tips.
+
 ## 7. Evidence Grounding — binding + roles
 
 **Verdict:** `MISSION_PARTIAL`; small, manually authored evaluation; no
@@ -172,7 +204,14 @@ The independent GQ set found a real correctness failure:
 - negative claims unsafe;
 - `DbSet<EmployeeChangeRequestDetail>` property/type missed;
 - `CONTROL` and `WRAPPER` conflated;
-- dev role precision 0.533; misleading admissions 6; negative safety 0.
+- dev required-group recall **8/10**, role precision **0.533**, misleading
+  admissions **6**, correct abstention **4/6 (0.667)**, negative-claim safety
+  **0/1**; held-out groups 3/3 and role precision 1.000, but only four held-out
+  cases.
+- claim-level dev: 3/6 SUPPORTED, 2 unsafe, 1 insufficient; held-out 4/4
+  correct. The dev safety failure is decisive even though group recall passes.
+- two false `VERIFIED` chains were found through commented code; one chain
+  produced an unsafe `REFUTED` negative claim.
 
 This is the most important post-R4 lesson: the prior manual evaluation passed
 because it did not exercise commented/inactive code. GQ made the failure visible;

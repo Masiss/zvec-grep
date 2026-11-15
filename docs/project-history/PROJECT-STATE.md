@@ -92,7 +92,7 @@ this audit.
 | Search product | Rust CLI/MCP/daemon line; native zvec 0.8; FTS/vector/hybrid |
 | Source branch | E8-P2 merged into `work/zg-recovered`; index v3, no-op fast path, E2 reuse, explicit Vulkan |
 | Installed | CLI `0.0.1`, native lib `532f…`, index v2, Potion; not E8-P2 |
-| RAG R0 | Frozen scope/cases/budgets and B0 receipts present |
+| RAG R0 | Frozen **16 dev + 8 held-out** cases/budgets; B0 measured 12 real-source dev cases |
 | RAG R1 | Engine/library evidence API; dev pilot PASS; no CLI/MCP/daemon consumer; public release blocked |
 | RAG R2/R3 | C# and SQL source-visible facts implemented; no compiler/DB authority |
 | RAG R4 | Bounded expander candidate and follow-up **FAIL**; full agent loop not implemented |
@@ -106,6 +106,11 @@ The **source** branch is at E8-P2 post-merge stabilization
 (`27b81c0`) and the latest RAG research branch is GS readiness
 (`102f214`). The **installed/runtime** system is still the older v2/Potion
 line. These are separate operational states.
+
+The reported owner preference is outcome-driven autonomy: define the outcome,
+acceptance, authority and dependencies, then run bounded phases; owner gates
+only product/public-contract/safety/budget/production decisions. This is a
+`HISTORICAL_USER_REPORTED` preference, not a new execution authorization.
 
 ## 8. Accepted decisions (short)
 
@@ -124,7 +129,9 @@ line. These are separate operational states.
 
 1. Decide whether to amend `docs/rag` to include the post-R4 grounding track or
    formally keep it as a research spike.
-2. Authorize or decline an independent GQ5 campaign for `typed-grounding-v1`.
+2. Decide whether an independent GQ5 campaign is required for the chosen MVP;
+   do not run it as a standalone ritual. `typed-grounding-v1` remains
+   readiness-only either way.
 3. Decide the product path: R1 library-only, public CLI/MCP evidence API, or no
    RAG integration for now.
 4. If pursuing release, close R1 integration/versioning/cache/security/

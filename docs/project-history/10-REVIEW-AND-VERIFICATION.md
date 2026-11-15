@@ -7,7 +7,7 @@ repository/runtime snapshot. It is not a product qualification.
 
 | Check | Result |
 |---|---|
-| Required docs 00–09 + state/register/instructions present | PASS (13 Markdown files) |
+| Required docs 00–09 + state/register/changelog/instructions present | PASS (15 Markdown files) |
 | Relative Markdown links resolve | PASS (0 missing) |
 | No mandatory domain omitted | PASS (coverage matrix in `00-START-HERE.md`) |
 | All RAG branches discovered locally and remotely | PASS |
@@ -16,6 +16,8 @@ repository/runtime snapshot. It is not a product qualification.
 | Current installed binary/native hashes match PROJECT-STATE | PASS |
 | Current active index version/model match PROJECT-STATE | PASS |
 | Current daemon command/loaded lib match PROJECT-STATE | PASS |
+| External supplement source-docs byte-identical to canonical RAG plans | PASS (3/3) |
+| Supplement claims separated from repo/receipt claims | PASS (labelled) |
 
 ## 2. Negative controls
 
@@ -74,6 +76,30 @@ Rejected. Gemma is cached; active workspace manifest is Potion 16M v2.
 Rejected. Canonical R4 includes a multi-turn agent loop and public integration;
 the expander failed and the full loop was never implemented.
 
+### N11 — “R0 has 12 development cases”
+
+Rejected. The frozen set is **16 dev cases** (D01–D16) plus 8 held-out. The
+official B0 receipt measured **12 real-source dev cases**, so “12” is a
+measurement subset, not the frozen cardinality.
+
+### N12 — “Distillation was designed/implemented and a student exists”
+
+Rejected. There is a historical **design discussion** only; no implementation,
+training receipt, student artifact or versioned design document exists. State is
+`HISTORICAL_USER_REPORTED / DESIGN_ONLY`.
+
+### N13 — “S1b selected 56 units / 5 gold”
+
+Rejected as a receipt claim. The executable `signal-dev.json` contains **57
+units, 10 selected spans, 8 strict spans, 47 non-gold units**. The 56/5 figure
+is an unverified historical variant and is not used.
+
+### N14 — “E8-P1 4.03× is the merged performance claim”
+
+Rejected. E8-P1's supplemental 4.03× run and the E8-P2 integration 3.65× run
+are different builds/runs. The merged claim uses the E8-P2 receipt; both remain
+historical.
+
 ## 3. Conflicts handled
 
 | Conflict | Handling |
@@ -85,6 +111,10 @@ the expander failed and the full loop was never implemented.
 | R1 “public engine API” vs no public consumer | Split into library/public-product states |
 | Source v3 vs installed v2 | Both recorded as separate identities |
 | `docs/rag` PROPOSED vs implemented work | Recorded as governance drift, not rewritten as plan fact |
+| External supplement 16-dev plan vs 12 measured | Frozen set 16; B0 measured 12 real-source. Both facts kept. |
+| S1b supplement 56/5 vs receipt 57/10 | Receipt wins; 56/5 retained as unverified historical variant. |
+| No-op 0.591/0.047 vs 0.53/0.06; E2 26.07/9.75 vs 142.7/4.11; E8 3.65 vs 4.03 | Different runs/workloads; keep variants, never average or merge multipliers. |
+| Test totals differ (765/770/824 etc.) | Different suites/build scopes; mark `UNRESOLVED` if one total is demanded. |
 
 No conflict was “resolved” by inventing a new number or deleting the losing
 source.
@@ -103,6 +133,8 @@ source.
 
 - No exhaustive re-hash of every external `~/.cache` receipt.
 - No human review of RAG labels/claims.
+- The external ChatGPT package was reconciled as historical context; its raw
+  reports were not independently re-run.
 - No live HRM2 DB/deployment validation.
 - No full Node/TypeScript code audit beyond timeline/release docs.
 - `docs/rag` itself was not edited (this is a docs-only history branch); the

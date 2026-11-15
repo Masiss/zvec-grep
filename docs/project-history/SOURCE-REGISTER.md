@@ -15,7 +15,9 @@ runtime observations are marked with the read-only command/snapshot.
 - benchmark docs and manifests under `benchmarks/rag-impact/` and
   `benchmarks/retrieval-evidence/`;
 - post-R4 branch docs at their tips;
-- read-only runtime process/binary/library/manifest/status/verify.
+- read-only runtime process/binary/library/manifest/status/verify;
+- the external ChatGPT context package
+  `/home/masis/downloads/zvec-grep-project-context-20261115/` (13 files).
 
 **Not fully inspected / unavailable:**
 
@@ -32,6 +34,25 @@ runtime observations are marked with the read-only command/snapshot.
 
 `NOT_FOUND_IN_SCOPE` means the scanned repository/evidence did not contain it;
 it is not proof of absence from every historical/private location.
+
+## 1b. External historical supplement — provenance
+
+The user supplied `zvec-grep-project-context-20261115`, generated from prior
+ChatGPT conversations. It is a **historical supplement**, not a higher-priority
+source than Git/source/receipts.
+
+| Item | Value / use |
+|---|---|
+| Package manifest | `MANIFEST-SHA256.txt` sha256 `17d6fd04…89252d` |
+| Master handoff | `history/MASTER-HANDOFF-20261113.md` sha256 `8a3fe79c…e8ec3d` |
+| RAG README copy | sha256 `ceea9057…39fd6e`; **byte-identical** to `docs/rag/README.md` |
+| RAG plan copy | sha256 `28d8d210…72c0`; **byte-identical** to `docs/rag/implementation-plan.md` |
+| HRM2 pilot copy | sha256 `4c72b317…45c6`; **byte-identical** to `docs/rag/hrm2-pilot.md` |
+
+The three original RAG documents were therefore reconciled at byte level, not
+just by title. Numbers/claims that appear only in the supplement are marked
+`HISTORICAL_USER_REPORTED` in the canonical docs; they do not override direct
+receipts.
 
 ## 2. Product and architecture
 
@@ -103,6 +124,11 @@ it is not proof of absence from every historical/private location.
 | Hybrid CPU/Vulkan parity 0.6142 | same, lines 99-106 | VERIFIED |
 | Vulkan/accelerator rebuild-only | same, lines 13-20,53-55 | VERIFIED |
 | E8-P1 3.20× RSS reduction | `rust/docs/e8p1-vulkan-hardening-20261114.md:120-135` | VERIFIED |
+| No-op fast path 0.591→0.047/0.575→0.062, RSS 281→62 MiB | supplement `history/MASTER-HANDOFF-20261113.md` §7; `24af3e6` branch | HISTORICAL_USER_REPORTED (branch exists; exact receipts not re-run) |
+| G1–G4 microbench/no end-to-end; G5 slower/rolled back | supplement §5.1; `work/foundation-opt-20261110` @ `d64e54e` | HISTORICAL_USER_REPORTED |
+| E1 arm table/FS blocks | supplement §6; E1 branch/results | HISTORICAL_USER_REPORTED; branch doc supports qualitative verdict |
+| E2 44× line-shift variant | supplement §8.4; E2 branch docs | HISTORICAL_USER_REPORTED; integration 26.07→9.75 is the canonical receipt |
+| Distillation design only (no student/training) | supplement §13; no repo artifact | HISTORICAL_USER_REPORTED / DESIGN_ONLY |
 
 ## 6. RAG original plan
 
@@ -114,7 +140,7 @@ it is not proof of absence from every historical/private location.
 | R5 is evaluation/footprint | `implementation-plan.md:116-129` | VERIFIED |
 | R6 is opt-in release/rollback | `implementation-plan.md:130-139` | VERIFIED |
 | MVP definition | `implementation-plan.md:187` | VERIFIED |
-| R0 frozen cases/budgets/targets | `benchmarks/rag-impact/PREREGISTRATION.md`; `corpus-manifest.json`; results | VERIFIED |
+| R0 frozen 16 dev + 8 held-out; B0 measured 12 real-source dev | `benchmarks/rag-impact/PREREGISTRATION.md:81-84`; `cases/dev.json` (16); `cases/heldout.json` (8); B0 receipt | VERIFIED |
 | B0 best-call 0.4722 | `benchmarks/rag-impact/results/b0-official.json`; R4 docs | VERIFIED |
 | Fixed deployable FTS 0.3750 | `rust/docs/rag-r4-d1-results.md:1-16`; D2 | VERIFIED |
 | R1 library correctness/pilot | `rust/docs/rag-r1-release-gates.md:1-45` | VERIFIED |
@@ -170,6 +196,14 @@ it is not proof of absence from every historical/private location.
 | `work/rag-s1` tip = requal tip | Branch-label artifact; S1 commit `7d912c1` is in history. |
 | CLI `0.0.1` vs package `0.3.0-rc.2` | Different version dimensions; installed binary is older. |
 | Token counts absent in GS GQ4 | No token counter binary; not measured, not estimated. |
+| FROZEN R0 = 16 dev cases vs “12 dev” | 16 frozen (D01–D16); B0 official receipt measured 12 real-source cases. Both facts retained. |
+| S1b supplement says 56 selected / 5 gold; receipt says 57 units / 10 selected spans | Use the executable receipt (`signal-dev.json`: 57 units, 10 selected spans, 47 non-gold); supplement number is `HISTORICAL_USER_REPORTED` and not used. |
+| No-op 0.591→0.047 vs 0.53→0.06 | Different measurement runs; same capability. Keep both as historical variants; do not average. |
+| E2 26.07→9.75 vs 142.7→4.11 vs 135.95→3.07 | Different workload sizes/qualification/integration runs; not interchangeable multipliers. |
+| E8-P1 4.03× vs E8-P2 3.65× | Different runs/builds; E8-P2 integration receipt is canonical for merged claim. |
+| E6/engine test counts differ between reports | Report scope/build differs; use the named receipt, do not merge counts. `UNRESOLVED` if a single total is needed. |
+| Supplement says GQ5 “not run” vs readiness wording | GQ5 not run is verified; readiness is not qualification. |
+| Supplement S1b says false-edge 75/86% while other tables use different denominators | Preserve per-table denominator; never merge true/false counts across sets. |
 
 ## 10. Explicit unverified / missing
 
@@ -177,8 +211,9 @@ it is not proof of absence from every historical/private location.
 - GQ5 formal qualification: **not run**.
 - Full R4 agent loop/public integration: **not found**.
 - R5/R6 implementation: **not found**.
-- Distillation design/implementation: **not found in repo scope**; owner/chat
-  claim only.
+- Distillation implementation/student artifact: **not found**; the supplement
+  contains a design discussion only, marked `HISTORICAL_USER_REPORTED /
+  DESIGN_ONLY`, not a capability.
 - Live production HRM2 DB/deployed SQL authority: **not inspected/claimed**.
 - Production rollout of RC/E8-P2: **not authorized/verified**.
 - Exact native HNSW parameters: delegated to zvec backend; not independently

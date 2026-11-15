@@ -101,6 +101,54 @@ E6 added a fail-closed route contract and validity matrix:
 Use E6-compatible receipts only. Old E4 retrieval numbers must not be quoted as
 current pure-route scores.
 
+## 5b. No-op Fast Path — qualified and merged internally
+
+The no-op path is a **correctness-sensitive fast path**, not a microbenchmark
+trick. It lazy-opens native collections, performs a shared read-only preflight,
+and skips flush/optimize/manifest rewrite only when the complete state proves a
+true no-op. `published_state_current` prevents the dangerous false no-op where
+native rows committed but the process died before manifest publication.
+
+Historical qualification measurements (`HISTORICAL_USER_REPORTED`, 2026-11-11):
+
+| Workload / metric | Baseline | Fast path | Reduction |
+|---|---:|---:|---:|
+| Dense no-op wall | 0.591 s | 0.047 s | ~92% |
+| Mixed no-op wall | 0.575 s | 0.062 s | ~89% |
+| Peak RSS | ~281 MiB | ~62 MiB | ~78% |
+| No-op index writes | present | 0 | eliminated |
+
+The later ChatGPT context reports a slightly different run (0.53 s → 0.06 s).
+That is the same capability across runs, not a second implementation; do not
+average or promote the best number. Changed-file indexing showed no systematic
+regression. The path was integration-qualified, then merged through E8-P2.
+
+Status: `MERGED_INTERNAL`; not the same as installed-runtime proof. The current
+installed binary/index predates E8-P2.
+
+## 5c. Foundation G1–G4 — microbench wins, no end-to-end win
+
+The Foundation optimization track tried:
+
+- **G1** fewer text clones/copies;
+- **G2** typed scalar projection instead of transient JSON;
+- **G3** smaller native fetch projections;
+- **G4** indexed reconciliation instead of O(F²);
+- **G5** streaming hash (tried, slower, rolled back).
+
+Microbenchmarks improved, but end-to-end indexing did not move materially:
+native storage, embedding inference and fragment cardinality dominate. The
+lesson is architectural: optimize the measured end-to-end bottleneck, not a
+plausible local allocation.
+
+Synthetic dense 300-file C# corpus showed the cardinality effect: v2 ≈300
+fragments → v3 ≈12,600 structural fragments; index ~8.56 MB → ~54.15 MB. Real
+source composition differs, so this synthetic ratio must **not** be used as a
+production vector-policy forecast.
+
+Do not reopen G5/streaming-hash or speculative SIMD/mmap/allocator work without
+new hotspot evidence.
+
 ## 6. E1 — bounded deferred maintenance
 
 Status: **experimental branch only; not merged**.
@@ -111,7 +159,21 @@ Status: **experimental branch only; not merged**.
   ~0.79 s; ceiling ≈ −42…−50%, not −75%.
 - Bounded K=8 showed 0.81 s/edit vs 1.61 s control; disk growth ~1.13× over 8
   edits; catch-up costs remain.
-- Needs maintenance policy; not a production feature.
+- Historical arm table (`HISTORICAL_USER_REPORTED`):
+
+| Arm | Wall/edit | FS blocks/edit | Verdict |
+|---|---:|---:|---|
+| Control | 1.61 s | 208,355 | baseline |
+| A4 scalar | 1.66 s | 171,653 | FAIL |
+| B2 | 1.31 s | 122,270 | FAIL |
+| B4 | 0.97 s | 78,248 | FAIL wall gate |
+| B8 | 0.81–0.91 s | 56,989 | INCONCLUSIVE (p95/disk growth) |
+| B16 | 0.88 s | 32,792 | FAIL latency/growth |
+
+B4 cut FS output ~62% but wall only ~38%; B8 cut writes further but did not
+prove stable p95 and approached the disk-growth bound. E1 is therefore a
+write-amplification trade, not a free win. Needs a maintenance/recovery policy;
+not a production feature.
 
 Do not claim E1 is in installed or maintained source.
 
@@ -127,6 +189,21 @@ Status: **READY_FOR_PROMOTION_REVIEW** and included in E8-P2.
   2.71 s, doc edit 3.50 → 3.03 s; high-change/duplicate controls show low reuse.
 - No schema/index-version change.
 
+### E2-C — in-flight coalescing
+
+Status: **NO-GO for now**. Cross-file/cross-batch coalescing needs coordination,
+singleflight, failure propagation and cancellation semantics. Natural duplicates
+exist, but concurrent batches make a pass-level cache miss. Do not reopen merely
+because duplicates exist.
+
+### Measurement variants
+
+The integration line reports 26.07 s → 9.75 s; the qualification line reports
+~135.95 s → 3.07 s (~44×) on a line-shift workload; the ChatGPT context reports
+142.7 s → 4.11 s and 56 vs 8 persisted-span rows. These are **different workload
+sizes/runs**, not interchangeable speedups. The invariant is workload-dependent
+reuse, with high vector parity; there is no universal E2 multiplier.
+
 ## 8. E7 — indexing scalability
 
 Status: **NO_GO**; no candidate.
@@ -137,6 +214,10 @@ Status: **NO_GO**; no candidate.
 - Multi-context: no effective gain.
 - Bottleneck is model/inference and scan/open overhead, not a simple scheduler
   knob.
+- Historical scaling slices reported ~142 s/1k, 285 s/2k, 445 s/3k; 4k/8k
+  attempts were incomplete/out of scope. The near-linear growth is consistent
+  with per-fragment inference + storage cost, not proof of a specific model
+  asymptote.
 
 ## 9. E8 — embedding acceleration
 
@@ -160,6 +241,12 @@ E8-P1:
 - 1k-log peak RSS 2,229,472 KB CPU vs 696,340 KB Vulkan (3.20× less);
 - CPU/Vulkan matrix; hybrid exact parity;
 - CPU writes incremental; accelerator writes rebuild-only.
+- The supplementary measured 40-file run reports CPU 279.31 s vs Vulkan 69.44 s
+  (~4.03×), while E8-P2 integration reports 282.76 s vs 77.41 s (~3.65×).
+  Different runs/builds; keep both as `HISTORICAL_USER_REPORTED` variants and
+  use the E8-P2 receipt for the merge claim.
+- Output determinism was checked by separate CPU/Vulkan expected digests; the
+  accelerator is a performance option, not a quality change.
 
 E8-P2:
 
@@ -180,12 +267,27 @@ E8-P2:
 - No human-independent quality review; no p95/concurrency SLA except isolated
   smoke measurements.
 
-## 12. Distillation
+## 12. Distillation — design discussion only
 
-No reproducible distillation implementation/design document was found in the
-scanned repository (`NOT_FOUND_IN_SCOPE`). Treat any “distillation” chat claim as
-`OWNER_REPORTED_UNVERIFIED`/design-only unless a future file or receipt is
-provided. Do not infer a trained student model.
+No distillation implementation, student artifact, training receipt or versioned
+design document exists in the repository/evidence scope. The historical ChatGPT
+context contains a **design discussion**, so the state is
+`HISTORICAL_USER_REPORTED / DESIGN_ONLY`, not an implemented capability:
+
+- motivation: replace a slow 300M teacher with a small code embedding student;
+- possible teacher roles: frontier LLM for query generation, stronger embedding
+  teacher for labels; no teacher was benchmarked for this purpose;
+- possible approaches: synthetic query→passage pairs, hard negatives,
+  distillation/contrastive training, ONNX/int8 export;
+- open risks: teacher-family bias, query leakage/contamination, private-source
+  egress, regression on hard negatives, model/index identity and rollback;
+- owner criterion reported in conversation: do **not** train a student from only
+  ~32 queries; require a substantially larger, versioned source-grounded set
+  and independent evaluation.
+
+Do not treat this as a roadmap commitment or infer a trained student. A future
+distillation project would need its own preregistration, data/licensing review,
+teacher identity, training receipts and fresh held-out evaluation.
 
 ## 13. Evidence anchors
 
@@ -199,3 +301,6 @@ provided. Do not infer a trained student model.
   `rust/docs/e8p1-vulkan-hardening-20261114.md`.
 - `rust/docs/e8p2-integration-20261115.md:13-40,65-150`.
 - `rust/crates/zg-engine/src/models/catalog/resolution.rs:80-95`.
+- Historical supplement `history/MASTER-HANDOFF-20261113.md` at
+  `/home/masis/downloads/zvec-grep-project-context-20261115/` (user-reported; not
+  repo-fetched); see `SOURCE-REGISTER.md`.

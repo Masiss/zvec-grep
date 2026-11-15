@@ -112,6 +112,26 @@ Source `work/zg-recovered` has `CURRENT_INDEX_VERSION = 3`
 (`rust/crates/zg-engine/src/workspace/mod.rs:13`). A version-2 index is not
 silently migrated. The installed binary/index remains v2.
 
+### 4b. Confirmed architectural coupling
+
+A structural fragment is not “just vector data”: the native fragment document
+carries FTS, scalar metadata, a non-nullable vector and HNSW membership. One
+structural entity therefore tends to attract lexical + scalar + vector-bearing
+storage at once.
+
+This coupling was explicitly confirmed in the historical design discussion, but
+**no replacement schema was approved**. Consequences:
+
+- dropping structural documents to save embeddings can also remove exact-symbol
+  and lexical coverage;
+- selective/leaf-only embedding and nullable-vector schemas remain proposed
+  format work, not implemented production behavior;
+- v3 changed C# structural/FTS behavior, not the storage engine or nullable
+  vector layout.
+
+Do not treat “reduce embeddings” as a local tuning change; it is an index-format
+and retrieval-contract change.
+
 ## 5. FTS and vector search
 
 ### FTS
@@ -165,6 +185,13 @@ specific receipt proves otherwise.
   the workspace scan policy.
 - `--status` can report “unknown” while `--verify` is complete; freshness is not
   the same as integrity/coverage.
+- **Open F6 snapshot-cursor risk:** same-millisecond cursor collisions and clock
+  rollback are not hardened; a token must not be assumed monotonic.
+- **Open strict-freshness risk:** a source edit that preserves both size and
+  mtime can be missed by the metadata fast path. Content hash is the fallback,
+  but the fast-path acceptance condition remains a known limitation.
+- These are engine correctness limitations, not RAG-grounding issues; do not
+  bury them inside a RAG experiment or claim they were fixed by v3.
 
 ## 8. Locks and known limitations
 
