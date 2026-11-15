@@ -11,8 +11,8 @@ opened.
 | Worktree | `/home/masis/src/worktrees/zvec-grep/rag-gs-20261115` |
 | Branch | `work/rag-gs-20261115` |
 | Base | `39e75d484c1d347b95c0cb69f40128568e873b6f` |
-| Commit | `PENDING` |
-| Remote | `PENDING` |
+| Commit | `1125d4094e03a37856c134bf407fe553c1c39a49` |
+| Remote | `1125d4094e03a37856c134bf407fe553c1c39a49` |
 | Main worktree | `/home/masis/src/zvec-grep` @ `27b81c0` |
 | External root | `/home/masis/.cache/zvec-grep/rag-gs-20261115` |
 | Corpus | `/home/masis/.cache/zvec-grep/rag-requal-20261115/corpus` |
