@@ -4,16 +4,28 @@ use super::*;
 fn line_offsets_excludes_the_trailing_terminator() {
     let text = "alpha\nbeta\ngamma\n";
     assert_eq!(line_offsets(text, 1, 1).expect("valid line bounds"), (0, 5));
-    assert_eq!(line_offsets(text, 2, 2).expect("valid line bounds"), (6, 10));
-    assert_eq!(line_offsets(text, 1, 3).expect("valid line bounds"), (0, 16));
+    assert_eq!(
+        line_offsets(text, 2, 2).expect("valid line bounds"),
+        (6, 10)
+    );
+    assert_eq!(
+        line_offsets(text, 1, 3).expect("valid line bounds"),
+        (0, 16)
+    );
 }
 
 #[test]
 fn line_offsets_handles_crlf_and_missing_final_newline() {
     let text = "alpha\r\nbeta\r\ngamma";
     assert_eq!(line_offsets(text, 1, 1).expect("valid line bounds"), (0, 5));
-    assert_eq!(line_offsets(text, 3, 3).expect("valid line bounds"), (13, 18));
-    assert_eq!(line_offsets(text, 1, 3).expect("valid line bounds"), (0, 18));
+    assert_eq!(
+        line_offsets(text, 3, 3).expect("valid line bounds"),
+        (13, 18)
+    );
+    assert_eq!(
+        line_offsets(text, 1, 3).expect("valid line bounds"),
+        (0, 18)
+    );
 }
 
 #[test]

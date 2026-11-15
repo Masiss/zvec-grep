@@ -92,7 +92,10 @@ fn verified_span_serves_exact_bytes_and_revalidates_clean() {
     assert_eq!(item.source_sha256, sha);
     assert_eq!(item.content, "fn a() {\n    one();");
     assert!(pack.gaps.is_empty());
-    assert_eq!(revalidate_spans(dir.path(), &pack).expect("valid result"), Vec::new());
+    assert_eq!(
+        revalidate_spans(dir.path(), &pack).expect("valid result"),
+        Vec::new()
+    );
 }
 
 #[test]
@@ -106,7 +109,10 @@ fn observed_span_is_never_reported_as_verified() {
     assert_eq!(item.verification, SpanVerification::Observed);
     assert_eq!(item.source_sha256, digest(source));
     assert_eq!(item.content, "beta");
-    assert_eq!(revalidate_spans(dir.path(), &pack).expect("valid result"), Vec::new());
+    assert_eq!(
+        revalidate_spans(dir.path(), &pack).expect("valid result"),
+        Vec::new()
+    );
 }
 
 #[test]
@@ -351,7 +357,8 @@ fn provenance_invariant_content_belongs_to_the_reported_hash() {
             );
             assert_eq!(
                 item.content,
-                std::str::from_utf8(&file[start_byte_offset..end_byte_offset]).expect("valid result")
+                std::str::from_utf8(&file[start_byte_offset..end_byte_offset])
+                    .expect("valid result")
             );
         }
         _ => panic!("span ranges must be byte addressable"),
@@ -364,7 +371,10 @@ fn revalidation_detects_every_source_mutation() {
     let original = b"alpha\nbeta\ngamma\n";
     write(dir.path(), "m.txt", original);
     let pack = assemble(dir.path(), &[lines_span("p", "m.txt", None, 1, 2)]);
-    assert_eq!(revalidate_spans(dir.path(), &pack).expect("valid result"), Vec::new());
+    assert_eq!(
+        revalidate_spans(dir.path(), &pack).expect("valid result"),
+        Vec::new()
+    );
 
     fs::write(dir.path().join("m.txt"), b"alpha\nbeta\ngamma!\n").expect("valid result");
     let gaps = revalidate_spans(dir.path(), &pack).expect("valid result");

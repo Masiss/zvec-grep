@@ -338,7 +338,8 @@ fn arm_c(span: &FrozenSpan, root: &Path) -> (bool, Option<String>, usize) {
         max_bytes: MAX_PACK_BYTES,
         max_items: MAX_PACK_ITEMS,
     };
-    let size = fs::metadata(root.join(&span.path)).map_or(0, |meta| usize::try_from(meta.len()).unwrap_or(0));
+    let size = fs::metadata(root.join(&span.path))
+        .map_or(0, |meta| usize::try_from(meta.len()).unwrap_or(0));
     let pack = assemble_spans(
         root,
         &[span_request(span, Some(span.sha256.clone()))],
@@ -363,7 +364,8 @@ fn arm_d(span: &FrozenSpan, root: &Path) -> (bool, Option<String>, usize) {
         max_bytes: MAX_PACK_BYTES,
         max_items: MAX_PACK_ITEMS,
     };
-    let size = fs::metadata(root.join(&span.path)).map_or(0, |meta| usize::try_from(meta.len()).unwrap_or(0));
+    let size = fs::metadata(root.join(&span.path))
+        .map_or(0, |meta| usize::try_from(meta.len()).unwrap_or(0));
     let pack = assemble_spans(root, &[span_request(span, None)], budget).expect("valid pack");
     if pack.items.is_empty() {
         return (

@@ -14,6 +14,7 @@ mod file_selection;
 mod lexical;
 mod models;
 mod pipelines;
+pub mod rag;
 mod service;
 mod storage;
 mod utils;
