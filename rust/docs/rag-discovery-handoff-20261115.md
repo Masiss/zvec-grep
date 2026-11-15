@@ -140,6 +140,21 @@ without a new explicit authorization.
 
 ## 9. Reproduction
 
+The external build target was removed after verification to reclaim disk. The
+receipts and corpus/index are retained. Rebuild the experiment binary/probes
+before rerunning:
+
+```bash
+cd /home/masis/src/worktrees/zvec-grep/rag-requal-20261115/rust
+CARGO_TARGET_DIR=/home/masis/.cache/zvec-grep/rag-requal-20261115/target \
+  cargo build -p zg --release
+CARGO_TARGET_DIR=/home/masis/.cache/zvec-grep/rag-requal-20261115/target \
+  cargo build -p zg-engine --release --example rag_requal_probe \
+  --example rag_symbols_probe
+```
+
+Then:
+
 ```bash
 R=/home/masis/.cache/zvec-grep/rag-requal-20261115
 cd /home/masis/src/worktrees/zvec-grep/rag-requal-20261115
@@ -160,10 +175,11 @@ python3 benchmarks/rag-impact/tools/verify_requal_20261115.py \
 
 ## 10. Cleanup state
 
-External build target (~1.5 GB) and logs are retained until the receipts are
-reviewed; the corpus/index (~89 MB) and receipts (~3 MB) are retained. The
-experiment worktree is committed and pushed as `work/rag-requal-20261115`; the
-main worktree is unchanged. No production index, binary or daemon was touched.
+External build target was removed after verification (~4.5 GB reclaimed). The
+corpus/index (~89 MB), receipts (~3 MB) and logs are retained. The experiment
+worktree was committed and pushed as `work/rag-requal-20261115` and then
+removed; only the main worktree remains. No production index, binary or daemon
+was touched.
 
 Implementation/docs commit: `64631052260fbcd4977bad60172e1fa7f75d2577`
 (`docs(rag): requalify Discovery on the E8 Foundation`). Branch tip after the

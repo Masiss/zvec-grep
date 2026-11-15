@@ -10,7 +10,7 @@ changed.** Experiment worktree: `work/rag-requal-20261115` at
 
 | Item | Installed runtime | Experiment build |
 |---|---|---|
-| Binary | `/home/masis/.local/bin/zg` `0.0.1` | `<external>/target/release/zg` `0.3.0-rc.2` |
+| Binary | `/home/masis/.local/bin/zg` `0.0.1` | `<external>/target/release/zg` `0.3.0-rc.2` (build target removed after verification) |
 | Binary SHA-256 | see `sha256sum` below | `f6e0a22a439b57e23c4a4f30a3db63b6a521286712532913cfd106394285a8d1` |
 | Native library | `~/.local/lib/libzvec_c_api.so` `532f16dd…c13c38` | `<external>/target/release/libzvec_c_api.so` `5093c7d7…fe763e` |
 | Index version | v2 | v3 |
