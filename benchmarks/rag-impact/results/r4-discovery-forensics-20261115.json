@@ -1,0 +1,3148 @@
+{
+  "status": "R4_DISCOVERY_FORENSICS",
+  "branch_head": "711a4f7f6ca246cceccb12c7749367cc98b0e70f",
+  "corpus_root": "/home/masis/itc/Ricons/HRM2.0",
+  "budget": {
+    "max_rounds": 2,
+    "max_tool_calls": 24,
+    "max_files": 96,
+    "max_source_reads": 160,
+    "max_items": 10,
+    "max_bytes": 24576,
+    "allowed_extensions": [
+      "cs",
+      "sql",
+      "cshtml",
+      "js",
+      "ts",
+      "tsx",
+      "jsx",
+      "py",
+      "java",
+      "go",
+      "rs",
+      "md",
+      "txt"
+    ],
+    "max_file_bytes": 1048576,
+    "scope_roots": [
+      "Webs",
+      "Services",
+      "DBContexts",
+      "DB"
+    ],
+    "max_spans_per_file": 2
+  },
+  "cases": [
+    {
+      "id": "D01",
+      "question": "Form 1, update thông tin cá nhân đi qua đâu?",
+      "code_tokens": [
+        "Form"
+      ],
+      "anchors": [
+        "form",
+        "update",
+        "thông",
+        "tin",
+        "nhân"
+      ],
+      "phrases": [
+        "form update thông",
+        "thông tin nhân"
+      ],
+      "tool_calls": 24,
+      "pool": 562,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "Form",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Form",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "Form",
+          "scope": "DBContexts",
+          "returned": 12
+        },
+        {
+          "query": "Form",
+          "scope": "DB",
+          "returned": 1
+        },
+        {
+          "query": "form update thông",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "form update thông",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "form update thông",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "form update thông",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "thông tin nhân",
+          "scope": "Webs",
+          "returned": 51
+        },
+        {
+          "query": "thông tin nhân",
+          "scope": "Services",
+          "returned": 40
+        },
+        {
+          "query": "thông tin nhân",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "thông tin nhân",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "form update thông tin nhân",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "form update thông tin nhân",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "form update thông tin nhân",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "form update thông tin nhân",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "Webs",
+          "returned": 56
+        },
+        {
+          "query": "CbController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "FormatDateTime",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "FormatDateTime",
+          "scope": "Services",
+          "returned": 8
+        },
+        {
+          "query": "FormatDateTime",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "FormatDateTime",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Webs/API/Controllers/Employee/ContractController.cs",
+          "start_line": 599,
+          "end_line": 659
+        },
+        {
+          "path": "Webs/CB/Controllers/Leave/RequestController.cs",
+          "start_line": 907,
+          "end_line": 967
+        },
+        {
+          "path": "Webs/CB/Views/Web/Allowance/Partials/CbAllowanceDetailOrgView_v2.cshtml",
+          "start_line": 411,
+          "end_line": 471
+        },
+        {
+          "path": "Webs/CB/Views/Web/General/Partials/CbCheckEmployeeStatus.cshtml",
+          "start_line": 286,
+          "end_line": 299
+        },
+        {
+          "path": "Webs/Recruitment/Views/Web/Shared/manage-header.cshtml",
+          "start_line": 125,
+          "end_line": 162
+        },
+        {
+          "path": "Webs/API/Views/Cb/OrganizationResourcePlan/OrganizationResourcePlanDetail_1_0.cshtml",
+          "start_line": 1175,
+          "end_line": 1208
+        },
+        {
+          "path": "Webs/API/Views/Cb/OrganizationResourcePlan/OrganizationResourcePlanDetail_1_1.cshtml",
+          "start_line": 712,
+          "end_line": 746
+        },
+        {
+          "path": "Webs/API/Views/EmailTemplates/Prefer/DeXuatBoNhiem_DeNghi.cshtml",
+          "start_line": 8,
+          "end_line": 50
+        },
+        {
+          "path": "Webs/CB/Views/Web/Shared/header.cshtml",
+          "start_line": 140,
+          "end_line": 200
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Components/EmailComponent.cs",
+          "start_line": 75,
+          "end_line": 135
+        }
+      ],
+      "elapsed_ms": 16010.336802000002
+    },
+    {
+      "id": "D02",
+      "question": "Personal update ghi vào những nơi nào?",
+      "code_tokens": [
+        "Personal"
+      ],
+      "anchors": [
+        "personal",
+        "update",
+        "ghi"
+      ],
+      "phrases": [
+        "personal update ghi"
+      ],
+      "tool_calls": 24,
+      "pool": 554,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "Personal",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Personal",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "Personal",
+          "scope": "DBContexts",
+          "returned": 103
+        },
+        {
+          "query": "Personal",
+          "scope": "DB",
+          "returned": 36
+        },
+        {
+          "query": "personal update ghi",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "personal update ghi",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "personal update ghi",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "personal update ghi",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "Webs",
+          "returned": 56
+        },
+        {
+          "query": "CbController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CBReportPersonalBenefitCostMany",
+          "scope": "Webs",
+          "returned": 1
+        },
+        {
+          "query": "CBReportPersonalBenefitCostMany",
+          "scope": "Services",
+          "returned": 2
+        },
+        {
+          "query": "CBReportPersonalBenefitCostMany",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CBReportPersonalBenefitCostMany",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CbSalaryPersonalAdjustMany",
+          "scope": "Webs",
+          "returned": 1
+        },
+        {
+          "query": "CbSalaryPersonalAdjustMany",
+          "scope": "Services",
+          "returned": 2
+        },
+        {
+          "query": "CbSalaryPersonalAdjustMany",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CbSalaryPersonalAdjustMany",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CbSalaryPersonalAdjustOne",
+          "scope": "Webs",
+          "returned": 4
+        },
+        {
+          "query": "CbSalaryPersonalAdjustOne",
+          "scope": "Services",
+          "returned": 4
+        },
+        {
+          "query": "CbSalaryPersonalAdjustOne",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CbSalaryPersonalAdjustOne",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/HRIS/Service.Kpi/Executes/Kpi/KpiPersonalModifyResultDetails/KpiPersonalModifyResultDetailCommand.cs",
+          "start_line": 58,
+          "end_line": 118
+        },
+        {
+          "path": "Webs/API/Controllers/Kpi/KpiPersonalController.cs",
+          "start_line": 520,
+          "end_line": 580
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Kpi/Entities/KpiPersonalFluctuationDetail.cs",
+          "start_line": 18,
+          "end_line": 29
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Kpi/Entities/KpiPersonalModifyResult.cs",
+          "start_line": 47,
+          "end_line": 60
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Kpi/Entities/KpiPersonalTracking.cs",
+          "start_line": 26,
+          "end_line": 42
+        },
+        {
+          "path": "Services/HRIS/Service.CB/Executes/Salary/CbSalaryPersonalAdjusts/CbSalaryPersonalAdjustCommand.cs",
+          "start_line": 126,
+          "end_line": 139
+        },
+        {
+          "path": "Services/HRIS/Service.CB/Executes/Salary/CbSalaryPersonalAdjusts/CbSalaryPersonalAdjustModels.cs",
+          "start_line": 24,
+          "end_line": 40
+        },
+        {
+          "path": "Services/HRIS/Service.Kpi/Executes/KpiPersonalComments/KpiPersonalCommentCommand.cs",
+          "start_line": 34,
+          "end_line": 49
+        },
+        {
+          "path": "Services/HRIS/Service.Kpi/Executes/KpiPersonalComments/KpiPersonalCommentModels.cs",
+          "start_line": 12,
+          "end_line": 19
+        },
+        {
+          "path": "Services/HRIS/Service.Kpi/Executes/KpiPersonalExtensions/KpiPersonalExtensionModels.cs",
+          "start_line": 27,
+          "end_line": 34
+        }
+      ],
+      "elapsed_ms": 5734.615638
+    },
+    {
+      "id": "D03",
+      "question": "Đổi FullName qua personal update ảnh hưởng Keyword thế nào?",
+      "code_tokens": [
+        "FullName",
+        "Keyword"
+      ],
+      "anchors": [
+        "fullname",
+        "personal",
+        "update",
+        "keyword"
+      ],
+      "phrases": [
+        "fullname personal update",
+        "personal update keyword"
+      ],
+      "tool_calls": 24,
+      "pool": 450,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "FullName",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "FullName",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "FullName",
+          "scope": "DBContexts",
+          "returned": 250
+        },
+        {
+          "query": "FullName",
+          "scope": "DB",
+          "returned": 250
+        },
+        {
+          "query": "Keyword",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Keyword",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "Keyword",
+          "scope": "DBContexts",
+          "returned": 250
+        },
+        {
+          "query": "Keyword",
+          "scope": "DB",
+          "returned": 177
+        },
+        {
+          "query": "fullname personal update",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "fullname personal update",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "fullname personal update",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "fullname personal update",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "personal update keyword",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "personal update keyword",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "personal update keyword",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "personal update keyword",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "fullname personal update keyword",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "fullname personal update keyword",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "fullname personal update keyword",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "fullname personal update keyword",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "Webs",
+          "returned": 56
+        },
+        {
+          "query": "CbController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/Employees/EmployeeSuggestion.cs",
+          "start_line": 16,
+          "end_line": 63
+        },
+        {
+          "path": "Services/Core/Service.Utility/Variables/SelectValue.cs",
+          "start_line": 31,
+          "end_line": 83
+        },
+        {
+          "path": "Services/EOffice/Service.Booking/Executes/Employees/Employees/EmployeeSuggestion.cs",
+          "start_line": 14,
+          "end_line": 60
+        },
+        {
+          "path": "Services/EOffice/Service.Booking/Executes/Employees/Employees/EmployeeModels.cs",
+          "start_line": 199,
+          "end_line": 259
+        },
+        {
+          "path": "Webs/API/Controllers/Employee/EmployeeController.cs",
+          "start_line": 480,
+          "end_line": 540
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 19,
+          "end_line": 79
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 106,
+          "end_line": 160
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 105,
+          "end_line": 147
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/General/Customers/CustomerCommand.cs",
+          "start_line": 17,
+          "end_line": 77
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/Viettel/ViettelAddress/ViettelAddressCommand.cs",
+          "start_line": 25,
+          "end_line": 85
+        }
+      ],
+      "elapsed_ms": 12863.184691
+    },
+    {
+      "id": "D04",
+      "question": "EmployeeUpdateInfo có cập nhật Keyword không?",
+      "code_tokens": [
+        "EmployeeUpdateInfo",
+        "Keyword"
+      ],
+      "anchors": [
+        "employeeupdateinfo",
+        "cập",
+        "nhật",
+        "keyword"
+      ],
+      "phrases": [
+        "employeeupdateinfo cập nhật",
+        "cập nhật keyword"
+      ],
+      "tool_calls": 24,
+      "pool": 168,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "EmployeeUpdateInfo",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "EmployeeUpdateInfo",
+          "scope": "Services",
+          "returned": 3
+        },
+        {
+          "query": "EmployeeUpdateInfo",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "EmployeeUpdateInfo",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "Keyword",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Keyword",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "Keyword",
+          "scope": "DBContexts",
+          "returned": 250
+        },
+        {
+          "query": "Keyword",
+          "scope": "DB",
+          "returned": 177
+        },
+        {
+          "query": "employeeupdateinfo cập nhật",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "employeeupdateinfo cập nhật",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "employeeupdateinfo cập nhật",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "employeeupdateinfo cập nhật",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "cập nhật keyword",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "cập nhật keyword",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "cập nhật keyword",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "cập nhật keyword",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "employeeupdateinfo cập nhật keyword",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "employeeupdateinfo cập nhật keyword",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "employeeupdateinfo cập nhật keyword",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "employeeupdateinfo cập nhật keyword",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "EducationService",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "EducationService",
+          "scope": "Services",
+          "returned": 57
+        },
+        {
+          "query": "EducationService",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "EducationService",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 561,
+          "end_line": 621
+        },
+        {
+          "path": "Webs/CB/LogicPhanTichCB/NewCbLeaveEmployeeSummaryViews_Analysis.md",
+          "start_line": 1,
+          "end_line": 60
+        },
+        {
+          "path": "Webs/CB/assets/js/web/allowance/CbAllowanceStatic.js",
+          "start_line": 12,
+          "end_line": 72
+        },
+        {
+          "path": "Services/EOffice/Service.Booking/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 229,
+          "end_line": 289
+        },
+        {
+          "path": "Services/EOffice/Service.Uniform/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 229,
+          "end_line": 289
+        },
+        {
+          "path": "Webs/API/Controllers/Base/BaseController.cs",
+          "start_line": 196,
+          "end_line": 256
+        },
+        {
+          "path": "Webs/API/Controllers/Employee/EmployeeController.cs",
+          "start_line": 480,
+          "end_line": 540
+        },
+        {
+          "path": "Webs/API/Controllers/Test/Test4Controller.cs",
+          "start_line": 271,
+          "end_line": 330
+        },
+        {
+          "path": "Webs/API/Controllers/Test/TestController.cs",
+          "start_line": 347,
+          "end_line": 407
+        },
+        {
+          "path": "Webs/CB/assets/js/web/Shared/work-log-drawer.js",
+          "start_line": 125,
+          "end_line": 185
+        }
+      ],
+      "elapsed_ms": 7720.117052
+    },
+    {
+      "id": "D05",
+      "question": "Thiếu detail record thì personal update có atomic all-or-nothing không?",
+      "code_tokens": [
+        "Thiếu"
+      ],
+      "anchors": [
+        "thiếu",
+        "detail",
+        "record",
+        "personal",
+        "update",
+        "atomic",
+        "all",
+        "nothing"
+      ],
+      "phrases": [
+        "thiếu detail record",
+        "atomic all nothing"
+      ],
+      "tool_calls": 24,
+      "pool": 76,
+      "pool_files": 51,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "Thiếu",
+          "scope": "Webs",
+          "returned": 40
+        },
+        {
+          "query": "Thiếu",
+          "scope": "Services",
+          "returned": 3
+        },
+        {
+          "query": "Thiếu",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "Thiếu",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "atomic all nothing",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "atomic all nothing",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "atomic all nothing",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "atomic all nothing",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record personal update atomic all nothing",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record personal update atomic all nothing",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record personal update atomic all nothing",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "thiếu detail record personal update atomic all nothing",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "GeneralController",
+          "scope": "Webs",
+          "returned": 50
+        },
+        {
+          "query": "GeneralController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "GeneralController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "GeneralController",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "NhanSu_ChenhLech",
+          "scope": "Webs",
+          "returned": 8
+        },
+        {
+          "query": "NhanSu_ChenhLech",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "NhanSu_ChenhLech",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "NhanSu_ChenhLech",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/HRIS/Service.CB/Executes/Allowance/CbAllowanceDetails/CbAllowanceRenewCommand.cs",
+          "start_line": 1574,
+          "end_line": 1634
+        },
+        {
+          "path": "Webs/CB/Controllers/Leave/RequestController.cs",
+          "start_line": 920,
+          "end_line": 980
+        },
+        {
+          "path": "Webs/API/Controllers/General/GeneralController.cs",
+          "start_line": 687,
+          "end_line": 747
+        },
+        {
+          "path": "Webs/API/Controllers/General/GeneralController.cs",
+          "start_line": 608,
+          "end_line": 667
+        },
+        {
+          "path": "Webs/CB/Shared/Import/importer-helper.js",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "Webs/HRM/Views/2.0/Web/Dashboard/OrgProcess.cshtml",
+          "start_line": 134,
+          "end_line": 193
+        },
+        {
+          "path": "Services/HRIS/Service.CB/Executes/UpdateOne/CbInsuranceSocialCostUpdateOne.cs",
+          "start_line": 229,
+          "end_line": 288
+        },
+        {
+          "path": "Webs/CB/Views/Web/General/Partials/DocumentTemplateEdit.cshtml",
+          "start_line": 209,
+          "end_line": 238
+        },
+        {
+          "path": "Webs/HRM/Views/1.0/Web/General/Partials/DocumentTemplateEdit.cshtml",
+          "start_line": 247,
+          "end_line": 276
+        },
+        {
+          "path": "Webs/HRM/Views/2.0/Web/General/Partials/DocumentTemplateEdit.cshtml",
+          "start_line": 205,
+          "end_line": 234
+        }
+      ],
+      "elapsed_ms": 7254.017476
+    },
+    {
+      "id": "D06",
+      "question": "Có phải mọi lần sửa tên đều gọi cập nhật tổng nhân sự?",
+      "code_tokens": [
+        "Có"
+      ],
+      "anchors": [
+        "tên",
+        "đều",
+        "gọi",
+        "cập",
+        "nhật",
+        "tổng",
+        "nhân"
+      ],
+      "phrases": [
+        "tên đều gọi",
+        "nhật tổng nhân"
+      ],
+      "tool_calls": 24,
+      "pool": 183,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "Có",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Có",
+          "scope": "Services",
+          "returned": 29
+        },
+        {
+          "query": "Có",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "Có",
+          "scope": "DB",
+          "returned": 2
+        },
+        {
+          "query": "tên đều gọi",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "tên đều gọi",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "tên đều gọi",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "tên đều gọi",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "nhật tổng nhân",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "nhật tổng nhân",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "nhật tổng nhân",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "nhật tổng nhân",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "tên đều gọi cập nhật tổng nhân",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "tên đều gọi cập nhật tổng nhân",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "tên đều gọi cập nhật tổng nhân",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "tên đều gọi cập nhật tổng nhân",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "ExportController",
+          "scope": "Webs",
+          "returned": 125
+        },
+        {
+          "query": "ExportController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "ExportController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "ExportController",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "ApiMobileController",
+          "scope": "Webs",
+          "returned": 20
+        },
+        {
+          "query": "ApiMobileController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "ApiMobileController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "ApiMobileController",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/HRIS/LOGGING_PLAN.md",
+          "start_line": 38,
+          "end_line": 98
+        },
+        {
+          "path": "Webs/CB/Views/Web/Allowance/Partials/CbAllowanceDetailOrgView_v2.cshtml",
+          "start_line": 649,
+          "end_line": 709
+        },
+        {
+          "path": "Webs/CB/Views/Web/Timekeeping/Partials/TimekeepingSummaryDetail_2.cshtml",
+          "start_line": 85,
+          "end_line": 145
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "start_line": 474,
+          "end_line": 534
+        },
+        {
+          "path": "Webs/API/Views/Cb/Timekeeping/TimekeepingOrganizationDetail_2.cshtml",
+          "start_line": 64,
+          "end_line": 114
+        },
+        {
+          "path": "Services/HRIS/Service.CB/Executes/Allowance/CbAllowanceDetails/CbAllowanceRenewCommand.cs",
+          "start_line": 378,
+          "end_line": 438
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "start_line": 623,
+          "end_line": 683
+        },
+        {
+          "path": "Webs/CB/Views/Web/Leave/Partials/LeaveHistoriesRefreshView.cshtml",
+          "start_line": 129,
+          "end_line": 139
+        },
+        {
+          "path": "Webs/CB/assets/js/web/salary/salary-detail-tab2.js",
+          "start_line": 1088,
+          "end_line": 1096
+        },
+        {
+          "path": "Webs/API/Views/Cb/Timekeeping/CbTimekeepingOrganizationBulkEditSymbol.cshtml",
+          "start_line": 162,
+          "end_line": 175
+        }
+      ],
+      "elapsed_ms": 10361.656286000001
+    },
+    {
+      "id": "D07",
+      "question": "Restore nhân viên có thể ảnh hưởng gì ngoài Employees?",
+      "code_tokens": [
+        "Restore",
+        "Employees"
+      ],
+      "anchors": [
+        "restore",
+        "nhân",
+        "viên",
+        "employees"
+      ],
+      "phrases": [
+        "restore nhân viên",
+        "nhân viên employees"
+      ],
+      "tool_calls": 24,
+      "pool": 565,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "Restore",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Restore",
+          "scope": "Services",
+          "returned": 210
+        },
+        {
+          "query": "Restore",
+          "scope": "DBContexts",
+          "returned": 29
+        },
+        {
+          "query": "Restore",
+          "scope": "DB",
+          "returned": 20
+        },
+        {
+          "query": "Employees",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Employees",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "Employees",
+          "scope": "DBContexts",
+          "returned": 27
+        },
+        {
+          "query": "Employees",
+          "scope": "DB",
+          "returned": 250
+        },
+        {
+          "query": "restore nhân viên",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "restore nhân viên",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "restore nhân viên",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "restore nhân viên",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "nhân viên employees",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "nhân viên employees",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "nhân viên employees",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "nhân viên employees",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "restore nhân viên employees",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "restore nhân viên employees",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "restore nhân viên employees",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "restore nhân viên employees",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "ManeuveController",
+          "scope": "Webs",
+          "returned": 30
+        },
+        {
+          "query": "ManeuveController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "ManeuveController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "ManeuveController",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 141,
+          "end_line": 160
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 129,
+          "end_line": 147
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 549,
+          "end_line": 609
+        },
+        {
+          "path": "Services/HRIS/Service.Maneuve/Executes/ManeuveRestores/ManeuveRestoreCommand.cs",
+          "start_line": 285,
+          "end_line": 298
+        },
+        {
+          "path": "Services/HRIS/Service.Maneuve/Executes/ManeuveRestores/ManeuveRestoreCommand.cs",
+          "start_line": 182,
+          "end_line": 242
+        },
+        {
+          "path": "Services/HRIS/Service.Maneuve/Executes/ManeuveRestoreEvaluations/ManeuveRestoreEvaluationModels.cs",
+          "start_line": 25,
+          "end_line": 48
+        },
+        {
+          "path": "Services/HRIS/Service.Maneuve/Executes/ManeuveRestores/ManeuveRestoreMany.cs",
+          "start_line": 263,
+          "end_line": 285
+        },
+        {
+          "path": "Services/HRIS/Service.Maneuve/Executes/ManeuveRestores/ManeuveRestoreModels.cs",
+          "start_line": 82,
+          "end_line": 102
+        },
+        {
+          "path": "Services/EOffice/Service.Booking/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 220,
+          "end_line": 280
+        },
+        {
+          "path": "Services/EOffice/Service.Uniform/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 220,
+          "end_line": 280
+        }
+      ],
+      "elapsed_ms": 9419.817478
+    },
+    {
+      "id": "D08",
+      "question": "DeleteEmployeeByIds có xóa hàng vật lý không?",
+      "code_tokens": [
+        "DeleteEmployeeByIds"
+      ],
+      "anchors": [
+        "deleteemployeebyids",
+        "xóa",
+        "hàng",
+        "vật"
+      ],
+      "phrases": [
+        "deleteemployeebyids xóa hàng",
+        "xóa hàng vật"
+      ],
+      "tool_calls": 24,
+      "pool": 107,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "DeleteEmployeeByIds",
+          "scope": "Webs",
+          "returned": 2
+        },
+        {
+          "query": "DeleteEmployeeByIds",
+          "scope": "Services",
+          "returned": 5
+        },
+        {
+          "query": "DeleteEmployeeByIds",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "DeleteEmployeeByIds",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "xóa hàng vật",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "xóa hàng vật",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "xóa hàng vật",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "xóa hàng vật",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng vật",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng vật",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng vật",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "deleteemployeebyids xóa hàng vật",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "EmployeeController",
+          "scope": "Webs",
+          "returned": 68
+        },
+        {
+          "query": "EmployeeController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "EmployeeController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "EmployeeController",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "AuthSharingService",
+          "scope": "Webs",
+          "returned": 3
+        },
+        {
+          "query": "AuthSharingService",
+          "scope": "Services",
+          "returned": 79
+        },
+        {
+          "query": "AuthSharingService",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "AuthSharingService",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 130,
+          "end_line": 160
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 118,
+          "end_line": 147
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 538,
+          "end_line": 598
+        },
+        {
+          "path": "Services/EOffice/Service.Booking/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 210,
+          "end_line": 270
+        },
+        {
+          "path": "Services/EOffice/Service.Uniform/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 210,
+          "end_line": 270
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 623,
+          "end_line": 682
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Components/EmailComponent.cs",
+          "start_line": 97,
+          "end_line": 157
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Base/AuthSharingService.cs",
+          "start_line": 31,
+          "end_line": 91
+        },
+        {
+          "path": "Webs/Portal/Controllers/Base/AppController.cs",
+          "start_line": 55,
+          "end_line": 115
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/General/Address/AddressCommand.cs",
+          "start_line": 1,
+          "end_line": 61
+        }
+      ],
+      "elapsed_ms": 4651.543820999999
+    },
+    {
+      "id": "D09",
+      "question": "EmployeeBaseViews ghi hay đọc FullName?",
+      "code_tokens": [
+        "EmployeeBaseViews",
+        "FullName"
+      ],
+      "anchors": [
+        "employeebaseviews",
+        "ghi",
+        "đọc",
+        "fullname"
+      ],
+      "phrases": [
+        "employeebaseviews ghi đọc",
+        "ghi đọc fullname"
+      ],
+      "tool_calls": 24,
+      "pool": 613,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "EmployeeBaseViews",
+          "scope": "Webs",
+          "returned": 13
+        },
+        {
+          "query": "EmployeeBaseViews",
+          "scope": "Services",
+          "returned": 13
+        },
+        {
+          "query": "EmployeeBaseViews",
+          "scope": "DBContexts",
+          "returned": 4
+        },
+        {
+          "query": "EmployeeBaseViews",
+          "scope": "DB",
+          "returned": 9
+        },
+        {
+          "query": "FullName",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "FullName",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "FullName",
+          "scope": "DBContexts",
+          "returned": 250
+        },
+        {
+          "query": "FullName",
+          "scope": "DB",
+          "returned": 250
+        },
+        {
+          "query": "employeebaseviews ghi đọc",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "employeebaseviews ghi đọc",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "employeebaseviews ghi đọc",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "employeebaseviews ghi đọc",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "ghi đọc fullname",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "ghi đọc fullname",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "ghi đọc fullname",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "ghi đọc fullname",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "employeebaseviews ghi đọc fullname",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "employeebaseviews ghi đọc fullname",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "employeebaseviews ghi đọc fullname",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "employeebaseviews ghi đọc fullname",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "DB/Views/CbLeaveRequestReportViews.sql",
+          "start_line": 1,
+          "end_line": 12
+        },
+        {
+          "path": "DB/Functions/func_GetEmpSuggestionListByOwner.sql",
+          "start_line": 26,
+          "end_line": 86
+        },
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10
+        },
+        {
+          "path": "DB/Views/CbInsuranceHealthCardViews.sql",
+          "start_line": 1,
+          "end_line": 9
+        },
+        {
+          "path": "DB/Functions/func_GetEmpBaseListByOwner.sql",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "DB/Functions/func_GetEmpSuggestionBaseListByOwner.sql",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/Employees/Employees/EmployeeOne.cs",
+          "start_line": 155,
+          "end_line": 215
+        },
+        {
+          "path": "Webs/CB/Controllers/Test/Test5Controller.cs",
+          "start_line": 321,
+          "end_line": 381
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/Employees/EmployeeMany.cs",
+          "start_line": 157,
+          "end_line": 217
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Employees/Employees/EmployeeOne.cs",
+          "start_line": 154,
+          "end_line": 214
+        }
+      ],
+      "elapsed_ms": 5455.703648
+    },
+    {
+      "id": "D10",
+      "question": "Cùng một CoreService có ba contexts: SaveChanges ở đây ghi DB nào?",
+      "code_tokens": [
+        "Cùng",
+        "CoreService",
+        "SaveChanges"
+      ],
+      "anchors": [
+        "cùng",
+        "coreservice",
+        "contexts",
+        "savechanges",
+        "đây",
+        "ghi"
+      ],
+      "phrases": [
+        "cùng coreservice contexts",
+        "savechanges đây ghi"
+      ],
+      "tool_calls": 24,
+      "pool": 140,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "Cùng",
+          "scope": "Webs",
+          "returned": 2
+        },
+        {
+          "query": "Cùng",
+          "scope": "Services",
+          "returned": 1
+        },
+        {
+          "query": "Cùng",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "Cùng",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CoreService",
+          "scope": "Webs",
+          "returned": 33
+        },
+        {
+          "query": "CoreService",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "CoreService",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CoreService",
+          "scope": "DB",
+          "returned": 2
+        },
+        {
+          "query": "SaveChanges",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "SaveChanges",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "SaveChanges",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "SaveChanges",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "savechanges đây ghi",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "savechanges đây ghi",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "savechanges đây ghi",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "savechanges đây ghi",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts savechanges đây ghi",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts savechanges đây ghi",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts savechanges đây ghi",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "cùng coreservice contexts savechanges đây ghi",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/HRIS/LOGGING_PLAN.md",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 42,
+          "end_line": 102
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/Base/EContractService.cs",
+          "start_line": 30,
+          "end_line": 90
+        },
+        {
+          "path": "Services/EOffice/Service.Uniform/Executes/Base/UniformService.cs",
+          "start_line": 21,
+          "end_line": 81
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankCommand.cs",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Category/LeaveReasons/LeaveReasonCommand.cs",
+          "start_line": 1,
+          "end_line": 60
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Category/WorkShifts/WorkShiftCommand.cs",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees - Copy/CbEmployeeOne.cs",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees/CbEmployeeOne.cs",
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+          "start_line": 1,
+          "end_line": 61
+        }
+      ],
+      "elapsed_ms": 9002.511145999999
+    },
+    {
+      "id": "D11",
+      "question": "UpdateEmployeeAttr thay trường nào?",
+      "code_tokens": [
+        "UpdateEmployeeAttr"
+      ],
+      "anchors": [
+        "updateemployeeattr",
+        "thay",
+        "trường"
+      ],
+      "phrases": [
+        "updateemployeeattr thay trường"
+      ],
+      "tool_calls": 12,
+      "pool": 135,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "UpdateEmployeeAttr",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "UpdateEmployeeAttr",
+          "scope": "Services",
+          "returned": 1
+        },
+        {
+          "query": "UpdateEmployeeAttr",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "UpdateEmployeeAttr",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "updateemployeeattr thay trường",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "updateemployeeattr thay trường",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "updateemployeeattr thay trường",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "updateemployeeattr thay trường",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CoreService",
+          "scope": "Webs",
+          "returned": 33
+        },
+        {
+          "query": "CoreService",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "CoreService",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CoreService",
+          "scope": "DB",
+          "returned": 2
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 865,
+          "end_line": 925
+        },
+        {
+          "path": "Services/Core/Service.AuthSharing/Executes/Base/AuthSharingService.cs",
+          "start_line": 27,
+          "end_line": 87
+        },
+        {
+          "path": "Services/EOffice/Service.Booking/Executes/Base/BookingService.cs",
+          "start_line": 30,
+          "end_line": 90
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Executes/Base/EContractService.cs",
+          "start_line": 30,
+          "end_line": 90
+        },
+        {
+          "path": "Services/EOffice/Service.Uniform/Executes/Base/UniformService.cs",
+          "start_line": 21,
+          "end_line": 81
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 30,
+          "end_line": 90
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Components/EmailComponent.cs",
+          "start_line": 85,
+          "end_line": 145
+        },
+        {
+          "path": "Services/EOffice/Service.EContract/Components/EmailComponent.cs",
+          "start_line": 425,
+          "end_line": 485
+        },
+        {
+          "path": "Services/HRIS/Service.CB/Executes/Base/CbService.cs",
+          "start_line": 28,
+          "end_line": 88
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+          "start_line": 87,
+          "end_line": 147
+        }
+      ],
+      "elapsed_ms": 3051.700314
+    },
+    {
+      "id": "D12",
+      "question": "Proc tên này có nhiều definition trong repo: cái nào đang chạy?",
+      "code_tokens": [
+        "Proc"
+      ],
+      "anchors": [
+        "proc",
+        "tên",
+        "nhiều",
+        "definition",
+        "repo"
+      ],
+      "phrases": [
+        "proc tên nhiều",
+        "nhiều definition repo"
+      ],
+      "tool_calls": 24,
+      "pool": 738,
+      "pool_files": 96,
+      "selected": 10,
+      "searches": [
+        {
+          "query": "Proc",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "Proc",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "Proc",
+          "scope": "DBContexts",
+          "returned": 250
+        },
+        {
+          "query": "Proc",
+          "scope": "DB",
+          "returned": 241
+        },
+        {
+          "query": "proc tên nhiều",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "proc tên nhiều",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "proc tên nhiều",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "proc tên nhiều",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "nhiều definition repo",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "nhiều definition repo",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "nhiều definition repo",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "nhiều definition repo",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "proc tên nhiều definition repo",
+          "scope": "Webs",
+          "returned": 0
+        },
+        {
+          "query": "proc tên nhiều definition repo",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "proc tên nhiều definition repo",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "proc tên nhiều definition repo",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "Webs",
+          "returned": 56
+        },
+        {
+          "query": "CbController",
+          "scope": "Services",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "CbController",
+          "scope": "DB",
+          "returned": 0
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "Webs",
+          "returned": 250
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "Services",
+          "returned": 250
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "DBContexts",
+          "returned": 0
+        },
+        {
+          "query": "FirstOrDefault",
+          "scope": "DB",
+          "returned": 0
+        }
+      ],
+      "selected_units": [
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractProbationReport.cs",
+          "start_line": 111,
+          "end_line": 144
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.CB/Entities/SalaryDBContext.cs",
+          "start_line": 422,
+          "end_line": 448
+        },
+        {
+          "path": "DBContexts/EOffice/DBContext.Uniform/Entities/UniformDbContext.cs",
+          "start_line": 99,
+          "end_line": 129
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.CB/Entities/CB/OrganizationEmployeeNorm.cs",
+          "start_line": 113,
+          "end_line": 173
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.CB/Entities/Timekeeping/CbLeave.cs",
+          "start_line": 697,
+          "end_line": 757
+        },
+        {
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 227,
+          "end_line": 257
+        },
+        {
+          "path": "Webs/API/Controllers/CB/CBController.cs",
+          "start_line": 876,
+          "end_line": 936
+        },
+        {
+          "path": "Webs/API/Controllers/Export/Excel/Employee/EmployeeController.cs",
+          "start_line": 939,
+          "end_line": 999
+        },
+        {
+          "path": "DBContexts/Core/DBContext.AuthSharing/Entities/ProcessStep.cs",
+          "start_line": 18,
+          "end_line": 34
+        },
+        {
+          "path": "DBContexts/EOffice/DBContext.Booking/Entities/CarBookingProcessStateView.cs",
+          "start_line": 10,
+          "end_line": 22
+        }
+      ],
+      "elapsed_ms": 10063.700964000001
+    }
+  ],
+  "spans": [
+    {
+      "case": "D01",
+      "anchor": "C1",
+      "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+      "start_line": 459,
+      "end_line": 620,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 54233,
+      "pooled": false,
+      "pooled_file": true,
+      "pool_hits": [],
+      "pool_units_in_file": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 991,
+          "end_line": 991
+        }
+      ],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [
+        "Form"
+      ],
+      "handle_in_declaration": [
+        "Form"
+      ],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "QuickEdit",
+      "symbol_rank": 91,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D01",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 285,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "EmployeeEditThongTinCaNhan",
+      "symbol_rank": 8,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D02",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 285,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "EmployeeEditThongTinCaNhan",
+      "symbol_rank": 8,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D02",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 287,
+      "end_line": 425,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "EmployeeEditThongTinCaNhan",
+      "symbol_rank": 8,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D02",
+      "anchor": "C4",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 17,
+      "end_line": 20,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 20533,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "OnModelCreating",
+      "symbol_rank": 10,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D02",
+      "anchor": "C4",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 41,
+      "end_line": 55,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 20533,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "EmployeeDetails",
+      "symbol_rank": 2,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D02",
+      "anchor": "C5",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+      "start_line": 1,
+      "end_line": 65,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 34422,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": null,
+      "symbol_rank": null,
+      "symbol_found_in_limit": false
+    },
+    {
+      "case": "D02",
+      "anchor": "C6",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+      "start_line": 1,
+      "end_line": 100,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 6256,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": null,
+      "symbol_rank": null,
+      "symbol_found_in_limit": false
+    },
+    {
+      "case": "D03",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 285,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [
+        "FullName",
+        "Keyword"
+      ],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": 3312,
+      "full_scan_overlaps": true,
+      "symbol_query": "EmployeeEditThongTinCaNhan",
+      "symbol_rank": 8,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D04",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 562,
+      "end_line": 573,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": true,
+      "pooled_file": true,
+      "pool_hits": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 562,
+          "end_line": 562
+        }
+      ],
+      "pool_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 562,
+          "end_line": 562
+        }
+      ],
+      "selected": true,
+      "selected_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 561,
+          "end_line": 621
+        }
+      ],
+      "handle_in_span": [
+        "EmployeeUpdateInfo"
+      ],
+      "handle_in_declaration": [
+        "EmployeeUpdateInfo"
+      ],
+      "rank_within_limit": 2,
+      "rank_full_scan": 2,
+      "full_scan_overlaps": true,
+      "symbol_query": "EmployeeUpdateInfo",
+      "symbol_rank": 2,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D05",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 425,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "EmployeeEditThongTinCaNhan",
+      "symbol_rank": 8,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D06",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 215,
+      "end_line": 285,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "EmployeeEditThongTinCaNhan",
+      "symbol_rank": 8,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D06",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 427,
+      "end_line": 457,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": null,
+      "symbol_rank": null,
+      "symbol_found_in_limit": false
+    },
+    {
+      "case": "D06",
+      "anchor": "C7",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 57723,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "UpdateOrgTotalEmployee",
+      "symbol_rank": 137,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D07",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 539,
+      "end_line": 560,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": true,
+      "pooled_file": true,
+      "pool_hits": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 550,
+          "end_line": 550
+        }
+      ],
+      "pool_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 550,
+          "end_line": 550
+        }
+      ],
+      "selected": true,
+      "selected_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 549,
+          "end_line": 609
+        }
+      ],
+      "handle_in_span": [
+        "Restore",
+        "Employees"
+      ],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": 1399,
+      "full_scan_overlaps": true,
+      "symbol_query": "DeleteEmployeeByIds",
+      "symbol_rank": 4,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D07",
+      "anchor": "C7",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 57723,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "UpdateOrgTotalEmployee",
+      "symbol_rank": 137,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D07",
+      "anchor": "S1",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "start_line": 58,
+      "end_line": 95,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 3129,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [
+        "Employees"
+      ],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": null,
+      "symbol_rank": null,
+      "symbol_found_in_limit": false
+    },
+    {
+      "case": "D08",
+      "anchor": "C1",
+      "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+      "start_line": 624,
+      "end_line": 634,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 54233,
+      "pooled": true,
+      "pooled_file": true,
+      "pool_hits": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 624,
+          "end_line": 624
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 626,
+          "end_line": 626
+        }
+      ],
+      "pool_units_in_file": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 624,
+          "end_line": 624
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 626,
+          "end_line": 626
+        },
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 33,
+          "end_line": 33
+        }
+      ],
+      "selected": true,
+      "selected_units_in_file": [
+        {
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 623,
+          "end_line": 682
+        }
+      ],
+      "handle_in_span": [
+        "DeleteEmployeeByIds"
+      ],
+      "handle_in_declaration": [
+        "DeleteEmployeeByIds"
+      ],
+      "rank_within_limit": 5,
+      "rank_full_scan": 5,
+      "full_scan_overlaps": true,
+      "symbol_query": "DeleteEmployeeByIds",
+      "symbol_rank": 5,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D08",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 539,
+      "end_line": 549,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": true,
+      "pooled_file": true,
+      "pool_hits": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539,
+          "end_line": 539
+        }
+      ],
+      "pool_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539,
+          "end_line": 539
+        }
+      ],
+      "selected": true,
+      "selected_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 538,
+          "end_line": 598
+        }
+      ],
+      "handle_in_span": [
+        "DeleteEmployeeByIds"
+      ],
+      "handle_in_declaration": [
+        "DeleteEmployeeByIds"
+      ],
+      "rank_within_limit": 4,
+      "rank_full_scan": 4,
+      "full_scan_overlaps": true,
+      "symbol_query": "DeleteEmployeeByIds",
+      "symbol_rank": 4,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D09",
+      "anchor": "S2",
+      "path": "DB/Views/EmployeeBaseViews.sql",
+      "start_line": 1,
+      "end_line": 10,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 857,
+      "pooled": true,
+      "pooled_file": true,
+      "pool_hits": [
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 1
+        }
+      ],
+      "pool_units_in_file": [
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 1
+        }
+      ],
+      "selected": true,
+      "selected_units_in_file": [
+        {
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1,
+          "end_line": 10
+        }
+      ],
+      "handle_in_span": [
+        "EmployeeBaseViews",
+        "FullName"
+      ],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": null,
+      "symbol_rank": null,
+      "symbol_found_in_limit": false
+    },
+    {
+      "case": "D10",
+      "anchor": "C3",
+      "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+      "start_line": 15,
+      "end_line": 22,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 6991,
+      "pooled": true,
+      "pooled_file": true,
+      "pool_hits": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 17,
+          "end_line": 17
+        }
+      ],
+      "pool_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 17,
+          "end_line": 17
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 31,
+          "end_line": 31
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 43,
+          "end_line": 43
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 50,
+          "end_line": 50
+        }
+      ],
+      "selected": false,
+      "selected_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 42,
+          "end_line": 102
+        }
+      ],
+      "handle_in_span": [
+        "CoreService"
+      ],
+      "handle_in_declaration": [],
+      "rank_within_limit": 77,
+      "rank_full_scan": 77,
+      "full_scan_overlaps": true,
+      "symbol_query": null,
+      "symbol_rank": null,
+      "symbol_found_in_limit": false
+    },
+    {
+      "case": "D10",
+      "anchor": "C4",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "start_line": 9,
+      "end_line": 20,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 20533,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "DbContext",
+      "symbol_rank": 13,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D11",
+      "anchor": "C2",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "start_line": 866,
+      "end_line": 887,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 40113,
+      "pooled": true,
+      "pooled_file": true,
+      "pool_hits": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 866,
+          "end_line": 866
+        }
+      ],
+      "pool_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 866,
+          "end_line": 866
+        },
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 14,
+          "end_line": 14
+        }
+      ],
+      "selected": true,
+      "selected_units_in_file": [
+        {
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 865,
+          "end_line": 925
+        }
+      ],
+      "handle_in_span": [
+        "UpdateEmployeeAttr"
+      ],
+      "handle_in_declaration": [
+        "UpdateEmployeeAttr"
+      ],
+      "rank_within_limit": 0,
+      "rank_full_scan": 0,
+      "full_scan_overlaps": true,
+      "symbol_query": "UpdateEmployeeAttr",
+      "symbol_rank": 0,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D12",
+      "anchor": "C7",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "start_line": 1057,
+      "end_line": 1074,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 57723,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": "UpdateOrgTotalEmployee",
+      "symbol_rank": 137,
+      "symbol_found_in_limit": true
+    },
+    {
+      "case": "D12",
+      "anchor": "S1",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "start_line": 1,
+      "end_line": 95,
+      "in_manifest": true,
+      "admitted": true,
+      "file_bytes": 3129,
+      "pooled": false,
+      "pooled_file": false,
+      "pool_hits": [],
+      "pool_units_in_file": [],
+      "selected": false,
+      "selected_units_in_file": [],
+      "handle_in_span": [
+        "Proc"
+      ],
+      "handle_in_declaration": [],
+      "rank_within_limit": null,
+      "rank_full_scan": null,
+      "full_scan_overlaps": false,
+      "symbol_query": null,
+      "symbol_rank": null,
+      "symbol_found_in_limit": false
+    }
+  ],
+  "elapsed_ms": 153758.959259
+}

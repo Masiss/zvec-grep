@@ -1,0 +1,480 @@
+{
+  "branch_head": "711a4f7f6ca246cceccb12c7749367cc98b0e70f",
+  "corpus_root": "/home/masis/itc/Ricons/HRM2.0",
+  "file_reached": 18,
+  "limit": 50,
+  "records": [
+    {
+      "best_file_rank": null,
+      "best_query": null,
+      "best_span_rank": null,
+      "case": "D01",
+      "declaration": "QuickEdit",
+      "end_line": 620,
+      "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+      "queries": [
+        "QuickEdit",
+        "EmployeeController",
+        "ActionResult",
+        "AllowGet",
+        "Avatar"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 459
+    },
+    {
+      "best_file_rank": 8,
+      "best_query": "EmployeeEditThongTinCaNhan",
+      "best_span_rank": 8,
+      "case": "D01",
+      "declaration": "EmployeeEditThongTinCaNhan",
+      "end_line": 285,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeEditThongTinCaNhan",
+        "EmployeeCommand",
+        "Avatar",
+        "BangCap_NgayNop",
+        "BangCap_TrangThai"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 215
+    },
+    {
+      "best_file_rank": 8,
+      "best_query": "EmployeeEditThongTinCaNhan",
+      "best_span_rank": 8,
+      "case": "D02",
+      "declaration": "EmployeeEditThongTinCaNhan",
+      "end_line": 285,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeEditThongTinCaNhan",
+        "EmployeeCommand",
+        "Avatar",
+        "BangCap_NgayNop",
+        "BangCap_TrangThai"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 215
+    },
+    {
+      "best_file_rank": 8,
+      "best_query": "EmployeeEditThongTinCaNhan",
+      "best_span_rank": null,
+      "case": "D02",
+      "declaration": "EmployeeEditThongTinCaNhan",
+      "end_line": 425,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeEditThongTinCaNhan",
+        "EmployeeCommand",
+        "BHXH_So",
+        "BHXH_TinhTrang",
+        "BHYT_So"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 287
+    },
+    {
+      "best_file_rank": 1,
+      "best_query": "CoreDBContext",
+      "best_span_rank": 2,
+      "case": "D02",
+      "declaration": "OnModelCreating",
+      "end_line": 20,
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "queries": [
+        "OnModelCreating",
+        "CoreDBContext",
+        "AddFromAssembly",
+        "Assembly",
+        "Configurations"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 17
+    },
+    {
+      "best_file_rank": 1,
+      "best_query": "CoreDBContext",
+      "best_span_rank": 2,
+      "case": "D02",
+      "declaration": "EmployeeDetails",
+      "end_line": 55,
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "queries": [
+        "EmployeeDetails",
+        "CoreDBContext",
+        "Employee",
+        "EmployeeBaseView",
+        "EmployeeBaseViews"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 41
+    },
+    {
+      "best_file_rank": 1,
+      "best_query": "BangCap_NgayNop",
+      "best_span_rank": 1,
+      "case": "D02",
+      "declaration": null,
+      "end_line": 65,
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+      "queries": [
+        "Employee",
+        "Avatar",
+        "BacLuong",
+        "BangCap_NgayNop"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 1
+    },
+    {
+      "best_file_rank": 4,
+      "best_query": "BHYT_So",
+      "best_span_rank": 4,
+      "case": "D02",
+      "declaration": null,
+      "end_line": 100,
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+      "queries": [
+        "EmployeeDetail",
+        "BHXH_So",
+        "BHXH_TinhTrang",
+        "BHYT_So"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 1
+    },
+    {
+      "best_file_rank": 8,
+      "best_query": "EmployeeEditThongTinCaNhan",
+      "best_span_rank": 8,
+      "case": "D03",
+      "declaration": "EmployeeEditThongTinCaNhan",
+      "end_line": 285,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeEditThongTinCaNhan",
+        "EmployeeCommand",
+        "Avatar",
+        "BangCap_NgayNop",
+        "BangCap_TrangThai"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 215
+    },
+    {
+      "best_file_rank": 2,
+      "best_query": "EmployeeUpdateInfo",
+      "best_span_rank": 2,
+      "case": "D04",
+      "declaration": "EmployeeUpdateInfo",
+      "end_line": 573,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeUpdateInfo",
+        "EmployeeCommand",
+        "CheckDbConnect",
+        "Context",
+        "DateTime"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 562
+    },
+    {
+      "best_file_rank": 8,
+      "best_query": "EmployeeEditThongTinCaNhan",
+      "best_span_rank": 8,
+      "case": "D05",
+      "declaration": "EmployeeEditThongTinCaNhan",
+      "end_line": 425,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeEditThongTinCaNhan",
+        "EmployeeCommand",
+        "Avatar",
+        "BHXH_So",
+        "BHXH_TinhTrang"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 215
+    },
+    {
+      "best_file_rank": 8,
+      "best_query": "EmployeeEditThongTinCaNhan",
+      "best_span_rank": 8,
+      "case": "D06",
+      "declaration": "EmployeeEditThongTinCaNhan",
+      "end_line": 285,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeEditThongTinCaNhan",
+        "EmployeeCommand",
+        "Avatar",
+        "BangCap_NgayNop",
+        "BangCap_TrangThai"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 215
+    },
+    {
+      "best_file_rank": 0,
+      "best_query": "AddRelatedNotes",
+      "best_span_rank": 0,
+      "case": "D06",
+      "declaration": null,
+      "end_line": 457,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "EmployeeCommand",
+        "AddRelatedNotes",
+        "Concurrently",
+        "Employee"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 427
+    },
+    {
+      "best_file_rank": null,
+      "best_query": null,
+      "best_span_rank": null,
+      "case": "D06",
+      "declaration": "UpdateOrgTotalEmployee",
+      "end_line": 1074,
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "queries": [
+        "UpdateOrgTotalEmployee",
+        "OrganizationCommand",
+        "Caching",
+        "CheckDbConnect",
+        "Console"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 1057
+    },
+    {
+      "best_file_rank": 4,
+      "best_query": "DeleteEmployeeByIds",
+      "best_span_rank": 4,
+      "case": "D07",
+      "declaration": "DeleteEmployeeByIds",
+      "end_line": 560,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "DeleteEmployeeByIds",
+        "EmployeeCommand",
+        "CheckDbConnect",
+        "Context",
+        "Database"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 539
+    },
+    {
+      "best_file_rank": null,
+      "best_query": null,
+      "best_span_rank": null,
+      "case": "D07",
+      "declaration": "UpdateOrgTotalEmployee",
+      "end_line": 1074,
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "queries": [
+        "UpdateOrgTotalEmployee",
+        "OrganizationCommand",
+        "Caching",
+        "CheckDbConnect",
+        "Console"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 1057
+    },
+    {
+      "best_file_rank": null,
+      "best_query": null,
+      "best_span_rank": null,
+      "case": "D07",
+      "declaration": null,
+      "end_line": 95,
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "queries": [
+        "sp_UpdateOrgTotalEmployee",
+        "CONCAT",
+        "Concurrently",
+        "DISTINCT"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 58
+    },
+    {
+      "best_file_rank": 5,
+      "best_query": "DeleteEmployeeByIds",
+      "best_span_rank": 5,
+      "case": "D08",
+      "declaration": "DeleteEmployeeByIds",
+      "end_line": 634,
+      "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+      "queries": [
+        "DeleteEmployeeByIds",
+        "EmployeeController",
+        "ActionResult",
+        "AllowGet",
+        "DeleteEmployeeByIds"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 624
+    },
+    {
+      "best_file_rank": 4,
+      "best_query": "DeleteEmployeeByIds",
+      "best_span_rank": 4,
+      "case": "D08",
+      "declaration": "DeleteEmployeeByIds",
+      "end_line": 549,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "DeleteEmployeeByIds",
+        "EmployeeCommand",
+        "CheckDbConnect",
+        "Context",
+        "Database"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 539
+    },
+    {
+      "best_file_rank": null,
+      "best_query": null,
+      "best_span_rank": null,
+      "case": "D09",
+      "declaration": null,
+      "end_line": 10,
+      "path": "DB/Views/EmployeeBaseViews.sql",
+      "queries": [
+        "EmployeeBaseViews",
+        "Avatar",
+        "CREATE",
+        "Concurrently"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 1
+    },
+    {
+      "best_file_rank": 2,
+      "best_query": "CbContext",
+      "best_span_rank": 2,
+      "case": "D10",
+      "declaration": null,
+      "end_line": 22,
+      "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+      "queries": [
+        "CoreService",
+        "BaseService",
+        "CbContext",
+        "CbDBContext"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 15
+    },
+    {
+      "best_file_rank": 1,
+      "best_query": "CoreDBContext",
+      "best_span_rank": 1,
+      "case": "D10",
+      "declaration": "DbContext",
+      "end_line": 20,
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "queries": [
+        "DbContext",
+        "CoreDBContext",
+        "AddFromAssembly",
+        "Assembly",
+        "Configurations"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 9
+    },
+    {
+      "best_file_rank": 0,
+      "best_query": "UpdateEmployeeAttr",
+      "best_span_rank": 0,
+      "case": "D11",
+      "declaration": "UpdateEmployeeAttr",
+      "end_line": 887,
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "queries": [
+        "UpdateEmployeeAttr",
+        "EmployeeCommand",
+        "Avatar",
+        "CheckDbConnect",
+        "CommandResult"
+      ],
+      "reached_top10": true,
+      "reached_top50": true,
+      "start_line": 866
+    },
+    {
+      "best_file_rank": null,
+      "best_query": null,
+      "best_span_rank": null,
+      "case": "D12",
+      "declaration": "UpdateOrgTotalEmployee",
+      "end_line": 1074,
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "queries": [
+        "UpdateOrgTotalEmployee",
+        "OrganizationCommand",
+        "Caching",
+        "CheckDbConnect",
+        "Console"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 1057
+    },
+    {
+      "best_file_rank": null,
+      "best_query": null,
+      "best_span_rank": null,
+      "case": "D12",
+      "declaration": null,
+      "end_line": 95,
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "queries": [
+        "sp_UpdateOrgTotalEmployee",
+        "AppSettings",
+        "CONCAT",
+        "CREATE"
+      ],
+      "reached_top10": false,
+      "reached_top50": false,
+      "start_line": 1
+    }
+  ],
+  "span_overlap_top10": 17,
+  "span_overlap_top50": 17,
+  "spans": 25,
+  "status": "R4_SYMBOL_REACHABILITY"
+}

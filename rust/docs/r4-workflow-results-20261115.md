@@ -108,8 +108,10 @@ result limit, so gold files never enter the pool — the same starvation the
 frozen `rg_code_tokens` baseline shows.
 
 Iteration 4 makes the attribution unambiguous: **only 7 of 25 gold spans ever
-enter the candidate pool**, and the workflow selected 7 of those 7 (one was lost
-to the per-file cap). So:
+enter the candidate pool**, and the workflow selected **6 of those 7**. The
+seventh (D10 `CoreService.cs:15-22`) was dropped by the 10-item pack cap
+(`budget_items`), not by a per-file cap; the earlier "7 of 7" wording was wrong
+and is corrected by `r4-discovery-attribution-20261115.md`. So:
 
 - **selection is not the current bottleneck** (it converted ~100% of what it
   saw);
