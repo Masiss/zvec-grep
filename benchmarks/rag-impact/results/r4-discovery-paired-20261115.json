@@ -1,6 +1,6 @@
 {
   "status": "R4_DISCOVERY_PAIRED",
-  "branch_head": "970d37f6294888104f5b6cfcc518b39c592b9a27",
+  "branch_head": "48130d9a9e0611366f77132dc91033a10aeee4a5",
   "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
   "corpus_files": 822,
   "corpus_manifest_sha256": "c706c8dd9b560572a2c1739c2c2bda676982f4c3b5da4cd4b32bcfeb66359cdb",
@@ -49,19 +49,25 @@
       "DB"
     ],
     "max_spans_per_file": 2,
-    "fts_quota": 3
+    "fts_quota": 3,
+    "hybrid_quota": 4,
+    "max_spans_per_file_extra": 2,
+    "use_hybrid": true,
+    "use_fts": true,
+    "use_lexical": true,
+    "use_facts": true
   },
   "host_before": {
-    "loadavg": "8.50 6.95 6.51 4/2337 761315",
-    "mem_available_kib": 4646112,
-    "pss_kib": 24071,
-    "rss_kib": 28036
+    "loadavg": "8.99 8.73 9.39 13/2402 3189277",
+    "mem_available_kib": 7246740,
+    "pss_kib": 24638,
+    "rss_kib": 28608
   },
   "host_after": {
-    "loadavg": "7.78 6.96 6.56 4/2012 910725",
-    "mem_available_kib": 7409604,
-    "pss_kib": 357235,
-    "rss_kib": 373672
+    "loadavg": "6.69 8.04 9.05 2/2136 3326012",
+    "mem_available_kib": 8061880,
+    "pss_kib": 358691,
+    "rss_kib": 376072
   },
   "macro_fts_recall": 0.3333333333333333,
   "macro_workflow_recall": 0.27777777777777773,
@@ -70,15 +76,15 @@
   "pool_coverage": 9,
   "selected_coverage": 5,
   "fts_total_selected": 81,
-  "workflow_total_selected": 113,
-  "workflow_total_reads": 15117327,
-  "workflow_total_calls": 285,
-  "workflow_symbol_calls": 63,
-  "content_bytes": 232095,
-  "token_estimate": 58023,
+  "workflow_total_selected": 114,
+  "workflow_total_reads": 15113889,
+  "workflow_total_calls": 286,
+  "workflow_symbol_calls": 54,
+  "content_bytes": 188930,
+  "token_estimate": 47232,
   "token_estimate_note": "ESTIMATE = content bytes / 4; no tokenizer was run",
-  "total_fts_ms": 3521.93554,
-  "total_workflow_ms": 126919.9586,
+  "total_fts_ms": 3725.0112809999996,
+  "total_workflow_ms": 124321.677755,
   "cases_detail": [
     {
       "id": "D01",
@@ -86,27 +92,26 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 10,
-      "fts_ms": 631.183441,
+      "fts_ms": 984.9635989999999,
       "workflow_pool_covered": 1,
       "workflow_pool": 472,
       "workflow_covered": 0,
-      "workflow_selected": 9,
-      "workflow_verified": 9,
+      "workflow_selected": 10,
+      "workflow_verified": 10,
       "workflow_recall": 0.0,
       "workflow_reads": 1805821,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 7,
-      "workflow_ms": 20227.032703999997,
+      "workflow_symbol_calls": 6,
+      "workflow_ms": 19462.440002,
       "workflow_abstain": null,
       "workflow_gaps": [
-        "budget_bytes",
         "budget_files",
-        "budget_spans_per_file",
+        "budget_items",
         "budget_tool_calls"
       ],
-      "declaration_spans": 2,
-      "module_spans": 7,
-      "reference_spans": 6,
+      "declaration_spans": 0,
+      "module_spans": 10,
+      "reference_spans": 7,
       "proc_spans": 0
     },
     {
@@ -115,7 +120,7 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 1,
-      "fts_ms": 202.868622,
+      "fts_ms": 129.471067,
       "workflow_pool_covered": 0,
       "workflow_pool": 437,
       "workflow_covered": 0,
@@ -125,17 +130,16 @@
       "workflow_reads": 1858151,
       "workflow_calls": 24,
       "workflow_symbol_calls": 8,
-      "workflow_ms": 19803.073695,
+      "workflow_ms": 10666.322182,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_files",
         "budget_items",
-        "budget_spans_per_file",
         "budget_tool_calls"
       ],
-      "declaration_spans": 4,
-      "module_spans": 6,
-      "reference_spans": 6,
+      "declaration_spans": 2,
+      "module_spans": 8,
+      "reference_spans": 8,
       "proc_spans": 0
     },
     {
@@ -144,23 +148,21 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 10,
-      "fts_ms": 315.85033699999997,
+      "fts_ms": 165.584508,
       "workflow_pool_covered": 1,
-      "workflow_pool": 484,
+      "workflow_pool": 483,
       "workflow_covered": 0,
       "workflow_selected": 10,
       "workflow_verified": 10,
       "workflow_recall": 0.0,
       "workflow_reads": 1830260,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 3,
-      "workflow_ms": 17218.298573,
+      "workflow_symbol_calls": 2,
+      "workflow_ms": 21653.707151,
       "workflow_abstain": null,
       "workflow_gaps": [
-        "budget_bytes",
         "budget_files",
         "budget_items",
-        "budget_spans_per_file",
         "budget_tool_calls"
       ],
       "declaration_spans": 0,
@@ -174,17 +176,17 @@
       "fts_covered": 1,
       "fts_recall": 1.0,
       "fts_selected": 10,
-      "fts_ms": 240.241024,
+      "fts_ms": 252.418821,
       "workflow_pool_covered": 1,
-      "workflow_pool": 290,
+      "workflow_pool": 282,
       "workflow_covered": 0,
       "workflow_selected": 10,
       "workflow_verified": 10,
       "workflow_recall": 0.0,
       "workflow_reads": 1231297,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 3,
-      "workflow_ms": 8892.407727,
+      "workflow_symbol_calls": 2,
+      "workflow_ms": 8693.207797,
       "workflow_abstain": {
         "reason": "missing_code_tokens",
         "tokens": [
@@ -197,9 +199,9 @@
         "budget_tool_calls",
         "missing"
       ],
-      "declaration_spans": 2,
-      "module_spans": 8,
-      "reference_spans": 5,
+      "declaration_spans": 0,
+      "module_spans": 10,
+      "reference_spans": 7,
       "proc_spans": 0
     },
     {
@@ -208,7 +210,7 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 4,
-      "fts_ms": 306.2257,
+      "fts_ms": 206.785116,
       "workflow_pool_covered": 0,
       "workflow_pool": 39,
       "workflow_covered": 0,
@@ -217,8 +219,8 @@
       "workflow_recall": 0.0,
       "workflow_reads": 250431,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 7,
-      "workflow_ms": 3059.498172,
+      "workflow_symbol_calls": 6,
+      "workflow_ms": 1865.2723230000001,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_bytes",
@@ -235,26 +237,25 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 10,
-      "fts_ms": 354.32446699999997,
+      "fts_ms": 204.566077,
       "workflow_pool_covered": 0,
-      "workflow_pool": 49,
+      "workflow_pool": 48,
       "workflow_covered": 0,
       "workflow_selected": 10,
       "workflow_verified": 10,
       "workflow_recall": 0.0,
       "workflow_reads": 423541,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 7,
-      "workflow_ms": 3366.4366929999997,
+      "workflow_symbol_calls": 6,
+      "workflow_ms": 3144.381298,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_bytes",
         "budget_items",
-        "budget_spans_per_file",
         "budget_tool_calls"
       ],
-      "declaration_spans": 4,
-      "module_spans": 6,
+      "declaration_spans": 5,
+      "module_spans": 5,
       "reference_spans": 3,
       "proc_spans": 0
     },
@@ -264,26 +265,25 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 10,
-      "fts_ms": 461.11771200000004,
+      "fts_ms": 375.436553,
       "workflow_pool_covered": 1,
-      "workflow_pool": 267,
+      "workflow_pool": 266,
       "workflow_covered": 1,
       "workflow_selected": 10,
       "workflow_verified": 10,
       "workflow_recall": 0.3333333333333333,
       "workflow_reads": 1636430,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 3,
-      "workflow_ms": 9987.951223,
+      "workflow_symbol_calls": 2,
+      "workflow_ms": 7891.050158,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_files",
         "budget_items",
-        "budget_spans_per_file",
         "budget_tool_calls"
       ],
-      "declaration_spans": 3,
-      "module_spans": 7,
+      "declaration_spans": 0,
+      "module_spans": 10,
       "reference_spans": 7,
       "proc_spans": 0
     },
@@ -293,25 +293,24 @@
       "fts_covered": 2,
       "fts_recall": 1.0,
       "fts_selected": 4,
-      "fts_ms": 233.82269399999998,
+      "fts_ms": 259.991657,
       "workflow_pool_covered": 2,
-      "workflow_pool": 49,
+      "workflow_pool": 48,
       "workflow_covered": 2,
       "workflow_selected": 10,
       "workflow_verified": 10,
       "workflow_recall": 1.0,
       "workflow_reads": 522119,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 7,
-      "workflow_ms": 3130.576007,
+      "workflow_symbol_calls": 6,
+      "workflow_ms": 2540.083484,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_items",
-        "budget_spans_per_file",
         "budget_tool_calls"
       ],
-      "declaration_spans": 9,
-      "module_spans": 1,
+      "declaration_spans": 8,
+      "module_spans": 2,
       "reference_spans": 0,
       "proc_spans": 0
     },
@@ -321,17 +320,17 @@
       "fts_covered": 1,
       "fts_recall": 1.0,
       "fts_selected": 10,
-      "fts_ms": 206.870646,
+      "fts_ms": 226.946916,
       "workflow_pool_covered": 1,
-      "workflow_pool": 344,
+      "workflow_pool": 342,
       "workflow_covered": 1,
       "workflow_selected": 10,
       "workflow_verified": 10,
       "workflow_recall": 1.0,
       "workflow_reads": 1745930,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 3,
-      "workflow_ms": 9357.461129000001,
+      "workflow_symbol_calls": 2,
+      "workflow_ms": 14824.261063,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_files",
@@ -349,7 +348,7 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 10,
-      "fts_ms": 257.18791000000004,
+      "fts_ms": 316.49956099999997,
       "workflow_pool_covered": 1,
       "workflow_pool": 322,
       "workflow_covered": 0,
@@ -359,19 +358,13 @@
       "workflow_reads": 745914,
       "workflow_calls": 24,
       "workflow_symbol_calls": 0,
-      "workflow_ms": 4896.838378,
-      "workflow_abstain": {
-        "reason": "missing_code_tokens",
-        "tokens": [
-          "Cùng"
-        ]
-      },
+      "workflow_ms": 6891.80928,
+      "workflow_abstain": null,
       "workflow_gaps": [
         "budget_bytes",
         "budget_files",
         "budget_items",
-        "budget_tool_calls",
-        "missing"
+        "budget_tool_calls"
       ],
       "declaration_spans": 0,
       "module_spans": 10,
@@ -384,7 +377,7 @@
       "fts_covered": 1,
       "fts_recall": 1.0,
       "fts_selected": 2,
-      "fts_ms": 195.783074,
+      "fts_ms": 294.777008,
       "workflow_pool_covered": 1,
       "workflow_pool": 478,
       "workflow_covered": 1,
@@ -392,18 +385,17 @@
       "workflow_verified": 10,
       "workflow_recall": 1.0,
       "workflow_reads": 1656211,
-      "workflow_calls": 21,
+      "workflow_calls": 22,
       "workflow_symbol_calls": 8,
-      "workflow_ms": 16686.499314,
+      "workflow_ms": 17010.717462,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_files",
-        "budget_items",
-        "budget_spans_per_file"
+        "budget_items"
       ],
-      "declaration_spans": 3,
-      "module_spans": 7,
-      "reference_spans": 6,
+      "declaration_spans": 4,
+      "module_spans": 6,
+      "reference_spans": 5,
       "proc_spans": 0
     },
     {
@@ -412,21 +404,20 @@
       "fts_covered": 0,
       "fts_recall": 0.0,
       "fts_selected": 0,
-      "fts_ms": 116.459913,
+      "fts_ms": 307.570398,
       "workflow_pool_covered": 0,
-      "workflow_pool": 549,
+      "workflow_pool": 546,
       "workflow_covered": 0,
       "workflow_selected": 10,
       "workflow_verified": 10,
       "workflow_recall": 0.0,
-      "workflow_reads": 1411222,
+      "workflow_reads": 1407784,
       "workflow_calls": 24,
-      "workflow_symbol_calls": 7,
-      "workflow_ms": 10293.884985,
+      "workflow_symbol_calls": 6,
+      "workflow_ms": 9678.425555,
       "workflow_abstain": null,
       "workflow_gaps": [
         "budget_items",
-        "budget_spans_per_file",
         "budget_tool_calls"
       ],
       "declaration_spans": 0,
@@ -439,59 +430,52 @@
     {
       "id": "no_evidence",
       "selected": 0,
-      "calls": 4,
+      "calls": 5,
       "symbol_calls": 0,
       "duplicate_calls": 1,
       "abstain": {
         "reason": "no_evidence"
       },
       "gaps": [],
-      "elapsed_ms": 30.620293
+      "elapsed_ms": 17.767062
     },
     {
       "id": "budget_one_call",
-      "selected": 3,
+      "selected": 0,
       "calls": 1,
       "symbol_calls": 0,
       "duplicate_calls": 0,
       "abstain": {
-        "reason": "missing_code_tokens",
-        "tokens": [
-          "DbSet"
-        ]
+        "reason": "no_evidence"
       },
       "gaps": [
-        "budget_bytes",
-        "budget_spans_per_file",
-        "budget_tool_calls",
-        "missing"
+        "budget_tool_calls"
       ],
-      "elapsed_ms": 815.050556
+      "elapsed_ms": 0.073798
     },
     {
       "id": "cancel_after_one",
       "selected": 0,
-      "calls": 1,
+      "calls": 2,
       "symbol_calls": 0,
       "duplicate_calls": 0,
       "abstain": {
         "reason": "cancelled"
       },
       "gaps": [],
-      "elapsed_ms": 292.40664
+      "elapsed_ms": 166.868504
     },
     {
       "id": "duplicate_query",
       "selected": 10,
-      "calls": 21,
+      "calls": 22,
       "symbol_calls": 8,
       "duplicate_calls": 1,
       "abstain": null,
       "gaps": [
-        "budget_items",
-        "budget_spans_per_file"
+        "budget_items"
       ],
-      "elapsed_ms": 13928.548798
+      "elapsed_ms": 5683.366683
     }
   ]
 }

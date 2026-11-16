@@ -56,6 +56,7 @@ struct CaseRow {
     id: String,
     gold: usize,
     hybrid_baseline: Arm,
+    hybrid_byte_bounded: Arm,
     hybrid_p1: Arm,
     r4b: Arm,
 }
@@ -70,6 +71,7 @@ struct Receipt {
     p3_status: &'static str,
     p3_reason: &'static str,
     macro_hybrid_baseline: f64,
+    macro_hybrid_byte_bounded: f64,
     macro_hybrid_p1: f64,
     macro_r4b: f64,
     pool_coverage: usize,
@@ -341,8 +343,8 @@ fn main() {
         max_tool_calls: 24,
         max_files: 96,
         max_source_reads: 160,
-        hybrid_quota: 4,
-        fts_quota: 2,
+        hybrid_quota: 10,
+        fts_quota: 0,
         ..WorkflowBudget::default()
     };
     // P1 alone: the hybrid candidate set, assembled by the new selector.
@@ -365,6 +367,7 @@ fn main() {
 
     let mut rows = Vec::new();
     let mut hybrid_recalls = Vec::new();
+    let mut bounded_recalls = Vec::new();
     let mut p1_recalls = Vec::new();
     let mut r4b_recalls = Vec::new();
     let mut pool_coverage = 0;
@@ -390,6 +393,28 @@ fn main() {
             .map(|unit| (unit.path.clone(), unit.start_line, unit.end_line))
             .collect::<Vec<_>>();
         let baseline_covered = covered(&case_gold, &flat);
+        // Fair baseline: the same hybrid list under the same 24 KiB evidence
+        // budget the verified pack must respect (no byte bound was applied to the
+        // raw arm above, which is why the two are not comparable).
+        let mut bounded: Vec<(String, usize, usize)> = Vec::new();
+        let mut bounded_bytes = 0usize;
+        for unit in &units {
+            let size = fs::read_to_string(root.join(&unit.path))
+                .map(|text| {
+                    text.lines()
+                        .skip(unit.start_line.saturating_sub(1))
+                        .take(unit.end_line.saturating_sub(unit.start_line) + 1)
+                        .map(|line| line.len() + 1)
+                        .sum::<usize>()
+                })
+                .unwrap_or(0);
+            if bounded_bytes + size > budget.max_bytes {
+                continue;
+            }
+            bounded_bytes += size;
+            bounded.push((unit.path.clone(), unit.start_line, unit.end_line));
+        }
+        let baseline_bounded_covered = covered(&case_gold, &bounded);
 
         // 2) hybrid + P1 selection
         let mut source = Source::new(&root).expect("source");
@@ -452,7 +477,7 @@ fn main() {
             r4b_covered as f64 / total as f64
         });
         eprintln!(
-            "{id} gold={total} hybrid={baseline_covered} p1={p1_covered} r4b={r4b_covered} pool={}/{}",
+            "{id} gold={total} hybrid={baseline_covered} bounded={baseline_bounded_covered} p1={p1_covered} r4b={r4b_covered} pool={}/{}",
             r4b.candidates.len(),
             r4b.selected.len()
         );
@@ -465,6 +490,18 @@ fn main() {
                 total,
                 recall: hybrid_recalls.last().copied().unwrap_or(0.0),
                 items: units.len(),
+                verified: 0,
+                calls: 1,
+                reads: 0,
+                ms: baseline_ms,
+                abstain: None,
+                routes: vec!["Hybrid".to_owned()],
+            },
+            hybrid_byte_bounded: Arm {
+                covered: baseline_bounded_covered,
+                total,
+                recall: bounded_recalls.last().copied().unwrap_or(0.0),
+                items: bounded.len(),
                 verified: 0,
                 calls: 1,
                 reads: 0,
@@ -523,6 +560,7 @@ fn main() {
         p3_status: "NOT_MEASURED",
         p3_reason: "no blind plan exists for D01-D12; a plan written after seeing gold is contaminated, and E1-E5 must not be extrapolated",
         macro_hybrid_baseline: mean(&hybrid_recalls),
+        macro_hybrid_byte_bounded: mean(&bounded_recalls),
         macro_hybrid_p1: mean(&p1_recalls),
         macro_r4b: mean(&r4b_recalls),
         pool_coverage,
@@ -550,8 +588,9 @@ fn main() {
     });
     fs::write(&out, &text).expect("write");
     println!(
-        "hybrid={:.4} hybrid_p1={:.4} r4b={:.4} pool={}/{} selected={}/{} citation={:.3}",
+        "hybrid={:.4} hybrid_bounded={:.4} hybrid_p1={:.4} r4b={:.4} pool={}/{} selected={}/{} citation={:.3}",
         receipt.macro_hybrid_baseline,
+        receipt.macro_hybrid_byte_bounded,
         receipt.macro_hybrid_p1,
         receipt.macro_r4b,
         receipt.pool_coverage,

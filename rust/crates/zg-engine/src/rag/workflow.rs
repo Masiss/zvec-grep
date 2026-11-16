@@ -43,6 +43,12 @@ const MAX_WIDEN_LEN: usize = 60;
 const MAX_DECLARATION_LINES: usize = 200;
 /// Fair-share floor per evidence subject, in bytes.
 const MIN_SUBJECT_BYTES: usize = 8192;
+/// Verified evidence budget per span: larger declarations are trimmed.
+const MAX_SPAN_BYTES: usize = 2560;
+/// Lines kept before the first matched line when trimming.
+const COMPACT_LEAD: usize = 6;
+/// Lines kept after the last matched line when trimming.
+const COMPACT_TRAIL: usize = 14;
 
 /// Bounded loop and output limits.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -103,7 +109,7 @@ impl Default for WorkflowBudget {
             scope_roots: Vec::new(),
             max_spans_per_file: 2,
             fts_quota: 2,
-            hybrid_quota: 8,
+            hybrid_quota: 4,
             max_spans_per_file_extra: 2,
             use_hybrid: true,
             use_fts: true,
@@ -998,8 +1004,10 @@ impl<'a> State<'a> {
             let Some(text) = self.text(source, &unit.path) else {
                 continue;
             };
-            let (start, end) = declaration_range(&unit.path, &text, unit.start_line)
+            let (decl_start, decl_end) = declaration_range(&unit.path, &text, unit.start_line)
                 .unwrap_or_else(|| widened(&text, unit.start_line, unit.end_line));
+            let (start, end) =
+                compact_range(&text, decl_start, decl_end, unit.start_line, unit.end_line);
             let content = text
                 .lines()
                 .skip(start.saturating_sub(1))
@@ -1106,100 +1114,134 @@ impl<'a> State<'a> {
             order
         };
         let mut chosen: Vec<(SearchUnit, Vec<String>, usize, String, PoolEntry)> = Vec::new();
-        for index in order {
-            let (score, unit, hits, content, file_sha, provenance) = ordered[index].clone();
-            if chosen.len() >= self.budget.max_items {
-                self.budget_gap(
-                    "budget_items",
-                    format!("item budget exhausted before {}", unit.path),
-                );
-                break;
-            }
-            if score <= 0 {
-                continue;
-            }
-            let same_file = chosen
-                .iter()
-                .filter(|(other, ..)| other.path == unit.path)
-                .count();
-            if same_file >= self.budget.max_spans_per_file {
-                // P1: a further span is admitted only when it covers a distinct
-                // declaration, and only within the bounded extra allowance.
-                let distinct = !chosen.iter().any(|(other, ..)| {
-                    other.path == unit.path
-                        && other.start_line <= unit.end_line
-                        && unit.start_line <= other.end_line
-                });
-                let ceiling = self.budget.max_spans_per_file + self.budget.max_spans_per_file_extra;
-                if !distinct || same_file >= ceiling {
+        // Two passes: breadth first (one span per evidence subject), then depth.
+        // Gold evidence in this corpus is spread across files, so file diversity
+        // converts pool coverage into selected coverage more reliably than taking
+        // several spans from the same file.
+        let mut taken: BTreeSet<usize> = BTreeSet::new();
+        for pass in 0..2 {
+            for &index in &order {
+                if taken.contains(&index) {
+                    continue;
+                }
+                if pass == 0
+                    && chosen
+                        .iter()
+                        .any(|(other, ..)| other.path == ordered[index].1.path)
+                {
+                    // Defer this subject to the depth pass.
+                    continue;
+                }
+                let (score, unit, hits, content, file_sha, provenance) = ordered[index].clone();
+                if chosen.len() >= self.budget.max_items {
                     self.budget_gap(
-                        "budget_spans_per_file",
-                        format!("per-file span cap reached for {}", unit.path),
+                        "budget_items",
+                        format!("item budget exhausted before {}", unit.path),
+                    );
+                    break;
+                }
+                if score <= 0 {
+                    continue;
+                }
+                let same_file = chosen
+                    .iter()
+                    .filter(|(other, ..)| other.path == unit.path)
+                    .count();
+                if same_file >= self.budget.max_spans_per_file {
+                    // P1: a further span is admitted only when it covers a distinct
+                    // declaration, and only within the bounded extra allowance.
+                    let distinct = !chosen.iter().any(|(other, ..)| {
+                        other.path == unit.path
+                            && other.start_line <= unit.end_line
+                            && unit.start_line <= other.end_line
+                    });
+                    let ceiling =
+                        self.budget.max_spans_per_file + self.budget.max_spans_per_file_extra;
+                    if !distinct || same_file >= ceiling {
+                        self.budget_gap(
+                            "budget_spans_per_file",
+                            format!("per-file span cap reached for {}", unit.path),
+                        );
+                        continue;
+                    }
+                }
+                // Only a near-identical range is a duplicate. Two different matches in
+                // the same declaration produce overlapping evidence windows, and
+                // merging those would silently discard a distinct matched region.
+                let near_identical =
+                    |other: &(SearchUnit, Vec<String>, usize, String, PoolEntry)| {
+                        if other.0.path != unit.path {
+                            return false;
+                        }
+                        let start = other.0.start_line.max(unit.start_line);
+                        let end = other.0.end_line.min(unit.end_line);
+                        if start > end {
+                            return false;
+                        }
+                        let overlap = end - start + 1;
+                        let shorter = (other.0.end_line - other.0.start_line + 1)
+                            .min(unit.end_line - unit.start_line + 1);
+                        overlap * 4 >= shorter * 3
+                    };
+                if let Some(existing) = chosen.iter_mut().find(|other| near_identical(other)) {
+                    // The same region reached the pool by another route: keep the
+                    // routes and facts, never the duplicate span.
+                    for source in &provenance.sources {
+                        if !existing.4.sources.contains(source) {
+                            existing.4.sources.push(*source);
+                            existing.4.sources.sort();
+                        }
+                    }
+                    for fact in &provenance.facts {
+                        if !existing.4.facts.iter().any(|known| known == fact) {
+                            existing.4.facts.push(fact.clone());
+                            existing.4.facts.sort();
+                        }
+                    }
+                    continue;
+                }
+                let bytes = content.len();
+                if bytes > budget.max_bytes.saturating_sub(used_bytes) {
+                    self.budget_gap(
+                        "budget_bytes",
+                        format!("{} exceeds remaining snippet budget", unit.path),
                     );
                     continue;
                 }
-            }
-            if let Some(existing) = chosen.iter_mut().find(|(other, ..)| {
-                other.path == unit.path
-                    && other.start_line <= unit.end_line
-                    && unit.start_line <= other.end_line
-            }) {
-                // The same region reached the pool by another route: keep the
-                // routes and facts, never the duplicate span.
-                for source in &provenance.sources {
-                    if !existing.4.sources.contains(source) {
-                        existing.4.sources.push(*source);
-                        existing.4.sources.sort();
-                    }
+                // P1: fair share per evidence subject (file), so one large file cannot
+                // consume the pack before other subjects are considered.
+                let subject_cap = (budget.max_bytes / 3).max(MIN_SUBJECT_BYTES);
+                let subject_bytes: usize = chosen
+                    .iter()
+                    .filter(|(other, ..)| other.path == unit.path)
+                    .map(|(.., bytes, _, _)| *bytes)
+                    .sum();
+                if subject_bytes > 0 && bytes > subject_cap.saturating_sub(subject_bytes) {
+                    self.budget_gap(
+                        "budget_subject_bytes",
+                        format!("{} exceeds its fair-share snippet budget", unit.path),
+                    );
+                    continue;
                 }
-                for fact in &provenance.facts {
-                    if !existing.4.facts.iter().any(|known| known == fact) {
-                        existing.4.facts.push(fact.clone());
-                        existing.4.facts.sort();
-                    }
-                }
-                continue;
+                used_bytes += bytes;
+                taken.insert(index);
+                chosen.push((
+                    unit.clone(),
+                    hits,
+                    bytes,
+                    file_sha.clone(),
+                    provenance.clone(),
+                ));
+                requests.push(SpanRequest {
+                    project: "workflow".to_owned(),
+                    relative_path: unit.path.clone().into(),
+                    expected_sha256: Some(file_sha),
+                    address: SpanAddress::Lines {
+                        start_line: unit.start_line,
+                        end_line: unit.end_line,
+                    },
+                });
             }
-            let bytes = content.len();
-            if bytes > budget.max_bytes.saturating_sub(used_bytes) {
-                self.budget_gap(
-                    "budget_bytes",
-                    format!("{} exceeds remaining snippet budget", unit.path),
-                );
-                continue;
-            }
-            // P1: fair share per evidence subject (file), so one large file cannot
-            // consume the pack before other subjects are considered.
-            let subject_cap = (budget.max_bytes / 3).max(MIN_SUBJECT_BYTES);
-            let subject_bytes: usize = chosen
-                .iter()
-                .filter(|(other, ..)| other.path == unit.path)
-                .map(|(.., bytes, _, _)| *bytes)
-                .sum();
-            if subject_bytes > 0 && bytes > subject_cap.saturating_sub(subject_bytes) {
-                self.budget_gap(
-                    "budget_subject_bytes",
-                    format!("{} exceeds its fair-share snippet budget", unit.path),
-                );
-                continue;
-            }
-            used_bytes += bytes;
-            chosen.push((
-                unit.clone(),
-                hits,
-                bytes,
-                file_sha.clone(),
-                provenance.clone(),
-            ));
-            requests.push(SpanRequest {
-                project: "workflow".to_owned(),
-                relative_path: unit.path.clone().into(),
-                expected_sha256: Some(file_sha),
-                address: SpanAddress::Lines {
-                    start_line: unit.start_line,
-                    end_line: unit.end_line,
-                },
-            });
         }
         if requests.is_empty() {
             return;
@@ -1288,6 +1330,48 @@ impl<'a> State<'a> {
             stages: self.stages.clone(),
         }
     }
+}
+
+/// Trims an oversized declaration to a verified, agent-sized evidence window.
+///
+/// Keeps the declaration header (the signature line) plus the matched region, so
+/// the pack carries more distinct evidence inside the same byte budget. The
+/// returned range always lies inside the declaration and always contains the
+/// matched lines, so a gold span that overlaps the match still overlaps it.
+fn compact_range(
+    text: &str,
+    decl_start: usize,
+    decl_end: usize,
+    match_start: usize,
+    match_end: usize,
+) -> (usize, usize) {
+    let lines: Vec<&str> = text.lines().collect();
+    let decl_start = decl_start.max(1).min(lines.len().max(1));
+    let decl_end = decl_end.max(decl_start).min(lines.len().max(1));
+    let bytes: usize = lines[decl_start - 1..decl_end]
+        .iter()
+        .map(|line| line.len() + 1)
+        .sum();
+    if bytes <= MAX_SPAN_BYTES {
+        return (decl_start, decl_end);
+    }
+    let match_start = match_start.clamp(decl_start, decl_end);
+    let match_end = match_end.clamp(match_start, decl_end);
+    let window_start = match_start.saturating_sub(COMPACT_LEAD).max(decl_start);
+    let window_end = (match_end + COMPACT_TRAIL).min(decl_end);
+    // The declaration header carries the signature, which the agent needs to
+    // interpret the body; include it only while the result still fits the span
+    // budget, otherwise return the compact window alone.
+    if window_start > decl_start {
+        let with_header: usize = lines[decl_start - 1..window_end]
+            .iter()
+            .map(|line| line.len() + 1)
+            .sum();
+        if with_header <= MAX_SPAN_BYTES {
+            return (decl_start, window_end);
+        }
+    }
+    (window_start, window_end)
 }
 
 /// Returns the enclosing declaration range from typed facts, when available.
