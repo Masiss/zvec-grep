@@ -1,0 +1,46 @@
+{
+  "kind": "r4_query_plan_freeze",
+  "created": "2026-11-16T20:40:00Z",
+  "author": "external_agent",
+  "blind": true,
+  "blind_statement": "Written from the question text of dev-independent cases E1-E5 only. The author had not read the source_refs/gold of E1-E5 at freeze time. Gold overlap is computed only after this file was written and hashed.",
+  "inputs": {
+    "questions_file": "benchmarks/rag-impact/cases/dev-independent.json",
+    "question_fields_only": true,
+    "corpus": "frozen 822-file copy at /home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus"
+  },
+  "lexicon": {
+    "nhân viên": ["Employee"],
+    "tạo mới": ["Create", "Add", "Insert"],
+    "nation": ["Nation"],
+    "chi tiết": ["Detail"],
+    "đọc": ["Get", "Read", "Detail"],
+    "cập nhật": ["Update", "Edit"],
+    "trạng thái": ["Status"],
+    "công việc": ["Work", "Job", "Task"],
+    "map": ["Map", "Mapper", "Mapping"],
+    "database": ["Db", "DbContext", "SaveChanges"]
+  },
+  "plans": {
+    "E1": {
+      "queries": ["EmployeeCreate", "CreateEmployee", "EmployeeController Create", "EmployeeCoreService"],
+      "symbols": ["EmployeeCreate", "CreateEmployee", "EmployeeController", "EmployeeCoreService"]
+    },
+    "E2": {
+      "queries": ["NationCreate", "CreateNation", "NationController", "NationService"],
+      "symbols": ["NationCreate", "CreateNation", "NationController", "NationService"]
+    },
+    "E3": {
+      "queries": ["EmployeeDetail", "GetEmployeeDetail", "EmployeeEdit Detail", "EmployeeController Detail"],
+      "symbols": ["EmployeeDetail", "GetEmployeeDetail", "EmployeeEdit", "EmployeeController"]
+    },
+    "E4": {
+      "queries": ["UpdateStatus", "WorkStatus", "EmployeeWork", "StatusUpdate"],
+      "symbols": ["UpdateStatus", "WorkStatus", "EmployeeWork", "EmployeeWorkStatus"]
+    },
+    "E5": {
+      "queries": ["NationMapping", "MapNation", "NationMapper", "NationDto NationDb"],
+      "symbols": ["NationMapping", "MapNation", "NationMapper", "NationDto"]
+    }
+  }
+}

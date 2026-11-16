@@ -1,0 +1,496 @@
+{
+  "kind": "r4_query_to_entity_feasibility",
+  "plan_sha256": "63454a04db91fe6df658f15ef4ac9e40040db50a8f9c6992ed21bbf3572d0277",
+  "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
+  "cases": [
+    {
+      "id": "D01",
+      "question": "Form 1, update thông tin cá nhân đi qua đâu?",
+      "gold": 2,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D01",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.022609999999999998
+      },
+      "vector": {
+        "case": "D01",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 1,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1812.828944
+      },
+      "hybrid": {
+        "case": "D01",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 1,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1204.750049
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D02",
+      "question": "Personal update ghi vào những nơi nào?",
+      "gold": 6,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D02",
+        "gold": 6,
+        "gold_files": 4,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.010701
+      },
+      "vector": {
+        "case": "D02",
+        "gold": 6,
+        "gold_files": 4,
+        "files_hit": 2,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 895.3184
+      },
+      "hybrid": {
+        "case": "D02",
+        "gold": 6,
+        "gold_files": 4,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1079.5483370000002
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D03",
+      "question": "Đổi FullName qua personal update ảnh hưởng Keyword thế nào?",
+      "gold": 1,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D03",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.006583
+      },
+      "vector": {
+        "case": "D03",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1100.7286940000001
+      },
+      "hybrid": {
+        "case": "D03",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1083.3199149999998
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D04",
+      "question": "EmployeeUpdateInfo có cập nhật Keyword không?",
+      "gold": 1,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D04",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.005906
+      },
+      "vector": {
+        "case": "D04",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 896.034454
+      },
+      "hybrid": {
+        "case": "D04",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 934.409499
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D05",
+      "question": "Thiếu detail record thì personal update có atomic all-or-nothing không?",
+      "gold": 1,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D05",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.005879
+      },
+      "vector": {
+        "case": "D05",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 858.3456120000001
+      },
+      "hybrid": {
+        "case": "D05",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 964.88654
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D06",
+      "question": "Có phải mọi lần sửa tên đều gọi cập nhật tổng nhân sự?",
+      "gold": 3,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D06",
+        "gold": 3,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.00783
+      },
+      "vector": {
+        "case": "D06",
+        "gold": 3,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 904.812185
+      },
+      "hybrid": {
+        "case": "D06",
+        "gold": 3,
+        "gold_files": 2,
+        "files_hit": 1,
+        "covered": 2,
+        "units": 10,
+        "calls": 1,
+        "ms": 932.612788
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D07",
+      "question": "Restore nhân viên có thể ảnh hưởng gì ngoài Employees?",
+      "gold": 3,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D07",
+        "gold": 3,
+        "gold_files": 3,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.00799
+      },
+      "vector": {
+        "case": "D07",
+        "gold": 3,
+        "gold_files": 3,
+        "files_hit": 1,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 911.2289559999999
+      },
+      "hybrid": {
+        "case": "D07",
+        "gold": 3,
+        "gold_files": 3,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 877.073545
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D08",
+      "question": "DeleteEmployeeByIds có xóa hàng vật lý không?",
+      "gold": 2,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D08",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.007763
+      },
+      "vector": {
+        "case": "D08",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 2,
+        "covered": 2,
+        "units": 10,
+        "calls": 1,
+        "ms": 891.099208
+      },
+      "hybrid": {
+        "case": "D08",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 2,
+        "covered": 2,
+        "units": 10,
+        "calls": 1,
+        "ms": 1120.480317
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D09",
+      "question": "EmployeeBaseViews ghi hay đọc FullName?",
+      "gold": 1,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D09",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.012773
+      },
+      "vector": {
+        "case": "D09",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1090.421518
+      },
+      "hybrid": {
+        "case": "D09",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1093.884779
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D10",
+      "question": "Cùng một CoreService có ba contexts: SaveChanges ở đây ghi DB nào?",
+      "gold": 2,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D10",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.008183
+      },
+      "vector": {
+        "case": "D10",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1016.1405670000001
+      },
+      "hybrid": {
+        "case": "D10",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1178.3863860000001
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D11",
+      "question": "UpdateEmployeeAttr thay trường nào?",
+      "gold": 1,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D11",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.006498
+      },
+      "vector": {
+        "case": "D11",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1218.280227
+      },
+      "hybrid": {
+        "case": "D11",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1381.941164
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    },
+    {
+      "id": "D12",
+      "question": "Proc tên này có nhiều definition trong repo: cái nào đang chạy?",
+      "gold": 2,
+      "plan_queries": [],
+      "plan_symbols": [],
+      "agent_plan": {
+        "case": "D12",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 1,
+        "ms": 0.010886999999999999
+      },
+      "vector": {
+        "case": "D12",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1440.39092
+      },
+      "hybrid": {
+        "case": "D12",
+        "gold": 2,
+        "gold_files": 2,
+        "files_hit": 1,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1256.643155
+      },
+      "plan_query_hits": [],
+      "plan_symbol_hits": []
+    }
+  ],
+  "agent_plan_total": [
+    0,
+    25
+  ],
+  "vector_total": [
+    5,
+    25
+  ],
+  "hybrid_total": [
+    8,
+    25
+  ],
+  "agent_plan_ms": 0.0038799999999999998,
+  "vector_ms": 13035.629685,
+  "hybrid_ms": 13107.936474000002,
+  "notes": [
+    "gold overlap computed after the plan file was written and hashed",
+    "E1-E5 are dev-independent, not held-out; they are not a qualification",
+    "vector arm uses the existing Potion Code 16M v2 index; no model was changed",
+    "recall here is candidate-union reachability within the arm's own window, not Recall@10 of a selected pack"
+  ]
+}

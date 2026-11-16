@@ -413,6 +413,7 @@ fn main() {
             Some((id.to_owned(), case["question"].as_str()?.to_owned()))
         })
         .collect::<Vec<_>>();
+    let only = std::env::args().nth(2);
     let gold = read_gold(&repo);
     let host_before = host_state();
     let budget = WorkflowBudget {
@@ -428,6 +429,7 @@ fn main() {
     };
 
     let mut details = Vec::new();
+    let mut audit: Vec<AuditCase> = Vec::new();
     let mut fts_recalls = Vec::new();
     let mut workflow_recalls = Vec::new();
     let mut totals = Totals::default();
@@ -502,6 +504,46 @@ fn main() {
                 .filter(|span| span.role == role)
                 .count()
         };
+        audit.push(AuditCase {
+            id: (*id).to_owned(),
+            pools: outcome
+                .pool
+                .iter()
+                .map(|entry| AuditUnit {
+                    path: entry.unit.path.clone(),
+                    start_line: entry.unit.start_line,
+                    end_line: entry.unit.end_line,
+                    sources: entry
+                        .sources
+                        .iter()
+                        .map(|source| format!("{source:?}"))
+                        .collect(),
+                    facts: entry.facts.clone(),
+                })
+                .collect(),
+            selected: outcome
+                .selected
+                .iter()
+                .map(|span| AuditUnit {
+                    path: span.path.clone(),
+                    start_line: span.start_line,
+                    end_line: span.end_line,
+                    sources: span
+                        .sources
+                        .iter()
+                        .map(|source| format!("{source:?}"))
+                        .collect(),
+                    facts: span.facts.clone(),
+                })
+                .collect(),
+            gaps: outcome
+                .gaps
+                .iter()
+                .map(|(code, details)| format!("{code:?}: {}", details.join("; ")))
+                .collect(),
+            stats_calls: outcome.stats.tool_calls,
+            stats_reads: outcome.stats.bytes_read,
+        });
         details.push(CaseResult {
             id: (*id).to_owned(),
             gold: case_gold.len(),
@@ -606,6 +648,18 @@ fn main() {
         scenarios,
     };
     let text = serde_json::to_string_pretty(&receipt).expect("serialize receipt");
+    if std::env::var("R4_AUDIT").is_ok() {
+        let path = repo.join("benchmarks/rag-impact/results/r4-selection-audit-20261115.json");
+        fs::write(
+            &path,
+            serde_json::to_string_pretty(
+                &serde_json::json!({"cases": audit, "gold": gold_spans_json(&gold)}),
+            )
+            .expect("json"),
+        )
+        .expect("write audit");
+        eprintln!("audit: {}", path.display());
+    }
     let out = repo.join("benchmarks/rag-impact/results/r4-discovery-paired-20261115.json");
     fs::write(&out, &text).expect("write receipt");
     println!(
@@ -619,6 +673,38 @@ fn main() {
         receipt.citation_accuracy
     );
     eprintln!("receipt: {}", out.display());
+}
+
+#[derive(Serialize)]
+struct AuditUnit {
+    path: String,
+    start_line: usize,
+    end_line: usize,
+    sources: Vec<String>,
+    facts: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct AuditCase {
+    id: String,
+    pools: Vec<AuditUnit>,
+    selected: Vec<AuditUnit>,
+    gaps: Vec<String>,
+    stats_calls: usize,
+    stats_reads: usize,
+}
+
+fn gold_spans_json(gold: &[Gold]) -> Vec<serde_json::Value> {
+    gold.iter()
+        .map(|span| {
+            serde_json::json!({
+                "case": span.case,
+                "path": span.path,
+                "start_line": span.start_line,
+                "end_line": span.end_line,
+            })
+        })
+        .collect()
 }
 
 #[derive(Default)]

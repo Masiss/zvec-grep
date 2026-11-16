@@ -1,0 +1,323 @@
+{
+  "kind": "r4_query_to_entity_feasibility",
+  "plan_sha256": "63454a04db91fe6df658f15ef4ac9e40040db50a8f9c6992ed21bbf3572d0277",
+  "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
+  "cases": [
+    {
+      "id": "E1",
+      "question": "Tạo mới nhân viên đi qua method nào?",
+      "gold": 1,
+      "plan_queries": [
+        "EmployeeCreate",
+        "CreateEmployee",
+        "EmployeeController Create",
+        "EmployeeCoreService"
+      ],
+      "plan_symbols": [
+        "EmployeeCreate",
+        "CreateEmployee",
+        "EmployeeController",
+        "EmployeeCoreService"
+      ],
+      "agent_plan": {
+        "case": "E1",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 56,
+        "calls": 8,
+        "ms": 3402.068866
+      },
+      "vector": {
+        "case": "E1",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 2011.685222
+      },
+      "hybrid": {
+        "case": "E1",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 2334.567784
+      },
+      "plan_query_hits": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "plan_symbol_hits": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "E2",
+      "question": "Tạo nation mới đi qua đâu?",
+      "gold": 1,
+      "plan_queries": [
+        "NationCreate",
+        "CreateNation",
+        "NationController",
+        "NationService"
+      ],
+      "plan_symbols": [
+        "NationCreate",
+        "CreateNation",
+        "NationController",
+        "NationService"
+      ],
+      "agent_plan": {
+        "case": "E2",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 0,
+        "calls": 8,
+        "ms": 1228.4393200000002
+      },
+      "vector": {
+        "case": "E2",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1748.5922540000001
+      },
+      "hybrid": {
+        "case": "E2",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1607.5445450000002
+      },
+      "plan_query_hits": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "plan_symbol_hits": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "E3",
+      "question": "Đọc chi tiết nhân viên ở đâu?",
+      "gold": 1,
+      "plan_queries": [
+        "EmployeeDetail",
+        "GetEmployeeDetail",
+        "EmployeeEdit Detail",
+        "EmployeeController Detail"
+      ],
+      "plan_symbols": [
+        "EmployeeDetail",
+        "GetEmployeeDetail",
+        "EmployeeEdit",
+        "EmployeeController"
+      ],
+      "agent_plan": {
+        "case": "E3",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 74,
+        "calls": 8,
+        "ms": 987.7738619999999
+      },
+      "vector": {
+        "case": "E3",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1518.8837930000002
+      },
+      "hybrid": {
+        "case": "E3",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1512.434468
+      },
+      "plan_query_hits": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "plan_symbol_hits": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "E4",
+      "question": "Cập nhật trạng thái công việc nhân sự xử lý gì?",
+      "gold": 1,
+      "plan_queries": [
+        "UpdateStatus",
+        "WorkStatus",
+        "EmployeeWork",
+        "StatusUpdate"
+      ],
+      "plan_symbols": [
+        "UpdateStatus",
+        "WorkStatus",
+        "EmployeeWork",
+        "EmployeeWorkStatus"
+      ],
+      "agent_plan": {
+        "case": "E4",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 50,
+        "calls": 8,
+        "ms": 872.340107
+      },
+      "vector": {
+        "case": "E4",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 0,
+        "covered": 0,
+        "units": 10,
+        "calls": 1,
+        "ms": 1408.178772
+      },
+      "hybrid": {
+        "case": "E4",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1516.9425350000001
+      },
+      "plan_query_hits": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "plan_symbol_hits": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "E5",
+      "question": "Map nation từ API vào database ở đâu?",
+      "gold": 1,
+      "plan_queries": [
+        "NationMapping",
+        "MapNation",
+        "NationMapper",
+        "NationDto NationDb"
+      ],
+      "plan_symbols": [
+        "NationMapping",
+        "MapNation",
+        "NationMapper",
+        "NationDto"
+      ],
+      "agent_plan": {
+        "case": "E5",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 1,
+        "calls": 8,
+        "ms": 859.877887
+      },
+      "vector": {
+        "case": "E5",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1286.552747
+      },
+      "hybrid": {
+        "case": "E5",
+        "gold": 1,
+        "gold_files": 1,
+        "files_hit": 1,
+        "covered": 1,
+        "units": 10,
+        "calls": 1,
+        "ms": 1291.613779
+      },
+      "plan_query_hits": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "plan_symbol_hits": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "agent_plan_total": [
+    3,
+    5
+  ],
+  "vector_total": [
+    1,
+    5
+  ],
+  "hybrid_total": [
+    4,
+    5
+  ],
+  "agent_plan_ms": 7350.447208999999,
+  "vector_ms": 7973.892788,
+  "hybrid_ms": 8263.103111,
+  "notes": [
+    "gold overlap computed after the plan file was written and hashed",
+    "E1-E5 are dev-independent, not held-out; they are not a qualification",
+    "vector arm uses the existing Potion Code 16M v2 index; no model was changed",
+    "recall here is candidate-union reachability within the arm's own window, not Recall@10 of a selected pack"
+  ]
+}

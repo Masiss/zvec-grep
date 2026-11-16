@@ -80,8 +80,10 @@ reports the measured value as instructed.
 | D12 | 2 | 0 | 0 | 0 |
 
 Pool 9 → selected 5: four pooled gold spans were not selected (D01, D03, D04,
-D10). D04's pool span was lost to a `missing` gap during pack assembly (stale
-read/hash mismatch), the others to ranking plus the 10-item/24 KiB caps.
+D10). **Corrected** by `r4-query-feasibility-and-selection-audit-20261115.md` §3:
+two were lost to the per-file cap (D03, D10), two to item/byte-budget ranking
+(D01, D04). No stale/hash rejection occurred; D04's `missing` gap is the
+abstention diagnostic `required code token absent from selected evidence`.
 
 ## 4. Attribution of the improvement and the regression
 
