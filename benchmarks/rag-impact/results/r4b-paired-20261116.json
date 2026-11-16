@@ -1,6 +1,6 @@
 {
   "kind": "r4b_paired",
-  "head": "48130d9a9e0611366f77132dc91033a10aeee4a5",
+  "head": "cdfb0146de8c503e6281f641768ace61be95f375",
   "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
   "gold_spans": 25,
   "budget": {
@@ -28,8 +28,8 @@
     "max_file_bytes": 1048576,
     "scope_roots": [],
     "max_spans_per_file": 2,
-    "fts_quota": 0,
-    "hybrid_quota": 10,
+    "fts_quota": 2,
+    "hybrid_quota": 4,
     "max_spans_per_file_extra": 2,
     "use_hybrid": true,
     "use_fts": true,
@@ -41,9 +41,9 @@
   "macro_hybrid_baseline": 0.4166666666666667,
   "macro_hybrid_byte_bounded": 0.0,
   "macro_hybrid_p1": 0.19444444444444442,
-  "macro_r4b": 0.23611111111111108,
+  "macro_r4b": 0.3194444444444444,
   "pool_coverage": 12,
-  "selected_coverage": 5,
+  "selected_coverage": 6,
   "citation_accuracy": 1.0,
   "rows": [
     {
@@ -57,7 +57,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1756.019729,
+        "ms": 1661.4513319999999,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -71,7 +71,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1756.019729,
+        "ms": 1661.4513319999999,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -85,7 +85,7 @@
         "verified": 4,
         "calls": 1,
         "reads": 285758,
-        "ms": 1574.138081,
+        "ms": 1418.195841,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -95,14 +95,15 @@
         "covered": 0,
         "total": 2,
         "recall": 0.0,
-        "items": 8,
-        "verified": 8,
+        "items": 9,
+        "verified": 9,
         "calls": 17,
-        "reads": 1666211,
-        "ms": 17865.927176,
+        "reads": 2046892,
+        "ms": 27274.489924,
         "abstain": null,
         "routes": [
           "FactExpansion",
+          "Fts",
           "Hybrid",
           "Lexical",
           "Symbol"
@@ -120,7 +121,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1509.7044130000002,
+        "ms": 1941.802633,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -134,7 +135,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1509.7044130000002,
+        "ms": 1941.802633,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -148,7 +149,7 @@
         "verified": 10,
         "calls": 2,
         "reads": 417320,
-        "ms": 7876.311254,
+        "ms": 3418.688081,
         "abstain": null,
         "routes": [
           "Hybrid",
@@ -162,10 +163,11 @@
         "items": 10,
         "verified": 10,
         "calls": 17,
-        "reads": 1602809,
-        "ms": 19823.701574000002,
+        "reads": 1962780,
+        "ms": 12323.33835,
         "abstain": null,
         "routes": [
+          "Fts",
           "Hybrid",
           "Lexical"
         ]
@@ -182,7 +184,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1281.620658,
+        "ms": 1112.788404,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -196,7 +198,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1281.620658,
+        "ms": 1112.788404,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -210,7 +212,7 @@
         "verified": 4,
         "calls": 1,
         "reads": 231415,
-        "ms": 1482.946031,
+        "ms": 1397.509025,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -220,11 +222,11 @@
         "covered": 0,
         "total": 1,
         "recall": 0.0,
-        "items": 9,
-        "verified": 9,
+        "items": 10,
+        "verified": 10,
         "calls": 18,
-        "reads": 1109341,
-        "ms": 17998.696390999998,
+        "reads": 1249012,
+        "ms": 9945.62823,
         "abstain": null,
         "routes": [
           "Fts",
@@ -244,7 +246,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1740.5262129999999,
+        "ms": 1138.458472,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -258,7 +260,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1740.5262129999999,
+        "ms": 1138.458472,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -271,8 +273,8 @@
         "items": 6,
         "verified": 6,
         "calls": 3,
-        "reads": 675182,
-        "ms": 3843.809749,
+        "reads": 1126125,
+        "ms": 4831.883167,
         "abstain": {
           "reason": "missing_code_tokens",
           "tokens": [
@@ -288,11 +290,11 @@
         "covered": 0,
         "total": 1,
         "recall": 0.0,
-        "items": 6,
-        "verified": 6,
+        "items": 7,
+        "verified": 7,
         "calls": 15,
-        "reads": 675182,
-        "ms": 6612.450889,
+        "reads": 1138478,
+        "ms": 13350.216366999999,
         "abstain": {
           "reason": "missing_code_tokens",
           "tokens": [
@@ -300,6 +302,7 @@
           ]
         },
         "routes": [
+          "Fts",
           "Hybrid",
           "Lexical"
         ]
@@ -316,7 +319,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1236.955629,
+        "ms": 1431.83223,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -330,7 +333,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1236.955629,
+        "ms": 1431.83223,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -344,7 +347,7 @@
         "verified": 4,
         "calls": 1,
         "reads": 283992,
-        "ms": 1445.862658,
+        "ms": 1651.3704950000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -354,11 +357,11 @@
         "covered": 0,
         "total": 1,
         "recall": 0.0,
-        "items": 7,
-        "verified": 7,
+        "items": 6,
+        "verified": 6,
         "calls": 16,
-        "reads": 1406666,
-        "ms": 10902.930343,
+        "reads": 1903314,
+        "ms": 18764.705504999998,
         "abstain": null,
         "routes": [
           "FactExpansion",
@@ -379,7 +382,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1264.813108,
+        "ms": 1625.807146,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -393,7 +396,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1264.813108,
+        "ms": 1625.807146,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -407,7 +410,7 @@
         "verified": 4,
         "calls": 1,
         "reads": 221265,
-        "ms": 1506.5982629999999,
+        "ms": 1763.649528,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -417,17 +420,18 @@
         "covered": 0,
         "total": 3,
         "recall": 0.0,
-        "items": 6,
-        "verified": 6,
+        "items": 8,
+        "verified": 8,
         "calls": 20,
-        "reads": 937264,
-        "ms": 9455.313174,
+        "reads": 1916530,
+        "ms": 17773.236496999998,
         "abstain": null,
         "routes": [
           "FactExpansion",
           "Fts",
           "Hybrid",
-          "Lexical"
+          "Lexical",
+          "Symbol"
         ]
       }
     },
@@ -442,7 +446,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 985.162647,
+        "ms": 1714.4561899999999,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -456,7 +460,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 985.162647,
+        "ms": 1714.4561899999999,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -466,11 +470,11 @@
         "covered": 1,
         "total": 3,
         "recall": 0.3333333333333333,
-        "items": 6,
-        "verified": 6,
+        "items": 10,
+        "verified": 10,
         "calls": 2,
         "reads": 509399,
-        "ms": 2050.4939449999997,
+        "ms": 3583.814883,
         "abstain": null,
         "routes": [
           "Hybrid",
@@ -481,13 +485,14 @@
         "covered": 1,
         "total": 3,
         "recall": 0.3333333333333333,
-        "items": 6,
-        "verified": 6,
+        "items": 10,
+        "verified": 10,
         "calls": 17,
-        "reads": 1064098,
-        "ms": 5374.061675,
+        "reads": 1441221,
+        "ms": 8270.878104,
         "abstain": null,
         "routes": [
+          "Fts",
           "Hybrid",
           "Lexical"
         ]
@@ -504,7 +509,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1182.4289430000001,
+        "ms": 1396.229418,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -518,7 +523,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1182.4289430000001,
+        "ms": 1396.229418,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -532,7 +537,7 @@
         "verified": 7,
         "calls": 1,
         "reads": 363425,
-        "ms": 1396.126943,
+        "ms": 1949.569361,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -545,8 +550,8 @@
         "items": 10,
         "verified": 10,
         "calls": 18,
-        "reads": 1185744,
-        "ms": 10895.277799000001,
+        "reads": 1806296,
+        "ms": 25988.572665,
         "abstain": null,
         "routes": [
           "FactExpansion",
@@ -567,7 +572,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1040.286155,
+        "ms": 1823.9468350000002,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -581,7 +586,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1040.286155,
+        "ms": 1823.9468350000002,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -595,28 +600,26 @@
         "verified": 7,
         "calls": 1,
         "reads": 163988,
-        "ms": 1166.858909,
+        "ms": 1936.443189,
         "abstain": null,
         "routes": [
           "Hybrid"
         ]
       },
       "r4b": {
-        "covered": 0,
+        "covered": 1,
         "total": 1,
-        "recall": 0.0,
-        "items": 9,
-        "verified": 9,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 10,
         "calls": 16,
-        "reads": 1158055,
-        "ms": 15581.260332,
+        "reads": 1215483,
+        "ms": 7789.689026999999,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Fts",
           "Hybrid",
-          "Lexical",
-          "Symbol"
+          "Lexical"
         ]
       }
     },
@@ -631,7 +634,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1824.554624,
+        "ms": 1198.99139,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -645,7 +648,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1824.554624,
+        "ms": 1198.99139,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -659,7 +662,7 @@
         "verified": 3,
         "calls": 2,
         "reads": 315595,
-        "ms": 3640.9396899999997,
+        "ms": 1694.9875279999999,
         "abstain": null,
         "routes": [
           "Hybrid",
@@ -673,8 +676,8 @@
         "items": 9,
         "verified": 9,
         "calls": 18,
-        "reads": 919930,
-        "ms": 13239.859019000001,
+        "reads": 1421804,
+        "ms": 11516.470978,
         "abstain": null,
         "routes": [
           "FactExpansion",
@@ -695,7 +698,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 2141.535596,
+        "ms": 1802.6630850000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -709,7 +712,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 2141.535596,
+        "ms": 1802.6630850000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -723,7 +726,7 @@
         "verified": 4,
         "calls": 1,
         "reads": 350666,
-        "ms": 2349.269976,
+        "ms": 1861.927565,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -737,7 +740,7 @@
         "verified": 10,
         "calls": 14,
         "reads": 793811,
-        "ms": 11283.844177,
+        "ms": 9494.85374,
         "abstain": null,
         "routes": [
           "FactExpansion",
@@ -758,7 +761,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1470.0835670000001,
+        "ms": 1927.5017970000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -772,7 +775,7 @@
         "verified": 0,
         "calls": 1,
         "reads": 0,
-        "ms": 1470.0835670000001,
+        "ms": 1927.5017970000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -786,7 +789,7 @@
         "verified": 5,
         "calls": 1,
         "reads": 264420,
-        "ms": 1814.626131,
+        "ms": 2527.456993,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -796,11 +799,11 @@
         "covered": 0,
         "total": 2,
         "recall": 0.0,
-        "items": 10,
-        "verified": 10,
+        "items": 8,
+        "verified": 8,
         "calls": 20,
-        "reads": 1187667,
-        "ms": 20403.412893999997,
+        "reads": 1753517,
+        "ms": 26648.497662,
         "abstain": null,
         "routes": [
           "FactExpansion",
@@ -811,8 +814,8 @@
     }
   ],
   "host": {
-    "loadavg": "10.06 8.92 9.46 13/2528 3187895",
-    "mem_available_kib": 6828060,
-    "pss_kib": 422485
+    "loadavg": "6.92 5.51 7.11 3/2456 4119560",
+    "mem_available_kib": 5917368,
+    "pss_kib": 405976
   }
 }

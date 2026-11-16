@@ -41,6 +41,8 @@ const MAX_REFS_PER_ROUND: usize = 8;
 const MAX_WIDEN_BACK: usize = 40;
 const MAX_WIDEN_LEN: usize = 60;
 const MAX_DECLARATION_LINES: usize = 200;
+/// Pool-wide file bound as a multiple of the selected-file budget.
+const POOL_FILE_FACTOR: usize = 8;
 /// Fair-share floor per evidence subject, in bytes.
 const MIN_SUBJECT_BYTES: usize = 8192;
 /// Verified evidence budget per span: larger declarations are trimmed.
@@ -291,6 +293,47 @@ pub enum EvidenceRole {
     TableAccess,
 }
 
+/// Why a pooled candidate did or did not reach the verified pack.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateDecision {
+    /// Selected and verified in the final pack.
+    Selected,
+    /// Rejected before pooling: file type or file size bound.
+    RejectedAdmission,
+    /// Rejected before pooling: file-count budget.
+    RejectedFileBudget,
+    /// Ranking produced no positive score.
+    RejectedScore,
+    /// Item budget already exhausted.
+    RejectedItems,
+    /// Near-identical to a selected span from another route.
+    RejectedDuplicate,
+    /// Per-file span cap (including the distinct-declaration allowance).
+    RejectedPerFileCap,
+    /// Fair-share byte budget for this subject.
+    RejectedSubjectBytes,
+    /// Remaining pack byte budget too small.
+    RejectedSpanBytes,
+    /// Pack assembly refused the span (stale, missing or oversized read).
+    RejectedVerification,
+}
+
+/// One pooled candidate and the reason it did or did not survive.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TracedCandidate {
+    /// Candidate range.
+    pub unit: SearchUnit,
+    /// Routes that produced it.
+    pub sources: Vec<CandidateSource>,
+    /// Best route rank observed for it.
+    pub route_rank: usize,
+    /// Final decision.
+    pub decision: CandidateDecision,
+    /// Selected range, when the decision is `Selected` (trimmed evidence unit).
+    pub selected: Option<SearchUnit>,
+}
+
 /// One pooled candidate with provenance.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PoolEntry {
@@ -415,6 +458,8 @@ pub struct WorkflowStats {
     pub symbol_calls: usize,
     /// Hybrid question route calls.
     pub hybrid_calls: usize,
+    /// Candidates rejected before pooling.
+    pub admission_rejections: usize,
 }
 
 /// Bounded workflow outcome.
@@ -426,6 +471,8 @@ pub struct WorkflowOutcome {
     pub candidates: Vec<SearchUnit>,
     /// Pooled candidates with route and fact provenance.
     pub pool: Vec<PoolEntry>,
+    /// Every pooled candidate with its final decision.
+    pub traced: Vec<TracedCandidate>,
     /// Selected hash-checked spans.
     pub selected: Vec<SelectedSpan>,
     /// Typed gaps keyed by gap code.
@@ -581,6 +628,7 @@ struct State<'a> {
     definition: Definition,
     budget: WorkflowBudget,
     units: Vec<SearchUnit>,
+    traced: Vec<TracedCandidate>,
     pool: BTreeMap<SearchUnit, PoolEntry>,
     seen_units: BTreeSet<SearchUnit>,
     seen_calls: BTreeSet<String>,
@@ -601,6 +649,7 @@ impl<'a> State<'a> {
             definition,
             budget,
             units: Vec::new(),
+            traced: Vec::new(),
             pool: BTreeMap::new(),
             seen_units: BTreeSet::new(),
             seen_calls: BTreeSet::new(),
@@ -656,13 +705,20 @@ impl<'a> State<'a> {
     ) {
         if !self.admits(&unit.path) {
             self.stats.filtered_units += 1;
+            self.stats.admission_rejections += 1;
+            self.trace_decision(&unit, source, route_rank, CandidateDecision::RejectedAdmission, None);
             return;
         }
-        if self.files.len() >= self.budget.max_files && !self.files.contains(&unit.path) {
+        // The file budget bounds the pack (enforced in selection), not visibility:
+        // first-come rejection starved every candidate after the first N files.
+        if self.files.len() >= self.budget.max_files.saturating_mul(POOL_FILE_FACTOR)
+            && !self.files.contains(&unit.path)
+        {
             self.budget_gap(
                 "budget_files",
                 format!("file budget exhausted at {}", unit.path),
             );
+            self.trace_decision(&unit, source, route_rank, CandidateDecision::RejectedFileBudget, None);
             return;
         }
         let entry = self.pool.entry(unit.clone()).or_insert_with(|| PoolEntry {
@@ -686,6 +742,35 @@ impl<'a> State<'a> {
             self.files.insert(unit.path.clone());
             self.units.push(unit);
         }
+    }
+
+    fn trace_decision(
+        &mut self,
+        unit: &SearchUnit,
+        source: CandidateSource,
+        route_rank: usize,
+        decision: CandidateDecision,
+        selected: Option<SearchUnit>,
+    ) {
+        if let Some(existing) = self.traced.iter_mut().find(|entry| &entry.unit == unit) {
+            if decision == CandidateDecision::Selected || existing.decision != CandidateDecision::Selected {
+                existing.decision = decision;
+                existing.selected = selected;
+            }
+            if !existing.sources.contains(&source) {
+                existing.sources.push(source);
+                existing.sources.sort();
+            }
+            existing.route_rank = existing.route_rank.min(route_rank);
+            return;
+        }
+        self.traced.push(TracedCandidate {
+            unit: unit.clone(),
+            sources: vec![source],
+            route_rank,
+            decision,
+            selected,
+        });
     }
 
     fn fts_route(&mut self, source: &mut impl EvidenceSource, query: &str) {
@@ -1133,7 +1218,28 @@ impl<'a> State<'a> {
                     continue;
                 }
                 let (score, unit, hits, content, file_sha, provenance) = ordered[index].clone();
-                if chosen.len() >= self.budget.max_items {
+                if !chosen.iter().any(|(other, ..)| other.path == unit.path)
+                && chosen
+                    .iter()
+                    .map(|(other, ..)| other.path.as_str())
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    >= self.budget.max_files
+            {
+                self.budget_gap(
+                    "budget_files",
+                    format!("selected-file budget reached before {}", unit.path),
+                );
+                self.trace_decision(
+                    &unit,
+                    provenance.sources.first().copied().unwrap_or(CandidateSource::Lexical),
+                    provenance.route_rank,
+                    CandidateDecision::RejectedFileBudget,
+                    None,
+                );
+                continue;
+            }
+            if chosen.len() >= self.budget.max_items {
                     self.budget_gap(
                         "budget_items",
                         format!("item budget exhausted before {}", unit.path),
@@ -1322,6 +1428,7 @@ impl<'a> State<'a> {
         WorkflowOutcome {
             definition: self.definition.clone(),
             candidates: self.units.clone(),
+            traced: self.traced.clone(),
             pool: self.pool.values().cloned().collect::<Vec<_>>(),
             selected: self.selected.clone(),
             gaps: self.gaps.clone(),

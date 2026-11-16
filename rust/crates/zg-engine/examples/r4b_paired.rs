@@ -343,8 +343,8 @@ fn main() {
         max_tool_calls: 24,
         max_files: 96,
         max_source_reads: 160,
-        hybrid_quota: 10,
-        fts_quota: 0,
+        hybrid_quota: 4,
+        fts_quota: 2,
         ..WorkflowBudget::default()
     };
     // P1 alone: the hybrid candidate set, assembled by the new selector.
@@ -365,6 +365,7 @@ fn main() {
         }
     };
 
+    let mut traced: Vec<serde_json::Value> = Vec::new();
     let mut rows = Vec::new();
     let mut hybrid_recalls = Vec::new();
     let mut bounded_recalls = Vec::new();
@@ -482,6 +483,17 @@ fn main() {
             r4b.selected.len()
         );
 
+        if std::env::var("R4B_DECISIONS").is_ok() {
+            traced.push(serde_json::json!({
+                "case": id,
+                "gold": case_gold,
+                "traced": r4b.traced,
+                "selected": r4b.selected.iter().map(|span| serde_json::json!({
+                    "path": span.path, "start_line": span.start_line, "end_line": span.end_line,
+                    "sources": span.sources, "role": span.role, "content_bytes": span.content_bytes,
+                })).collect::<Vec<_>>(),
+            }));
+        }
         rows.push(CaseRow {
             id: id.clone(),
             gold: total,
@@ -580,6 +592,13 @@ fn main() {
             pss_kib: pss_kib(),
         },
     };
+    if !traced.is_empty() {
+        fs::write(
+            repo.join("benchmarks/rag-impact/results/r4-evidence-trace-20261116.json"),
+            serde_json::to_string_pretty(&serde_json::json!({"cases": traced})).expect("json"),
+        )
+        .expect("write trace");
+    }
     let text = serde_json::to_string_pretty(&receipt).expect("json");
     let out = repo.join(if legacy_pool {
         "benchmarks/rag-impact/results/r4b-p1-legacy-pool-20261116.json"

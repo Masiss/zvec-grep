@@ -1,0 +1,1363 @@
+{
+  "cases": [
+    {
+      "case": "D01",
+      "gold": [
+        {
+          "case": "D01",
+          "end_line": 620,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 459
+        },
+        {
+          "case": "D01",
+          "end_line": 285,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 13447,
+          "end_line": 387,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 136
+        },
+        {
+          "content_bytes": 1958,
+          "end_line": 625,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid",
+            "fact_expansion"
+          ],
+          "start_line": 575
+        },
+        {
+          "content_bytes": 598,
+          "end_line": 29,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/General/BuilderTable.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 933,
+          "end_line": 262,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 242
+        },
+        {
+          "content_bytes": 3304,
+          "end_line": 92,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipCommand.cs",
+          "role": "declaration",
+          "sources": [
+            "lexical",
+            "symbol"
+          ],
+          "start_line": 13
+        },
+        {
+          "content_bytes": 1951,
+          "end_line": 58,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 14
+        },
+        {
+          "content_bytes": 1964,
+          "end_line": 63,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeUnions/EmployeeUnionCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 17
+        },
+        {
+          "content_bytes": 257,
+          "end_line": 80,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 74
+        },
+        {
+          "content_bytes": 157,
+          "end_line": 143,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 140
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D02",
+      "gold": [
+        {
+          "case": "D02",
+          "end_line": 285,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215
+        },
+        {
+          "case": "D02",
+          "end_line": 425,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 287
+        },
+        {
+          "case": "D02",
+          "end_line": 20,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 17
+        },
+        {
+          "case": "D02",
+          "end_line": 55,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 41
+        },
+        {
+          "case": "D02",
+          "end_line": 65,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "start_line": 1
+        },
+        {
+          "case": "D02",
+          "end_line": 100,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+          "start_line": 1
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 2079,
+          "end_line": 61,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogQueue.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 1
+        },
+        {
+          "content_bytes": 1308,
+          "end_line": 37,
+          "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 1
+        },
+        {
+          "content_bytes": 1488,
+          "end_line": 67,
+          "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts"
+          ],
+          "start_line": 6
+        },
+        {
+          "content_bytes": 1461,
+          "end_line": 619,
+          "path": "Webs/HRM/Controllers/Kpi/KpiPersonalController.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 574
+        },
+        {
+          "content_bytes": 2526,
+          "end_line": 406,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 350
+        },
+        {
+          "content_bytes": 105,
+          "end_line": 36,
+          "path": "Webs/HRM/Controllers/CB/ReportController.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 33
+        },
+        {
+          "content_bytes": 94,
+          "end_line": 210,
+          "path": "Webs/HRM/Controllers/Kpi/KpiController.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 207
+        },
+        {
+          "content_bytes": 288,
+          "end_line": 237,
+          "path": "Webs/HRM/Controllers/Training/V2025Controller.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 233
+        },
+        {
+          "content_bytes": 1401,
+          "end_line": 95,
+          "path": "Webs/HRM/Controllers/Prefer/DecisionController.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 62
+        },
+        {
+          "content_bytes": 1003,
+          "end_line": 2210,
+          "path": "Services/HRIS/Service.Core/Executes/General/ProcessStates/ProcessStateMany.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 2190
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D03",
+      "gold": [
+        {
+          "case": "D03",
+          "end_line": 285,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 1707,
+          "end_line": 104,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 65
+        },
+        {
+          "content_bytes": 16553,
+          "end_line": 540,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 1386,
+          "end_line": 150,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 120
+        },
+        {
+          "content_bytes": 1244,
+          "end_line": 41,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDependentPerson.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 926,
+          "end_line": 48,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeSalaryHistory.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 26
+        },
+        {
+          "content_bytes": 574,
+          "end_line": 21,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/General/CbCompany.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 7
+        },
+        {
+          "content_bytes": 660,
+          "end_line": 32,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Talent/TalentEvaluationOwner.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 17
+        },
+        {
+          "content_bytes": 632,
+          "end_line": 720,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 706
+        },
+        {
+          "content_bytes": 586,
+          "end_line": 219,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 206
+        },
+        {
+          "content_bytes": 263,
+          "end_line": 59,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeAuth.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 52
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D04",
+      "gold": [
+        {
+          "case": "D04",
+          "end_line": 573,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 562
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 2863,
+          "end_line": 790,
+          "path": "Webs/HRM/Controllers/Employee/ContractLabor.2.2Controller.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 733
+        },
+        {
+          "content_bytes": 16248,
+          "end_line": 388,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 12
+        },
+        {
+          "content_bytes": 1953,
+          "end_line": 49,
+          "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 8
+        },
+        {
+          "content_bytes": 1026,
+          "end_line": 109,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 89
+        },
+        {
+          "content_bytes": 1056,
+          "end_line": 39,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractType.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 1156,
+          "end_line": 50,
+          "path": "Services/HRIS/Service.Core/Executes/General/Address/AddressCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 19
+        },
+        {
+          "content_bytes": 206,
+          "end_line": 49,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/General/JobPosition.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 43
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D05",
+      "gold": [
+        {
+          "case": "D05",
+          "end_line": 425,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 16553,
+          "end_line": 540,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "fact_expansion"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 1953,
+          "end_line": 49,
+          "path": "Webs/HRM/Controllers/Employee/WorkLogController.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 8
+        },
+        {
+          "content_bytes": 1958,
+          "end_line": 625,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 575
+        },
+        {
+          "content_bytes": 890,
+          "end_line": 37,
+          "path": "Webs/HRM/Controllers/Employee/ChangeRequestController.cs",
+          "role": "declaration",
+          "sources": [
+            "symbol"
+          ],
+          "start_line": 8
+        },
+        {
+          "content_bytes": 2261,
+          "end_line": 109,
+          "path": "Services/HRIS/Service.Core/Executes/General/FeatureGroups/FeatureGroupMany.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 51
+        },
+        {
+          "content_bytes": 815,
+          "end_line": 57,
+          "path": "Services/HRIS/Service.Core/Executes/Category/JobPositions/JobPositionMany.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 37
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D06",
+      "gold": [
+        {
+          "case": "D06",
+          "end_line": 285,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 215
+        },
+        {
+          "case": "D06",
+          "end_line": 457,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 427
+        },
+        {
+          "case": "D06",
+          "end_line": 1074,
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 16553,
+          "end_line": 540,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical",
+            "fact_expansion"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 791,
+          "end_line": 24,
+          "path": "DBContexts/HRIS/DBContext.Core/LogDisplayAttribute.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 1
+        },
+        {
+          "content_bytes": 1958,
+          "end_line": 625,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "fact_expansion"
+          ],
+          "start_line": 575
+        },
+        {
+          "content_bytes": 1763,
+          "end_line": 1252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee01Many.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 1201
+        },
+        {
+          "content_bytes": 1666,
+          "end_line": 139,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 93
+        },
+        {
+          "content_bytes": 1211,
+          "end_line": 129,
+          "path": "Webs/HRM/Controllers/Api/ApiMediaController.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 102
+        },
+        {
+          "content_bytes": 414,
+          "end_line": 203,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 191
+        },
+        {
+          "content_bytes": 192,
+          "end_line": 48,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "role": "declaration",
+          "sources": [
+            "symbol"
+          ],
+          "start_line": 43
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D07",
+      "gold": [
+        {
+          "case": "D07",
+          "end_line": 560,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539
+        },
+        {
+          "case": "D07",
+          "end_line": 1074,
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057
+        },
+        {
+          "case": "D07",
+          "end_line": 95,
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 58
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 16553,
+          "end_line": 540,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 630,
+          "end_line": 20,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/General/EmailGroup.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 5
+        },
+        {
+          "content_bytes": 1286,
+          "end_line": 29,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts"
+          ],
+          "start_line": 1
+        },
+        {
+          "content_bytes": 441,
+          "end_line": 560,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 550
+        },
+        {
+          "content_bytes": 340,
+          "end_line": 72,
+          "path": "Webs/HRM/Controllers/Maneuve/RestoreController.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 67
+        },
+        {
+          "content_bytes": 400,
+          "end_line": 23,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 14
+        },
+        {
+          "content_bytes": 411,
+          "end_line": 25,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 18
+        },
+        {
+          "content_bytes": 962,
+          "end_line": 37,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationMany.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 16
+        },
+        {
+          "content_bytes": 1864,
+          "end_line": 61,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 1
+        },
+        {
+          "content_bytes": 257,
+          "end_line": 34,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailOne.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 27
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D08",
+      "gold": [
+        {
+          "case": "D08",
+          "end_line": 634,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "start_line": 624
+        },
+        {
+          "case": "D08",
+          "end_line": 549,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 539
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 497,
+          "end_line": 548,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid"
+          ],
+          "start_line": 539
+        },
+        {
+          "content_bytes": 217,
+          "end_line": 628,
+          "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid"
+          ],
+          "start_line": 624
+        },
+        {
+          "content_bytes": 144,
+          "end_line": 1252,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee04Many.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 1249
+        },
+        {
+          "content_bytes": 15879,
+          "end_line": 512,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 16
+        },
+        {
+          "content_bytes": 2121,
+          "end_line": 78,
+          "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankCommand.cs",
+          "role": "declaration",
+          "sources": [
+            "symbol"
+          ],
+          "start_line": 10
+        },
+        {
+          "content_bytes": 585,
+          "end_line": 67,
+          "path": "Services/HRIS/Service.Core/Executes/Category/JobPositionProcedures/JobPositionProcedureCommand.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 57
+        },
+        {
+          "content_bytes": 533,
+          "end_line": 127,
+          "path": "Services/HRIS/Service.Core/Executes/Category/JobPositions/JobPositionCommand.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 114
+        },
+        {
+          "content_bytes": 526,
+          "end_line": 90,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipCommand.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 81
+        },
+        {
+          "content_bytes": 508,
+          "end_line": 420,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborCommand.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 412
+        },
+        {
+          "content_bytes": 514,
+          "end_line": 440,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 429
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D09",
+      "gold": [
+        {
+          "case": "D09",
+          "end_line": 10,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 1920,
+          "end_line": 56,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 36
+        },
+        {
+          "content_bytes": 586,
+          "end_line": 219,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 206
+        },
+        {
+          "content_bytes": 536,
+          "end_line": 768,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 755
+        },
+        {
+          "content_bytes": 895,
+          "end_line": 96,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 76
+        },
+        {
+          "content_bytes": 891,
+          "end_line": 235,
+          "path": "Webs/HRM/Controllers/Test/TestController.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 214
+        },
+        {
+          "content_bytes": 2128,
+          "end_line": 73,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 17
+        },
+        {
+          "content_bytes": 848,
+          "end_line": 10,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 1
+        },
+        {
+          "content_bytes": 702,
+          "end_line": 31,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestFamilyRelation.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 660,
+          "end_line": 31,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestHistoryFamilyRelation.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 980,
+          "end_line": 148,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 127
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D10",
+      "gold": [
+        {
+          "case": "D10",
+          "end_line": 22,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "start_line": 15
+        },
+        {
+          "case": "D10",
+          "end_line": 20,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "start_line": 9
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 11205,
+          "end_line": 284,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeUnions/EmployeeUnionCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical",
+            "fact_expansion"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 4145,
+          "end_line": 120,
+          "path": "Services/HRIS/Service.Core/Executes/General/CbGlones/CbGloneCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid",
+            "lexical",
+            "fact_expansion"
+          ],
+          "start_line": 12
+        },
+        {
+          "content_bytes": 1849,
+          "end_line": 56,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 10
+        },
+        {
+          "content_bytes": 1623,
+          "end_line": 48,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 20
+        },
+        {
+          "content_bytes": 2121,
+          "end_line": 78,
+          "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "lexical"
+          ],
+          "start_line": 10
+        },
+        {
+          "content_bytes": 2251,
+          "end_line": 64,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical",
+            "fact_expansion"
+          ],
+          "start_line": 10
+        },
+        {
+          "content_bytes": 523,
+          "end_line": 25,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 11
+        },
+        {
+          "content_bytes": 731,
+          "end_line": 31,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 17
+        },
+        {
+          "content_bytes": 93,
+          "end_line": 92,
+          "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 89
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D11",
+      "gold": [
+        {
+          "case": "D11",
+          "end_line": 887,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "start_line": 866
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 697,
+          "end_line": 887,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid"
+          ],
+          "start_line": 866
+        },
+        {
+          "content_bytes": 12156,
+          "end_line": 362,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeAuths/EmployeeAuthOne.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 117
+        },
+        {
+          "content_bytes": 1578,
+          "end_line": 93,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 60
+        },
+        {
+          "content_bytes": 531,
+          "end_line": 35,
+          "path": "Services/HRIS/Service.Core/Components/AuthComponent.cs",
+          "role": "declaration",
+          "sources": [
+            "symbol"
+          ],
+          "start_line": 19
+        },
+        {
+          "content_bytes": 298,
+          "end_line": 29,
+          "path": "Services/HRIS/Service.Core/Components/Component.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 23
+        },
+        {
+          "content_bytes": 499,
+          "end_line": 122,
+          "path": "Services/HRIS/Service.Core/Components/DataTableComponent.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 111
+        },
+        {
+          "content_bytes": 805,
+          "end_line": 34,
+          "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+          "role": "declaration",
+          "sources": [
+            "symbol"
+          ],
+          "start_line": 17
+        },
+        {
+          "content_bytes": 414,
+          "end_line": 43,
+          "path": "Services/HRIS/Service.Core/Executes/Base/LocalService.cs",
+          "role": "declaration",
+          "sources": [
+            "symbol"
+          ],
+          "start_line": 27
+        },
+        {
+          "content_bytes": 859,
+          "end_line": 64,
+          "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankCommand.cs",
+          "role": "reference",
+          "sources": [
+            "fact_expansion"
+          ],
+          "start_line": 39
+        },
+        {
+          "content_bytes": 284,
+          "end_line": 14,
+          "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankOne.cs",
+          "role": "declaration",
+          "sources": [
+            "symbol"
+          ],
+          "start_line": 6
+        }
+      ],
+      "traced": []
+    },
+    {
+      "case": "D12",
+      "gold": [
+        {
+          "case": "D12",
+          "end_line": 1074,
+          "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+          "start_line": 1057
+        },
+        {
+          "case": "D12",
+          "end_line": 95,
+          "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+          "start_line": 1
+        }
+      ],
+      "selected": [
+        {
+          "content_bytes": 16553,
+          "end_line": 540,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid",
+            "lexical",
+            "fact_expansion"
+          ],
+          "start_line": 15
+        },
+        {
+          "content_bytes": 2079,
+          "end_line": 61,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogQueue.cs",
+          "role": "reference",
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 1
+        },
+        {
+          "content_bytes": 742,
+          "end_line": 282,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 268
+        },
+        {
+          "content_bytes": 752,
+          "end_line": 142,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportMany.cs",
+          "role": "reference",
+          "sources": [
+            "lexical",
+            "fact_expansion"
+          ],
+          "start_line": 124
+        },
+        {
+          "content_bytes": 327,
+          "end_line": 158,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractProbationReports/ProbationReportModels.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 152
+        },
+        {
+          "content_bytes": 1588,
+          "end_line": 143,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractProbationReport.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 111
+        },
+        {
+          "content_bytes": 937,
+          "end_line": 525,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationCommand.cs",
+          "role": "reference",
+          "sources": [
+            "lexical",
+            "fact_expansion"
+          ],
+          "start_line": 509
+        },
+        {
+          "content_bytes": 1569,
+          "end_line": 138,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+          "role": "reference",
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 118
+        }
+      ],
+      "traced": []
+    }
+  ]
+}
