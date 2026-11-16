@@ -706,7 +706,13 @@ impl<'a> State<'a> {
         if !self.admits(&unit.path) {
             self.stats.filtered_units += 1;
             self.stats.admission_rejections += 1;
-            self.trace_decision(&unit, source, route_rank, CandidateDecision::RejectedAdmission, None);
+            self.trace_decision(
+                &unit,
+                source,
+                route_rank,
+                CandidateDecision::RejectedAdmission,
+                None,
+            );
             return;
         }
         // The file budget bounds the pack (enforced in selection), not visibility:
@@ -718,7 +724,13 @@ impl<'a> State<'a> {
                 "budget_files",
                 format!("file budget exhausted at {}", unit.path),
             );
-            self.trace_decision(&unit, source, route_rank, CandidateDecision::RejectedFileBudget, None);
+            self.trace_decision(
+                &unit,
+                source,
+                route_rank,
+                CandidateDecision::RejectedFileBudget,
+                None,
+            );
             return;
         }
         let entry = self.pool.entry(unit.clone()).or_insert_with(|| PoolEntry {
@@ -753,7 +765,9 @@ impl<'a> State<'a> {
         selected: Option<SearchUnit>,
     ) {
         if let Some(existing) = self.traced.iter_mut().find(|entry| &entry.unit == unit) {
-            if decision == CandidateDecision::Selected || existing.decision != CandidateDecision::Selected {
+            if decision == CandidateDecision::Selected
+                || existing.decision != CandidateDecision::Selected
+            {
                 existing.decision = decision;
                 existing.selected = selected;
             }
@@ -1219,27 +1233,31 @@ impl<'a> State<'a> {
                 }
                 let (score, unit, hits, content, file_sha, provenance) = ordered[index].clone();
                 if !chosen.iter().any(|(other, ..)| other.path == unit.path)
-                && chosen
-                    .iter()
-                    .map(|(other, ..)| other.path.as_str())
-                    .collect::<BTreeSet<_>>()
-                    .len()
-                    >= self.budget.max_files
-            {
-                self.budget_gap(
-                    "budget_files",
-                    format!("selected-file budget reached before {}", unit.path),
-                );
-                self.trace_decision(
-                    &unit,
-                    provenance.sources.first().copied().unwrap_or(CandidateSource::Lexical),
-                    provenance.route_rank,
-                    CandidateDecision::RejectedFileBudget,
-                    None,
-                );
-                continue;
-            }
-            if chosen.len() >= self.budget.max_items {
+                    && chosen
+                        .iter()
+                        .map(|(other, ..)| other.path.as_str())
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        >= self.budget.max_files
+                {
+                    self.budget_gap(
+                        "budget_files",
+                        format!("selected-file budget reached before {}", unit.path),
+                    );
+                    self.trace_decision(
+                        &unit,
+                        provenance
+                            .sources
+                            .first()
+                            .copied()
+                            .unwrap_or(CandidateSource::Lexical),
+                        provenance.route_rank,
+                        CandidateDecision::RejectedFileBudget,
+                        None,
+                    );
+                    continue;
+                }
+                if chosen.len() >= self.budget.max_items {
                     self.budget_gap(
                         "budget_items",
                         format!("item budget exhausted before {}", unit.path),
