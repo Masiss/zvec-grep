@@ -9,6 +9,14 @@ Added a typed per-candidate trace (`TracedCandidate` + `CandidateDecision`,
 `WorkflowOutcome::traced`) covering admission, score, items, duplicate, per-file
 cap, subject share, span bytes and verification.
 
+> **Errata (see `rag-audit-20261116.md` §A1/A2):** the figures below came from a
+> candidate trace that cannot be joined to the pool (select records the widened
+> unit, the pool is keyed by the pooled unit), so the "20 of 25 gold spans had no
+> candidate" claim is **invalid**; the authoritative receipt figure is pool 12/25,
+> i.e. 13 absent. The "2,085 `rejected_file_budget`, zero other reasons" line is an
+> artifact of where the admission check sat and must not be read as exonerating
+> other mechanisms. The fix and the 0.3194 measurement stand.
+
 Measured on D01–D12 (`R4B_DECISIONS=1`): **2,085 pooled candidates rejected with
 `rejected_file_budget`, zero with any other reason, and 20 of 25 gold spans had no
 candidate at all.** The admission-time file budget (`max_files = 96`, first-come)
