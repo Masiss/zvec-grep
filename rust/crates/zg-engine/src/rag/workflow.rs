@@ -40,6 +40,7 @@ const MAX_CODE_TOKENS: usize = 4;
 const MAX_REFS_PER_ROUND: usize = 8;
 const MAX_WIDEN_BACK: usize = 40;
 const MAX_WIDEN_LEN: usize = 60;
+const MAX_DECLARATION_LINES: usize = 200;
 
 /// Bounded loop and output limits.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -64,6 +65,8 @@ pub struct WorkflowBudget {
     pub scope_roots: Vec<String>,
     /// Selected spans per file; diversity bound for the item budget.
     pub max_spans_per_file: usize,
+    /// Minimum selected slots reserved for the indexed FTS route when available.
+    pub fts_quota: usize,
 }
 
 impl Default for WorkflowBudget {
@@ -85,6 +88,7 @@ impl Default for WorkflowBudget {
             max_file_bytes: 1024 * 1024,
             scope_roots: Vec::new(),
             max_spans_per_file: 2,
+            fts_quota: 3,
         }
     }
 }
@@ -114,6 +118,7 @@ impl WorkflowBudget {
                 .filter(|scope| !scope.is_empty())
                 .collect(),
             max_spans_per_file: self.max_spans_per_file.clamp(1, 8),
+            fts_quota: self.fts_quota.min(MAX_WORKFLOW_ITEMS),
         }
     }
 }
@@ -152,6 +157,47 @@ pub trait EvidenceSource {
     ) -> Result<Vec<SearchUnit>, String> {
         self.search(pattern, limit)
     }
+    /// Returns candidate ranges with backend file filtering applied.
+    ///
+    /// The default implementation ignores the filter, so backends that cannot
+    /// filter must override it or accept the starvation risk.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend cannot answer the query.
+    fn search_filtered(
+        &mut self,
+        pattern: &str,
+        limit: usize,
+        scope: Option<&str>,
+        _extensions: &[String],
+    ) -> Result<Vec<SearchUnit>, String> {
+        self.search_in(pattern, limit, scope)
+    }
+
+    /// Exact declaration lookup.
+    ///
+    /// The default returns no declarations, which leaves the symbol route
+    /// unavailable rather than silently degrading to a content search.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend cannot answer the query.
+    fn symbol(&mut self, _name: &str, _limit: usize) -> Result<Vec<SearchUnit>, String> {
+        Ok(Vec::new())
+    }
+
+    /// Indexed FTS route used as the protected baseline.
+    ///
+    /// The default returns nothing; backends without an index simply omit it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend cannot answer the query.
+    fn fts(&mut self, _query: &str, _limit: usize) -> Result<Vec<SearchUnit>, String> {
+        Ok(Vec::new())
+    }
+
     /// Reads a source file relative to the workspace root.
     ///
     /// # Errors
@@ -162,6 +208,53 @@ pub trait EvidenceSource {
     fn is_cancelled(&self) -> bool {
         false
     }
+}
+
+/// Where a candidate entered the pool.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateSource {
+    /// Indexed FTS route, the protected baseline.
+    Fts,
+    /// Question-handle lexical search.
+    Lexical,
+    /// Lexical search inside one discovery scope with backend file filters.
+    ScopedLexical,
+    /// Derived from a typed C#/SQL fact and searched lexically.
+    FactExpansion,
+    /// Exact declaration lookup.
+    Symbol,
+    /// Name-targeted lexical fallback when no symbol route is available.
+    LexicalFallback,
+    /// Corrective round.
+    Corrective,
+}
+
+/// What a selected span is evidence of.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceRole {
+    /// A question-token hit or FTS snippet.
+    SeedHit,
+    /// A declaration range from exact symbol lookup.
+    Declaration,
+    /// A cross-file reference reached by fact expansion.
+    Reference,
+    /// A stored procedure or view definition.
+    ProcDefinition,
+    /// A source-visible table read/write.
+    TableAccess,
+}
+
+/// One pooled candidate with provenance.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PoolEntry {
+    /// Candidate range.
+    pub unit: SearchUnit,
+    /// Routes that produced this range, in priority order.
+    pub sources: Vec<CandidateSource>,
+    /// Typed facts that produced this range, when any.
+    pub facts: Vec<String>,
 }
 
 /// Question-derived search plan.
@@ -225,6 +318,12 @@ pub struct SelectedSpan {
     pub content_bytes: usize,
     /// Which question code tokens or anchors the span covers.
     pub anchors_hit: Vec<String>,
+    /// Routes that produced this evidence.
+    pub sources: Vec<CandidateSource>,
+    /// Typed facts behind this evidence.
+    pub facts: Vec<String>,
+    /// Evidence role.
+    pub role: EvidenceRole,
 }
 
 /// Why the workflow abstained.
@@ -261,6 +360,10 @@ pub struct WorkflowStats {
     pub selected_bytes: usize,
     /// Units rejected by the file-type or file-size bounds.
     pub filtered_units: usize,
+    /// Indexed FTS calls.
+    pub fts_calls: usize,
+    /// Exact symbol lookups.
+    pub symbol_calls: usize,
 }
 
 /// Bounded workflow outcome.
@@ -270,6 +373,8 @@ pub struct WorkflowOutcome {
     pub definition: Definition,
     /// Candidate pool after filtering, before selection.
     pub candidates: Vec<SearchUnit>,
+    /// Pooled candidates with route and fact provenance.
+    pub pool: Vec<PoolEntry>,
     /// Selected hash-checked spans.
     pub selected: Vec<SelectedSpan>,
     /// Typed gaps keyed by gap code.
@@ -424,6 +529,7 @@ struct State<'a> {
     definition: Definition,
     budget: WorkflowBudget,
     units: Vec<SearchUnit>,
+    pool: BTreeMap<SearchUnit, PoolEntry>,
     seen_units: BTreeSet<SearchUnit>,
     seen_calls: BTreeSet<String>,
     refs_seen: BTreeSet<String>,
@@ -443,6 +549,7 @@ impl<'a> State<'a> {
             definition,
             budget,
             units: Vec::new(),
+            pool: BTreeMap::new(),
             seen_units: BTreeSet::new(),
             seen_calls: BTreeSet::new(),
             refs_seen: BTreeSet::new(),
@@ -488,6 +595,79 @@ impl<'a> State<'a> {
         }
     }
 
+    fn accept(&mut self, unit: SearchUnit, source: CandidateSource, fact: Option<&str>) {
+        if !self.admits(&unit.path) {
+            self.stats.filtered_units += 1;
+            return;
+        }
+        if self.files.len() >= self.budget.max_files && !self.files.contains(&unit.path) {
+            self.budget_gap(
+                "budget_files",
+                format!("file budget exhausted at {}", unit.path),
+            );
+            return;
+        }
+        let entry = self.pool.entry(unit.clone()).or_insert_with(|| PoolEntry {
+            unit: unit.clone(),
+            sources: Vec::new(),
+            facts: Vec::new(),
+        });
+        if !entry.sources.contains(&source) {
+            entry.sources.push(source);
+            entry.sources.sort();
+        }
+        if let Some(fact) = fact {
+            if !entry.facts.iter().any(|known| known == fact) {
+                entry.facts.push(fact.to_owned());
+                entry.facts.sort();
+            }
+        }
+        if self.seen_units.insert(unit.clone()) {
+            self.files.insert(unit.path.clone());
+            self.units.push(unit);
+        }
+    }
+
+    fn fts_route(&mut self, source: &mut impl EvidenceSource, query: &str) {
+        if self.calls_left() == 0 || query.trim().is_empty() {
+            return;
+        }
+        self.stats.tool_calls += 1;
+        self.stats.fts_calls += 1;
+        match source.fts(query, 10) {
+            Ok(units) => {
+                for unit in units {
+                    self.accept(unit, CandidateSource::Fts, None);
+                }
+            }
+            Err(error) => self.gap(EvidenceGapCode::Missing, format!("fts failed: {error}")),
+        }
+    }
+
+    fn symbol_route(&mut self, source: &mut impl EvidenceSource, name: &str, fact: &str) -> bool {
+        if self.calls_left() == 0 {
+            return false;
+        }
+        self.stats.tool_calls += 1;
+        self.stats.symbol_calls += 1;
+        match source.symbol(name, 20) {
+            Ok(units) if !units.is_empty() => {
+                for unit in units {
+                    self.accept(unit, CandidateSource::Symbol, Some(fact));
+                }
+                true
+            }
+            Ok(_) => false,
+            Err(error) => {
+                self.gap(
+                    EvidenceGapCode::Missing,
+                    format!("symbol lookup failed: {error}"),
+                );
+                false
+            }
+        }
+    }
+
     fn calls_left(&self) -> usize {
         self.budget
             .max_tool_calls
@@ -505,6 +685,10 @@ impl<'a> State<'a> {
     }
 
     fn discover(&mut self, source: &mut impl EvidenceSource) -> Result<(), String> {
+        let fts_query = self.definition.code_tokens.join(" ");
+        if !fts_query.is_empty() {
+            self.fts_route(source, &fts_query);
+        }
         let mut queries = Vec::new();
         queries.extend(self.definition.code_tokens.iter().cloned());
         queries.extend(self.definition.phrases.iter().cloned());
@@ -533,7 +717,15 @@ impl<'a> State<'a> {
                 );
                 return;
             }
-            self.round(source, refs);
+            let mut residual = Vec::new();
+            for (name, fact) in refs {
+                if !self.symbol_route(source, &name, &fact) {
+                    residual.push(name);
+                }
+            }
+            if !residual.is_empty() {
+                self.round_with(source, residual, CandidateSource::FactExpansion);
+            }
             self.trace(
                 Stage::Expand,
                 format!("round={round} units={}", self.units.len()),
@@ -542,6 +734,24 @@ impl<'a> State<'a> {
     }
 
     fn round(&mut self, source: &mut impl EvidenceSource, queries: Vec<String>) {
+        self.round_labeled(source, queries, None);
+    }
+
+    fn round_with(
+        &mut self,
+        source: &mut impl EvidenceSource,
+        queries: Vec<String>,
+        label: CandidateSource,
+    ) {
+        self.round_labeled(source, queries, Some(label));
+    }
+
+    fn round_labeled(
+        &mut self,
+        source: &mut impl EvidenceSource,
+        queries: Vec<String>,
+        label: Option<CandidateSource>,
+    ) {
         for query in queries {
             if source.is_cancelled() {
                 self.abstain = Some(AbstainReason::Cancelled);
@@ -574,30 +784,26 @@ impl<'a> State<'a> {
                     return;
                 }
                 self.stats.tool_calls += 1;
-                let units = match source.search_in(&query, SEARCH_LIMIT, scope.as_deref()) {
+                let extensions = self.budget.allowed_extensions.clone();
+                let units = match source.search_filtered(
+                    &query,
+                    SEARCH_LIMIT,
+                    scope.as_deref(),
+                    &extensions,
+                ) {
                     Ok(units) => units,
                     Err(error) => {
                         self.gap(EvidenceGapCode::Missing, format!("search failed: {error}"));
                         continue;
                     }
                 };
+                let source_label = label.unwrap_or(if scope.is_some() {
+                    CandidateSource::ScopedLexical
+                } else {
+                    CandidateSource::Lexical
+                });
                 for unit in units {
-                    if !self.admits(&unit.path) {
-                        self.stats.filtered_units += 1;
-                        continue;
-                    }
-                    if self.files.len() >= self.budget.max_files && !self.files.contains(&unit.path)
-                    {
-                        self.budget_gap(
-                            "budget_files",
-                            format!("file budget exhausted at {}", unit.path),
-                        );
-                        continue;
-                    }
-                    if self.seen_units.insert(unit.clone()) {
-                        self.files.insert(unit.path.clone());
-                        self.units.push(unit);
-                    }
+                    self.accept(unit, source_label, None);
                 }
             }
         }
@@ -636,7 +842,7 @@ impl<'a> State<'a> {
         text
     }
 
-    fn reference_names(&mut self, source: &mut impl EvidenceSource) -> Vec<String> {
+    fn reference_names(&mut self, source: &mut impl EvidenceSource) -> Vec<(String, String)> {
         let seeds = self.units.clone();
         let mut names = Vec::new();
         for unit in seeds {
@@ -646,7 +852,7 @@ impl<'a> State<'a> {
             let Some(text) = self.text(source, &unit.path) else {
                 continue;
             };
-            for name in typed_references(&unit.path, &text, &unit) {
+            for (name, fact) in typed_references(&unit.path, &text, &unit) {
                 if name.len() < 4 || self.refs_seen.contains(&name) {
                     continue;
                 }
@@ -659,7 +865,7 @@ impl<'a> State<'a> {
                     continue;
                 }
                 self.refs_seen.insert(name.clone());
-                names.push(name);
+                names.push((name, fact));
             }
         }
         names.truncate(MAX_REFS_PER_ROUND);
@@ -698,10 +904,11 @@ impl<'a> State<'a> {
         );
     }
 
+    #[allow(clippy::type_complexity)]
     fn rank(
         &mut self,
         source: &mut impl EvidenceSource,
-    ) -> Vec<(i64, SearchUnit, Vec<String>, String, String)> {
+    ) -> Vec<(i64, SearchUnit, Vec<String>, String, String, PoolEntry)> {
         let definition = self.definition.clone();
         let units = self.units.clone();
         let mut ranked = Vec::new();
@@ -709,7 +916,8 @@ impl<'a> State<'a> {
             let Some(text) = self.text(source, &unit.path) else {
                 continue;
             };
-            let (start, end) = widened(&text, unit.start_line, unit.end_line);
+            let (start, end) = declaration_range(&unit.path, &text, unit.start_line)
+                .unwrap_or_else(|| widened(&text, unit.start_line, unit.end_line));
             let content = text
                 .lines()
                 .skip(start.saturating_sub(1))
@@ -740,6 +948,13 @@ impl<'a> State<'a> {
             if is_declaration(&content) {
                 score += 15;
             }
+            let provenance = self.pool.get(&unit).cloned().unwrap_or(PoolEntry {
+                unit: unit.clone(),
+                sources: Vec::new(),
+                facts: Vec::new(),
+            });
+            let corroborating = provenance.sources.len();
+            score += i64::try_from(corroborating.saturating_sub(1)).unwrap_or(0) * 25;
             score -= i64::try_from(content.len() / 1024).unwrap_or(16);
             let widened_unit = SearchUnit {
                 path: unit.path.clone(),
@@ -747,21 +962,39 @@ impl<'a> State<'a> {
                 end_line: end,
             };
             let file_sha = hex::encode(Sha256::digest(text.as_bytes()));
-            ranked.push((score, widened_unit, hits, content, file_sha));
+            ranked.push((score, widened_unit, hits, content, file_sha, provenance));
         }
         ranked.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
         ranked
     }
 
-    fn select(&mut self, ranked: &mut Vec<(i64, SearchUnit, Vec<String>, String, String)>) {
+    fn select(
+        &mut self,
+        ranked: &mut Vec<(i64, SearchUnit, Vec<String>, String, String, PoolEntry)>,
+    ) {
         let budget = EvidenceBudget {
             max_bytes: self.budget.max_bytes,
             max_items: self.budget.max_items,
         };
         let mut requests = Vec::new();
         let mut used_bytes = 0usize;
-        let mut chosen: Vec<(SearchUnit, Vec<String>, usize, String)> = Vec::new();
-        for (score, unit, hits, content, file_sha) in ranked.drain(..) {
+        let mut ordered = ranked.drain(..).collect::<Vec<_>>();
+        let quota = self.budget.fts_quota.min(self.budget.max_items);
+        let order = if quota == 0 || ordered.is_empty() {
+            (0..ordered.len()).collect::<Vec<_>>()
+        } else {
+            let is_fts = |index: usize| ordered[index].5.sources.contains(&CandidateSource::Fts);
+            let fts: Vec<usize> = (0..ordered.len()).filter(|index| is_fts(*index)).collect();
+            let rest: Vec<usize> = (0..ordered.len()).filter(|index| !is_fts(*index)).collect();
+            let reserved = fts.len().min(quota);
+            let mut order = fts[..reserved].to_vec();
+            order.extend(rest);
+            order.extend(fts[reserved..].iter().copied());
+            order
+        };
+        let mut chosen: Vec<(SearchUnit, Vec<String>, usize, String, PoolEntry)> = Vec::new();
+        for index in order {
+            let (score, unit, hits, content, file_sha, provenance) = ordered[index].clone();
             if chosen.len() >= self.budget.max_items {
                 self.budget_gap(
                     "budget_items",
@@ -784,11 +1017,25 @@ impl<'a> State<'a> {
                 );
                 continue;
             }
-            if chosen.iter().any(|(other, ..)| {
+            if let Some(existing) = chosen.iter_mut().find(|(other, ..)| {
                 other.path == unit.path
                     && other.start_line <= unit.end_line
                     && unit.start_line <= other.end_line
             }) {
+                // The same region reached the pool by another route: keep the
+                // routes and facts, never the duplicate span.
+                for source in &provenance.sources {
+                    if !existing.4.sources.contains(source) {
+                        existing.4.sources.push(*source);
+                        existing.4.sources.sort();
+                    }
+                }
+                for fact in &provenance.facts {
+                    if !existing.4.facts.iter().any(|known| known == fact) {
+                        existing.4.facts.push(fact.clone());
+                        existing.4.facts.sort();
+                    }
+                }
                 continue;
             }
             let bytes = content.len();
@@ -800,7 +1047,13 @@ impl<'a> State<'a> {
                 continue;
             }
             used_bytes += bytes;
-            chosen.push((unit.clone(), hits, bytes, file_sha.clone()));
+            chosen.push((
+                unit.clone(),
+                hits,
+                bytes,
+                file_sha.clone(),
+                provenance.clone(),
+            ));
             requests.push(SpanRequest {
                 project: "workflow".to_owned(),
                 relative_path: unit.path.clone().into(),
@@ -828,7 +1081,7 @@ impl<'a> State<'a> {
             );
         }
         for item in &pack.items {
-            let Some((unit, hits, bytes, _)) = chosen
+            let Some((unit, hits, bytes, _, provenance)) = chosen
                 .iter()
                 .find(|(unit, ..)| unit.path == item.relative_path.to_string_lossy())
             else {
@@ -836,6 +1089,17 @@ impl<'a> State<'a> {
             };
             let start_line = item.range.start_line().unwrap_or(unit.start_line);
             let end_line = item.range.last_line().unwrap_or(unit.end_line);
+            let role = if provenance.sources.contains(&CandidateSource::Symbol) {
+                EvidenceRole::Declaration
+            } else if provenance.facts.iter().any(|fact| fact == "sql_definition") {
+                EvidenceRole::ProcDefinition
+            } else if provenance.facts.iter().any(|fact| fact == "sql_table") {
+                EvidenceRole::TableAccess
+            } else if provenance.sources.contains(&CandidateSource::Fts) {
+                EvidenceRole::SeedHit
+            } else {
+                EvidenceRole::Reference
+            };
             self.selected.push(SelectedSpan {
                 path: unit.path.clone(),
                 start_line,
@@ -844,6 +1108,9 @@ impl<'a> State<'a> {
                 verified: true,
                 content_bytes: *bytes,
                 anchors_hit: hits.clone(),
+                sources: provenance.sources.clone(),
+                facts: provenance.facts.clone(),
+                role,
             });
         }
         self.stats.selected_bytes = self.selected.iter().map(|span| span.content_bytes).sum();
@@ -876,6 +1143,7 @@ impl<'a> State<'a> {
         WorkflowOutcome {
             definition: self.definition.clone(),
             candidates: self.units.clone(),
+            pool: self.pool.values().cloned().collect::<Vec<_>>(),
             selected: self.selected.clone(),
             gaps: self.gaps.clone(),
             abstain: self.abstain.clone(),
@@ -883,6 +1151,46 @@ impl<'a> State<'a> {
             stages: self.stages.clone(),
         }
     }
+}
+
+/// Returns the enclosing declaration range from typed facts, when available.
+///
+/// C# uses the R2 fact parser; SQL uses the R3 definition parser. Anything else
+/// falls back to the line-window widening.
+fn declaration_range(path: &str, text: &str, line: usize) -> Option<(usize, usize)> {
+    if path.ends_with(".cs") {
+        let identity = csharp_facts::ProjectIdentity {
+            name: "workflow".to_owned(),
+            assembly: "workflow".to_owned(),
+            root_namespace: None,
+        };
+        let facts = csharp_facts::parse_file(&identity, path, text);
+        if facts.parse_error {
+            return None;
+        }
+        for method in &facts.methods {
+            if method.line_start <= line && line <= method.line_end {
+                let span = method.line_end.saturating_sub(method.line_start) + 1;
+                return (span <= MAX_DECLARATION_LINES)
+                    .then_some((method.line_start, method.line_end));
+            }
+        }
+        for fact in &facts.types {
+            if fact.line_start <= line && line <= fact.line_end {
+                return Some((fact.line_start, fact.line_end));
+            }
+        }
+        return None;
+    }
+    if path.ends_with(".sql") {
+        for definition in sql_facts::parse_sql_file(path, text, true, "workflow") {
+            if definition.line_start <= line && line <= definition.line_end {
+                return Some((definition.line_start, definition.line_end));
+            }
+        }
+        return None;
+    }
+    None
 }
 
 fn widened(text: &str, start_line: usize, end_line: usize) -> (usize, usize) {
@@ -935,8 +1243,8 @@ fn is_declaration(line: &str) -> bool {
     .any(|prefix| trimmed.starts_with(prefix))
 }
 
-fn typed_references(path: &str, text: &str, unit: &SearchUnit) -> Vec<String> {
-    let mut names = BTreeSet::new();
+fn typed_references(path: &str, text: &str, unit: &SearchUnit) -> Vec<(String, String)> {
+    let mut names: BTreeMap<String, String> = BTreeMap::new();
     if path.ends_with(".cs") {
         let identity = csharp_facts::ProjectIdentity {
             name: "workflow".to_owned(),
@@ -946,7 +1254,7 @@ fn typed_references(path: &str, text: &str, unit: &SearchUnit) -> Vec<String> {
         let facts = csharp_facts::parse_file(&identity, path, text);
         for db_set in &facts.db_sets {
             if overlaps(unit, db_set.line_start, db_set.line_end) {
-                names.insert(db_set.element_type.clone());
+                names.insert(db_set.element_type.clone(), "dbset".to_owned());
             }
         }
         for invocation in &facts.invocations {
@@ -959,28 +1267,28 @@ fn typed_references(path: &str, text: &str, unit: &SearchUnit) -> Vec<String> {
                     .trim()
                     .to_owned();
                 if called.len() >= 4 {
-                    names.insert(called);
+                    names.insert(called, "invocation".to_owned());
                 }
             }
         }
         for fact in &facts.types {
             if overlaps(unit, fact.line_start, fact.line_end) {
-                names.insert(fact.name.clone());
+                names.insert(fact.name.clone(), "type".to_owned());
             }
         }
         for save in &facts.saves {
             if overlaps(unit, save.line, save.line) {
                 if let Some(context) = &save.context_type {
-                    names.insert(context.clone());
+                    names.insert(context.clone(), "savechanges".to_owned());
                 }
             }
         }
     } else if path.ends_with(".sql") {
         for definition in sql_facts::parse_sql_file(path, text, true, "workflow") {
             if overlaps(unit, definition.line_start, definition.line_end) {
-                names.insert(definition.name.clone());
+                names.insert(definition.name.clone(), "sql_definition".to_owned());
                 for access in definition.writes.iter().chain(&definition.reads) {
-                    names.insert(access.table.clone());
+                    names.insert(access.table.clone(), "sql_table".to_owned());
                 }
             }
         }
@@ -994,21 +1302,20 @@ fn typed_references(path: &str, text: &str, unit: &SearchUnit) -> Vec<String> {
                 if word.len() >= 4
                     && (word.chars().next().is_some_and(char::is_uppercase) || word.contains('_'))
                 {
-                    names.insert(word);
+                    names.insert(word, "identifier".to_owned());
                 }
             }
         }
-        names.retain(|name| {
-            ![
-                "Public",
-                "Private",
-                "Protected",
-                "Internal",
-                "String",
-                "Object",
-            ]
-            .contains(&name.as_str())
-        });
+        for skipped in [
+            "Public",
+            "Private",
+            "Protected",
+            "Internal",
+            "String",
+            "Object",
+        ] {
+            names.remove(skipped);
+        }
     }
     names.into_iter().take(4).collect()
 }
