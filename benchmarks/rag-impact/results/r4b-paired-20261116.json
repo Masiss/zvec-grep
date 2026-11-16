@@ -1,0 +1,663 @@
+{
+  "kind": "r4b_paired",
+  "head": "587123d9f2cff67421cd472b551ac365f158c2d8",
+  "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
+  "gold_spans": 25,
+  "budget": {
+    "max_rounds": 2,
+    "max_tool_calls": 24,
+    "max_files": 96,
+    "max_source_reads": 160,
+    "max_items": 10,
+    "max_bytes": 24576,
+    "allowed_extensions": [
+      "cs",
+      "sql",
+      "cshtml",
+      "js",
+      "ts",
+      "tsx",
+      "jsx",
+      "py",
+      "java",
+      "go",
+      "rs",
+      "md",
+      "txt"
+    ],
+    "max_file_bytes": 1048576,
+    "scope_roots": [],
+    "max_spans_per_file": 2,
+    "fts_quota": 2,
+    "hybrid_quota": 4,
+    "max_spans_per_file_extra": 2,
+    "use_hybrid": true,
+    "use_fts": true,
+    "use_lexical": true,
+    "use_facts": true
+  },
+  "p3_status": "NOT_MEASURED",
+  "p3_reason": "no blind plan exists for D01-D12; a plan written after seeing gold is contaminated, and E1-E5 must not be extrapolated",
+  "macro_hybrid_baseline": 0.4166666666666667,
+  "macro_hybrid_p1": 0.19444444444444442,
+  "macro_r4b": 0.27777777777777773,
+  "pool_coverage": 12,
+  "selected_coverage": 5,
+  "citation_accuracy": 1.0,
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 2880.725262,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 4,
+        "verified": 4,
+        "calls": 1,
+        "reads": 285758,
+        "ms": 2835.307254,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 6,
+        "verified": 6,
+        "calls": 17,
+        "reads": 1666211,
+        "ms": 31652.203761,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Lexical",
+          "Symbol"
+        ]
+      }
+    },
+    {
+      "id": "D02",
+      "gold": 6,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 6,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 2193.086448,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 6,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 2,
+        "reads": 417320,
+        "ms": 6708.702157000001,
+        "abstain": null,
+        "routes": [
+          "Hybrid",
+          "Lexical"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 6,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 17,
+        "reads": 1602809,
+        "ms": 18290.440146999998,
+        "abstain": null,
+        "routes": [
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "hybrid_baseline": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1575.42402,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 4,
+        "verified": 4,
+        "calls": 1,
+        "reads": 231415,
+        "ms": 2179.61574,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 9,
+        "verified": 9,
+        "calls": 18,
+        "reads": 1109341,
+        "ms": 15824.999507999999,
+        "abstain": null,
+        "routes": [
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "hybrid_baseline": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 2068.676353,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 6,
+        "verified": 6,
+        "calls": 3,
+        "reads": 675182,
+        "ms": 4708.455169999999,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "EmployeeUpdateInfo"
+          ]
+        },
+        "routes": [
+          "Hybrid",
+          "Lexical"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 5,
+        "verified": 5,
+        "calls": 15,
+        "reads": 675182,
+        "ms": 9412.567741,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "EmployeeUpdateInfo"
+          ]
+        },
+        "routes": [
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D05",
+      "gold": 1,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1660.33085,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 4,
+        "verified": 4,
+        "calls": 1,
+        "reads": 283992,
+        "ms": 1878.7069669999998,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 6,
+        "verified": 6,
+        "calls": 16,
+        "reads": 1406666,
+        "ms": 12540.687232,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Symbol"
+        ]
+      }
+    },
+    {
+      "id": "D06",
+      "gold": 3,
+      "hybrid_baseline": {
+        "covered": 2,
+        "total": 3,
+        "recall": 0.6666666666666666,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1207.935626,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 3,
+        "recall": 0.0,
+        "items": 4,
+        "verified": 4,
+        "calls": 1,
+        "reads": 221265,
+        "ms": 1451.337057,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 3,
+        "recall": 0.0,
+        "items": 4,
+        "verified": 4,
+        "calls": 20,
+        "reads": 937264,
+        "ms": 11330.421903999999,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D07",
+      "gold": 3,
+      "hybrid_baseline": {
+        "covered": 1,
+        "total": 3,
+        "recall": 0.3333333333333333,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 842.129405,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 1,
+        "total": 3,
+        "recall": 0.3333333333333333,
+        "items": 10,
+        "verified": 10,
+        "calls": 2,
+        "reads": 509399,
+        "ms": 1792.29799,
+        "abstain": null,
+        "routes": [
+          "Hybrid",
+          "Lexical"
+        ]
+      },
+      "r4b": {
+        "covered": 1,
+        "total": 3,
+        "recall": 0.3333333333333333,
+        "items": 9,
+        "verified": 9,
+        "calls": 17,
+        "reads": 1064098,
+        "ms": 4502.566346,
+        "abstain": null,
+        "routes": [
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D08",
+      "gold": 2,
+      "hybrid_baseline": {
+        "covered": 2,
+        "total": 2,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1015.0526010000001,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 2,
+        "total": 2,
+        "recall": 1.0,
+        "items": 7,
+        "verified": 7,
+        "calls": 1,
+        "reads": 363425,
+        "ms": 1457.512122,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 2,
+        "total": 2,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 18,
+        "reads": 1185744,
+        "ms": 10438.312583,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Lexical",
+          "Symbol"
+        ]
+      }
+    },
+    {
+      "id": "D09",
+      "gold": 1,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1132.620346,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 6,
+        "verified": 6,
+        "calls": 1,
+        "reads": 163988,
+        "ms": 1220.566853,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 7,
+        "verified": 7,
+        "calls": 16,
+        "reads": 1158055,
+        "ms": 7144.4193829999995,
+        "abstain": null,
+        "routes": [
+          "Fts",
+          "Hybrid",
+          "Lexical",
+          "Symbol"
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 940.518616,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 2,
+        "verified": 2,
+        "calls": 2,
+        "reads": 315595,
+        "ms": 1276.2498170000001,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "Cùng"
+          ]
+        },
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 8,
+        "verified": 8,
+        "calls": 18,
+        "reads": 919930,
+        "ms": 14159.482793000001,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "Cùng"
+          ]
+        },
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D11",
+      "gold": 1,
+      "hybrid_baseline": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1001.536622,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 4,
+        "verified": 4,
+        "calls": 1,
+        "reads": 350666,
+        "ms": 1025.590592,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 14,
+        "reads": 793811,
+        "ms": 6630.48568,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Lexical",
+          "Symbol"
+        ]
+      }
+    },
+    {
+      "id": "D12",
+      "gold": 2,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1239.3291390000002,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 5,
+        "verified": 5,
+        "calls": 1,
+        "reads": 264420,
+        "ms": 1597.3097149999999,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 9,
+        "verified": 9,
+        "calls": 20,
+        "reads": 1187667,
+        "ms": 31539.226209,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    }
+  ],
+  "host": {
+    "loadavg": "10.80 9.90 7.97 5/2488 1829446",
+    "mem_available_kib": 5916664,
+    "pss_kib": 418501
+  }
+}

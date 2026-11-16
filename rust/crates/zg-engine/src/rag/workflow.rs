@@ -41,6 +41,8 @@ const MAX_REFS_PER_ROUND: usize = 8;
 const MAX_WIDEN_BACK: usize = 40;
 const MAX_WIDEN_LEN: usize = 60;
 const MAX_DECLARATION_LINES: usize = 200;
+/// Fair-share floor per evidence subject, in bytes.
+const MIN_SUBJECT_BYTES: usize = 8192;
 
 /// Bounded loop and output limits.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -67,6 +69,18 @@ pub struct WorkflowBudget {
     pub max_spans_per_file: usize,
     /// Minimum selected slots reserved for the indexed FTS route when available.
     pub fts_quota: usize,
+    /// Minimum selected slots reserved for the hybrid question route when available.
+    pub hybrid_quota: usize,
+    /// Extra spans per file allowed when they cover a distinct declaration.
+    pub max_spans_per_file_extra: usize,
+    /// Whether the hybrid question route runs during discovery.
+    pub use_hybrid: bool,
+    /// Whether the indexed FTS route runs during discovery.
+    pub use_fts: bool,
+    /// Whether derived lexical queries run during discovery.
+    pub use_lexical: bool,
+    /// Whether typed fact expansion runs after discovery.
+    pub use_facts: bool,
 }
 
 impl Default for WorkflowBudget {
@@ -88,7 +102,13 @@ impl Default for WorkflowBudget {
             max_file_bytes: 1024 * 1024,
             scope_roots: Vec::new(),
             max_spans_per_file: 2,
-            fts_quota: 3,
+            fts_quota: 2,
+            hybrid_quota: 8,
+            max_spans_per_file_extra: 2,
+            use_hybrid: true,
+            use_fts: true,
+            use_lexical: true,
+            use_facts: true,
         }
     }
 }
@@ -119,6 +139,12 @@ impl WorkflowBudget {
                 .collect(),
             max_spans_per_file: self.max_spans_per_file.clamp(1, 8),
             fts_quota: self.fts_quota.min(MAX_WORKFLOW_ITEMS),
+            hybrid_quota: self.hybrid_quota.min(MAX_WORKFLOW_ITEMS),
+            max_spans_per_file_extra: self.max_spans_per_file_extra.clamp(0, 4),
+            use_hybrid: self.use_hybrid,
+            use_fts: self.use_fts,
+            use_lexical: self.use_lexical,
+            use_facts: self.use_facts,
         }
     }
 }
@@ -187,6 +213,17 @@ pub trait EvidenceSource {
         Ok(Vec::new())
     }
 
+    /// Hybrid question route (FTS + vectors + structure) over the question text.
+    ///
+    /// The default returns nothing; backends without an index omit it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend cannot answer the query.
+    fn hybrid(&mut self, _question: &str, _limit: usize) -> Result<Vec<SearchUnit>, String> {
+        Ok(Vec::new())
+    }
+
     /// Indexed FTS route used as the protected baseline.
     ///
     /// The default returns nothing; backends without an index simply omit it.
@@ -216,6 +253,8 @@ pub trait EvidenceSource {
 pub enum CandidateSource {
     /// Indexed FTS route, the protected baseline.
     Fts,
+    /// Hybrid question route: the deployable discovery baseline.
+    Hybrid,
     /// Question-handle lexical search.
     Lexical,
     /// Lexical search inside one discovery scope with backend file filters.
@@ -255,11 +294,15 @@ pub struct PoolEntry {
     pub sources: Vec<CandidateSource>,
     /// Typed facts that produced this range, when any.
     pub facts: Vec<String>,
+    /// Position within the producing route's own result list.
+    pub route_rank: usize,
 }
 
 /// Question-derived search plan.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Definition {
+    /// Original question text.
+    pub question: String,
     /// Content words that are not stopwords.
     pub anchors: Vec<String>,
     /// Identifier-shaped tokens from the question.
@@ -364,6 +407,8 @@ pub struct WorkflowStats {
     pub fts_calls: usize,
     /// Exact symbol lookups.
     pub symbol_calls: usize,
+    /// Hybrid question route calls.
+    pub hybrid_calls: usize,
 }
 
 /// Bounded workflow outcome.
@@ -467,6 +512,7 @@ pub fn define(question: &str) -> Definition {
         }
     }
     Definition {
+        question: question.to_owned(),
         anchors,
         code_tokens,
         phrases,
@@ -595,7 +641,13 @@ impl<'a> State<'a> {
         }
     }
 
-    fn accept(&mut self, unit: SearchUnit, source: CandidateSource, fact: Option<&str>) {
+    fn accept(
+        &mut self,
+        unit: SearchUnit,
+        source: CandidateSource,
+        fact: Option<&str>,
+        route_rank: usize,
+    ) {
         if !self.admits(&unit.path) {
             self.stats.filtered_units += 1;
             return;
@@ -611,7 +663,9 @@ impl<'a> State<'a> {
             unit: unit.clone(),
             sources: Vec::new(),
             facts: Vec::new(),
+            route_rank,
         });
+        entry.route_rank = entry.route_rank.min(route_rank);
         if !entry.sources.contains(&source) {
             entry.sources.push(source);
             entry.sources.sort();
@@ -636,11 +690,30 @@ impl<'a> State<'a> {
         self.stats.fts_calls += 1;
         match source.fts(query, 10) {
             Ok(units) => {
-                for unit in units {
-                    self.accept(unit, CandidateSource::Fts, None);
+                for (rank, unit) in units.into_iter().enumerate() {
+                    self.accept(unit, CandidateSource::Fts, None, rank);
                 }
             }
             Err(error) => self.gap(EvidenceGapCode::Missing, format!("fts failed: {error}")),
+        }
+    }
+
+    fn hybrid_route(&mut self, source: &mut impl EvidenceSource, question: &str) {
+        if self.calls_left() == 0 || question.trim().is_empty() {
+            return;
+        }
+        self.stats.tool_calls += 1;
+        self.stats.hybrid_calls += 1;
+        match source.hybrid(question, 10) {
+            Ok(units) => {
+                for (rank, unit) in units.into_iter().enumerate() {
+                    self.accept(unit, CandidateSource::Hybrid, None, rank);
+                }
+            }
+            Err(error) => self.gap(
+                EvidenceGapCode::Missing,
+                format!("hybrid route failed: {error}"),
+            ),
         }
     }
 
@@ -652,8 +725,8 @@ impl<'a> State<'a> {
         self.stats.symbol_calls += 1;
         match source.symbol(name, 20) {
             Ok(units) if !units.is_empty() => {
-                for unit in units {
-                    self.accept(unit, CandidateSource::Symbol, Some(fact));
+                for (rank, unit) in units.into_iter().enumerate() {
+                    self.accept(unit, CandidateSource::Symbol, Some(fact), rank);
                 }
                 true
             }
@@ -685,17 +758,23 @@ impl<'a> State<'a> {
     }
 
     fn discover(&mut self, source: &mut impl EvidenceSource) -> Result<(), String> {
+        let question = self.definition.question.clone();
+        if self.budget.use_hybrid {
+            self.hybrid_route(source, &question);
+        }
         let fts_query = self.definition.code_tokens.join(" ");
-        if !fts_query.is_empty() {
+        if self.budget.use_fts && !fts_query.is_empty() {
             self.fts_route(source, &fts_query);
         }
-        let mut queries = Vec::new();
-        queries.extend(self.definition.code_tokens.iter().cloned());
-        queries.extend(self.definition.phrases.iter().cloned());
-        if !self.definition.anchors.is_empty() {
-            queries.push(self.definition.anchors.join(" "));
+        if self.budget.use_lexical {
+            let mut queries = Vec::new();
+            queries.extend(self.definition.code_tokens.iter().cloned());
+            queries.extend(self.definition.phrases.iter().cloned());
+            if !self.definition.anchors.is_empty() {
+                queries.push(self.definition.anchors.join(" "));
+            }
+            self.round(source, queries);
         }
-        self.round(source, queries);
         self.trace(
             Stage::Discover,
             format!(
@@ -708,6 +787,9 @@ impl<'a> State<'a> {
     }
 
     fn expand(&mut self, source: &mut impl EvidenceSource) {
+        if !self.budget.use_facts {
+            return;
+        }
         for round in 1..self.budget.max_rounds {
             let refs = self.reference_names(source);
             if refs.is_empty() || self.calls_left() == 0 {
@@ -802,8 +884,8 @@ impl<'a> State<'a> {
                 } else {
                     CandidateSource::Lexical
                 });
-                for unit in units {
-                    self.accept(unit, source_label, None);
+                for (rank, unit) in units.into_iter().enumerate() {
+                    self.accept(unit, source_label, None, rank);
                 }
             }
         }
@@ -952,7 +1034,19 @@ impl<'a> State<'a> {
                 unit: unit.clone(),
                 sources: Vec::new(),
                 facts: Vec::new(),
+                route_rank: usize::MAX,
             });
+            // Route order is the only relevance signal the backend exposes, so it
+            // dominates; derived lexical/type evidence only breaks ties.
+            let rank = i64::try_from(provenance.route_rank).unwrap_or(i64::MAX);
+            let route_bonus = if provenance.sources.contains(&CandidateSource::Hybrid) {
+                10_000i64.saturating_sub(rank.saturating_mul(10))
+            } else if provenance.sources.contains(&CandidateSource::Fts) {
+                5_000i64.saturating_sub(rank.saturating_mul(5))
+            } else {
+                0
+            };
+            score = route_bonus.saturating_add(score.min(200));
             let corroborating = provenance.sources.len();
             score += i64::try_from(corroborating.saturating_sub(1)).unwrap_or(0) * 25;
             score -= i64::try_from(content.len() / 1024).unwrap_or(16);
@@ -979,17 +1073,36 @@ impl<'a> State<'a> {
         let mut requests = Vec::new();
         let mut used_bytes = 0usize;
         let mut ordered = ranked.drain(..).collect::<Vec<_>>();
-        let quota = self.budget.fts_quota.min(self.budget.max_items);
-        let order = if quota == 0 || ordered.is_empty() {
+        // Reserved slots first (hybrid question route, then the FTS fallback), so
+        // expansion and derived queries can never displace deployable evidence.
+        let hybrid_quota = self.budget.hybrid_quota.min(self.budget.max_items);
+        let fts_quota = self
+            .budget
+            .fts_quota
+            .min(self.budget.max_items.saturating_sub(hybrid_quota));
+        let order = if ordered.is_empty() || (hybrid_quota == 0 && fts_quota == 0) {
             (0..ordered.len()).collect::<Vec<_>>()
         } else {
-            let is_fts = |index: usize| ordered[index].5.sources.contains(&CandidateSource::Fts);
-            let fts: Vec<usize> = (0..ordered.len()).filter(|index| is_fts(*index)).collect();
-            let rest: Vec<usize> = (0..ordered.len()).filter(|index| !is_fts(*index)).collect();
-            let reserved = fts.len().min(quota);
-            let mut order = fts[..reserved].to_vec();
+            let has =
+                |index: usize, source: CandidateSource| ordered[index].5.sources.contains(&source);
+            let hybrid: Vec<usize> = (0..ordered.len())
+                .filter(|index| has(*index, CandidateSource::Hybrid))
+                .collect();
+            let fts: Vec<usize> = (0..ordered.len())
+                .filter(|index| has(*index, CandidateSource::Fts))
+                .collect();
+            let rest: Vec<usize> = (0..ordered.len())
+                .filter(|index| {
+                    !has(*index, CandidateSource::Hybrid) && !has(*index, CandidateSource::Fts)
+                })
+                .collect();
+            let hybrid_reserved = hybrid.len().min(hybrid_quota);
+            let fts_reserved = fts.len().min(fts_quota);
+            let mut order = hybrid[..hybrid_reserved].to_vec();
+            order.extend(fts[..fts_reserved].iter().copied());
             order.extend(rest);
-            order.extend(fts[reserved..].iter().copied());
+            order.extend(hybrid[hybrid_reserved..].iter().copied());
+            order.extend(fts[fts_reserved..].iter().copied());
             order
         };
         let mut chosen: Vec<(SearchUnit, Vec<String>, usize, String, PoolEntry)> = Vec::new();
@@ -1005,17 +1118,26 @@ impl<'a> State<'a> {
             if score <= 0 {
                 continue;
             }
-            if chosen
+            let same_file = chosen
                 .iter()
                 .filter(|(other, ..)| other.path == unit.path)
-                .count()
-                >= self.budget.max_spans_per_file
-            {
-                self.budget_gap(
-                    "budget_spans_per_file",
-                    format!("per-file span cap reached for {}", unit.path),
-                );
-                continue;
+                .count();
+            if same_file >= self.budget.max_spans_per_file {
+                // P1: a further span is admitted only when it covers a distinct
+                // declaration, and only within the bounded extra allowance.
+                let distinct = !chosen.iter().any(|(other, ..)| {
+                    other.path == unit.path
+                        && other.start_line <= unit.end_line
+                        && unit.start_line <= other.end_line
+                });
+                let ceiling = self.budget.max_spans_per_file + self.budget.max_spans_per_file_extra;
+                if !distinct || same_file >= ceiling {
+                    self.budget_gap(
+                        "budget_spans_per_file",
+                        format!("per-file span cap reached for {}", unit.path),
+                    );
+                    continue;
+                }
             }
             if let Some(existing) = chosen.iter_mut().find(|(other, ..)| {
                 other.path == unit.path
@@ -1043,6 +1165,21 @@ impl<'a> State<'a> {
                 self.budget_gap(
                     "budget_bytes",
                     format!("{} exceeds remaining snippet budget", unit.path),
+                );
+                continue;
+            }
+            // P1: fair share per evidence subject (file), so one large file cannot
+            // consume the pack before other subjects are considered.
+            let subject_cap = (budget.max_bytes / 3).max(MIN_SUBJECT_BYTES);
+            let subject_bytes: usize = chosen
+                .iter()
+                .filter(|(other, ..)| other.path == unit.path)
+                .map(|(.., bytes, _, _)| *bytes)
+                .sum();
+            if subject_bytes > 0 && bytes > subject_cap.saturating_sub(subject_bytes) {
+                self.budget_gap(
+                    "budget_subject_bytes",
+                    format!("{} exceeds its fair-share snippet budget", unit.path),
                 );
                 continue;
             }

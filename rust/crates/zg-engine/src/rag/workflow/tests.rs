@@ -20,6 +20,8 @@ struct FsSource {
     fts_units: Vec<SearchUnit>,
     /// Declaration ranges returned by exact symbol lookup.
     symbol_units: Vec<SearchUnit>,
+    /// Ranges returned by the hybrid question route.
+    hybrid_units: Vec<SearchUnit>,
 }
 
 impl FsSource {
@@ -33,6 +35,7 @@ impl FsSource {
             reads: 0,
             fts_units: Vec::new(),
             symbol_units: Vec::new(),
+            hybrid_units: Vec::new(),
         }
     }
 }
@@ -85,6 +88,10 @@ impl EvidenceSource for FsSource {
 
     fn symbol(&mut self, _name: &str, _limit: usize) -> Result<Vec<SearchUnit>, String> {
         Ok(self.symbol_units.clone())
+    }
+
+    fn hybrid(&mut self, _question: &str, _limit: usize) -> Result<Vec<SearchUnit>, String> {
+        Ok(self.hybrid_units.clone())
     }
 
     fn is_cancelled(&self) -> bool {
@@ -511,4 +518,114 @@ fn stage_traces_are_bounded_and_ordered() {
     assert!(stages.contains(&Stage::Discover));
     assert!(stages.contains(&Stage::Expand) || outcome.stats.rounds == 1);
     assert_eq!(stages.last(), Some(&Stage::Check));
+}
+
+#[test]
+fn distinct_declaration_extends_the_per_file_cap() {
+    let dir = tempfile::tempdir().expect("fixture");
+    write(
+        dir.path(),
+        "src/Multi.cs",
+        "public class Multi {\n  public void Alpha() { return; }\n  public void Beta() { return; }\n  public void Gamma() { return; }\n}\n",
+    );
+    let mut source = FsSource::new(dir.path());
+    source.hybrid_units = (2..=4)
+        .map(|line| SearchUnit {
+            path: "src/Multi.cs".to_owned(),
+            start_line: line,
+            end_line: line,
+        })
+        .collect();
+    let budget = WorkflowBudget {
+        max_spans_per_file: 1,
+        max_spans_per_file_extra: 2,
+        ..budget()
+    };
+    let outcome = run(&mut source, dir.path(), "Multi", budget).expect("run");
+    assert!(
+        outcome.selected.len() >= 2,
+        "distinct declarations must exceed the base per-file cap: {:?}",
+        outcome
+            .selected
+            .iter()
+            .map(|span| (span.start_line, span.end_line))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn one_large_subject_cannot_consume_the_whole_pack() {
+    let dir = tempfile::tempdir().expect("fixture");
+    write(
+        dir.path(),
+        "src/Huge.cs",
+        &format!("public class Huge {{\n{} }}\n", "  // filler\n".repeat(900)),
+    );
+    write(
+        dir.path(),
+        "src/Small.cs",
+        "public class Small {\n  public void Alpha() { return; }\n}\n",
+    );
+    let mut source = FsSource::new(dir.path());
+    source.hybrid_units = vec![
+        SearchUnit {
+            path: "src/Huge.cs".to_owned(),
+            start_line: 1,
+            end_line: 900,
+        },
+        SearchUnit {
+            path: "src/Small.cs".to_owned(),
+            start_line: 1,
+            end_line: 3,
+        },
+    ];
+    let outcome = run(&mut source, dir.path(), "Huge", budget()).expect("run");
+    assert!(
+        outcome
+            .selected
+            .iter()
+            .any(|span| span.path == "src/Small.cs"),
+        "the fair-share byte budget must keep room for another subject"
+    );
+    assert!(
+        outcome
+            .selected
+            .iter()
+            .all(|span| span.path != "src/Huge.cs" || span.content_bytes <= 20 * 1024)
+    );
+}
+
+#[test]
+fn hybrid_units_reach_the_pack_with_hybrid_provenance() {
+    let (dir, mut source) = fixture();
+    source.hybrid_units = vec![SearchUnit {
+        path: "Webs/HRM/Controllers/EmployeeController.cs".to_owned(),
+        start_line: 3,
+        end_line: 6,
+    }];
+    let outcome = run(&mut source, dir.path(), "EmployeeEdit", budget()).expect("run");
+    assert!(outcome.stats.hybrid_calls >= 1);
+    assert!(
+        outcome
+            .selected
+            .iter()
+            .any(|span| span.sources.contains(&CandidateSource::Hybrid)),
+        "hybrid evidence must be selected with its provenance: {:?}",
+        outcome
+            .selected
+            .iter()
+            .map(|span| (&span.path, &span.sources))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn empty_pool_still_abstains_with_bounds() {
+    let dir = tempfile::tempdir().expect("fixture");
+    write(dir.path(), "src/Only.cs", "public class Only { }\n");
+    let mut source = FsSource::new(dir.path());
+    let outcome = run(&mut source, dir.path(), "zzzz absent qqqq", budget()).expect("run");
+    assert!(outcome.selected.is_empty());
+    assert_eq!(outcome.abstain, Some(AbstainReason::NoEvidence));
+    assert!(outcome.stats.tool_calls <= budget().max_tool_calls);
 }

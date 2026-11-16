@@ -1,0 +1,279 @@
+{
+  "kind": "r4b_paired",
+  "head": "587123d9f2cff67421cd472b551ac365f158c2d8",
+  "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
+  "gold_spans": 6,
+  "budget": {
+    "max_rounds": 2,
+    "max_tool_calls": 24,
+    "max_files": 96,
+    "max_source_reads": 160,
+    "max_items": 10,
+    "max_bytes": 24576,
+    "allowed_extensions": [
+      "cs",
+      "sql",
+      "cshtml",
+      "js",
+      "ts",
+      "tsx",
+      "jsx",
+      "py",
+      "java",
+      "go",
+      "rs",
+      "md",
+      "txt"
+    ],
+    "max_file_bytes": 1048576,
+    "scope_roots": [],
+    "max_spans_per_file": 2,
+    "fts_quota": 2,
+    "hybrid_quota": 4,
+    "max_spans_per_file_extra": 2,
+    "use_hybrid": true,
+    "use_fts": true,
+    "use_lexical": true,
+    "use_facts": true
+  },
+  "p3_status": "NOT_MEASURED",
+  "p3_reason": "no blind plan exists for D01-D12; a plan written after seeing gold is contaminated, and E1-E5 must not be extrapolated",
+  "macro_hybrid_baseline": 0.5,
+  "macro_hybrid_p1": 0.0,
+  "macro_r4b": 0.0,
+  "pool_coverage": 4,
+  "selected_coverage": 0,
+  "citation_accuracy": 1.0,
+  "rows": [
+    {
+      "id": "D01",
+      "gold": 2,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1119.059201,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 16,
+        "reads": 1764647,
+        "ms": 10484.911721999999,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Lexical"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 6,
+        "verified": 6,
+        "calls": 17,
+        "reads": 1666211,
+        "ms": 23478.44998,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Lexical",
+          "Symbol"
+        ]
+      }
+    },
+    {
+      "id": "D03",
+      "gold": 1,
+      "hybrid_baseline": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 2109.882655,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 16,
+        "reads": 1013873,
+        "ms": 30949.974162,
+        "abstain": null,
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Lexical",
+          "Symbol"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 9,
+        "verified": 9,
+        "calls": 18,
+        "reads": 1109341,
+        "ms": 19154.301,
+        "abstain": null,
+        "routes": [
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D04",
+      "gold": 1,
+      "hybrid_baseline": {
+        "covered": 1,
+        "total": 1,
+        "recall": 1.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 3282.3103690000003,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 15,
+        "reads": 385972,
+        "ms": 13424.355127,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "EmployeeUpdateInfo"
+          ]
+        },
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Lexical",
+          "Symbol"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0,
+        "items": 5,
+        "verified": 5,
+        "calls": 15,
+        "reads": 675182,
+        "ms": 8678.887685,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "EmployeeUpdateInfo"
+          ]
+        },
+        "routes": [
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "gold": 2,
+      "hybrid_baseline": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 0,
+        "calls": 1,
+        "reads": 0,
+        "ms": 1689.460155,
+        "abstain": null,
+        "routes": [
+          "Hybrid"
+        ]
+      },
+      "hybrid_p1": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 10,
+        "verified": 10,
+        "calls": 19,
+        "reads": 768605,
+        "ms": 19494.047335000003,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "Cùng"
+          ]
+        },
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Lexical"
+        ]
+      },
+      "r4b": {
+        "covered": 0,
+        "total": 2,
+        "recall": 0.0,
+        "items": 8,
+        "verified": 8,
+        "calls": 18,
+        "reads": 919930,
+        "ms": 24577.529014,
+        "abstain": {
+          "reason": "missing_code_tokens",
+          "tokens": [
+            "Cùng"
+          ]
+        },
+        "routes": [
+          "FactExpansion",
+          "Fts",
+          "Hybrid",
+          "Lexical"
+        ]
+      }
+    }
+  ],
+  "host": {
+    "loadavg": "11.86 11.13 8.78 32/3029 1963667",
+    "mem_available_kib": 5197016,
+    "pss_kib": 393036
+  }
+}
