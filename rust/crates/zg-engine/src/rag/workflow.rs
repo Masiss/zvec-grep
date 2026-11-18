@@ -317,6 +317,9 @@ pub enum CandidateDecision {
     RejectedSpanBytes,
     /// Pack assembly refused the span (stale, missing or oversized read).
     RejectedVerification,
+    /// Pooled and ranked, but the item budget ended before this candidate was
+    /// examined. It was not scored-rejected: it simply never got a turn.
+    Unexamined,
 }
 
 /// One pooled candidate and the reason it did or did not survive.
@@ -448,8 +451,12 @@ pub struct WorkflowStats {
     pub source_reads: usize,
     /// Source bytes read.
     pub bytes_read: usize,
-    /// Selected content bytes.
+    /// Selected content bytes (the final source pack, contract ≤24 KiB).
     pub selected_bytes: usize,
+    /// Cumulative tool content bytes: every unit of source content this
+    /// workflow would have placed in front of the investigating agent
+    /// (`contract ≤64 KiB`), including the final pack.
+    pub tool_content_bytes: usize,
     /// Units rejected by the file-type or file-size bounds.
     pub filtered_units: usize,
     /// Indexed FTS calls.
@@ -1113,6 +1120,7 @@ impl<'a> State<'a> {
                 .take(end.saturating_sub(start).saturating_add(1))
                 .collect::<Vec<_>>()
                 .join("\n");
+            self.stats.tool_content_bytes += content.len();
             let lower = content.to_lowercase();
             let mut hits = Vec::new();
             let mut score = 0i64;
@@ -1349,6 +1357,21 @@ impl<'a> State<'a> {
                 }
                 used_bytes += bytes;
                 taken.insert(index);
+                self.trace_decision(
+                    &provenance.unit,
+                    provenance
+                        .sources
+                        .first()
+                        .copied()
+                        .unwrap_or(CandidateSource::Lexical),
+                    provenance.route_rank,
+                    CandidateDecision::Selected,
+                    Some(SearchUnit {
+                        path: unit.path.clone(),
+                        start_line: unit.start_line,
+                        end_line: unit.end_line,
+                    }),
+                );
                 chosen.push((
                     unit.clone(),
                     hits,
@@ -1366,6 +1389,22 @@ impl<'a> State<'a> {
                     },
                 });
             }
+        }
+        for index in 0..ordered.len() {
+            if taken.contains(&index) {
+                continue;
+            }
+            let provenance = &ordered[index].5;
+            if provenance.sources.is_empty() {
+                continue;
+            }
+            self.trace_decision(
+                &provenance.unit,
+                provenance.sources[0],
+                provenance.route_rank,
+                CandidateDecision::Unexamined,
+                None,
+            );
         }
         if requests.is_empty() {
             return;
@@ -1437,6 +1476,28 @@ impl<'a> State<'a> {
     }
 
     fn finish(&mut self) -> WorkflowOutcome {
+        let traced_units: BTreeSet<SearchUnit> =
+            self.traced.iter().map(|entry| entry.unit.clone()).collect();
+        let leftovers: Vec<PoolEntry> = self
+            .pool
+            .values()
+            .filter(|entry| !traced_units.contains(&entry.unit))
+            .cloned()
+            .collect();
+        for entry in leftovers {
+            let source = entry
+                .sources
+                .first()
+                .copied()
+                .unwrap_or(CandidateSource::Lexical);
+            self.trace_decision(
+                &entry.unit,
+                source,
+                entry.route_rank,
+                CandidateDecision::Unexamined,
+                None,
+            );
+        }
         self.stats.rounds = 1 + self
             .stages
             .iter()

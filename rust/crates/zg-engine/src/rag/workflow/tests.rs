@@ -629,3 +629,116 @@ fn empty_pool_still_abstains_with_bounds() {
     assert_eq!(outcome.abstain, Some(AbstainReason::NoEvidence));
     assert!(outcome.stats.tool_calls <= budget().max_tool_calls);
 }
+
+#[test]
+fn trace_covers_every_pooled_candidate_exactly_once() {
+    let (dir, mut source) = fixture();
+    let outcome = run(
+        &mut source,
+        dir.path(),
+        "EmployeeEdit EmployeeEditThongTinCaNhan EmployeeCoreService FullName",
+        budget(),
+    )
+    .expect("run");
+    assert_eq!(outcome.pool.len(), outcome.traced.len());
+    let mut seen = std::collections::BTreeSet::new();
+    for entry in &outcome.traced {
+        assert!(seen.insert(entry.unit.clone()), "duplicate trace unit");
+    }
+    for entry in &outcome.pool {
+        assert!(
+            seen.contains(&entry.unit),
+            "pooled unit {} missing from trace",
+            entry.unit.path
+        );
+    }
+}
+
+#[test]
+fn every_selected_span_has_a_selected_decision_and_vice_versa() {
+    let (dir, mut source) = fixture();
+    let outcome = run(
+        &mut source,
+        dir.path(),
+        "EmployeeEdit EmployeeEditThongTinCaNhan EmployeeCoreService FullName",
+        budget(),
+    )
+    .expect("run");
+    let selected_units: std::collections::BTreeSet<(String, usize, usize)> = outcome
+        .selected
+        .iter()
+        .map(|span| (span.path.clone(), span.start_line, span.end_line))
+        .collect();
+    let traced_selected: std::collections::BTreeSet<(String, usize, usize)> = outcome
+        .traced
+        .iter()
+        .filter(|entry| entry.decision == CandidateDecision::Selected)
+        .filter_map(|entry| {
+            entry
+                .selected
+                .as_ref()
+                .map(|unit| (unit.path.clone(), unit.start_line, unit.end_line))
+        })
+        .collect();
+    assert_eq!(selected_units, traced_selected);
+}
+
+#[test]
+fn unexamined_is_reported_instead_of_a_fake_rejection() {
+    let dir = tempfile::tempdir().expect("fixture");
+    write(
+        dir.path(),
+        "src/A.cs",
+        "public class A {\n  public void Alpha() { }\n}\n",
+    );
+    write(
+        dir.path(),
+        "src/B.cs",
+        "public class B {\n  public void Beta() { }\n}\n",
+    );
+    let mut source = FsSource::new(dir.path());
+    source.hybrid_units = ["src/A.cs", "src/B.cs", "src/A.cs", "src/B.cs"]
+        .iter()
+        .enumerate()
+        .map(|(index, path)| SearchUnit {
+            path: (*path).to_owned(),
+            start_line: 1 + (index % 2) as usize,
+            end_line: 2 + (index % 2) as usize,
+        })
+        .collect();
+    let outcome = run(
+        &mut source,
+        dir.path(),
+        "Alpha",
+        WorkflowBudget {
+            max_items: 1,
+            ..budget()
+        },
+    )
+    .expect("run");
+    assert!(
+        outcome
+            .traced
+            .iter()
+            .any(|entry| entry.decision == CandidateDecision::Unexamined),
+        "a capped run must report unexamined candidates honestly"
+    );
+}
+
+#[test]
+fn cumulative_tool_content_stays_within_the_contract_budget() {
+    let (dir, mut source) = fixture();
+    let outcome = run(
+        &mut source,
+        dir.path(),
+        "EmployeeEdit EmployeeEditThongTinCaNhan EmployeeCoreService FullName",
+        budget(),
+    )
+    .expect("run");
+    assert!(outcome.stats.tool_content_bytes <= 64 * 1024);
+    assert!(outcome.stats.selected_bytes <= 24 * 1024);
+    assert!(
+        outcome.stats.tool_content_bytes >= outcome.stats.selected_bytes,
+        "cumulative tool content must include the selected pack"
+    );
+}

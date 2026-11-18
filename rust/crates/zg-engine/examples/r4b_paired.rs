@@ -46,6 +46,7 @@ struct Arm {
     verified: usize,
     calls: usize,
     reads: usize,
+    tool_content_bytes: usize,
     ms: f64,
     abstain: Option<AbstainReason>,
     routes: Vec<String>,
@@ -72,6 +73,9 @@ struct Receipt {
     p3_reason: &'static str,
     macro_hybrid_baseline: f64,
     macro_hybrid_byte_bounded: f64,
+    tool_content_max: usize,
+    tool_content_total: usize,
+    tool_content_note: &'static str,
     macro_hybrid_p1: f64,
     macro_r4b: f64,
     pool_coverage: usize,
@@ -395,27 +399,47 @@ fn main() {
             .collect::<Vec<_>>();
         let baseline_covered = covered(&case_gold, &flat);
         // Fair baseline: the same hybrid list under the same 24 KiB evidence
-        // budget the verified pack must respect (no byte bound was applied to the
-        // raw arm above, which is why the two are not comparable).
+        // budget the verified pack must respect, sized in SNIPPET units (the
+        // deployable route sends matched snippets, not entity ranges). The
+        // entity-range sizing reported 0.0000 because single spans are 30-56 KB
+        // and never fit; that arm was invalid (audit A3).
         let mut bounded: Vec<(String, usize, usize)> = Vec::new();
         let mut bounded_bytes = 0usize;
-        for unit in &units {
-            let size = fs::read_to_string(root.join(&unit.path))
-                .map(|text| {
-                    text.lines()
-                        .skip(unit.start_line.saturating_sub(1))
-                        .take(unit.end_line.saturating_sub(unit.start_line) + 1)
-                        .map(|line| line.len() + 1)
-                        .sum::<usize>()
-                })
-                .unwrap_or(0);
+        let options = ContextOptions {
+            root: Some(root.clone()),
+            query: Some(question.clone()),
+            limit: Some(10),
+            auto_update: false,
+            refresh: Some(RefreshPolicy::Off),
+            ..ContextOptions::default()
+        };
+        let result = source
+            .runtime
+            .block_on(source.engine.context(options))
+            .expect("hybrid context");
+        for item in &result.items {
+            let size = item.content.len();
             if bounded_bytes + size > budget.max_bytes {
                 continue;
             }
             bounded_bytes += size;
-            bounded.push((unit.path.clone(), unit.start_line, unit.end_line));
+            if let (Some(start), Some(end)) = (
+                item.content_range.start_line(),
+                item.content_range.last_line(),
+            ) {
+                bounded.push((
+                    item.relative_path.to_string_lossy().replace('\\', "/"),
+                    start,
+                    end,
+                ));
+            }
         }
         let baseline_bounded_covered = covered(&case_gold, &bounded);
+        bounded_recalls.push(if total == 0 {
+            0.0
+        } else {
+            baseline_bounded_covered as f64 / total as f64
+        });
 
         // 2) hybrid + P1 selection
         let mut source = Source::new(&root).expect("source");
@@ -498,6 +522,7 @@ fn main() {
             id: id.clone(),
             gold: total,
             hybrid_baseline: Arm {
+                tool_content_bytes: 0,
                 covered: baseline_covered,
                 total,
                 recall: hybrid_recalls.last().copied().unwrap_or(0.0),
@@ -510,6 +535,7 @@ fn main() {
                 routes: vec!["Hybrid".to_owned()],
             },
             hybrid_byte_bounded: Arm {
+                tool_content_bytes: bounded_bytes,
                 covered: baseline_bounded_covered,
                 total,
                 recall: bounded_recalls.last().copied().unwrap_or(0.0),
@@ -522,6 +548,7 @@ fn main() {
                 routes: vec!["Hybrid".to_owned()],
             },
             hybrid_p1: Arm {
+                tool_content_bytes: p1.stats.tool_content_bytes,
                 covered: p1_covered,
                 total,
                 recall: p1_recalls.last().copied().unwrap_or(0.0),
@@ -550,6 +577,7 @@ fn main() {
                 verified: r4b_verified,
                 calls: r4b.stats.tool_calls,
                 reads: r4b.stats.bytes_read,
+                tool_content_bytes: r4b.stats.tool_content_bytes,
                 ms: r4b_ms,
                 abstain: r4b.abstain,
                 routes,
@@ -573,6 +601,13 @@ fn main() {
         p3_reason: "no blind plan exists for D01-D12; a plan written after seeing gold is contaminated, and E1-E5 must not be extrapolated",
         macro_hybrid_baseline: mean(&hybrid_recalls),
         macro_hybrid_byte_bounded: mean(&bounded_recalls),
+        tool_content_max: rows
+            .iter()
+            .map(|row| row.r4b.tool_content_bytes)
+            .max()
+            .unwrap_or(0),
+        tool_content_total: rows.iter().map(|row| row.r4b.tool_content_bytes).sum(),
+        tool_content_note: "cumulative ranked source content per case; contract bound is 64 KiB; final pack bound is 24 KiB and is counted inside",
         macro_hybrid_p1: mean(&p1_recalls),
         macro_r4b: mean(&r4b_recalls),
         pool_coverage,
