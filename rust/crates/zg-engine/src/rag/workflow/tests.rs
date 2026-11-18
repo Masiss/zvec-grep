@@ -739,6 +739,7 @@ fn cumulative_tool_content_stays_within_the_contract_budget() {
     assert!(outcome.stats.selected_bytes <= 24 * 1024);
     assert!(
         outcome.stats.tool_content_bytes >= outcome.stats.selected_bytes,
-        "cumulative tool content must include the selected pack"
+        "delivered tool content must include the selected pack"
     );
+    assert!(outcome.stats.ranked_content_bytes >= outcome.stats.selected_bytes);
 }

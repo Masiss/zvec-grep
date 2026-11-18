@@ -22,7 +22,8 @@ use zg_engine::api::context::ContextOptions;
 use zg_engine::api::context::options::{ContextRoute, ContextRouteMode, RefreshPolicy};
 use zg_engine::api::symbols::SymbolsOptions;
 use zg_engine::rag::workflow::{
-    AbstainReason, CandidateSource, EvidenceSource, SearchUnit, WorkflowBudget, run,
+    AbstainReason, AgentPlan, CandidateSource, EvidenceSource, SearchUnit, WorkflowBudget, run,
+    run_with_plan,
 };
 
 const CASES: &[&str] = &[
@@ -78,6 +79,10 @@ struct Receipt {
     tool_content_note: &'static str,
     macro_hybrid_p1: f64,
     macro_r4b: f64,
+    macro_plan: f64,
+    plan_pool: usize,
+    plan_selected: usize,
+    plan_sha256: String,
     pool_coverage: usize,
     selected_coverage: usize,
     citation_accuracy: f64,
@@ -343,9 +348,12 @@ fn main() {
         }
     }
 
+    // Full REPORT-CONTRACT budget: <=3 rounds, <=6 tool calls, <=32 files,
+    // pack <=24 KiB, cumulative delivered tool content <=64 KiB.
     let budget = WorkflowBudget {
-        max_tool_calls: 24,
-        max_files: 96,
+        max_rounds: 3,
+        max_tool_calls: 6,
+        max_files: 32,
         max_source_reads: 160,
         hybrid_quota: 4,
         fts_quota: 2,
@@ -376,6 +384,9 @@ fn main() {
     let mut p1_recalls = Vec::new();
     let mut r4b_recalls = Vec::new();
     let mut pool_coverage = 0;
+    let mut plan_recalls = Vec::new();
+    let mut plan_pool = 0;
+    let mut plan_selected = 0;
     let mut selected_coverage = 0;
     let mut verified_total = 0;
     let mut selected_total = 0;
@@ -475,6 +486,76 @@ fn main() {
                 .collect::<Vec<_>>(),
         );
         selected_coverage += r4b_covered;
+        // 4) R4b + blind external-agent plan (frozen file, sha in receipt)
+        let plan: AgentPlan = {
+            let raw: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(
+                    repo.join("benchmarks/rag-impact/results/r4b-blind-plan-20261117.json"),
+                )
+                .expect("blind plan"),
+            )
+            .expect("valid plan");
+            let entry = &raw["plans"][id];
+            AgentPlan {
+                queries: entry["queries"]
+                    .as_array()
+                    .map(|values| {
+                        values
+                            .iter()
+                            .filter_map(|v| v.as_str().map(ToString::to_string))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                symbols: entry["symbols"]
+                    .as_array()
+                    .map(|values| {
+                        values
+                            .iter()
+                            .filter_map(|v| v.as_str().map(ToString::to_string))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                scopes: entry["scopes"]
+                    .as_array()
+                    .map(|values| {
+                        values
+                            .iter()
+                            .filter_map(|v| v.as_str().map(ToString::to_string))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            }
+        };
+        let mut source = Source::new(&root).expect("source");
+        let started = Instant::now();
+        let with_plan =
+            run_with_plan(&mut source, &root, question, budget.clone(), &plan).expect("plan run");
+        let plan_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let plan_flat = with_plan
+            .selected
+            .iter()
+            .map(|span| (span.path.clone(), span.start_line, span.end_line))
+            .collect::<Vec<_>>();
+        let plan_covered = covered(&case_gold, &plan_flat);
+        let plan_pool_covered = covered(
+            &case_gold,
+            &with_plan
+                .candidates
+                .iter()
+                .map(|unit| (unit.path.clone(), unit.start_line, unit.end_line))
+                .collect::<Vec<_>>(),
+        );
+        plan_recalls.push(if total == 0 {
+            0.0
+        } else {
+            plan_covered as f64 / total as f64
+        });
+        plan_pool += plan_pool_covered;
+        plan_selected += plan_covered;
+        eprintln!(
+            "{id} gold={total} r4b={r4b_covered} plan={plan_covered} plan_pool={plan_pool_covered}"
+        );
+
         let routes = {
             let mut routes: Vec<String> = r4b
                 .selected
@@ -502,7 +583,7 @@ fn main() {
             r4b_covered as f64 / total as f64
         });
         eprintln!(
-            "{id} gold={total} hybrid={baseline_covered} bounded={baseline_bounded_covered} p1={p1_covered} r4b={r4b_covered} pool={}/{}",
+            "{id} gold={total} r4b={r4b_covered} pool={}/{}",
             r4b.candidates.len(),
             r4b.selected.len()
         );
@@ -610,6 +691,16 @@ fn main() {
         tool_content_note: "cumulative ranked source content per case; contract bound is 64 KiB; final pack bound is 24 KiB and is counted inside",
         macro_hybrid_p1: mean(&p1_recalls),
         macro_r4b: mean(&r4b_recalls),
+        macro_plan: mean(&plan_recalls),
+        plan_pool,
+        plan_selected,
+        plan_sha256: {
+            use sha2::{Digest, Sha256};
+            hex::encode(Sha256::digest(
+                fs::read(repo.join("benchmarks/rag-impact/results/r4b-blind-plan-20261117.json"))
+                    .expect("plan bytes"),
+            ))
+        },
         pool_coverage,
         selected_coverage,
         citation_accuracy: if selected_total == 0 {
@@ -642,11 +733,15 @@ fn main() {
     });
     fs::write(&out, &text).expect("write");
     println!(
-        "hybrid={:.4} hybrid_bounded={:.4} hybrid_p1={:.4} r4b={:.4} pool={}/{} selected={}/{} citation={:.3}",
+        "hybrid={:.4} hybrid_bounded={:.4} hybrid_p1={:.4} r4b={:.4} plan={:.4} plan_pool={}/{} plan_sel={} pool={}/{} selected={}/{} citation={:.3}",
         receipt.macro_hybrid_baseline,
         receipt.macro_hybrid_byte_bounded,
         receipt.macro_hybrid_p1,
         receipt.macro_r4b,
+        receipt.macro_plan,
+        receipt.plan_pool,
+        receipt.gold_spans,
+        receipt.plan_selected,
         receipt.pool_coverage,
         receipt.gold_spans,
         receipt.selected_coverage,

@@ -275,6 +275,19 @@ pub enum CandidateSource {
     LexicalFallback,
     /// Corrective round.
     Corrective,
+    /// External-agent query plan (blind, frozen and hashed per case).
+    AgentPlan,
+}
+
+/// A typed search plan authored by an external agent, blind to gold.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AgentPlan {
+    /// Lexical queries to run against the source.
+    pub queries: Vec<String>,
+    /// Exact symbol names to look up.
+    pub symbols: Vec<String>,
+    /// Folder scopes the plan believes are relevant.
+    pub scopes: Vec<String>,
 }
 
 /// What a selected span is evidence of.
@@ -453,10 +466,17 @@ pub struct WorkflowStats {
     pub bytes_read: usize,
     /// Selected content bytes (the final source pack, contract ≤24 KiB).
     pub selected_bytes: usize,
-    /// Cumulative tool content bytes: every unit of source content this
-    /// workflow would have placed in front of the investigating agent
-    /// (`contract ≤64 KiB`), including the final pack.
+    /// Delivered tool content bytes: source content this workflow returns to
+    /// the caller (the verified pack), plus gap descriptions. Contract bound
+    /// is 64 KiB cumulative. Internal candidate reads are NOT tool content;
+    /// they are counted in `ranked_content_bytes`.
     pub tool_content_bytes: usize,
+    /// Internal candidate content materialized for ranking, never delivered
+    /// to the caller. Reported for transparency; no contract bound.
+    pub ranked_content_bytes: usize,
+    /// Total gap events, including those coalesced out of the delivered
+    /// detail list to respect the tool-content budget.
+    pub gap_events: usize,
     /// Units rejected by the file-type or file-size bounds.
     pub filtered_units: usize,
     /// Indexed FTS calls.
@@ -580,6 +600,64 @@ pub fn define(question: &str) -> Definition {
     }
 }
 
+/// Runs the bounded workflow with an external-agent plan.
+///
+/// The plan is treated as untrusted input: its queries and symbols are executed
+/// through the same bounded, fail-closed routes, every resulting candidate is
+/// labelled `AgentPlan`, and nothing from the plan bypasses admission, ranking
+/// or verification. Provenance distinguishes plan-derived evidence from engine
+/// evidence.
+///
+/// # Errors
+///
+/// Returns an error when the workflow cannot start.
+pub fn run_with_plan(
+    source: &mut impl EvidenceSource,
+    root: &Path,
+    question: &str,
+    budget: WorkflowBudget,
+    plan: &AgentPlan,
+) -> Result<WorkflowOutcome, String> {
+    let budget = budget.clamped();
+    if !root.is_dir() {
+        return Err(format!(
+            "evidence root is not a directory: {}",
+            root.display()
+        ));
+    }
+    let definition = define(question);
+    let mut state = State::new(root, definition, budget);
+    state.plan = Some(plan.clone());
+    state.stages.push(StageTrace {
+        stage: Stage::Define,
+        tool_calls: 0,
+        files: 0,
+        candidates: 0,
+        note: format!(
+            "anchors={} code_tokens={} sql={} plan_queries={} plan_symbols={}",
+            state.definition.anchors.len(),
+            state.definition.code_tokens.len(),
+            state.definition.wants_sql,
+            plan.queries.len(),
+            plan.symbols.len()
+        ),
+    });
+    if state.definition.anchors.is_empty() && state.definition.code_tokens.is_empty() {
+        state.abstain = Some(AbstainReason::NoEvidence);
+        return Ok(state.finish());
+    }
+    state.discover(source)?;
+    if state.abstain.is_some() {
+        return Ok(state.finish());
+    }
+    state.expand(source);
+    if state.abstain.is_some() {
+        return Ok(state.finish());
+    }
+    state.check(source);
+    Ok(state.finish())
+}
+
 /// Runs the bounded workflow against a discovery backend.
 ///
 /// # Errors
@@ -631,6 +709,7 @@ pub fn run(
 }
 
 struct State<'a> {
+    plan: Option<AgentPlan>,
     root: &'a Path,
     definition: Definition,
     budget: WorkflowBudget,
@@ -652,6 +731,7 @@ struct State<'a> {
 impl<'a> State<'a> {
     fn new(root: &'a Path, definition: Definition, budget: WorkflowBudget) -> Self {
         Self {
+            plan: None,
             root,
             definition,
             budget,
@@ -671,15 +751,25 @@ impl<'a> State<'a> {
         }
     }
 
+    /// Cap on delivered details per gap code; further events are coalesced
+    /// into the count. Gap texts are diagnostics, not evidence, so this does
+    /// not reduce evidence quality.
+    const MAX_GAP_DETAILS: usize = 8;
+
+    fn push_gap(&mut self, key: String, detail: String) {
+        self.stats.gap_events += 1;
+        let entry = self.gaps.entry(key).or_default();
+        if entry.len() < Self::MAX_GAP_DETAILS {
+            entry.push(detail);
+        }
+    }
+
     fn gap(&mut self, code: EvidenceGapCode, detail: String) {
-        self.gaps
-            .entry(format!("{code:?}").to_lowercase())
-            .or_default()
-            .push(detail);
+        self.push_gap(format!("{code:?}").to_lowercase(), detail);
     }
 
     fn budget_gap(&mut self, key: &str, detail: String) {
-        self.gaps.entry(key.to_owned()).or_default().push(detail);
+        self.push_gap(key.to_owned(), detail);
     }
 
     fn admits(&mut self, path: &str) -> bool {
@@ -871,6 +961,38 @@ impl<'a> State<'a> {
 
     fn discover(&mut self, source: &mut impl EvidenceSource) -> Result<(), String> {
         let question = self.definition.question.clone();
+        if let Some(plan) = self.plan.clone() {
+            // External-agent plan, E2 ordering: the engine's own deployable routes
+            // run first, the plan supplements with whatever budget remains, so a
+            // low-quality plan cannot crowd out the hybrid/FTS evidence.
+            for name in plan.symbols.iter().take(3).cloned().collect::<Vec<_>>() {
+                if self.calls_left() == 0 {
+                    break;
+                }
+                self.symbol_route(source, &name, "agent_plan_symbol");
+            }
+            let mut queries = plan.queries.clone();
+            queries.retain(|query| !query.trim().is_empty());
+            queries.truncate(3);
+            for query in queries {
+                if self.calls_left() == 0 {
+                    break;
+                }
+                self.stats.tool_calls += 1;
+                self.stats.hybrid_calls += 1;
+                match source.hybrid(&query, 10) {
+                    Ok(units) => {
+                        for (rank, unit) in units.into_iter().enumerate() {
+                            self.accept(unit, CandidateSource::AgentPlan, None, rank);
+                        }
+                    }
+                    Err(error) => self.gap(
+                        EvidenceGapCode::Missing,
+                        format!("agent-plan hybrid query failed: {error}"),
+                    ),
+                }
+            }
+        }
         if self.budget.use_hybrid {
             self.hybrid_route(source, &question);
         }
@@ -1120,7 +1242,7 @@ impl<'a> State<'a> {
                 .take(end.saturating_sub(start).saturating_add(1))
                 .collect::<Vec<_>>()
                 .join("\n");
-            self.stats.tool_content_bytes += content.len();
+            self.stats.ranked_content_bytes += content.len();
             let lower = content.to_lowercase();
             let mut hits = Vec::new();
             let mut score = 0i64;
@@ -1476,6 +1598,13 @@ impl<'a> State<'a> {
     }
 
     fn finish(&mut self) -> WorkflowOutcome {
+        let gap_bytes: usize = self
+            .gaps
+            .values()
+            .flat_map(|details| details.iter())
+            .map(|detail| detail.len())
+            .sum();
+        self.stats.tool_content_bytes = self.stats.selected_bytes + gap_bytes;
         let traced_units: BTreeSet<SearchUnit> =
             self.traced.iter().map(|entry| entry.unit.clone()).collect();
         let leftovers: Vec<PoolEntry> = self

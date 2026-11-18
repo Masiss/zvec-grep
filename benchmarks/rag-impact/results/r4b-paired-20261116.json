@@ -1,12 +1,12 @@
 {
   "kind": "r4b_paired",
-  "head": "45648a9bbf648b181b1b8715027bae7af7177e7a",
+  "head": "06ae60b0823da445d2d8dc435af44bbc080a2db8",
   "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
   "gold_spans": 25,
   "budget": {
-    "max_rounds": 2,
-    "max_tool_calls": 24,
-    "max_files": 96,
+    "max_rounds": 3,
+    "max_tool_calls": 6,
+    "max_files": 32,
     "max_source_reads": 160,
     "max_items": 10,
     "max_bytes": 24576,
@@ -40,11 +40,15 @@
   "p3_reason": "no blind plan exists for D01-D12; a plan written after seeing gold is contaminated, and E1-E5 must not be extrapolated",
   "macro_hybrid_baseline": 0.4166666666666667,
   "macro_hybrid_byte_bounded": 0.16666666666666666,
-  "tool_content_max": 1364680,
-  "tool_content_total": 11798016,
+  "tool_content_max": 26855,
+  "tool_content_total": 265225,
   "tool_content_note": "cumulative ranked source content per case; contract bound is 64 KiB; final pack bound is 24 KiB and is counted inside",
   "macro_hybrid_p1": 0.19444444444444442,
   "macro_r4b": 0.3194444444444444,
+  "macro_plan": 0.13888888888888887,
+  "plan_pool": 14,
+  "plan_selected": 4,
+  "plan_sha256": "e8a33dde61c6b661d87128f70d01999add8fab1ebf33be67815a78754bb1dba7",
   "pool_coverage": 12,
   "selected_coverage": 6,
   "citation_accuracy": 1.0,
@@ -61,7 +65,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1248.100435,
+        "ms": 1788.657614,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -76,7 +80,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 15528,
-        "ms": 1248.100435,
+        "ms": 1788.657614,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -90,8 +94,8 @@
         "verified": 4,
         "calls": 1,
         "reads": 285758,
-        "tool_content_bytes": 218638,
-        "ms": 1244.127774,
+        "tool_content_bytes": 19238,
+        "ms": 2033.778854,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -101,19 +105,17 @@
         "covered": 0,
         "total": 2,
         "recall": 0.0,
-        "items": 9,
-        "verified": 9,
-        "calls": 17,
-        "reads": 2046892,
-        "tool_content_bytes": 1019996,
-        "ms": 45480.051785999996,
+        "items": 10,
+        "verified": 10,
+        "calls": 6,
+        "reads": 1628256,
+        "tool_content_bytes": 26855,
+        "ms": 15528.046523,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Fts",
           "Hybrid",
-          "Lexical",
-          "Symbol"
+          "Lexical"
         ]
       }
     },
@@ -129,7 +131,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 2942.109854,
+        "ms": 1878.233964,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -144,7 +146,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 14385,
-        "ms": 2942.109854,
+        "ms": 1878.233964,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -158,8 +160,8 @@
         "verified": 10,
         "calls": 2,
         "reads": 417320,
-        "tool_content_bytes": 707452,
-        "ms": 11419.746215,
+        "tool_content_bytes": 11668,
+        "ms": 4562.0613539999995,
         "abstain": null,
         "routes": [
           "Hybrid",
@@ -172,10 +174,10 @@
         "recall": 0.0,
         "items": 10,
         "verified": 10,
-        "calls": 17,
-        "reads": 1962780,
-        "tool_content_bytes": 914934,
-        "ms": 23643.62721,
+        "calls": 6,
+        "reads": 417320,
+        "tool_content_bytes": 12201,
+        "ms": 7391.913884,
         "abstain": null,
         "routes": [
           "Fts",
@@ -196,7 +198,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1486.1470940000002,
+        "ms": 1125.049429,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -211,7 +213,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 14220,
-        "ms": 1486.1470940000002,
+        "ms": 1125.049429,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -225,8 +227,8 @@
         "verified": 4,
         "calls": 1,
         "reads": 231415,
-        "tool_content_bytes": 177836,
-        "ms": 1762.850334,
+        "tool_content_bytes": 21976,
+        "ms": 1439.1131850000002,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -238,10 +240,10 @@
         "recall": 0.0,
         "items": 10,
         "verified": 10,
-        "calls": 18,
+        "calls": 6,
         "reads": 1249012,
-        "tool_content_bytes": 833703,
-        "ms": 13244.522226000001,
+        "tool_content_bytes": 26644,
+        "ms": 9943.956747,
         "abstain": null,
         "routes": [
           "Fts",
@@ -262,7 +264,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1682.8713209999999,
+        "ms": 1236.512506,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -277,7 +279,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 14193,
-        "ms": 1682.8713209999999,
+        "ms": 1236.512506,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -291,8 +293,8 @@
         "verified": 6,
         "calls": 3,
         "reads": 1126125,
-        "tool_content_bytes": 766688,
-        "ms": 6980.487005999999,
+        "tool_content_bytes": 25400,
+        "ms": 4372.374903,
         "abstain": {
           "reason": "missing_code_tokens",
           "tokens": [
@@ -310,10 +312,10 @@
         "recall": 0.0,
         "items": 7,
         "verified": 7,
-        "calls": 15,
-        "reads": 1138478,
-        "tool_content_bytes": 1068254,
-        "ms": 17863.968124,
+        "calls": 6,
+        "reads": 1126125,
+        "tool_content_bytes": 25540,
+        "ms": 5902.329901,
         "abstain": {
           "reason": "missing_code_tokens",
           "tokens": [
@@ -339,7 +341,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1582.012124,
+        "ms": 2072.524361,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -354,7 +356,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 15538,
-        "ms": 1582.012124,
+        "ms": 2072.524361,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -368,8 +370,8 @@
         "verified": 4,
         "calls": 1,
         "reads": 283992,
-        "tool_content_bytes": 157169,
-        "ms": 2122.799463,
+        "tool_content_bytes": 22635,
+        "ms": 1699.186639,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -379,18 +381,16 @@
         "covered": 0,
         "total": 1,
         "recall": 0.0,
-        "items": 6,
-        "verified": 6,
-        "calls": 16,
-        "reads": 1903314,
-        "tool_content_bytes": 1205073,
-        "ms": 16896.089543,
+        "items": 4,
+        "verified": 4,
+        "calls": 6,
+        "reads": 319044,
+        "tool_content_bytes": 22625,
+        "ms": 2557.783593,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Fts",
-          "Hybrid",
-          "Symbol"
+          "Hybrid"
         ]
       }
     },
@@ -406,7 +406,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1609.10523,
+        "ms": 1112.826655,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -421,7 +421,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 14499,
-        "ms": 1609.10523,
+        "ms": 1112.826655,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -435,8 +435,8 @@
         "verified": 4,
         "calls": 1,
         "reads": 221265,
-        "tool_content_bytes": 224589,
-        "ms": 1834.983123,
+        "tool_content_bytes": 21650,
+        "ms": 1415.376673,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -446,19 +446,17 @@
         "covered": 0,
         "total": 3,
         "recall": 0.0,
-        "items": 8,
-        "verified": 8,
-        "calls": 20,
-        "reads": 1916530,
-        "tool_content_bytes": 1286437,
-        "ms": 25389.772544,
+        "items": 7,
+        "verified": 7,
+        "calls": 6,
+        "reads": 335180,
+        "tool_content_bytes": 25203,
+        "ms": 3664.188164,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Fts",
           "Hybrid",
-          "Lexical",
-          "Symbol"
+          "Lexical"
         ]
       }
     },
@@ -474,7 +472,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1885.90265,
+        "ms": 1807.6341579999998,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -489,7 +487,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 15397,
-        "ms": 1885.90265,
+        "ms": 1807.6341579999998,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -503,8 +501,8 @@
         "verified": 10,
         "calls": 2,
         "reads": 509399,
-        "tool_content_bytes": 393286,
-        "ms": 3368.478622,
+        "tool_content_bytes": 24543,
+        "ms": 2585.660961,
         "abstain": null,
         "routes": [
           "Hybrid",
@@ -517,10 +515,10 @@
         "recall": 0.3333333333333333,
         "items": 10,
         "verified": 10,
-        "calls": 17,
-        "reads": 1441221,
-        "tool_content_bytes": 781455,
-        "ms": 7946.53007,
+        "calls": 6,
+        "reads": 1376937,
+        "tool_content_bytes": 23736,
+        "ms": 4213.144139,
         "abstain": null,
         "routes": [
           "Fts",
@@ -541,7 +539,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1711.093312,
+        "ms": 956.9682670000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -556,7 +554,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 11564,
-        "ms": 1711.093312,
+        "ms": 956.9682670000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -570,8 +568,8 @@
         "verified": 7,
         "calls": 1,
         "reads": 363425,
-        "tool_content_bytes": 135975,
-        "ms": 1570.4374300000002,
+        "tool_content_bytes": 21513,
+        "ms": 1173.932326,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -581,18 +579,17 @@
         "covered": 2,
         "total": 2,
         "recall": 1.0,
-        "items": 10,
-        "verified": 10,
-        "calls": 18,
-        "reads": 1806296,
-        "tool_content_bytes": 1279010,
-        "ms": 19925.388998,
+        "items": 7,
+        "verified": 7,
+        "calls": 6,
+        "reads": 363425,
+        "tool_content_bytes": 21513,
+        "ms": 1905.7392370000002,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Fts",
           "Hybrid",
-          "Symbol"
+          "Lexical"
         ]
       }
     },
@@ -608,7 +605,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1513.200207,
+        "ms": 1057.34761,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -623,7 +620,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 5554,
-        "ms": 1513.200207,
+        "ms": 1057.34761,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -637,8 +634,8 @@
         "verified": 7,
         "calls": 1,
         "reads": 163988,
-        "tool_content_bytes": 51249,
-        "ms": 1877.4195140000002,
+        "tool_content_bytes": 24366,
+        "ms": 1359.313933,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -650,10 +647,10 @@
         "recall": 1.0,
         "items": 10,
         "verified": 10,
-        "calls": 16,
-        "reads": 1215483,
-        "tool_content_bytes": 522298,
-        "ms": 13258.24777,
+        "calls": 6,
+        "reads": 1164670,
+        "tool_content_bytes": 10427,
+        "ms": 7027.9882259999995,
         "abstain": null,
         "routes": [
           "Fts",
@@ -674,7 +671,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1321.954363,
+        "ms": 1438.489081,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -689,7 +686,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 17419,
-        "ms": 1321.954363,
+        "ms": 1438.489081,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -703,8 +700,8 @@
         "verified": 3,
         "calls": 2,
         "reads": 315595,
-        "tool_content_bytes": 625359,
-        "ms": 1850.368241,
+        "tool_content_bytes": 17852,
+        "ms": 1875.3586209999999,
         "abstain": null,
         "routes": [
           "Hybrid",
@@ -717,13 +714,12 @@
         "recall": 0.5,
         "items": 9,
         "verified": 9,
-        "calls": 18,
+        "calls": 6,
         "reads": 1421804,
-        "tool_content_bytes": 939975,
-        "ms": 14689.728833000001,
+        "tool_content_bytes": 26407,
+        "ms": 11275.305257,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Fts",
           "Hybrid",
           "Lexical"
@@ -742,7 +738,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 1545.049455,
+        "ms": 1212.85374,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -757,7 +753,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 15819,
-        "ms": 1545.049455,
+        "ms": 1212.85374,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -771,8 +767,8 @@
         "verified": 4,
         "calls": 1,
         "reads": 350666,
-        "tool_content_bytes": 125900,
-        "ms": 2307.6979619999997,
+        "tool_content_bytes": 16093,
+        "ms": 1338.652884,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -782,17 +778,17 @@
         "covered": 1,
         "total": 1,
         "recall": 1.0,
-        "items": 10,
-        "verified": 10,
-        "calls": 14,
-        "reads": 793811,
-        "tool_content_bytes": 582201,
-        "ms": 8107.450326,
+        "items": 8,
+        "verified": 8,
+        "calls": 6,
+        "reads": 394018,
+        "tool_content_bytes": 18699,
+        "ms": 2806.882496,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Fts",
           "Hybrid",
+          "Lexical",
           "Symbol"
         ]
       }
@@ -809,7 +805,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 0,
-        "ms": 2608.440583,
+        "ms": 998.043439,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -824,7 +820,7 @@
         "calls": 1,
         "reads": 0,
         "tool_content_bytes": 12676,
-        "ms": 2608.440583,
+        "ms": 998.043439,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -838,8 +834,8 @@
         "verified": 5,
         "calls": 1,
         "reads": 264420,
-        "tool_content_bytes": 129227,
-        "ms": 2703.443971,
+        "tool_content_bytes": 22007,
+        "ms": 1151.6934430000001,
         "abstain": null,
         "routes": [
           "Hybrid"
@@ -851,13 +847,12 @@
         "recall": 0.0,
         "items": 8,
         "verified": 8,
-        "calls": 20,
-        "reads": 1753517,
-        "tool_content_bytes": 1364680,
-        "ms": 19117.372877,
+        "calls": 6,
+        "reads": 827949,
+        "tool_content_bytes": 25375,
+        "ms": 4207.997956,
         "abstain": null,
         "routes": [
-          "FactExpansion",
           "Hybrid",
           "Lexical"
         ]
@@ -865,8 +860,8 @@
     }
   ],
   "host": {
-    "loadavg": "6.66 7.14 6.54 1/2767 857325",
-    "mem_available_kib": 5442912,
-    "pss_kib": 422460
+    "loadavg": "10.67 11.85 7.83 4/2850 2066266",
+    "mem_available_kib": 3917120,
+    "pss_kib": 441413
   }
 }

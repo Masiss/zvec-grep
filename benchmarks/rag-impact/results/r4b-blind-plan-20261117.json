@@ -1,0 +1,217 @@
+{
+  "kind": "r4b_blind_agent_plan",
+  "planner": "pi delegate subagent, clean context, no gold/receipts/forensics provided",
+  "planner_input": "12 question texts from benchmarks/rag-impact/cases/dev.json (D01-D12) + folder hints only",
+  "created": "2026-11-17",
+  "plans": {
+    "D01": {
+      "queries": [
+        "Tạo mới nhân viên",
+        "CreateEmployee",
+        "InsertEmployee",
+        "AddEmployee",
+        "EmployeeService Create",
+        "NhanVien Add"
+      ],
+      "symbols": [
+        "CreateEmployee",
+        "AddEmployee",
+        "InsertEmployee"
+      ],
+      "scopes": [
+        "Services/",
+        "Webs/"
+      ]
+    },
+    "D02": {
+      "queries": [
+        "Tạo mới nhân viên",
+        "Employees Insert",
+        "EmployeeHistory Insert",
+        "DepartmentEmployee",
+        "SaveChanges Employee"
+      ],
+      "symbols": [
+        "Employee",
+        "EmployeeHistory",
+        "SaveChanges"
+      ],
+      "scopes": [
+        "DBContexts/",
+        "DB/"
+      ]
+    },
+    "D03": {
+      "queries": [
+        "Cập nhật thông tin nhân viên",
+        "UpdateEmployee",
+        "EditEmployee",
+        "SaveEmployee",
+        "ModifyEmployee"
+      ],
+      "symbols": [
+        "UpdateEmployee",
+        "EditEmployee",
+        "SaveEmployee"
+      ],
+      "scopes": [
+        "Services/",
+        "Webs/"
+      ]
+    },
+    "D04": {
+      "queries": [
+        "EmployeeEdit",
+        "EmployeeEdit.cshtml",
+        "NhanVien Edit",
+        "Employee Edit View"
+      ],
+      "symbols": [
+        "EmployeeEdit",
+        "Edit"
+      ],
+      "scopes": [
+        "Webs/"
+      ]
+    },
+    "D05": {
+      "queries": [
+        "Xóa nhân viên",
+        "DeleteEmployee",
+        "RemoveEmployee",
+        "Employee Delete SaveChanges",
+        "DeleteFromState Employees"
+      ],
+      "symbols": [
+        "DeleteEmployee",
+        "RemoveEmployee"
+      ],
+      "scopes": [
+        "Services/",
+        "DBContexts/"
+      ]
+    },
+    "D06": {
+      "queries": [
+        "Nhân viên nghỉ việc",
+        "ResignEmployee",
+        "TerminateEmployee",
+        "EmployeeResign",
+        "EmployeeStatus Resigned",
+        "InactiveEmployee"
+      ],
+      "symbols": [
+        "ResignEmployee",
+        "TerminateEmployee"
+      ],
+      "scopes": [
+        "Services/",
+        "DBContexts/"
+      ]
+    },
+    "D07": {
+      "queries": [
+        "Tính lương lại",
+        "RecalculateSalary",
+        "RecomputeSalary",
+        "SalaryRecalculate",
+        "CalculateSalary",
+        "EmployeeSalary Update"
+      ],
+      "symbols": [
+        "RecalculateSalary",
+        "CalculateSalary",
+        "RecomputeSalary"
+      ],
+      "scopes": [
+        "Services/",
+        "DB/"
+      ]
+    },
+    "D08": {
+      "queries": [
+        "EmployeeEdit",
+        "EmployeeEdit Service",
+        "IEmployeeService",
+        "EmployeeService",
+        "EditEmployee Call Service"
+      ],
+      "symbols": [
+        "EmployeeService",
+        "IEmployeeService"
+      ],
+      "scopes": [
+        "Webs/",
+        "Services/"
+      ]
+    },
+    "D09": {
+      "queries": [
+        "EmployeeEdit",
+        "EmployeeController",
+        "Employee Edit ActionResult",
+        "Controller Employee"
+      ],
+      "symbols": [
+        "EmployeeController",
+        "Edit"
+      ],
+      "scopes": [
+        "Webs/"
+      ]
+    },
+    "D10": {
+      "queries": [
+        "Phòng ban nhân viên mới",
+        "DepartmentEmployee",
+        "EmployeeDepartment Insert",
+        "Department Employees",
+        "AddEmployeeDepartment"
+      ],
+      "symbols": [
+        "DepartmentEmployee",
+        "EmployeeDepartment"
+      ],
+      "scopes": [
+        "DBContexts/",
+        "Services/"
+      ]
+    },
+    "D11": {
+      "queries": [
+        "Đổi lương cơ bản",
+        "BaseSalary",
+        "EmployeeSalary",
+        "UpdateBaseSalary",
+        "SalaryHistory",
+        "ChangeSalary"
+      ],
+      "symbols": [
+        "BaseSalary",
+        "EmployeeSalary",
+        "UpdateBaseSalary"
+      ],
+      "scopes": [
+        "Services/",
+        "DBContexts/"
+      ]
+    },
+    "D12": {
+      "queries": [
+        "Phòng ban thêm người",
+        "DepartmentEmployee",
+        "Employees DepartmentId",
+        "Department Insert Employee",
+        "EmployeeDepartmentId"
+      ],
+      "symbols": [
+        "DepartmentEmployee",
+        "Department"
+      ],
+      "scopes": [
+        "DBContexts/",
+        "DB/"
+      ]
+    }
+  }
+}
