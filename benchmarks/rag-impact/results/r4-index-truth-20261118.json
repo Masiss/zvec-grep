@@ -50,9 +50,12 @@
       ],
       "name": "EmployeeBaseViews",
       "path": "DB/Views/EmployeeBaseViews.sql",
-      "persisted": false,
-      "range": null,
-      "total_hits": 1
+      "persisted": true,
+      "range": [
+        1,
+        9
+      ],
+      "total_hits": 2
     },
     {
       "gold": [
@@ -61,9 +64,12 @@
       ],
       "name": "sp_UpdateOrgTotalEmployee",
       "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
-      "persisted": false,
-      "range": null,
-      "total_hits": 0
+      "persisted": true,
+      "range": [
+        1,
+        102
+      ],
+      "total_hits": 1
     },
     {
       "gold": [
@@ -72,12 +78,15 @@
       ],
       "name": "sp_UpdateOrgTotalEmployee",
       "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
-      "persisted": false,
-      "range": null,
-      "total_hits": 0
+      "persisted": true,
+      "range": [
+        1,
+        102
+      ],
+      "total_hits": 1
     }
   ],
-  "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
+  "corpus_root": "/home/masis/.cache/zvec-grep/r4-sql-symbols-20261118/corpus",
   "files_total": 822,
   "files_indexed": null,
   "gold_checks": [
@@ -203,18 +212,21 @@
       "gold_end": 55,
       "enclosing": {
         "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
-        "name": "DbContext",
+        "name": "CoreDBContext",
         "start_line": 9,
         "end_line": 256,
         "kind": "cs"
       },
       "scanned": true,
-      "persisted": false,
-      "persisted_range": null,
-      "fts_token": null,
-      "fts_hit": false,
+      "persisted": true,
+      "persisted_range": [
+        9,
+        256
+      ],
+      "fts_token": "CoreDBContext",
+      "fts_hit": true,
       "vector_hit": false,
-      "stage_fail": "NOT_PERSISTED"
+      "stage_fail": "OK_SEARCHABLE"
     },
     {
       "id": "D02",
@@ -539,18 +551,21 @@
       "gold_end": 22,
       "enclosing": {
         "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
-        "name": "BaseService",
+        "name": "CoreService",
         "start_line": 17,
         "end_line": 223,
         "kind": "cs"
       },
       "scanned": true,
-      "persisted": false,
-      "persisted_range": null,
-      "fts_token": null,
+      "persisted": true,
+      "persisted_range": [
+        17,
+        223
+      ],
+      "fts_token": "CoreService",
       "fts_hit": false,
       "vector_hit": false,
-      "stage_fail": "NOT_PERSISTED"
+      "stage_fail": "NOT_SEARCHABLE"
     },
     {
       "id": "D10",
@@ -644,6 +659,7 @@
   ],
   "gold_summary": [
     "NOT_PERSISTED",
+    "NOT_SEARCHABLE",
     "OK_SEARCHABLE"
   ],
   "sample_checks": [
@@ -1433,18 +1449,21 @@
       "gold_end": 10,
       "enclosing": {
         "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizationViews/EmployeeOrganizationViewModels.cs",
-        "name": "EmployeeOrganizationView",
+        "name": "EmployeeOrganizationViewViewModel",
         "start_line": 5,
         "end_line": 10,
         "kind": "cs"
       },
       "scanned": true,
-      "persisted": false,
-      "persisted_range": null,
-      "fts_token": null,
-      "fts_hit": false,
-      "vector_hit": false,
-      "stage_fail": "NOT_PERSISTED"
+      "persisted": true,
+      "persisted_range": [
+        5,
+        10
+      ],
+      "fts_token": "EmployeeOrganizationViewViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
     },
     {
       "id": "SAMPLE",
@@ -1936,18 +1955,21 @@
       "gold_end": 10,
       "enclosing": {
         "path": "Services/HRIS/Service.Core/Executes/General/Features/FeatureModels.cs",
-        "name": "Feature",
+        "name": "FeatureEditModel",
         "start_line": 6,
         "end_line": 10,
         "kind": "cs"
       },
       "scanned": true,
-      "persisted": false,
-      "persisted_range": null,
-      "fts_token": null,
-      "fts_hit": false,
-      "vector_hit": false,
-      "stage_fail": "NOT_PERSISTED"
+      "persisted": true,
+      "persisted_range": [
+        6,
+        10
+      ],
+      "fts_token": "FeatureEditModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
     },
     {
       "id": "SAMPLE",
@@ -2255,18 +2277,21 @@
       "gold_end": 9,
       "enclosing": {
         "path": "Services/HRIS/Service.Core/Executes/Holidays/HolidayModels.cs",
-        "name": "Holiday",
+        "name": "HolidayViewModel",
         "start_line": 6,
         "end_line": 9,
         "kind": "cs"
       },
       "scanned": true,
-      "persisted": false,
-      "persisted_range": null,
-      "fts_token": null,
-      "fts_hit": false,
-      "vector_hit": false,
-      "stage_fail": "NOT_PERSISTED"
+      "persisted": true,
+      "persisted_range": [
+        6,
+        9
+      ],
+      "fts_token": "HolidayViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
     },
     {
       "id": "SAMPLE",
@@ -2909,8 +2934,8 @@
       ],
       "fts_token": "ActionResult",
       "fts_hit": false,
-      "vector_hit": true,
-      "stage_fail": "OK_SEARCHABLE"
+      "vector_hit": false,
+      "stage_fail": "NOT_SEARCHABLE"
     },
     {
       "id": "SAMPLE",

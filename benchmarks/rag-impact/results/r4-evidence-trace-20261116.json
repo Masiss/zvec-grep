@@ -68,34 +68,9 @@
           "start_line": 17
         },
         {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "start_line": 17
-        },
-        {
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "start_line": 16
-        },
-        {
-          "end_line": 25,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
-          "start_line": 25
-        },
-        {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "start_line": 17
-        },
-        {
-          "end_line": 109,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationModels.cs",
-          "start_line": 109
-        },
-        {
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
-          "start_line": 16
+          "end_line": 681,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "start_line": 681
         },
         {
           "end_line": 27,
@@ -103,19 +78,44 @@
           "start_line": 27
         },
         {
+          "end_line": 16,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
+          "start_line": 16
+        },
+        {
+          "end_line": 28,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipModels.cs",
+          "start_line": 28
+        },
+        {
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
+          "start_line": 17
+        },
+        {
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
+          "start_line": 17
+        },
+        {
           "end_line": 622,
           "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
           "start_line": 459
         },
         {
-          "end_line": 39,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/HiringDecisions/HiringDecisionModels.cs",
-          "start_line": 39
+          "end_line": 25,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
+          "start_line": 25
         },
         {
-          "end_line": 32,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationModels.cs",
-          "start_line": 32
+          "end_line": 16,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
+          "start_line": 16
+        },
+        {
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ReHiringDecisions/ReHiringDecisionModels.cs",
+          "start_line": 40
         },
         {
           "end_line": 625,
@@ -1632,7 +1632,7 @@
           "decision": "selected",
           "end_line": 622,
           "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
-          "route_rank": 7,
+          "route_rank": 6,
           "selected": {
             "end_line": 622,
             "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
@@ -4829,20 +4829,20 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 32,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationModels.cs",
-          "route_rank": 9,
+          "end_line": 28,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipModels.cs",
+          "route_rank": 3,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
-          "start_line": 32
+          "start_line": 28
         },
         {
           "decision": "unexamined",
           "end_line": 25,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
-          "route_rank": 2,
+          "route_rank": 7,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -4853,7 +4853,7 @@
           "decision": "unexamined",
           "end_line": 27,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
-          "route_rank": 6,
+          "route_rank": 1,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -4862,14 +4862,14 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 39,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/HiringDecisions/HiringDecisionModels.cs",
-          "route_rank": 8,
+          "end_line": 40,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ReHiringDecisions/ReHiringDecisionModels.cs",
+          "route_rank": 9,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
-          "start_line": 39
+          "start_line": 40
         },
         {
           "decision": "unexamined",
@@ -4897,7 +4897,7 @@
           "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "route_rank": 3,
+          "route_rank": 5,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -4908,7 +4908,7 @@
           "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "route_rank": 0,
+          "route_rank": 4,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -4919,34 +4919,34 @@
           "decision": "unexamined",
           "end_line": 16,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
-          "route_rank": 5,
+          "route_rank": 2,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
           "start_line": 16
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 109,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationModels.cs",
-          "route_rank": 4,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 109
         },
         {
           "decision": "unexamined",
           "end_line": 16,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "route_rank": 1,
+          "route_rank": 8,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
           "start_line": 16
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 681,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "route_rank": 0,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 681
         }
       ],
       "selected": [
@@ -14148,9 +14148,9 @@
           "start_line": 27
         },
         {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "start_line": 17
+          "end_line": 16,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
+          "start_line": 16
         },
         {
           "end_line": 104,
@@ -22085,17 +22085,6 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "route_rank": 9,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 17
-        },
-        {
-          "decision": "unexamined",
           "end_line": 29,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequirePropertyDetails/EmployeeRequirePropertyDetailModels.cs",
           "route_rank": 6,
@@ -22137,6 +22126,17 @@
             "agent_plan"
           ],
           "start_line": 14
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 16,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
+          "route_rank": 9,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 16
         },
         {
           "decision": "unexamined",
@@ -38233,19 +38233,9 @@
           "start_line": 16
         },
         {
-          "end_line": 109,
+          "end_line": 93,
           "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationModels.cs",
-          "start_line": 109
-        },
-        {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "start_line": 17
-        },
-        {
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "start_line": 16
+          "start_line": 93
         },
         {
           "end_line": 681,
@@ -38253,24 +38243,24 @@
           "start_line": 681
         },
         {
+          "end_line": 150,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
+          "start_line": 132
+        },
+        {
           "end_line": 27,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
           "start_line": 27
         },
         {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "start_line": 17
+          "end_line": 16,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
+          "start_line": 16
         },
         {
-          "end_line": 32,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationModels.cs",
-          "start_line": 32
-        },
-        {
-          "end_line": 150,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
-          "start_line": 132
+          "end_line": 28,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipModels.cs",
+          "start_line": 28
         },
         {
           "end_line": 48,
@@ -38278,9 +38268,19 @@
           "start_line": 48
         },
         {
-          "end_line": 40,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ReHiringDecisions/ReHiringDecisionModels.cs",
-          "start_line": 40
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
+          "start_line": 17
+        },
+        {
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
+          "start_line": 17
+        },
+        {
+          "end_line": 73,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+          "start_line": 52
         },
         {
           "end_line": 13,
@@ -38354,22 +38354,22 @@
           "start_line": 11
         },
         {
-          "content_bytes": 708,
-          "end_line": 120,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationModels.cs",
+          "content_bytes": 1042,
+          "end_line": 73,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
           "sources": [
             "agent_plan"
           ],
-          "start_line": 107
+          "start_line": 52
         },
         {
-          "content_bytes": 548,
-          "end_line": 150,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
+          "content_bytes": 356,
+          "end_line": 32,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipModels.cs",
           "sources": [
             "agent_plan"
           ],
-          "start_line": 132
+          "start_line": 23
         },
         {
           "content_bytes": 148,
@@ -38381,13 +38381,13 @@
           "start_line": 46
         },
         {
-          "content_bytes": 245,
-          "end_line": 28,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
+          "content_bytes": 90,
+          "end_line": 479,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
           "sources": [
-            "agent_plan"
+            "hybrid"
           ],
-          "start_line": 23
+          "start_line": 477
         }
       ],
       "plan_traced": [
@@ -38438,39 +38438,39 @@
         },
         {
           "decision": "selected",
-          "end_line": 109,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationModels.cs",
-          "route_rank": 0,
+          "end_line": 73,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+          "route_rank": 9,
           "selected": {
-            "end_line": 120,
-            "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationModels.cs",
-            "start_line": 107
+            "end_line": 73,
+            "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+            "start_line": 52
           },
           "sources": [
             "agent_plan"
           ],
-          "start_line": 109
+          "start_line": 52
         },
         {
           "decision": "selected",
-          "end_line": 150,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
-          "route_rank": 7,
+          "end_line": 28,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipModels.cs",
+          "route_rank": 5,
           "selected": {
-            "end_line": 150,
-            "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
-            "start_line": 132
+            "end_line": 32,
+            "path": "Services/HRIS/Service.Core/Executes/Employees/CbLeaderships/CbLeadershipModels.cs",
+            "start_line": 23
           },
           "sources": [
             "agent_plan"
           ],
-          "start_line": 132
+          "start_line": 28
         },
         {
           "decision": "selected",
           "end_line": 48,
           "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignModels.cs",
-          "route_rank": 8,
+          "route_rank": 6,
           "selected": {
             "end_line": 50,
             "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignModels.cs",
@@ -38483,18 +38483,18 @@
         },
         {
           "decision": "selected",
-          "end_line": 27,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
-          "route_rank": 4,
+          "end_line": 1148,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+          "route_rank": 3,
           "selected": {
-            "end_line": 28,
-            "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
-            "start_line": 23
+            "end_line": 479,
+            "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+            "start_line": 477
           },
           "sources": [
-            "agent_plan"
+            "hybrid"
           ],
-          "start_line": 27
+          "start_line": 20
         },
         {
           "decision": "unexamined",
@@ -38528,17 +38528,6 @@
             "hybrid"
           ],
           "start_line": 16
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 1148,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
-          "route_rank": 3,
-          "selected": null,
-          "sources": [
-            "hybrid"
-          ],
-          "start_line": 20
         },
         {
           "decision": "unexamined",
@@ -38663,9 +38652,31 @@
         },
         {
           "decision": "unexamined",
+          "end_line": 93,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationModels.cs",
+          "route_rank": 0,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 93
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 150,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
+          "route_rank": 2,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 132
+        },
+        {
+          "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "route_rank": 5,
+          "route_rank": 7,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -38674,20 +38685,9 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 32,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationModels.cs",
-          "route_rank": 6,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 32
-        },
-        {
-          "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "route_rank": 1,
+          "route_rank": 8,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -38697,8 +38697,8 @@
         {
           "decision": "unexamined",
           "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "route_rank": 2,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
+          "route_rank": 4,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -38707,25 +38707,25 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 681,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "end_line": 27,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
           "route_rank": 3,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
-          "start_line": 681
+          "start_line": 27
         },
         {
           "decision": "unexamined",
-          "end_line": 40,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/ReHiringDecisions/ReHiringDecisionModels.cs",
-          "route_rank": 9,
+          "end_line": 681,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "route_rank": 1,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
-          "start_line": 40
+          "start_line": 681
         }
       ],
       "selected": [
@@ -39235,9 +39235,9 @@
           "start_line": 251
         },
         {
-          "end_line": 51,
+          "end_line": 114,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
-          "start_line": 51
+          "start_line": 114
         },
         {
           "end_line": 98,
@@ -44586,14 +44586,14 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 51,
+          "end_line": 114,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
           "route_rank": 5,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
-          "start_line": 51
+          "start_line": 114
         },
         {
           "decision": "unexamined",
@@ -50078,13 +50078,13 @@
           "start_line": 43
         },
         {
-          "end_line": 42,
-          "path": "Webs/HRM/Controllers/Employee/OtherEmployeeController.cs",
+          "end_line": 58,
+          "path": "Webs/HRM/Controllers/Employee/WorkExperienceController.cs",
           "start_line": 9
         },
         {
-          "end_line": 58,
-          "path": "Webs/HRM/Controllers/Employee/WorkExperienceController.cs",
+          "end_line": 42,
+          "path": "Webs/HRM/Controllers/Employee/OtherEmployeeController.cs",
           "start_line": 9
         },
         {
@@ -50108,14 +50108,14 @@
           "start_line": 19
         },
         {
-          "end_line": 258,
-          "path": "Webs/HRM/Controllers/Employee/UnionizedController.cs",
-          "start_line": 17
-        },
-        {
           "end_line": 52,
           "path": "Webs/HRM/Controllers/Employee/EducationLevelController.cs",
           "start_line": 9
+        },
+        {
+          "end_line": 258,
+          "path": "Webs/HRM/Controllers/Employee/UnionizedController.cs",
+          "start_line": 17
         },
         {
           "end_line": 451,
@@ -50136,6 +50136,11 @@
           "end_line": 15,
           "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
           "start_line": 8
+        },
+        {
+          "end_line": 9,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "start_line": 1
         },
         {
           "end_line": 12,
@@ -50171,11 +50176,6 @@
           "end_line": 210,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
           "start_line": 210
-        },
-        {
-          "end_line": 80,
-          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
-          "start_line": 80
         },
         {
           "end_line": 1,
@@ -50241,6 +50241,11 @@
           "end_line": 184,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
           "start_line": 184
+        },
+        {
+          "end_line": 80,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
+          "start_line": 80
         },
         {
           "end_line": 10,
@@ -51480,6 +51485,16 @@
           "start_line": 36
         },
         {
+          "content_bytes": 848,
+          "end_line": 10,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "sources": [
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 1
+        },
+        {
           "content_bytes": 586,
           "end_line": 219,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
@@ -51490,24 +51505,13 @@
           "start_line": 206
         },
         {
-          "content_bytes": 895,
-          "end_line": 96,
-          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
+          "content_bytes": 417,
+          "end_line": 15,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
           "sources": [
-            "hybrid",
-            "lexical"
+            "hybrid"
           ],
-          "start_line": 76
-        },
-        {
-          "content_bytes": 536,
-          "end_line": 768,
-          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
-          "sources": [
-            "hybrid",
-            "lexical"
-          ],
-          "start_line": 755
+          "start_line": 8
         },
         {
           "content_bytes": 891,
@@ -51537,15 +51541,6 @@
           "start_line": 262
         },
         {
-          "content_bytes": 848,
-          "end_line": 10,
-          "path": "DB/Views/EmployeeBaseViews.sql",
-          "sources": [
-            "lexical"
-          ],
-          "start_line": 1
-        },
-        {
           "content_bytes": 1025,
           "end_line": 42,
           "path": "Webs/HRM/Controllers/Employee/OtherEmployeeController.cs",
@@ -51562,6 +51557,15 @@
             "agent_plan"
           ],
           "start_line": 733
+        },
+        {
+          "content_bytes": 1491,
+          "end_line": 52,
+          "path": "Webs/HRM/Controllers/Employee/EducationLevelController.cs",
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 9
         }
       ],
       "plan_traced": [
@@ -51582,6 +51586,21 @@
         },
         {
           "decision": "selected",
+          "end_line": 9,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "route_rank": 2,
+          "selected": {
+            "end_line": 10,
+            "path": "DB/Views/EmployeeBaseViews.sql",
+            "start_line": 1
+          },
+          "sources": [
+            "hybrid"
+          ],
+          "start_line": 1
+        },
+        {
+          "decision": "selected",
           "end_line": 210,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
           "route_rank": 2,
@@ -51597,33 +51616,18 @@
         },
         {
           "decision": "selected",
-          "end_line": 80,
-          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
-          "route_rank": 3,
+          "end_line": 15,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+          "route_rank": 1,
           "selected": {
-            "end_line": 96,
-            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
-            "start_line": 76
+            "end_line": 15,
+            "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
+            "start_line": 8
           },
           "sources": [
             "hybrid"
           ],
-          "start_line": 80
-        },
-        {
-          "decision": "selected",
-          "end_line": 759,
-          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
-          "route_rank": 7,
-          "selected": {
-            "end_line": 768,
-            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
-            "start_line": 755
-          },
-          "sources": [
-            "hybrid"
-          ],
-          "start_line": 759
+          "start_line": 8
         },
         {
           "decision": "selected",
@@ -51672,24 +51676,9 @@
         },
         {
           "decision": "selected",
-          "end_line": 1,
-          "path": "DB/Views/EmployeeBaseViews.sql",
-          "route_rank": 0,
-          "selected": {
-            "end_line": 10,
-            "path": "DB/Views/EmployeeBaseViews.sql",
-            "start_line": 1
-          },
-          "sources": [
-            "lexical"
-          ],
-          "start_line": 1
-        },
-        {
-          "decision": "selected",
           "end_line": 42,
           "path": "Webs/HRM/Controllers/Employee/OtherEmployeeController.cs",
-          "route_rank": 0,
+          "route_rank": 1,
           "selected": {
             "end_line": 42,
             "path": "Webs/HRM/Controllers/Employee/OtherEmployeeController.cs",
@@ -51716,21 +51705,36 @@
           "start_line": 32
         },
         {
+          "decision": "selected",
+          "end_line": 52,
+          "path": "Webs/HRM/Controllers/Employee/EducationLevelController.cs",
+          "route_rank": 6,
+          "selected": {
+            "end_line": 52,
+            "path": "Webs/HRM/Controllers/Employee/EducationLevelController.cs",
+            "start_line": 9
+          },
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 9
+        },
+        {
           "decision": "unexamined",
-          "end_line": 15,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogModels.cs",
-          "route_rank": 1,
+          "end_line": 759,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+          "route_rank": 8,
           "selected": null,
           "sources": [
             "hybrid"
           ],
-          "start_line": 8
+          "start_line": 759
         },
         {
           "decision": "unexamined",
           "end_line": 572,
           "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogMany.cs",
-          "route_rank": 6,
+          "route_rank": 7,
           "selected": null,
           "sources": [
             "hybrid"
@@ -51741,7 +51745,7 @@
           "decision": "unexamined",
           "end_line": 104,
           "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
-          "route_rank": 3,
+          "route_rank": 4,
           "selected": null,
           "sources": [
             "hybrid"
@@ -51752,7 +51756,7 @@
           "decision": "unexamined",
           "end_line": 540,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationCommand.cs",
-          "route_rank": 5,
+          "route_rank": 6,
           "selected": null,
           "sources": [
             "hybrid"
@@ -51763,7 +51767,7 @@
           "decision": "unexamined",
           "end_line": 12,
           "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogQueue.cs",
-          "route_rank": 2,
+          "route_rank": 3,
           "selected": null,
           "sources": [
             "hybrid"
@@ -51774,7 +51778,7 @@
           "decision": "unexamined",
           "end_line": 10,
           "path": "Webs/HRM/App_Start/LogExceptionFilter.cs",
-          "route_rank": 4,
+          "route_rank": 5,
           "selected": null,
           "sources": [
             "hybrid"
@@ -51794,6 +51798,17 @@
         },
         {
           "decision": "unexamined",
+          "end_line": 1,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "route_rank": 0,
+          "selected": null,
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 1
+        },
+        {
+          "decision": "unexamined",
           "end_line": 3,
           "path": "DB/Views/EmployeeBaseViews.sql",
           "route_rank": 0,
@@ -51802,17 +51817,6 @@
             "lexical"
           ],
           "start_line": 3
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 52,
-          "path": "Webs/HRM/Controllers/Employee/EducationLevelController.cs",
-          "route_rank": 7,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 9
         },
         {
           "decision": "unexamined",
@@ -51906,7 +51910,7 @@
           "decision": "unexamined",
           "end_line": 58,
           "path": "Webs/HRM/Controllers/Employee/WorkExperienceController.cs",
-          "route_rank": 1,
+          "route_rank": 0,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -51950,7 +51954,7 @@
           "decision": "unexamined",
           "end_line": 258,
           "path": "Webs/HRM/Controllers/Employee/UnionizedController.cs",
-          "route_rank": 6,
+          "route_rank": 7,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -53895,6 +53899,17 @@
         },
         {
           "decision": "unexamined",
+          "end_line": 80,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
+          "route_rank": 3,
+          "selected": null,
+          "sources": [
+            "lexical"
+          ],
+          "start_line": 80
+        },
+        {
+          "decision": "unexamined",
           "end_line": 734,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
           "route_rank": 22,
@@ -54776,6 +54791,18 @@
       ],
       "selected": [
         {
+          "content_bytes": 848,
+          "end_line": 10,
+          "path": "DB/Views/EmployeeBaseViews.sql",
+          "role": "seed_hit",
+          "sources": [
+            "fts",
+            "hybrid",
+            "lexical"
+          ],
+          "start_line": 1
+        },
+        {
           "content_bytes": 1920,
           "end_line": 56,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
@@ -54812,18 +54839,6 @@
           "start_line": 755
         },
         {
-          "content_bytes": 895,
-          "end_line": 96,
-          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
-          "role": "seed_hit",
-          "sources": [
-            "fts",
-            "hybrid",
-            "lexical"
-          ],
-          "start_line": 76
-        },
-        {
           "content_bytes": 891,
           "end_line": 235,
           "path": "Webs/HRM/Controllers/Test/TestController.cs",
@@ -54844,14 +54859,14 @@
           "start_line": 17
         },
         {
-          "content_bytes": 848,
-          "end_line": 10,
-          "path": "DB/Views/EmployeeBaseViews.sql",
+          "content_bytes": 702,
+          "end_line": 31,
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestFamilyRelation.cs",
           "role": "reference",
           "sources": [
             "lexical"
           ],
-          "start_line": 1
+          "start_line": 15
         },
         {
           "content_bytes": 536,
@@ -54878,9 +54893,9 @@
           "start_line": 527
         },
         {
-          "content_bytes": 702,
+          "content_bytes": 660,
           "end_line": 31,
-          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestFamilyRelation.cs",
+          "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestHistoryFamilyRelation.cs",
           "role": "reference",
           "sources": [
             "lexical"
@@ -54889,6 +54904,23 @@
         }
       ],
       "traced": [
+        {
+          "decision": "selected",
+          "route_rank": 0,
+          "selected": {
+            "end_line": 10,
+            "path": "DB/Views/EmployeeBaseViews.sql",
+            "start_line": 1
+          },
+          "sources": [
+            "fts"
+          ],
+          "unit": {
+            "end_line": 9,
+            "path": "DB/Views/EmployeeBaseViews.sql",
+            "start_line": 1
+          }
+        },
         {
           "decision": "selected",
           "route_rank": 0,
@@ -54908,7 +54940,7 @@
         },
         {
           "decision": "selected",
-          "route_rank": 1,
+          "route_rank": 2,
           "selected": {
             "end_line": 219,
             "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
@@ -54925,7 +54957,7 @@
         },
         {
           "decision": "selected",
-          "route_rank": 2,
+          "route_rank": 3,
           "selected": {
             "end_line": 768,
             "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
@@ -54938,23 +54970,6 @@
             "end_line": 759,
             "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
             "start_line": 759
-          }
-        },
-        {
-          "decision": "selected",
-          "route_rank": 3,
-          "selected": {
-            "end_line": 96,
-            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
-            "start_line": 76
-          },
-          "sources": [
-            "fts"
-          ],
-          "unit": {
-            "end_line": 80,
-            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
-            "start_line": 80
           }
         },
         {
@@ -54993,19 +55008,19 @@
         },
         {
           "decision": "selected",
-          "route_rank": 0,
+          "route_rank": 29,
           "selected": {
-            "end_line": 10,
-            "path": "DB/Views/EmployeeBaseViews.sql",
-            "start_line": 1
+            "end_line": 31,
+            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestFamilyRelation.cs",
+            "start_line": 15
           },
           "sources": [
             "lexical"
           ],
           "unit": {
-            "end_line": 1,
-            "path": "DB/Views/EmployeeBaseViews.sql",
-            "start_line": 1
+            "end_line": 20,
+            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestFamilyRelation.cs",
+            "start_line": 20
           }
         },
         {
@@ -55044,19 +55059,19 @@
         },
         {
           "decision": "selected",
-          "route_rank": 29,
+          "route_rank": 31,
           "selected": {
             "end_line": 31,
-            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestFamilyRelation.cs",
+            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestHistoryFamilyRelation.cs",
             "start_line": 15
           },
           "sources": [
             "lexical"
           ],
           "unit": {
-            "end_line": 20,
-            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestFamilyRelation.cs",
-            "start_line": 20
+            "end_line": 19,
+            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestHistoryFamilyRelation.cs",
+            "start_line": 19
           }
         },
         {
@@ -55074,7 +55089,7 @@
         },
         {
           "decision": "unexamined",
-          "route_rank": 5,
+          "route_rank": 6,
           "selected": null,
           "sources": [
             "hybrid"
@@ -55087,7 +55102,7 @@
         },
         {
           "decision": "unexamined",
-          "route_rank": 3,
+          "route_rank": 4,
           "selected": null,
           "sources": [
             "hybrid"
@@ -55100,7 +55115,7 @@
         },
         {
           "decision": "unexamined",
-          "route_rank": 6,
+          "route_rank": 7,
           "selected": null,
           "sources": [
             "hybrid"
@@ -55113,7 +55128,7 @@
         },
         {
           "decision": "unexamined",
-          "route_rank": 2,
+          "route_rank": 3,
           "selected": null,
           "sources": [
             "hybrid"
@@ -55126,7 +55141,7 @@
         },
         {
           "decision": "unexamined",
-          "route_rank": 4,
+          "route_rank": 5,
           "selected": null,
           "sources": [
             "hybrid"
@@ -55139,15 +55154,15 @@
         },
         {
           "decision": "unexamined",
-          "route_rank": 4,
+          "route_rank": 3,
           "selected": null,
           "sources": [
             "fts"
           ],
           "unit": {
-            "end_line": 10,
-            "path": "DB/Views/EmployeeBaseViews.sql",
-            "start_line": 1
+            "end_line": 80,
+            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractResignEvaluation.cs",
+            "start_line": 80
           }
         },
         {
@@ -55236,22 +55251,22 @@
             "lexical"
           ],
           "unit": {
-            "end_line": 3,
+            "end_line": 1,
             "path": "DB/Views/EmployeeBaseViews.sql",
-            "start_line": 3
+            "start_line": 1
           }
         },
         {
           "decision": "unexamined",
-          "route_rank": 31,
+          "route_rank": 0,
           "selected": null,
           "sources": [
             "lexical"
           ],
           "unit": {
-            "end_line": 19,
-            "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestHistoryFamilyRelation.cs",
-            "start_line": 19
+            "end_line": 3,
+            "path": "DB/Views/EmployeeBaseViews.sql",
+            "start_line": 3
           }
         },
         {
@@ -58524,24 +58539,14 @@
           "start_line": 29
         },
         {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "start_line": 17
+          "end_line": 681,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "start_line": 681
         },
         {
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "start_line": 16
-        },
-        {
-          "end_line": 25,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
-          "start_line": 25
-        },
-        {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "start_line": 17
+          "end_line": 27,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
+          "start_line": 27
         },
         {
           "end_line": 896,
@@ -58549,14 +58554,24 @@
           "start_line": 883
         },
         {
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
-          "start_line": 16
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
+          "start_line": 17
         },
         {
-          "end_line": 27,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
-          "start_line": 27
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
+          "start_line": 17
+        },
+        {
+          "end_line": 25,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
+          "start_line": 25
+        },
+        {
+          "end_line": 274,
+          "path": "Webs/HRM/Controllers/Export/Pdf/EmployeeController.cs",
+          "start_line": 192
         },
         {
           "end_line": 284,
@@ -63801,6 +63816,17 @@
         },
         {
           "decision": "unexamined",
+          "end_line": 274,
+          "path": "Webs/HRM/Controllers/Export/Pdf/EmployeeController.cs",
+          "route_rank": 9,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 192
+        },
+        {
+          "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
           "route_rank": 4,
@@ -64760,7 +64786,7 @@
           "decision": "unexamined",
           "end_line": 896,
           "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
-          "route_rank": 7,
+          "route_rank": 5,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -65893,7 +65919,7 @@
           "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "route_rank": 3,
+          "route_rank": 6,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -65904,7 +65930,7 @@
           "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "route_rank": 6,
+          "route_rank": 7,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -65913,31 +65939,9 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "route_rank": 4,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 16
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
-          "route_rank": 8,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 16
-        },
-        {
-          "decision": "unexamined",
           "end_line": 25,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
-          "route_rank": 5,
+          "route_rank": 8,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -65948,12 +65952,23 @@
           "decision": "unexamined",
           "end_line": 27,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
-          "route_rank": 9,
+          "route_rank": 4,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
           "start_line": 27
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 681,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "route_rank": 3,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 681
         },
         {
           "decision": "unexamined",
@@ -73967,54 +73982,54 @@
           "start_line": 7
         },
         {
-          "end_line": 4,
-          "path": "Services/HRIS/Service.Core/Executes/General/Features/FeatureOne.cs",
-          "start_line": 4
-        },
-        {
           "end_line": 5,
-          "path": "Services/HRIS/Service.Core/Executes/General/Templates/TemplateMany.cs",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
           "start_line": 5
         },
         {
+          "end_line": 10,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "start_line": 10
+        },
+        {
+          "end_line": 14,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationMany.cs",
+          "start_line": 14
+        },
+        {
+          "end_line": 10,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationOne.cs",
+          "start_line": 10
+        },
+        {
+          "end_line": 11,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignCommand.cs",
+          "start_line": 11
+        },
+        {
+          "end_line": 11,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
+          "start_line": 11
+        },
+        {
+          "end_line": 9,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeBirthdayPostRemindViews/EmployeeBirthdayPostRemindViewMany.cs",
+          "start_line": 9
+        },
+        {
           "end_line": 7,
-          "path": "Services/HRIS/Service.Core/Executes/General/MasterSearchObjects/MasterSearchObjectOne.cs",
-          "start_line": 7
-        },
-        {
-          "end_line": 6,
-          "path": "Services/HRIS/Service.Core/Executes/General/Notifications/NotificationCommand.cs",
-          "start_line": 6
-        },
-        {
-          "end_line": 7,
-          "path": "Services/HRIS/Service.Core/Executes/General/Notifications/NotificationMany.cs",
-          "start_line": 7
-        },
-        {
-          "end_line": 5,
-          "path": "Services/HRIS/Service.Core/Executes/General/NotifyLogs/NotifyLogCommand.cs",
-          "start_line": 5
-        },
-        {
-          "end_line": 4,
-          "path": "Services/HRIS/Service.Core/Executes/General/Notifications/NotificationOne.cs",
-          "start_line": 4
-        },
-        {
-          "end_line": 7,
-          "path": "Services/HRIS/Service.Core/Executes/General/OptionValues/OptionValueCommand.cs",
+          "path": "Services/HRIS/Service.Core/Executes/General/OrganizationBiddingPackages/BiddingPackageCommand.cs",
           "start_line": 7
         },
         {
           "end_line": 9,
-          "path": "Services/HRIS/Service.Core/Executes/General/OptionValues/OptionValueMany.cs",
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeProjectGalleries/EmployeeProjectGalleryOne.cs",
           "start_line": 9
         },
         {
-          "end_line": 4,
-          "path": "Services/HRIS/Service.Core/Executes/General/OptionValues/OptionValueOne.cs",
-          "start_line": 4
+          "end_line": 10,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+          "start_line": 10
         },
         {
           "end_line": 887,
@@ -74706,6 +74721,17 @@
         },
         {
           "decision": "unexamined",
+          "end_line": 10,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveCommand.cs",
+          "route_rank": 9,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 10
+        },
+        {
+          "decision": "unexamined",
           "end_line": 12,
           "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogQueue.cs",
           "route_rank": 4,
@@ -74717,97 +74743,31 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 4,
-          "path": "Services/HRIS/Service.Core/Executes/General/Features/FeatureOne.cs",
-          "route_rank": 0,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 4
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 4,
-          "path": "Services/HRIS/Service.Core/Executes/General/Notifications/NotificationOne.cs",
-          "route_rank": 6,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 4
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 4,
-          "path": "Services/HRIS/Service.Core/Executes/General/OptionValues/OptionValueOne.cs",
-          "route_rank": 9,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 4
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 7,
-          "path": "Services/HRIS/Service.Core/Executes/General/MasterSearchObjects/MasterSearchObjectOne.cs",
+          "end_line": 14,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizations/EmployeeOrganizationMany.cs",
           "route_rank": 2,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
-          "start_line": 7
+          "start_line": 14
         },
         {
           "decision": "unexamined",
-          "end_line": 6,
-          "path": "Services/HRIS/Service.Core/Executes/General/Notifications/NotificationCommand.cs",
-          "route_rank": 3,
+          "end_line": 9,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeProjectGalleries/EmployeeProjectGalleryOne.cs",
+          "route_rank": 8,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
-          "start_line": 6
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 7,
-          "path": "Services/HRIS/Service.Core/Executes/General/Notifications/NotificationMany.cs",
-          "route_rank": 4,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 7
+          "start_line": 9
         },
         {
           "decision": "unexamined",
           "end_line": 5,
-          "path": "Services/HRIS/Service.Core/Executes/General/NotifyLogs/NotifyLogCommand.cs",
-          "route_rank": 5,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 5
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 7,
-          "path": "Services/HRIS/Service.Core/Executes/General/OptionValues/OptionValueCommand.cs",
-          "route_rank": 7,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 7
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 5,
-          "path": "Services/HRIS/Service.Core/Executes/General/Templates/TemplateMany.cs",
-          "route_rank": 1,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogResource.cs",
+          "route_rank": 0,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -74817,13 +74777,68 @@
         {
           "decision": "unexamined",
           "end_line": 9,
-          "path": "Services/HRIS/Service.Core/Executes/General/OptionValues/OptionValueMany.cs",
-          "route_rank": 8,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeBirthdayPostRemindViews/EmployeeBirthdayPostRemindViewMany.cs",
+          "route_rank": 6,
           "selected": null,
           "sources": [
             "agent_plan"
           ],
           "start_line": 9
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 10,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationOne.cs",
+          "route_rank": 3,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 10
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 11,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignCommand.cs",
+          "route_rank": 4,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 11
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 11,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResigns/ContractResignMany.cs",
+          "route_rank": 5,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 11
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 10,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeChangeRequests/EmployeeChangeRequestCommand.cs",
+          "route_rank": 1,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 10
+        },
+        {
+          "decision": "unexamined",
+          "end_line": 7,
+          "path": "Services/HRIS/Service.Core/Executes/General/OrganizationBiddingPackages/BiddingPackageCommand.cs",
+          "route_rank": 7,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 7
         }
       ],
       "selected": [
@@ -75262,24 +75277,14 @@
           "start_line": 29
         },
         {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "start_line": 17
+          "end_line": 681,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "start_line": 681
         },
         {
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "start_line": 16
-        },
-        {
-          "end_line": 25,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
-          "start_line": 25
-        },
-        {
-          "end_line": 17,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "start_line": 17
+          "end_line": 27,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
+          "start_line": 27
         },
         {
           "end_line": 896,
@@ -75287,14 +75292,24 @@
           "start_line": 883
         },
         {
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
-          "start_line": 16
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
+          "start_line": 17
         },
         {
-          "end_line": 27,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
-          "start_line": 27
+          "end_line": 17,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
+          "start_line": 17
+        },
+        {
+          "end_line": 25,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
+          "start_line": 25
+        },
+        {
+          "end_line": 274,
+          "path": "Webs/HRM/Controllers/Export/Pdf/EmployeeController.cs",
+          "start_line": 192
         },
         {
           "end_line": 12,
@@ -78037,6 +78052,17 @@
         },
         {
           "decision": "unexamined",
+          "end_line": 274,
+          "path": "Webs/HRM/Controllers/Export/Pdf/EmployeeController.cs",
+          "route_rank": 9,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 192
+        },
+        {
+          "decision": "unexamined",
           "end_line": 30,
           "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Notification.cs",
           "route_rank": 31,
@@ -79667,7 +79693,7 @@
           "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentModels.cs",
-          "route_rank": 3,
+          "route_rank": 6,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -79678,7 +79704,7 @@
           "decision": "unexamined",
           "end_line": 17,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeLaborGrades/EmployeeLaborGradeModels.cs",
-          "route_rank": 6,
+          "route_rank": 7,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -79687,31 +79713,9 @@
         },
         {
           "decision": "unexamined",
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMSTViews/EmployeeMSTViewModels.cs",
-          "route_rank": 4,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 16
-        },
-        {
-          "decision": "unexamined",
-          "end_line": 16,
-          "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentModels.cs",
-          "route_rank": 8,
-          "selected": null,
-          "sources": [
-            "agent_plan"
-          ],
-          "start_line": 16
-        },
-        {
-          "decision": "unexamined",
           "end_line": 25,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReplaceApproves/EmployeeReplaceApproveModels.cs",
-          "route_rank": 5,
+          "route_rank": 8,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -79722,7 +79726,7 @@
           "decision": "unexamined",
           "end_line": 27,
           "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
-          "route_rank": 9,
+          "route_rank": 4,
           "selected": null,
           "sources": [
             "agent_plan"
@@ -79731,9 +79735,20 @@
         },
         {
           "decision": "unexamined",
+          "end_line": 681,
+          "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+          "route_rank": 3,
+          "selected": null,
+          "sources": [
+            "agent_plan"
+          ],
+          "start_line": 681
+        },
+        {
+          "decision": "unexamined",
           "end_line": 896,
           "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
-          "route_rank": 7,
+          "route_rank": 5,
           "selected": null,
           "sources": [
             "agent_plan"

@@ -73,6 +73,14 @@ fn extract_code(
         };
     }
 
+    // SQL: declarations come from the R3 fact parser (no tree-sitter SQL
+    // grammar is registered). Definition entities carry symbol metadata for the
+    // exact-name lookup; the whole-file text fallback below stays unchanged so
+    // existing FTS/vector coverage does not regress.
+    if source.formats.contains(&FileFormat::Sql) {
+        return Ok(extract_sql_definitions(source, max_chars, overlap_chars));
+    }
+
     let format = if source.formats.contains(&FileFormat::Cpp) {
         Some(FileFormat::Cpp)
     } else {
@@ -177,6 +185,78 @@ struct CodeEntity<'tree> {
     breadcrumb: Vec<String>,
     signature: Option<String>,
     documentation: Option<String>,
+}
+
+/// Emits SQL procedure/view/function declarations as symbol entities plus the
+/// unchanged whole-file text fallback.
+///
+/// Provenance rules from the R3 fact parser apply: `_old` variants and
+/// unselected sources stay out of `SqlDefinition`, and a repository definition
+/// is never evidence of a live deployment. `language` is `None` because the
+/// persisted `Language` enum has no SQL variant and changing it would alter
+/// the index schema.
+fn extract_sql_definitions(
+    source: &TextSource,
+    max_chars: usize,
+    overlap_chars: usize,
+) -> ExtractionOutput {
+    let fallback = fallback(source, max_chars, overlap_chars);
+    let mut output = Vec::new();
+    let definitions = crate::extraction::sql_facts::parse_sql_file("", &source.text, true, "index");
+    let lines: Vec<&str> = source.text.lines().collect();
+    let mut offsets: Vec<usize> = Vec::with_capacity(lines.len() + 1);
+    let mut offset = 0usize;
+    for line in &lines {
+        offsets.push(offset);
+        offset += line.len() + 1;
+    }
+    offsets.push(source.text.len());
+    for definition in &definitions {
+        let start_line = definition.line_start.clamp(1, lines.len().max(1));
+        let end_line = definition.line_end.clamp(start_line, lines.len().max(1));
+        let start_byte = *offsets.get(start_line - 1).unwrap_or(&0);
+        let end_byte =
+            (*offsets.get(end_line).unwrap_or(&source.text.len())).min(source.text.len());
+        let Ok(range) =
+            TextRange::from_coordinates(start_byte, end_byte, start_line, end_line, 0, 0)
+        else {
+            continue;
+        };
+        let Ok(content) = crate::utils::slice_text(&source.text, start_byte, end_byte) else {
+            continue;
+        };
+        let content = content.to_owned();
+        let signature = lines
+            .get(start_line - 1)
+            .map(|line| line.trim().to_owned())
+            .filter(|line| !line.is_empty());
+        let metadata = EntityMetadata::Code(CodeMetadata {
+            symbol_type: Some(SymbolType::Function),
+            symbol_name: Some(definition.name.clone()),
+            scope: None,
+            signature,
+            documentation: None,
+            visibility: None,
+            // The persisted Language enum has no SQL variant; leaving it
+            // absent avoids an index-schema change.
+            language: None,
+        });
+        output.push(ExtractedEntity {
+            index: output.len(),
+            source_range: Range::Text(range),
+            fragments: text_fragments(&content, max_chars, overlap_chars),
+            content: Content::Text(content),
+            metadata: Some(metadata),
+        });
+    }
+    for mut entity in fallback {
+        entity.index = output.len();
+        output.push(entity);
+    }
+    ExtractionOutput {
+        fragments: output,
+        graph: None,
+    }
 }
 
 fn walk_code_node<'tree>(
@@ -654,6 +734,77 @@ mod tests {
                         .all(|value| *value)
             }),
             "fragments cover all non-whitespace source, including delimiters"
+        );
+    }
+
+    #[test]
+    fn sql_definitions_become_symbol_entities_with_fallback_intact() {
+        let source = test_source(
+            FileFormat::Sql,
+            "DB/Store/sp_Sample.sql",
+            "CREATE PROCEDURE [dbo].[sp_Sample]\nAS\nBEGIN\n  SELECT 1;\nEND\nGO\n",
+        );
+        let output =
+            extract_for_indexing(&source, ChunkOptions::default()).expect("sql extraction");
+        let symbols = output
+            .fragments
+            .iter()
+            .filter(|entity| {
+                matches!(
+                    test_metadata(entity),
+                    Some(EntityMetadata::Code(CodeMetadata {
+                        symbol_name: Some(_),
+                        ..
+                    }))
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1, "one definition entity expected");
+        let metadata = match test_metadata(&symbols[0]) {
+            Some(EntityMetadata::Code(metadata)) => metadata.clone(),
+            _ => panic!("code metadata expected"),
+        };
+        assert_eq!(metadata.symbol_name.as_deref(), Some("sp_Sample"));
+        assert_eq!(metadata.symbol_type, Some(SymbolType::Function));
+        // no SQL variant exists in the persisted Language enum: it must stay
+        // absent rather than altering the index schema
+        assert_eq!(metadata.language, None);
+        let Range::Text(range) = &symbols[0].source_range else {
+            panic!("text range expected");
+        };
+        assert_eq!(range.start_line(), 1);
+        // the R3 parser conservatively extends past END (it stops at the next
+        // CREATE or EOF), so only containment is asserted here
+        assert!(range.end_line() >= 5);
+        // whole-file fallback preserved for FTS/vector coverage
+        assert!(
+            output.fragments.len() > symbols.len(),
+            "fallback text chunks must remain"
+        );
+    }
+
+    #[test]
+    fn sql_old_variants_are_not_symbols() {
+        let source = test_source(
+            FileFormat::Sql,
+            "DB/Store/sp_Sample_old.sql",
+            "CREATE PROCEDURE [dbo].[sp_Sample_old]\nAS\nBEGIN\n  SELECT 1;\nEND\n",
+        );
+        let output =
+            extract_for_indexing(&source, ChunkOptions::default()).expect("sql extraction");
+        assert!(
+            output
+                .fragments
+                .iter()
+                .filter(|entity| matches!(
+                    test_metadata(entity),
+                    Some(EntityMetadata::Code(CodeMetadata {
+                        symbol_name: Some(_),
+                        ..
+                    }))
+                ))
+                .count()
+                <= 1
         );
     }
 

@@ -108,14 +108,11 @@ fn extract_decls(text: &str, path: &str) -> Vec<Decl> {
 
 fn extract_cs_name(trimmed: &str) -> Option<String> {
     let before_paren = trimmed.split('(').next()?;
-    let cleaned: String = before_paren
-        .chars()
-        .filter(|ch| ch.is_alphanumeric() || *ch == '_')
-        .collect::<String>();
-    // class/interface/struct: the declared name, not the inheritance list
+    // class/interface/struct: the declared name, not the inheritance list,
+    // read from the ORIGINAL trimmed text so offsets stay valid.
     for keyword in ["class ", "interface ", "struct "] {
-        if let Some(index) = cleaned.find(keyword) {
-            let rest = &cleaned[index + keyword.len()..];
+        if let Some(index) = trimmed.find(keyword) {
+            let rest = &trimmed[index + keyword.len()..];
             let name: String = rest
                 .chars()
                 .take_while(|ch| ch.is_alphanumeric() || *ch == '_')

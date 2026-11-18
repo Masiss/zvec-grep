@@ -68,6 +68,14 @@ verified index, not assumed.
   before drawing conclusions (documented above); no benchmark or engine
   measurement was changed.
 
+> **Errata (see `r4-sql-symbols-20261118.md` Gate 1):** the per-span counts in
+> this report ("20 C# OK", "97/102 sample") contained probe artifacts — class
+> names taken from inheritance tails and lowercased SQL names. Reconciled:
+> 22/22 C# gold spans persisted (one with a ranking-limited probe check),
+> 3/3 SQL spans not persisted at the time of this audit; sample 100/102 with
+> one SQL gap and one ranking-limited check. The headline conclusion (C#
+> INDEX_CORRECT, SQL design gap) is unchanged.
+
 ## Verdict
 
 **INDEX_CORRECT for C# (verified independently, including method-level
