@@ -497,6 +497,7 @@ fn main() {
             .expect("valid plan");
             let entry = &raw["plans"][id];
             AgentPlan {
+                terms: Vec::new(),
                 queries: entry["queries"]
                     .as_array()
                     .map(|values| {
@@ -591,6 +592,18 @@ fn main() {
         if std::env::var("R4B_DECISIONS").is_ok() {
             traced.push(serde_json::json!({
                 "case": id,
+                "plan_pool": with_plan.candidates.iter().map(|unit| serde_json::json!({
+                    "path": unit.path, "start_line": unit.start_line, "end_line": unit.end_line,
+                })).collect::<Vec<_>>(),
+                "plan_traced": with_plan.traced.iter().map(|entry| serde_json::json!({
+                    "path": entry.unit.path, "start_line": entry.unit.start_line, "end_line": entry.unit.end_line,
+                    "sources": entry.sources, "route_rank": entry.route_rank,
+                    "decision": entry.decision, "selected": entry.selected,
+                })).collect::<Vec<_>>(),
+                "plan_selected": with_plan.selected.iter().map(|span| serde_json::json!({
+                    "path": span.path, "start_line": span.start_line, "end_line": span.end_line,
+                    "sources": span.sources, "content_bytes": span.content_bytes,
+                })).collect::<Vec<_>>(),
                 "gold": case_gold,
                 "traced": r4b.traced,
                 "selected": r4b.selected.iter().map(|span| serde_json::json!({

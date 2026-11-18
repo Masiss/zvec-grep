@@ -284,10 +284,35 @@ pub enum CandidateSource {
 pub struct AgentPlan {
     /// Lexical queries to run against the source.
     pub queries: Vec<String>,
+    /// Lowercased identifier words extracted from queries and symbols; used
+    /// only as a ranking signal, never as a route bypass.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub terms: Vec<String>,
     /// Exact symbol names to look up.
     pub symbols: Vec<String>,
     /// Folder scopes the plan believes are relevant.
     pub scopes: Vec<String>,
+}
+
+impl AgentPlan {
+    /// Identifier-shaped words from the plan's queries and symbols.
+    #[must_use]
+    pub fn plan_terms(&self) -> Vec<String> {
+        let mut terms: Vec<String> = Vec::new();
+        for source in self.queries.iter().chain(self.symbols.iter()) {
+            for word in source.split(|ch: char| !ch.is_alphanumeric()) {
+                let word = word.to_lowercase();
+                if word.chars().count() < 4
+                    || terms.iter().any(|known| *known == word)
+                    || terms.len() >= 24
+                {
+                    continue;
+                }
+                terms.push(word);
+            }
+        }
+        terms
+    }
 }
 
 /// What a selected span is evidence of.
@@ -628,6 +653,9 @@ pub fn run_with_plan(
     let definition = define(question);
     let mut state = State::new(root, definition, budget);
     state.plan = Some(plan.clone());
+    if let Some(plan) = state.plan.as_mut() {
+        plan.terms = plan.plan_terms();
+    }
     state.stages.push(StageTrace {
         stage: Stage::Define,
         tool_calls: 0,
@@ -1228,7 +1256,70 @@ impl<'a> State<'a> {
         let definition = self.definition.clone();
         let units = self.units.clone();
         let mut ranked = Vec::new();
-        for unit in units {
+        // Entity-range candidates (match covering a whole file/class region)
+        // cannot be compacted: the compaction anchor is the match itself. Split
+        // them into typed top-level declarations (R2 methods/types, R3 SQL
+        // definitions) and rank each sub-unit with the parent's provenance.
+        let mut expanded: Vec<(SearchUnit, SearchUnit)> = Vec::new();
+        for unit in &units {
+            let Some(text) = self.text(source, &unit.path) else {
+                continue;
+            };
+            let unit_width = unit.end_line.saturating_sub(unit.start_line);
+            // Without a plan there is no signal to choose among a file's
+            // sub-units, and splitting measurably degrades the pack; split only
+            // when plan terms can guide the choice.
+            if unit_width <= MAX_DECLARATION_LINES || self.plan.is_none() {
+                expanded.push((unit.clone(), unit.clone()));
+                continue;
+            }
+            let identity = csharp_facts::ProjectIdentity {
+                name: "workflow".to_owned(),
+                assembly: "workflow".to_owned(),
+                root_namespace: None,
+            };
+            let mut split = false;
+            if unit.path.ends_with(".cs") {
+                let facts = csharp_facts::parse_file(&identity, &unit.path, &text);
+                if !facts.parse_error {
+                    for method in &facts.methods {
+                        if method.line_start >= unit.start_line && method.line_end <= unit.end_line
+                        {
+                            expanded.push((
+                                SearchUnit {
+                                    path: unit.path.clone(),
+                                    start_line: method.line_start,
+                                    end_line: method.line_end,
+                                },
+                                unit.clone(),
+                            ));
+                            split = true;
+                        }
+                    }
+                }
+            }
+            if !split && unit.path.ends_with(".sql") {
+                for definition in sql_facts::parse_sql_file(&unit.path, &text, true, "workflow") {
+                    if definition.line_start >= unit.start_line
+                        && definition.line_end <= unit.end_line
+                    {
+                        expanded.push((
+                            SearchUnit {
+                                path: unit.path.clone(),
+                                start_line: definition.line_start,
+                                end_line: definition.line_end,
+                            },
+                            unit.clone(),
+                        ));
+                        split = true;
+                    }
+                }
+            }
+            if !split {
+                expanded.push((unit.clone(), unit.clone()));
+            }
+        }
+        for (unit, parent) in expanded {
             let Some(text) = self.text(source, &unit.path) else {
                 continue;
             };
@@ -1258,6 +1349,22 @@ impl<'a> State<'a> {
                     hits.push(anchor.clone());
                 }
             }
+            // Plan-term evidence: the external plan's own query and symbol words
+            // (blind, frozen) are a legitimate ranking signal for choosing
+            // among sub-units that share one parent's route rank.
+            if let Some(plan) = &self.plan {
+                for term in &plan.terms {
+                    if lower.contains(term) {
+                        score += 15;
+                    }
+                }
+                let path_lower_early = unit.path.to_lowercase();
+                for term in &plan.terms {
+                    if path_lower_early.contains(term) {
+                        score += 5;
+                    }
+                }
+            }
             let path_lower = unit.path.to_lowercase();
             for anchor in &definition.anchors {
                 if path_lower.contains(anchor) {
@@ -1267,7 +1374,7 @@ impl<'a> State<'a> {
             if is_declaration(&content) {
                 score += 15;
             }
-            let provenance = self.pool.get(&unit).cloned().unwrap_or(PoolEntry {
+            let provenance = self.pool.get(&parent).cloned().unwrap_or(PoolEntry {
                 unit: unit.clone(),
                 sources: Vec::new(),
                 facts: Vec::new(),
@@ -1349,7 +1456,8 @@ impl<'a> State<'a> {
         // several spans from the same file.
         let mut taken: BTreeSet<usize> = BTreeSet::new();
         for pass in 0..2 {
-            for &index in &order {
+            let pass_order: &[usize] = if pass == 0 { &order } else { &order };
+            for &index in pass_order {
                 if taken.contains(&index) {
                     continue;
                 }
@@ -1687,6 +1795,26 @@ fn compact_range(
         }
     }
     (window_start, window_end)
+}
+
+/// Compact content length of one candidate unit, as the pack would deliver it.
+///
+/// Offline oracle probes use this to compute feasibility bounds without
+/// reimplementing the widening/compaction rules. Returns `None` when the file
+/// cannot be read.
+#[must_use]
+pub fn compacted_content_len(root: &Path, unit: &SearchUnit) -> Option<usize> {
+    let text = std::fs::read_to_string(root.join(&unit.path)).ok()?;
+    let (decl_start, decl_end) = declaration_range(&unit.path, &text, unit.start_line)
+        .unwrap_or_else(|| widened(&text, unit.start_line, unit.end_line));
+    let (start, end) = compact_range(&text, decl_start, decl_end, unit.start_line, unit.end_line);
+    Some(
+        text.lines()
+            .skip(start.saturating_sub(1))
+            .take(end.saturating_sub(start).saturating_add(1))
+            .map(|line| line.len() + 1)
+            .sum(),
+    )
 }
 
 /// Returns the enclosing declaration range from typed facts, when available.
