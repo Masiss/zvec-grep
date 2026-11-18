@@ -529,8 +529,15 @@ fn main() {
         };
         let mut source = Source::new(&root).expect("source");
         let started = Instant::now();
+        // Direction-2 experiment budget: drop the FTS seed so the expand stage
+        // keeps one typed symbol call inside the 6-call contract; the FTS gold
+        // (D11) also carries a lexical rank-0 candidate.
+        let plan_budget = WorkflowBudget {
+            use_fts: false,
+            ..budget.clone()
+        };
         let with_plan =
-            run_with_plan(&mut source, &root, question, budget.clone(), &plan).expect("plan run");
+            run_with_plan(&mut source, &root, question, plan_budget, &plan).expect("plan run");
         let plan_ms = started.elapsed().as_secs_f64() * 1000.0;
         let plan_flat = with_plan
             .selected

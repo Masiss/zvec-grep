@@ -41,6 +41,8 @@ const MAX_REFS_PER_ROUND: usize = 8;
 const MAX_WIDEN_BACK: usize = 40;
 const MAX_WIDEN_LEN: usize = 60;
 const MAX_DECLARATION_LINES: usize = 200;
+/// Files admitted by the breadth pass before slots are reserved for depth.
+const BREADTH_FILE_RESERVE: usize = 7;
 /// Pool-wide file bound as a multiple of the selected-file budget.
 const POOL_FILE_FACTOR: usize = 8;
 /// Fair-share floor per evidence subject, in bytes.
@@ -1451,8 +1453,27 @@ impl<'a> State<'a> {
         // converts pool coverage into selected coverage more reliably than taking
         // several spans from the same file.
         let mut taken: BTreeSet<usize> = BTreeSet::new();
+        // Depth pass: files already represented in the pack get their remaining
+        // candidates BEFORE new files. Gold evidence in this corpus concentrates
+        // in a few files (multi-method answers), so global breadth-after-breadth
+        // starves exactly those files.
+        let depth_order: Vec<usize> = {
+            let chosen_files: BTreeSet<String> =
+                chosen.iter().map(|(unit, ..)| unit.path.clone()).collect();
+            let mut represented: Vec<usize> = Vec::new();
+            let mut fresh: Vec<usize> = Vec::new();
+            for &index in &order {
+                if chosen_files.contains(&ordered[index].1.path) {
+                    represented.push(index);
+                } else {
+                    fresh.push(index);
+                }
+            }
+            represented.extend(fresh);
+            represented
+        };
         for pass in 0..2 {
-            let pass_order: &[usize] = if pass == 0 { &order } else { &order };
+            let pass_order: &[usize] = if pass == 0 { &order } else { &depth_order };
             for &index in pass_order {
                 if taken.contains(&index) {
                     continue;
@@ -1464,6 +1485,18 @@ impl<'a> State<'a> {
                 {
                     // Defer this subject to the depth pass.
                     continue;
+                }
+                if pass == 0 {
+                    let distinct = chosen
+                        .iter()
+                        .map(|(other, ..)| other.path.as_str())
+                        .collect::<BTreeSet<_>>()
+                        .len();
+                    if distinct >= BREADTH_FILE_RESERVE {
+                        // Keep depth slots: multi-method answers live in a few
+                        // files, and a full breadth pass starves them.
+                        continue;
+                    }
                 }
                 let (score, unit, hits, content, file_sha, provenance) = ordered[index].clone();
                 if !chosen.iter().any(|(other, ..)| other.path == unit.path)
