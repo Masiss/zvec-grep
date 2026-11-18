@@ -743,3 +743,14 @@ fn cumulative_tool_content_stays_within_the_contract_budget() {
     );
     assert!(outcome.stats.ranked_content_bytes >= outcome.stats.selected_bytes);
 }
+
+#[test]
+fn sql_string_literal_names_are_candidates_only() {
+    let names = sql_string_object_names(
+        "Context.Database.ExecuteSqlCommand(\"execute sp_UpdateOrgTotalEmployee\");",
+    );
+    assert_eq!(names, vec!["sp_UpdateOrgTotalEmployee".to_owned()]);
+    // a comment or ordinary string is not a SQL object name
+    assert!(sql_string_object_names("var s = \"execute plan\";").is_empty());
+    assert!(sql_string_object_names("Invoke(\"exec sp_\");").is_empty());
+}

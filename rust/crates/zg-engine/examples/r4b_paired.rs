@@ -602,6 +602,8 @@ fn main() {
                 "plan_pool": with_plan.candidates.iter().map(|unit| serde_json::json!({
                     "path": unit.path, "start_line": unit.start_line, "end_line": unit.end_line,
                 })).collect::<Vec<_>>(),
+                "plan_stages": with_plan.stages,
+                "plan_stats": with_plan.stats,
                 "plan_traced": with_plan.traced.iter().map(|entry| serde_json::json!({
                     "path": entry.unit.path, "start_line": entry.unit.start_line, "end_line": entry.unit.end_line,
                     "sources": entry.sources, "route_rank": entry.route_rank,

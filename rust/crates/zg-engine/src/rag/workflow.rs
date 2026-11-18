@@ -91,6 +91,8 @@ pub struct WorkflowBudget {
     pub use_lexical: bool,
     /// Whether typed fact expansion runs after discovery.
     pub use_facts: bool,
+    /// Calls the discovery rounds must leave for the typed expand stage.
+    pub expand_reserve: usize,
 }
 
 impl Default for WorkflowBudget {
@@ -119,6 +121,7 @@ impl Default for WorkflowBudget {
             use_fts: true,
             use_lexical: true,
             use_facts: true,
+            expand_reserve: 1,
         }
     }
 }
@@ -155,6 +158,7 @@ impl WorkflowBudget {
             use_fts: self.use_fts,
             use_lexical: self.use_lexical,
             use_facts: self.use_facts,
+            expand_reserve: self.expand_reserve,
         }
     }
 }
@@ -1118,10 +1122,10 @@ impl<'a> State<'a> {
                     .collect()
             };
             for scope in scopes {
-                if self.calls_left() == 0 {
+                if self.calls_left() <= self.budget.expand_reserve {
                     self.budget_gap(
                         "budget_tool_calls",
-                        format!("tool-call budget exhausted before query {query}"),
+                        format!("discovery stopped at the expand reserve before query {query}"),
                     );
                     return;
                 }
@@ -1210,6 +1214,12 @@ impl<'a> State<'a> {
                 names.push((name, fact));
             }
         }
+        // The single typed call goes to the most specific, index-resolvable
+        // name: SQL object names found in string literals are exact lookup keys
+        // and are collected across ALL seeds before truncation, so a late-pooled
+        // file (e.g. the command that executes the procedure) is not dropped by
+        // pool order.
+        names.sort_by_key(|(_, fact)| if fact == "sql_call_string" { 0 } else { 1 });
         names.truncate(MAX_REFS_PER_ROUND);
         names
     }
@@ -1976,6 +1986,20 @@ fn typed_references(path: &str, text: &str, unit: &SearchUnit) -> Vec<(String, S
                 }
             }
         }
+        // SQL object names inside string literals (execute/exec/usp calls) are
+        // CANDIDATES only: a string literal is not an executed call, so these
+        // are provenance-tagged and never promoted to verified facts. The name
+        // is still a legitimate index lookup key: the lookup verifies that a
+        // matching definition exists in source, not that it is live.
+        for line in text.lines().skip(unit.start_line.saturating_sub(1)).take(
+            unit.end_line
+                .saturating_sub(unit.start_line)
+                .saturating_add(1),
+        ) {
+            for name in sql_string_object_names(line) {
+                names.insert(name, "sql_call_string".to_owned());
+            }
+        }
     } else if path.ends_with(".sql") {
         for definition in sql_facts::parse_sql_file(path, text, true, "workflow") {
             if overlaps(unit, definition.line_start, definition.line_end) {
@@ -2010,7 +2034,60 @@ fn typed_references(path: &str, text: &str, unit: &SearchUnit) -> Vec<(String, S
             names.remove(skipped);
         }
     }
-    names.into_iter().take(4).collect()
+    // Specific, index-resolvable names go first: string-literal SQL objects
+    // are exact lookup keys, while generic invocation identifiers mostly
+    // resolve to noise when the call budget allows only one lookup.
+    let mut ordered: Vec<(String, String)> = Vec::new();
+    let mut deferred: Vec<(String, String)> = Vec::new();
+    for (name, fact) in names {
+        if fact == "sql_call_string" {
+            ordered.push((name, fact));
+        } else {
+            deferred.push((name, fact));
+        }
+    }
+    ordered.extend(deferred);
+    ordered.into_iter().take(4).collect()
+}
+
+/// SQL object names inside a C# string literal, candidate-only provenance.
+///
+/// Recognizes `execute <name>`, `exec <name>` and bare quoted names that look
+/// like SQL objects (`sp_...`, `usp_...`, `vw_...`). The match never asserts
+/// the call is executed or the object live; it is only a lookup key.
+fn sql_string_object_names(line: &str) -> Vec<String> {
+    let lower = line.to_lowercase();
+    let mut names = Vec::new();
+    for marker in ["execute ", "exec "] {
+        let mut search = 0usize;
+        while let Some(found) = lower[search..].find(marker) {
+            let after = search + found + marker.len();
+            let rest = &line[after.min(line.len())..];
+            let word: String = rest
+                .chars()
+                .take_while(|ch| ch.is_alphanumeric() || *ch == '_' || *ch == '.')
+                .collect();
+            let word = word.trim_start_matches('.').to_owned();
+            if word.len() >= 4
+                && word
+                    .chars()
+                    .all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '.')
+            {
+                let word = word.split('.').next().unwrap_or_default().to_owned();
+                if word.chars().next().is_some_and(char::is_lowercase)
+                    && (word.starts_with("sp_")
+                        || word.starts_with("usp_")
+                        || word.starts_with("vw_"))
+                {
+                    if !names.contains(&word) {
+                        names.push(word);
+                    }
+                }
+            }
+            search = after;
+        }
+    }
+    names
 }
 
 const fn overlaps(unit: &SearchUnit, start_line: usize, end_line: usize) -> bool {
