@@ -1,0 +1,2996 @@
+{
+  "kind": "r4_index_truth_audit",
+  "named_read_back": [
+    {
+      "gold": [
+        41,
+        55
+      ],
+      "name": "CoreDBContext",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "persisted": true,
+      "range": [
+        9,
+        256
+      ],
+      "total_hits": 2
+    },
+    {
+      "gold": [
+        9,
+        20
+      ],
+      "name": "CoreDBContext",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "persisted": true,
+      "range": [
+        9,
+        256
+      ],
+      "total_hits": 2
+    },
+    {
+      "gold": [
+        15,
+        22
+      ],
+      "name": "CoreService",
+      "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+      "persisted": true,
+      "range": [
+        17,
+        223
+      ],
+      "total_hits": 20
+    },
+    {
+      "gold": [
+        1,
+        10
+      ],
+      "name": "EmployeeBaseViews",
+      "path": "DB/Views/EmployeeBaseViews.sql",
+      "persisted": false,
+      "range": null,
+      "total_hits": 1
+    },
+    {
+      "gold": [
+        1,
+        95
+      ],
+      "name": "sp_UpdateOrgTotalEmployee",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "persisted": false,
+      "range": null,
+      "total_hits": 0
+    },
+    {
+      "gold": [
+        58,
+        95
+      ],
+      "name": "sp_UpdateOrgTotalEmployee",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "persisted": false,
+      "range": null,
+      "total_hits": 0
+    }
+  ],
+  "corpus_root": "/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus",
+  "files_total": 822,
+  "files_indexed": null,
+  "gold_checks": [
+    {
+      "id": "D01",
+      "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+      "gold_start": 459,
+      "gold_end": 620,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+        "name": "EmployeeEdit",
+        "start_line": 460,
+        "end_line": 622,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        459,
+        622
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D01",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 215,
+      "gold_end": 285,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeEditThongTinCaNhan",
+        "start_line": 215,
+        "end_line": 459,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        215,
+        459
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D02",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 215,
+      "gold_end": 285,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeEditThongTinCaNhan",
+        "start_line": 215,
+        "end_line": 459,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        215,
+        459
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D02",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 287,
+      "gold_end": 425,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeEditThongTinCaNhan",
+        "start_line": 215,
+        "end_line": 459,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        215,
+        459
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "gold_start": 17,
+      "gold_end": 20,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+        "name": "OnModelCreating",
+        "start_line": 17,
+        "end_line": 21,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        17,
+        21
+      ],
+      "fts_token": "OnModelCreating",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "gold_start": 41,
+      "gold_end": 55,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+        "name": "DbContext",
+        "start_line": 9,
+        "end_line": 256,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+      "gold_start": 1,
+      "gold_end": 65,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/Employee.cs",
+        "name": "EmployeeBaseView",
+        "start_line": 64,
+        "end_line": 81,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        64,
+        81
+      ],
+      "fts_token": "EmployeeBaseView",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D02",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+      "gold_start": 1,
+      "gold_end": 100,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeDetail.cs",
+        "name": "EmployeeDetail",
+        "start_line": 5,
+        "end_line": 109,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        5,
+        109
+      ],
+      "fts_token": "EmployeeDetail",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D03",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 215,
+      "gold_end": 285,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeEditThongTinCaNhan",
+        "start_line": 215,
+        "end_line": 459,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        215,
+        459
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D04",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 562,
+      "gold_end": 573,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeUpdateInfo",
+        "start_line": 562,
+        "end_line": 573,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        562,
+        573
+      ],
+      "fts_token": "EmployeeUpdateInfo",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D05",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 215,
+      "gold_end": 425,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeEditThongTinCaNhan",
+        "start_line": 215,
+        "end_line": 459,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        215,
+        459
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D06",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 215,
+      "gold_end": 285,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeEditThongTinCaNhan",
+        "start_line": 215,
+        "end_line": 459,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        215,
+        459
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D06",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 427,
+      "gold_end": 457,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "EmployeeEditThongTinCaNhan",
+        "start_line": 215,
+        "end_line": 459,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        215,
+        459
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D06",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "gold_start": 1057,
+      "gold_end": 1074,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+        "name": "UpdateOrgTotalEmployee",
+        "start_line": 1057,
+        "end_line": 1073,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        1057,
+        1073
+      ],
+      "fts_token": "UpdateOrgTotalEmployee",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D07",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 539,
+      "gold_end": 560,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "RestoreEmployeeById",
+        "start_line": 550,
+        "end_line": 560,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        550,
+        560
+      ],
+      "fts_token": "RestoreEmployeeById",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D07",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "gold_start": 1057,
+      "gold_end": 1074,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+        "name": "UpdateOrgTotalEmployee",
+        "start_line": 1057,
+        "end_line": 1073,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        1057,
+        1073
+      ],
+      "fts_token": "UpdateOrgTotalEmployee",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D07",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "gold_start": 58,
+      "gold_end": 95,
+      "enclosing": {
+        "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+        "name": "sp_updateorgtotalemployee",
+        "start_line": 1,
+        "end_line": 103,
+        "kind": "sql"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "D08",
+      "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+      "gold_start": 624,
+      "gold_end": 634,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Employee/EmployeeController.cs",
+        "name": "RestoreEmployeeById",
+        "start_line": 631,
+        "end_line": 635,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        630,
+        635
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D08",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 539,
+      "gold_end": 549,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "DeleteEmployeeByIds",
+        "start_line": 539,
+        "end_line": 548,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        539,
+        548
+      ],
+      "fts_token": "DeleteEmployeeByIds",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D09",
+      "path": "DB/Views/EmployeeBaseViews.sql",
+      "gold_start": 1,
+      "gold_end": 10,
+      "enclosing": {
+        "path": "DB/Views/EmployeeBaseViews.sql",
+        "name": "employeebase",
+        "start_line": 1,
+        "end_line": 10,
+        "kind": "sql"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "D10",
+      "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+      "gold_start": 15,
+      "gold_end": 22,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Base/CoreService.cs",
+        "name": "BaseService",
+        "start_line": 17,
+        "end_line": 223,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "D10",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+      "gold_start": 9,
+      "gold_end": 20,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/CoreDBContext.cs",
+        "name": "OnModelCreating",
+        "start_line": 17,
+        "end_line": 21,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        17,
+        21
+      ],
+      "fts_token": "OnModelCreating",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D11",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+      "gold_start": 866,
+      "gold_end": 887,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeCommand.cs",
+        "name": "UpdateEmployeeAttr",
+        "start_line": 866,
+        "end_line": 887,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        866,
+        887
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D12",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+      "gold_start": 1057,
+      "gold_end": 1074,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand.cs",
+        "name": "UpdateOrgTotalEmployee",
+        "start_line": 1057,
+        "end_line": 1073,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        1057,
+        1073
+      ],
+      "fts_token": "UpdateOrgTotalEmployee",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "D12",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "gold_start": 1,
+      "gold_end": 95,
+      "enclosing": {
+        "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+        "name": "sp_updateorgtotalemployee",
+        "start_line": 1,
+        "end_line": 103,
+        "kind": "sql"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    }
+  ],
+  "gold_summary": [
+    "NOT_PERSISTED",
+    "OK_SEARCHABLE"
+  ],
+  "sample_checks": [
+    {
+      "id": "SAMPLE",
+      "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+      "gold_start": 1,
+      "gold_end": 103,
+      "enclosing": {
+        "path": "DB/Store/sp_UpdateOrgTotalEmployee.sql",
+        "name": "sp_updateorgtotalemployee",
+        "start_line": 1,
+        "end_line": 103,
+        "kind": "sql"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+      "gold_start": 6,
+      "gold_end": 54,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/ContractLabor.cs",
+        "name": "ContractLabor",
+        "start_line": 6,
+        "end_line": 54,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        6,
+        54
+      ],
+      "fts_token": "ContractLabor",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmpWorking.cs",
+      "gold_start": 15,
+      "gold_end": 75,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmpWorking.cs",
+        "name": "EmpWorking",
+        "start_line": 15,
+        "end_line": 75,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        75
+      ],
+      "fts_token": "EmpWorking",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestDocument.cs",
+      "gold_start": 15,
+      "gold_end": 24,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestDocument.cs",
+        "name": "EmployeeChangeRequestDocument",
+        "start_line": 15,
+        "end_line": 24,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        24
+      ],
+      "fts_token": "EmployeeChangeRequestDocument",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestWorkProcess.cs",
+      "gold_start": 15,
+      "gold_end": 30,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeChangeRequestWorkProcess.cs",
+        "name": "EmployeeChangeRequestWorkProcess",
+        "start_line": 15,
+        "end_line": 30,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        30
+      ],
+      "fts_token": "EmployeeChangeRequestWorkProcess",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeForAllowance.cs",
+      "gold_start": 15,
+      "gold_end": 34,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeForAllowance.cs",
+        "name": "EmployeeForAllowance",
+        "start_line": 15,
+        "end_line": 34,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        34
+      ],
+      "fts_token": "EmployeeForAllowance",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeOrganizationView.cs",
+      "gold_start": 16,
+      "gold_end": 54,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeOrganizationView.cs",
+        "name": "EmployeeOrganizationView",
+        "start_line": 16,
+        "end_line": 54,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        16,
+        54
+      ],
+      "fts_token": "EmployeeOrganizationView",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeUnion.cs",
+      "gold_start": 6,
+      "gold_end": 22,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Employee/EmployeeUnion.cs",
+        "name": "EmployeeUnion",
+        "start_line": 6,
+        "end_line": 22,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        6,
+        22
+      ],
+      "fts_token": "EmployeeUnion",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/AddressMapping.cs",
+      "gold_start": 5,
+      "gold_end": 11,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/AddressMapping.cs",
+        "name": "AddressMapping",
+        "start_line": 5,
+        "end_line": 11,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        5,
+        11
+      ],
+      "fts_token": "AddressMapping",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/BuilderColumn.cs",
+      "gold_start": 15,
+      "gold_end": 37,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/BuilderColumn.cs",
+        "name": "BuilderColumn",
+        "start_line": 15,
+        "end_line": 37,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        37
+      ],
+      "fts_token": "BuilderColumn",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Country.cs",
+      "gold_start": 8,
+      "gold_end": 21,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Country.cs",
+        "name": "Country",
+        "start_line": 8,
+        "end_line": 21,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        21
+      ],
+      "fts_token": "Country",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/EmailNotifycation.cs",
+      "gold_start": 15,
+      "gold_end": 24,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/EmailNotifycation.cs",
+        "name": "EmailNotifycation",
+        "start_line": 15,
+        "end_line": 24,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        24
+      ],
+      "fts_token": "EmailNotifycation",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Glone.cs",
+      "gold_start": 7,
+      "gold_end": 24,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Glone.cs",
+        "name": "Glone",
+        "start_line": 7,
+        "end_line": 24,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        24
+      ],
+      "fts_token": "Status",
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/JobPositionProcedure.cs",
+      "gold_start": 15,
+      "gold_end": 27,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/JobPositionProcedure.cs",
+        "name": "JobPositionProcedure",
+        "start_line": 15,
+        "end_line": 27,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        27
+      ],
+      "fts_token": "JobPositionProcedure",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Organization.cs",
+      "gold_start": 5,
+      "gold_end": 62,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Organization.cs",
+        "name": "Organization",
+        "start_line": 5,
+        "end_line": 62,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        5,
+        62
+      ],
+      "fts_token": "Organization",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/OrganizationPayrollBuilding.cs",
+      "gold_start": 15,
+      "gold_end": 31,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/OrganizationPayrollBuilding.cs",
+        "name": "OrganizationPayrollBuilding",
+        "start_line": 15,
+        "end_line": 31,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        31
+      ],
+      "fts_token": "OrganizationPayrollBuilding",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/ProjectGallery.cs",
+      "gold_start": 7,
+      "gold_end": 22,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/ProjectGallery.cs",
+        "name": "ProjectGallery",
+        "start_line": 7,
+        "end_line": 22,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        22
+      ],
+      "fts_token": "ProjectGallery",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Survey.cs",
+      "gold_start": 15,
+      "gold_end": 28,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/Survey.cs",
+        "name": "Survey",
+        "start_line": 15,
+        "end_line": 28,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        28
+      ],
+      "fts_token": "Survey",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/General/View_2.cs",
+      "gold_start": 15,
+      "gold_end": 32,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/General/View_2.cs",
+        "name": "View_2",
+        "start_line": 15,
+        "end_line": 32,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        32
+      ],
+      "fts_token": "View_2",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Others/RequestUpdateEmpInfo.cs",
+      "gold_start": 15,
+      "gold_end": 24,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Others/RequestUpdateEmpInfo.cs",
+        "name": "RequestUpdateEmpInfo",
+        "start_line": 15,
+        "end_line": 24,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        24
+      ],
+      "fts_token": "RequestUpdateEmpInfo",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "DBContexts/HRIS/DBContext.Core/Entities/Talent/TalentEvaluationProject.cs",
+      "gold_start": 7,
+      "gold_end": 19,
+      "enclosing": {
+        "path": "DBContexts/HRIS/DBContext.Core/Entities/Talent/TalentEvaluationProject.cs",
+        "name": "TalentEvaluationProject",
+        "start_line": 7,
+        "end_line": 19,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        19
+      ],
+      "fts_token": "TalentEvaluationProject",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+      "gold_start": 18,
+      "gold_end": 24,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Components/EmailComponent.cs",
+        "name": "OauthLoginDataItemModel",
+        "start_line": 18,
+        "end_line": 24,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        18,
+        24
+      ],
+      "fts_token": "OauthLoginDataItemModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankOne.cs",
+      "gold_start": 6,
+      "gold_end": 14,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Category/Banks/BankOne.cs",
+        "name": "BankOne",
+        "start_line": 8,
+        "end_line": 13,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        13
+      ],
+      "fts_token": "BankViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/CoreModels.cs",
+      "gold_start": 7,
+      "gold_end": 18,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/CoreModels.cs",
+        "name": "RemindEmployeeSyncItem",
+        "start_line": 7,
+        "end_line": 18,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        18
+      ],
+      "fts_token": "RemindEmployeeSyncItem",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees/CbEmployeeMany.cs",
+      "gold_start": 13,
+      "gold_end": 432,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/CbEmployees/CbEmployeeMany.cs",
+        "name": "EmployeesCanGetSalaryHistory",
+        "start_line": 257,
+        "end_line": 294,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        257,
+        294
+      ],
+      "fts_token": "EmployeeBaseView",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+      "gold_start": 10,
+      "gold_end": 205,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/ContractAppendixs/ContractAppendixCommand.cs",
+        "name": "DeleteContractAppendix",
+        "start_line": 195,
+        "end_line": 204,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        195,
+        204
+      ],
+      "fts_token": "DeleteContractAppendix",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborOne.cs",
+      "gold_start": 13,
+      "gold_end": 276,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/ContractLabors/ContractLaborOne.cs",
+        "name": "GetChinhThucPeriod",
+        "start_line": 240,
+        "end_line": 275,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        240,
+        275
+      ],
+      "fts_token": "DateTime",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationOne.cs",
+      "gold_start": 12,
+      "gold_end": 76,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/ContractResignEvaluations/ContractResignEvaluationOne.cs",
+        "name": "ContractResignEvaluationViewOne",
+        "start_line": 71,
+        "end_line": 75,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        71,
+        75
+      ],
+      "fts_token": "ContractResignEvaluationView",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/ContractTypes/ContractTypeOne.cs",
+      "gold_start": 8,
+      "gold_end": 45,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/ContractTypes/ContractTypeOne.cs",
+        "name": "GetNewContractTypeCode",
+        "start_line": 36,
+        "end_line": 44,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        36,
+        44
+      ],
+      "fts_token": "GetNewContractTypeCode",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelOne.cs",
+      "gold_start": 8,
+      "gold_end": 33,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EducationLevels/EmployeeEducationLevelOne.cs",
+        "name": "EmployeeEducationLevelOne",
+        "start_line": 10,
+        "end_line": 32,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        10,
+        32
+      ],
+      "fts_token": "EmployeeEducationLevelViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeBirthdayPostRemindViews/EmployeeBirthdayPostRemindViewModels.cs",
+      "gold_start": 8,
+      "gold_end": 17,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeBirthdayPostRemindViews/EmployeeBirthdayPostRemindViewModels.cs",
+        "name": "SearchEmployeeBirthdayPostRemindViewModel",
+        "start_line": 8,
+        "end_line": 17,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        17
+      ],
+      "fts_token": "SearchEmployeeBirthdayPostRemindViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentOne.cs",
+      "gold_start": 9,
+      "gold_end": 29,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeDocuments/EmployeeDocumentOne.cs",
+        "name": "EmployeeDocumentOne",
+        "start_line": 11,
+        "end_line": 28,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        11,
+        28
+      ],
+      "fts_token": "EmployeeDocumentViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationOne.cs",
+      "gold_start": 13,
+      "gold_end": 38,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeFelicitations/EmployeeFelicitationOne.cs",
+        "name": "EmployeeFelicitationOne",
+        "start_line": 15,
+        "end_line": 37,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        15,
+        37
+      ],
+      "fts_token": "EmployeeFelicitationViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentMany.cs",
+      "gold_start": 10,
+      "gold_end": 59,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeMissingDocuments/EmployeeMissingDocumentMany.cs",
+        "name": "EmployeeMissingDocumentMany",
+        "start_line": 12,
+        "end_line": 58,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        12,
+        58
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizationViews/EmployeeOrganizationViewModels.cs",
+      "gold_start": 5,
+      "gold_end": 10,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeOrganizationViews/EmployeeOrganizationViewModels.cs",
+        "name": "EmployeeOrganizationView",
+        "start_line": 5,
+        "end_line": 10,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeProjectGalleries/EmployeeProjectGalleryModels.cs",
+      "gold_start": 8,
+      "gold_end": 20,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeProjectGalleries/EmployeeProjectGalleryModels.cs",
+        "name": "SearchEmployeeProjectGalleryModel",
+        "start_line": 8,
+        "end_line": 20,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        20
+      ],
+      "fts_token": "SearchEmployeeProjectGalleryModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyModels.cs",
+      "gold_start": 10,
+      "gold_end": 21,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeRequireProperties/EmployeeRequirePropertyModels.cs",
+        "name": "SearchEmployeeRequirePropertyModel",
+        "start_line": 10,
+        "end_line": 21,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        10,
+        21
+      ],
+      "fts_token": "SearchEmployeeRequirePropertyModel",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
+      "gold_start": 8,
+      "gold_end": 21,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeReturns/EmployeeReturnModels.cs",
+        "name": "SearchEmployeeReturnModel",
+        "start_line": 8,
+        "end_line": 21,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        21
+      ],
+      "fts_token": "SearchEmployeeReturnModel",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationModels.cs",
+      "gold_start": 7,
+      "gold_end": 17,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/EmployeeValidations/EmployeeValidationModels.cs",
+        "name": "SearchEmployeeValidationModel",
+        "start_line": 7,
+        "end_line": 17,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        17
+      ],
+      "fts_token": "SearchEmployeeValidationModel",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+      "gold_start": 15,
+      "gold_end": 655,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/Employee03Many.cs",
+        "name": "EmployeeMinList",
+        "start_line": 615,
+        "end_line": 654,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        569,
+        601
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+      "gold_start": 17,
+      "gold_end": 54,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/Employees/EmployeeModels.cs",
+        "name": "TinhTrangVanBang",
+        "start_line": 45,
+        "end_line": 53,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        45,
+        53
+      ],
+      "fts_token": "TinhTrangVanBang",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/GloneDecisions/GloneDecisionCommand.cs",
+      "gold_start": 14,
+      "gold_end": 154,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/GloneDecisions/GloneDecisionCommand.cs",
+        "name": "UpdateGloneDecisionStatus",
+        "start_line": 138,
+        "end_line": 152,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        138,
+        152
+      ],
+      "fts_token": "UpdateGloneDecisionStatus",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/ReHiringDecisions/ReHiringDecisionCommand.cs",
+      "gold_start": 17,
+      "gold_end": 178,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/ReHiringDecisions/ReHiringDecisionCommand.cs",
+        "name": "UpdateWorkProcessByReHiringDecision",
+        "start_line": 127,
+        "end_line": 177,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        127,
+        177
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+      "gold_start": 20,
+      "gold_end": 1148,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/WorkLogs/WorkLogCommand.cs",
+        "name": "ChangeStatusCompare",
+        "start_line": 1139,
+        "end_line": 1145,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        1139,
+        1145
+      ],
+      "fts_token": "ChangeStatusCompare",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessOne.cs",
+      "gold_start": 13,
+      "gold_end": 126,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Employees/WorkProcesses/WorkProcessOne.cs",
+        "name": "GetWorkProcessOneByDate",
+        "start_line": 89,
+        "end_line": 125,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        89,
+        125
+      ],
+      "fts_token": "EmployeeWorkProcessView",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/AllocationMethods/AllocationMethodOne.cs",
+      "gold_start": 6,
+      "gold_end": 13,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/AllocationMethods/AllocationMethodOne.cs",
+        "name": "AllocationMethodOne",
+        "start_line": 8,
+        "end_line": 12,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        12
+      ],
+      "fts_token": "AllocationMethod",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/AppSettings/AppSettingOne.cs",
+      "gold_start": 6,
+      "gold_end": 15,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/AppSettings/AppSettingOne.cs",
+        "name": "AppSettingOne",
+        "start_line": 8,
+        "end_line": 14,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        14
+      ],
+      "fts_token": "AppSetting",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/BirthdayCoverTemplates/BirthdayCoverTemplateCommand.cs",
+      "gold_start": 12,
+      "gold_end": 102,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/BirthdayCoverTemplates/BirthdayCoverTemplateCommand.cs",
+        "name": "UpdateBirthdayCoverTemplateStatus",
+        "start_line": 85,
+        "end_line": 101,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        85,
+        101
+      ],
+      "fts_token": "UpdateBirthdayCoverTemplateStatus",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/CbExecutorConfigs/CbExecutorConfigMany.cs",
+      "gold_start": 7,
+      "gold_end": 25,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/CbExecutorConfigs/CbExecutorConfigMany.cs",
+        "name": "CbExecutorConfigSummaryList",
+        "start_line": 9,
+        "end_line": 24,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        9,
+        24
+      ],
+      "fts_token": "CbExecutorConfig",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/CbOrganizations/CbOrganizationCommand.cs",
+      "gold_start": 13,
+      "gold_end": 354,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/CbOrganizations/CbOrganizationCommand.cs",
+        "name": "NewCbOrganizationCommand",
+        "start_line": 311,
+        "end_line": 353,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        311,
+        353
+      ],
+      "fts_token": "NewCbOrganizationCommand",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/CodeSyntaxs/CodeSyntaxCommand.cs",
+      "gold_start": 10,
+      "gold_end": 73,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/CodeSyntaxs/CodeSyntaxCommand.cs",
+        "name": "DeleteCodeSyntaxByIds",
+        "start_line": 63,
+        "end_line": 72,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        63,
+        72
+      ],
+      "fts_token": "DeleteCodeSyntaxByIds",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionMany.cs",
+      "gold_start": 9,
+      "gold_end": 121,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Constructions/ConstructionMany.cs",
+        "name": "ConstructionData",
+        "start_line": 34,
+        "end_line": 120,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        34,
+        120
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/DashboardReports/DashboardReportOne.cs",
+      "gold_start": 6,
+      "gold_end": 13,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/DashboardReports/DashboardReportOne.cs",
+        "name": "DashboardReportOne",
+        "start_line": 8,
+        "end_line": 12,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        12
+      ],
+      "fts_token": "DashboardReport",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/DocumentTemplates/DocTemplateMany.cs",
+      "gold_start": 12,
+      "gold_end": 96,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/DocumentTemplates/DocTemplateMany.cs",
+        "name": "DocumentTemplateMany",
+        "start_line": 32,
+        "end_line": 95,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        32,
+        95
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/EmailTemplates/EmailTemplateMany.cs",
+      "gold_start": 10,
+      "gold_end": 208,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/EmailTemplates/EmailTemplateMany.cs",
+        "name": "EmailTemplateCodeData",
+        "start_line": 183,
+        "end_line": 207,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        183,
+        207
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/EmployeeOptions/EmployeeOptionMany.cs",
+      "gold_start": 12,
+      "gold_end": 147,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/EmployeeOptions/EmployeeOptionMany.cs",
+        "name": "EmployeeOptionData",
+        "start_line": 37,
+        "end_line": 146,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        37,
+        146
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Features/FeatureModels.cs",
+      "gold_start": 6,
+      "gold_end": 10,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Features/FeatureModels.cs",
+        "name": "Feature",
+        "start_line": 6,
+        "end_line": 10,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Helps/HelpModels.cs",
+      "gold_start": 8,
+      "gold_end": 15,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Helps/HelpModels.cs",
+        "name": "SearchHelpModel",
+        "start_line": 8,
+        "end_line": 15,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        15
+      ],
+      "fts_token": "SearchHelpModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/JobDescriptions/JobDescriptions/JobDescriptionOne.cs",
+      "gold_start": 6,
+      "gold_end": 30,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/JobDescriptions/JobDescriptions/JobDescriptionOne.cs",
+        "name": "JobDescriptionOne",
+        "start_line": 8,
+        "end_line": 29,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        29
+      ],
+      "fts_token": "JobDescriptionViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/MasterSearchObjects/MasterSearchObjectMany.cs",
+      "gold_start": 12,
+      "gold_end": 488,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/MasterSearchObjects/MasterSearchObjectMany.cs",
+        "name": "GetMasterSearchDetailSqlStr",
+        "start_line": 158,
+        "end_line": 424,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        158,
+        424
+      ],
+      "fts_token": "SearchMasterResultModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/NotifyLogs/NotifyLogModel.cs",
+      "gold_start": 6,
+      "gold_end": 16,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/NotifyLogs/NotifyLogModel.cs",
+        "name": "Milliseconds",
+        "start_line": 8,
+        "end_line": 15,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        15
+      ],
+      "fts_token": "Milliseconds",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/OrganizationBiddingPackages/BiddingPackageOne.cs",
+      "gold_start": 6,
+      "gold_end": 49,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/OrganizationBiddingPackages/BiddingPackageOne.cs",
+        "name": "BiddingPackageSummary",
+        "start_line": 25,
+        "end_line": 48,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        25,
+        48
+      ],
+      "fts_token": "BiddingPackageSummaryModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/OrganizationPayrollBuildings/OrganizationPayrollBuildingMany.cs",
+      "gold_start": 10,
+      "gold_end": 63,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/OrganizationPayrollBuildings/OrganizationPayrollBuildingMany.cs",
+        "name": "OrganizationPayrollBuildingData",
+        "start_line": 31,
+        "end_line": 62,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        31,
+        62
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand02.cs",
+      "gold_start": 8,
+      "gold_end": 74,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Organizations/OrganizationCommand02.cs",
+        "name": "SortOrg",
+        "start_line": 10,
+        "end_line": 73,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        10,
+        73
+      ],
+      "fts_token": "CommandResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Procedures/ProcedureMany.cs",
+      "gold_start": 9,
+      "gold_end": 95,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Procedures/ProcedureMany.cs",
+        "name": "ProcedureData",
+        "start_line": 30,
+        "end_line": 94,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        30,
+        94
+      ],
+      "fts_token": "QueryResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Processes/ProcessCommand.cs",
+      "gold_start": 11,
+      "gold_end": 200,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Processes/ProcessCommand.cs",
+        "name": "DeleteProcessByIds",
+        "start_line": 190,
+        "end_line": 199,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        190,
+        199
+      ],
+      "fts_token": "DeleteProcessByIds",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/ProjectGalleries/ProjectGalleryCommand.cs",
+      "gold_start": 11,
+      "gold_end": 65,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/ProjectGalleries/ProjectGalleryCommand.cs",
+        "name": "DeleteProjectGalleryByIds",
+        "start_line": 55,
+        "end_line": 64,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        55,
+        64
+      ],
+      "fts_token": "DeleteProjectGalleryByIds",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Questions/QuestionCommand.cs",
+      "gold_start": 12,
+      "gold_end": 81,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Questions/QuestionCommand.cs",
+        "name": "DeleteQuestionByIds",
+        "start_line": 71,
+        "end_line": 80,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        71,
+        80
+      ],
+      "fts_token": "DeleteQuestionByIds",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Schools/SchoolCommand.cs",
+      "gold_start": 10,
+      "gold_end": 80,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Schools/SchoolCommand.cs",
+        "name": "DeleteSchoolByIds",
+        "start_line": 68,
+        "end_line": 79,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        68,
+        79
+      ],
+      "fts_token": "DeleteSchoolByIds",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/General/Warehouses/WarehouseModels.cs",
+      "gold_start": 3,
+      "gold_end": 6,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/General/Warehouses/WarehouseModels.cs",
+        "name": "WarehouseViewModel",
+        "start_line": 3,
+        "end_line": 6,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        3,
+        6
+      ],
+      "fts_token": "WarehouseViewModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Holidays/HolidayModels.cs",
+      "gold_start": 6,
+      "gold_end": 9,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Holidays/HolidayModels.cs",
+        "name": "Holiday",
+        "start_line": 6,
+        "end_line": 9,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": false,
+      "persisted_range": null,
+      "fts_token": null,
+      "fts_hit": false,
+      "vector_hit": false,
+      "stage_fail": "NOT_PERSISTED"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluationCriterias/TalentEvaluationCriteriaModels.cs",
+      "gold_start": 9,
+      "gold_end": 23,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluationCriterias/TalentEvaluationCriteriaModels.cs",
+        "name": "SearchTalentEvaluationCriteriaModel",
+        "start_line": 9,
+        "end_line": 23,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        9,
+        23
+      ],
+      "fts_token": "SearchTalentEvaluationCriteriaModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluationOwners/TalentEvaluationOwnerModels.cs",
+      "gold_start": 9,
+      "gold_end": 21,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluationOwners/TalentEvaluationOwnerModels.cs",
+        "name": "SearchTalentEvaluationOwnerModel",
+        "start_line": 9,
+        "end_line": 21,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        9,
+        21
+      ],
+      "fts_token": "SearchTalentEvaluationOwnerModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluations/TalentEvaluationModels.cs",
+      "gold_start": 9,
+      "gold_end": 54,
+      "enclosing": {
+        "path": "Services/HRIS/Service.Core/Executes/Talent/TalentEvaluations/TalentEvaluationModels.cs",
+        "name": "SearchTalentEvaluationModel",
+        "start_line": 9,
+        "end_line": 54,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        9,
+        54
+      ],
+      "fts_token": "SearchTalentEvaluationModel",
+      "fts_hit": true,
+      "vector_hit": false,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Api/ApiGeneralController.cs",
+      "gold_start": 3,
+      "gold_end": 5,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Api/ApiGeneralController.cs",
+        "name": "ApiController",
+        "start_line": 3,
+        "end_line": 5,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        3,
+        5
+      ],
+      "fts_token": "ApiController",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/CB/BonusController.cs",
+      "gold_start": 16,
+      "gold_end": 346,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/CB/BonusController.cs",
+        "name": "EmpWorkProcess",
+        "start_line": 340,
+        "end_line": 343,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        340,
+        343
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/CB/SalaryController.cs",
+      "gold_start": 18,
+      "gold_end": 256,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/CB/SalaryController.cs",
+        "name": "CbGrossSalaryRenewData",
+        "start_line": 249,
+        "end_line": 253,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        248,
+        253
+      ],
+      "fts_token": "JsonResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Categories/SalaryController.cs",
+      "gold_start": 3,
+      "gold_end": 5,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Categories/SalaryController.cs",
+        "name": "CategoryController",
+        "start_line": 3,
+        "end_line": 5,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        3,
+        5
+      ],
+      "fts_token": "CategoryController",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Developer/EmployeeOptionController.cs",
+      "gold_start": 9,
+      "gold_end": 58,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Developer/EmployeeOptionController.cs",
+        "name": "EmployeeOptionOne",
+        "start_line": 51,
+        "end_line": 55,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        51,
+        55
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Developer/SourceController.cs",
+      "gold_start": 19,
+      "gold_end": 303,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Developer/SourceController.cs",
+        "name": "CheckEmailGroups",
+        "start_line": 297,
+        "end_line": 302,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        296,
+        302
+      ],
+      "fts_token": "JsonResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Employee/EducationLevelController.cs",
+      "gold_start": 9,
+      "gold_end": 52,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Employee/EducationLevelController.cs",
+        "name": "DeleteEmployeeEducationLeveles",
+        "start_line": 44,
+        "end_line": 49,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        43,
+        49
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Employee/LaborGradeController.cs",
+      "gold_start": 11,
+      "gold_end": 68,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Employee/LaborGradeController.cs",
+        "name": "DeleteLaborGradeByIds",
+        "start_line": 60,
+        "end_line": 65,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        59,
+        65
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+      "gold_start": 28,
+      "gold_end": 708,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Employee/ReportController.cs",
+        "name": "EmployeeReportGroupList",
+        "start_line": 703,
+        "end_line": 707,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        703,
+        707
+      ],
+      "fts_token": "JsonResult",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Evaluate/EvaluateController.cs",
+      "gold_start": 5,
+      "gold_end": 11,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Evaluate/EvaluateController.cs",
+        "name": "Index",
+        "start_line": 7,
+        "end_line": 10,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        10
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Export/Excel/WelfareController.cs",
+      "gold_start": 11,
+      "gold_end": 61,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Export/Excel/WelfareController.cs",
+        "name": "ExcelWelfareFund",
+        "start_line": 13,
+        "end_line": 60,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        13,
+        60
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Export/Pdf/RecruitmentController.2.2.cs",
+      "gold_start": 16,
+      "gold_end": 137,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Export/Pdf/RecruitmentController.2.2.cs",
+        "name": "PhieuDanhGiaUngVienView",
+        "start_line": 97,
+        "end_line": 134,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        97,
+        134
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/General/GeneralController.cs",
+      "gold_start": 24,
+      "gold_end": 799,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/General/GeneralController.cs",
+        "name": "CbEmployeeTrackings",
+        "start_line": 793,
+        "end_line": 796,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        793,
+        796
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/General/ProjectController.cs",
+      "gold_start": 7,
+      "gold_end": 45,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/General/ProjectController.cs",
+        "name": "DeleteProjectGalleryByIds",
+        "start_line": 38,
+        "end_line": 42,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        37,
+        42
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Import/ImportUserController.cs",
+      "gold_start": 3,
+      "gold_end": 5,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Import/ImportUserController.cs",
+        "name": "ImportController",
+        "start_line": 3,
+        "end_line": 5,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        3,
+        5
+      ],
+      "fts_token": "ImportController",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Maneuve/EmpPlanController.cs",
+      "gold_start": 15,
+      "gold_end": 219,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Maneuve/EmpPlanController.cs",
+        "name": "ManeuveEmpPlanReportView",
+        "start_line": 211,
+        "end_line": 216,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        211,
+        216
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Maneuve/RestorePlanController.cs",
+      "gold_start": 8,
+      "gold_end": 44,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Maneuve/RestorePlanController.cs",
+        "name": "ManeuveRestorePlanReportList",
+        "start_line": 35,
+        "end_line": 41,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        35,
+        41
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+      "gold_start": 6,
+      "gold_end": 67,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Prefer/PersonalController.cs",
+        "name": "EvaluatePersonals",
+        "start_line": 58,
+        "end_line": 61,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        58,
+        61
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Propose/MissionAllowanceController.cs",
+      "gold_start": 5,
+      "gold_end": 15,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Propose/MissionAllowanceController.cs",
+        "name": "MissionAllowances",
+        "start_line": 9,
+        "end_line": 12,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        9,
+        12
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Recruitment/2.2/StageCandidateController.cs",
+      "gold_start": 23,
+      "gold_end": 1206,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Recruitment/2.2/StageCandidateController.cs",
+        "name": "CreateAndAddStageCandidate",
+        "start_line": 1197,
+        "end_line": 1203,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        1196,
+        1203
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Setting/EmployeeController.cs",
+      "gold_start": 6,
+      "gold_end": 17,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Setting/EmployeeController.cs",
+        "name": "Employee",
+        "start_line": 8,
+        "end_line": 16,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        8,
+        16
+      ],
+      "fts_token": "Employee",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Setting/RecruimentController.cs",
+      "gold_start": 10,
+      "gold_end": 55,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Setting/RecruimentController.cs",
+        "name": "RecruitmentJobDescriptionRoleEdit",
+        "start_line": 46,
+        "end_line": 52,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        45,
+        52
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Termination/RequestController.cs",
+      "gold_start": 17,
+      "gold_end": 167,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Termination/RequestController.cs",
+        "name": "DeleteTerminationRequestByIds",
+        "start_line": 160,
+        "end_line": 164,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        159,
+        164
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Training/EmployeePlanController.cs",
+      "gold_start": 14,
+      "gold_end": 231,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Training/EmployeePlanController.cs",
+        "name": "UpdateEmployeePlanStatus",
+        "start_line": 195,
+        "end_line": 228,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        195,
+        228
+      ],
+      "fts_token": "JsonResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Controllers/Training/TrainingController.cs",
+      "gold_start": 28,
+      "gold_end": 1075,
+      "enclosing": {
+        "path": "Webs/HRM/Controllers/Training/TrainingController.cs",
+        "name": "DeleteOrgChart",
+        "start_line": 1060,
+        "end_line": 1072,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        1059,
+        1072
+      ],
+      "fts_token": "ActionResult",
+      "fts_hit": false,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Models/CbModels.cs",
+      "gold_start": 7,
+      "gold_end": 14,
+      "enclosing": {
+        "path": "Webs/HRM/Models/CbModels.cs",
+        "name": "SalaryColumnModel",
+        "start_line": 7,
+        "end_line": 14,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        14
+      ],
+      "fts_token": "SalaryColumnModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Models/LoginModel.cs",
+      "gold_start": 7,
+      "gold_end": 17,
+      "enclosing": {
+        "path": "Webs/HRM/Models/LoginModel.cs",
+        "name": "LoginModel",
+        "start_line": 7,
+        "end_line": 17,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        7,
+        17
+      ],
+      "fts_token": "LoginModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    },
+    {
+      "id": "SAMPLE",
+      "path": "Webs/HRM/Models/Setting.cs",
+      "gold_start": 11,
+      "gold_end": 17,
+      "enclosing": {
+        "path": "Webs/HRM/Models/Setting.cs",
+        "name": "TestEmailModel",
+        "start_line": 11,
+        "end_line": 17,
+        "kind": "cs"
+      },
+      "scanned": true,
+      "persisted": true,
+      "persisted_range": [
+        11,
+        17
+      ],
+      "fts_token": "TestEmailModel",
+      "fts_hit": true,
+      "vector_hit": true,
+      "stage_fail": "OK_SEARCHABLE"
+    }
+  ],
+  "sample_summary": [
+    "NOT_PERSISTED",
+    "NOT_SEARCHABLE",
+    "OK_SEARCHABLE"
+  ],
+  "notes": [
+    "declarations re-derived with an independent regex/brace extractor, not the engine parser",
+    "persisted = exact symbol lookup returns a range overlapping the gold span in the same file",
+    "searchable = FTS over an in-body identifier token hits the span; vector uses the declaration name",
+    "gold is a diagnostic input only; the sample audit is gold-free"
+  ]
+}
