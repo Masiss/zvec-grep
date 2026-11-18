@@ -412,7 +412,7 @@ fn main() {
     )
     .expect("valid dev");
     let mut probe = Probe {
-        runtime: Runtime::new().map_err(|error| error.to_string()).unwrap(),
+        runtime: Runtime::new().expect("tokio runtime"),
         engine: ZvecGrep::new(),
         root: root.clone(),
     };
