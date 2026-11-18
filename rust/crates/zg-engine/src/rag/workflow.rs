@@ -990,18 +990,14 @@ impl<'a> State<'a> {
     fn discover(&mut self, source: &mut impl EvidenceSource) -> Result<(), String> {
         let question = self.definition.question.clone();
         if let Some(plan) = self.plan.clone() {
-            // External-agent plan, E2 ordering: the engine's own deployable routes
-            // run first, the plan supplements with whatever budget remains, so a
-            // low-quality plan cannot crowd out the hybrid/FTS evidence.
-            for name in plan.symbols.iter().take(3).cloned().collect::<Vec<_>>() {
-                if self.calls_left() == 0 {
-                    break;
-                }
-                self.symbol_route(source, &name, "agent_plan_symbol");
-            }
+            // External-agent plan supplements after the engine routes. Blind
+            // symbol guesses measured zero gold contribution, so the plan's
+            // calls go to plan-hybrid queries (2) and the remaining budget is
+            // left to the scoped lexical round, which owns complementary gold
+            // (D09/D10/D11-class cases).
             let mut queries = plan.queries.clone();
             queries.retain(|query| !query.trim().is_empty());
-            queries.truncate(3);
+            queries.truncate(2);
             for query in queries {
                 if self.calls_left() == 0 {
                     break;
