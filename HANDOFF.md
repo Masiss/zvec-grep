@@ -1,6 +1,8 @@
 # Upstream Rust integration handoff — 2026-10-31
 
-> **Current continuation checkpoint:** [`HANDOFF-20261031-NEXT.md`](HANDOFF-20261031-NEXT.md).
+> **Current continuation checkpoint:** [`HANDOFF-20261118-NEXT.md`](HANDOFF-20261118-NEXT.md)
+> (RAG R4 → MVP line). The older [`HANDOFF-20261031-NEXT.md`](HANDOFF-20261031-NEXT.md)
+> covers the upstream Rust integration work and remains historical detail.
 > Read that first for the active branch state, M2 diagnostic result, optimize
 > bottleneck, and exact next action. This file is historical detail.
 
