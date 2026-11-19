@@ -1,14 +1,27 @@
-# RAG R4 documentation index (as of 2026-11-18)
+# RAG R4 documentation index (updated 2026-11-19)
 
-Start with [`../../HANDOFF-20261118-NEXT.md`](../../HANDOFF-20261118-NEXT.md) — it
-holds current state, the reconciled metrics table, the falsified-hypothesis list
-and the single next authorized action. This index only maps the documents.
+For the latest evidence-representation result, start with
+[`r4-evidence-representation-results-20261119.md`](r4-evidence-representation-results-20261119.md).
+[`../../HANDOFF-20261118-NEXT.md`](../../HANDOFF-20261118-NEXT.md) remains the
+historical handoff for the preceding R4 line. This index maps the documents and
+preserves the older results as historical evidence.
 
-## Current best result
+## Current investigation status
 
-**Macro Recall@10 = 0.5278** (pool 19/25, selected 9/25, citation 1.000) on the
-frozen dev split, against GO **0.5722** and a fair 24 KiB baseline of **0.2500**.
-Task correctness **NOT_MEASURED**. Branch `work/r4-deep-opt-20261118` @ `7030bd7`.
+The 2026-11-19 representation investigation is **PARTIAL / NO-GO** under its
+frozen gate: corrected plan macro **0.4861**, pool **12/25 fragment-overlap**,
+selected **8/25**; GO remains **0.5722** and correctness **NOT_MEASURED**.
+Three preregistered implementation hypotheses did not meet acceptance. The
+index is verified; no new method-vector/index rebuild is recommended. See the
+linked report for attribution, receipts, and remaining call-allocation blocker.
+
+## Historical best result (pre-32-file correction)
+
+The prior reported **0.5278** (pool 19/25, selected 9/25, citation 1.000) remains
+a historical quality landmark, not qualified under the later ≤32 distinct
+source-read gate. The frozen dev split's GO threshold is **0.5722** and the
+fair 24 KiB baseline is **0.2500**. Task correctness remains **NOT_MEASURED**;
+that result was on branch `work/r4-deep-opt-20261118` @ `7030bd7`.
 
 ## Reading order
 
@@ -39,6 +52,7 @@ Task correctness **NOT_MEASURED**. Branch `work/r4-deep-opt-20261118` @ `7030bd7
 | `r4-interactive-typed-20261118.md` | call rebalancing + typed acquisition | 0.4444 → 0.4861 |
 | `r4-sql-symbols-20261118.md` | SQL symbols via R3 parser (no schema change) | baseline 0.1667 → 0.2500 |
 | `r4-index-utilization-20261118.md` | string-literal SQL objects as typed refs | **0.4861 → 0.5278** |
+| `r4-evidence-representation-results-20261119.md` | fragment/context/typed-reference investigation; E1–E3 | **0.4861; no GO** |
 
 ### 4. Contracts (frozen; do not edit)
 | Document | Content |
@@ -56,14 +70,18 @@ Task correctness **NOT_MEASURED**. Branch `work/r4-deep-opt-20261118` @ `7030bd7
 - The workflow is **inside the resource contract** at best-arm quality.
 - The fair baseline is **0.2500**, not 0.4167 — the raw 0.5000 arm is unbounded
   and is a retrieval reference only.
-- The binding limit is **evidence granularity**, measured across seven
-  experiments: precision changes lose recall, recall changes deliver noise.
+- The bottleneck is multi-stage: broad parent ranges inflate candidate
+  coverage, fragment projection narrows the pool, and the six-call allocation
+  constrains typed cross-file acquisition. This mission did **not** establish
+  that adding finer index units would improve selected evidence.
 
 ## What is open
 
-1. **Index granularity change** (method-level units with declaration headers) —
-   needs owner approval; success criterion pre-registered in the handoff §9.
-2. **Task correctness run** — rubric frozen; requires an external agent plus a
-   separate grader session, and the per-question required-step lists for C3.
+1. **Call allocation and candidate anchors** — current evidence points above
+   the index layer. Any work beyond the three-experiment representation mission
+   needs a new scope and preregistration; do not raise the six-call cap silently.
+2. **Task correctness run** — rubric frozen; requires C3 required-step lists,
+   a privacy-valid independent answerer, and a separate grader. It remains
+   NOT_MEASURED/BLOCKED.
 3. **PLANNED/BLOCKED**: interactive planner with corpus access (private-source
    exposure), and any embedding-model change (index/model identity).

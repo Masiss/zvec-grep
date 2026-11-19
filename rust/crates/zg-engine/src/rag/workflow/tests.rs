@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -22,6 +22,8 @@ struct FsSource {
     symbol_units: Vec<SearchUnit>,
     /// Ranges returned by the hybrid question route.
     hybrid_units: Vec<SearchUnit>,
+    /// Optional enclosing declaration ranges for fragment candidate units.
+    context_ranges: BTreeMap<(String, usize, usize), SearchUnit>,
 }
 
 impl FsSource {
@@ -36,6 +38,7 @@ impl FsSource {
             fts_units: Vec::new(),
             symbol_units: Vec::new(),
             hybrid_units: Vec::new(),
+            context_ranges: BTreeMap::new(),
         }
     }
 }
@@ -92,6 +95,12 @@ impl EvidenceSource for FsSource {
 
     fn hybrid(&mut self, _question: &str, _limit: usize) -> Result<Vec<SearchUnit>, String> {
         Ok(self.hybrid_units.clone())
+    }
+
+    fn context_range(&self, unit: &SearchUnit) -> Option<SearchUnit> {
+        self.context_ranges
+            .get(&(unit.path.clone(), unit.start_line, unit.end_line))
+            .cloned()
     }
 
     fn is_cancelled(&self) -> bool {
@@ -239,6 +248,229 @@ fn expansion_reaches_reference_targets_from_seed_spans() {
             .any(|path| path.contains("EmployeeCoreService")),
         "expansion should reach the service file: {paths:?}"
     );
+}
+
+#[test]
+fn typed_reference_expansion_uses_parent_scope_for_fragment_candidate() {
+    let dir = tempfile::tempdir().expect("valid workflow fixture");
+    write(
+        dir.path(),
+        "src/Calls.txt",
+        "public class Caller {\n    AlphaOne();\n    BetaTwo();\n}\n",
+    );
+    let fragment = SearchUnit {
+        path: "src/Calls.txt".to_owned(),
+        start_line: 1,
+        end_line: 1,
+    };
+    let parent = SearchUnit {
+        path: fragment.path.clone(),
+        start_line: 1,
+        end_line: 4,
+    };
+    let mut source = FsSource::new(dir.path());
+    source.context_ranges.insert(
+        (
+            fragment.path.clone(),
+            fragment.start_line,
+            fragment.end_line,
+        ),
+        parent,
+    );
+    let mut state = State::new(
+        dir.path(),
+        define("Which references are associated with this code?"),
+        budget(),
+    );
+    state.units.push(fragment.clone());
+
+    let references = state.reference_names(&mut source);
+
+    assert!(references.iter().any(|(name, _)| name == "AlphaOne"));
+    assert!(references.iter().any(|(name, _)| name == "BetaTwo"));
+    assert_eq!(state.units, vec![fragment]);
+}
+
+#[test]
+fn structured_context_widens_fragment_candidate_to_its_declaration() {
+    let dir = tempfile::tempdir().expect("valid workflow fixture");
+    write(
+        dir.path(),
+        "src/Target.cs",
+        "public class Target {\n    public void Method() {\n        if (!Allowed) return;\n        AlphaOne();\n    }\n}\n",
+    );
+    let fragment = SearchUnit {
+        path: "src/Target.cs".to_owned(),
+        start_line: 4,
+        end_line: 4,
+    };
+    let declaration = SearchUnit {
+        path: fragment.path.clone(),
+        start_line: 2,
+        end_line: 5,
+    };
+    let mut source = FsSource::new(dir.path());
+    source.context_ranges.insert(
+        (
+            fragment.path.clone(),
+            fragment.start_line,
+            fragment.end_line,
+        ),
+        declaration.clone(),
+    );
+    let mut state = State::new(dir.path(), define("AlphaOne"), budget());
+    state.plan = Some(AgentPlan::default());
+    state.units.push(fragment.clone());
+    state.pool.insert(
+        fragment.clone(),
+        PoolEntry {
+            unit: fragment.clone(),
+            sources: vec![CandidateSource::AgentPlan],
+            facts: Vec::new(),
+            route_rank: 0,
+        },
+    );
+
+    let ranked = state.rank(&mut source);
+
+    assert_eq!(ranked.len(), 1);
+    assert_eq!(ranked[0].1, declaration);
+    assert_eq!(ranked[0].5.unit, fragment);
+    assert!(ranked[0].3.contains("public void Method()"));
+    assert!(ranked[0].3.contains("if (!Allowed) return;"));
+    assert!(ranked[0].3.contains("AlphaOne();"));
+}
+
+#[test]
+fn enclosing_class_expands_only_the_csharp_method_containing_the_fragment() {
+    let dir = tempfile::tempdir().expect("valid workflow fixture");
+    let filler = (0..210)
+        .map(|line| format!("        IrrelevantCall{line}();\n"))
+        .collect::<String>();
+    let text = format!(
+        "public class Target {{\n    public void First() {{\n{filler}    }}\n    public void Second() {{\n        if (!Allowed) return;\n        AlphaOne();\n    }}\n}}\n"
+    );
+    let candidate_line = text
+        .lines()
+        .position(|line| line.contains("AlphaOne();"))
+        .expect("candidate line")
+        + 1;
+    let declaration_start = text
+        .lines()
+        .position(|line| line.contains("public void Second()"))
+        .expect("declaration line")
+        + 1;
+    let end_line = text.lines().count();
+    write(dir.path(), "src/Target.cs", &text);
+    let fragment = SearchUnit {
+        path: "src/Target.cs".to_owned(),
+        start_line: candidate_line,
+        end_line: candidate_line,
+    };
+    let parent = SearchUnit {
+        path: fragment.path.clone(),
+        start_line: 1,
+        end_line,
+    };
+    let mut source = FsSource::new(dir.path());
+    source.context_ranges.insert(
+        (
+            fragment.path.clone(),
+            fragment.start_line,
+            fragment.end_line,
+        ),
+        parent,
+    );
+    let mut state = State::new(dir.path(), define("AlphaOne"), budget());
+    state.plan = Some(AgentPlan::default());
+    state.units.push(fragment.clone());
+    state.pool.insert(
+        fragment.clone(),
+        PoolEntry {
+            unit: fragment.clone(),
+            sources: vec![CandidateSource::AgentPlan],
+            facts: Vec::new(),
+            route_rank: 0,
+        },
+    );
+
+    let ranked = state.rank(&mut source);
+
+    assert_eq!(
+        ranked.len(),
+        1,
+        "one fragment must not fan out to sibling methods"
+    );
+    assert_eq!(ranked[0].1.start_line, declaration_start);
+    assert_eq!(ranked[0].5.unit, fragment);
+    assert!(ranked[0].3.contains("public void Second()"));
+    assert!(ranked[0].3.contains("AlphaOne();"));
+    assert!(!ranked[0].3.contains("IrrelevantCall"));
+}
+
+#[test]
+fn enclosing_sql_file_expands_only_the_procedure_containing_the_fragment() {
+    let dir = tempfile::tempdir().expect("valid workflow fixture");
+    let filler = (0..210).map(|_| "    SELECT 1;\n").collect::<String>();
+    let text = format!(
+        "CREATE PROCEDURE dbo.FirstProc AS\nBEGIN\n{filler}END\nCREATE PROCEDURE dbo.SecondProc AS\nBEGIN\n    IF @Allowed = 0 RETURN;\n    EXEC dbo.TargetCall;\nEND\n"
+    );
+    let candidate_line = text
+        .lines()
+        .position(|line| line.contains("TargetCall"))
+        .expect("candidate line")
+        + 1;
+    let declaration_start = text
+        .lines()
+        .position(|line| line.contains("CREATE PROCEDURE dbo.SecondProc"))
+        .expect("declaration line")
+        + 1;
+    let end_line = text.lines().count();
+    write(dir.path(), "sql/Calls.sql", &text);
+    let fragment = SearchUnit {
+        path: "sql/Calls.sql".to_owned(),
+        start_line: candidate_line,
+        end_line: candidate_line,
+    };
+    let parent = SearchUnit {
+        path: fragment.path.clone(),
+        start_line: 1,
+        end_line,
+    };
+    let mut source = FsSource::new(dir.path());
+    source.context_ranges.insert(
+        (
+            fragment.path.clone(),
+            fragment.start_line,
+            fragment.end_line,
+        ),
+        parent,
+    );
+    let mut state = State::new(dir.path(), define("TargetCall"), budget());
+    state.plan = Some(AgentPlan::default());
+    state.units.push(fragment.clone());
+    state.pool.insert(
+        fragment.clone(),
+        PoolEntry {
+            unit: fragment.clone(),
+            sources: vec![CandidateSource::AgentPlan],
+            facts: Vec::new(),
+            route_rank: 0,
+        },
+    );
+
+    let ranked = state.rank(&mut source);
+
+    assert_eq!(
+        ranked.len(),
+        1,
+        "one fragment must not fan out to sibling procedures"
+    );
+    assert_eq!(ranked[0].1.start_line, declaration_start);
+    assert_eq!(ranked[0].5.unit, fragment);
+    assert!(ranked[0].3.contains("CREATE PROCEDURE dbo.SecondProc"));
+    assert!(ranked[0].3.contains("TargetCall"));
+    assert!(!ranked[0].3.contains("FirstProc"));
 }
 
 #[test]
@@ -489,6 +721,50 @@ fn sql_question_expands_procedure_and_table_references() {
 }
 
 #[test]
+fn typed_reference_cap_reports_omitted_expansion_candidates() {
+    let dir = tempfile::tempdir().expect("fixture");
+    let text = "AlphaOne BetaTwo GammaThree DeltaFour\n\
+                 EpsilonFive ZetaSix EtaSeven ThetaEight\n\
+                 IotaNine KappaTen LambdaEleven MuTwelve\n";
+    write(dir.path(), "src/Calls.txt", text);
+    let units: Vec<SearchUnit> = (1..=3)
+        .map(|line| SearchUnit {
+            path: "src/Calls.txt".to_owned(),
+            start_line: line,
+            end_line: line,
+        })
+        .collect();
+    let mut source = FsSource::new(dir.path());
+    let mut state = State::new(dir.path(), define("Which targets are called?"), budget());
+    state.units = units.clone();
+
+    let references = state.reference_names(&mut source);
+
+    assert_eq!(references.len(), MAX_REFS_PER_ROUND);
+    let gaps = state
+        .gaps
+        .get("budget_reference_names")
+        .expect("truncated references must be visible as a budget gap");
+    assert_eq!(gaps.len(), 1);
+    assert!(gaps[0].contains("omitted 4"), "{gaps:?}");
+
+    let scan_budget = WorkflowBudget {
+        max_rounds: 1,
+        ..budget()
+    };
+    let mut scan_source = FsSource::new(dir.path());
+    let mut scan_state = State::new(dir.path(), define("Which targets are called?"), scan_budget);
+    scan_state.units = units;
+    let scan_references = scan_state.reference_names(&mut scan_source);
+    assert_eq!(scan_references.len(), MAX_REFS_PER_ROUND);
+    let scan_gap = &scan_state.gaps["budget_reference_scan"][0];
+    assert!(
+        scan_gap.contains("1 seed span(s) remain unexamined"),
+        "{scan_gap}"
+    );
+}
+
+#[test]
 fn invalid_root_is_a_configuration_error() {
     let mut source = FsSource::new(Path::new("/tmp"));
     let error = run(
@@ -551,6 +827,74 @@ fn distinct_declaration_extends_the_per_file_cap() {
             .map(|span| (span.start_line, span.end_line))
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn same_file_pack_items_keep_their_own_candidate_provenance_and_bytes() {
+    let dir = tempfile::tempdir().expect("fixture");
+    write(
+        dir.path(),
+        "src/Multi.cs",
+        "public class Multi {\n\
+         public void Alpha() {\n\
+           int alpha = 1;\n\
+         }\n\
+         public void Beta() {\n\
+           int beta = 2;\n\
+           string context = beta.ToString() + beta.ToString();\n\
+           beta++;\n\
+         }\n\
+         }\n",
+    );
+    let alpha = SearchUnit {
+        path: "src/Multi.cs".to_owned(),
+        start_line: 2,
+        end_line: 4,
+    };
+    let beta = SearchUnit {
+        path: "src/Multi.cs".to_owned(),
+        start_line: 5,
+        end_line: 9,
+    };
+    let mut source = FsSource::new(dir.path());
+    source.hybrid_units = vec![alpha];
+    source.fts_units = vec![beta];
+    let budget = WorkflowBudget {
+        max_items: 2,
+        max_bytes: 1024,
+        max_spans_per_file: 2,
+        max_spans_per_file_extra: 0,
+        hybrid_quota: 1,
+        fts_quota: 1,
+        use_lexical: false,
+        use_facts: false,
+        ..budget()
+    };
+
+    let outcome = run(&mut source, dir.path(), "Alpha Beta", budget.clone()).expect("run");
+    let alpha = outcome
+        .selected
+        .iter()
+        .find(|span| span.start_line == 2)
+        .expect("Alpha evidence");
+    let beta = outcome
+        .selected
+        .iter()
+        .find(|span| span.start_line == 5)
+        .expect("Beta evidence");
+    let text = fs::read_to_string(dir.path().join("src/Multi.cs")).expect("source");
+    let lines = text.lines().collect::<Vec<_>>();
+    let alpha_bytes = lines[1..4].join("\n").len();
+    let beta_bytes = lines[4..9].join("\n").len();
+
+    assert!(alpha.sources.contains(&CandidateSource::Hybrid));
+    assert!(!alpha.sources.contains(&CandidateSource::Fts));
+    assert!(beta.sources.contains(&CandidateSource::Fts));
+    assert!(!beta.sources.contains(&CandidateSource::Hybrid));
+    assert_eq!(alpha.content_bytes, alpha_bytes);
+    assert_eq!(beta.content_bytes, beta_bytes);
+    assert_eq!(outcome.stats.selected_bytes, alpha_bytes + beta_bytes);
+    assert!(outcome.stats.selected_bytes <= budget.max_bytes);
 }
 
 #[test]

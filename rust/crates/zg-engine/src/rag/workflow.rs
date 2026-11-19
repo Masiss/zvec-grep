@@ -255,6 +255,14 @@ pub trait EvidenceSource {
     ///
     /// Returns an error when the file cannot be read.
     fn read(&mut self, path: &str) -> Result<Option<String>, String>;
+    /// Optional smallest structured entity range containing this candidate.
+    /// It may scope typed-reference extraction and declaration-level evidence
+    /// expansion; route provenance remains attached to the original candidate.
+    /// Backends without separate anchor/context ranges return `None`.
+    fn context_range(&self, _unit: &SearchUnit) -> Option<SearchUnit> {
+        None
+    }
+
     /// Reports caller cancellation.
     fn is_cancelled(&self) -> bool {
         false
@@ -1190,15 +1198,31 @@ impl<'a> State<'a> {
 
     fn reference_names(&mut self, source: &mut impl EvidenceSource) -> Vec<(String, String)> {
         let seeds = self.units.clone();
+        let scan_limit = MAX_REFS_PER_ROUND * self.budget.max_rounds;
         let mut names = Vec::new();
-        for unit in seeds {
-            if names.len() >= MAX_REFS_PER_ROUND * self.budget.max_rounds {
+        for (seed_index, unit) in seeds.iter().enumerate() {
+            if names.len() >= scan_limit {
+                self.budget_gap(
+                    "budget_reference_scan",
+                    format!(
+                        "typed-reference scan reached {scan_limit} names; {} seed span(s) remain unexamined",
+                        seeds.len() - seed_index
+                    ),
+                );
                 break;
             }
-            let Some(text) = self.text(source, &unit.path) else {
+            let reference_unit = source
+                .context_range(unit)
+                .filter(|context| {
+                    context.path == unit.path
+                        && context.start_line <= unit.start_line
+                        && unit.end_line <= context.end_line
+                })
+                .unwrap_or_else(|| unit.clone());
+            let Some(text) = self.text(source, &reference_unit.path) else {
                 continue;
             };
-            for (name, fact) in typed_references(&unit.path, &text, &unit) {
+            for (name, fact) in typed_references(&reference_unit.path, &text, &reference_unit) {
                 if name.len() < 4 || self.refs_seen.contains(&name) {
                     continue;
                 }
@@ -1220,6 +1244,16 @@ impl<'a> State<'a> {
         // file (e.g. the command that executes the procedure) is not dropped by
         // pool order.
         names.sort_by_key(|(_, fact)| if fact == "sql_call_string" { 0 } else { 1 });
+        let omitted = names.len().saturating_sub(MAX_REFS_PER_ROUND);
+        if omitted > 0 {
+            self.budget_gap(
+                "budget_reference_names",
+                format!(
+                    "typed-reference cap kept {MAX_REFS_PER_ROUND} of {} prioritized names; omitted {omitted}",
+                    names.len()
+                ),
+            );
+        }
         names.truncate(MAX_REFS_PER_ROUND);
         names
     }
@@ -1264,20 +1298,33 @@ impl<'a> State<'a> {
         let definition = self.definition.clone();
         let units = self.units.clone();
         let mut ranked = Vec::new();
-        // Entity-range candidates (match covering a whole file/class region)
-        // cannot be compacted: the compaction anchor is the match itself. Split
-        // them into typed top-level declarations (R2 methods/types, R3 SQL
-        // definitions) and rank each sub-unit with the parent's provenance.
+        // Use structured context to expand a precise candidate to its
+        // containing declaration. Truly broad candidates without a separate
+        // context keep the existing split-and-rank behavior.
         let mut expanded: Vec<(SearchUnit, SearchUnit)> = Vec::new();
         for unit in &units {
-            let Some(text) = self.text(source, &unit.path) else {
+            let context_unit = self
+                .plan
+                .as_ref()
+                .and_then(|_| source.context_range(unit))
+                .filter(|context| {
+                    context.path == unit.path
+                        && context.start_line <= unit.start_line
+                        && unit.end_line <= context.end_line
+                })
+                .unwrap_or_else(|| unit.clone());
+            let has_context = context_unit != *unit;
+            let Some(text) = self.text(source, &context_unit.path) else {
                 continue;
             };
-            let unit_width = unit.end_line.saturating_sub(unit.start_line);
+            let unit_width = context_unit
+                .end_line
+                .saturating_sub(context_unit.start_line);
             // Without a plan there is no signal to choose among a file's
-            // sub-units, and splitting measurably degrades the pack; split only
-            // when plan terms can guide the choice.
-            if unit_width <= MAX_DECLARATION_LINES || self.plan.is_none() {
+            // sub-units, and splitting measurably degrades the pack. A mapped
+            // enclosing declaration is used for expansion only when plan terms
+            // can guide the choice; route provenance stays on `unit`.
+            if self.plan.is_none() || (!has_context && unit_width <= MAX_DECLARATION_LINES) {
                 expanded.push((unit.clone(), unit.clone()));
                 continue;
             }
@@ -1291,7 +1338,11 @@ impl<'a> State<'a> {
                 let facts = csharp_facts::parse_file(&identity, &unit.path, &text);
                 if !facts.parse_error {
                     for method in &facts.methods {
-                        if method.line_start >= unit.start_line && method.line_end <= unit.end_line
+                        if method.line_start >= context_unit.start_line
+                            && method.line_end <= context_unit.end_line
+                            && (!has_context
+                                || (method.line_start <= unit.start_line
+                                    && unit.end_line <= method.line_end))
                         {
                             expanded.push((
                                 SearchUnit {
@@ -1308,8 +1359,11 @@ impl<'a> State<'a> {
             }
             if !split && unit.path.ends_with(".sql") {
                 for definition in sql_facts::parse_sql_file(&unit.path, &text, true, "workflow") {
-                    if definition.line_start >= unit.start_line
-                        && definition.line_end <= unit.end_line
+                    if definition.line_start >= context_unit.start_line
+                        && definition.line_end <= context_unit.end_line
+                        && (!has_context
+                            || (definition.line_start <= unit.start_line
+                                && unit.end_line <= definition.line_end))
                     {
                         expanded.push((
                             SearchUnit {
@@ -1324,7 +1378,7 @@ impl<'a> State<'a> {
                 }
             }
             if !split {
-                expanded.push((unit.clone(), unit.clone()));
+                expanded.push((context_unit, unit.clone()));
             }
         }
         for (unit, parent) in expanded {
@@ -1691,15 +1745,46 @@ impl<'a> State<'a> {
                 format!("{}: {}", gap.relative_path.display(), gap.detail),
             );
         }
+        let assembled_bytes = pack
+            .items
+            .iter()
+            .map(|item| item.content.len())
+            .sum::<usize>();
+        if assembled_bytes > budget.max_bytes {
+            self.gap(
+                EvidenceGapCode::SnippetBudgetExceeded,
+                format!(
+                    "assembled evidence pack used {assembled_bytes} bytes, exceeding {}",
+                    budget.max_bytes
+                ),
+            );
+            return;
+        }
         for item in &pack.items {
-            let Some((unit, hits, bytes, _, provenance)) = chosen
-                .iter()
-                .find(|(unit, ..)| unit.path == item.relative_path.to_string_lossy())
+            let relative_path = item.relative_path.to_string_lossy();
+            let (Some(start_line), Some(end_line)) =
+                (item.range.start_line(), item.range.last_line())
             else {
+                self.gap(
+                    EvidenceGapCode::InvalidRange,
+                    format!("assembled span has no line range: {}", relative_path),
+                );
                 continue;
             };
-            let start_line = item.range.start_line().unwrap_or(unit.start_line);
-            let end_line = item.range.last_line().unwrap_or(unit.end_line);
+            let Some((unit, hits, _, _, provenance)) = chosen.iter().find(|(unit, ..)| {
+                unit.path == relative_path.as_ref()
+                    && unit.start_line == start_line
+                    && unit.end_line == end_line
+            }) else {
+                self.gap(
+                    EvidenceGapCode::InvalidRange,
+                    format!(
+                        "assembled span did not match a selected candidate: {}:{start_line}-{end_line}",
+                        relative_path
+                    ),
+                );
+                continue;
+            };
             let role = if provenance.sources.contains(&CandidateSource::Symbol) {
                 EvidenceRole::Declaration
             } else if provenance.facts.iter().any(|fact| fact == "sql_definition") {
@@ -1717,7 +1802,7 @@ impl<'a> State<'a> {
                 end_line,
                 source_sha256: item.source_sha256.clone(),
                 verified: true,
-                content_bytes: *bytes,
+                content_bytes: item.content.len(),
                 anchors_hit: hits.clone(),
                 sources: provenance.sources.clone(),
                 facts: provenance.facts.clone(),

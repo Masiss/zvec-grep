@@ -9,8 +9,10 @@
 //! D01–D12 split, and a plan written after seeing gold is contaminated. The E1–E5
 //! plan is on a different split and must not be extrapolated.
 //!
-//! Usage: `cargo run -q -p zg-engine --example r4b_paired -- <corpus-root>`
+//! Usage: set `R4B_OUTPUT_DIR` to an external directory and `R4B_RUN_ID` to a
+//! unique label, then run `cargo run -q -p zg-engine --example r4b_paired -- <corpus-root>`.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -46,7 +48,9 @@ struct Arm {
     items: usize,
     verified: usize,
     calls: usize,
-    reads: usize,
+    source_reads: usize,
+    source_bytes_read: usize,
+    ranked_content_bytes: usize,
     tool_content_bytes: usize,
     ms: f64,
     abstain: Option<AbstainReason>,
@@ -84,6 +88,7 @@ struct Receipt {
     plan_selected: usize,
     plan_sha256: String,
     pool_coverage: usize,
+    pool_coverage_note: &'static str,
     selected_coverage: usize,
     citation_accuracy: f64,
     rows: Vec<CaseRow>,
@@ -125,6 +130,9 @@ struct Source {
     root: PathBuf,
     calls: usize,
     cancel_after: Option<usize>,
+    parent_reference_scope: bool,
+    entity_ranges: HashMap<String, Vec<SearchUnit>>,
+    hit_trace: Vec<serde_json::Value>,
 }
 
 impl Source {
@@ -135,18 +143,29 @@ impl Source {
             root: root.to_path_buf(),
             calls: 0,
             cancel_after: None,
+            parent_reference_scope: std::env::var_os("R4B_E2_PARENT_REFS").is_some(),
+            entity_ranges: HashMap::new(),
+            hit_trace: Vec::new(),
         })
     }
 
-    fn units(result: &zg_engine::api::context::ContextResult) -> Vec<SearchUnit> {
+    fn units(
+        result: &zg_engine::api::context::ContextResult,
+        parent_reference_scope: bool,
+    ) -> Vec<SearchUnit> {
         result
             .items
             .iter()
             .filter_map(|item| {
+                let range = if parent_reference_scope {
+                    &item.content_range
+                } else {
+                    &item.range
+                };
                 Some(SearchUnit {
                     path: item.relative_path.to_string_lossy().replace('\\', "/"),
-                    start_line: item.range.start_line()?,
-                    end_line: item.range.last_line()?,
+                    start_line: range.start_line()?,
+                    end_line: range.last_line()?,
                 })
             })
             .collect()
@@ -183,7 +202,62 @@ impl Source {
             .runtime
             .block_on(self.engine.context(options))
             .map_err(|error| error.report().to_string())?;
-        Ok(Self::units(&result))
+        self.record_hits("lexical", pattern, &result);
+        Ok(Self::units(&result, self.parent_reference_scope))
+    }
+
+    fn record_hits(
+        &mut self,
+        route: &str,
+        query: &str,
+        result: &zg_engine::api::context::ContextResult,
+    ) {
+        if self.parent_reference_scope {
+            for item in &result.items {
+                if item.entity_id.is_none() {
+                    continue;
+                }
+                let (Some(start_line), Some(end_line)) =
+                    (item.range.start_line(), item.range.last_line())
+                else {
+                    continue;
+                };
+                let path = item.relative_path.to_string_lossy().replace('\\', "/");
+                let range = SearchUnit {
+                    path: path.clone(),
+                    start_line,
+                    end_line,
+                };
+                let ranges = self.entity_ranges.entry(path).or_default();
+                if !ranges.iter().any(|known| {
+                    known.start_line == range.start_line && known.end_line == range.end_line
+                }) {
+                    ranges.push(range);
+                }
+            }
+        }
+        self.hit_trace.extend(result.items.iter().map(|item| {
+            serde_json::json!({
+                "route": route,
+                "query": query,
+                "rank": item.rank,
+                "path": item.relative_path.to_string_lossy().replace('\\', "/"),
+                "entity_id": item.entity_id,
+                "entity_range": [item.range.start_line(), item.range.last_line()],
+                "content_range": [item.content_range.start_line(), item.content_range.last_line()],
+                "match_ranges": item.match_ranges,
+                "excerpt_range": item.excerpt_range,
+                "score": item.score,
+                "matched_by": format!("{:?}", item.matched_by),
+                "query_groups": item.query_groups.iter().map(|group| serde_json::json!({
+                    "id": group.id,
+                    "rank": group.rank,
+                    "matched_by": format!("{:?}", group.matched_by),
+                })).collect::<Vec<_>>(),
+                "trace": item.trace,
+                "content_bytes": item.content.len(),
+            })
+        }));
     }
 
     fn routed(
@@ -212,7 +286,12 @@ impl Source {
             .runtime
             .block_on(self.engine.context(options))
             .map_err(|error| error.report().to_string())?;
-        Ok(Self::units(&result))
+        let route = mode.map_or("hybrid", |route| match route {
+            ContextRouteMode::Fts => "fts",
+            ContextRouteMode::Vector => "vector",
+        });
+        self.record_hits(route, query, &result);
+        Ok(Self::units(&result, self.parent_reference_scope))
     }
 }
 
@@ -267,6 +346,21 @@ impl EvidenceSource for Source {
             .runtime
             .block_on(self.engine.symbols(options))
             .map_err(|error| error.report().to_string())?;
+        self.hit_trace
+            .extend(result.items.iter().enumerate().map(|(rank, item)| {
+                serde_json::json!({
+                    "route": "symbol",
+                    "query": name,
+                    "rank": rank,
+                    "path": item.relative_path.to_string_lossy().replace('\\', "/"),
+                    "entity_id": item.entity_id,
+                    "entity_range": [item.range.start_line(), item.range.last_line()],
+                    "content_range": [item.range.start_line(), item.range.last_line()],
+                    "score": null,
+                    "matched_by": "ExactSymbol",
+                    "content_bytes": 0,
+                })
+            }));
         Ok(result
             .items
             .iter()
@@ -282,6 +376,18 @@ impl EvidenceSource for Source {
 
     fn read(&mut self, path: &str) -> Result<Option<String>, String> {
         Ok(fs::read_to_string(self.root.join(path)).ok())
+    }
+
+    fn context_range(&self, unit: &SearchUnit) -> Option<SearchUnit> {
+        if !self.parent_reference_scope {
+            return None;
+        }
+        self.entity_ranges
+            .get(&unit.path)?
+            .iter()
+            .filter(|range| range.start_line <= unit.start_line && unit.end_line <= range.end_line)
+            .min_by_key(|range| range.end_line.saturating_sub(range.start_line))
+            .cloned()
     }
 
     fn is_cancelled(&self) -> bool {
@@ -309,6 +415,23 @@ fn mean(values: &[f64]) -> f64 {
 
 fn main() {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let output_dir = std::env::var_os("R4B_OUTPUT_DIR")
+        .map(PathBuf::from)
+        .expect("R4B_OUTPUT_DIR must point outside the repository to preserve frozen receipts");
+    let run_id =
+        std::env::var("R4B_RUN_ID").expect("R4B_RUN_ID must identify this preregistered run");
+    assert!(
+        !run_id.is_empty()
+            && run_id
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '-'),
+        "R4B_RUN_ID may contain only ASCII letters, digits, and hyphens"
+    );
+    assert!(
+        !output_dir.starts_with(&repo),
+        "R4B_OUTPUT_DIR must be outside the repository"
+    );
+    fs::create_dir_all(&output_dir).expect("create external output directory");
     let root = std::env::args().nth(1).map_or_else(
         || PathBuf::from("/home/masis/.cache/zvec-grep/r4-discovery-20261115/corpus"),
         PathBuf::from,
@@ -354,7 +477,7 @@ fn main() {
         max_rounds: 3,
         max_tool_calls: 6,
         max_files: 32,
-        max_source_reads: 160,
+        max_source_reads: 32,
         hybrid_quota: 4,
         fts_quota: 2,
         ..WorkflowBudget::default()
@@ -599,18 +722,27 @@ fn main() {
         if std::env::var("R4B_DECISIONS").is_ok() {
             traced.push(serde_json::json!({
                 "case": id,
+                "projection": if source.parent_reference_scope { "content_range_with_parent_reference_scope" } else { "entity_range" },
+                "plan_ms": plan_ms,
+                "plan_hits": source.hit_trace,
                 "plan_pool": with_plan.candidates.iter().map(|unit| serde_json::json!({
                     "path": unit.path, "start_line": unit.start_line, "end_line": unit.end_line,
                 })).collect::<Vec<_>>(),
                 "plan_stages": with_plan.stages,
                 "plan_stats": with_plan.stats,
+                "plan_gaps": with_plan.gaps,
+                "r4b_gaps": r4b.gaps,
                 "plan_traced": with_plan.traced.iter().map(|entry| serde_json::json!({
                     "path": entry.unit.path, "start_line": entry.unit.start_line, "end_line": entry.unit.end_line,
+                    "context_range": source.context_range(&entry.unit).map(|range| serde_json::json!({
+                        "path": range.path, "start_line": range.start_line, "end_line": range.end_line,
+                    })),
                     "sources": entry.sources, "route_rank": entry.route_rank,
                     "decision": entry.decision, "selected": entry.selected,
                 })).collect::<Vec<_>>(),
                 "plan_selected": with_plan.selected.iter().map(|span| serde_json::json!({
                     "path": span.path, "start_line": span.start_line, "end_line": span.end_line,
+                    "source_sha256": span.source_sha256, "verified": span.verified,
                     "sources": span.sources, "content_bytes": span.content_bytes,
                 })).collect::<Vec<_>>(),
                 "gold": case_gold,
@@ -632,7 +764,9 @@ fn main() {
                 items: units.len(),
                 verified: 0,
                 calls: 1,
-                reads: 0,
+                source_reads: 0,
+                source_bytes_read: 0,
+                ranked_content_bytes: 0,
                 ms: baseline_ms,
                 abstain: None,
                 routes: vec!["Hybrid".to_owned()],
@@ -645,7 +779,9 @@ fn main() {
                 items: bounded.len(),
                 verified: 0,
                 calls: 1,
-                reads: 0,
+                source_reads: 0,
+                source_bytes_read: 0,
+                ranked_content_bytes: 0,
                 ms: baseline_ms,
                 abstain: None,
                 routes: vec!["Hybrid".to_owned()],
@@ -658,7 +794,9 @@ fn main() {
                 items: p1.selected.len(),
                 verified: p1.selected.iter().filter(|span| span.verified).count(),
                 calls: p1.stats.tool_calls,
-                reads: p1.stats.bytes_read,
+                source_reads: p1.stats.source_reads,
+                source_bytes_read: p1.stats.bytes_read,
+                ranked_content_bytes: p1.stats.ranked_content_bytes,
                 ms: p1_ms,
                 abstain: p1.abstain.clone(),
                 routes: {
@@ -679,7 +817,9 @@ fn main() {
                 items: r4b.selected.len(),
                 verified: r4b_verified,
                 calls: r4b.stats.tool_calls,
-                reads: r4b.stats.bytes_read,
+                source_reads: r4b.stats.source_reads,
+                source_bytes_read: r4b.stats.bytes_read,
+                ranked_content_bytes: r4b.stats.ranked_content_bytes,
                 tool_content_bytes: r4b.stats.tool_content_bytes,
                 ms: r4b_ms,
                 abstain: r4b.abstain,
@@ -710,7 +850,7 @@ fn main() {
             .max()
             .unwrap_or(0),
         tool_content_total: rows.iter().map(|row| row.r4b.tool_content_bytes).sum(),
-        tool_content_note: "cumulative ranked source content per case; contract bound is 64 KiB; final pack bound is 24 KiB and is counted inside",
+        tool_content_note: "workflow source-content bytes plus gap text; excludes serialized JSON/tool envelope and any external-agent delivery; internal ranking reads are separate",
         macro_hybrid_p1: mean(&p1_recalls),
         macro_r4b: mean(&r4b_recalls),
         macro_plan: mean(&plan_recalls),
@@ -724,6 +864,7 @@ fn main() {
             ))
         },
         pool_coverage,
+        pool_coverage_note: "coverage of workflow candidate ranges under the adapter projection recorded per trace; not raw retrieval reachability",
         selected_coverage,
         citation_accuracy: if selected_total == 0 {
             0.0
@@ -741,21 +882,33 @@ fn main() {
         },
     };
     if !traced.is_empty() {
+        let trace_out = output_dir.join(format!("r4-evidence-trace-{run_id}.json"));
+        assert!(
+            !trace_out.exists(),
+            "refusing to overwrite existing trace: {}",
+            trace_out.display()
+        );
         fs::write(
-            repo.join("benchmarks/rag-impact/results/r4-evidence-trace-20261116.json"),
+            &trace_out,
             serde_json::to_string_pretty(&serde_json::json!({"cases": traced})).expect("json"),
         )
         .expect("write trace");
     }
     let text = serde_json::to_string_pretty(&receipt).expect("json");
-    let out = repo.join(if legacy_pool {
-        "benchmarks/rag-impact/results/r4b-p1-legacy-pool-20261116.json"
+    let name = if legacy_pool {
+        "r4b-p1-legacy-pool"
     } else {
-        "benchmarks/rag-impact/results/r4b-paired-20261116.json"
-    });
+        "r4b-paired"
+    };
+    let out = output_dir.join(format!("{name}-{run_id}.json"));
+    assert!(
+        !out.exists(),
+        "refusing to overwrite existing receipt: {}",
+        out.display()
+    );
     fs::write(&out, &text).expect("write");
     println!(
-        "hybrid={:.4} hybrid_bounded={:.4} hybrid_p1={:.4} r4b={:.4} plan={:.4} plan_pool={}/{} plan_sel={} pool={}/{} selected={}/{} citation={:.3}",
+        "hybrid={:.4} hybrid_bounded={:.4} hybrid_p1={:.4} r4b={:.4} plan={:.4} plan_pool_overlap={}/{} plan_sel={} pool={}/{} selected={}/{} citation={:.3}",
         receipt.macro_hybrid_baseline,
         receipt.macro_hybrid_byte_bounded,
         receipt.macro_hybrid_p1,
