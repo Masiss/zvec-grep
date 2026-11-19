@@ -206,7 +206,7 @@ answer correctness or external-agent validation.
 - Claim sources are named above; live-runtime absence is stated as a bounded snapshot, not a universal claim.
 - Scope stayed within architecture inventory, C3 checklist completion, evidence preservation and reports. No model download, source egress, new experiment, public contract, or frozen-case edit.
 - Risks and the next safe action are explicit. This report is a dated implementation overlay; it does not silently rewrite the original RAG proposal or frozen benchmark data.
-- No code changed in this pass; tests/builds were not rerun. Prior test/build evidence is recorded in the checkpoint report and receipts.
+- No code changed in this pass; tests/builds were not rerun. The preserved containment-fix receipt `e2-build-tests/containment-fix-tests-build.log` reports 32 workflow tests passed; treat that as prior checkpoint verification, not a test run from this documentation pass.
 
 ## References
 
