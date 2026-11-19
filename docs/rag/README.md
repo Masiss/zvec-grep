@@ -8,7 +8,7 @@
 2. [Implementation plan](implementation-plan.md): R0–R6, từng phase có hướng xử lý, deliverable, gate và fallback.
 3. [HRM2.0 pilot](hrm2-pilot.md): source đã đọc, các câu hỏi/gold cần đóng băng và giới hạn bằng chứng.
 
-Plan này mở nhánh retrieval/evidence của [optimization roadmap](../technical/optimization-upgrade-plan-20261027.md), không thay đổi gate của nhánh M4. Không cần M4 production GO để làm evidence retrieval; cũng không được dùng plan RAG để retry operation đã safety stop.
+Plan này tập trung vào nhánh retrieval/evidence; không thay đổi gate của nhánh M4. Không cần M4 production GO để làm evidence retrieval; cũng không được dùng plan RAG để retry operation đã safety stop.
 
 ## 1. Những gì owner đã chốt
 
@@ -35,7 +35,7 @@ Plan này mở nhánh retrieval/evidence của [optimization roadmap](../technic
 
 ## 2. Hiện có và phần thiếu
 
-Đối chiếu với [retrieval](../technical/retrieval.md), [Rust architecture](../../rust/ARCHITECTURE.md) và code hiện tại:
+Đối chiếu với [R0/R1 retrieval](../../rust/docs/rag-r0-r1.md), [Rust architecture](../../rust/ARCHITECTURE.md) và code hiện tại:
 
 | Có thể tái sử dụng | Còn phải bổ sung/kiểm chứng |
 |---|---|
