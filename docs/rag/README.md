@@ -176,3 +176,17 @@ Pilot targets đề xuất, cần freeze tại R0 trước measurement: một pa
 Các nguồn code và thay đổi dự kiến được map trong [plan](implementation-plan.md). Không sửa storage lock/publication để làm RAG trong khi nhánh native-lock đang điều tra. Bất kỳ incompatible extraction/index/schema change nào phải có version/migration/rebuild decision riêng; sidecar/on-demand MVP không mặc nhiên được quyền sửa index hiện có.
 
 **Kết quả mong muốn:** agent tìm được một chain có evidence đáng tin với ít source đọc hơn, tự phát hiện thiếu bằng chứng trước final answer, và nói rõ giới hạn — không phải một hệ thống local “tự suy nghĩ” tốn thêm model/CPU.
+
+## 8. Implementation status snapshot (2026-11-20)
+
+This document remains the **target design**, not a claim that the full agent loop is shipped. Current source has advanced beyond the initial “current/missing” inventory above:
+
+| Phase | Current evidence | Boundary/status |
+|---|---|---|
+| R0 | Pilot scope and evaluation contracts are frozen. | `benchmarks/rag-impact/cases/dev.json` still carries the older `ALL_24_CASES_FROZEN_B0_PENDING` status string; do not edit the frozen file silently. |
+| R1 | Context/search and source evidence assembly/validation exist; the full MCP server includes `zvec_grep_evidence`. | The `agent_direct` MCP profile exposes only `zvec_grep_search`; evidence is not available in that profile. |
+| R2–R3 | C# and SQL static fact extraction is implemented inside `zg-engine`. | Extractors are crate-internal; there is no agent-facing typed-relations MCP tool. |
+| R4 | A deterministic bounded workflow and paired retrieval harness exist in Rust. | It accepts an external plan but still owns query decomposition, expansion, ranking and selection. It is not an LLM, not connected to `agent_direct`, and not qualified as a product workflow. |
+| R5–R6 | Retrieval receipts and development evaluations exist. | External answer correctness remains NOT_MEASURED; no agent-facing release is qualified. |
+
+For the dated model/runtime inventory, tool-boundary audit, experiment limitations, and blocked validation gate, see [R4 external-agent architecture validation](../../rust/docs/r4-external-agent-architecture-validation-20261120.md).
