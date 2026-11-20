@@ -47,87 +47,43 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from r4_tool_schema import (  # noqa: E402
+    ARM_TOOLS,
+    normalize_plan,
+    plan_tool,
+    plan_wire_form,
+    strict_violations_for_plan,
+    MAX_EVIDENCE_REQUESTS,
+    MAX_QUESTION_CHARS,
+    MAX_SEARCH_LIMIT,
+    SchemaViolation,
+    normalize_arguments,
+    strict_violations_for_arm,
+    tool_payload_schema,
+    wire_arguments,
+)
+
+VERIFYING_PROFILES = ("arm-b", "arm-c")
+
 VIOLATION_EXIT = 2
 ERROR_EXIT = 3
+
+PLAN_INSTRUCTIONS = (
+    "You produce investigation plans for a code search engine. Use only the "
+    "question and the permitted folder hints. Never assume gold evidence, "
+    "expected answers or checklists exist."
+)
+
+TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 MAX_ROUNDS = 3
 MAX_TURNS = 6
 MAX_QUESTION_CHARS = 2000
 
-TOOL_SCHEMAS = {
-    "search": {
-        "description": "Search the indexed workspace. Returns ranked excerpts with "
-                       "declaration identity and exact source coordinates.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "mode": {"type": "string", "enum": ["hybrid", "fts", "vector", "rg"]},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 50},
-                "scope": {"type": "string"},
-            },
-            "required": ["query"],
-            "additionalProperties": False,
-        },
-    },
-    "symbol": {
-        "description": "Exact declaration lookup by name.",
-        "parameters": {
-            "type": "object",
-            "properties": {"name": {"type": "string"}},
-            "required": ["name"],
-            "additionalProperties": False,
-        },
-    },
-    "facts": {
-        "description": "Structural facts for one file or method.",
-        "parameters": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}, "method": {"type": "string"}},
-            "required": ["path"],
-            "additionalProperties": False,
-        },
-    },
-    "evidence": {
-        "description": "Request exact source spans; each span is hashed and verified.",
-        "parameters": {
-            "type": "object",
-            "properties": {"requests": {"type": "array", "items": {"type": "object"}}},
-            "required": ["requests"],
-            "additionalProperties": False,
-        },
-    },
-    "verify": {
-        "description": "Revalidate the latest (or a given) evidence pack against current source.",
-        "parameters": {
-            "type": "object",
-            "properties": {"pack_id": {"type": "integer"}},
-            "additionalProperties": False,
-        },
-    },
-    "workflow": {
-        "description": "Engine-managed deterministic investigation for one question.",
-        "parameters": {
-            "type": "object",
-            "properties": {"question": {"type": "string", "maxLength": MAX_QUESTION_CHARS}},
-            "required": ["question"],
-            "additionalProperties": False,
-        },
-    },
-    "status": {
-        "description": "Remaining session budget and pack state.",
-        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
-    },
-}
-ARM_TOOLS = {
-    "arm-a": {"search", "status"},
-    "arm-b": {"workflow", "verify", "status"},
-    "arm-c": {"search", "symbol", "facts", "evidence", "verify", "status"},
-}
-ALLOWED_SEARCH_MODES = {"hybrid", "fts", "vector", "rg"}
-PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._\-/]*$")
-TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-
+# Tool schemas, arm membership and argument validation come from
+# r4_tool_schema.py: one declarative spec generates the wire schema and the
+# controller-side validator, so the two can never disagree.
 
 class Violation(Exception):
     """The answerer attempted something outside the frozen contract."""
@@ -139,22 +95,6 @@ class ContractError(Exception):
 
 # ------------------------------------------------------------- validation
 
-def valid_relative_path(value: str) -> bool:
-    if not isinstance(value, str) or not PATH_RE.match(value):
-        return False
-    return all(seg not in (".", "..") and seg != "" for seg in value.split("/"))
-
-
-def is_int(value) -> bool:
-    return type(value) is int
-
-
-def _reject_unknown(args: dict, allowed: set[str], tool: str) -> None:
-    unknown = set(args) - allowed
-    if unknown:
-        raise Violation(f"{tool} received undefined argument(s): {sorted(unknown)}")
-
-
 def validate_call(profile: str, tool: str, args: dict) -> list[str]:
     """Validates one answerer tool-call request against the arm contract and
     returns the adapter CLI arguments. The round is controller-owned and never
@@ -165,83 +105,46 @@ def validate_call(profile: str, tool: str, args: dict) -> list[str]:
         raise Violation(
             f"tool {tool!r} is not part of the {profile} contract; allowed: {sorted(ARM_TOOLS[profile])}"
         )
-    if not isinstance(args, dict):
-        raise Violation(f"{tool} arguments must be an object")
+    try:
+        normalized = normalize_arguments(tool, args)
+    except SchemaViolation as error:
+        raise Violation(str(error)) from error
     if tool == "search":
-        _reject_unknown(args, {"query", "mode", "limit", "scope"}, tool)
-        query = args.get("query")
-        if not isinstance(query, str) or not query.strip():
-            raise Violation("search requires a non-empty string query")
-        if len(query) > MAX_QUESTION_CHARS:
-            raise Violation("search query is too long")
-        cli = ["search", "--query", query]
-        if "mode" in args:
-            if args["mode"] not in ALLOWED_SEARCH_MODES:
-                raise Violation(f"unknown search mode {args['mode']!r}")
-            cli += ["--mode", args["mode"]]
-        if "limit" in args:
-            if not is_int(args["limit"]) or not 1 <= args["limit"] <= 50:
-                raise Violation("limit must be an integer in 1..=50")
-            cli += ["--limit", str(args["limit"])]
-        if "scope" in args:
-            if not valid_relative_path(args["scope"]):
-                raise Violation("scope must be a workspace-relative path")
-            cli += ["--scope", args["scope"]]
+        cli = ["search", "--query", normalized["query"]]
+        if "mode" in normalized:
+            cli += ["--mode", normalized["mode"]]
+        if "limit" in normalized:
+            cli += ["--limit", str(normalized["limit"])]
+        if "scope" in normalized:
+            cli += ["--scope", normalized["scope"]]
         return cli
     if tool == "symbol":
-        _reject_unknown(args, {"name"}, tool)
-        name = args.get("name")
-        if not isinstance(name, str) or not name.strip():
-            raise Violation("symbol requires a non-empty name")
-        return ["symbol", "--name", name]
+        return ["symbol", "--name", normalized["name"]]
     if tool == "facts":
-        _reject_unknown(args, {"path", "method"}, tool)
-        path = args.get("path")
-        if not valid_relative_path(path):
-            raise Violation("facts path must be a workspace-relative path")
-        cli = ["facts", "--path", path]
-        if "method" in args:
-            if not isinstance(args["method"], str) or not args["method"].strip():
-                raise Violation("facts method must be a non-empty string")
-            cli += ["--method", args["method"]]
+        cli = ["facts", "--path", normalized["path"]]
+        if "method" in normalized:
+            cli += ["--method", normalized["method"]]
         return cli
     if tool == "evidence":
-        _reject_unknown(args, {"requests"}, tool)
-        requests = args.get("requests")
-        if not isinstance(requests, list) or not requests:
-            raise Violation("evidence requires a non-empty requests list")
-        if len(requests) > 10:
-            raise Violation("evidence accepts at most 10 span requests per call")
-        for request in requests:
-            if not isinstance(request, dict):
-                raise Violation("each evidence request must be an object")
-            if not valid_relative_path(request.get("relative_path")):
-                raise Violation("evidence request path must be workspace-relative")
-            if not isinstance(request.get("project"), str) or not request["project"].strip():
-                raise Violation("evidence request project must be non-empty")
-            if not isinstance(request.get("address"), dict):
-                raise Violation("evidence request address must be an object")
         return ["evidence", "--requests", "-"]
     if tool == "verify":
-        _reject_unknown(args, {"pack_id"}, tool)
         cli = ["verify"]
-        if "pack_id" in args:
-            if not is_int(args["pack_id"]):
-                raise Violation("verify pack_id must be an integer")
-            cli += ["--pack-id", str(args["pack_id"])]
+        if "pack_id" in normalized:
+            cli += ["--pack-id", str(normalized["pack_id"])]
         return cli
     if tool == "workflow":
-        _reject_unknown(args, {"question"}, tool)
-        question = args.get("question")
-        if not isinstance(question, str) or not question.strip():
-            raise Violation("workflow requires a non-empty question")
-        if len(question) > MAX_QUESTION_CHARS:
-            raise Violation("workflow question is too long")
-        return ["workflow", "--question", question]
+        return ["workflow", "--question", normalized["question"]]
     if tool == "status":
-        _reject_unknown(args, set(), tool)
         return ["status"]
     raise Violation(f"unknown tool {tool!r}")
+
+
+def normalized_arguments(tool: str, args: dict) -> dict:
+    """Compact, validated arguments (nulls dropped) for execution."""
+    try:
+        return normalize_arguments(tool, args)
+    except SchemaViolation as error:
+        raise Violation(str(error)) from error
 
 
 # ---------------------------------------------------------------- adapter
@@ -273,11 +176,12 @@ class AdapterController:
 
     def call(self, tool: str, args: dict, round_no: int) -> dict:
         cli = validate_call(self.profile, tool, args)
+        normalized = normalized_arguments(tool, args)
         if tool == "workflow" and self.plan_file is not None:
             cli += ["--plan-file", str(self.plan_file)]
         stdin = None
         if tool == "evidence":
-            stdin = json.dumps(args["requests"], ensure_ascii=False)
+            stdin = json.dumps(normalized["requests"], ensure_ascii=False)
         proc = self._run(["call", str(self.session_dir), *cli], stdin=stdin)
         if proc.returncode != 0 and not proc.stdout.strip():
             raise ContractError(f"adapter call failed: {proc.stderr[:400]}")
@@ -306,17 +210,7 @@ class AdapterController:
 # ------------------------------------------------------------- transports
 
 def _tool_payload_schema(profile: str) -> list[dict]:
-    tools = []
-    for name in sorted(ARM_TOOLS[profile]):
-        schema = TOOL_SCHEMAS[name]
-        tools.append({
-            "type": "function",
-            "name": name,
-            "description": schema["description"],
-            "parameters": schema["parameters"],
-            "strict": True,
-        })
-    return tools
+    return tool_payload_schema(profile)
 
 
 class ResponsesTransport:
@@ -374,6 +268,107 @@ class ResponsesTransport:
 
     def post(self, payload: dict) -> dict:
         raise NotImplementedError
+
+
+class PlanTransport(ResponsesTransport):
+    """Plan-generation transport: same wire contract, plan tool instead of the
+    arm tools. The plan must be derived from the question and permitted folder
+    hints only (no gold, no checklist, no prior answers)."""
+
+    def __init__(self, model, instructions, question, hints, corpus_marker=""):
+        super().__init__(model=model, instructions=instructions, profile="arm-b",
+                         question=question)
+        self.hints = list(hints)
+        self.corpus_marker = corpus_marker
+        self.served = 0
+
+    def build_request(self, conversation: list[dict]) -> dict:
+        return {
+            "model": self.model,
+            "instructions": self.instructions,
+            "input": conversation,
+            "tools": [plan_tool()],
+            "tool_choice": "auto",
+            "parallel_tool_calls": False,
+        }
+
+    def initial_conversation(self) -> list[dict]:
+        hints = "\n".join(f"- {hint}" for hint in self.hints) or "- (none)"
+        text = (
+            "Question:\n" + self.question + "\n\n"
+            "Permitted folder hints (paths only, no source content):\n" + hints + "\n\n"
+            "Return one investigation plan with lexical queries, candidate symbol "
+            "names and folder scopes. Use only the question and these hints."
+        )
+        return [{"role": "user", "content": [{"type": "input_text", "text": text}]}]
+
+
+class MockPlanTransport(PlanTransport):
+    """Plan generation over the same wire contract, derived from the question
+    text and folder hints (no gold, no checklist)."""
+
+    def post(self, payload: dict) -> dict:
+        self._validate_request(payload)
+        self.served += 1
+        text = payload["input"][0]["content"][0]["text"]
+        question = text.split("Question:\n", 1)[1].split("\n\n", 1)[0]
+        hints_block = text.split("Permitted folder hints (paths only, no source content):\n", 1)[1]
+        hints = [line[2:] for line in hints_block.splitlines()
+                 if line.startswith("- ") and line != "- (none)"]
+        plan = derive_plan(question, hints)
+        return {
+            "id": f"mock-plan-{self.served}",
+            "object": "response",
+            "model": self.model,
+            "system_fingerprint": "mock-fingerprint",
+            "output": [{
+                "type": "function_call",
+                "call_id": f"plan-{self.served}",
+                "name": "emit_plan",
+                "arguments": json.dumps(plan_wire_form(plan)),
+            }],
+            "usage": {"input_tokens": 120, "output_tokens": 60},
+        }
+
+    def _validate_request(self, payload: dict) -> None:
+        if payload.get("tools") != [plan_tool()]:
+            raise ContractError("plan request must expose exactly the emit_plan tool")
+        if strict_violations_for_plan():
+            raise ContractError("plan tool schema is not strict-compliant")
+        text = payload["input"][0]["content"][0]["text"]
+        if self.corpus_marker and self.corpus_marker in text:
+            raise Violation("plan request leaked the corpus root path")
+        if self.question not in text:
+            raise ContractError("plan request must carry the question verbatim")
+        for forbidden in ("gold", "C3", "checklist", "expected answer"):
+            if forbidden.lower() in text.lower():
+                raise Violation(f"plan prompt carries evaluator-only material: {forbidden}")
+
+
+def derive_plan(question: str, hints: list[str]) -> dict:
+    """Deterministic source-free plan derivation used by the mock model.
+
+    It only sees the question text and folder-hint paths, exactly like a
+    provider-backed plan generator would.
+    """
+    import re as _re
+    identifiers = _re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", question)
+    words = [w for w in _re.findall(r"[\w~/.-]+", question) if len(w) >= 4]
+    queries = []
+    if identifiers:
+        queries.append(" ".join(identifiers[:6]))
+    queries.append(question.strip())
+    scopes = []
+    for hint in hints:
+        cleaned = hint.strip().strip("/")
+        if cleaned and cleaned not in scopes:
+            scopes.append(cleaned)
+    return {
+        "queries": queries[:4],
+        "symbols": identifiers[:8],
+        "scopes": scopes[:6],
+        "terms": words[:12],
+    }
 
 
 class HttpTransport(ResponsesTransport):
@@ -445,10 +440,23 @@ class MockTransport(ResponsesTransport):
         if tool == "workflow":
             selected = result.get("selected") or []
             verified = (result.get("stats") or {}).get("tool_calls")
+            claims = []
+            for span in selected:
+                claims.append({
+                    "text": f"selected span {span['path']} lines "
+                            f"{span['start_line']}-{span['end_line']}",
+                    "citations": [{
+                        "path": span["path"], "start_line": span["start_line"],
+                        "end_line": span["end_line"], "sha256": span.get("source_sha256"),
+                    }],
+                })
+            gaps = [g.get("code") if isinstance(g, dict) else str(g)
+                    for g in (result.get("gaps") or [])]
             return self._final(
                 f"ARM-B: {len(selected)} selected spans, first="
                 f"{selected[0]['path'] if selected else 'none'}, "
-                f"internal_tool_calls={verified}", abstain=not selected)
+                f"internal_tool_calls={verified}",
+                abstain=not selected, claims=claims, gaps=gaps)
 
         if tool == "search":
             items = result.get("items") or []
@@ -466,20 +474,41 @@ class MockTransport(ResponsesTransport):
                     }]})
                 return self._tool("search", {
                     "query": top["path"].split("/")[-1], "mode": "fts", "limit": 5})
+            claims = []
+            for item in items:
+                start, end = item["content_range"]
+                claims.append({
+                    "text": f"excerpt {item['path']} lines {start}-{end}",
+                    "citations": [{
+                        "path": item["path"], "start_line": start, "end_line": end,
+                        "sha256": item.get("sha256"),
+                    }],
+                })
             return self._final(
                 f"ARM-{self.profile[-1].upper()}: {len(items)} items; "
                 f"top={top['path']}@{top['content_range']}; "
                 f"declaration={(top.get('declaration') or {}).get('symbol_name')}",
-                abstain=False)
+                abstain=False, claims=claims)
 
         if tool == "evidence":
             items = result.get("items") or []
             status = result.get("status")
+            claims = []
+            for item in items:
+                start, end = item["range"]
+                claims.append({
+                    "text": f"source span {item['path']} lines {start}-{end}",
+                    "citations": [{
+                        "path": item["path"], "start_line": start, "end_line": end,
+                        "sha256": item.get("sha256"),
+                    }],
+                })
+            gaps = [g.get("code") if isinstance(g, dict) else str(g)
+                    for g in (result.get("gaps") or [])]
             return self._final(
                 f"ARM-C: evidence status={status}, items={len(items)}, "
-                f"first_sha={(items[0]['sha256'][:12] if items else 'none')}, "
-                f"first_offsets={(items[0]['content_byte_offsets'] if items else 'none')}",
-                abstain=not items)
+                f"first_sha={(items[0]['sha256'][:12] if items else 'none')}",
+                abstain=not items, claims=claims, gaps=gaps)
 
         if tool == "symbol":
             items = result.get("items") or []
@@ -519,6 +548,8 @@ class MockTransport(ResponsesTransport):
             raise Violation("answerer question leaked the corpus root path")
 
     def _tool(self, name: str, args: dict) -> dict:
+        # Emit the strict wire form: every declared property present with
+        # optional ones null, exactly as a strict-mode model must.
         return {
             "id": f"mock-{self.served}",
             "object": "response",
@@ -528,12 +559,14 @@ class MockTransport(ResponsesTransport):
                 "type": "function_call",
                 "call_id": f"call-{self.served}",
                 "name": name,
-                "arguments": json.dumps(args),
+                "arguments": json.dumps(wire_arguments(name, args)),
             }],
             "usage": {"input_tokens": 100 * self.served, "output_tokens": 20},
         }
 
-    def _final(self, text: str, abstain: bool) -> dict:
+    def _final(self, text: str, abstain: bool, claims=None, gaps=None) -> dict:
+        payload = {"answer": text, "abstain": abstain,
+                   "claims": claims or [], "gaps": gaps or []}
         return {
             "id": f"mock-{self.served}",
             "object": "response",
@@ -542,8 +575,7 @@ class MockTransport(ResponsesTransport):
             "output": [{
                 "type": "message",
                 "role": "assistant",
-                "content": [{"type": "output_text",
-                             "text": json.dumps({"answer": text, "abstain": abstain})}],
+                "content": [{"type": "output_text", "text": json.dumps(payload)}],
             }],
             "usage": {"input_tokens": 100 * self.served, "output_tokens": 30},
         }
@@ -568,12 +600,52 @@ def parse_output(response: dict) -> tuple[str, object]:
             try:
                 parsed = json.loads(text)
                 if isinstance(parsed, dict) and "answer" in parsed:
-                    return "final", {"answer": str(parsed["answer"]),
-                                     "abstain": bool(parsed.get("abstain", False))}
+                    claims = parsed.get("claims") or []
+                    if not isinstance(claims, list):
+                        raise Violation("final claims must be a list")
+                    return "final", {
+                        "answer": str(parsed["answer"]),
+                        "abstain": bool(parsed.get("abstain", False)),
+                        "claims": claims,
+                        "gaps": parsed.get("gaps") or [],
+                    }
             except json.JSONDecodeError:
                 pass
-            return "final", {"answer": text, "abstain": not text}
+            return "final", {"answer": text, "abstain": not text, "claims": [], "gaps": []}
     raise Violation("provider response had neither a tool call nor a final message")
+
+
+def generate_plan(answerer: ResponsesTransport, work_dir: Path, case: str,
+                  question: str) -> dict:
+    """Runs the plan conversation and freezes the result BEFORE any workflow
+    execution. Returns a provenance record including the plan file path."""
+    conversation = answerer.initial_conversation()
+    response = answerer.next_turn(conversation)
+    kind, payload = parse_output(response)
+    if kind != "tool" or payload[0] != "emit_plan":
+        raise ContractError(f"plan generation did not emit a plan: {payload!r}")
+    _, raw_args, call_id, _item = payload
+    try:
+        plan = normalize_plan(raw_args)
+    except Exception as error:  # SchemaViolation and friends
+        raise ContractError(f"plan generation produced an invalid plan: {error}") from error
+    canonical = json.dumps(plan, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    work_dir.mkdir(parents=True, exist_ok=True)
+    plan_path = work_dir / f"plan-{case}-{digest[:12]}.json"
+    plan_path.write_text(json.dumps(plan, indent=1), encoding="utf-8")
+    file_digest = hashlib.sha256(plan_path.read_bytes()).hexdigest()
+    return {
+        "path": str(plan_path),
+        "sha256_canonical": digest,
+        "sha256_file": file_digest,
+        "queries": plan["queries"],
+        "symbols": plan["symbols"],
+        "scopes": plan["scopes"],
+        "call_id": call_id,
+        "usage": answerer.usage_log[-1] if answerer.usage_log else None,
+        "model_identity": answerer.identity,
+    }
 
 
 def drive(controller: AdapterController, answerer: ResponsesTransport, case: str,
@@ -622,6 +694,7 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
             "tool": tool,
             "ok": envelope.get("ok"),
             "budget": envelope.get("budget"),
+            "result": envelope.get("result"),
         })
         # Actual tool output goes back to the model verbatim, keyed by call_id.
         conversation.append({
@@ -633,7 +706,17 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
 
     # Common final verification for every arm that produced a pack.
     final_verification = None
-    if verify_at_end:
+    if verify_at_end and profile not in VERIFYING_PROFILES:
+        # Arm A exposes no verification tool. The policy is explicit rather
+        # than silently "verified": its pack is frozen as unverified and the
+        # receipt says so.
+        final_verification = {
+            "verified": None,
+            "packs": 0,
+            "policy": "no_verification_tool",
+            "note": "arm-a cannot verify packs; delivered excerpts are frozen as unverified",
+        }
+    elif verify_at_end:
         try:
             status = controller.call("status", {}, round_no if round_no <= MAX_ROUNDS else MAX_ROUNDS)
             packs = (status.get("result") or {}).get("packs") or []
@@ -644,9 +727,11 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
                 final_verification = {
                     "verified": (envelope.get("result") or {}).get("verified"),
                     "packs": len(packs),
+                    "policy": "verified_pack_required",
                 }
             else:
                 final_verification = {"verified": None, "packs": 0,
+                                      "policy": "verified_pack_required",
                                       "reason": "no pack produced by this arm"}
         except (ContractError, Violation) as error:
             final_verification = {"verified": False, "error": str(error)}
@@ -658,13 +743,47 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
         artifact = {
             "case": case,
             "profile": profile,
-            "final": final,
+            "final": {"answer": final.get("answer", ""),
+                      "abstain": bool(final.get("abstain", False))},
+            "claims": final.get("claims") or [],
+            "gaps": final.get("gaps") or [],
             "transcript_tools": [entry.get("tool") for entry in transcript],
         }
         blob = json.dumps(artifact, ensure_ascii=False, indent=1)
-        (output_dir / f"answer-{case}-{profile}.json").write_text(blob, encoding="utf-8")
-        frozen = {"sha256": hashlib.sha256(blob.encode("utf-8")).hexdigest(),
-                  "bytes": len(blob.encode("utf-8"))}
+        answer_path = output_dir / f"answer-{case}-{profile}.json"
+        answer_path.write_text(blob, encoding="utf-8")
+        digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()
+        # Sidecar hash: the grader refuses an answer whose freeze hash does not
+        # match, so a later edit cannot be graded as if it were the frozen one.
+        answer_path.with_suffix(".sha256").write_text(digest + "  " + answer_path.name + "\n",
+                                                     encoding="utf-8")
+        frozen = {"sha256": digest, "bytes": len(blob.encode("utf-8")),
+                  "path": str(answer_path)}
+        # Freeze the pack the answer was produced from (hash + sidecar), so the
+        # grader can work from the artefact pair alone.
+        packs_dir = controller.session_dir / "packs"
+        derived = None if packs_dir.is_dir() and sorted(packs_dir.glob("pack-*.json")) \
+            else derive_pack_from_transcript(transcript)
+        if derived is not None:
+            # Arm A has no evidence/verify tool, so it cannot produce a verified
+            # pack. Its delivered excerpts are frozen instead, marked unverified,
+            # so the same pack format and the same grader still apply and the
+            # missing verification shows up as a C2 penalty rather than a
+            # silently absent artefact.
+            pack_name = f"pack-{case}-{profile}.json"
+            raw = json.dumps(derived, indent=1, ensure_ascii=False).encode("utf-8")
+            (output_dir / pack_name).write_bytes(raw)
+            (output_dir / f"pack-{case}-{profile}.sha256").write_text(
+                hashlib.sha256(raw).hexdigest() + "  " + pack_name + "\n", encoding="utf-8")
+        packs = sorted(packs_dir.glob("pack-*.json")) if packs_dir.is_dir() else []
+        if True:
+            if packs:
+                pack_raw = packs[-1].read_bytes()
+                pack_name = f"pack-{case}-{profile}.json"
+                (output_dir / pack_name).write_bytes(pack_raw)
+                (output_dir / f"pack-{case}-{profile}.sha256").write_text(
+                    hashlib.sha256(pack_raw).hexdigest() + "  " + pack_name + "\n",
+                    encoding="utf-8")
     budget = receipt.get("budget", {})
     return {
         "case": case,
@@ -750,14 +869,67 @@ def check_case(labels_dir: Path, case: str) -> dict:
             hashlib.sha256(entry["question"].encode("utf-8")).hexdigest()}
 
 
-def grade(frozen_dir: Path, labels_dir: Path, case: str, profile: str) -> dict:
-    """Runs the independent grader in a separate process and returns its verdict."""
+def derive_pack_from_transcript(transcript: list[dict]) -> dict | None:
+    """Builds a pack from delivered search excerpts for arms without a pack.
+
+    The items keep their real path/range/hash and are marked unverified: the
+    grader must see the missing verification, not a missing file.
+    """
+    items = []
+    seen = set()
+    for entry in transcript:
+        for item in (entry.get("result") or {}).get("items") or []:
+            path = item.get("path")
+            rng = item.get("content_range")
+            if not path or not rng:
+                continue
+            key = (path, tuple(rng))
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append({
+                "project": item.get("project"),
+                "relative_path": path,
+                "sha256": item.get("sha256"),
+                "verification": "unverified",
+                "range": {"kind": "text", "start_line": rng[0], "end_line": rng[1],
+                          "start_byte_offset": 0, "end_byte_offset": 0,
+                          "start_byte_column": 0, "end_byte_column": 0},
+                "content": item.get("content"),
+            })
+    if not items:
+        return None
+    return {
+        "schema_version": 1,
+        "status": "ok",
+        "pack_kind": "search-derived-unverified",
+        "note": "assembled from delivered search excerpts; this arm has no verification tool",
+        "items": items,
+        "gaps": [],
+        "deduplicated": 0,
+    }
+
+
+def grade(frozen_dir: Path, labels_dir: Path, case: str, profile: str,
+          corpus: Path | None = None, materials: Path | None = None,
+          packs: Path | None = None) -> dict:
+    """Runs the independent grader in a separate process and returns its verdict.
+
+    The grader receives the frozen artefacts, the evaluator-only materials and
+    the corpus (for C3 anchoring). It never receives the answerer's session.
+    """
     tool = Path(__file__).with_name("r4_grade.py")
-    proc = subprocess.run(
-        [sys.executable, str(tool), "--answers", str(frozen_dir), "--labels", str(labels_dir),
-         "--case", case, "--profile", profile],
-        capture_output=True, text=True, timeout=300,
-    )
+    args = [sys.executable, str(tool), "--answers", str(frozen_dir),
+            "--labels", str(labels_dir), "--case", case, "--profile", profile,
+            "--materials", str(materials or labels_dir / "cases" / "c3-steps.json")]
+    if corpus is not None:
+        args += ["--corpus", str(corpus)]
+    if packs is not None:
+        args += ["--packs", str(packs)]
+    proc = subprocess.run(args, capture_output=True, text=True, timeout=600)
+    if proc.returncode == 3:
+        # UNGRADABLE is a graded outcome, not a driver crash: surface it.
+        return json.loads(proc.stdout)
     if proc.returncode != 0:
         raise ContractError(f"grader failed: {proc.stderr[:400]}")
     return json.loads(proc.stdout)
@@ -777,11 +949,18 @@ def main() -> int:
                         choices=["mock-transport", "openai-responses"])
     parser.add_argument("--plan-file", type=Path,
                         help="trusted blind plan for arm-b (fresh-blind or frozen reproduction)")
+    parser.add_argument("--folder-hints", action="append",
+                        help="permitted folder hint for plan generation (repeatable)")
+    parser.add_argument("--allow-no-plan", action="store_true",
+                        help="arm-b diagnostic: run question-only without a plan")
     parser.add_argument("--answer-instructions-file", type=Path)
     parser.add_argument("--model", default="gpt-5.5")
     parser.add_argument("--answers-dir", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--grade", action="store_true")
+    parser.add_argument("--materials", type=Path,
+                        default=Path(__file__).resolve().parents[1] / "cases" / "c3-steps.json",
+                        help="evaluator-only rubric + C3 steps (never sent to the answerer)")
     parser.add_argument("--authorized-inference", action="store_true",
                         help="explicit owner authorization flag required for the real backend")
     args = parser.parse_args()
@@ -792,10 +971,35 @@ def main() -> int:
     if not question:
         cases = json.loads((args.labels_dir / "cases" / "dev.json").read_text(encoding="utf-8"))["cases"]
         question = next(entry["question"] for entry in cases if entry["id"] == args.case)
-    if args.profile == "arm-b" and args.plan_file is None:
-        print("NOTE: arm-b without --plan-file runs the question-only plan, which is a "
-              "diagnostic (weaker control), not the plan-based baseline32 identity.",
-              file=sys.stderr)
+    plan_provenance = None
+    plan_file = args.plan_file
+    if args.profile == "arm-b" and plan_file is None:
+        if args.allow_no_plan:
+            print("WARNING: arm-b question-only plan requested via --allow-no-plan; this is a "
+                  "diagnostic arm, not the plan-based control.", file=sys.stderr)
+        else:
+            # Primary arm-b fails closed without a fresh blind plan.
+            if args.backend == "openai-responses":
+                if not args.authorized_inference:
+                    print("CONTRACT_ERROR: plan generation for arm-b needs the same "
+                          "inference authorization as the answerer", file=sys.stderr)
+                    return ERROR_EXIT
+                planner = HttpTransport(
+                    model=args.model, instructions=PLAN_INSTRUCTIONS, profile="arm-b",
+                    question=question,
+                    endpoint=os.environ.get("R4_INFERENCE_ENDPOINT", ""),
+                    api_key=os.environ.get("R4_INFERENCE_TOKEN", ""),
+                )
+            else:
+                hints = [line.strip() for line in (args.folder_hints or []) if line.strip()]
+                planner = MockPlanTransport(
+                    model=args.model, instructions=PLAN_INSTRUCTIONS, question=question,
+                    hints=hints, corpus_marker=str(args.root.resolve()),
+                )
+            plan_provenance = generate_plan(planner, args.session_dir.parent / "plans",
+                                            args.case, question)
+            plan_file = Path(plan_provenance["path"])
+            plan_provenance["transport_requests"] = len(planner.requests)
 
     instructions = "You are a code-investigation agent."
     if args.answer_instructions_file:
@@ -819,14 +1023,29 @@ def main() -> int:
         )
 
     controller = AdapterController(args.adapter, args.session_dir, args.root,
-                                   args.profile, args.case, args.plan_file)
+                                   args.profile, args.case, plan_file)
     controller.create()
     report = drive(controller, answerer, args.case, args.profile, args.answers_dir)
+    report["plan_provenance"] = plan_provenance
+    if plan_provenance is not None:
+        packs = (report.get("receipt") or {}).get("packs") or []
+        plan_entry = None
+        for entry in packs:
+            if entry.get("kind") == "workflow":
+                plan_entry = entry
+                break
+        report["plan_binding"] = {
+            "frozen_sha256": plan_provenance["sha256_file"],
+            "workflow_pack_present": plan_entry is not None,
+        }
     report["corpus"] = corpus
     report["case_identity"] = case_info
     report["transport_requests"] = len(answerer.requests)
     if args.grade and args.answers_dir is not None:
-        report["grading"] = grade(args.answers_dir, args.labels_dir, args.case, args.profile)
+        report["grading"] = grade(
+            args.answers_dir, args.labels_dir, args.case, args.profile,
+            corpus=args.root, materials=args.materials,
+        )
     if args.output:
         args.output.write_text(json.dumps(report, indent=1), encoding="utf-8")
     print(json.dumps({
