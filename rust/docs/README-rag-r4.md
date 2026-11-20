@@ -7,11 +7,22 @@ smoke on the frozen corpus; see
 [`r4-external-agent-adapter-20261120.md`](r4-external-agent-adapter-20261120.md).
 **2026-11-20 technical audit:** concurrency, crash, accounting and isolation
 verified; one CRITICAL budget race and one HIGH verify-reservation defect
-fixed and pinned (29/29 contract tests); mediated answerer driver with
-negative controls; review bundle issued. See
-[`r4-adapter-audit-20261120.md`](r4-adapter-audit-20261120.md). Verdict:
-**READY_FOR_BENCHMARK** (harness/accounting) with Gate B still blocked on
-private-source egress authorization and Gate C NOT_MEASURED.
+fixed and pinned; mediated answerer driver with negative controls; review
+bundle issued. See [`r4-adapter-audit-20261120.md`](r4-adapter-audit-20261120.md).
+**2026-11-20 correction round (owner review AR-01..AR-12):** unified
+cumulative accounting (shared call pool incl. workflow internals, real
+source-read accounting, exact delivered-byte invariant with reservation
+crash semantics), evidence integrity (stale verified state cleared,
+two-phase pack commit, tamper fail-closed, provenance-correct hashing),
+trusted-controller validation/rounds, real-inference interface
+(mock-verified only), arm-b control identity restored to the plan-based
+corrected baseline32. 34/34 contract tests; three-arm mock end-to-end
+harness pass. See [`r4-correction-closure-20261120.md`](r4-correction-closure-20261120.md)
+and the frozen protocol
+[`r4-three-arm-preregistration-20261120.md`](r4-three-arm-preregistration-20261120.md).
+Verdict: **READY_FOR_AUTHORIZED_INFERENCE** — the real three-arm
+evaluation stays OPERATION_BLOCKED on the owner's private-source egress
+authorization; answer quality NOT_MEASURED.
 It records the active branch/HEAD, model and dataset identity, retained receipts,
 blockers, and the exact safe next action. The 2026-11-18 handoff is historical;
 its method-level-index proposal is not current authorization.

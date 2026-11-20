@@ -313,3 +313,26 @@ Status: **READY_FOR_BENCHMARK** for the harness and accounting; the real
 three-arm run still awaits the private-source inference authorization
 (identified `openai` endpoint, model identity to be fixed in
 preregistration) and push authorization remains outstanding.
+
+
+## Amendment 3 — correction round and benchmark preregistration (2026-11-20, final)
+
+The owner-side review of the bundle adjusted the verdict to
+`PARTIAL — NOT_READY_FOR_FORMAL_BENCHMARK`. The authorized correction
+mission closed AR-01..AR-12 (closure matrix:
+[`r4-correction-closure-20261120.md`](r4-correction-closure-20261120.md))
+at HEAD `836aeec`: unified cumulative accounting with reservation-based
+crash semantics, real source-read accounting, exact delivered-byte
+invariant, evidence integrity (persisted verified state follows the
+latest revalidation; two-phase pack commit; tamper fail-closed;
+provenance-correct search hashing), strictly typed trusted-controller
+validation with controller-owned rounds, a mock-verified real-inference
+interface, and the arm-b control identity restored to the plan-based
+corrected baseline32 (`run_with_plan` + preregistered blind plan; the
+no-plan arm is an explicitly weaker diagnostic). The three-arm protocol
+is frozen in
+[`r4-three-arm-preregistration-20261120.md`](r4-three-arm-preregistration-20261120.md).
+Status: **READY_FOR_AUTHORIZED_INFERENCE** — every launch gate except the
+owner's private-source egress authorization for the identified `openai`
+endpoint (and the outstanding push authorization) is satisfied; answer
+quality remains NOT_MEASURED.
