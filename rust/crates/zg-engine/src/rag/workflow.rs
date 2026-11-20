@@ -489,7 +489,7 @@ pub enum AbstainReason {
 }
 
 /// Loop statistics.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct WorkflowStats {
     /// Discovery/expansion rounds run.
     pub rounds: usize,
@@ -501,6 +501,10 @@ pub struct WorkflowStats {
     pub files_seen: usize,
     /// Source reads performed.
     pub source_reads: usize,
+    /// Distinct source paths actually opened, in first-read order (the
+    /// authoritative read set; selected spans are not implied reads).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub read_paths: Vec<String>,
     /// Source bytes read.
     pub bytes_read: usize,
     /// Selected content bytes (the final source pack, contract ≤24 KiB).
@@ -1175,6 +1179,9 @@ impl<'a> State<'a> {
             return None;
         }
         self.stats.source_reads += 1;
+        if !self.stats.read_paths.iter().any(|known| known == path) {
+            self.stats.read_paths.push(path.to_owned());
+        }
         let text = match source.read(path) {
             Ok(text) => text,
             Err(error) => {
@@ -1873,7 +1880,7 @@ impl<'a> State<'a> {
             selected: self.selected.clone(),
             gaps: self.gaps.clone(),
             abstain: self.abstain.clone(),
-            stats: self.stats,
+            stats: self.stats.clone(),
             stages: self.stages.clone(),
         }
     }

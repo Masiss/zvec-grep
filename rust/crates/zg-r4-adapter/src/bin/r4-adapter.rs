@@ -85,6 +85,12 @@ enum ToolCommand {
         mode: Option<String>,
         #[arg(long)]
         limit: Option<usize>,
+        /// Include declaration outlines (member lists / calls) in results.
+        #[arg(long)]
+        outline: bool,
+        /// Prefer declarations whose exact name appears in the query.
+        #[arg(long)]
+        prefer_symbol: bool,
         #[arg(long)]
         scope: Option<String>,
         #[arg(long)]
@@ -235,6 +241,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             query,
             mode,
             limit,
+            outline,
+            prefer_symbol,
             scope,
             round,
         } => CallInput {
@@ -243,6 +251,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             query: Some(query),
             mode,
             limit,
+            outline,
+            prefer_symbol,
             scope,
             name: None,
             path: None,
@@ -258,6 +268,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             query: None,
             mode: None,
             limit: None,
+            outline: false,
+            prefer_symbol: false,
             scope: None,
             name: Some(name),
             path: None,
@@ -277,6 +289,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             query: None,
             mode: None,
             limit: None,
+            outline: false,
+            prefer_symbol: false,
             scope: None,
             name: None,
             path: Some(path),
@@ -305,6 +319,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
                 query: None,
                 mode: None,
                 limit: None,
+                outline: false,
+                prefer_symbol: false,
                 scope: None,
                 name: None,
                 path: None,
@@ -321,6 +337,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             query: None,
             mode: None,
             limit: None,
+            outline: false,
+            prefer_symbol: false,
             scope: None,
             name: None,
             path: None,
@@ -340,6 +358,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             query: None,
             mode: None,
             limit: None,
+            outline: false,
+            prefer_symbol: false,
             scope: None,
             name: None,
             path: None,
@@ -355,6 +375,8 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             query: None,
             mode: None,
             limit: None,
+            outline: false,
+            prefer_symbol: false,
             scope: None,
             name: None,
             path: None,

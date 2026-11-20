@@ -134,6 +134,8 @@ fn input(tool: Tool, round: usize) -> CallInput {
         query: None,
         mode: None,
         limit: None,
+        outline: false,
+        prefer_symbol: false,
         scope: None,
         name: None,
         path: None,

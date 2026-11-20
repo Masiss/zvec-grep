@@ -299,6 +299,12 @@ pub struct CallInput {
     pub query: Option<String>,
     pub mode: Option<String>,
     pub limit: Option<usize>,
+    /// Include the declaration outline (member list / calls) in search items.
+    pub outline: bool,
+    /// Prefer declarations whose exact name appears in the query (engine
+    /// `prefer_symbol` route). Opt-in: it prioritizes identifier-shaped
+    /// queries and is not a default ranking change.
+    pub prefer_symbol: bool,
     pub scope: Option<String>,
     pub name: Option<String>,
     pub path: Option<String>,
@@ -1046,6 +1052,7 @@ impl Session {
                 root: Some(self.ledger.root.clone()),
                 query: Some(query.clone()),
                 limit: Some(limit),
+                prefer_symbol: input.prefer_symbol,
                 auto_update: false,
                 refresh: Some(RefreshPolicy::Off),
                 ..ContextOptions::default()
@@ -1062,6 +1069,7 @@ impl Session {
                         query: query.clone(),
                     }],
                     limit: Some(limit),
+                    prefer_symbol: input.prefer_symbol,
                     auto_update: false,
                     refresh: Some(RefreshPolicy::Off),
                     ..ContextOptions::default()
@@ -1180,6 +1188,12 @@ impl Session {
                     encodings.get(&path).copied(),
                 ),
                 "content_sha256": hex(&Sha256::digest(item.content.as_bytes())),
+                // Which declaration the excerpt belongs to. Without this a
+                // consumer cannot tell "same file, wrong method" from a hit on
+                // the method it asked about, nor which callers/relations the
+                // excerpt sits in.
+                "declaration": declaration_block(item.metadata.as_ref()),
+                "outline": outline_value(item.outline.as_deref(), input.outline),
                 "content": item.content,
                 "status": item.status,
                 "score": item.score,
@@ -1627,6 +1641,7 @@ impl Session {
                 "note": "engine-internal calls and reads draw from the same cumulative session pool; internal reads are not delivered tool content and are reported here for explicit accounting",
                 "tool_calls": stats.tool_calls,
                 "source_reads": stats.source_reads,
+                "read_paths": stats.read_paths,
                 "files_seen": stats.files_seen,
                 "ranked_content_bytes": stats.ranked_content_bytes,
                 "budget_granted": {
@@ -1637,6 +1652,14 @@ impl Session {
             },
         });
         self.ledger.internal_calls += stats.tool_calls;
+        // Accounting identity: the workflow *read* these files (open + decode);
+        // the selected spans are only what it delivered. Report the actual
+        // read set so distinct-file/read-op budgets reflect real work.
+        let read_paths: Vec<String> = stats
+            .read_paths
+            .iter()
+            .map(|path| path.replace('\\', "/"))
+            .collect();
         let serialized = serde_json::to_string(&result).map_err(|e| {
             CallError::Execution { code: "serialize".into(), message: e.to_string() }
         })?;
@@ -1646,8 +1669,8 @@ impl Session {
         Ok(ToolOutput {
             result,
             files: files.clone(),
-            reads: files,
-            read_ops: stats.source_reads.min(MAX_READ_OPS),
+            reads: read_paths,
+            read_ops: stats.source_reads,
             commit: Some(PackCommit {
                 kind: "workflow".into(),
                 sha256: sha,
@@ -1795,6 +1818,41 @@ fn tool_value(tool: Tool) -> Value {
         Tool::Workflow => json!("workflow"),
         Tool::Status => json!("status"),
     }
+}
+
+/// Only materialized when the caller asks for it: outlines are discovery
+/// aids (member lists/calls) and cost up to 3.6 KB per item.
+fn outline_value(outline: Option<&str>, include: bool) -> serde_json::Value {
+    match (include, outline) {
+        (true, Some(text)) => json!(text),
+        _ => serde_json::Value::Null,
+    }
+}
+
+/// Compact identity of the declaration an excerpt belongs to.
+fn declaration_block(
+    metadata: Option<&zg_engine::api::context::result::EntityMetadata>,
+) -> serde_json::Value {
+    let Some(zg_engine::api::context::result::EntityMetadata::Code(code)) = metadata else {
+        return serde_json::Value::Null;
+    };
+    let mut block = serde_json::Map::new();
+    if let Some(kind) = &code.symbol_type {
+        block.insert("symbol_type".into(), json!(format!("{kind:?}").to_lowercase()));
+    }
+    if let Some(name) = &code.symbol_name {
+        block.insert("symbol_name".into(), json!(name));
+    }
+    if let Some(scope) = &code.scope {
+        block.insert("scope".into(), json!(scope));
+    }
+    if let Some(signature) = &code.signature {
+        block.insert("signature".into(), json!(signature));
+    }
+    if let Some(visibility) = &code.visibility {
+        block.insert("visibility".into(), json!(format!("{visibility:?}").to_lowercase()));
+    }
+    serde_json::Value::Object(block)
 }
 
 fn content_byte_offsets(range: &zg_engine::api::context::result::ContentRange) -> serde_json::Value {
