@@ -17,8 +17,8 @@ inference **OPERATION_BLOCKED** on owner authorization. Answer quality
 | Report | `rust/docs/r4-benchmark-readiness-20261121.md` |
 | Amendment | `rust/docs/r4-three-arm-preregistration-20261120.md` §6c |
 | Doc index | `rust/docs/README-rag-r4.md` |
-| Review bundle | `/home/masis/.cache/zvec-grep/r4-benchmark-readiness-20261121/r4-benchmark-readiness-20261121.zip` |
-| Bundle SHA-256 | `b774b3ff81b456870cdf90443701744fc69aef58851875f1687d1440e7a9ba6d` (139,888 B, 20 files, manifest 20/20 OK) |
+| Review bundle | `/home/masis/.cache/zvec-grep/r4-benchmark-readiness-20261121/r4-benchmark-readiness-20261121.zip` (ZIP SHA-256 reported in the mission message; it changes whenever the manifest is regenerated, so the manifest is the stable identity) |
+| Bundle integrity | `bundle/MANIFEST.sha256` (content-addressed, 21 files, 21/21 OK); the ZIP is rebuilt from that manifest |
 | Synthetic receipts | `/home/masis/.cache/zvec-grep/r4-longrun-20261121/three-arm-v3/` (`three-arm-summary.json`, `RECONCILIATION.json`, 36 session dirs) |
 | Runner used | `/home/masis/.cache/zvec-grep/r4-longrun-20261121/run_three_arm_v3.py`, `reconcile_v3.py` |
 
