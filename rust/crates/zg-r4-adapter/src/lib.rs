@@ -1153,6 +1153,19 @@ impl Session {
                 "range": [item.range.start_line(), item.range.last_line()],
                 "content_range": [item.content_range.start_line(), item.content_range.last_line()],
                 "match_ranges": item.match_ranges,
+                // Byte columns are part of the exact source coordinates: an
+                // excerpt starting mid-line (e.g. at the declaration token,
+                // after indentation) is not the full first line. Exposing
+                // them keeps `content_range` honest for consumers that check
+                // delivered content against the source.
+                "content_range_columns": match item.content_range {
+                    zg_engine::api::context::result::ContentRange::Text {
+                        start_byte_column,
+                        end_byte_column,
+                        ..
+                    } => json!([start_byte_column, end_byte_column]),
+                    _ => serde_json::Value::Null,
+                },
                 "content": item.content,
                 "status": item.status,
                 "score": item.score,

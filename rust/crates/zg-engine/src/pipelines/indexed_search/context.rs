@@ -506,10 +506,31 @@ fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError
                     "fragment end offset exceeds platform limits",
                 ))
             })?;
-            let content = crate::utils::slice_text(text, start, end).map_err(invalid_fragment)?;
+            // Fragment windows are byte-aligned (embedding windows); expand
+            // them to whole source lines so the delivered excerpt exactly
+            // matches its declared line coordinates. Without this, excerpts
+            // start mid-line/mid-token while the coordinates claim full
+            // lines, violating the exact-source-coordinates contract.
             let lines = crate::utils::line_byte_offsets(text);
-            let local = crate::utils::text_range_from_offsets(text, &lines, start, end)
+            let start_line_index = lines
+                .partition_point(|&offset| offset <= start)
+                .saturating_sub(1);
+            let aligned_start = lines[start_line_index];
+            let end_line_index = lines.partition_point(|&offset| offset < end);
+            let aligned_end = lines
+                .get(end_line_index)
+                .copied()
+                .unwrap_or(text.len())
+                .max(end);
+            let content = crate::utils::slice_text(text, aligned_start, aligned_end)
                 .map_err(invalid_fragment)?;
+            let local = crate::utils::text_range_from_offsets(
+                text,
+                &lines,
+                aligned_start,
+                aligned_end,
+            )
+            .map_err(invalid_fragment)?;;
             let source = match hit.entity.source_range() {
                 Range::Full => local,
                 Range::Text(origin) => {
@@ -638,8 +659,12 @@ mod tests {
             TextRange::from_coordinates(9, 9 + source.len(), 2, 4, 2, 3).expect("range"),
         );
         let fragment_range = Range::Byte(ByteRange::new(1, 12).expect("ordered byte offsets"));
-        let fragment_source_range = Range::Text(
-            TextRange::from_coordinates(10, 21, 2, 3, 3, 2).expect("fragment source range"),
+        // Byte-aligned fragment windows expand to whole source lines: the
+        // excerpt [1,12) inside "A中😀\r\nβeta\n尾" covers parts of entity
+        // lines 1-2, so the delivered content is the full lines 1-2 and the
+        // mapped source coordinates are lines 2-3 of the embedding source.
+        let aligned_source_range = Range::Text(
+            TextRange::from_coordinates(9, 25, 2, 4, 2, 0).expect("aligned fragment range"),
         );
         let content = Content::Text(source.into());
         let entity_id = EntityId::new(file_id, &content, source_range).expect("entity id");
@@ -683,9 +708,11 @@ mod tests {
         };
         let target = super::context_item_target(&hit).expect("fragment content");
         assert_eq!(target.content_role, ContextContentRole::Source);
-        assert_eq!(target.content, "中😀\r\nβ");
-        assert_eq!(target.excerpt_range, Some(fragment_source_range.into()));
-        assert_eq!(target.content_range, fragment_source_range.into());
+        assert_eq!(target.content, "A中😀\r\nβeta\n");
+        assert_eq!(target.excerpt_range, Some(aligned_source_range.into()));
+        assert_eq!(target.content_range, aligned_source_range.into());
+        assert_eq!(target.content_range.start_line(), Some(2));
+        assert_eq!(target.content_range.last_line(), Some(3));
         assert_eq!(hit.entity.content(), &Content::Text(source.into()));
         let search = SearchPlanResult {
             routes: Vec::new(),
@@ -704,9 +731,9 @@ mod tests {
         )
         .expect("context items");
         assert_eq!(items[0].range, source_range.into());
-        assert_eq!(items[0].excerpt_range, Some(fragment_source_range.into()));
-        assert_eq!(items[0].content_range, fragment_source_range.into());
-        assert_eq!(items[0].content, "中😀\r\nβ");
+        assert_eq!(items[0].excerpt_range, Some(aligned_source_range.into()));
+        assert_eq!(items[0].content_range, aligned_source_range.into());
+        assert_eq!(items[0].content, "A中😀\r\nβeta\n");
         hit.evidence.reverse();
         let target = super::context_item_target(&hit).expect("full content");
         assert_eq!(target.content, source);
@@ -785,7 +812,13 @@ mod tests {
             let start = usize::try_from(bytes.start_offset()).expect("start");
             let end = usize::try_from(bytes.end_offset()).expect("end");
             assert!(start > "# Heading\nprefix ".len());
-            assert_eq!(target.content, source[start..end]);
+            // Line alignment: the byte window expands to the complete
+            // second source line, so the content matches its declared
+            // coordinates exactly instead of clipping mid-line.
+            let aligned = source.split('\n').next().map_or(0, |first| first.len() + 1)
+                ..source.len().max(end);
+            assert_eq!(target.content, source[aligned]);
+            assert!(target.content.contains("needle"));
             assert_eq!(target.content_range.start_line(), Some(2));
             assert_eq!(target.content_range.last_line(), Some(2));
             assert_eq!(target.excerpt_range, Some(target.content_range));
