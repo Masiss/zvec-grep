@@ -118,6 +118,25 @@ budgets are call/file/byte-based. No acceptance target is changed; a
 future persistent-engine correction is noted as an option only if the
 architecture decision requires it.
 
+## 6b. Harness amendment (2026-11-21, pre-outcome)
+
+The controller was completed after this preregistration without changing any
+comparison condition in §1–§5:
+
+- the conversation is a real Responses-API exchange (instructions, arm tool
+  schemas, question, and every tool output returned verbatim as a
+  `function_call_output` keyed by `call_id`);
+- rounds are controller-owned and now *block* execution at 3;
+- arm-b takes the preregistered plan through `--plan-file`;
+- a common final verification runs for every arm with a pack;
+- frozen corpus membership is proven by content (822 manifest sha256 entries)
+  and cases must be in the frozen dev set;
+- grading runs in a separate process with only the frozen answer and rubric.
+
+Evidence: 29/29 acceptance checks and 36/36 synthetic three-arm runs
+(`rust/docs/r4-longrun-quality-20261121.md` §6). Real private-source
+inference is still gated on §7 item 4; nothing in the amendment weakens it.
+
 ## 7. Launch gates
 
 1. Adapter contract suite green (34/34) — DONE.

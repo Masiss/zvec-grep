@@ -9,6 +9,16 @@ smoke on the frozen corpus; see
 verified; one CRITICAL budget race and one HIGH verify-reservation defect
 fixed and pinned; mediated answerer driver with negative controls; review
 bundle issued. See [`r4-adapter-audit-20261120.md`](r4-adapter-audit-20261120.md).
+**2026-11-21 long-run quality mission:** metric reconciliation (9/25
+entity-range vs 4/25 delivered-excerpt overlap; the earlier 8/25 and "47%
+>300-line fragments" figures were mis-derived), 8 confirmed correctness
+defects fixed (line-aligned excerpts, raw-file/decoded coordinate split and
+content hashes, typed SQL table accesses, kind-aware pack verification,
+real workflow read accounting, facts degrade shape, bounded byte fixpoints),
+question-to-anchor investigation with three experiment verdicts, and a
+completed synthetic harness (29/29 acceptance checks, 36/36 three-arm runs).
+See [`r4-longrun-quality-20261121.md`](r4-longrun-quality-20261121.md).
+
 **2026-11-20 correction round (owner review AR-01..AR-12):** unified
 cumulative accounting (shared call pool incl. workflow internals, real
 source-read accounting, exact delivered-byte invariant with reservation
