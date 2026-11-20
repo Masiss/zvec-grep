@@ -116,13 +116,24 @@ that result was on branch `work/r4-deep-opt-20261118` @ `7030bd7`.
   in-engine generative model; the direct MCP agent surface still lacks symbols
   and typed relations.
 
+## 2026-11-21 benchmark-readiness milestone
+
+`rust/docs/r4-benchmark-readiness-20261121.md` reports the final contract
+corrections: strict tool schemas, enforced source-read accounting, frozen
+arm-b blind-plan provenance, an independent C1–C6/C3 grader with fixtures, and
+36/36 synthetic three-arm runs with zero violations. Verdict:
+**READY_FOR_AUTHORIZED_INFERENCE**; real private-source inference stays
+**OPERATION_BLOCKED** on owner authorization (provider, model identity,
+endpoint, answerer data flow). Answer quality remains **NOT_MEASURED**.
+
 ## Current blockers and constraints
 
 1. **Gate B inference environment:** no privacy-approved, identifiable model
    runtime was found. Do not send private source, prompts containing source
    identifiers, packs or answers to an unapproved remote provider.
-2. **Gate C answer quality:** C3 required-step lists are now frozen, but no
-   answerer or independent grader has run; correctness remains NOT_MEASURED.
+2. **Gate C answer quality:** C3 required-step lists are frozen, and an
+   independent grader now exists and is fixture-verified, but no real answerer
+   has run; correctness remains NOT_MEASURED.
 3. **No current authorization for implementation/optimization:** do not resume
    method-level index work, R4 heuristic tuning, model changes or public MCP/API
    exposure under this handoff. The older interactive planner with corpus

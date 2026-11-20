@@ -137,6 +137,44 @@ Evidence: 29/29 acceptance checks and 36/36 synthetic three-arm runs
 (`rust/docs/r4-longrun-quality-20261121.md` §6). Real private-source
 inference is still gated on §7 item 4; nothing in the amendment weakens it.
 
+## 6c. Harness amendment 2 (2026-11-21, still pre-outcome)
+
+Owner review at `eda88b1` found the harness not yet sufficient for a formal
+real-agent evaluation. The following corrections were implemented and verified
+before any real answer quality outcome exists. No comparison condition in
+§1–§5 changes, no acceptance target moves, and no arm gains an advantage.
+
+- **Strict tool schemas.** One schema source of truth per arm plus an
+  independent strict-mode validator; a schema that is permissive or untyped now
+  fails the harness test suite. Malformed arguments are refused at the trusted
+  boundary instead of reaching the adapter.
+- **Source-read accounting.** Every read path (facts, evidence, verify, search,
+  workflow) is admitted against the 64-read-op budget *before* a file is
+  opened. Verification admits all re-opened items or reads nothing. Boundary
+  behaviour is pinned by contract tests, not by prose.
+- **Arm B plan provenance.** A fresh blind plan is generated over the wire with
+  its own strict schema and a source-free prompt (question + folder-hint paths
+  only), validated, frozen, hashed, and passed through `--plan-file`. The
+  adapter records the SHA-256 of the exact plan file bytes in the workflow pack.
+  Plan-less execution requires an explicit diagnostic flag.
+- **Grading pipeline.** An independent process computes C1–C6/C3 from the frozen
+  answer, the frozen pack, the evaluator-only materials and the corpus. It
+  refuses stale, tampered or missing inputs (`UNGRADABLE`) and cannot PASS an
+  answer whose citations do not resolve to verified pack spans. C2 semantics,
+  C4 intent and reasoning quality remain evaluator work and are reported as
+  such.
+- **Common verification policy per arm.** Arms B and C require a verified pack;
+  arm A exposes no verification tool, so its delivered excerpts are frozen as an
+  explicitly unverified pack and its receipt records
+  `policy: no_verification_tool` — it is scored, not excused.
+- **Freezing.** Answer and pack are frozen together with sidecar SHA-256 files;
+  the grader re-verifies both before scoring.
+
+Evidence: `rust/docs/r4-benchmark-readiness-20261121.md` (36/36 synthetic
+three-arm runs, 0 violations, 0 plan-egress findings), `r4_grade_selftest.py`
+(15 fixture checks) and `r4_bench_driver_selftest.py` (38 acceptance checks).
+Real private-source inference remains gated on §7 item 4.
+
 ## 7. Launch gates
 
 1. Adapter contract suite green (34/34) — DONE.
