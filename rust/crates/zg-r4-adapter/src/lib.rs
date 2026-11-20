@@ -1108,6 +1108,8 @@ impl Session {
         let mut read_ops = 0usize;
         let mut hashes: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
+        let mut encodings: std::collections::HashMap<String, FileEncoding> =
+            std::collections::HashMap::new();
         let mut gaps = Vec::new();
         for item in &result.items {
             let path = item.relative_path.to_string_lossy().replace('\\', "/");
@@ -1121,8 +1123,13 @@ impl Session {
                             || reads.contains(&path)
                             || self.ledger.read_files.len() + reads.len() < MAX_DISTINCT_READS
                         {
-                            let computed =
-                                file_sha256(&self.ledger.root.join(&item.relative_path));
+                            let computed = fs::read(self.ledger.root.join(&item.relative_path))
+                                .ok()
+                                .map(|bytes| {
+                                    let encoding = detect_encoding(&bytes);
+                                    encodings.insert(path.clone(), encoding);
+                                    hex(&Sha256::digest(&bytes))
+                                });
                             read_ops += 1;
                             if let Some(hash) = computed.clone() {
                                 hashes.insert(path.clone(), hash.clone());
@@ -1153,19 +1160,26 @@ impl Session {
                 "range": [item.range.start_line(), item.range.last_line()],
                 "content_range": [item.content_range.start_line(), item.content_range.last_line()],
                 "match_ranges": item.match_ranges,
-                // Byte columns are part of the exact source coordinates: an
-                // excerpt starting mid-line (e.g. at the declaration token,
-                // after indentation) is not the full first line. Exposing
-                // them keeps `content_range` honest for consumers that check
-                // delivered content against the source.
-                "content_range_columns": match item.content_range {
-                    zg_engine::api::context::result::ContentRange::Text {
-                        start_byte_column,
-                        end_byte_column,
-                        ..
-                    } => json!([start_byte_column, end_byte_column]),
-                    _ => serde_json::Value::Null,
-                },
+                // Exact source coordinates of `content`. `content_range` above
+                // is human-friendly (inclusive last line), while these are the
+                // authoritative half-open UTF-8 byte offsets: content is
+                // exactly file bytes [start_byte_offset, end_byte_offset).
+                // `content_columns` are (start column, end column) where the end
+                // column is on the range's exclusive end line, so line/column
+                // pairs stay internally consistent with the byte offsets.
+                "content_byte_offsets": content_byte_offsets(&item.content_range),
+                "content_columns": content_columns(&item.content_range),
+                // The engine slices decoded text: byte offsets above are in
+                // decoded UTF-8 space (a BOM is stripped). `raw_file_byte_offsets`
+                // translate them into raw file bytes so a consumer can slice the
+                // file it hashes; null when the encoding makes the mapping
+                // non-linear (UTF-16/32), in which case decode first.
+                "file_encoding": encodings.get(&path).map_or("unknown", |e| e.name),
+                "raw_file_byte_offsets": raw_file_byte_offsets(
+                    &item.content_range,
+                    encodings.get(&path).copied(),
+                ),
+                "content_sha256": hex(&Sha256::digest(item.content.as_bytes())),
                 "content": item.content,
                 "status": item.status,
                 "score": item.score,
@@ -1393,6 +1407,12 @@ impl Session {
                 "sha256": item.source_sha256,
                 "verification": item.verification,
                 "range": [item.range.start_line(), item.range.last_line()],
+                // Evidence slices raw file bytes, so these offsets address the
+                // exact file version `sha256` identifies (unlike search, whose
+                // decoded-text offsets are reported separately).
+                "content_byte_offsets": content_byte_offsets(&item.range),
+                "content_columns": content_columns(&item.range),
+                "content_sha256": hex(&Sha256::digest(item.content.as_bytes())),
                 "content": item.content,
             }));
         }
@@ -1777,9 +1797,96 @@ fn tool_value(tool: Tool) -> Value {
     }
 }
 
+fn content_byte_offsets(range: &zg_engine::api::context::result::ContentRange) -> serde_json::Value {
+    use zg_engine::api::context::result::ContentRange;
+    match range {
+        ContentRange::Text {
+            start_byte_offset,
+            end_byte_offset,
+            ..
+        } => json!([start_byte_offset, end_byte_offset]),
+        ContentRange::Byte {
+            start_offset,
+            end_offset,
+        } => json!([start_offset, end_offset]),
+        ContentRange::File => serde_json::Value::Null,
+    }
+}
+
+/// Raw-file byte offsets equivalent to the engine's decoded-text offsets, or
+/// null when a BOM shift cannot represent them linearly (UTF-16/32).
+fn raw_file_byte_offsets(
+    range: &zg_engine::api::context::result::ContentRange,
+    encoding: Option<FileEncoding>,
+) -> serde_json::Value {
+    use zg_engine::api::context::result::ContentRange;
+    let ContentRange::Text {
+        start_byte_offset,
+        end_byte_offset,
+        ..
+    } = range
+    else {
+        return serde_json::Value::Null;
+    };
+    let Some(encoding) = encoding else {
+        return serde_json::Value::Null;
+    };
+    if !encoding.linear {
+        return serde_json::Value::Null;
+    }
+    json!([
+        start_byte_offset + encoding.bom_bytes,
+        end_byte_offset + encoding.bom_bytes
+    ])
+}
+
+fn content_columns(range: &zg_engine::api::context::result::ContentRange) -> serde_json::Value {
+    use zg_engine::api::context::result::ContentRange;
+    match range {
+        ContentRange::Text {
+            start_byte_column,
+            end_byte_column,
+            ..
+        } => json!([start_byte_column, end_byte_column]),
+        _ => serde_json::Value::Null,
+    }
+}
+
 fn file_sha256(path: &Path) -> Option<String> {
     let bytes = fs::read(path).ok()?;
     Some(hex(&Sha256::digest(&bytes)))
+}
+
+/// Encoding prefix detected from the raw file bytes. `bom_bytes` is the number
+/// of leading bytes that the engine strips before computing decoded-text byte
+/// offsets: 3 for a UTF-8 BOM, and the full BOM for UTF-16/32 (where the
+/// decoded offset space is not a linear shift of the raw file).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct FileEncoding {
+    name: &'static str,
+    bom_bytes: usize,
+    linear: bool,
+}
+
+fn detect_encoding(bytes: &[u8]) -> FileEncoding {
+    const UTF8: FileEncoding = FileEncoding { name: "utf-8", bom_bytes: 0, linear: true };
+    const UTF8_BOM: FileEncoding = FileEncoding { name: "utf-8-bom", bom_bytes: 3, linear: true };
+    if bytes.starts_with(&[0xff, 0xfe, 0x00, 0x00]) {
+        return FileEncoding { name: "utf-32le", bom_bytes: 4, linear: false };
+    }
+    if bytes.starts_with(&[0x00, 0x00, 0xfe, 0xff]) {
+        return FileEncoding { name: "utf-32be", bom_bytes: 4, linear: false };
+    }
+    if bytes.starts_with(&[0xff, 0xfe]) {
+        return FileEncoding { name: "utf-16le", bom_bytes: 2, linear: false };
+    }
+    if bytes.starts_with(&[0xfe, 0xff]) {
+        return FileEncoding { name: "utf-16be", bom_bytes: 2, linear: false };
+    }
+    if bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+        return UTF8_BOM;
+    }
+    UTF8
 }
 
 fn hex(bytes: &[u8]) -> String {
