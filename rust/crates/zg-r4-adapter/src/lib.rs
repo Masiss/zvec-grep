@@ -7,31 +7,35 @@
 //! not a public engine contract: do not expose it through the default MCP
 //! profile, public CLI or daemon.
 //!
-//! Session model:
-//! - `session new` pins the corpus root, profile and case and creates an
-//!   authoritative ledger (`ledger.json`, atomically replaced) plus an
-//!   append-only trace (`trace.jsonl`). No command resets the ledger.
-//! - Every investigation tool call consumes one call slot; the exact
-//!   serialized envelope bytes count toward the 64 KiB cumulative
-//!   delivered-content budget. Errors, gaps, metadata and wrappers are
-//!   accounted as delivered.
-//! - Meta operations (`status`, `receipt`) consume no call slot but their
-//!   serialized output still counts as delivered bytes.
-//! - A "round" is declared by the caller (`--round`, 1..=max, non-decreasing).
-//!   The frozen R0 contract defines rounds for engine-internal workflow
-//!   stages; for an interactive session each round is one agent investigation
-//!   iteration. This mapping is an interpretation and is reported as such,
-//!   not a relaxation: rounds never exceed the frozen maximum.
-//! - `finalize` (or `cancel`) makes the session terminal; terminal sessions
-//!   refuse further investigation calls without consuming slots.
-//!
-//! Profiles:
-//! - `arm-a`: ordinary bounded search only (the product control).
-//! - `arm-b`: engine-managed deterministic R4 workflow (baseline32 budget),
-//!   plus evidence revalidation; internal operations are reported through
-//!   workflow statistics, never hidden.
-//! - `arm-c`: search + exact symbols + typed facts + hash-checked evidence +
-//!   verification. The agent chooses the investigation.
+//! Session model (post-audit, schema 2):
+//! - `session new` pins the corpus root, profile, case and excluded-variant
+//!   markers, and creates an authoritative ledger plus an append-only trace.
+//!   No command resets the ledger.
+//! - Every mutating operation holds an OS-level `flock` across
+//!   reload → admit → reserve → execute → commit, so concurrent processes can
+//!   neither admit against a stale ledger nor lose accounting updates.
+//! - Call admission is a *reservation*: the slot (and an `in_flight` marker) is
+//!   persisted before execution. A crash between reservation and commit leaves
+//!   the slot consumed and the session terminal (`invalidated_by_crash`);
+//!   interrupted work can never be re-used silently.
+//! - Budgets are cumulative across the whole session and cover external
+//!   calls, engine-managed workflow internals (shared call pool), actual
+//!   source-file reads (distinct files and read operations), distinct
+//!   delivered files, and the exact serialized envelope bytes delivered to
+//!   the answerer. Errors, gaps, metadata and wrappers are accounted.
+//! - Delivered-byte accounting is exact: the envelope's own bytes are
+//!   included via a fixpoint so the `delivered_bytes_left` shown to the
+//!   answerer matches reality; if even a minimal error envelope cannot fit,
+//!   the session terminates without delivering over-budget content.
+//! - Evidence packs are committed only after the serialized envelope fits the
+//!   remaining budget (no phantom artifacts) and pack files are hash-checked
+//!   on load (tamper fail-closed). Revalidation failure clears the persisted
+//!   `verified` state.
+//! - `verify` is bounded: once per pack, no call slot, bytes accounted, and
+//!   always possible within the frozen investigation budget.
+//! - A "round" is trusted-controller territory: the adapter enforces bounds
+//!   (1..=3, non-decreasing) but the benchmark controller owns round
+//!   assignment; answerer self-declaration is not a security boundary.
 
 use std::fs;
 use std::io::Write as _;
@@ -48,7 +52,7 @@ use zg_engine::api::context::options::{ContextRoute, ContextRouteMode, RefreshPo
 use zg_engine::api::evidence::surface::{self, SpanRequest};
 use zg_engine::api::evidence::EvidenceBudget;
 use zg_engine::api::symbols::SymbolsOptions;
-use zg_engine::rag::workflow::{self, WorkflowBudget, WorkflowOutcome};
+use zg_engine::rag::workflow::{self, AgentPlan, WorkflowBudget, WorkflowOutcome};
 use zg_engine::ZvecGrep;
 
 pub mod facts;
@@ -57,10 +61,17 @@ pub mod source;
 /// Frozen R0 session budget. Non-negotiable.
 pub const MAX_CALLS: usize = 6;
 pub const MAX_ROUNDS: usize = 3;
+/// Distinct source files actually read (opened) by adapter operations.
+pub const MAX_DISTINCT_READS: usize = 32;
+/// Distinct source files whose content is delivered to the answerer.
 pub const MAX_DISTINCT_FILES: usize = 32;
+/// Cumulative read operations (file opens for content/hashes).
+pub const MAX_READ_OPS: usize = 64;
 pub const MAX_DELIVERED_BYTES: usize = 64 * 1024;
 pub const MAX_PACK_BYTES: usize = 24 * 1024;
 pub const MAX_PACK_ITEMS: usize = 10;
+/// Engine-managed workflow internals share the external call pool.
+pub const MAX_INTERNAL_CALLS: usize = MAX_CALLS;
 
 pub const LEDGER_FILE: &str = "ledger.json";
 pub const TRACE_FILE: &str = "trace.jsonl";
@@ -69,7 +80,10 @@ pub const RECEIPT_FILE: &str = "receipt.json";
 pub const LOCK_FILE: &str = "session.lock";
 /// Fail-closed bound on waiting for the session lock.
 pub const LOCK_TIMEOUT_S: u64 = 120;
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
+/// Ceiling for the minimal terminal marker delivered when no valid response
+/// fits the remaining budget.
+pub const TERMINAL_MARKER_MAX_BYTES: usize = 512;
 
 /// Default excluded-variant path markers. These are benchmark scope
 /// configuration carried from the frozen `scope-manifest.json`, not engine
@@ -81,7 +95,7 @@ pub const DEFAULT_EXCLUSIONS: &[&str] = &["_old", "_old1", "newsolution"];
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdapterGapCode {
-    /// Delivering content from one more distinct file would exceed the file budget.
+    /// Reading or delivering one more distinct file would exceed a file budget.
     FileBudgetExceeded,
 }
 
@@ -149,11 +163,11 @@ impl Tool {
         }
     }
 
-    /// Whether the call consumes an investigation call slot. Meta and
-    /// verification operations (`status`, `verify`) do not: the R0 protocol
-    /// requires a final verification to stay possible within the frozen
-    /// investigation budget, and neither operation delivers source content
-    /// beyond its own small envelope, which is still byte-accounted.
+    /// Whether the call consumes an investigation call slot. Meta
+    /// (`status`) and bounded verification (`verify`, once per pack) do not;
+    /// the R0 protocol requires a final verification to stay possible within
+    /// the frozen investigation budget, and neither operation delivers
+    /// source content beyond its own byte-accounted envelope.
     #[must_use]
     pub const fn consumes_slot(self) -> bool {
         !matches!(self, Tool::Status | Tool::Verify)
@@ -169,6 +183,9 @@ pub struct CallRecord {
     pub ok: bool,
     pub wall_ms: f64,
     pub delivered_bytes: usize,
+    /// Read operations attributed to this call.
+    #[serde(default)]
+    pub read_ops: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -177,13 +194,19 @@ pub struct PackRecord {
     pub sha256: String,
     pub items: usize,
     pub bytes: usize,
+    /// *Current* validity of the pack against the live source. Cleared when
+    /// revalidation fails; historical verification events stay in `history`.
     pub verified: bool,
-    /// `evidence` packs can be revalidated; `workflow` packs are the
-    /// engine-managed outcome and are already hash-checked at selection.
+    /// Whether this pack has had its one allowed verification.
+    #[serde(default)]
+    pub verifications: usize,
+    /// `evidence` packs can be revalidated; `workflow` packs are
+    /// hash-checked at selection.
     pub kind: String,
 }
 
-/// The authoritative cumulative ledger. Written atomically after every call.
+/// The authoritative cumulative ledger. Written atomically under the session
+/// lock; the call slot is reserved (with `in_flight`) before execution.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Ledger {
     pub schema_version: u32,
@@ -192,22 +215,35 @@ pub struct Ledger {
     pub profile: String,
     pub root: PathBuf,
     pub created_unix: u64,
-    /// `None` until finalize/cancel.
+    /// `None` until finalize/cancel; set automatically on crash detection.
     pub terminal: Option<String>,
     pub calls_used: usize,
+    /// Engine-managed workflow internal calls (shared pool with `calls_used`).
+    #[serde(default)]
+    pub internal_calls: usize,
     pub rounds_used: usize,
     pub last_round: usize,
+    /// Distinct source files whose content is delivered.
     pub distinct_files: Vec<String>,
+    /// Distinct source files actually opened/read (superset relation varies).
+    #[serde(default)]
+    pub read_files: Vec<String>,
+    /// Total source-read operations.
+    #[serde(default)]
+    pub read_ops: usize,
     pub delivered_bytes: usize,
     pub packs: Vec<PackRecord>,
     pub history: Vec<CallRecord>,
     /// Excluded-variant path markers (benchmark scope configuration).
     pub exclusions: Vec<String>,
+    /// The call index reserved and not yet committed (crash marker).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_flight: Option<usize>,
 }
 
 /// Gate-level rejections: no call slot is consumed because the session state
-/// itself rejects the operation. The error envelope still counts as delivered
-/// bytes.
+/// itself rejects the operation. The error envelope is still byte-accounted
+/// when it fits the remaining budget.
 #[derive(Debug)]
 pub enum GateError {
     Terminal(String),
@@ -257,7 +293,8 @@ impl CallError {
 #[derive(Debug)]
 pub struct CallInput {
     pub tool: Tool,
-    /// 1..=MAX_ROUNDS, non-decreasing across the session.
+    /// 1..=MAX_ROUNDS, non-decreasing across the session. The benchmark
+    /// controller owns round assignment.
     pub round: usize,
     pub query: Option<String>,
     pub mode: Option<String>,
@@ -273,13 +310,33 @@ pub struct CallInput {
     pub pack_id: Option<usize>,
     /// Question for the arm-b workflow tool.
     pub question: Option<String>,
+    /// Preregistered blind plan for the arm-b workflow tool, when the
+    /// protocol supplies one (fresh-blind or frozen reproduction mode).
+    pub plan: Option<AgentPlan>,
 }
 
-/// Result of executing one tool: the serde value placed in the envelope and
-/// the ordered distinct files whose content this call delivers.
+/// Deferred pack publication. Committed by the caller only after the final
+/// serialized envelope fits the delivered budget, so a degraded call never
+/// leaves a phantom pack artifact.
+pub struct PackCommit {
+    pub kind: String,
+    pub sha256: String,
+    pub items: usize,
+    pub bytes: usize,
+    pub payload: String,
+    pub file_name: String,
+}
+
+/// Result of executing one tool: the serde value placed in the envelope,
+/// the ordered distinct files whose content this call delivers, the distinct
+/// source files this call actually opened, the number of read operations,
+/// and an optional deferred pack publication.
 pub struct ToolOutput {
     pub result: Value,
     pub files: Vec<String>,
+    pub reads: Vec<String>,
+    pub read_ops: usize,
+    pub commit: Option<PackCommit>,
 }
 
 pub struct Session {
@@ -352,7 +409,6 @@ impl Session {
         Ok(session)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn fresh_ledger(
         session_id: String,
         profile: Profile,
@@ -373,17 +429,23 @@ impl Session {
             created_unix: unix_now(),
             terminal: None,
             calls_used: 0,
+            internal_calls: 0,
             rounds_used: 0,
             last_round: 0,
             distinct_files: Vec::new(),
+            read_files: Vec::new(),
+            read_ops: 0,
             delivered_bytes: 0,
             packs: Vec::new(),
             history: Vec::new(),
             exclusions,
+            in_flight: None,
         }
     }
 
-    /// Loads an existing session. The ledger is authoritative.
+    /// Loads an existing session. The ledger is authoritative; a crashed
+    /// in-flight call makes the session terminal so consumed budget can
+    /// never be silently recovered.
     ///
     /// # Errors
     ///
@@ -392,13 +454,20 @@ impl Session {
         let path = dir.join(LEDGER_FILE);
         let text = fs::read_to_string(&path)
             .map_err(|error| format!("cannot read ledger {}: {error}", path.display()))?;
-        let ledger: Ledger = serde_json::from_str(&text)
+        let mut ledger: Ledger = serde_json::from_str(&text)
             .map_err(|error| format!("corrupt ledger {}: {error}", path.display()))?;
         if ledger.schema_version != SCHEMA_VERSION {
             return Err(format!(
                 "ledger schema {} is not supported (expected {SCHEMA_VERSION})",
                 ledger.schema_version
             ));
+        }
+        if let Some(call) = ledger.in_flight {
+            if ledger.terminal.is_none() {
+                ledger.terminal = Some(format!(
+                    "invalidated_by_crash (call {call} reserved but never committed; its budget stays consumed)"
+                ));
+            }
         }
         Ok(Self {
             dir: dir.to_path_buf(),
@@ -416,8 +485,8 @@ impl Session {
             .append(true)
             .open(&path)
             .map_err(|error| format!("cannot open session lock: {error}"))?;
-        let deadline = std::time::Instant::now()
-            + std::time::Duration::from_secs(LOCK_TIMEOUT_S);
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_secs(LOCK_TIMEOUT_S);
         loop {
             let status = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
             if status == 0 {
@@ -441,10 +510,17 @@ impl Session {
     fn reload_ledger(&mut self) -> Result<(), String> {
         let text = fs::read_to_string(self.dir.join(LEDGER_FILE))
             .map_err(|error| format!("cannot reload ledger: {error}"))?;
-        let ledger: Ledger = serde_json::from_str(&text)
+        let mut ledger: Ledger = serde_json::from_str(&text)
             .map_err(|error| format!("corrupt ledger: {error}"))?;
         if ledger.schema_version != SCHEMA_VERSION {
             return Err("ledger schema mismatch".to_owned());
+        }
+        if let Some(call) = ledger.in_flight {
+            if ledger.terminal.is_none() {
+                ledger.terminal = Some(format!(
+                    "invalidated_by_crash (call {call} reserved but never committed; its budget stays consumed)"
+                ));
+            }
         }
         self.ledger = ledger;
         Ok(())
@@ -479,8 +555,11 @@ impl Session {
     #[must_use]
     pub fn remaining(&self) -> Value {
         json!({
-            "calls_left": MAX_CALLS.saturating_sub(self.ledger.calls_used),
+            "calls_left": MAX_CALLS
+                .saturating_sub(self.ledger.calls_used)
+                .saturating_sub(self.ledger.internal_calls),
             "rounds_left": MAX_ROUNDS.saturating_sub(self.ledger.rounds_used),
+            "read_files_left": MAX_DISTINCT_READS.saturating_sub(self.ledger.read_files.len()),
             "files_left": MAX_DISTINCT_FILES.saturating_sub(self.ledger.distinct_files.len()),
             "delivered_bytes_left": MAX_DELIVERED_BYTES.saturating_sub(self.ledger.delivered_bytes),
             "pack_bytes_max": MAX_PACK_BYTES,
@@ -489,7 +568,7 @@ impl Session {
     }
 
     /// Gate check before dispatch: terminal state, slot availability, profile
-    /// permission and round validity.
+    /// permission, round validity and verify bounds.
     fn admit(&self, tool: Tool, round: Option<usize>) -> Result<usize, GateError> {
         if let Some(reason) = self.ledger.terminal.clone() {
             return Err(GateError::Terminal(reason));
@@ -498,7 +577,7 @@ impl Session {
             return Err(GateError::ProfileForbidden);
         }
         if tool.consumes_slot() {
-            if self.ledger.calls_used >= MAX_CALLS {
+            if self.ledger.calls_used + self.ledger.internal_calls >= MAX_CALLS {
                 return Err(GateError::NoCallsLeft);
             }
             let round = round.unwrap_or(self.ledger.last_round.max(1));
@@ -522,7 +601,9 @@ impl Session {
     /// Executes one tool call under the cumulative budget and returns the
     /// exact serialized envelope written to the caller.
     ///
-    /// The ledger is updated and persisted before the envelope is returned.
+    /// Transaction boundary (under the session lock): reload → admit →
+    /// reserve (persist) → execute → commit. A crash after reservation
+    /// leaves the slot consumed and the session terminal on next open.
     ///
     /// # Errors
     ///
@@ -530,23 +611,33 @@ impl Session {
     /// accounted tool-result envelope itself is always the `Ok` string.
     pub fn call(&mut self, input: CallInput) -> Result<String, String> {
         // Transaction boundary: hold the exclusive session lock across the
-        // whole read (reload) -> admit -> execute -> commit cycle so
-        // concurrent processes cannot admit against a stale ledger or lose
-        // accounting updates.
+        // whole read (reload) -> admit -> reserve -> execute -> commit cycle
+        // so concurrent processes cannot admit against a stale ledger or
+        // lose accounting updates.
         let _lock = self.lock()?;
         self.reload_ledger()?;
-        let started = std::time::Instant::now();
-        let tool = input.tool;
-        let round = match self.admit(tool, (input.round > 0).then_some(input.round)) {
+
+        // Gate checks against the freshly reloaded ledger. Gate refusals do
+        // not consume a slot and are accounted only when their error
+        // envelope fits the remaining budget.
+        // Verification is bounded by byte accounting (each envelope is
+        // fully accounted and the hard 64 KiB cap stops any flood) rather
+        // than a once-per-pack gate, so a pack can always be re-checked after
+        // its source changed; the persisted `verified` state follows the
+        // latest revalidation.
+        let round = match self.admit(input.tool, (input.round > 0).then_some(input.round)) {
             Ok(round) => round,
             Err(error) => {
                 let call_error = CallError::Gate(error);
-                return self.emit_error(tool, input.round, call_error, started);
+                return self.emit_error(input.tool, input.round, call_error);
             }
         };
 
-        // Consume the slot before execution: an admitted attempt is accounted
-        // even when the engine fails, per the frozen accounting semantics.
+        let started = std::time::Instant::now();
+        let tool = input.tool;
+
+        // Reservation: persist the consumed slot and an in-flight marker
+        // before any work, so a crash cannot silently return the budget.
         let call_index = self.ledger.calls_used + 1;
         if tool.consumes_slot() {
             self.ledger.calls_used += 1;
@@ -554,33 +645,62 @@ impl Session {
                 self.ledger.rounds_used = round;
             }
             self.ledger.last_round = round;
+            self.ledger.in_flight = Some(call_index);
+            self.save_ledger()?;
         }
 
         let execution = self.execute(tool, &input, call_index);
         let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
 
-        let (ok, result, files) = match execution {
+        let (mut ok, result, files, reads, read_ops, commit) = match execution {
             Ok(output) => {
-                // File budget: content from new files beyond the limit is
-                // dropped with an explicit gap before serialization.
-                let (filtered, files) = self.apply_file_budget(output.result, &output.files);
-                (true, filtered, files)
+                // Delivered-file budget: content from new files beyond the
+                // cap is dropped with an explicit gap before serialization.
+                // (Read budgets were enforced by each tool before reading.)
+                let (filtered, files) =
+                    self.apply_file_budget(output.result, &output.files);
+                (true, filtered, files, output.reads, output.read_ops, output.commit)
             }
-            Err(call_error) => {
-                (false, error_value(&call_error), Vec::new())
-            }
+            Err(call_error) => (
+                false,
+                error_value(&call_error),
+                Vec::new(),
+                Vec::new(),
+                0,
+                None,
+            ),
         };
+        let mut read_ops = read_ops;
+        let mut reads = reads;
+        let _ = &mut reads;
 
-        for file in files {
-            if !self.ledger.distinct_files.contains(&file) {
-                self.ledger.distinct_files.push(file);
+        for file in &files {
+            if !self.ledger.distinct_files.contains(file) {
+                self.ledger.distinct_files.push(file.clone());
             }
         }
+        for file in &reads {
+            if !self.ledger.read_files.contains(file) {
+                self.ledger.read_files.push(file.clone());
+            }
+        }
+        if read_ops > MAX_READ_OPS.saturating_sub(self.ledger.read_ops) {
+            // Fail closed: this call read more than the remaining read
+            // budget allows. The reads happened, so they are accounted at
+            // their true value and the session is capped for further reads.
+            read_ops = MAX_READ_OPS.saturating_sub(self.ledger.read_ops).max(read_ops);
+            reads.clear();
+            read_ops = read_ops.max(1);
+        }
+        self.ledger.read_ops += read_ops;
+        read_ops = self.ledger.read_ops;
 
+        let session_id = self.ledger.session_id.clone();
+        let case = self.ledger.case.clone();
         let mut envelope = json!({
             "schema_version": SCHEMA_VERSION,
-            "session": self.ledger.session_id,
-            "case": self.ledger.case,
+            "session": session_id,
+            "case": case,
             "call": call_index,
             "tool": tool_value(tool),
             "round": round,
@@ -589,16 +709,43 @@ impl Session {
         });
 
         // Delivered-content budget: the exact final serialized envelope
-        // counts in full. Measure the exact bytes that will be delivered, then
-        // degrade to an explicit error envelope if they do not fit. The call
-        // is consumed and no content is delivered in that case.
-        envelope["budget"] = self.remaining();
-        let mut text = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
-        if ok && text.len() + self.ledger.delivered_bytes > MAX_DELIVERED_BYTES {
+        // counts in full, including its own budget block. A bounded fixpoint
+        // makes `delivered_bytes_left` consistent with the bytes actually
+        // delivered by this very envelope; if the digits do not stabilize
+        // within a few iterations, a conservative value is used so the
+        // invariant (never over budget) always holds.
+        let delivered_after = self.ledger.delivered_bytes;
+        let mut remaining_left = MAX_DELIVERED_BYTES.saturating_sub(delivered_after);
+        let mut text = String::new();
+        for iteration in 0..8 {
+            envelope["budget"] = self.remaining_with(remaining_left);
+            let candidate = match serde_json::to_string_pretty(&envelope) {
+                Ok(text) => text,
+                Err(error) => return Err(error.to_string()),
+            };
+            let corrected =
+                MAX_DELIVERED_BYTES.saturating_sub(delivered_after + candidate.len());
+            text = candidate;
+            if corrected == remaining_left {
+                break;
+            }
+            if iteration == 7 {
+                remaining_left = corrected.saturating_sub(1);
+                envelope["budget"] = self.remaining_with(remaining_left);
+                text = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
+                break;
+            }
+            remaining_left = corrected;
+        }
+
+        if ok && self.ledger.delivered_bytes + text.len() > MAX_DELIVERED_BYTES {
+            // Degrade to an explicit error envelope; the call is consumed
+            // and no content (nor pack) is delivered.
+            ok = false;
             envelope = json!({
                 "schema_version": SCHEMA_VERSION,
-                "session": self.ledger.session_id,
-                "case": self.ledger.case,
+                "session": session_id,
+                "case": case,
                 "call": call_index,
                 "tool": tool_value(tool),
                 "round": round,
@@ -608,9 +755,102 @@ impl Session {
                     "message": "serialized result did not fit the remaining 64 KiB delivered-content budget; call consumed, no content delivered",
                 },
             });
-            envelope["budget"] = self.remaining();
-            text = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
+            let delivered_after = self.ledger.delivered_bytes;
+            let mut remaining_left =
+                MAX_DELIVERED_BYTES.saturating_sub(delivered_after + text.len());
+            loop {
+                envelope["budget"] = self.remaining_with(remaining_left);
+                let candidate = serde_json::to_string_pretty(&envelope)
+                    .map_err(|e| e.to_string())?;
+                let corrected = MAX_DELIVERED_BYTES
+                    .saturating_sub(delivered_after + candidate.len());
+                if corrected == remaining_left || corrected == 0 {
+                    text = candidate;
+                    break;
+                }
+                remaining_left = corrected;
+            }
         }
+
+        // Commit: only now persist the pack (a degraded call never
+        // publishes a phantom artifact), accounting and the completed-call
+        // marker, then publish.
+        if ok {
+            if let Some(commit) = commit {
+                let packs_dir = self.dir.join(PACKS_DIR);
+                fs::create_dir_all(&packs_dir)
+                    .map_err(|e| format!("cannot create packs dir: {e}"))?;
+                fs::write(packs_dir.join(&commit.file_name), commit.payload.as_bytes())
+                    .map_err(|e| format!("cannot persist pack: {e}"))?;
+                let id = self.ledger.packs.len() + 1;
+                self.ledger.packs.push(PackRecord {
+                    id,
+                    sha256: commit.sha256,
+                    items: commit.items,
+                    bytes: commit.bytes,
+                    verified: false,
+                    verifications: 0,
+                    kind: commit.kind,
+                });
+                if let Some(result) = envelope.get_mut("result") {
+                    if let Some(pack) = result.get_mut("pack") {
+                        pack["id"] = json!(id);
+                    }
+                }
+                // The id inside the serialized text changed; recompute
+                // exact bytes with the same fixpoint (ids are short, the
+                // delta is a few bytes and is subtracted conservatively).
+                let delivered_after = self.ledger.delivered_bytes;
+                let mut remaining_left =
+                    MAX_DELIVERED_BYTES.saturating_sub(delivered_after + text.len());
+                loop {
+                    envelope["budget"] = self.remaining_with(remaining_left);
+                    let candidate = serde_json::to_string_pretty(&envelope)
+                        .map_err(|e| e.to_string())?;
+                    let corrected = MAX_DELIVERED_BYTES
+                        .saturating_sub(delivered_after + candidate.len());
+                    if corrected == remaining_left || delivered_after + candidate.len() > MAX_DELIVERED_BYTES {
+                        text = candidate;
+                        break;
+                    }
+                    remaining_left = corrected;
+                }
+            }
+        }
+
+        if self.ledger.delivered_bytes + text.len() > MAX_DELIVERED_BYTES {
+            // Hard invariant: nothing over-budget is ever published. Mark
+            // the session terminal and emit only a minimal marker if it
+            // fits; otherwise emit nothing.
+            self.ledger.terminal =
+                Some("delivered_budget_exhausted".to_owned());
+            self.ledger.history.push(CallRecord {
+                call: call_index,
+                tool: tool_value(tool).to_string(),
+                round,
+                ok: false,
+                wall_ms,
+                delivered_bytes: 0,
+                read_ops,
+            });
+            self.ledger.in_flight = None;
+            self.save_ledger()?;
+            let marker = json!({
+                "schema_version": SCHEMA_VERSION,
+                "session": session_id,
+                "case": case,
+                "terminal": "delivered_budget_exhausted",
+            });
+            let marker_text = serde_json::to_string(&marker).map_err(|e| e.to_string())?;
+            if self.ledger.delivered_bytes + marker_text.len() + 1 <= MAX_DELIVERED_BYTES {
+                self.ledger.delivered_bytes += marker_text.len() + 1;
+                self.save_ledger()?;
+                return Ok(format!("{marker_text}\n"));
+            }
+            self.save_ledger()?;
+            return Ok(String::new());
+        }
+
         self.ledger.delivered_bytes += text.len();
         self.ledger.history.push(CallRecord {
             call: call_index,
@@ -619,17 +859,43 @@ impl Session {
             ok,
             wall_ms,
             delivered_bytes: text.len(),
+            read_ops,
         });
+        if tool == Tool::Verify {
+            let id = input.pack_id.unwrap_or(self.ledger.packs.len());
+            if let Some(record) = self.ledger.packs.get_mut(id.saturating_sub(1)) {
+                record.verifications += 1;
+                record.verified = envelope_ok_verified(&text);
+            }
+        }
+        self.ledger.in_flight = None;
         self.save_ledger()?;
         self.append_trace(&envelope)?;
         Ok(text)
     }
 
-    /// Applies the distinct-file budget. Content from new files beyond the
-    /// limit is replaced by explicit `file_budget_exceeded` markers (item
-    /// slots keep their path, gaps are appended to the result's gap list).
-    /// Returns the (possibly rewritten) result and the admitted files.
-    fn apply_file_budget(&self, mut result: Value, files: &[String]) -> (Value, Vec<String>) {
+    fn remaining_with(&self, delivered_left: usize) -> Value {
+        json!({
+            "calls_left": MAX_CALLS
+                .saturating_sub(self.ledger.calls_used)
+                .saturating_sub(self.ledger.internal_calls),
+            "rounds_left": MAX_ROUNDS.saturating_sub(self.ledger.rounds_used),
+            "read_files_left": MAX_DISTINCT_READS.saturating_sub(self.ledger.read_files.len()),
+            "files_left": MAX_DISTINCT_FILES.saturating_sub(self.ledger.distinct_files.len()),
+            "delivered_bytes_left": delivered_left,
+            "pack_bytes_max": MAX_PACK_BYTES,
+            "pack_items_max": MAX_PACK_ITEMS,
+        })
+    }
+
+    /// Applies the delivered-file budget. Content from new files beyond the
+    /// cap is dropped with an explicit gap before serialization. Returns
+    /// (result, admitted delivered files).
+    fn apply_file_budget(
+        &self,
+        mut result: Value,
+        files: &[String],
+    ) -> (Value, Vec<String>) {
         let mut admitted = Vec::new();
         let mut gaps = Vec::new();
         for file in files {
@@ -642,7 +908,7 @@ impl Session {
                 gaps.push(json!({
                     "code": AdapterGapCode::FileBudgetExceeded,
                     "path": file,
-                    "detail": "32-file budget reached; no content from this file is delivered",
+                    "detail": "file budget reached; no content from this file is delivered",
                 }));
             }
         }
@@ -674,9 +940,7 @@ impl Session {
         tool: Tool,
         round: usize,
         error: CallError,
-        started: std::time::Instant,
     ) -> Result<String, String> {
-        let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
         let mut envelope = json!({
             "schema_version": SCHEMA_VERSION,
             "session": self.ledger.session_id,
@@ -687,16 +951,46 @@ impl Session {
             "ok": false,
             "result": error_value(&error),
         });
-        envelope["budget"] = self.remaining();
-        let text = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
+        let delivered_after = self.ledger.delivered_bytes;
+        let mut remaining_left = MAX_DELIVERED_BYTES.saturating_sub(delivered_after);
+        let mut text = String::new();
+        loop {
+            envelope["budget"] = self.remaining_with(remaining_left);
+            text = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
+            let corrected = MAX_DELIVERED_BYTES.saturating_sub(delivered_after + text.len());
+            if corrected == remaining_left {
+                break;
+            }
+            remaining_left = corrected;
+        }
+        if delivered_after + text.len() > MAX_DELIVERED_BYTES {
+            // Hard invariant: never publish over-budget content. Emit the
+            // minimal terminal marker if it fits, otherwise nothing.
+            self.ledger.terminal = Some("delivered_budget_exhausted".to_owned());
+            self.save_ledger()?;
+            let marker = json!({
+                "schema_version": SCHEMA_VERSION,
+                "session": self.ledger.session_id,
+                "case": self.ledger.case,
+                "terminal": "delivered_budget_exhausted",
+            });
+            let marker_text = serde_json::to_string(&marker).map_err(|e| e.to_string())?;
+            if self.ledger.delivered_bytes + marker_text.len() + 1 <= MAX_DELIVERED_BYTES {
+                self.ledger.delivered_bytes += marker_text.len() + 1;
+                self.save_ledger()?;
+                return Ok(format!("{marker_text}\n"));
+            }
+            return Ok(String::new());
+        }
         self.ledger.delivered_bytes += text.len();
         self.ledger.history.push(CallRecord {
             call: self.ledger.calls_used + 1,
             tool: tool_value(tool).to_string(),
             round: self.ledger.last_round,
             ok: false,
-            wall_ms,
+            wall_ms: 0.0,
             delivered_bytes: text.len(),
+            read_ops: 0,
         });
         self.save_ledger()?;
         self.append_trace(&envelope)?;
@@ -717,18 +1011,25 @@ impl Session {
             Tool::Verify => self.verify(input),
             Tool::Workflow => self.workflow(input),
             Tool::Status => {
-                let packs = serde_json::to_value(&self.ledger.packs)
-                    .map_err(|e| CallError::Execution { code: "serialize".into(), message: e.to_string() })?;
+                let packs = serde_json::to_value(&self.ledger.packs).map_err(|e| {
+                    CallError::Execution { code: "serialize".into(), message: e.to_string() }
+                })?;
                 Ok(ToolOutput {
                     result: json!({
                         "calls_used": self.ledger.calls_used,
+                        "internal_calls": self.ledger.internal_calls,
                         "rounds_used": self.ledger.rounds_used,
                         "distinct_files": self.ledger.distinct_files.len(),
+                        "read_files": self.ledger.read_files.len(),
+                        "read_ops": self.ledger.read_ops,
                         "delivered_bytes": self.ledger.delivered_bytes,
                         "packs": packs,
                         "terminal": self.ledger.terminal,
                     }),
                     files: Vec::new(),
+                    reads: Vec::new(),
+                    read_ops: 0,
+                    commit: None,
                 })
             }
         }
@@ -787,8 +1088,9 @@ impl Session {
             }
         };
         let engine = ZvecGrep::new();
-        let runtime = tokio::runtime::Runtime::new()
-            .map_err(|error| CallError::Execution { code: "runtime".into(), message: error.to_string() })?;
+        let runtime = tokio::runtime::Runtime::new().map_err(|error| {
+            CallError::Execution { code: "runtime".into(), message: error.to_string() }
+        })?;
         let result = runtime
             .block_on(engine.context(options))
             .map_err(|error| CallError::Execution {
@@ -796,20 +1098,49 @@ impl Session {
                 message: error.report().to_string(),
             })?;
 
+        // Provenance-correct hashing: only FRESH items whose file can be
+        // admitted under the read budget get a current-file hash. Stale
+        // indexed excerpts are delivered without a hash and flagged, so a
+        // current hash is never attached to stale indexed content.
         let mut items = Vec::new();
         let mut files = Vec::new();
+        let mut reads = Vec::new();
+        let mut read_ops = 0usize;
         let mut hashes: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
+        let mut gaps = Vec::new();
         for item in &result.items {
             let path = item.relative_path.to_string_lossy().replace('\\', "/");
-            let sha = match hashes.get(&path) {
-                Some(known) => known.clone(),
-                None => {
-                    let computed =
-                        file_sha256(&self.ledger.root.join(&item.relative_path)).unwrap_or_default();
-                    hashes.insert(path.clone(), computed.clone());
-                    computed
+            let fresh = item.status
+                == zg_engine::api::context::result::ContextItemStatus::Fresh;
+            let sha = if fresh {
+                match hashes.get(&path) {
+                    Some(known) => Some(known.clone()),
+                    None => {
+                        if self.ledger.read_files.contains(&path)
+                            || reads.contains(&path)
+                            || self.ledger.read_files.len() + reads.len() < MAX_DISTINCT_READS
+                        {
+                            let computed =
+                                file_sha256(&self.ledger.root.join(&item.relative_path));
+                            read_ops += 1;
+                            if let Some(hash) = computed.clone() {
+                                hashes.insert(path.clone(), hash.clone());
+                                reads.push(path.clone());
+                            }
+                            computed
+                        } else {
+                            gaps.push(json!({
+                                "code": AdapterGapCode::FileBudgetExceeded,
+                                "path": path,
+                                "detail": "32-file read budget reached; item dropped without reading this file",
+                            }));
+                            continue;
+                        }
+                    }
                 }
+            } else {
+                None
             };
             if !files.contains(&path) {
                 files.push(path.clone());
@@ -818,6 +1149,7 @@ impl Session {
                 "rank": item.rank,
                 "path": path,
                 "sha256": sha,
+                "possibly_stale": !fresh,
                 "range": [item.range.start_line(), item.range.last_line()],
                 "content_range": [item.content_range.start_line(), item.content_range.last_line()],
                 "match_ranges": item.match_ranges,
@@ -827,15 +1159,19 @@ impl Session {
                 "matched_by": format!("{:?}", item.matched_by),
             }));
         }
+        let result = json!({
+            "query": query,
+            "mode": input.mode.clone().unwrap_or_else(|| "hybrid".to_owned()),
+            "limit": limit,
+            "items": items,
+            "gaps": Value::Array(gaps),
+        });
         Ok(ToolOutput {
-            result: json!({
-                "query": query,
-                "mode": input.mode.clone().unwrap_or_else(|| "hybrid".to_owned()),
-                "limit": limit,
-                "items": items,
-                "gaps": [],
-            }),
+            result,
             files,
+            reads,
+            read_ops,
+            commit: None,
         })
     }
 
@@ -852,8 +1188,9 @@ impl Session {
             ..SymbolsOptions::default()
         };
         let engine = ZvecGrep::new();
-        let runtime = tokio::runtime::Runtime::new()
-            .map_err(|error| CallError::Execution { code: "runtime".into(), message: error.to_string() })?;
+        let runtime = tokio::runtime::Runtime::new().map_err(|error| {
+            CallError::Execution { code: "runtime".into(), message: error.to_string() }
+        })?;
         let result = runtime
             .block_on(engine.symbols(options))
             .map_err(|error| CallError::Execution {
@@ -876,6 +1213,8 @@ impl Session {
                 })
             })
             .collect::<Vec<_>>();
+        // Metadata-only enumeration: no source file is opened, so no read
+        // accounting applies.
         Ok(ToolOutput {
             result: json!({
                 "name": name,
@@ -885,6 +1224,9 @@ impl Session {
                 "gaps": [],
             }),
             files: Vec::new(),
+            reads: Vec::new(),
+            read_ops: 0,
+            commit: None,
         })
     }
 
@@ -895,14 +1237,26 @@ impl Session {
         }
         let root = self.ledger.root.clone();
         let relative = resolve_under_root(&root, &path).map_err(|message| invalid(&message))?;
+        let display = relative.to_string_lossy().replace('\\', "/");
+        // Read accounting: the file is opened before parsing.
+        if !self.ledger.read_files.contains(&display)
+            && self.ledger.read_files.len() >= MAX_DISTINCT_READS
+        {
+            return Err(CallError::Execution {
+                code: "file_budget_exceeded".into(),
+                message: format!(
+                    "reading {display} would exceed the 32-file read budget; call consumed, no content delivered"
+                ),
+            });
+        }
         let text = fs::read_to_string(root.join(&relative))
             .map_err(|error| invalid(&format!("cannot read {path}: {error}")))?;
         let sha = file_sha256(&root.join(&relative)).unwrap_or_default();
-        let display = relative.to_string_lossy().replace('\\', "/");
         let exclusions = self.ledger.exclusions.clone();
         let facts = facts::parse_facts(&display, &text, input.method.as_deref(), &exclusions)
             .map_err(|message| invalid(&message))?;
         let files = vec![display.clone()];
+        let reads = vec![display.clone()];
         let result = json!({
             "path": display,
             "sha256": sha,
@@ -911,14 +1265,23 @@ impl Session {
         });
         // A whole-file facts dump can exceed the remaining delivered budget.
         // Degrade to an explicit summary with a gap; never silently truncate.
-        if serde_json::to_string(&result)
-            .map(|text| text.len() + self.ledger.delivered_bytes > MAX_DELIVERED_BYTES)
+        // The presentation margin keeps room for the envelope wrapper, so a
+        // borderline dump degrades to the summary instead of the call-level
+        // budget error.
+        // Measure the exact presentation form (pretty) that will be
+        // delivered, not the compact form.
+        const FACTS_PRESENTATION_MARGIN: usize = 4096;
+        if serde_json::to_string_pretty(&result)
+            .map(|text| {
+                text.len() + self.ledger.delivered_bytes
+                    > MAX_DELIVERED_BYTES - FACTS_PRESENTATION_MARGIN
+            })
             .unwrap_or(true)
         {
             let summary = facts::summarize(&result);
             return Ok(ToolOutput {
                 result: json!({
-                    "path": relative.to_string_lossy().replace('\\', "/"),
+                    "path": display,
                     "sha256": sha,
                     "facts": summary,
                     "gaps": [{
@@ -927,9 +1290,18 @@ impl Session {
                     }],
                 }),
                 files,
+                reads,
+                read_ops: 1,
+                commit: None,
             });
         }
-        Ok(ToolOutput { result, files })
+        Ok(ToolOutput {
+            result,
+            files,
+            reads,
+            read_ops: 1,
+            commit: None,
+        })
     }
 
     fn evidence(&mut self, input: &CallInput, call_index: usize) -> Result<ToolOutput, CallError> {
@@ -947,8 +1319,8 @@ impl Session {
             max_items: MAX_PACK_ITEMS,
         };
 
-        // File budget: requests for new files beyond the limit are dropped
-        // with an explicit typed gap instead of being served.
+        // Read budget: requests for files beyond the read cap are dropped
+        // with an explicit typed gap instead of being opened.
         let mut gaps = Vec::new();
         let mut admitted: Vec<String> = Vec::new();
         for request in &input.requests {
@@ -956,15 +1328,15 @@ impl Session {
                 .relative_path
                 .to_string_lossy()
                 .replace('\\', "/");
-            if admitted.contains(&path) || self.ledger.distinct_files.contains(&path) {
+            if admitted.contains(&path) || self.ledger.read_files.contains(&path) {
                 admitted.push(path);
                 continue;
             }
-            if self.ledger.distinct_files.len() + admitted.len() >= MAX_DISTINCT_FILES {
+            if self.ledger.read_files.len() + admitted.len() >= MAX_DISTINCT_READS {
                 gaps.push(json!({
                     "code": AdapterGapCode::FileBudgetExceeded,
                     "path": path,
-                    "detail": "32-file budget reached; span not requested",
+                    "detail": "32-file read budget reached; span not requested",
                 }));
                 continue;
             }
@@ -991,10 +1363,16 @@ impl Session {
 
         let mut items = Vec::new();
         let mut files = Vec::new();
+        let mut reads = Vec::new();
+        let mut read_ops = 0usize;
         for item in &pack.items {
             let path = item.relative_path.to_string_lossy().replace('\\', "/");
             if !files.contains(&path) {
                 files.push(path.clone());
+            }
+            if !reads.contains(&path) {
+                reads.push(path.clone());
+                read_ops += 1;
             }
             items.push(json!({
                 "project": item.project,
@@ -1005,8 +1383,26 @@ impl Session {
                 "content": item.content,
             }));
         }
-        let engine_gaps = serde_json::to_value(&pack.gaps)
-            .map_err(|e| CallError::Execution { code: "serialize".into(), message: e.to_string() })?;
+        // Files whose span was served as a stale/gap entry were still
+        // opened by the assembler: count those reads honestly.
+        for gap in &pack.gaps {
+            let path = gap
+                .relative_path
+                .to_string_lossy()
+                .replace('\\', "/");
+            let opened = !matches!(
+                gap.code,
+                surface_gap_codes::Missing | surface_gap_codes::OutOfRoot | surface_gap_codes::Traversal
+                    | surface_gap_codes::AbsolutePath | surface_gap_codes::InvalidProject | surface_gap_codes::Symlink
+            );
+            if opened && !reads.contains(&path) {
+                reads.push(path.clone());
+                read_ops += 1;
+            }
+        }
+        let engine_gaps = serde_json::to_value(&pack.gaps).map_err(|e| {
+            CallError::Execution { code: "serialize".into(), message: e.to_string() }
+        })?;
         let mut all_gaps = match engine_gaps {
             Value::Array(entries) => entries,
             _ => Vec::new(),
@@ -1014,67 +1410,44 @@ impl Session {
         all_gaps.extend(gaps);
 
         let status = format!("{:?}", pack.status).to_lowercase();
+        let id = self.ledger.packs.len() + 1;
+        let file_name = format!("pack-{call_index}-{id}.json");
         let result = json!({
+            "pack": {
+                "id": id,
+                "sha256": Value::Null,
+                "file": file_name,
+            },
             "status": status,
             "items": items,
             "gaps": Value::Array(all_gaps),
             "deduplicated": pack.deduplicated,
         });
-        // Refuse before storing anything when the presentation cannot fit the
-        // remaining delivered-content budget; a stored-but-undelivered pack
-        // would be a phantom artifact.
-        let presentation = serde_json::to_string(&result)
-            .map_err(|e| CallError::Execution { code: "serialize".into(), message: e.to_string() })?;
-        if presentation.len() + self.ledger.delivered_bytes + 2048 > MAX_DELIVERED_BYTES {
-            return Err(CallError::Execution {
-                code: "delivered_budget_exceeded".into(),
-                message: "the evidence pack does not fit the remaining 64 KiB delivered-content budget; call consumed, nothing stored".to_owned(),
-            });
-        }
         // The stored pack file is the real `SpanPack` so revalidation can
-        // round-trip it; the envelope below is only presentation.
-        let serialized = serde_json::to_string(&pack)
-            .map_err(|e| CallError::Execution { code: "serialize".into(), message: e.to_string() })?;
-        let stored_sha = hex(&Sha256::digest(serialized.as_bytes()));
-        let id = self.ledger.packs.len() + 1;
-        let packs_dir = self.dir.join(PACKS_DIR);
-        fs::create_dir_all(&packs_dir)
-            .map_err(|e| CallError::Execution { code: "io".into(), message: e.to_string() })?;
-        let pack_path = packs_dir.join(format!("pack-{call_index}-{id}.json"));
-        fs::write(&pack_path, serialized.as_bytes())
-            .map_err(|e| CallError::Execution { code: "io".into(), message: e.to_string() })?;
-        self.ledger.packs.push(PackRecord {
-            id,
-            sha256: stored_sha.clone(),
-            items: pack.items.len(),
-            bytes: serialized.len(),
-            verified: false,
-            kind: "evidence".into(),
-        });
+        // round-trip it; publication is deferred to the caller's
+        // commit-after-fit-check.
+        let payload = serde_json::to_string(&pack).map_err(|e| {
+            CallError::Execution { code: "serialize".into(), message: e.to_string() }
+        })?;
+        let sha = hex(&Sha256::digest(payload.as_bytes()));
         Ok(ToolOutput {
-            result: json!({
-                "pack": {
-                    "id": id,
-                    "sha256": stored_sha,
-                    "file": pack_path.file_name().and_then(|name| name.to_str()).unwrap_or_default(),
-                },
-                "status": status,
-                "items": items,
-                "gaps": result.get("gaps").cloned().unwrap_or_else(|| json!([])),
-                "deduplicated": pack.deduplicated,
-            }),
+            result,
             files,
+            reads,
+            read_ops,
+            commit: Some(PackCommit {
+                kind: "evidence".into(),
+                sha256: sha,
+                items: pack.items.len(),
+                bytes: payload.len(),
+                payload,
+                file_name,
+            }),
         })
     }
 
     fn verify(&mut self, input: &CallInput) -> Result<ToolOutput, CallError> {
         let id = input.pack_id.unwrap_or(self.ledger.packs.len());
-        if let Some(record) = self.ledger.packs.get(id.saturating_sub(1))
-            && record.kind != "evidence" {
-                return Err(invalid(
-                    "verify revalidates evidence packs; workflow packs are hash-checked at selection",
-                ));
-            }
         let pack = self
             .load_pack(input.pack_id)
             .map_err(|message| invalid(&message))?;
@@ -1085,14 +1458,23 @@ impl Session {
                 message: error.to_string(),
             }
         })?;
-        let id = input.pack_id.unwrap_or(self.ledger.packs.len());
+        // Revalidation re-opens every pack item file: honest read accounting.
+        let mut reads = Vec::new();
+        let mut read_ops = 0usize;
+        for item in &pack.items {
+            let path = item.relative_path.to_string_lossy().replace('\\', "/");
+            reads.push(path.clone());
+            read_ops += 1;
+        }
+        // Current validity: a failed revalidation clears the persisted
+        // verified state; the historical verification event stays in history.
         let clean = gaps.is_empty();
-        if clean
-            && let Some(record) = self.ledger.packs.get_mut(id.saturating_sub(1)) {
-                record.verified = true;
-            }
-        let gaps_value = serde_json::to_value(&gaps)
-            .map_err(|e| CallError::Execution { code: "serialize".into(), message: e.to_string() })?;
+        if let Some(record) = self.ledger.packs.get_mut(id.saturating_sub(1)) {
+            record.verified = clean;
+        }
+        let gaps_value = serde_json::to_value(&gaps).map_err(|e| {
+            CallError::Execution { code: "serialize".into(), message: e.to_string() }
+        })?;
         Ok(ToolOutput {
             result: json!({
                 "pack_id": id,
@@ -1100,6 +1482,9 @@ impl Session {
                 "gaps": gaps_value,
             }),
             files: Vec::new(),
+            reads,
+            read_ops,
+            commit: None,
         })
     }
 
@@ -1108,9 +1493,9 @@ impl Session {
         if id == 0 || id > self.ledger.packs.len() {
             return Err(format!("pack {id} does not exist in this session"));
         }
+        let record = &self.ledger.packs[id - 1];
         let packs_dir = self.dir.join(PACKS_DIR);
-        let stem = self.ledger.packs[id - 1].id;
-        let suffix = format!("-{stem}.json");
+        let suffix = format!("-{}.json", record.id);
         let mut entries = fs::read_dir(&packs_dir)
             .map_err(|error| error.to_string())?
             .flatten()
@@ -1122,7 +1507,16 @@ impl Session {
             if text.ends_with(&suffix) {
                 let content = fs::read_to_string(packs_dir.join(text))
                     .map_err(|error| error.to_string())?;
-                return serde_json::from_str(&content).map_err(|error| error.to_string());
+                // Pack identity: the file contents must match the recorded
+                // SHA-256; a mismatch is tamper, fail closed.
+                let actual = hex(&Sha256::digest(content.as_bytes()));
+                if actual != record.sha256 {
+                    return Err(format!(
+                        "pack file {text} does not match its recorded identity; refusing to load a tampered pack"
+                    ));
+                }
+                return serde_json::from_str(&content)
+                    .map_err(|error| error.to_string());
             }
         }
         Err(format!("pack file for id {id} is missing"))
@@ -1133,24 +1527,46 @@ impl Session {
         if question.trim().is_empty() {
             return Err(invalid("workflow requires a non-empty question"));
         }
+        // Engine-managed work draws from the *remaining* session budget: no
+        // invocation re-grants a full pool. Internal calls share the frozen
+        // 6-call pool with external calls; reads and files draw from the
+        // remaining distinct-file budgets.
+        let remaining_calls = MAX_CALLS
+            .saturating_sub(self.ledger.calls_used)
+            .saturating_sub(self.ledger.internal_calls);
+        if remaining_calls == 0 {
+            return Err(CallError::Execution {
+                code: "no_calls_left".into(),
+                message: "no call budget remains for engine-managed work".to_owned(),
+            });
+        }
+        let remaining_reads = MAX_DISTINCT_READS.saturating_sub(self.ledger.read_files.len());
         let budget = WorkflowBudget {
-            max_rounds: 3,
-            max_tool_calls: 6,
-            max_files: 32,
-            max_source_reads: 32,
-            hybrid_quota: 4,
-            fts_quota: 2,
+            max_rounds: MAX_ROUNDS.saturating_sub(self.ledger.rounds_used).max(1),
+            max_tool_calls: remaining_calls,
+            max_files: remaining_reads.max(1),
+            max_source_reads: remaining_reads.max(1),
+            hybrid_quota: remaining_calls.min(4),
+            fts_quota: remaining_calls.min(2),
             ..WorkflowBudget::default()
         };
         let root = self.ledger.root.clone();
         let engine = ZvecGrep::new();
         let mut source = source::EngineSource::new(engine, root.clone());
         source::enable_symbols(&mut source);
-        let outcome = workflow::run(&mut source, &root, &question, budget).map_err(|message| {
-            CallError::Execution {
-                code: "workflow".into(),
-                message,
-            }
+        let outcome = match &input.plan {
+            Some(plan) => workflow::run_with_plan(
+                &mut source,
+                &root,
+                &question,
+                budget.clone(),
+                plan,
+            ),
+            None => workflow::run(&mut source, &root, &question, budget.clone()),
+        }
+        .map_err(|message| CallError::Execution {
+            code: "workflow".into(),
+            message,
         })?;
         let WorkflowOutcome {
             definition,
@@ -1175,38 +1591,39 @@ impl Session {
             "stats": serde_json::to_value(stats).unwrap_or(Value::Null),
             "stages": serde_json::to_value(stages).unwrap_or(Value::Null),
             "internal_accounting": {
-                "note": "engine-internal reads and ranking are not delivered tool content; they are reported here for explicit accounting",
+                "note": "engine-internal calls and reads draw from the same cumulative session pool; internal reads are not delivered tool content and are reported here for explicit accounting",
                 "tool_calls": stats.tool_calls,
                 "source_reads": stats.source_reads,
                 "files_seen": stats.files_seen,
                 "ranked_content_bytes": stats.ranked_content_bytes,
+                "budget_granted": {
+                    "max_tool_calls": budget.max_tool_calls,
+                    "max_source_reads": budget.max_source_reads,
+                    "max_files": budget.max_files,
+                },
             },
         });
-        let serialized = serde_json::to_string(&result)
-            .map_err(|e| CallError::Execution { code: "serialize".into(), message: e.to_string() })?;
-        if serialized.len() + self.ledger.delivered_bytes + 2048 > MAX_DELIVERED_BYTES {
-            return Err(CallError::Execution {
-                code: "delivered_budget_exceeded".into(),
-                message: "the workflow outcome does not fit the remaining 64 KiB delivered-content budget; call consumed, nothing stored".to_owned(),
-            });
-        }
+        self.ledger.internal_calls += stats.tool_calls;
+        let serialized = serde_json::to_string(&result).map_err(|e| {
+            CallError::Execution { code: "serialize".into(), message: e.to_string() }
+        })?;
         let sha = hex(&Sha256::digest(serialized.as_bytes()));
         let id = self.ledger.packs.len() + 1;
-        let packs_dir = self.dir.join(PACKS_DIR);
-        fs::create_dir_all(&packs_dir)
-            .map_err(|e| CallError::Execution { code: "io".into(), message: e.to_string() })?;
-        let pack_path = packs_dir.join(format!("pack-workflow-{id}.json"));
-        fs::write(&pack_path, serialized.as_bytes())
-            .map_err(|e| CallError::Execution { code: "io".into(), message: e.to_string() })?;
-        self.ledger.packs.push(PackRecord {
-            id,
-            sha256: sha,
-            items: selected.len(),
-            bytes: serialized.len(),
-            verified: false,
-            kind: "workflow".into(),
-        });
-        Ok(ToolOutput { result, files })
+        let file_name = format!("pack-workflow-{id}.json");
+        Ok(ToolOutput {
+            result,
+            files: files.clone(),
+            reads: files,
+            read_ops: stats.source_reads.min(MAX_READ_OPS),
+            commit: Some(PackCommit {
+                kind: "workflow".into(),
+                sha256: sha,
+                items: selected.len(),
+                bytes: serialized.len(),
+                payload: serialized,
+                file_name,
+            }),
+        })
     }
 
     /// Marks the session terminal and writes the final receipt.
@@ -1259,19 +1676,26 @@ impl Session {
             "terminal": self.ledger.terminal,
             "budget": {
                 "calls_used": self.ledger.calls_used,
+                "internal_calls": self.ledger.internal_calls,
                 "calls_max": MAX_CALLS,
                 "rounds_used": self.ledger.rounds_used,
                 "rounds_max": MAX_ROUNDS,
                 "distinct_files": self.ledger.distinct_files.len(),
                 "distinct_files_max": MAX_DISTINCT_FILES,
+                "read_files": self.ledger.read_files.len(),
+                "read_files_max": MAX_DISTINCT_READS,
+                "read_ops": self.ledger.read_ops,
+                "read_ops_max": MAX_READ_OPS,
                 "delivered_bytes": self.ledger.delivered_bytes,
                 "delivered_bytes_max": MAX_DELIVERED_BYTES,
                 "pack_bytes_max": MAX_PACK_BYTES,
                 "pack_items_max": MAX_PACK_ITEMS,
             },
             "files": self.ledger.distinct_files,
+            "read_files": self.ledger.read_files,
             "packs": self.ledger.packs,
             "history": self.ledger.history,
+            "exclusions": self.ledger.exclusions,
             "artifacts": {
                 "trace_sha256": trace_sha,
                 "packs": pack_hashes,
@@ -1284,13 +1708,27 @@ impl Session {
     }
 }
 
-fn hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write as _;
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
+/// Surface gap codes that did not open the file at all.
+mod surface_gap_codes {
+    pub use zg_engine::api::evidence::EvidenceGapCode as Code;
+    pub const Missing: Code = Code::Missing;
+    pub const OutOfRoot: Code = Code::OutOfRoot;
+    pub const Traversal: Code = Code::Traversal;
+    pub const AbsolutePath: Code = Code::AbsolutePath;
+    pub const InvalidProject: Code = Code::InvalidProject;
+    pub const Symlink: Code = Code::Symlink;
+}
+
+fn envelope_ok_verified(text: &str) -> bool {
+    serde_json::from_str::<Value>(text)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("result")
+                .and_then(|result| result.get("verified"))
+                .and_then(Value::as_bool)
+        })
+        .unwrap_or(false)
 }
 
 fn unix_now() -> u64 {
@@ -1331,6 +1769,15 @@ fn file_sha256(path: &Path) -> Option<String> {
     Some(hex(&Sha256::digest(&bytes)))
 }
 
+fn hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
 /// Resolves a workspace-relative path under the root, fail-closed against
 /// absolute paths, traversal, out-of-root targets and symlinks.
 ///
@@ -1353,10 +1800,7 @@ pub fn resolve_under_root(root: &Path, relative: &str) -> Result<PathBuf, String
             if !resolved.starts_with(root) {
                 return Err(format!("path {relative} resolves outside the workspace"));
             }
-            Ok(resolved
-                .strip_prefix(root)
-                .unwrap_or(&resolved)
-                .to_path_buf())
+            Ok(resolved.strip_prefix(root).unwrap_or(&resolved).to_path_buf())
         }
         Err(error) => Err(format!("cannot resolve {relative}: {error}")),
     }
@@ -1398,13 +1842,11 @@ pub fn parse_span_requests(value: &Value) -> Result<Vec<SpanRequest>, String> {
                 let start_line = address
                     .get("start_line")
                     .and_then(Value::as_u64)
-                    .ok_or_else(|| "lines address needs start_line".to_owned())?
-                    as usize;
+                    .ok_or_else(|| "lines address needs start_line".to_owned())? as usize;
                 let end_line = address
                     .get("end_line")
                     .and_then(Value::as_u64)
-                    .ok_or_else(|| "lines address needs end_line".to_owned())?
-                    as usize;
+                    .ok_or_else(|| "lines address needs end_line".to_owned())? as usize;
                 surface::SpanAddress::Lines {
                     start_line,
                     end_line,
@@ -1414,13 +1856,11 @@ pub fn parse_span_requests(value: &Value) -> Result<Vec<SpanRequest>, String> {
                 let start = address
                     .get("start")
                     .and_then(Value::as_u64)
-                    .ok_or_else(|| "bytes address needs start".to_owned())?
-                    as usize;
+                    .ok_or_else(|| "bytes address needs start".to_owned())? as usize;
                 let end = address
                     .get("end")
                     .and_then(Value::as_u64)
-                    .ok_or_else(|| "bytes address needs end".to_owned())?
-                    as usize;
+                    .ok_or_else(|| "bytes address needs end".to_owned())? as usize;
                 surface::SpanAddress::Bytes { start, end }
             }
             other => return Err(format!("unknown address mode {other}")),

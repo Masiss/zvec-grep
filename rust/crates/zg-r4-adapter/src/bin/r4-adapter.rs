@@ -25,6 +25,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use serde_json::Value;
 
+use zg_engine::rag::workflow::AgentPlan;
 use zg_r4_adapter::{CallInput, Profile, Session, Tool, parse_span_requests};
 
 #[derive(Parser)]
@@ -120,6 +121,10 @@ enum ToolCommand {
     Workflow {
         #[arg(long)]
         question: String,
+        /// Preregistered blind plan (JSON file with an AgentPlan); omitted
+        /// runs the question-only deterministic plan.
+        #[arg(long)]
+        plan_file: Option<String>,
         #[arg(long)]
         round: Option<usize>,
     },
@@ -215,6 +220,15 @@ fn run_call(dir: &std::path::Path, tool: ToolCommand) -> ExitCode {
     }
 }
 
+fn load_plan(path: Option<&str>) -> Result<Option<AgentPlan>, String> {
+    let Some(path) = path else { return Ok(None); };
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| format!("cannot read plan {path}: {error}"))?;
+    let plan: AgentPlan = serde_json::from_str(&text)
+        .map_err(|error| format!("invalid plan JSON in {path}: {error}"))?;
+    Ok(Some(plan))
+}
+
 fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
     Ok(match tool {
         ToolCommand::Search {
@@ -236,6 +250,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             requests: Vec::new(),
             pack_id: None,
             question: None,
+            plan: None,
         },
         ToolCommand::Symbol { name, round } => CallInput {
             tool: Tool::Symbol,
@@ -250,6 +265,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             requests: Vec::new(),
             pack_id: None,
             question: None,
+            plan: None,
         },
         ToolCommand::Facts {
             path,
@@ -268,6 +284,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             requests: Vec::new(),
             pack_id: None,
             question: None,
+            plan: None,
         },
         ToolCommand::Evidence { requests, round } => {
             let text = if requests == "-" {
@@ -295,6 +312,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
                 requests: parse_span_requests(&value)?,
                 pack_id: None,
                 question: None,
+                plan: None,
             }
         }
         ToolCommand::Verify { pack_id, round } => CallInput {
@@ -310,8 +328,13 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             requests: Vec::new(),
             pack_id,
             question: None,
+            plan: None,
         },
-        ToolCommand::Workflow { question, round } => CallInput {
+        ToolCommand::Workflow {
+            question,
+            plan_file,
+            round,
+        } => CallInput {
             tool: Tool::Workflow,
             round: round.unwrap_or(0),
             query: None,
@@ -324,6 +347,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             requests: Vec::new(),
             pack_id: None,
             question: Some(question),
+            plan: load_plan(plan_file.as_deref())?,
         },
         ToolCommand::Status => CallInput {
             tool: Tool::Status,
@@ -338,6 +362,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             requests: Vec::new(),
             pack_id: None,
             question: None,
+            plan: None,
         },
     })
 }

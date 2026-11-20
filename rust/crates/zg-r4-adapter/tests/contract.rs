@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use zg_r4_adapter::{
-    CallInput, Profile, Session, Tool, MAX_CALLS, MAX_DISTINCT_FILES, MAX_DELIVERED_BYTES,
+    CallInput, Profile, Session, Tool, MAX_CALLS, MAX_DISTINCT_READS, MAX_DELIVERED_BYTES,
+    PACKS_DIR,
 };
 
 // ---------------------------------------------------------------- fixtures
@@ -140,6 +141,7 @@ fn input(tool: Tool, round: usize) -> CallInput {
         requests: Vec::new(),
         pack_id: None,
         question: None,
+        plan: None,
     }
 }
 
@@ -542,7 +544,7 @@ fn distinct_file_budget_drops_new_files_with_explicit_markers() {
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().to_path_buf();
     fs::create_dir_all(root.join("Many")).expect("many dir");
-    for index in 0..(MAX_DISTINCT_FILES + 5) {
+    for index in 0..(MAX_DISTINCT_READS + 5) {
         fs::write(
             root.join("Many").join(format!("file{index:03}.txt")),
             format!("token{index} needle\n"),
@@ -558,17 +560,21 @@ fn distinct_file_budget_drops_new_files_with_explicit_markers() {
 
     assert_eq!(envelope["ok"], json!(true));
     let items = envelope["result"]["items"].as_array().expect("items");
-    assert!(items.len() > MAX_DISTINCT_FILES);
-    let dropped = items
-        .iter()
-        .filter(|item| item.get("dropped").is_some())
-        .count();
-    assert!(dropped >= 5, "files beyond the budget must be dropped");
+    // The read budget caps *reads* at 32 distinct files; items beyond the
+    // cap are refused before hashing and reported as explicit gaps.
+    assert_eq!(items.len(), MAX_DISTINCT_READS);
     let gaps = envelope["result"]["gaps"].as_array().expect("gaps");
+    assert!(
+        gaps.len() >= 5,
+        "files beyond the read budget must produce explicit gaps, got {} items / {} gaps",
+        items.len(),
+        gaps.len()
+    );
     assert!(gaps
         .iter()
         .any(|gap| gap["code"] == json!("file_budget_exceeded")));
-    assert_eq!(session.ledger.distinct_files.len(), MAX_DISTINCT_FILES);
+    assert_eq!(session.ledger.read_files.len(), MAX_DISTINCT_READS);
+    assert!(session.ledger.delivered_bytes <= MAX_DELIVERED_BYTES);
 }
 
 #[test]
@@ -595,13 +601,22 @@ fn workflow_arm_b_reports_internal_accounting_and_abstains_cleanly() {
     let mut session = fixture.session(Profile::ArmB, "D01");
 
     // A question with no recognizable code tokens abstains without evidence.
+    // The abstain session is separate: engine-managed internals draw from
+    // the shared call pool, so a wasted invocation leaves less for the next
+    // by design (no budget re-grant across invocations).
+    let mut abstain_session = fixture.session(Profile::ArmB, "DAB");
     let mut empty = input(Tool::Workflow, 1);
     empty.question = Some("thời tiết hôm nay thế nào".into());
-    let envelope = call(&mut session, empty);
+    let envelope = call(&mut abstain_session, empty);
     assert_eq!(envelope["ok"], json!(true));
     assert_eq!(
         envelope["result"]["abstain"]["reason"],
         json!("no_evidence")
+    );
+    assert!(
+        abstain_session.ledger.calls_used + abstain_session.ledger.internal_calls
+            <= MAX_CALLS,
+        "abstain work stays inside the shared pool"
     );
 
     // A real question runs the deterministic loop with explicit accounting.
@@ -619,7 +634,11 @@ fn workflow_arm_b_reports_internal_accounting_and_abstains_cleanly() {
     for span in selected {
         assert!(span["source_sha256"].as_str().expect("sha").len() == 64);
     }
-    assert_eq!(session.ledger.calls_used, 2);
+    assert_eq!(session.ledger.calls_used, 1);
+    assert!(
+        session.ledger.calls_used + session.ledger.internal_calls <= MAX_CALLS,
+        "engine-managed work never exceeds the shared six-call pool"
+    );
 }
 
 #[test]
@@ -893,7 +912,7 @@ fn evidence_refused_for_budget_stores_no_phantom_pack() {
     // Spend most of the delivered budget with two ~20 KiB span packs.
     for _ in 0..2 {
         let mut wide = input(Tool::Evidence, 1);
-        wide.requests = vec![span_request("Core/Wide.cs", 3, 280)];
+        wide.requests = vec![span_request("Core/Wide.cs", 3, 290)];
         assert_eq!(call(&mut session, wide)["ok"], json!(true));
     }
     assert!(session.ledger.delivered_bytes > 30 * 1024);
@@ -901,7 +920,7 @@ fn evidence_refused_for_budget_stores_no_phantom_pack() {
 
     // A third pack that cannot fit is refused and leaves no phantom record.
     let mut third = input(Tool::Evidence, 1);
-    third.requests = vec![span_request("Core/Wide.cs", 3, 280)];
+    third.requests = vec![span_request("Core/Wide.cs", 3, 290)];
     let envelope = call(&mut session, third);
     assert_eq!(envelope["result"]["code"], json!("delivered_budget_exceeded"));
     assert_eq!(session.ledger.packs.len(), 2);
@@ -1142,4 +1161,211 @@ fn session_exclusion_markers_are_configuration_not_engine_behavior() {
     assert_eq!(envelope["result"]["facts"]["selected"], json!(false));
     assert_eq!(envelope["result"]["facts"]["authority"], json!("excluded_variant"));
     assert_eq!(session.ledger.exclusions, vec!["proc_old".to_owned()]);
+}
+
+// ----------------------------- post-audit invariant controls (schema 2)
+
+#[test]
+fn crashed_in_flight_call_invalidates_session_without_budget_recovery() {
+    let fixture = Fixture::new();
+    let binary = env!("CARGO_BIN_EXE_r4-adapter");
+    let root = fixture.root();
+    let base = root
+        .parent()
+        .unwrap()
+        .join(format!("r4a-crash2-{}", root.file_name().unwrap().to_string_lossy()));
+    fs::create_dir_all(&base).expect("base");
+    let root_arg = root.to_str().unwrap();
+
+    let mut invalidated = 0;
+    for attempt in 0..12 {
+        let dir = base.join(format!("s{attempt}"));
+        cli(binary, &[
+            "session", "new", "--dir", dir.to_str().unwrap(), "--root", root_arg,
+            "--profile", "arm-c", "--case", "CRASH2",
+        ]);
+        // Kill at varying points across the reservation/execution window.
+        let mut child = std::process::Command::new(binary)
+            .args([
+                "call", dir.to_str().unwrap(),
+                "search", "--query", "SaveChanges", "--mode", "rg",
+            ])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn");
+        std::thread::sleep(std::time::Duration::from_millis(3 * attempt));
+        let _ = child.kill();
+        let output = child.wait_with_output().expect("collect");
+        let delivered_full = output.stdout.len() > 500;
+
+        let mut session = Session::open(&dir).expect("ledger survives");
+        match session.ledger.terminal.as_deref() {
+            Some(reason) if reason.contains("invalidated_by_crash") => {
+                invalidated += 1;
+                // Budget consumed, never recovered.
+                assert_eq!(session.ledger.calls_used, 1);
+                assert!(session.ledger.in_flight.is_some());
+                // Further investigation is refused; the crash marker is
+                // not a silent reset.
+                let envelope = call(&mut session, input(Tool::Search, 1));
+                assert_eq!(envelope["result"]["code"], json!("terminal"));
+                assert_eq!(session.ledger.calls_used, 1);
+            }
+            _ => {
+                // Either the crash preceded reservation (nothing consumed,
+                // session usable) or it landed after the commit but before
+                // publication (call consumed, content not delivered,
+                // over-accounting is the fail-closed direction).
+                assert!(session.ledger.in_flight.is_none());
+                match session.ledger.calls_used {
+                    0 => {}
+                    1 => {
+                        // Committed but never published: the budget stays
+                        // consumed and the session continues honestly.
+                    }
+                    other => panic!("unexpected calls_used {other}"),
+                }
+                let mut search = input(Tool::Search, 1);
+                search.mode = Some("rg".into());
+                search.query = Some("SaveChanges".into());
+                let envelope = call(&mut session, search);
+                assert!(
+                    envelope["ok"] == json!(true)
+                        || envelope["result"]["code"] == json!("no_calls_left")
+                );
+            }
+        }
+        assert!(session.ledger.delivered_bytes <= MAX_DELIVERED_BYTES);
+        let _ = delivered_full;
+    }
+    // At least one kill must have landed after reservation across the sweep.
+    assert!(invalidated >= 1, "sweep should cover the in-flight window");
+}
+
+#[test]
+fn engine_managed_work_never_regrants_the_shared_call_pool() {
+    let fixture = Fixture::new();
+    let mut session = fixture.session(Profile::ArmB, "D09");
+    let mut first = input(Tool::Workflow, 1);
+    first.question = Some(
+        "EmployeeEditThongTinCaNhan cập nhật FullName Email và SaveChanges ở đâu".to_owned(),
+    );
+    let envelope = call(&mut session, first);
+    assert_eq!(envelope["ok"], json!(true));
+    let used = session.ledger.calls_used + session.ledger.internal_calls;
+
+    // A second invocation only receives what is left of the shared pool and
+    // is refused once the pool is exhausted; it can never re-grant six calls.
+    let mut second = input(Tool::Workflow, 1);
+    second.question = Some("Context Employees Full Name SaveChanges".to_owned());
+    let envelope = call(&mut session, second);
+    let remaining = MAX_CALLS.saturating_sub(used);
+    if remaining == 0 {
+        assert_eq!(envelope["ok"], json!(false));
+        assert_eq!(
+            envelope["result"]["code"],
+            json!("no_calls_left"),
+            "shared pool must be exhausted, got {envelope}"
+        );
+    } else {
+        let granted = envelope["result"]["internal_accounting"]["budget_granted"]
+            ["max_tool_calls"]
+            .as_u64()
+            .expect("granted budget");
+        assert!(
+            granted <= remaining as u64,
+            "second invocation granted {granted} > remaining {remaining}"
+        );
+    }
+    assert!(
+        session.ledger.calls_used + session.ledger.internal_calls <= MAX_CALLS,
+        "cumulative external+internal calls must stay within the six-call pool"
+    );
+}
+
+#[test]
+fn tampered_pack_file_fails_closed_on_verify() {
+    let fixture = Fixture::new();
+    let mut session = fixture.session(Profile::ArmC, "D08");
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![span_request("Core/Service.cs", 9, 14)];
+    let envelope = call(&mut session, evidence);
+    assert_eq!(envelope["ok"], json!(true));
+    let pack_file = envelope["result"]["pack"]["file"].as_str().expect("file").to_owned();
+
+    // Tamper with the persisted pack: identity mismatch must refuse verify.
+    let path = session.dir.join(PACKS_DIR).join(&pack_file);
+    let text = fs::read_to_string(&path).expect("pack");
+    assert!(text.contains("employee"), "fixture span must contain a stable token");
+    fs::write(&path, text.replace("employee", "employer")).expect("tamper");
+    let mut verify = input(Tool::Verify, 1);
+    verify.pack_id = Some(1);
+    let envelope = call(&mut session, verify);
+    assert_eq!(envelope["ok"], json!(false));
+    assert!(
+        envelope["result"]["message"]
+            .as_str()
+            .expect("message")
+            .contains("tampered")
+    );
+    // The ledger never recorded a verification for the tampered pack.
+    assert!(!session.ledger.packs[0].verified);
+}
+
+#[test]
+fn budget_block_matches_bytes_actually_delivered() {
+    let fixture = Fixture::new();
+    let mut session = fixture.session(Profile::ArmC, "D06");
+    let before = session.ledger.delivered_bytes;
+    let mut search = input(Tool::Search, 1);
+    search.mode = Some("rg".into());
+    search.query = Some("SaveChanges".into());
+    let text = session.call(search).expect("call");
+    let after = session.ledger.delivered_bytes;
+    assert_eq!(after - before, text.len());
+    // The envelope's own budget block is consistent with reality.
+    let envelope: Value = serde_json::from_str(&text).expect("envelope");
+    let shown_left = envelope["budget"]["delivered_bytes_left"]
+        .as_u64()
+        .expect("shown remaining") as usize;
+    assert_eq!(
+        shown_left,
+        MAX_DELIVERED_BYTES.saturating_sub(after),
+        "remaining budget shown to the answerer must match actual delivery"
+    );
+}
+
+#[test]
+fn workflow_plan_mode_uses_preregistered_plan() {
+    let fixture = Fixture::new();
+    let mut session = fixture.session(Profile::ArmB, "D03");
+    let plan = zg_engine::rag::workflow::AgentPlan {
+        queries: vec!["SaveChanges".to_owned(), "FullName".to_owned()],
+        symbols: vec!["EmployeeEditThongTinCaNhan".to_owned()],
+        scopes: vec![],
+        terms: Vec::new(),
+    };
+    let mut question = input(Tool::Workflow, 1);
+    question.question = Some(
+        "EmployeeEditThongTinCaNhan cập nhật FullName Email và SaveChanges ở đâu".to_owned(),
+    );
+    question.plan = Some(plan);
+    let envelope = call(&mut session, question);
+    assert_eq!(envelope["ok"], json!(true));
+    // The plan is recorded in the define stage; on this fixture the plan's
+    // hybrid route has no index (honest engine gap), so the invariant under
+    // test is provenance and accounting, not selected bytes. The
+    // selected-evidence behavior of plan mode on the real corpus is covered
+    // by the arm-b identity receipt.
+    let stages = envelope["result"]["stages"].as_array().expect("stages");
+    assert!(stages[0]["note"]
+        .as_str()
+        .expect("define note")
+        .contains("plan_queries=2 plan_symbols=1"));
+    assert_eq!(session.ledger.calls_used, 1);
+    assert!(session.ledger.internal_calls >= 1);
+    assert!(
+        session.ledger.calls_used + session.ledger.internal_calls <= MAX_CALLS
+    );
 }
