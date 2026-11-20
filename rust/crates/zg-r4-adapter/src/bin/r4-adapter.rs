@@ -226,13 +226,16 @@ fn run_call(dir: &std::path::Path, tool: ToolCommand) -> ExitCode {
     }
 }
 
-fn load_plan(path: Option<&str>) -> Result<Option<AgentPlan>, String> {
-    let Some(path) = path else { return Ok(None); };
-    let text = std::fs::read_to_string(path)
+fn load_plan(path: Option<&str>) -> Result<(Option<AgentPlan>, Option<String>), String> {
+    let Some(path) = path else { return Ok((None, None)); };
+    let bytes = std::fs::read(path)
         .map_err(|error| format!("cannot read plan {path}: {error}"))?;
+    let text = String::from_utf8(bytes.clone())
+        .map_err(|_| format!("plan {path} is not valid UTF-8"))?;
     let plan: AgentPlan = serde_json::from_str(&text)
         .map_err(|error| format!("invalid plan JSON in {path}: {error}"))?;
-    Ok(Some(plan))
+    let digest = zg_r4_adapter::sha256_hex(&bytes);
+    Ok((Some(plan), Some(digest)))
 }
 
 fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
@@ -261,6 +264,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             pack_id: None,
             question: None,
             plan: None,
+            plan_sha256: None,
         },
         ToolCommand::Symbol { name, round } => CallInput {
             tool: Tool::Symbol,
@@ -278,6 +282,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             pack_id: None,
             question: None,
             plan: None,
+            plan_sha256: None,
         },
         ToolCommand::Facts {
             path,
@@ -299,6 +304,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             pack_id: None,
             question: None,
             plan: None,
+            plan_sha256: None,
         },
         ToolCommand::Evidence { requests, round } => {
             let text = if requests == "-" {
@@ -329,6 +335,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
                 pack_id: None,
                 question: None,
                 plan: None,
+            plan_sha256: None,
             }
         }
         ToolCommand::Verify { pack_id, round } => CallInput {
@@ -347,12 +354,15 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             pack_id,
             question: None,
             plan: None,
+            plan_sha256: None,
         },
         ToolCommand::Workflow {
             question,
             plan_file,
             round,
-        } => CallInput {
+        } => {
+            let (plan_value, plan_digest) = load_plan(plan_file.as_deref())?;
+            CallInput {
             tool: Tool::Workflow,
             round: round.unwrap_or(0),
             query: None,
@@ -367,8 +377,10 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             requests: Vec::new(),
             pack_id: None,
             question: Some(question),
-            plan: load_plan(plan_file.as_deref())?,
-        },
+            plan: plan_value,
+            plan_sha256: plan_digest,
+            }
+        }
         ToolCommand::Status => CallInput {
             tool: Tool::Status,
             round: 0,
@@ -385,6 +397,7 @@ fn build_input(tool: ToolCommand) -> Result<CallInput, String> {
             pack_id: None,
             question: None,
             plan: None,
+            plan_sha256: None,
         },
     })
 }

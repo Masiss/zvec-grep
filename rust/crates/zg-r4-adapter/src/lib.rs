@@ -319,6 +319,9 @@ pub struct CallInput {
     /// Preregistered blind plan for the arm-b workflow tool, when the
     /// protocol supplies one (fresh-blind or frozen reproduction mode).
     pub plan: Option<AgentPlan>,
+    /// SHA-256 of the exact plan file bytes, recorded before execution so the
+    /// receipt can prove which frozen artifact produced the pack.
+    pub plan_sha256: Option<String>,
 }
 
 /// A loaded pack, typed by its family so verification stays honest for both.
@@ -671,7 +674,7 @@ impl Session {
         let execution = self.execute(tool, &input, call_index);
         let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
 
-        let (mut ok, result, files, reads, read_ops, commit) = match execution {
+        let (mut ok, mut result, files, reads, read_ops, mut commit) = match execution {
             Ok(output) => {
                 // Delivered-file budget: content from new files beyond the
                 // cap is dropped with an explicit gap before serialization.
@@ -689,30 +692,37 @@ impl Session {
                 None,
             ),
         };
-        let mut read_ops = read_ops;
-        let mut reads = reads;
-        let _ = &mut reads;
-
+        // Exact accounting. Tools admit reads before opening source, so this
+        // block only ever records the truth; it never clamps a counter to
+        // manufacture a passing budget. If a tool nevertheless reports more
+        // reads than were admitted, the session fails closed: the reads
+        // happened (they are counted in full) and the run is invalidated.
         for file in &files {
             if !self.ledger.distinct_files.contains(file) {
                 self.ledger.distinct_files.push(file.clone());
             }
         }
-        for file in &reads {
-            if !self.ledger.read_files.contains(file) {
-                self.ledger.read_files.push(file.clone());
-            }
-        }
-        if read_ops > MAX_READ_OPS.saturating_sub(self.ledger.read_ops) {
-            // Fail closed: this call read more than the remaining read
-            // budget allows. The reads happened, so they are accounted at
-            // their true value and the session is capped for further reads.
-            read_ops = MAX_READ_OPS.saturating_sub(self.ledger.read_ops).max(read_ops);
-            reads.clear();
-            read_ops = read_ops.max(1);
+        let new_reads: Vec<String> = reads
+            .iter()
+            .filter(|file| !self.ledger.read_files.contains(file))
+            .cloned()
+            .collect();
+        let over_ops = read_ops > self.remaining_read_ops();
+        let over_files = new_reads.len() > self.remaining_read_files();
+        for file in &new_reads {
+            self.ledger.read_files.push(file.clone());
         }
         self.ledger.read_ops += read_ops;
-        read_ops = self.ledger.read_ops;
+        let read_ops = self.ledger.read_ops;
+        if (over_ops || over_files) && ok {
+            self.ledger.terminal = Some("read_budget_violation".to_owned());
+            ok = false;
+            result = json!({
+                "code": "read_budget_violation",
+                "detail": "operation performed source reads it was not admitted for; run invalidated",
+            });
+            commit = None;
+        }
 
         let session_id = self.ledger.session_id.clone();
         let case = self.ledger.case.clone();
@@ -896,6 +906,37 @@ impl Session {
         self.save_ledger()?;
         self.append_trace(&envelope)?;
         Ok(text)
+    }
+
+    fn remaining_read_ops(&self) -> usize {
+        MAX_READ_OPS.saturating_sub(self.ledger.read_ops)
+    }
+
+    fn remaining_read_files(&self) -> usize {
+        MAX_DISTINCT_READS.saturating_sub(self.ledger.read_files.len())
+    }
+
+    /// Admits source reads BEFORE any file is opened. Both budgets must be
+    /// honoured: distinct source files (frozen R0 `<=32`) and total read
+    /// operations (defensive `<=64`). No path may perform a read it has not
+    /// been admitted for, and no counter may be clamped afterwards.
+    fn admit_reads(
+        &self,
+        ops: usize,
+        new_files: usize,
+        reason: &str,
+    ) -> Result<(), CallError> {
+        if ops > self.remaining_read_ops() || new_files > self.remaining_read_files() {
+            return Err(CallError::Execution {
+                code: "read_budget_exceeded".into(),
+                message: format!(
+                    "{reason} needs {ops} read op(s) over {new_files} new file(s), but only {} op(s) / {} file(s) remain; refused before opening any source",
+                    self.remaining_read_ops(),
+                    self.remaining_read_files()
+                ),
+            });
+        }
+        Ok(())
     }
 
     fn remaining_with(&self, delivered_left: usize) -> Value {
@@ -1145,9 +1186,11 @@ impl Session {
                 match hashes.get(&path) {
                     Some(known) => Some(known.clone()),
                     None => {
-                        if self.ledger.read_files.contains(&path)
-                            || reads.contains(&path)
-                            || self.ledger.read_files.len() + reads.len() < MAX_DISTINCT_READS
+                        let known = self.ledger.read_files.contains(&path)
+                            || reads.contains(&path);
+                        if known
+                            || (self.ledger.read_files.len() + reads.len() < MAX_DISTINCT_READS
+                                && read_ops < self.remaining_read_ops())
                         {
                             let computed = fs::read(self.ledger.root.join(&item.relative_path))
                                 .ok()
@@ -1166,7 +1209,7 @@ impl Session {
                             gaps.push(json!({
                                 "code": AdapterGapCode::FileBudgetExceeded,
                                 "path": path,
-                                "detail": "32-file read budget reached; item dropped without reading this file",
+                                "detail": "source-read budget reached (32 distinct files / 64 read ops); item dropped without reading this file",
                             }));
                             continue;
                         }
@@ -1297,20 +1340,15 @@ impl Session {
         let root = self.ledger.root.clone();
         let relative = resolve_under_root(&root, &path).map_err(|message| invalid(&message))?;
         let display = relative.to_string_lossy().replace('\\', "/");
-        // Read accounting: the file is opened before parsing.
-        if !self.ledger.read_files.contains(&display)
-            && self.ledger.read_files.len() >= MAX_DISTINCT_READS
-        {
-            return Err(CallError::Execution {
-                code: "file_budget_exceeded".into(),
-                message: format!(
-                    "reading {display} would exceed the 32-file read budget; call consumed, no content delivered"
-                ),
-            });
-        }
-        let text = fs::read_to_string(root.join(&relative))
+        // Read admission happens before the file is opened; the bytes are read
+        // once and reused for both the text and the recorded identity.
+        let already_read = self.ledger.read_files.contains(&display);
+        self.admit_reads(1, usize::from(!already_read), "facts")?;
+        let bytes = fs::read(root.join(&relative))
             .map_err(|error| invalid(&format!("cannot read {path}: {error}")))?;
-        let sha = file_sha256(&root.join(&relative)).unwrap_or_default();
+        let sha = hex(&Sha256::digest(&bytes));
+        let text = String::from_utf8(bytes)
+            .map_err(|_| invalid(&format!("cannot read {path}: stream did not contain valid UTF-8")))?;
         let exclusions = self.ledger.exclusions.clone();
         let facts = facts::parse_facts(&display, &text, input.method.as_deref(), &exclusions)
             .map_err(|message| invalid(&message))?;
@@ -1384,27 +1422,34 @@ impl Session {
             max_items: MAX_PACK_ITEMS,
         };
 
-        // Read budget: requests for files beyond the read cap are dropped
+        // Read admission: every distinct file the assembler may open is
+        // admitted before any read, against BOTH the distinct-file and the
+        // read-operation budgets. Requests that cannot be admitted are dropped
         // with an explicit typed gap instead of being opened.
         let mut gaps = Vec::new();
         let mut admitted: Vec<String> = Vec::new();
+        let mut admitted_ops = 0usize;
         for request in &input.requests {
             let path = request
                 .relative_path
                 .to_string_lossy()
                 .replace('\\', "/");
-            if admitted.contains(&path) || self.ledger.read_files.contains(&path) {
-                admitted.push(path);
+            if admitted.contains(&path) {
                 continue;
             }
-            if self.ledger.read_files.len() + admitted.len() >= MAX_DISTINCT_READS {
+            let known = self.ledger.read_files.contains(&path);
+            let new_files = usize::from(!known);
+            if self.admit_reads(1, new_files, "evidence").is_err()
+                || admitted_ops + 1 > self.remaining_read_ops()
+            {
                 gaps.push(json!({
                     "code": AdapterGapCode::FileBudgetExceeded,
                     "path": path,
-                    "detail": "32-file read budget reached; span not requested",
+                    "detail": "source-read budget reached (32 distinct files / 64 read ops); span not requested",
                 }));
                 continue;
             }
+            admitted_ops += 1;
             admitted.push(path);
         }
         let spans: Vec<SpanRequest> = input
@@ -1437,8 +1482,10 @@ impl Session {
             }
             if !reads.contains(&path) {
                 reads.push(path.clone());
-                read_ops += 1;
             }
+            // Each served span is one open of its file, even when several
+            // spans share a path.
+            read_ops += 1;
             items.push(json!({
                 "project": item.project,
                 "path": path,
@@ -1467,8 +1514,10 @@ impl Session {
                     | surface_gap_codes::AbsolutePath | surface_gap_codes::InvalidProject | surface_gap_codes::Symlink
             );
             if opened && !reads.contains(&path) {
+                // A gap path that was opened but served no item still counts as
+                // a distinct read file; its open was admitted above. The op was
+                // already counted for the requested span.
                 reads.push(path.clone());
-                read_ops += 1;
             }
         }
         let engine_gaps = serde_json::to_value(&pack.gaps).map_err(|e| {
@@ -1523,6 +1572,33 @@ impl Session {
             .load_pack(input.pack_id)
             .map_err(|message| invalid(&message))?;
         let root = self.ledger.root.clone();
+        // Revalidation re-opens every pack span. Admit the whole operation
+        // before reading anything, so verification can never bypass the read
+        // budget by re-reading what an earlier call already opened.
+        let (verify_ops, verify_new_files) = match &payload {
+            PackPayload::Spans(pack) => {
+                let mut new_paths: Vec<String> = Vec::new();
+                for item in &pack.items {
+                    let path = item.relative_path.to_string_lossy().replace('\\', "/");
+                    if !self.ledger.read_files.contains(&path) && !new_paths.contains(&path) {
+                        new_paths.push(path);
+                    }
+                }
+                (pack.items.len(), new_paths.len())
+            }
+            PackPayload::Workflow(spans) => {
+                let mut new_paths: Vec<String> = Vec::new();
+                for span in spans {
+                    if !self.ledger.read_files.contains(&span.path)
+                        && !new_paths.contains(&span.path)
+                    {
+                        new_paths.push(span.path.clone());
+                    }
+                }
+                (spans.len(), new_paths.len())
+            }
+        };
+        self.admit_reads(verify_ops, verify_new_files, "verify")?;
         // Both pack families are revalidated against the live source. Evidence
         // packs re-check recorded bytes; workflow packs re-hash the selected
         // spans against their recorded source identity.
@@ -1681,7 +1757,15 @@ impl Session {
                 message: "no call budget remains for engine-managed work".to_owned(),
             });
         }
-        let remaining_reads = MAX_DISTINCT_READS.saturating_sub(self.ledger.read_files.len());
+        let remaining_reads = self
+            .remaining_read_files()
+            .min(self.remaining_read_ops());
+        if remaining_reads == 0 {
+            return Err(CallError::Execution {
+                code: "read_budget_exceeded".into(),
+                message: "no source-read budget remains for engine-managed work".to_owned(),
+            });
+        }
         let budget = WorkflowBudget {
             max_rounds: MAX_ROUNDS.saturating_sub(self.ledger.rounds_used).max(1),
             max_tool_calls: remaining_calls,
@@ -1695,6 +1779,21 @@ impl Session {
         let engine = ZvecGrep::new();
         let mut source = source::EngineSource::new(engine, root.clone());
         source::enable_symbols(&mut source);
+        // Plan provenance is computed BEFORE execution and delivered with the
+        // result, so a receipt can prove which plan produced the pack.
+        let plan_identity = input.plan.as_ref().map(|plan| {
+            json!({
+                "source": "preregistered-plan",
+                "sha256": input.plan_sha256,
+                "queries": plan.queries.len(),
+                "symbols": plan.symbols.len(),
+                "scopes": plan.scopes.len(),
+            })
+        }).unwrap_or_else(|| json!({
+            "source": "question-only",
+            "sha256": Value::Null,
+            "note": "diagnostic arm: no preregistered plan was supplied",
+        }));
         let outcome = match &input.plan {
             Some(plan) => workflow::run_with_plan(
                 &mut source,
@@ -1731,6 +1830,7 @@ impl Session {
             "abstain": serde_json::to_value(abstain).unwrap_or(Value::Null),
             "stats": serde_json::to_value(stats).unwrap_or(Value::Null),
             "stages": serde_json::to_value(stages).unwrap_or(Value::Null),
+            "plan": plan_identity,
             "internal_accounting": {
                 "note": "engine-internal calls and reads draw from the same cumulative session pool; internal reads are not delivered tool content and are reported here for explicit accounting",
                 "tool_calls": stats.tool_calls,
@@ -2039,6 +2139,13 @@ fn detect_encoding(bytes: &[u8]) -> FileEncoding {
         return UTF8_BOM;
     }
     UTF8
+}
+
+/// SHA-256 of arbitrary bytes, lowercase hex. Public so the CLI can record the
+/// plan-artifact identity without duplicating hashing logic.
+#[must_use]
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
 }
 
 fn hex(bytes: &[u8]) -> String {
