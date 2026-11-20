@@ -288,3 +288,28 @@ the outstanding decision for the owner is now explicit: authorize
 private-source submission to that identified provider/model for the frozen
 D01–D12 benchmark runs, or provide another approved environment. No source
 left the machine; no answer-quality run occurred; Gate C stays NOT_MEASURED.
+
+
+## Amendment 2 — technical audit (2026-11-20, later same day)
+
+The authorized audit mission verified the adapter against benchmark
+requirements and fixed two proven defects: a CRITICAL concurrent-budget race
+(reproduced at 5/8 racers admitted; now an flock transaction with
+reload-under-lock; post-fix control: 1/12) and a HIGH verify-reservation gap
+(verify now consumes no investigation slot so final verification always
+fits the frozen budget). Exclusion markers became session scope
+configuration; search routes pin RefreshPolicy::Off. A controller-mediated
+answerer driver (`benchmarks/rag-impact/tools/r4_bench_driver.py`) provides
+the isolation boundary (answerer = strings only; 7 adversarial negative
+controls rejected with zero state change; gold-free arm-c policy completes
+a verified pack in 3 calls / 16.8 KiB). Crash sweeps confirm all-or-nothing
+ledger accounting. Audit HEAD `ac7610d` (fix commit `3f1d87e`); 29/29
+adapter contract tests; default engine suite unchanged (two pre-existing
+parallel-lock flakes in `config::tests` documented). Owner-side review
+bundle: `/home/masis/.cache/zvec-grep/r4-external-agent-20261120/
+r4-adapter-review-20261120.zip` (46 files, 253,800 bytes, SHA-256
+1816d4e3314d12739ff8294794b8d00c6566d6321a3f315a4b561f39702819bd).
+Status: **READY_FOR_BENCHMARK** for the harness and accounting; the real
+three-arm run still awaits the private-source inference authorization
+(identified `openai` endpoint, model identity to be fixed in
+preregistration) and push authorization remains outstanding.
