@@ -1,10 +1,10 @@
 # Upstream Rust integration handoff — 2026-10-31
 
-> **Current continuation checkpoint:** [`HANDOFF-20261118-NEXT.md`](HANDOFF-20261118-NEXT.md)
-> (RAG R4 → MVP line). The older [`HANDOFF-20261031-NEXT.md`](HANDOFF-20261031-NEXT.md)
-> covers the upstream Rust integration work and remains historical detail.
-> Read that first for the active branch state, M2 diagnostic result, optimize
-> bottleneck, and exact next action. This file is historical detail.
+> **Current continuation checkpoint:** [`rust/docs/r4-external-agent-handoff-20261120.md`](rust/docs/r4-external-agent-handoff-20261120.md)
+> (R4 external-agent architecture validation). The 2026-11-18 R4 handoff and
+> 2026-10-31 upstream-integration handoff are historical evidence; do not treat
+> their next-action recommendations as current authorization. This root file
+> remains historical detail for the upstream Rust integration work.
 
 ## Scope and branch
 

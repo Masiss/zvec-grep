@@ -189,4 +189,4 @@ This document remains the **target design**, not a claim that the full agent loo
 | R4 | A deterministic bounded workflow and paired retrieval harness exist in Rust. | It accepts an external plan but still owns query decomposition, expansion, ranking and selection. It is not an LLM, not connected to `agent_direct`, and not qualified as a product workflow. |
 | R5–R6 | Retrieval receipts and development evaluations exist. | External answer correctness remains NOT_MEASURED; no agent-facing release is qualified. |
 
-For the dated model/runtime inventory, tool-boundary audit, experiment limitations, and blocked validation gate, see [R4 external-agent architecture validation](../../rust/docs/r4-external-agent-architecture-validation-20261120.md).
+For the dated model/runtime inventory, tool-boundary audit, experiment limitations, and blocked validation gate, see [R4 external-agent architecture validation](../../rust/docs/r4-external-agent-architecture-validation-20261120.md). The current branch state and exact next safe action are in the [R4 handoff](../../rust/docs/r4-external-agent-handoff-20261120.md).

@@ -1,19 +1,28 @@
-# RAG R4 documentation index (updated 2026-11-19)
+# RAG R4 documentation index (updated 2026-11-20)
 
-For the latest evidence-representation result, start with
-[`r4-evidence-representation-results-20261119.md`](r4-evidence-representation-results-20261119.md).
-[`../../HANDOFF-20261118-NEXT.md`](../../HANDOFF-20261118-NEXT.md) remains the
-historical handoff for the preceding R4 line. This index maps the documents and
-preserves the older results as historical evidence.
+**Current handoff:** [`r4-external-agent-handoff-20261120.md`](r4-external-agent-handoff-20261120.md).
+It records the active branch/HEAD, model and dataset identity, retained receipts,
+blockers, and the exact safe next action. The 2026-11-18 handoff is historical;
+its method-level-index proposal is not current authorization.
 
-## Current investigation status
+**Current architecture gate:** Gate A PASS; Gate B **OPERATION_BLOCKED** until
+an authorized, private-source-compatible inference environment and identifiable
+model/config are available; Gate C **NOT_MEASURED**. The frozen C3 D01–D12
+required-step addendum is [`r4-task-correctness-c3-checklist-20261120.md`](r4-task-correctness-c3-checklist-20261120.md)
+(SHA-256 `2bd4c63dff8b6638cad7db72a37ceeaaa6fd1031acf5f0cd15e3ed92ae8751bb`).
+The architecture audit is
+[`r4-external-agent-architecture-validation-20261120.md`](r4-external-agent-architecture-validation-20261120.md).
+Neither file reports an answer-quality result.
 
-The 2026-11-19 representation investigation is **PARTIAL / NO-GO** under its
-frozen gate: corrected plan macro **0.4861**, pool **12/25 fragment-overlap**,
-selected **8/25**; GO remains **0.5722** and correctness **NOT_MEASURED**.
-Three preregistered implementation hypotheses did not meet acceptance. The
-index is verified; no new method-vector/index rebuild is recommended. See the
-linked report for attribution, receipts, and remaining call-allocation blocker.
+## Current retrieval result
+
+The corrected 2026-11-19 representation baseline/valid E2/E3 result is **PARTIAL
+/ NO-GO**: macro **0.4861**, selected **8/25**, below GO **0.5722**. The valid
+contained pool is **12/25**; the older 19/25 parent-range-overlap figure is not
+raw-fragment reachability. Three representation hypotheses did not meet their
+frozen acceptance. No new method-vector/index rebuild is authorized by the
+current architecture mission. See the results and amendments for exact metric
+definitions, attribution and receipts.
 
 ## Historical best result (pre-32-file correction)
 
@@ -38,7 +47,7 @@ that result was on branch `work/r4-deep-opt-20261118` @ `7030bd7`.
 | `r4-query-feasibility-and-selection-audit-20261115.md` | raw question 0/25 spans; hybrid 8/25; embedding / agent-plan / alias feasibility |
 | `r4-selection-feasibility-20261118.md` | policy-respecting oracle 14/25 — the budget is not the wall |
 | `r4-deep-investigation-20261118.md` | the two arms retrieve *complementary* gold; union 19/25; loss is ordering |
-| `r4-deep-optimization-20261118.md` | **latest**: two hypotheses falsified; the deficit is a **representation** gap (declaration-range units) |
+| `r4-deep-optimization-20261118.md` | historical analysis: two hypotheses falsified; declaration-range representation was identified as a deficit |
 
 ### 3. Implementation record (each with receipts)
 | Document | Change | Measured effect |
@@ -62,26 +71,32 @@ that result was on branch `work/r4-deep-opt-20261118` @ `7030bd7`.
 | `r4-discovery-contract-20261115.md` | discovery route/provenance contract |
 | `rag-r1-release-gates.md`, `rag-r4-bottleneck-and-r1-release-audit.md` | release gates and earlier bottleneck audit |
 
-## What is proven
+## What is established (with scope)
 
-- The index is **correct**: all 25 gold spans are persisted and searchable
-  (C#, method granularity; SQL via the new symbol branch). R4's misses are not
-  index defects.
-- The workflow is **inside the resource contract** at best-arm quality.
-- The fair baseline is **0.2500**, not 0.4167 — the raw 0.5000 arm is unbounded
-  and is a retrieval reference only.
-- The bottleneck is multi-stage: broad parent ranges inflate candidate
-  coverage, fragment projection narrows the pool, and the six-call allocation
-  constrains typed cross-file acquisition. This mission did **not** establish
-  that adding finer index units would improve selected evidence.
+- The frozen index was verified against the audited cases; representation runs
+  are retrieval evidence, not answer-quality evidence.
+- The fair bounded hybrid baseline is **0.2500**. Do not compare it with the
+  raw/unbounded 0.5000 retrieval reference as though budgets matched.
+- The valid E2 workflow run used explicit limits. `WorkflowBudget::default()`
+  is 12 calls / 64 source reads, so a future R0 run must pass its stricter
+  cumulative budget explicitly.
+- The 2026-11-20 static audit found one embedding model configured for R4 and no
+  in-engine generative model; the direct MCP agent surface still lacks symbols
+  and typed relations.
 
-## What is open
+## Current blockers and constraints
 
-1. **Call allocation and candidate anchors** — current evidence points above
-   the index layer. Any work beyond the three-experiment representation mission
-   needs a new scope and preregistration; do not raise the six-call cap silently.
-2. **Task correctness run** — rubric frozen; requires C3 required-step lists,
-   a privacy-valid independent answerer, and a separate grader. It remains
-   NOT_MEASURED/BLOCKED.
-3. **PLANNED/BLOCKED**: interactive planner with corpus access (private-source
-   exposure), and any embedding-model change (index/model identity).
+1. **Gate B inference environment:** no privacy-approved, identifiable model
+   runtime was found. Do not send private source, prompts containing source
+   identifiers, packs or answers to an unapproved remote provider.
+2. **Gate C answer quality:** C3 required-step lists are now frozen, but no
+   answerer or independent grader has run; correctness remains NOT_MEASURED.
+3. **No current authorization for implementation/optimization:** do not resume
+   method-level index work, R4 heuristic tuning, model changes or public MCP/API
+   exposure under this handoff. The older interactive planner with corpus
+   access remains blocked because it would expose private source.
+4. **Next action:** wait for an explicitly permitted private-source-compatible
+   inference environment with model/version/config available for recording.
+   After that, preregister a same-model paired comparison for Options 1–3 and
+   enforce the cumulative session budget; this handoff alone is not permission
+   to run a new inference/benchmark operation.

@@ -1,9 +1,11 @@
 # HANDOFF — zvec-grep RAG R4 → RAG MVP (as of 2026-11-18)
 
-Read this first. It is the single entry point for the next session. It records
-**what is proven, what is falsified, what is blocked, and the exact next
-authorized action**. Do not re-run completed investigations; every claim below
-has a receipt.
+> **Historical handoff — superseded 2026-11-20.** The current entry point is
+> [`rust/docs/r4-external-agent-handoff-20261120.md`](rust/docs/r4-external-agent-handoff-20261120.md).
+> This document preserves the 2026-11-18 R4 investigation and its receipts;
+> its proposed method-level index action and task-correctness prerequisite are
+> not current authorization/status. Do not use its “next authorized action”
+> without reconciling against the newer handoff.
 
 ---
 
