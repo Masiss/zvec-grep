@@ -11,7 +11,7 @@ inference **OPERATION_BLOCKED** on owner authorization. Answer quality
 | Repo | `/home/masis/src/zvec-grep-r4-evidence-20261119` |
 | Branch | `work/r4-evidence-representation-20261119` |
 | Base checkpoint | `eda88b1` |
-| HEAD | `16267ea` (5 local commits on `eda88b1`, **not pushed**, not merged) |
+| HEAD | tip of `work/r4-evidence-representation-20261119` at handoff (commits listed by `git log eda88b1..HEAD`; **not pushed**, not merged) |
 | Remote SHA | none — no push performed |
 | Worktree | clean |
 | Report | `rust/docs/r4-benchmark-readiness-20261121.md` |
