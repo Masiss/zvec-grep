@@ -1,0 +1,22 @@
+[package]
+name = "zg-r4-adapter"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Private experimental adapter for the R4 external-agent architecture comparison. Not a public contract; do not promote into default MCP/CLI."
+
+[dependencies]
+zg-engine = { path = "../zg-engine", features = ["r4-experimental-facts"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tempfile = { workspace = true }
+clap = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "r4-adapter"
+path = "src/bin/r4-adapter.rs"

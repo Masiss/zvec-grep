@@ -267,3 +267,24 @@ Until a new explicit scope says otherwise:
 Do not repeat the architecture inventory, C3 checklist drafting, hash checks or
 receipt integrity checks without a specific new discrepancy; their current
 results are recorded above and in the linked reports.
+
+
+---
+
+## Amendment 2026-11-20 (same day, after the external-agent mission)
+
+The authorized mission that followed this handoff implemented the private
+experimental adapter: new crate `rust/crates/zg-r4-adapter` (CLI
+`r4-adapter`; sessions, authoritative cumulative ledger, frozen R0 budget,
+profiles arm-a/arm-b/arm-c) plus a non-default `r4-experimental-facts`
+feature in `zg-engine` re-exporting the R2/R3 fact parsers. Deterministic
+contract/safety qualification passed (24/24 synthetic tests), and all three
+arms were smoke-verified end-to-end on the frozen isolated corpus. See
+[`r4-external-agent-adapter-20261120.md`](r4-external-agent-adapter-20261120.md)
+for the report, receipts and two fixed defects. Gate B status is refined, not
+resolved: the harness's inference provider is identified (`openai`,
+`openai-responses`, `https://api.openai.com/v1`, default model `gpt-5.5`), so
+the outstanding decision for the owner is now explicit: authorize
+private-source submission to that identified provider/model for the frozen
+D01–D12 benchmark runs, or provide another approved environment. No source
+left the machine; no answer-quality run occurred; Gate C stays NOT_MEASURED.

@@ -10,6 +10,8 @@ pub mod config;
 mod domain;
 mod error;
 mod extraction;
+#[cfg(feature = "r4-experimental-facts")]
+pub mod r4_experimental;
 mod file_selection;
 mod lexical;
 mod models;

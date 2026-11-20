@@ -4446,6 +4446,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zg-r4-adapter"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
+ "zg-engine",
+]
+
+[[package]]
 name = "zg-testkit"
 version = "0.3.0-rc.2"
 dependencies = [

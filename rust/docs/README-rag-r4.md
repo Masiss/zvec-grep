@@ -1,6 +1,12 @@
 # RAG R4 documentation index (updated 2026-11-20)
 
 **Current handoff:** [`r4-external-agent-handoff-20261120.md`](r4-external-agent-handoff-20261120.md).
+**2026-11-20 adapter milestone:** the private experimental adapter for the
+three-arm comparison is implemented and contract-qualified (24/24 synthetic
+tests) with end-to-end smoke on the frozen corpus; see
+[`r4-external-agent-adapter-20261120.md`](r4-external-agent-adapter-20261120.md).
+Gate B remains blocked on the private-source egress authorization; Gate C
+remains NOT_MEASURED.
 It records the active branch/HEAD, model and dataset identity, retained receipts,
 blockers, and the exact safe next action. The 2026-11-18 handoff is historical;
 its method-level-index proposal is not current authorization.

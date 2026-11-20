@@ -9,6 +9,9 @@ publish.workspace = true
 
 [features]
 default = []
+# Non-default, experimental: exposes internal typed-fact parsers to the
+# private R4 external-agent adapter. Not a stable public contract.
+r4-experimental-facts = []
 # Matching CUDA builds reuse the pinned native SDK; custom CUDA/Vulkan
 # configurations require source toolchains. Runtime CPU fallback is unchanged.
 cuda = [
