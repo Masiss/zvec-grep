@@ -777,17 +777,20 @@ impl Session {
             let delivered_after = self.ledger.delivered_bytes;
             let mut remaining_left =
                 MAX_DELIVERED_BYTES.saturating_sub(delivered_after + text.len());
-            loop {
+            // Bounded fixpoint: the budget field's own digit width can make the
+            // exact-byte equation oscillate, so cap iterations and exit with the
+            // conservative (smaller) remaining value.
+            for _ in 0..8 {
                 envelope["budget"] = self.remaining_with(remaining_left);
                 let candidate = serde_json::to_string_pretty(&envelope)
                     .map_err(|e| e.to_string())?;
                 let corrected = MAX_DELIVERED_BYTES
                     .saturating_sub(delivered_after + candidate.len());
+                text = candidate;
                 if corrected == remaining_left || corrected == 0 {
-                    text = candidate;
                     break;
                 }
-                remaining_left = corrected;
+                remaining_left = corrected.min(remaining_left);
             }
         }
 
@@ -822,17 +825,19 @@ impl Session {
                 let delivered_after = self.ledger.delivered_bytes;
                 let mut remaining_left =
                     MAX_DELIVERED_BYTES.saturating_sub(delivered_after + text.len());
-                loop {
+                for _ in 0..8 {
                     envelope["budget"] = self.remaining_with(remaining_left);
                     let candidate = serde_json::to_string_pretty(&envelope)
                         .map_err(|e| e.to_string())?;
                     let corrected = MAX_DELIVERED_BYTES
                         .saturating_sub(delivered_after + candidate.len());
-                    if corrected == remaining_left || delivered_after + candidate.len() > MAX_DELIVERED_BYTES {
-                        text = candidate;
+                    text = candidate;
+                    if corrected == remaining_left
+                        || delivered_after + text.len() > MAX_DELIVERED_BYTES
+                    {
                         break;
                     }
-                    remaining_left = corrected;
+                    remaining_left = corrected.min(remaining_left);
                 }
             }
         }
@@ -973,14 +978,14 @@ impl Session {
         let delivered_after = self.ledger.delivered_bytes;
         let mut remaining_left = MAX_DELIVERED_BYTES.saturating_sub(delivered_after);
         let mut text = String::new();
-        loop {
+        for _ in 0..8 {
             envelope["budget"] = self.remaining_with(remaining_left);
             text = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
             let corrected = MAX_DELIVERED_BYTES.saturating_sub(delivered_after + text.len());
             if corrected == remaining_left {
                 break;
             }
-            remaining_left = corrected;
+            remaining_left = corrected.min(remaining_left);
         }
         if delivered_after + text.len() > MAX_DELIVERED_BYTES {
             // Hard invariant: never publish over-budget content. Emit the
