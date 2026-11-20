@@ -1,0 +1,5 @@
+{
+ "schema_version": 1,
+ "note": "Diagnostic substring rubric for synthetic harness grading (NOT the frozen C1-C6 rubric; no frozen case entries).",
+ "cases": {}
+}

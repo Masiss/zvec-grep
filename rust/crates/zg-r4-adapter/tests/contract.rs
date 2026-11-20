@@ -1370,4 +1370,47 @@ fn workflow_plan_mode_uses_preregistered_plan() {
     assert!(
         session.ledger.calls_used + session.ledger.internal_calls <= MAX_CALLS
     );
+
+}
+
+#[test]
+fn workflow_pack_verification_checks_live_source_and_reports_its_kind() {
+    // Regression: verify used to deserialize every pack as a SpanPack, so a
+    // workflow pack failed with a confusing `invalid_input` and arm-b evidence
+    // could never be revalidated.
+    let fixture = Fixture::new();
+    let mut session = fixture.session(Profile::ArmB, "D09");
+    let mut run = input(Tool::Workflow, 1);
+    run.question = Some(
+        "EmployeeEditThongTinCaNhan cập nhật FullName Email và SaveChanges ở đâu".to_owned(),
+    );
+    let envelope = call(&mut session, run);
+    assert_eq!(envelope["ok"], json!(true));
+
+    let verify = input(Tool::Verify, 1);
+    let envelope = call(&mut session, verify);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    assert_eq!(envelope["result"]["kind"], json!("workflow"));
+    assert_eq!(envelope["result"]["verified"], json!(true));
+    assert_eq!(envelope["result"]["gaps"], json!([]));
+
+    // Any changed selected span invalidates the pack on the next verification.
+    let pack_text = fs::read_to_string(
+        session.dir.join(PACKS_DIR).join("pack-workflow-1.json"),
+    )
+    .expect("workflow pack");
+    let pack: serde_json::Value = serde_json::from_str(&pack_text).expect("pack json");
+    let path = pack["selected"][0]["path"].as_str().expect("selected path").to_owned();
+    let absolute = fixture.root().join(&path);
+    let mut bytes = fs::read(&absolute).expect("source");
+    bytes.extend_from_slice(b"\n// changed after selection\n");
+    fs::write(&absolute, bytes).expect("mutate source");
+
+    let verify = input(Tool::Verify, 1);
+    let envelope = call(&mut session, verify);
+    assert_eq!(envelope["ok"], json!(true));
+    assert_eq!(envelope["result"]["verified"], json!(false));
+    let gaps = envelope["result"]["gaps"].as_array().expect("gaps");
+    assert!(!gaps.is_empty(), "tampered span must produce a gap");
+    assert!(!session.ledger.packs[0].verified);
 }

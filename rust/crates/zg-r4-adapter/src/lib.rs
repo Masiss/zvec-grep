@@ -321,6 +321,19 @@ pub struct CallInput {
     pub plan: Option<AgentPlan>,
 }
 
+/// A loaded pack, typed by its family so verification stays honest for both.
+enum PackPayload {
+    Spans(surface::SpanPack),
+    Workflow(Vec<WorkflowSpanRef>),
+}
+
+struct WorkflowSpanRef {
+    path: String,
+    start_line: usize,
+    end_line: usize,
+    source_sha256: String,
+}
+
 /// Deferred pack publication. Committed by the caller only after the final
 /// serialized envelope fits the delivered budget, so a degraded call never
 /// leaves a phantom pack artifact.
@@ -1495,38 +1508,77 @@ impl Session {
 
     fn verify(&mut self, input: &CallInput) -> Result<ToolOutput, CallError> {
         let id = input.pack_id.unwrap_or(self.ledger.packs.len());
-        let pack = self
+        let (kind, payload) = self
             .load_pack(input.pack_id)
             .map_err(|message| invalid(&message))?;
         let root = self.ledger.root.clone();
-        let gaps = surface::revalidate_spans(&root, &pack).map_err(|error| {
-            CallError::Execution {
-                code: "verify".into(),
-                message: error.to_string(),
+        // Both pack families are revalidated against the live source. Evidence
+        // packs re-check recorded bytes; workflow packs re-hash the selected
+        // spans against their recorded source identity.
+        let (gaps, item_paths) = match &payload {
+            PackPayload::Spans(pack) => {
+                let gaps = surface::revalidate_spans(&root, pack).map_err(|error| {
+                    CallError::Execution {
+                        code: "verify".into(),
+                        message: error.to_string(),
+                    }
+                })?;
+                let paths = pack
+                    .items
+                    .iter()
+                    .map(|item| item.relative_path.to_string_lossy().replace('\\', "/"))
+                    .collect::<Vec<_>>();
+                let gaps: Vec<serde_json::Value> = gaps
+                    .into_iter()
+                    .map(|gap| serde_json::to_value(gap).unwrap_or(serde_json::Value::Null))
+                    .collect();
+                (gaps, paths)
             }
-        })?;
+            PackPayload::Workflow(spans) => {
+                let mut gaps: Vec<serde_json::Value> = Vec::new();
+                for span in spans {
+                    let absolute = root.join(&span.path);
+                    let actual = fs::read(&absolute).ok().map(|bytes| hex(&Sha256::digest(&bytes)));
+                    match actual {
+                        Some(hash) if hash == span.source_sha256 => {}
+                        Some(_) => gaps.push(json!({
+                            "code": "stale_hash",
+                            "path": span.path,
+                            "detail": "source changed since the workflow selected this span",
+                        })),
+                        None => gaps.push(json!({
+                            "code": "missing",
+                            "path": span.path,
+                            "detail": "selected span file is no longer readable",
+                        })),
+                    }
+                }
+                let paths = spans.iter().map(|span| span.path.clone()).collect::<Vec<_>>();
+                (gaps, paths)
+            }
+        };
         // Revalidation re-opens every pack item file: honest read accounting.
         let mut reads = Vec::new();
         let mut read_ops = 0usize;
-        for item in &pack.items {
-            let path = item.relative_path.to_string_lossy().replace('\\', "/");
-            reads.push(path.clone());
+        for path in &item_paths {
+            if !reads.contains(path) {
+                reads.push(path.clone());
+            }
             read_ops += 1;
         }
         // Current validity: a failed revalidation clears the persisted
         // verified state; the historical verification event stays in history.
         let clean = gaps.is_empty();
+        let _ = &kind;
         if let Some(record) = self.ledger.packs.get_mut(id.saturating_sub(1)) {
             record.verified = clean;
         }
-        let gaps_value = serde_json::to_value(&gaps).map_err(|e| {
-            CallError::Execution { code: "serialize".into(), message: e.to_string() }
-        })?;
         Ok(ToolOutput {
             result: json!({
                 "pack_id": id,
+                "kind": kind,
                 "verified": clean,
-                "gaps": gaps_value,
+                "gaps": gaps,
             }),
             files: Vec::new(),
             reads,
@@ -1535,7 +1587,7 @@ impl Session {
         })
     }
 
-    fn load_pack(&self, pack_id: Option<usize>) -> Result<surface::SpanPack, String> {
+    fn load_pack(&self, pack_id: Option<usize>) -> Result<(String, PackPayload), String> {
         let id = pack_id.unwrap_or(self.ledger.packs.len());
         if id == 0 || id > self.ledger.packs.len() {
             return Err(format!("pack {id} does not exist in this session"));
@@ -1562,8 +1614,39 @@ impl Session {
                         "pack file {text} does not match its recorded identity; refusing to load a tampered pack"
                     ));
                 }
-                return serde_json::from_str(&content)
-                    .map_err(|error| error.to_string());
+                let kind = record.kind.clone();
+                let payload = if kind == "workflow" {
+                    let value: serde_json::Value =
+                        serde_json::from_str(&content).map_err(|error| error.to_string())?;
+                    let mut spans = Vec::new();
+                    for span in value
+                        .get("selected")
+                        .and_then(|selected| selected.as_array())
+                        .into_iter()
+                        .flatten()
+                    {
+                        let (Some(path), Some(start), Some(end), Some(sha)) = (
+                            span.get("path").and_then(|v| v.as_str()),
+                            span.get("start_line").and_then(|v| v.as_u64()),
+                            span.get("end_line").and_then(|v| v.as_u64()),
+                            span.get("source_sha256").and_then(|v| v.as_str()),
+                        ) else {
+                            continue;
+                        };
+                        spans.push(WorkflowSpanRef {
+                            path: path.to_owned(),
+                            start_line: start as usize,
+                            end_line: end as usize,
+                            source_sha256: sha.to_owned(),
+                        });
+                    }
+                    PackPayload::Workflow(spans)
+                } else {
+                    PackPayload::Spans(
+                        serde_json::from_str(&content).map_err(|error| error.to_string())?,
+                    )
+                };
+                return Ok((kind, payload));
             }
         }
         Err(format!("pack file for id {id} is missing"))
