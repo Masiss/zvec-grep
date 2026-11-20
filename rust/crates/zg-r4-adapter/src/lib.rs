@@ -1342,10 +1342,16 @@ impl Session {
                 result: json!({
                     "path": display,
                     "sha256": sha,
-                    "facts": summary,
+                    // The degraded payload is a *different* shape on purpose:
+                    // `facts` keeps its full-document contract (lists) and is
+                    // null here, while counts are reported separately, so a
+                    // consumer never iterates a scalar where a list was
+                    // promised.
+                    "facts": Value::Null,
+                    "facts_summary": summary,
                     "gaps": [{
                         "code": "facts_budget_exceeded",
-                        "detail": "full facts did not fit the remaining delivered-content budget; retry with a method filter",
+                        "detail": "full facts did not fit the remaining delivered-content budget; retry with a method filter or inspect facts_summary",
                     }],
                 }),
                 files,

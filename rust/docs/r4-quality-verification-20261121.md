@@ -218,3 +218,20 @@ slot**, **13 items label-dictionary**. FTS sạch hơn (35% huge, 1 duplicate pa
 - Không đo held-out H01–H08; không chạy remote inference; không live DB.
 - Adapter residual findings tại `fb47e1e` (owner authorization gates) KHÔNG
   được coi là đã đóng bởi mission này.
+
+## 9. Errata (2026-11-21, long-run mission reconciliation)
+
+Two figures in this report were mis-derived and are superseded by
+[`r4-longrun-quality-20261121.md`](r4-longrun-quality-20261121.md) §1:
+
+- "8/25 gold coverage" counted matching *items* instead of matched *gold
+  spans*. Re-derived: **9/25 entity-range overlap** and **4/25
+  delivered-excerpt overlap** for the single verbatim hybrid call (the
+  canonical R0 Recall@10 is a macro best-of-six metric and is not this).
+- "47% of top-10 are fragments >300 lines" measured **entity/declaration**
+  ranges, not delivered excerpts. Delivered excerpts are p50 29 lines /
+  1.9 KB, max 65 lines / 2.1 KB.
+
+Everything else in this report (defect C1/C2, capability matrix, failure
+attribution) stands; the additional defects C3–C8 are listed in the long-run
+report.
