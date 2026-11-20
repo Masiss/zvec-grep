@@ -253,6 +253,7 @@ fn sql_json(path: &str, text: &str, exclusions: &[String]) -> Value {
                     .iter()
                     .map(|access| json!({
                         "table": access.table,
+                        "kind": access.kind,
                         "operation": access.operation,
                         "line": access.line,
                     }))
@@ -262,6 +263,7 @@ fn sql_json(path: &str, text: &str, exclusions: &[String]) -> Value {
                     .iter()
                     .map(|access| json!({
                         "table": access.table,
+                        "kind": access.kind,
                         "operation": access.operation,
                         "line": access.line,
                     }))

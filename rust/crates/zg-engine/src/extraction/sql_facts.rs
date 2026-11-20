@@ -22,6 +22,12 @@ pub struct TableAccess {
     pub table: String,
     pub operation: String,
     pub line: usize,
+    /// Typed classification of the referenced object, derived lexically:
+    /// `table` for a plain relation name, `table_function` for a call such as
+    /// `FROM SplitStringToIntArray(...)`, `table_variable` for `FROM @x`, and
+    /// `cursor` for `FETCH ... FROM cursor_name`. Unknown shapes stay
+    /// `unresolved` rather than being reported as tables.
+    pub kind: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -363,7 +369,11 @@ fn parse_table_access(sql: &str, line_offset: usize) -> (Vec<TableAccess>, Vec<T
                 dynamic_table = true;
                 break;
             }
-            let table = clean_table(token);
+            let (name_token, _) = match token.split_once('(') {
+                Some((name, _)) => (name, true),
+                None => (token, false),
+            };
+            let table = clean_table(name_token);
             if is_sql_keyword(&table) {
                 dynamic_table = true;
                 break;
@@ -373,6 +383,11 @@ fn parse_table_access(sql: &str, line_offset: usize) -> (Vec<TableAccess>, Vec<T
                     table,
                     operation: operation.to_owned(),
                     line: line_offset,
+                    kind: if token.starts_with('@') {
+                        "table_variable"
+                    } else {
+                        "table"
+                    },
                 });
             }
             rest = &after[token.len()..];
@@ -381,17 +396,44 @@ fn parse_table_access(sql: &str, line_offset: usize) -> (Vec<TableAccess>, Vec<T
     for keyword in ["from ", "join "] {
         let mut rest = lower.as_str();
         while let Some(position) = rest.find(keyword) {
+            let before = &rest[..position];
             let after = &rest[position + keyword.len()..];
             let token = after.split_whitespace().next().unwrap_or_default();
             if token.is_empty() {
                 break;
             }
-            let table = clean_table(token);
+            // An inline call (`FROM Fn(@x)`) must yield the function name, not
+            // a fragment of its argument list.
+            let (name_token, open_paren) = match token.split_once('(') {
+                Some((name, _)) => (name, true),
+                None => (token, false),
+            };
+            let table = clean_table(name_token);
             if !table.is_empty() && !is_sql_keyword(&table) {
+                // Classify what the source actually references instead of
+                // reporting every `FROM x` as a table dependency.
+                let statement_prefix = before
+                    .rsplit(';')
+                    .next()
+                    .unwrap_or(before)
+                    .trim_end();
+                let is_cursor = statement_prefix
+                    .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .any(|word| word.eq_ignore_ascii_case("fetch"));
+                let kind = if is_cursor {
+                    "cursor"
+                } else if token.starts_with('@') {
+                    "table_variable"
+                } else if open_paren {
+                    "table_function"
+                } else {
+                    "table"
+                };
                 reads.push(TableAccess {
                     table,
                     operation: "read".to_owned(),
                     line: line_offset,
+                    kind,
                 });
             }
             rest = &after[token.len()..];
@@ -746,5 +788,46 @@ mod tests {
             extract_literals("(\"update Employees set Status = -1\" + ids + \")\")");
         assert_eq!(literal, "update Employees set Status = -1)");
         assert!(dynamic);
+    }
+
+    #[test]
+    fn table_accesses_are_typed_instead_of_reported_as_tables() {
+        // Regression: cursors, table-valued functions and table variables were
+        // reported as table dependencies, which misleads consumers tracing SQL
+        // reads. They are now classified; plain relations stay `table`.
+        let sql = "CREATE PROCEDURE [dbo].[sp_Typed] AS\n\
+             DECLARE db_cursor CURSOR FOR SELECT Id FROM @orgs;\n\
+             SELECT * FROM Organizations;\n\
+             SELECT * FROM SplitStringToIntArray(@ids);\n\
+             SELECT * FROM @orgs;\n\
+             FETCH NEXT FROM db_cursor INTO @id;\n\
+             INSERT INTO @orgs (Id) VALUES (1);";
+        let catalog = SqlCatalog::from_sources(&[(
+            "DB/Store/sp_Typed.sql".to_owned(),
+            sql.to_owned(),
+            true,
+            "adapter".to_owned(),
+        )]);
+        let definition = &catalog.definitions()[0];
+        let kind = |table: &str| {
+            definition
+                .reads
+                .iter()
+                .filter(|read| read.table.eq_ignore_ascii_case(table))
+                .map(|read| read.kind)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(kind("Organizations"), vec!["table"]);
+        assert_eq!(kind("SplitStringToIntArray"), vec!["table_function"]);
+        assert!(!kind("@orgs").is_empty());
+        assert!(kind("@orgs").iter().all(|k| *k == "table_variable"));
+        assert_eq!(kind("db_cursor"), vec!["cursor"]);
+        assert!(
+            definition
+                .writes
+                .iter()
+                .any(|write| write.table == "@orgs" && write.kind == "table_variable"),
+            "insert into a table variable must not be reported as a table write"
+        );
     }
 }
