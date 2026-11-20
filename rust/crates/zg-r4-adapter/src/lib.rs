@@ -41,8 +41,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use std::os::unix::io::AsRawFd as _;
+
 use zg_engine::api::context::ContextOptions;
-use zg_engine::api::context::options::{ContextRoute, ContextRouteMode};
+use zg_engine::api::context::options::{ContextRoute, ContextRouteMode, RefreshPolicy};
 use zg_engine::api::evidence::surface::{self, SpanRequest};
 use zg_engine::api::evidence::EvidenceBudget;
 use zg_engine::api::symbols::SymbolsOptions;
@@ -64,7 +66,15 @@ pub const LEDGER_FILE: &str = "ledger.json";
 pub const TRACE_FILE: &str = "trace.jsonl";
 pub const PACKS_DIR: &str = "packs";
 pub const RECEIPT_FILE: &str = "receipt.json";
+pub const LOCK_FILE: &str = "session.lock";
+/// Fail-closed bound on waiting for the session lock.
+pub const LOCK_TIMEOUT_S: u64 = 120;
 pub const SCHEMA_VERSION: u32 = 1;
+
+/// Default excluded-variant path markers. These are benchmark scope
+/// configuration carried from the frozen `scope-manifest.json`, not engine
+/// behavior; a session can override them with `Session::new_configured`.
+pub const DEFAULT_EXCLUSIONS: &[&str] = &["_old", "_old1", "newsolution"];
 
 /// Adapter-level gap codes (budget containment), reported alongside engine
 /// gaps. Never silent truncation.
@@ -139,10 +149,14 @@ impl Tool {
         }
     }
 
-    /// Whether the call consumes an investigation call slot.
+    /// Whether the call consumes an investigation call slot. Meta and
+    /// verification operations (`status`, `verify`) do not: the R0 protocol
+    /// requires a final verification to stay possible within the frozen
+    /// investigation budget, and neither operation delivers source content
+    /// beyond its own small envelope, which is still byte-accounted.
     #[must_use]
     pub const fn consumes_slot(self) -> bool {
-        !matches!(self, Tool::Status)
+        !matches!(self, Tool::Status | Tool::Verify)
     }
 }
 
@@ -187,6 +201,8 @@ pub struct Ledger {
     pub delivered_bytes: usize,
     pub packs: Vec<PackRecord>,
     pub history: Vec<CallRecord>,
+    /// Excluded-variant path markers (benchmark scope configuration).
+    pub exclusions: Vec<String>,
 }
 
 /// Gate-level rejections: no call slot is consumed because the session state
@@ -271,6 +287,12 @@ pub struct Session {
     pub ledger: Ledger,
 }
 
+/// RAII guard for the session-wide `flock`. Dropping releases the lock.
+struct SessionLock {
+    #[allow(dead_code)]
+    file: fs::File,
+}
+
 impl Session {
     /// Creates a new session directory with a fresh ledger.
     ///
@@ -301,7 +323,44 @@ impl Session {
             format!("{:?}-{:?}-{case}", std::time::SystemTime::now(), root).as_bytes(),
         ))[..16]
             .to_owned();
-        let ledger = Ledger {
+        let exclusions: Vec<String> = DEFAULT_EXCLUSIONS.iter().map(|m| (*m).to_owned()).collect();
+        let ledger = Self::fresh_ledger(session_id, profile, case, root, exclusions);
+        let session = Self {
+            dir: dir.to_path_buf(),
+            ledger,
+        };
+        session.save_ledger()?;
+        Ok(session)
+    }
+
+    /// Creates a session with explicit excluded-variant markers (benchmark
+    /// scope configuration).
+    ///
+    /// # Errors
+    ///
+    /// Same failure conditions as [`Session::new`].
+    pub fn new_configured(
+        dir: &Path,
+        root: &Path,
+        profile: Profile,
+        case: &str,
+        exclusions: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut session = Self::new(dir, root, profile, case)?;
+        session.ledger.exclusions = exclusions;
+        session.save_ledger()?;
+        Ok(session)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn fresh_ledger(
+        session_id: String,
+        profile: Profile,
+        case: &str,
+        root: PathBuf,
+        exclusions: Vec<String>,
+    ) -> Ledger {
+        Ledger {
             schema_version: SCHEMA_VERSION,
             session_id,
             case: case.to_owned(),
@@ -320,13 +379,8 @@ impl Session {
             delivered_bytes: 0,
             packs: Vec::new(),
             history: Vec::new(),
-        };
-        let session = Self {
-            dir: dir.to_path_buf(),
-            ledger,
-        };
-        session.save_ledger()?;
-        Ok(session)
+            exclusions,
+        }
     }
 
     /// Loads an existing session. The ledger is authoritative.
@@ -350,6 +404,50 @@ impl Session {
             dir: dir.to_path_buf(),
             ledger,
         })
+    }
+
+    /// Acquires the session-wide exclusive lock. The lock is an OS-level
+    /// advisory `flock`, so a crashed process cannot leave the session
+    /// wedged; the kernel releases it at process death.
+    fn lock(&self) -> Result<SessionLock, String> {
+        let path = self.dir.join(LOCK_FILE);
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|error| format!("cannot open session lock: {error}"))?;
+        let deadline = std::time::Instant::now()
+            + std::time::Duration::from_secs(LOCK_TIMEOUT_S);
+        loop {
+            let status = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+            if status == 0 {
+                return Ok(SessionLock { file });
+            }
+            let errno = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+            if errno != libc::EWOULDBLOCK && errno != libc::EAGAIN && errno != libc::EINTR {
+                return Err(format!("session lock failed (errno {errno})"));
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(format!(
+                    "session lock timeout after {LOCK_TIMEOUT_S}s; another call holds the session"
+                ));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    /// Reloads the authoritative ledger from disk. Callers must hold the
+    /// session lock so no other process can mutate it in between.
+    fn reload_ledger(&mut self) -> Result<(), String> {
+        let text = fs::read_to_string(self.dir.join(LEDGER_FILE))
+            .map_err(|error| format!("cannot reload ledger: {error}"))?;
+        let ledger: Ledger = serde_json::from_str(&text)
+            .map_err(|error| format!("corrupt ledger: {error}"))?;
+        if ledger.schema_version != SCHEMA_VERSION {
+            return Err("ledger schema mismatch".to_owned());
+        }
+        self.ledger = ledger;
+        Ok(())
     }
 
     fn save_ledger(&self) -> Result<(), String> {
@@ -431,6 +529,12 @@ impl Session {
     /// Returns a human-readable error only for adapter IO/state failures; the
     /// accounted tool-result envelope itself is always the `Ok` string.
     pub fn call(&mut self, input: CallInput) -> Result<String, String> {
+        // Transaction boundary: hold the exclusive session lock across the
+        // whole read (reload) -> admit -> execute -> commit cycle so
+        // concurrent processes cannot admit against a stale ledger or lose
+        // accounting updates.
+        let _lock = self.lock()?;
+        self.reload_ledger()?;
         let started = std::time::Instant::now();
         let tool = input.tool;
         let round = match self.admit(tool, (input.round > 0).then_some(input.round)) {
@@ -642,6 +746,7 @@ impl Session {
                 query: Some(query.clone()),
                 limit: Some(limit),
                 auto_update: false,
+                refresh: Some(RefreshPolicy::Off),
                 ..ContextOptions::default()
             },
             Some("fts") | Some("vector") => {
@@ -657,6 +762,7 @@ impl Session {
                     }],
                     limit: Some(limit),
                     auto_update: false,
+                    refresh: Some(RefreshPolicy::Off),
                     ..ContextOptions::default()
                 }
             }
@@ -671,6 +777,7 @@ impl Session {
                     .unwrap_or_default(),
                 limit: Some(limit),
                 auto_update: false,
+                refresh: Some(RefreshPolicy::Off),
                 ..ContextOptions::default()
             },
             Some(other) => {
@@ -792,7 +899,8 @@ impl Session {
             .map_err(|error| invalid(&format!("cannot read {path}: {error}")))?;
         let sha = file_sha256(&root.join(&relative)).unwrap_or_default();
         let display = relative.to_string_lossy().replace('\\', "/");
-        let facts = facts::parse_facts(&display, &text, input.method.as_deref())
+        let exclusions = self.ledger.exclusions.clone();
+        let facts = facts::parse_facts(&display, &text, input.method.as_deref(), &exclusions)
             .map_err(|message| invalid(&message))?;
         let files = vec![display.clone()];
         let result = json!({
@@ -1107,6 +1215,8 @@ impl Session {
     ///
     /// Fails on IO or serialization errors, or when already terminal.
     pub fn finalize(&mut self, cancelled: bool) -> Result<String, String> {
+        let _lock = self.lock()?;
+        self.reload_ledger()?;
         if self.ledger.terminal.is_some() {
             return Err("session is already terminal".to_owned());
         }

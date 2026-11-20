@@ -9,16 +9,20 @@ use serde_json::{Value, json};
 
 use zg_engine::r4_experimental::{ProjectIdentity, parse_csharp_file, parse_sql_file};
 
-/// Path segments that mark an excluded, non-authoritative source variant.
-const EXCLUDED_MARKERS: &[&str] = &["_old", "_old1", "newsolution"];
-
 /// Parses typed facts for one file, choosing the parser by extension.
 /// When `method` is set, only facts belonging to that method are returned.
+/// `exclusions` are session-scope path markers for non-authoritative
+/// variants; they are benchmark configuration, not engine behavior.
 ///
 /// # Errors
 ///
 /// Returns a human-readable reason for unsupported or unreadable inputs.
-pub fn parse_facts(path: &str, text: &str, method: Option<&str>) -> Result<Value, String> {
+pub fn parse_facts(
+    path: &str,
+    text: &str,
+    method: Option<&str>,
+    exclusions: &[String],
+) -> Result<Value, String> {
     if path.ends_with(".cs") {
         let mut facts = csharp_json(path, text);
         if let Some(method) = method {
@@ -26,7 +30,7 @@ pub fn parse_facts(path: &str, text: &str, method: Option<&str>) -> Result<Value
         }
         Ok(facts)
     } else if path.ends_with(".sql") {
-        let mut facts = sql_json(path, text);
+        let mut facts = sql_json(path, text, exclusions);
         if let Some(name) = method {
             facts["definitions"] = Value::Array(
                 facts["definitions"]
@@ -118,11 +122,11 @@ pub fn summarize(facts: &Value) -> Value {
     Value::Object(summary)
 }
 
-fn is_excluded(path: &str) -> bool {
+fn is_excluded(path: &str, exclusions: &[String]) -> bool {
     let lowered = path.to_ascii_lowercase();
-    EXCLUDED_MARKERS
+    exclusions
         .iter()
-        .any(|marker| lowered.contains(marker))
+        .any(|marker| lowered.contains(&marker.to_ascii_lowercase()))
 }
 
 fn project_label(path: &str) -> String {
@@ -228,8 +232,8 @@ fn csharp_json(path: &str, text: &str) -> Value {
     })
 }
 
-fn sql_json(path: &str, text: &str) -> Value {
-    let selected = !is_excluded(path);
+fn sql_json(path: &str, text: &str, exclusions: &[String]) -> Value {
+    let selected = !is_excluded(path, exclusions);
     let authority = if selected { "adapter" } else { "excluded_variant" };
     let definitions = parse_sql_file(path, text, selected, authority);
     json!({

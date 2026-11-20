@@ -906,3 +906,240 @@ fn evidence_refused_for_budget_stores_no_phantom_pack() {
     assert_eq!(envelope["result"]["code"], json!("delivered_budget_exceeded"));
     assert_eq!(session.ledger.packs.len(), 2);
 }
+
+// ---------------------------------------- concurrency / crash controls
+
+fn cli(binary: &str, args: &[&str]) -> std::process::Output {
+    std::process::Command::new(binary)
+        .args(args)
+        .output()
+        .expect("cli")
+}
+
+#[test]
+fn concurrent_processes_cannot_exceed_the_last_call_slot() {
+    let fixture = Fixture::new();
+    let binary = env!("CARGO_BIN_EXE_r4-adapter");
+    let root = fixture.root();
+    let base = root
+        .parent()
+        .unwrap()
+        .join(format!("r4a-race-{}", root.file_name().unwrap().to_string_lossy()));
+    fs::create_dir_all(&base).expect("base");
+    let dir = base.join("s");
+    let root_arg = root.to_str().unwrap();
+    let dir_arg = dir.to_str().unwrap();
+
+    cli(binary, &[
+        "session", "new", "--dir", dir_arg, "--root", root_arg,
+        "--profile", "arm-c", "--case", "RACE",
+    ]);
+
+    // Consume five of the six call slots sequentially.
+    for _ in 0..5 {
+        cli(binary, &["call", dir_arg, "search", "--query", "SaveChanges", "--mode", "rg"]);
+    }
+
+    // Race eight processes for the final slot.
+    let mut children = Vec::new();
+    for _ in 0..8 {
+        children.push(
+            std::process::Command::new(binary)
+                .args(["call", dir_arg, "search", "--query", "Context", "--mode", "rg"])
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("spawn"),
+        );
+    }
+    let mut admitted = 0;
+    let mut refused = 0;
+    for child in children {
+        let output = child.wait_with_output().expect("collect");
+        let envelope: Value = serde_json::from_slice(&output.stdout).expect("envelope");
+        if envelope["ok"] == json!(true) {
+            admitted += 1;
+        } else if envelope["result"]["code"] == json!("no_calls_left") {
+            refused += 1;
+        } else {
+            panic!("unexpected gate result: {envelope}");
+        }
+    }
+    assert_eq!(admitted, 1, "exactly one process may take the last slot");
+    assert_eq!(refused, 7);
+
+    let session = Session::open(&dir).expect("reopen");
+    assert_eq!(session.ledger.calls_used, 6);
+    assert!(session.ledger.delivered_bytes <= MAX_DELIVERED_BYTES);
+    // The trace records every envelope, admitted and gate-refused alike.
+    let trace = fs::read_to_string(dir.join("trace.jsonl")).expect("trace");
+    let delivered = trace
+        .lines()
+        .filter(|line| serde_json::from_str::<Value>(line).expect("trace line")
+            ["ok"] == json!(true))
+        .count();
+    assert_eq!(delivered, 6, "exactly six envelopes may deliver content");
+}
+
+#[test]
+fn concurrent_processes_keep_ledger_within_budget_under_mixed_load() {
+    let fixture = Fixture::new();
+    let binary = env!("CARGO_BIN_EXE_r4-adapter");
+    let root = fixture.root();
+    let base = root
+        .parent()
+        .unwrap()
+        .join(format!("r4a-mixed-{}", root.file_name().unwrap().to_string_lossy()));
+    fs::create_dir_all(&base).expect("base");
+    let dir = base.join("s");
+    let root_arg = root.to_str().unwrap();
+    let dir_arg = dir.to_str().unwrap();
+    cli(binary, &[
+        "session", "new", "--dir", dir_arg, "--root", root_arg,
+        "--profile", "arm-c", "--case", "MIX",
+    ]);
+
+    let mut children = Vec::new();
+    for index in 0..10 {
+        let query = if index % 2 == 0 { "SaveChanges" } else { "Context" };
+        children.push(
+            std::process::Command::new(binary)
+                .args(["call", dir_arg, "search", "--query", query, "--mode", "rg"])
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("spawn"),
+        );
+    }
+    for child in children {
+        let _ = child.wait_with_output().expect("collect");
+    }
+    let session = Session::open(&dir).expect("reopen");
+    assert!(
+        session.ledger.calls_used <= 6,
+        "ten racing calls must never admit more than the cap (got {})",
+        session.ledger.calls_used
+    );
+    assert!(session.ledger.delivered_bytes <= MAX_DELIVERED_BYTES);
+}
+
+#[test]
+fn killed_process_leaves_ledger_intact_and_budget_never_loosens() {
+    let fixture = Fixture::new();
+    let binary = env!("CARGO_BIN_EXE_r4-adapter");
+    let root = fixture.root();
+    let base = root
+        .parent()
+        .unwrap()
+        .join(format!("r4a-crash-{}", root.file_name().unwrap().to_string_lossy()));
+    fs::create_dir_all(&base).expect("base");
+    let root_arg = root.to_str().unwrap();
+
+    for attempt in 0..15 {
+        let dir = base.join(format!("s{attempt}"));
+        cli(binary, &[
+            "session", "new", "--dir", dir.to_str().unwrap(), "--root", root_arg,
+            "--profile", "arm-c", "--case", "CRASH",
+        ]);
+        let mut baseline = Session::open(&dir).expect("baseline");
+        let baseline_bytes = baseline.ledger.delivered_bytes;
+        let baseline_calls = baseline.ledger.calls_used;
+        drop(&mut baseline);
+
+        // Kill a call mid-flight at varying points of its lifecycle.
+        let mut child = std::process::Command::new(binary)
+            .args([
+                "call", dir.to_str().unwrap(),
+                "search", "--query", "SaveChanges", "--mode", "rg",
+            ])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn");
+        std::thread::sleep(std::time::Duration::from_millis(2 * attempt));
+        let _ = child.kill();
+        let _ = child.wait();
+
+        // The ledger must always parse and never loosen the budget: the
+        // killed call either committed (counts fully) or never delivered.
+        let mut session = Session::open(&dir).expect("ledger survives kill");
+        assert!(
+            session.ledger.calls_used == baseline_calls
+                || session.ledger.calls_used == baseline_calls + 1,
+            "call accounting must be all-or-nothing"
+        );
+        assert!(
+            session.ledger.delivered_bytes >= baseline_bytes,
+            "delivered accounting must never go backwards"
+        );
+        assert!(session.ledger.delivered_bytes <= MAX_DELIVERED_BYTES);
+        // The session stays usable: a further call still works or is refused
+        // by an honest gate, never by corruption.
+        let _ = session.call(input(Tool::Status, 0)).expect("session still usable");
+    }
+}
+
+#[test]
+fn final_verification_is_always_possible_after_budget_exhaustion() {
+    let fixture = Fixture::new();
+    let mut session = fixture.session(Profile::ArmC, "D05");
+
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![span_request("Core/Service.cs", 9, 14)];
+    assert_eq!(call(&mut session, evidence)["ok"], json!(true));
+
+    // Spend every remaining investigation slot.
+    for _ in 1..MAX_CALLS {
+        let mut search = input(Tool::Search, 1);
+        search.mode = Some("rg".into());
+        search.query = Some("SaveChanges".into());
+        assert_eq!(call(&mut session, search)["ok"], json!(true));
+    }
+    assert_eq!(session.ledger.calls_used, MAX_CALLS);
+
+    // Verification is still admitted: it consumes no investigation slot and
+    // its envelope bytes stay inside the delivered budget.
+    let mut verify = input(Tool::Verify, 1);
+    verify.pack_id = Some(1);
+    let envelope = call(&mut session, verify);
+    assert_eq!(envelope["ok"], json!(true));
+    assert_eq!(envelope["result"]["verified"], json!(true));
+    assert_eq!(session.ledger.calls_used, MAX_CALLS);
+    assert!(session.ledger.packs[0].verified);
+    assert!(session.ledger.delivered_bytes <= MAX_DELIVERED_BYTES);
+}
+
+#[test]
+fn session_exclusion_markers_are_configuration_not_engine_behavior() {
+    let fixture = Fixture::new();
+    let base = fixture
+        .root()
+        .parent()
+        .unwrap()
+        .join(format!(
+            "r4a-sessions-{}/session-excl",
+            fixture.root().file_name().unwrap().to_string_lossy()
+        ));
+    fs::create_dir_all(&base).expect("base");
+    let mut session = Session::new_configured(
+        &base,
+        &fixture.root(),
+        Profile::ArmC,
+        "D07",
+        vec!["proc_old".to_owned()],
+    )
+    .expect("configured session");
+
+    // Only the configured marker is excluded; the frozen default list is
+    // overridden, not extended.
+    let mut selected = input(Tool::Facts, 1);
+    selected.path = Some("DB/proc.sql".into());
+    assert_eq!(call(&mut session, selected)["result"]["facts"]["selected"], json!(true));
+
+    let mut excluded = input(Tool::Facts, 1);
+    excluded.path = Some("DB/proc_old.sql".into());
+    let envelope = call(&mut session, excluded);
+    assert_eq!(envelope["result"]["facts"]["selected"], json!(false));
+    assert_eq!(envelope["result"]["facts"]["authority"], json!("excluded_variant"));
+    assert_eq!(session.ledger.exclusions, vec!["proc_old".to_owned()]);
+}

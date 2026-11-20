@@ -62,6 +62,10 @@ enum SessionCommand {
         profile: String,
         #[arg(long)]
         case: String,
+        /// Excluded-variant path marker (repeatable). Defaults to the frozen
+        /// benchmark scope list (`_old`, `_old1`, `NewSolution`).
+        #[arg(long = "exclude")]
+        exclude: Vec<String>,
     },
     /// Marks the session terminal and writes the receipt.
     Finalize { dir: PathBuf },
@@ -132,11 +136,16 @@ fn main() -> ExitCode {
                 root,
                 profile,
                 case,
+                exclude,
             } => {
                 let Some(profile) = Profile::parse(&profile) else {
                     return fail("profile must be arm-a, arm-b or arm-c");
                 };
-                let session = Session::new(&dir, &root, profile, &case);
+                let session = if exclude.is_empty() {
+                    Session::new(&dir, &root, profile, &case)
+                } else {
+                    Session::new_configured(&dir, &root, profile, &case, exclude)
+                };
                 match session {
                     Ok(session) => print_json(serde_json::json!({
                         "ok": true,
