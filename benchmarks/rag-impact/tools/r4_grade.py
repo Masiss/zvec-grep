@@ -474,15 +474,23 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
     # Consistency: the verdict must agree with its own claim judgements.
     unsupported = evaluator.get("unsupported_claims") or []
     supported = evaluator.get("supported_claims")
+    def bad_index(index) -> bool:
+        # bool is an int subclass in Python: `True` must not pass as index 1.
+        return (type(index) is not int) or not 0 <= index < len(claims)
+
     for index in unsupported:
-        if not isinstance(index, int) or not 0 <= index < len(claims):
+        if bad_index(index):
             return invalid(f"unsupported_claims index {index!r} is out of range")
+    if unsupported and len(set(unsupported)) != len(unsupported):
+        return invalid("unsupported_claims lists a claim more than once")
     if supported is not None:
         if not isinstance(supported, list):
             return invalid("supported_claims must be a list of claim indices")
         for index in supported:
-            if not isinstance(index, int) or not 0 <= index < len(claims):
+            if bad_index(index):
                 return invalid(f"supported_claims index {index!r} is out of range")
+        if len(set(supported)) != len(supported):
+            return invalid("supported_claims lists a claim more than once")
         overlap = sorted(set(unsupported) & set(supported))
         if overlap:
             return invalid(f"claims judged both supported and unsupported: {overlap}")

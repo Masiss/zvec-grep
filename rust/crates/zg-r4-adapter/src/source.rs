@@ -183,10 +183,11 @@ impl EvidenceSource for EngineSource {
     }
 
     fn read(&mut self, path: &str) -> Result<Option<String>, String> {
-        // The exact I/O boundary for workflow reads: record the attempt before
-        // opening, so a failure after the open is still accounted for.
-        self.reads.push(path.replace('\\', "/"));
+        // The exact I/O boundary for workflow reads: resolve first (a rejected
+        // path is not a read), then record the attempt before opening, so a
+        // failure after the open is still accounted for.
         let resolved = crate::resolve_under_root(&self.root, path)?;
+        self.reads.push(path.replace('\\', "/"));
         std::fs::read_to_string(self.root.join(resolved))
             .map(Some)
             .map_err(|error| error.to_string())

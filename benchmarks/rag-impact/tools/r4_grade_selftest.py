@@ -547,6 +547,25 @@ def main() -> int:
           and "bind" in (result.get("semantic", {}).get("error") or ""),
           json.dumps(result.get("semantic"))[:160])
 
+    # ------------- 31. index type confusion (bool is an int subclass in Python)
+    case = work / "index-types"
+    write_pack(case, corpus, GOLD)
+    pair = [good_claim[0], {"text": "second",
+                            "citations": [citation(GOLD[0], GOLD[1], sha)]}]
+    write_answer(case, pair, "two claims")
+    for label, extra in [
+        ("bool index", {"supported_claims": [True]}),
+        ("duplicate index", {"supported_claims": [0, 0], "unsupported_claims": []}),
+        ("negative index", {"supported_claims": [-1]}),
+        ("duplicate unsupported", {"verdict": "FAIL", "supported_claims": [],
+                                   "unsupported_claims": [0, 0]}),
+    ]:
+        sem = semantic_file(work / "sem", extra.pop("verdict", "PASS"), "x",
+                            answers=case, **extra)
+        code, result = run_grader(case, corpus, semantic=sem)
+        check(f"{label} is rejected", result.get("verdict") == "UNGRADABLE",
+              json.dumps(result.get("semantic"))[:160])
+
     print()
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S): {FAILURES}")
