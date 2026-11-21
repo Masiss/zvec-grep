@@ -754,7 +754,11 @@ def generate_plan(answerer: ResponsesTransport, work_dir: Path, case: str,
         plan = normalize_plan(raw_args)
     except Exception as error:  # SchemaViolation and friends
         raise ContractError(f"plan generation produced an invalid plan: {error}") from error
-    canonical = json.dumps(plan, sort_keys=True, separators=(",", ":"))
+    # The one canonical form: UTF-8 JSON, sorted keys, no ASCII escaping. Any
+    # JSON library that can sort keys reproduces it, including the Rust side
+    # (serde_json::Value serialises maps in key order and does not escape).
+    canonical = json.dumps(plan, sort_keys=True, ensure_ascii=False,
+                           separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     work_dir.mkdir(parents=True, exist_ok=True)
     plan_path = work_dir / f"plan-{case}-{digest[:12]}.json"

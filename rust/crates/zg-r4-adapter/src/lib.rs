@@ -1493,8 +1493,24 @@ impl Session {
             let new_files = usize::from(!known);
             let already_reserved = reserved_paths.contains(&path);
             let op_needed = usize::from(!already_reserved);
+            // Files admitted earlier in this same loop are not in the ledger
+            // yet, so check them explicitly: a multi-request call must not
+            // discover at commit time that it overran the distinct-file budget.
+            let new_files_in_loop = admitted_files
+                .iter()
+                .filter(|file| !self.ledger.read_files.contains(file))
+                .count();
             if self
                 .admit_reads(op_needed, new_files, "evidence")
+                .and_then(|()| {
+                    if new_files_in_loop + new_files > self.remaining_read_files() {
+                        return Err(CallError::Execution {
+                            code: "read_budget_exceeded".into(),
+                            message: "remaining distinct-file budget exhausted".into(),
+                        });
+                    }
+                    Ok(())
+                })
                 .and_then(|()| {
                     if admitted_ops + op_needed > self.remaining_read_ops() {
                         return Err(CallError::Execution {
@@ -1933,9 +1949,14 @@ impl Session {
         for path in &boundary_reads {
             self.note_source_read(path);
         }
-        let outcome = outcome.map_err(|message| CallError::Execution {
-            code: "workflow".into(),
-            message,
+        let outcome = outcome.map_err(|message| {
+            // The engine ran before failing, so the shared pool is charged:
+            // a failed workflow must not be free.
+            self.ledger.internal_calls += 1;
+            CallError::Execution {
+                code: "workflow".into(),
+                message,
+            }
         })?;
         let WorkflowOutcome {
             definition,
@@ -2393,3 +2414,44 @@ pub fn parse_span_requests(value: &Value) -> Result<Vec<SpanRequest>, String> {
     }
     Ok(requests)
 }
+
+#[cfg(test)]
+mod accounting_guard_tests {
+    use super::*;
+
+    fn session(dir: &Path, root: &Path) -> Session {
+        Session::new(dir, root, Profile::ArmC, "D04").expect("session")
+    }
+
+    #[test]
+    fn committing_more_opens_than_admitted_reports_an_overrun() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path().join("root");
+        fs::create_dir_all(&root).expect("root");
+        let mut session = session(&dir.path().join("s"), &root);
+        // Admit one operation, then record two opens: reservation was
+        // optimistic, so the commit must report an overrun even though the
+        // ledger still records both reads in full.
+        session.admit_reads(1, 0, "test").expect("admitted");
+        session.note_source_read("A.cs");
+        session.note_source_read("B.cs");
+        assert!(session.commit_pending_reads(), "over-open must be detected");
+        assert_eq!(session.ledger.read_ops, 2, "both reads are still counted");
+        assert_eq!(session.ledger.read_files.len(), 2);
+    }
+
+    #[test]
+    fn committing_exactly_the_admitted_opens_is_clean() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path().join("root");
+        fs::create_dir_all(&root).expect("root");
+        let mut session = session(&dir.path().join("s"), &root);
+        session.admit_reads(2, 1, "test").expect("admitted");
+        session.note_source_read("A.cs");
+        session.note_source_read("A.cs");
+        assert!(!session.commit_pending_reads(), "a clean call must not be flagged");
+        assert_eq!(session.ledger.read_ops, 2);
+        assert_eq!(session.ledger.read_files.len(), 1);
+    }
+}
+

@@ -549,7 +549,7 @@ def main() -> int:
     code, result = run_grader(case, corpus, semantic=sem)
     check("an evaluation that binds no inputs is rejected",
           result.get("verdict") == "UNGRADABLE"
-          and "bind" in (result.get("semantic", {}).get("error") or ""),
+          and "inputs" in (result.get("semantic", {}).get("error") or ""),
           json.dumps(result.get("semantic"))[:160])
 
     # ------------- 31. index type confusion (bool is an int subclass in Python)
@@ -605,6 +605,33 @@ def main() -> int:
     check("C3 does not credit an invalid citation",
           (result.get("criteria") or {}).get("C3", {}).get("score") == 0,
           json.dumps((result.get("criteria") or {}).get("C3")))
+
+    # ------------------- 34. malformed evaluation shapes are INVALID, not a crash
+    case = work / "malformed-eval"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    for label, payload in [
+        ("evaluation is not an object", ["PASS"]),
+        ("inputs is not an object", {"case": CASE, "verdict": "PASS",
+                                     "rationale": "x", "evaluator_id": "fixture-evaluator",
+                                     "inputs": "nope", "supported_claims": [0],
+                                     "unsupported_claims": []}),
+    ]:
+        path = work / "sem" / f"malformed-{abs(hash(label))}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload))
+        code, result = run_grader(case, corpus, semantic=path)
+        check(f"{label} is UNGRADABLE, not a crash",
+              result.get("verdict") == "UNGRADABLE"
+              or result.get("status") == "UNGRADABLE",
+              json.dumps(result)[:160])
+
+    # ------------------------------- 35. V2: distinct-file budget is typed, not terminal
+    case = work / "file-budget-typed"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    code, result = run_grader(case, corpus)
+    check("baseline grades", code == 0, json.dumps(result)[:120])
 
     print()
     if FAILURES:

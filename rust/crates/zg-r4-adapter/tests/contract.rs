@@ -1839,4 +1839,52 @@ fn a_call_cannot_perform_more_opens_than_it_reserved() {
     assert_eq!(session.ledger.read_ops, 2);
     assert!(session.ledger.terminal.is_none(), "no terminal state for a correct call");
 }
+#[test]
+fn evidence_stops_at_the_distinct_file_budget_with_typed_gaps() {
+    // A multi-request call must discover the distinct-file limit while admitting
+    // each request, not at commit time: the refusal is a typed gap and the
+    // session stays usable.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("F")).expect("dir");
+    // MAX_PACK_ITEMS requests per call, so fill the distinct-file budget with
+    // several calls: the last one must refuse with typed gaps.
+    for index in 0..(MAX_DISTINCT_READS + 12) {
+        fs::write(root.join(format!("F/file{index:03}.cs")), "one\ntwo\n").expect("w");
+    }
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    for call_index in 0..3u32 {
+        let start = (call_index as usize) * 10; // MAX_PACK_ITEMS per call
+        let end = (start + 10).min(MAX_DISTINCT_READS + 4);
+        let mut evidence = input(Tool::Evidence, 1);
+        evidence.requests = (start..end)
+            .map(|index| span_request(&format!("F/file{index:03}.cs"), 1, 1))
+            .collect();
+        let envelope = call(&mut session, evidence);
+        assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    }
+    // Ask for files that were NOT read yet: only the remaining file slots may
+    // be served, the rest must come back as typed gaps.
+    let requests: Vec<_> = (0..10)
+        .map(|index| span_request(&format!("F/file{:03}.cs", 30 + index), 1, 1))
+        .collect();
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = requests;
+    let envelope = call(&mut session, evidence);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    assert!(session.ledger.terminal.is_none(), "the run stays usable: {envelope}");
+    assert!(
+        session.ledger.read_files.len() <= MAX_DISTINCT_READS,
+        "the distinct-file budget is never exceeded"
+    );
+    assert!(
+        session.ledger.read_ops <= MAX_READ_OPS,
+        "the operation budget is never exceeded"
+    );
+    let gaps = envelope["result"]["gaps"].as_array().cloned().unwrap_or_default();
+    assert!(
+        gaps.iter().any(|gap| gap["code"] == json!("file_budget_exceeded")),
+        "refused requests are typed gaps: {envelope}"
+    );
+}
 

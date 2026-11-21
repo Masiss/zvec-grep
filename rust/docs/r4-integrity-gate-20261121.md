@@ -120,7 +120,7 @@ generation usage (requests, tokens, latency) is reported separately per case.
 
 ## 3. Negative controls (executed independently)
 
-Grader fixtures (`r4_grade_selftest.py`, 53 checks) include every required
+Grader fixtures (`r4_grade_selftest.py`, 56 checks) include every required
 control, each with its expected verdict fixed in the test before execution:
 
 | Control | Expected | Result |
@@ -150,7 +150,7 @@ evaluator (UNGRADABLE).
 
 ## 4. Source-read failure injection
 
-Adapter contract tests (50) now include, with the ledger checked against the
+Adapter contract tests (51) now include, with the ledger checked against the
 observed opens rather than only a final total:
 
 1. fail before any read → no invented read (path-resolution case asserts 0);
@@ -194,7 +194,8 @@ NOT_MEASURED — arm A stays `NOT_MEASURED` because it has no verification
 capability (`provenance_blocked`), which is a capability statement, not a
 reasoning judgement.
 
-Receipts: `/home/masis/.cache/zvec-grep/r4-longrun-20261121/three-arm-v5/`.
+Receipts: `/home/masis/.cache/zvec-grep/r4-longrun-20261121/three-arm-v6/`
+(the summary is derived from the rows inside that JSON, not typed).
 
 ## 6. Gate matrix
 
@@ -232,6 +233,38 @@ its own fixtures. Verdict at that snapshot: **FIX-FIRST**, one blocking finding.
 | Pack kind inferred from a byte substring | LOW | **Fixed** — parsed JSON |
 | Boolean claim indices accepted as ints | LOW | **Fixed** before the review landed (same class of bug) |
 | E2E receipts mixed criteria from one grading with the verdict from another | MEDIUM (evidence integrity) | **Fixed** — separate records per grading, summary derived from rows |
+
+### 6c. Second review pass (same reviewer, corrections only)
+
+The reviewer re-checked the corrections against the corrected bundle:
+
+| Item | Verdict |
+|---|---|
+| W1 judgement coverage | **FIXED** (17 probes: no fields, empty lists, partial, duplicates, bool and negative indices all rejected) |
+| W2 question identity | **PARTIAL** — a diagnostic source or a wrong digest is `NOT_MEASURED`; a *consistent* rewrite of `formal`/`source`/digest is still accepted, because the artifact carries no question text and no controller signature |
+| W3 invalid citation credit | **FIXED** (a hash-mismatch-rejected citation no longer credits a required step) |
+| W4/W5 plan chain | **FIXED** at driver level (omitted block, swapped bytes, wrong executed digest, post-generation swap all trip) |
+| W6–W9 read accounting | **FIXED** by inspection, with one admission gap found |
+| W12 receipts | **FIXED** (summary exactly recomputable from rows) |
+
+Its residual findings were closed afterwards:
+
+- **V2** (distinct-file budget in a multi-request evidence call) — admission now
+  checks files admitted earlier in the same loop, so the refusal is a typed gap
+  instead of a terminal over-run (`evidence_stops_at_the_distinct_file_budget_with_typed_gaps`).
+- **V3** (two "canonical" plan digests) — one canonical form: UTF-8 JSON, sorted
+  keys, no ASCII escaping, reproducible from the Rust side.
+- **V5** (over-open guard untested) — direct unit tests now trip and clear it.
+- **V6** (a failed workflow was free) — a failed engine call is charged to the
+  shared pool.
+- **V7** (malformed evaluation crashed the grader) — non-object evaluations,
+  non-object `inputs` and non-object claims are `UNGRADABLE`.
+- **V4** (stale paths and counts in the report) — corrected.
+
+W2 remains the only acknowledged, out-of-model gap: a local attacker who owns
+both the artifact and its sidecar can forge any self-declaration. That is why the
+frozen bundle, receipts and owner-side final review exist; it is not fixable
+inside the grader and is recorded rather than papered over.
 
 Not changed: the reviewer's suggestions to redesign the grading pipeline or to
 widen scope were out of mission scope and are not adopted. Findings the reviewer

@@ -424,6 +424,10 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
 
     Anything else is INVALID, and an INVALID evaluation can never become PASS.
     """
+    if evaluator is not None and not isinstance(evaluator, dict):
+        return {"status": "INVALID", "verdict": None, "rationale": "",
+                "error": "semantic evaluation must be a JSON object",
+                "evaluator": None, "claims_reviewed": 0}
     if evaluator is None:
         return {"status": "NOT_EVALUATED", "verdict": None,
                 "rationale": "no independent semantic evaluator supplied",
@@ -439,9 +443,12 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
         return out
 
     verdict = evaluator.get("verdict")
-    rationale = (evaluator.get("rationale") or "").strip()
+    rationale = (evaluator.get("rationale") or "").strip() \
+        if isinstance(evaluator.get("rationale"), (str, type(None))) else ""
     identity = evaluator.get("evaluator_id") or ""
     claims = artifact.get("claims") or []
+    if not isinstance(claims, list) or any(not isinstance(claim, dict) for claim in claims):
+        return invalid("answer claims must be a list of objects")
 
     if verdict not in SEMANTIC_VERDICTS:
         return invalid(f"semantic verdict must be one of {SEMANTIC_VERDICTS}")
@@ -462,7 +469,9 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
         return invalid(f"evaluator {identity!r} is registered but not trusted")
 
     # Provenance: the evaluation must name the frozen inputs it judged.
-    inputs = evaluator.get("inputs") or {}
+    inputs = evaluator.get("inputs")
+    if not isinstance(inputs, dict):
+        return invalid("semantic evaluation must carry an 'inputs' object")
     expected = {
         "case": case,
         "answer_sha256": answer_sha,
@@ -789,8 +798,11 @@ def main() -> int:
         pack, pack_record = load_pack(args.answers, args.case, args.profile, args.packs)
         binding = bind_answer_to_pack(artifact, pack_record)
 
-        evaluator = load_json(args.semantic) if args.semantic else None
-        if evaluator is not None and (evaluator.get("case") not in (None, args.case)):
+        try:
+            evaluator = load_json(args.semantic) if args.semantic else None
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise GradingError(f"semantic evaluation is not readable JSON: {error}") from error
+        if isinstance(evaluator, dict) and evaluator.get("case") not in (None, args.case):
             raise GradingError(
                 f"semantic evaluation is for case {evaluator.get('case')}, not {args.case}"
             )
