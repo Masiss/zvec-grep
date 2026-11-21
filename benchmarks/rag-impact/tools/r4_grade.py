@@ -233,11 +233,14 @@ def pack_spans(pack: dict) -> list[dict]:
     else:
         for item in pack.get("items") or []:
             rng = item.get("range")
+            # Pack ranges are inclusive at both ends, whatever the byte-column
+            # marker says. The adapter writes inclusive end lines for both
+            # search-derived and verified packs (checked against real packs in
+            # this round); the old `end - 1` decrement silently dropped the
+            # delivered last line and made a correct citation look undelivered.
             if isinstance(rng, dict):
                 start = rng.get("start_line")
                 end = rng.get("end_line")
-                if rng.get("end_byte_column") == 0 and start is not None and end is not None:
-                    end = max(start, end - 1)
             else:
                 start, end = (rng or [None, None])[:2]
             verification = item.get("verification")
@@ -636,8 +639,11 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
             "unsupported_claims": sorted(set(unsupported)),
             "dimensions": validated_dimensions,
             "packet_sha256": packet_sha,
+            # Only a transport-recorded identity counts; an evaluation that
+            # simply carries the key is not evidence the transport reported it.
             "served_identity": (evaluator.get("served_identity")
-                                if isinstance(evaluator.get("served_identity"), str)
+                                if evaluator.get("served_identity_source") == "transport"
+                                and isinstance(evaluator.get("served_identity"), str)
                                 else None),
             "inputs": expected}
 

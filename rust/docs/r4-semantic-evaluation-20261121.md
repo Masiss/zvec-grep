@@ -29,11 +29,12 @@ Directly adjacent type-confusion defects found while fixing them, all now
 - `verdict` / `inputs` of the wrong type;
 - `rationale` that is a list, dict or bool.
 
-Evidence: `r4_grade_selftest.py` grew from 56 to **79 checks**; the new ones
+Evidence: `r4_grade_selftest.py` grew from 56 to **81 checks**; the new ones
 cover 8 malformed-evaluation shapes, 7 registry shapes that must not grant
 authority, the literal-`true` control that still grades, a PASS that omits or
-weakens the scored dimensions, a citation wider than its pack item, and three
-malformed answer-artifact shapes (review W9). The
+weakens the scored dimensions, a citation wider than its pack item, the last
+delivered line vs one line past it, and three malformed answer-artifact shapes
+(review W9). The
 `invalid()` path no longer calls any method on an unvalidated value, so a
 malformed evaluation cannot raise inside the grader.
 
@@ -57,17 +58,21 @@ frozen answer + pack + frozen question + cited-span text
 
 **What the packet contains** (built from frozen artefacts, hash-checked, pack
 binding re-verified): question text and digest, answer text/claims/citations/
-declared gaps, the pack's items (paths, ranges, hashes, verification state and
-content when the pack carries it), the exact text of the parts of those items
-the answer cited, the public C1–C6 rubric and `REPORT-CONTRACT.md`.
+declared gaps, the pack's items (paths, inclusive ranges, hashes, verification
+state, and the full item content when the pack stores it), the exact text of
+the parts of those items the answer cited, the public C1–C6 rubric and
+`REPORT-CONTRACT.md`. Cited text is capped at 64 KiB per span and 512 KiB in
+total; oversized evidence is refused, not truncated.
 
 **Delivered-evidence boundary (review W1).** A citation may be narrower than a
 pack item but never wider: the region shown to the evaluator is the
 intersection, and a citation that is not fully inside one delivered pack item
 is reported as `in_pack: false` with no content and is **never read from the
 corpus**. The grader enforces the same rule structurally (`contains`, not
-`overlaps`), and an invalid citation now scores C2 = 0 without needing an
-evaluator. Overlap is not delivery.
+`overlaps`), and an invalid citation scores C2 = 0 without needing an evaluator.
+Pack ranges are inclusive at both ends — the convention the adapter actually
+writes; the previous exclusive-end normalisation dropped the delivered last line
+and is removed (second-pass P1-1). Overlap is not delivery.
 
 **What it never contains**: gold spans, the scope manifest, the per-case C3
 checklist (only the materials file's SHA-256 is used as a binding digest), the
@@ -82,9 +87,14 @@ packet, never from the response. A response carrying an extra key (including
 `evaluator_id`) is rejected; an `accept --identity` that disagrees with the
 packet is rejected before any response is read. The packet's own digest is
 recomputed, the instructions digest is checked, and the response must echo
-`packet_sha256`, so a verdict cannot be replayed onto a different packet
-(review W5/W7). The packet digest is an integrity checksum, **not**
-authentication: the owner-side receipt review remains the root of trust.
+`packet_sha256`, so a response carrying a different packet digest is rejected
+(review W5/W7). `accept` additionally rebuilds every cited span from the
+delivered pack items and refuses any content mismatch, so rewriting
+`cited_spans[].content` and recomputing the digest does not change what was
+judged (second-pass P1-2). The packet digest is an integrity checksum, **not**
+authentication: the owner-side receipt review remains the root of trust, and a
+hand-written evaluation that bypasses `accept` is only as trustworthy as the
+registry decision.
 
 **Response contract** (strict, `additionalProperties: false`): the packet digest,
 `verdict` (PASS|FAIL), non-empty `rationale`, `claims[]` judging every claim
@@ -101,7 +111,9 @@ unsupported claim, requires `claim_correctness = 2`, `citation_support = 2`, and
 unsupported. The grader independently re-checks the claim lists **and the five
 dimension scores** (mandatory on PASS), so bypassing `accept` cannot produce a
 PASS that `accept` would have refused. A PASS without dimensions, or with a
-score below a floor, is `UNGRADABLE`.
+score below a floor, is `UNGRADABLE`. A malformed `FAIL` is likewise
+`UNGRADABLE`: an evaluation whose own fields do not satisfy the contract cannot
+be trusted to say the answer failed.
 
 The tool is transport-agnostic and contains **no network client**: a remote
 model and the loopback judge exchange the same two JSON files. Sending private
@@ -145,7 +157,7 @@ Each fixture is built from the frozen span and graded in a separate process.
 | missing-evidence (claim with no citation) | FAIL | FAIL | FAIL (C2 = 0) |
 | unsupported-citation (valid hash, cited span says otherwise) | FAIL | FAIL | FAIL (C3/C6) |
 | citation-wider-than-pack (starts inside, ends outside) | FAIL | FAIL | FAIL (C2 = 0) |
-| abstention with a declared pack gap | REFUSED | FAIL | n/a (no claims) |
+| claim-free answer with a declared gap (pack is partial) | REFUSED | FAIL | n/a (no claims) |
 
 Within this fixture set only the grounded row reaches a formal `PASS`. The
 contrived column is the reviewer's W12 counterfactual: grade the same frozen
@@ -175,15 +187,15 @@ remains empty, so every real case is `NOT_MEASURED` by construction.
 | Candidate | Endpoint / identity | Data flow | Cost for 36 evaluations |
 |---|---|---|---|
 | local open-weights | local Responses-compatible server; record server name, weights digest, quantization | none off-machine; D2 not required | electricity/time only |
-| remote frontier | `https://api.openai.com/v1/responses`, model pinned and served identity recorded per evaluation | question + answer + pack metadata + cited span text leave the machine | **$0.81** at the illustrative 2.00/8.00 USD per 1M input/output tokens |
+| remote frontier | `https://api.openai.com/v1/responses`, model pinned and served identity recorded per evaluation | question + answer + pack metadata + cited span text leave the machine | **$0.85** at the illustrative 2.00/8.00 USD per 1M input/output tokens |
 | named human | owner-named reviewer, no session/gold access | none | reviewer time per evaluation |
 
-Cost basis: measured over the 36 frozen answers in this round — 304,592
+Cost basis: measured over the 36 frozen answers in this round — 323,895
 estimated prompt tokens (UTF-8 bytes / 4) + 25,200 assumed output tokens
-(700/evaluation) = 329,792 tokens ≈ **$0.0225 per evaluation**, **$0.81 for the
+(700/evaluation) = 349,095 tokens ≈ **$0.0236 per evaluation**, **$0.85 for the
 full three-arm set**. The rate card is a labelled assumption, not a quote; token
 counts are estimates. A repeat costs the same; four arm-profile repeats would
-be ≈ $3.2.
+be ≈ $3.4.
 
 Exact registration shape (the tool never writes this file; the owner does):
 
@@ -236,7 +248,7 @@ export LD_LIBRARY_PATH=/home/masis/.cache/zvec-grep/rust-target-recovered-202611
 export ZG_ORT_CACHE_DIR=/home/masis/.cache/zvec-grep/rust-target-recovered-20261105/ort-prebuilt
 export CARGO_TARGET_DIR=/home/masis/.cache/zvec-grep/r4-evidence-20261119/target
 
-# 1. validation regressions (79 checks) + evaluator contract (40 checks)
+# 1. validation regressions (81 checks) + evaluator contract (42 checks)
 python3 benchmarks/rag-impact/tools/r4_grade_selftest.py \
   /home/masis/.cache/zvec-grep/r4-sql-symbols-20261118/corpus /tmp/g
 python3 benchmarks/rag-impact/tools/r4_semantic_evaluator_selftest.py /tmp/se
@@ -246,7 +258,7 @@ python3 benchmarks/rag-impact/tools/r4_bench_driver_selftest.py \
   $CARGO_TARGET_DIR/debug/r4-adapter \
   /home/masis/.cache/zvec-grep/r4-sql-symbols-20261118/corpus /tmp/h
 
-# 3. end-to-end: 5 crafted fixtures + 36 synthetic arm runs
+# 3. end-to-end: 7 crafted fixtures + 36 synthetic arm runs
 python3 benchmarks/rag-impact/tools/r4_semantic_e2e.py \
   --corpus /home/masis/.cache/zvec-grep/r4-sql-symbols-20261118/corpus \
   --work /home/masis/.cache/zvec-grep/r4-semantic-eval-20261121/e2e
@@ -260,7 +272,7 @@ python3 benchmarks/rag-impact/tools/r4_semantic_evaluator.py estimate \
   --out /home/masis/.cache/zvec-grep/r4-semantic-eval-20261121/cost-estimate.json
 ```
 
-Expected: 79/79, 40/40, 79/79, E2E exit 0 with `all_as_expected: true`,
+Expected: 81/81, 42/42, 79/79, E2E exit 0 with `all_as_expected: true`,
 36/36 accepted evaluations and no formal PASS without an evaluator.
 
 ## 7. Owner decisions still required
@@ -319,3 +331,28 @@ not by a signature. That is recorded in §5.
    answer.
 5. The remote candidate's rate card is illustrative; the real budget needs the
    provider's current price sheet.
+
+### 8b. Second review pass (bounded, corrections only)
+
+The same reviewer re-checked only the corrections, with execution where
+possible. It reproduced the 79/40/79 self-tests and the E2E summary, and
+created its own probes for the dimension floors, citation containment, replay
+and shape validation. **No P0.** Three P1 and seven P2 issues; all are fixed
+here except the two root-of-trust limits stated in §9.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| P1-1 the `end - 1` normalisation dropped the delivered last line on adapter-shaped packs, so a correct citation of that line was rejected — and the new fixture was built to the wrong convention | P1 | `pack_spans` and the packet now treat `end_line` as inclusive, matching both real pack shapes (checked against the adapter's packs: search-derived and verified are inclusive; a trailing newline explains the earlier miscount); all fixtures use the same convention; new fixtures cover "citation exactly at the delivered end" (valid) and "one line past" (C2 = 0) |
+| P1-2 the evaluation did not bind the evidence text; a rewritten `cited_spans[].content` plus a recomputed packet digest survived to a formal PASS | P1 | `accept` rebuilds every cited span from the delivered pack items (or the frozen corpus when an item stores no content, via `--corpus`) and refuses any mismatch, missing span, or uncited extra span; two new regression fixtures |
+| P1-3 the bundle could not run its own driver evidence (`r4_tool_schema` missing) | P1 | the tool is in the bundle and the patch; the README states the bundle is read-only and that self-test logs come from the repo at HEAD, because the bundled selftest needs the repo's labels and corpus |
+| P2-1 the NUL-path fixture could not fail | P2 | the check now requires `in_pack: false` (or a structured refusal) |
+| P2-2 `receipts/fixtures.json` had been post-processed by hand | P2 | the E2E now writes the sanitized receipt itself; it is exactly the shipped code's output |
+| P2-3 "5 crafted fixtures" survived in the doc and tool docstring | P2 | both say 7 |
+| P2-4 the abstention fixture was labelled "honest" while its artefacts said the pack was complete | P2 | the pack is now partial and the row is described as a policy fixture: declared gap, no claims, refused a formal PASS |
+| P2-5 a malformed FAIL became `UNGRADABLE` instead of `FAIL` | P2 | stated in §2: an evaluation that does not satisfy its own contract is `UNGRADABLE`, whatever verdict it claims |
+| P2-6 packet scope under-described item content and the caps | P2 | §2 names the full item content and the 64 KiB / 512 KiB caps |
+| P2-7 `served_identity` had no provenance marker on the grading side | P2 | the grader records it only when `served_identity_source == "transport"` |
+
+No further review round is opened: the remaining limits (signature-free
+artifacts; evaluator identity is an owner decision) are structural, not code
+defects, and are recorded rather than patched.

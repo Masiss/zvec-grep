@@ -10,11 +10,13 @@ A. Three arms on the frozen cases. Real controller, real adapter, real
    mock transports' answers are NOT real answer quality.
 
 B. Crafted fixtures on a real frozen case (D11), built from frozen inputs:
-     correct              grounded claim, verified pack      -> formal PASS
-     contradicted         valid citation, wrong content      -> semantic FAIL
-     runtime-assertion    asserts deployed behaviour         -> C4 zero, no PASS
-     missing-evidence     claim without any citation         -> never PASS
-     unsupported-citation valid hash, span says otherwise     -> semantic FAIL
+     correct                  grounded claim, verified pack      -> formal PASS
+     contradicted             valid citation, wrong content      -> semantic FAIL
+     runtime-assertion        asserts deployed behaviour         -> C4 zero, no PASS
+     missing-evidence         claim without any citation         -> never PASS
+     unsupported-citation     valid hash, span says otherwise    -> semantic FAIL
+     citation-wider-than-pack starts inside, ends outside        -> C2 zero, no PASS
+     abstention-declared-gap  claim-free answer, declared gap    -> refused, no PASS
 
 The loopback judge is a deterministic stand-in, explicitly labelled synthetic.
 It reads only the packet (no gold, no checklist, no corpus browsing) and its
@@ -97,7 +99,7 @@ def fixture_pack(directory: Path, corpus: Path, case: str, items: list[dict],
         pack["items"].append({
             "project": "hrm", "relative_path": path,
             "sha256": sha(corpus / path), "verification": "verified",
-            "range": {"kind": "text", "start_line": start, "end_line": end + 1,
+            "range": {"kind": "text", "start_line": start, "end_line": end,
                       "start_byte_offset": 0, "end_byte_offset": 0,
                       "start_byte_column": 0, "end_byte_column": 0},
             "content": "\n".join(lines[start - 1:end]),
@@ -274,7 +276,7 @@ def evaluate(answers: Path, corpus: Path, case: str, profile: str, work: Path,
     evaluation_path = work / "evaluator" / tag / "evaluation.json"
     write_json(packet_path, packet)
     write_json(response_path, loopback_response(packet))
-    document = se.accept(packet_path, response_path, evaluation_path)
+    document = se.accept(packet_path, response_path, evaluation_path, corpus=corpus)
     contrived = None
     if packet["answer"]["claims"]:
         contrived = drv.grade(
@@ -398,7 +400,7 @@ def run_fixtures(corpus: Path, work: Path, registry: Path) -> list[dict]:
     # A correct abstention with a declared pack gap: honest, structural C5 full,
     # but a claim-free answer is semantically refused and never a formal PASS.
     run("abstention-declared-gap", [], "Cannot determine from the delivered evidence.",
-        [(path, start, end)], "REFUSED", "FAIL", abstain=True,
+        [(path, start, start + 1)], "REFUSED", "FAIL", abstain=True,
         gaps=["missing_required_lines"],
         pack_gaps=[{"code": "missing_required_lines", "path": path}])
     return rows
@@ -559,7 +561,9 @@ def main(argv: list[str] | None = None) -> int:
     summary["authored_cases"] = cases
     print("\n" + json.dumps(summary, indent=1))
     write_json(work / "receipts" / "arms.json", {"rows": arm_rows})
-    write_json(work / "receipts" / "fixtures.json", {"rows": fixture_rows})
+    write_json(work / "receipts" / "fixtures.json",
+               {"rows": [{key: value for key, value in row.items() if key != "inputs"}
+                         for row in fixture_rows]})
     write_json(work / "receipts" / "summary.json", summary)
     ok = summary["fixtures"]["all_as_expected"]
     if arm_rows:

@@ -249,11 +249,10 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
             path = item.get("relative_path") or item.get("path")
             start = rng.get("start_line")
             end = rng.get("end_line")
-            normalized_end = end
-            if rng.get("end_byte_column") == 0 and isinstance(start, int) and isinstance(end, int):
-                normalized_end = max(start, end - 1)
-            if isinstance(start, int) and isinstance(normalized_end, int):
-                content_by_span[(path, start, normalized_end)] = item.get("content")
+            # Inclusive end line, matching grade.pack_spans (the adapter's
+            # search-derived and verified packs both use this convention).
+            if isinstance(start, int) and isinstance(end, int):
+                content_by_span[(path, start, end)] = item.get("content")
             items.append({"path": path, "start_line": start, "end_line": end,
                           "sha256": item.get("sha256") or item.get("source_sha256"),
                           "verified": item.get("verification") == "verified",
@@ -540,11 +539,62 @@ def validate_response(packet: dict, response: dict) -> dict:
     }
 
 
+
+def _verify_cited_evidence(packet: dict, corpus: Path | None) -> None:
+    """Rebuilds every cited span from the packet's delivered items and refuses
+    any mismatch. This binds the text the evaluator claims to have read to the
+    evidence that was actually delivered, so rewriting `cited_spans[].content`
+    (and recomputing the packet digest) cannot change what was judged."""
+    items = packet["evidence"].get("items") or []
+    claims = packet["answer"].get("claims") or []
+    cited = {(span["path"], span["start_line"], span["end_line"]): span
+             for span in packet.get("cited_spans") or []}
+    expected = set()
+    for claim in claims:
+        for citation in claim.get("citations") or []:
+            key = (citation["path"], citation["start_line"], citation["end_line"])
+            expected.add(key)
+            span = cited.get(key)
+            if span is None:
+                raise EvaluatorError(f"packet has no cited span for {key}")
+            item = next((item for item in items
+                         if item.get("path") == key[0]
+                         and isinstance(item.get("start_line"), int)
+                         and isinstance(item.get("end_line"), int)
+                         and item["start_line"] <= key[1] <= key[2] <= item["end_line"]),
+                        None)
+            if item is None:
+                if span.get("in_pack") is not False or span.get("content") is not None:
+                    raise EvaluatorError(
+                        f"cited span {key} is not inside a delivered pack item")
+                continue
+            if span.get("in_pack") is not True:
+                raise EvaluatorError(f"cited span {key} is delivered but not marked in_pack")
+            if item.get("content") is not None:
+                lines = item["content"].split("\n")
+                offset = key[1] - item["start_line"]
+                recomputed = "\n".join(lines[offset:offset + (key[2] - key[1]) + 1])
+            else:
+                if corpus is None:
+                    raise EvaluatorError(
+                        "pack item has no stored content; pass --corpus so the cited "
+                        "span text can be re-derived and checked")
+                recomputed = _resolve_cited_span(corpus, key[0], key[1], key[2])["content"]
+            if span.get("content") != recomputed:
+                raise EvaluatorError(
+                    f"cited span {key} content does not match the delivered evidence")
+    extra = set(cited) - expected
+    if extra:
+        raise EvaluatorError(f"packet carries cited spans no claim cites: {sorted(extra)}")
+
+
 def accept(packet_path: Path, response_path: Path, out: Path,
            identity: str | None = None,
-           served_identity: str | None = None) -> dict:
+           served_identity: str | None = None,
+           corpus: Path | None = None) -> dict:
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     verify_packet(packet)
+    _verify_cited_evidence(packet, corpus)
     packet_identity = packet["evaluator"]["id"]
     if identity is not None and identity != packet_identity:
         raise EvaluatorError(
@@ -663,6 +713,8 @@ def main(argv: list[str] | None = None) -> int:
     accept_cmd.add_argument("--identity")
     accept_cmd.add_argument("--served-identity",
                             help="identity reported by the transport/provider (recorded, not trusted)")
+    accept_cmd.add_argument("--corpus", type=Path,
+                            help="frozen corpus, needed when a pack item stores no content")
     accept_cmd.add_argument("--out", required=True, type=Path)
 
     estimate_cmd = sub.add_parser("estimate", help="cost/token estimate over frozen answers")
@@ -689,7 +741,8 @@ def main(argv: list[str] | None = None) -> int:
                               "inputs": packet["inputs"]}, indent=1))
         elif args.command == "accept":
             document = accept(args.packet, args.response, args.out, args.identity,
-                              served_identity=args.served_identity)
+                              served_identity=args.served_identity,
+                              corpus=args.corpus)
             print(json.dumps({"evaluation": str(args.out),
                               "verdict": document["verdict"],
                               "evaluator_id": document["evaluator_id"],

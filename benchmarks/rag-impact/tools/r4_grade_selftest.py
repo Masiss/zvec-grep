@@ -61,7 +61,7 @@ def write_pack(directory: Path, corpus: Path, span: tuple[int, int],
             "relative_path": PATH,
             "sha256": file_sha(corpus),
             "verification": verification,
-            "range": {"kind": "text", "start_line": start, "end_line": end + 1,
+            "range": {"kind": "text", "start_line": start, "end_line": end,
                       "start_byte_offset": 0, "end_byte_offset": 0,
                       "start_byte_column": 0, "end_byte_column": 0},
             "content": "\n".join(lines[start - 1:end]),
@@ -405,6 +405,34 @@ def main() -> int:
           json.dumps((result.get("criteria") or {}).get("C2"))[:200])
     check("a PASS evaluation cannot rescue an undelivered citation",
           result.get("verdict") != "PASS", str(result.get("verdict")))
+
+    # ------------- 17d. inclusive pack end: last delivered line is delivered
+    # The adapter writes inclusive end lines; a citation of exactly the last
+    # delivered line must be structurally valid, and one line past it must not.
+    case = work / "delivered-last-line"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [{"text": "UpdateEmployeeAttr switches on model.Attr",
+                         "citations": [citation(GOLD[1], GOLD[1], sha)]}],
+                 "UpdateEmployeeAttr switches on model.Attr")
+    code, result = run_grader(case, corpus)
+    c2 = (result.get("criteria") or {}).get("C2", {})
+    check("citation of the last delivered line is structurally valid",
+          (c2.get("structural") or {}).get("claims_with_valid_citation") == 1
+          and not (c2.get("structural") or {}).get("invalid"), json.dumps(c2)[:200])
+
+    case = work / "one-line-past-pack"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [{"text": "UpdateEmployeeAttr switches on model.Attr",
+                         "citations": [citation(GOLD[1] + 1, GOLD[1] + 1, sha)]}],
+                 "UpdateEmployeeAttr switches on model.Attr")
+    code, result = run_grader(case, corpus)
+    c2 = (result.get("criteria") or {}).get("C2", {})
+    reasons = [entry.get("reason", "") for entry in
+               (c2.get("structural") or {}).get("invalid", [])]
+    check("citation one line past the delivered end is invalid",
+          (c2.get("structural") or {}).get("claims_with_valid_citation") == 0
+          and any("not contained" in reason for reason in reasons),
+          json.dumps(c2)[:200])
 
     # ------------------- 17c. malformed answer shapes are UNGRADABLE, not crashes
     for name, claims in [

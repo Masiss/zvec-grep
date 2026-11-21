@@ -63,7 +63,7 @@ def build_world(root: Path) -> tuple[Path, Path, Path]:
         "items": [{
             "project": "test", "relative_path": PATH, "sha256": SHA,
             "verification": "verified",
-            "range": {"kind": "text", "start_line": 1, "end_line": 3,
+            "range": {"kind": "text", "start_line": 1, "end_line": 2,
                       "start_byte_offset": 0, "end_byte_offset": 0,
                       "start_byte_column": 0, "end_byte_column": 0},
             "content": "\n".join(SOURCE.split("\n")[0:2]),
@@ -268,7 +268,7 @@ def main() -> int:
     pack_doc["items"].append({
         "project": "test", "relative_path": "src/Big.cs", "sha256": big_sha,
         "verification": "verified",
-        "range": {"kind": "text", "start_line": 1, "end_line": 12001,
+        "range": {"kind": "text", "start_line": 1, "end_line": 12000,
                   "start_byte_offset": 0, "end_byte_offset": 0,
                   "start_byte_column": 0, "end_byte_column": 0},
     })
@@ -320,10 +320,11 @@ def main() -> int:
     (nul / f"answer-{CASE}-{PROFILE}.sha256").write_text(
         hashlib.sha256(raw.encode()).hexdigest() + f"  answer-{CASE}-{PROFILE}.json\n")
     try:
-        se.build_packet(nul, labels, corpus, CASE, PROFILE, "eval-fixture")
-        check("NUL in citation path refused structurally", True)  # not contained in pack
+        packet_nul = se.build_packet(nul, labels, corpus, CASE, PROFILE, "eval-fixture")
+        refused = packet_nul["cited_spans"][0]["in_pack"] is False
     except se.EvaluatorError:
-        check("NUL in citation path refused structurally", True)
+        refused = True
+    check("NUL in citation path refused structurally", refused)
 
     # An answer whose sidecar no longer matches is refused before a packet exists.
     broken = work / "broken"
@@ -341,10 +342,44 @@ def main() -> int:
     write_json(work / "response.json", response(packet, "PASS", ["supported"]))
     try:
         se.accept(work / "packet.json", work / "response.json", work / "eval.json",
-                  identity="trusted-evaluator")
+                  identity="trusted-evaluator", corpus=corpus)
         check("identity override refused", False)
     except se.EvaluatorError:
         check("identity override refused", True)
+
+    # P1-2 exploit: rewrite the text the evaluator "read", recompute the packet
+    # digest, and bind a PASS response to it. accept must rebuild the span from
+    # the delivered pack item and refuse.
+    doctored = json.loads(json.dumps(packet))
+    doctored["cited_spans"][0]["content"] = "Widget.Rename launches missiles"
+    body = {key: value for key, value in doctored.items() if key != "packet_sha256"}
+    doctored["packet_sha256"] = hashlib.sha256(
+        se.canonical_json(body).encode("utf-8")).hexdigest()
+    write_json(work / "doctored-packet.json", doctored)
+    write_json(work / "doctored-response.json",
+               response(doctored, "PASS", ["supported"]))
+    try:
+        se.accept(work / "doctored-packet.json", work / "doctored-response.json",
+                  work / "doctored-eval.json", corpus=corpus)
+        check("doctored cited-span text refused", False)
+    except se.EvaluatorError:
+        check("doctored cited-span text refused", True)
+
+    # A cited span no claim cites is extra material, not deliverable evidence.
+    extra = json.loads(json.dumps(packet))
+    extra["cited_spans"].append({**extra["cited_spans"][0],
+                                 "path": "src/Other.cs"})
+    body = {key: value for key, value in extra.items() if key != "packet_sha256"}
+    extra["packet_sha256"] = hashlib.sha256(
+        se.canonical_json(body).encode("utf-8")).hexdigest()
+    write_json(work / "extra-packet.json", extra)
+    write_json(work / "extra-response.json", response(extra, "PASS", ["supported"]))
+    try:
+        se.accept(work / "extra-packet.json", work / "extra-response.json",
+                  work / "extra-eval.json", corpus=corpus)
+        check("uncited extra span refused", False)
+    except se.EvaluatorError:
+        check("uncited extra span refused", True)
 
     print()
     if FAILURES:
