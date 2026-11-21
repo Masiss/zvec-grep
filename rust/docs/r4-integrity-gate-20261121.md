@@ -120,7 +120,7 @@ generation usage (requests, tokens, latency) is reported separately per case.
 
 ## 3. Negative controls (executed independently)
 
-Grader fixtures (`r4_grade_selftest.py`, 46 checks) include every required
+Grader fixtures (`r4_grade_selftest.py`, 53 checks) include every required
 control, each with its expected verdict fixed in the test before execution:
 
 | Control | Expected | Result |
@@ -150,7 +150,7 @@ evaluator (UNGRADABLE).
 
 ## 4. Source-read failure injection
 
-Adapter contract tests (48) now include, with the ledger checked against the
+Adapter contract tests (50) now include, with the ledger checked against the
 observed opens rather than only a final total:
 
 1. fail before any read → no invented read (path-resolution case asserts 0);
