@@ -70,6 +70,23 @@ VERIFYING_PROFILES = ("arm-b", "arm-c")
 VIOLATION_EXIT = 2
 ERROR_EXIT = 3
 
+ANSWER_INSTRUCTIONS = (
+    "You investigate a codebase using the tools you are given, then submit a "
+    "final answer by calling `submit_answer` exactly once.\n"
+    "Rules for the submission:\n"
+    "- `answer`: the human-readable answer.\n"
+    "- `claims`: one entry per assertion; every claim needs at least one "
+    "citation.\n"
+    "- a citation is `{path, start_line, end_line, sha256}` copied from a tool "
+    "result you actually received. Never invent a citation, never cite a range "
+    "you were not shown, and never cite a path you did not receive.\n"
+    "- `gaps`: the required facts you could not establish from the evidence you "
+    "received. If a tool reported a gap or dropped content, say so here.\n"
+    "- `abstain`: true only when you cannot answer at all; then `claims` must be "
+    "empty.\n"
+    "Do not describe runtime or deployment state that the source cannot show."
+)
+
 PLAN_INSTRUCTIONS = (
     "You produce investigation plans for a code search engine. Use only the "
     "question and the permitted folder hints. Never assume gold evidence, "
@@ -1164,9 +1181,14 @@ def main() -> int:
             plan_file = Path(plan_provenance["path"])
             plan_provenance["transport_requests"] = len(planner.requests)
 
-    instructions = "You are a code-investigation agent."
+    instructions = ANSWER_INSTRUCTIONS
     if args.answer_instructions_file:
         instructions = args.answer_instructions_file.read_text(encoding="utf-8")
+    # The answer contract is only enforceable if the model was told about it.
+    if "submit_answer" not in instructions:
+        print("CONTRACT_ERROR: answer instructions must describe the submit_answer "
+              "contract", file=sys.stderr)
+        return ERROR_EXIT
 
     if args.backend == "openai-responses":
         if not args.authorized_inference:

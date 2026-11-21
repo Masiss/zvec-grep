@@ -1993,6 +1993,11 @@ impl Session {
             },
             "files": self.ledger.distinct_files,
             "read_files": self.ledger.read_files,
+            // Session-level read accounting, mirrored at the top level so a
+            // receipt reconciles with the per-call deltas in `history` without
+            // digging into `budget`.
+            "read_ops": self.ledger.read_ops,
+            "read_ops_max": MAX_READ_OPS,
             "packs": self.ledger.packs,
             "history": self.ledger.history,
             "exclusions": self.ledger.exclusions,
