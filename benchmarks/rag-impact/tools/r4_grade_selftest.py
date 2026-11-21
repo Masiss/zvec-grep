@@ -117,11 +117,12 @@ REGISTRY = None  # written per run into the work dir
 
 
 def run_grader(answers: Path, corpus: Path, materials: Path | None = None,
-               semantic: Path | None = None) -> tuple[int, dict]:
+               semantic: Path | None = None,
+               registry: Path | None = None) -> tuple[int, dict]:
     args = [sys.executable, str(GRADER), "--answers", str(answers),
             "--labels", str(LABELS), "--corpus", str(corpus),
             "--materials", str(materials or MATERIALS),
-            "--registry", str(REGISTRY),
+            "--registry", str(registry or REGISTRY),
             "--case", CASE, "--profile", PROFILE]
     if semantic is not None:
         args += ["--semantic", str(semantic)]
@@ -399,6 +400,73 @@ def main() -> int:
         code, result = run_grader(case, corpus, semantic=sem)
         check(f"invalid semantic evaluation ({label}) cannot PASS",
               result.get("verdict") == "UNGRADABLE", str(result.get("verdict")))
+
+    # -------------------- 18b. malformed evaluation is rejected, never a crash
+    # Regression: a rationale of the wrong type used to raise AttributeError
+    # inside the grader, and a truthy non-boolean `trusted` granted authority.
+    case = work / "semantic-type-confusion"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    good_sem = semantic_file(work / "sem", "PASS", "span supports the claim",
+                             answers=case, supported_claims=[0])
+    base_payload = json.loads(good_sem.read_text(encoding="utf-8"))
+
+    def mutated(name: str, mutate) -> Path:
+        payload = json.loads(json.dumps(base_payload))
+        mutate(payload)
+        path = work / "sem" / f"mut-{name}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    for name, mutate in [
+        ("rationale-int", lambda p: p.__setitem__("rationale", 123)),
+        ("rationale-list", lambda p: p.__setitem__("rationale", ["x"])),
+        ("rationale-dict", lambda p: p.__setitem__("rationale", {"text": "x"})),
+        ("rationale-bool", lambda p: p.__setitem__("rationale", True)),
+        ("evaluator-id-list", lambda p: p.__setitem__("evaluator_id", ["x"])),
+        ("evaluator-id-int", lambda p: p.__setitem__("evaluator_id", 7)),
+        ("verdict-list", lambda p: p.__setitem__("verdict", ["PASS"])),
+        ("inputs-list", lambda p: p.__setitem__("inputs", [])),
+    ]:
+        sem = mutated(name, mutate)
+        code, result = run_grader(case, corpus, semantic=sem)
+        check(f"malformed semantic evaluation ({name}) is UNGRADABLE, not a crash",
+              result.get("verdict") == "UNGRADABLE",
+              json.dumps({k: result.get(k) for k in ("verdict", "error")})[:200])
+
+    registry_dir = work / "registries"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+    for name, registry_doc in [
+        ("trusted-string-false", {"evaluators": {"fixture-evaluator": {"trusted": "false"}}}),
+        ("trusted-string-true", {"evaluators": {"fixture-evaluator": {"trusted": "true"}}}),
+        ("trusted-int-one", {"evaluators": {"fixture-evaluator": {"trusted": 1}}}),
+        ("trusted-list", {"evaluators": {"fixture-evaluator": {"trusted": []}}}),
+        ("evaluators-list", {"evaluators": []}),
+        ("registration-string", {"evaluators": {"fixture-evaluator": "yes"}}),
+    ]:
+        reg = registry_dir / f"{name}.json"
+        reg.write_text(json.dumps(registry_doc), encoding="utf-8")
+        code, result = run_grader(case, corpus, semantic=good_sem, registry=reg)
+        check(f"registry with {name} grants no authority",
+              result.get("verdict") == "UNGRADABLE",
+              json.dumps({k: result.get(k) for k in ("verdict", "error")})[:200])
+
+    reg = registry_dir / "top-level-list.json"
+    reg.write_text(json.dumps([{"evaluators": {"fixture-evaluator": {"trusted": True}}}]),
+                   encoding="utf-8")
+    code, result = run_grader(case, corpus, semantic=good_sem, registry=reg)
+    check("registry with a non-object top level grants no authority",
+          result.get("verdict") == "UNGRADABLE",
+          json.dumps({k: result.get(k) for k in ("verdict", "error")})[:200])
+
+    # A boolean `true` (the only accepted value) still grades normally.
+    reg = registry_dir / "trusted-literal-true.json"
+    reg.write_text(json.dumps({"evaluators": {"fixture-evaluator": {"trusted": True}}}),
+                   encoding="utf-8")
+    code, result = run_grader(case, corpus, semantic=good_sem, registry=reg)
+    check("literal trusted=true still permits formal PASS",
+          result.get("verdict") == "PASS", str(result.get("verdict")))
 
     # ------------------------------- 19. valid semantic PASS + structure PASS
     case = work / "fully-supported"

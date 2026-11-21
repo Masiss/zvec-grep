@@ -434,38 +434,56 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
                 "evaluator": None, "claims_reviewed": 0}
 
     def invalid(error: str, **extra) -> dict:
-        out = {"status": "INVALID", "verdict": evaluator.get("verdict"),
-               "rationale": (evaluator.get("rationale") or "").strip(),
+        # Nothing here may raise: a malformed evaluation is a structured
+        # rejection, never a crash that could be mistaken for a grader bug.
+        raw_verdict = evaluator.get("verdict")
+        raw_rationale = evaluator.get("rationale")
+        raw_identity = evaluator.get("evaluator_id")
+        out = {"status": "INVALID",
+               "verdict": raw_verdict if isinstance(raw_verdict, str) else None,
+               "rationale": raw_rationale.strip() if isinstance(raw_rationale, str) else "",
                "error": error,
-               "evaluator": evaluator.get("evaluator_id") or "",
+               "evaluator": raw_identity if isinstance(raw_identity, str) else "",
                "claims_reviewed": 0}
         out.update(extra)
         return out
 
     verdict = evaluator.get("verdict")
-    rationale = (evaluator.get("rationale") or "").strip() \
-        if isinstance(evaluator.get("rationale"), (str, type(None))) else ""
-    identity = evaluator.get("evaluator_id") or ""
+    raw_rationale = evaluator.get("rationale")
+    raw_identity = evaluator.get("evaluator_id")
     claims = artifact.get("claims") or []
     if not isinstance(claims, list) or any(not isinstance(claim, dict) for claim in claims):
         return invalid("answer claims must be a list of objects")
 
-    if verdict not in SEMANTIC_VERDICTS:
+    # Types are checked before use: a rationale of the wrong type must be a
+    # rejection, not an AttributeError, and a non-string identity must never
+    # reach the registry lookup (unhashable values raise there).
+    if not isinstance(verdict, str) or verdict not in SEMANTIC_VERDICTS:
         return invalid(f"semantic verdict must be one of {SEMANTIC_VERDICTS}")
+    if not isinstance(raw_rationale, str):
+        return invalid("semantic rationale must be a string")
+    rationale = raw_rationale.strip()
     if not rationale:
         return invalid("semantic verdict carries no rationale")
-    if not identity:
+    if not isinstance(raw_identity, str) or not raw_identity:
         return invalid("semantic verdict identifies no evaluator")
+    identity = raw_identity
 
     # Authority: only a registered evaluator may grade. An unknown identity is
     # not evidence of trust just because the caller wrote it down.
-    if registry is None:
+    if not isinstance(registry, dict):
         return invalid("no evaluator registry was supplied; an unregistered evaluator "
                        "cannot produce a formal verdict")
-    registered = (registry.get("evaluators") or {}).get(identity)
-    if registered is None:
+    evaluators = registry.get("evaluators")
+    if not isinstance(evaluators, dict):
+        return invalid("the evaluator registry has no 'evaluators' object")
+    registered = evaluators.get(identity)
+    if not isinstance(registered, dict):
         return invalid(f"evaluator {identity!r} is not in the benchmark registry")
-    if not registered.get("trusted"):
+    # `trusted` must be the literal JSON true. A truthy string such as
+    # "false" (or 1, a list, ...) is not an owner approval and must not grant
+    # authority to a caller-supplied identity.
+    if registered.get("trusted") is not True:
         return invalid(f"evaluator {identity!r} is registered but not trusted")
 
     # Provenance: the evaluation must name the frozen inputs it judged.

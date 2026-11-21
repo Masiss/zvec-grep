@@ -8,5 +8,6 @@
   "3. Its verdict is written as {case, evaluator_id, verdict, rationale, inputs{case,answer_sha256,pack_sha256,question_sha256,rubric_sha256}, supported_claims[], unsupported_claims[]}.",
   "4. Only after the owner approves the identity is it added here with trusted=true and a fingerprint."
  ],
- "fixtures_note": "Synthetic evaluators used by r4_grade_selftest.py are registered in a test-local registry file, never in this production registry."
+ "fixtures_note": "Synthetic evaluators used by r4_grade_selftest.py are registered in a test-local registry file, never in this production registry.",
+ "workflow": "tools/r4_semantic_evaluator.py (packet → response → accept). Proposed, unapproved configurations live in evaluator-candidates.json; see rust/docs/r4-semantic-evaluation-20261121.md."
 }

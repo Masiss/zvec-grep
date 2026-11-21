@@ -1,0 +1,66 @@
+{
+ "schema_version": 1,
+ "kind": "r4-semantic-evaluator-candidates",
+ "note": "Proposed evaluator configurations for OWNER DECISION. Nothing here is a registration: the production registry cases/evaluators.json stays empty until the owner approves an identity, its prompt and the artifacts it may read. Registering one of these is decision D1; sending cited private source to a remote endpoint is decision D2.",
+ "registration_requires": [
+  "an owner-approved identity (exact model + version + served identity, or a named human)",
+  "the packet instructions and their sha256, which every evaluation records",
+  "the endpoint and the exact data that leaves the machine",
+  "a fingerprint recorded next to trusted=true in cases/evaluators.json"
+ ],
+ "packet_policy": {
+  "included": [
+   "the frozen question text and its sha256",
+   "the frozen answer artifact (answer text, claims, citations, declared gaps)",
+   "the frozen pack: paths, ranges, hashes, verification state and content when present",
+   "the exact text of the spans the answer itself cited, resolved from the frozen corpus",
+   "the public C1-C6 rubric and REPORT-CONTRACT.md"
+  ],
+  "never_included": [
+   "gold spans or the scope manifest",
+   "the per-case C3 checklist (only its sha256 is used as a binding digest)",
+   "the answerer's session, transcript or read ledger",
+   "any grader verdict, previous evaluation or baseline numbers",
+   "the corpus outside cited spans and pack items"
+  ],
+  "authority": "the evaluator identity and the five input digests are injected from the packet by r4_semantic_evaluator.py accept; a model response that tries to set them is rejected"
+ },
+ "candidates": [
+  {
+   "id": "local-open-weights-eval",
+   "kind": "local-model",
+   "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+   "model": "<owner-selected open-weights model tag>",
+   "served_identity": "record the server name, weights digest and quantization at run time",
+   "data_flow": "no data leaves the machine; full cited source stays local",
+   "privacy": "compatible with private HRM2.0 source without D2",
+   "assumed_rates_usd_per_million_tokens": {"input": 0.0, "output": 0.0},
+   "notes": "cost is electricity/time only; the evaluator's independence rests on a different model family and a separate process, and must be stated at registration",
+   "evidence_required_before_registration": "a smoke run over the crafted fixtures in r4_semantic_e2e.py with the exact prompt, plus a served-identity capture"
+  },
+  {
+   "id": "remote-frontier-eval",
+   "kind": "remote-model",
+   "endpoint": "https://api.openai.com/v1/responses",
+   "model": "gpt-4.1",
+   "served_identity": "the provider's returned model/snapshot string, recorded per evaluation",
+   "data_flow": "question + answer + pack metadata + cited span text leave the machine to the provider; no other source, no gold, no checklist",
+   "privacy": "REQUIRES owner decision D2: the cited spans are private HRM2.0 source. Until D2 the endpoint must not be called with real case artefacts.",
+   "assumed_rates_usd_per_million_tokens": {"input": 2.00, "output": 8.00},
+   "notes": "rates are an illustrative list-price example, not a quote; replace with the provider's current price sheet before committing a budget",
+   "evidence_required_before_registration": "sanitized-fixture smoke run, served-identity capture, and a written D2 approval naming the endpoint and data classes"
+  },
+  {
+   "id": "named-human-eval",
+   "kind": "human",
+   "endpoint": null,
+   "model": null,
+   "served_identity": "named reviewer with no access to the answerer session or gold spans",
+   "data_flow": "the same packet, read locally",
+   "privacy": "no egress by construction",
+   "assumed_rates_usd_per_million_tokens": {"input": 0.0, "output": 0.0},
+   "notes": "the strongest independence claim available today; cost is reviewer time per evaluation",
+   "evidence_required_before_registration": "the reviewer's name, instructions version and a signed statement that gold spans and the answerer session were not read"
+  }
+ ]
+}
