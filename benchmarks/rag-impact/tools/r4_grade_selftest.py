@@ -82,7 +82,8 @@ def write_pack(directory: Path, corpus: Path, span: tuple[int, int],
 def write_answer(directory: Path, claims: list[dict], answer_text: str,
                  abstain: bool = False, gaps: list[str] | None = None,
                  pack_sha: str | None = None, status: str = "OK",
-                 sidecar: bool = True, sidecar_sha: str | None = None) -> Path:
+                 sidecar: bool = True, sidecar_sha: str | None = None,
+                 question: dict | None = None) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     pack_path = directory / f"pack-{CASE}-{PROFILE}.json"
     if pack_sha is None and pack_path.is_file():
@@ -94,7 +95,8 @@ def write_answer(directory: Path, claims: list[dict], answer_text: str,
         "claims": claims,
         "gaps": gaps or [],
         "pack": {"sha256": pack_sha, "kind": "evidence"} if pack_sha else None,
-        "question": {"sha256": "a" * 64, "source": "frozen-case", "formal": True},
+        "question": question or {"sha256": frozen_question_sha(),
+                                 "source": "frozen-case", "formal": True},
         "transcript_tools": ["search", "evidence"],
     }
     path = directory / f"answer-{CASE}-{PROFILE}.json"
@@ -111,11 +113,15 @@ def citation(start: int, end: int, sha: str | None) -> dict:
     return {"path": PATH, "start_line": start, "end_line": end, "sha256": sha}
 
 
+REGISTRY = None  # written per run into the work dir
+
+
 def run_grader(answers: Path, corpus: Path, materials: Path | None = None,
                semantic: Path | None = None) -> tuple[int, dict]:
     args = [sys.executable, str(GRADER), "--answers", str(answers),
             "--labels", str(LABELS), "--corpus", str(corpus),
             "--materials", str(materials or MATERIALS),
+            "--registry", str(REGISTRY),
             "--case", CASE, "--profile", PROFILE]
     if semantic is not None:
         args += ["--semantic", str(semantic)]
@@ -127,22 +133,54 @@ def run_grader(answers: Path, corpus: Path, materials: Path | None = None,
         raise
 
 
+def sha256_path(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def frozen_question_sha() -> str:
+    dev = json.loads((LABELS / "cases" / "dev.json").read_text(encoding="utf-8"))
+    question = next(item["question"] for item in dev["cases"] if item["id"] == CASE)
+    return hashlib.sha256(question.encode("utf-8")).hexdigest()
+
+
 def semantic_file(directory: Path, verdict: str, rationale: str,
-                  evaluator_id: str = "evaluator-a", **extra) -> Path:
+                  answers: Path | None = None,
+                  evaluator_id: str = "fixture-evaluator",
+                  override_inputs: dict | None = None,
+                  **extra) -> Path:
+    """Writes an evaluation bound to the frozen inputs of `answers`."""
     directory.mkdir(parents=True, exist_ok=True)
+    inputs = {
+        "case": CASE,
+        "answer_sha256": sha256_path(answers / f"answer-{CASE}-{PROFILE}.json"),
+        "pack_sha256": sha256_path(answers / f"pack-{CASE}-{PROFILE}.json"),
+        "question_sha256": frozen_question_sha(),
+        "rubric_sha256": sha256_path(MATERIALS),
+    }
+    if override_inputs:
+        inputs.update(override_inputs)
     payload = {"case": CASE, "verdict": verdict, "rationale": rationale,
-               "evaluator_id": evaluator_id}
+               "evaluator_id": evaluator_id, "inputs": inputs}
     payload.update(extra)
-    path = directory / f"semantic-{verdict}-{abs(hash((verdict, rationale)))}.json"
+    path = directory / f"semantic-{evaluator_id}-{verdict}-{abs(hash((verdict, rationale, str(inputs))))}.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
 
 
 def main() -> int:
+    global REGISTRY
     corpus = Path(sys.argv[1])
     work = Path(sys.argv[2])
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
+    REGISTRY = work / "evaluators.json"
+    REGISTRY.write_text(json.dumps({
+        "schema_version": 1,
+        "evaluators": {
+            "fixture-evaluator": {"trusted": True, "kind": "fixture"},
+            "untrusted-evaluator": {"trusted": False, "kind": "fixture"},
+        },
+    }), encoding="utf-8")
     sha = file_sha(corpus)
     good_claim = [{"text": "UpdateEmployeeAttr switches on model.Attr, handles Avatar, then SaveChanges",
                    "citations": [citation(GOLD[0], GOLD[1], sha)]}]
@@ -166,7 +204,8 @@ def main() -> int:
     # The same answer, with a semantic evaluator that says it is unsupported.
     semantic = semantic_file(work / "sem", "FAIL",
                              "the cited span contains a switch on model.Attr and SaveChanges, "
-                             "not a delete of every employee", unsupported_claims=[0])
+                             "not a delete of every employee", answers=case,
+                             unsupported_claims=[0], supported_claims=[])
     code, result = run_grader(case, corpus, semantic=semantic)
     check("wrong-but-cited + semantic FAIL: formal FAIL", result.get("verdict") == "FAIL",
           str(result.get("verdict")))
@@ -218,7 +257,8 @@ def main() -> int:
     write_pack(case, corpus, GOLD, verification="unverified")
     write_answer(case, good_claim, good_text)
     code, result = run_grader(case, corpus, semantic=semantic_file(
-        work / "sem", "PASS", "the span supports both statements"))
+        work / "sem", "PASS", "the span supports both statements", answers=case,
+        supported_claims=[0]))
     check("unverified pack: no C2 credit even with a passing evaluator",
           (result.get("criteria") or {}).get("C2", {}).get("score") == 0,
           json.dumps((result.get("criteria") or {}).get("C2")))
@@ -359,7 +399,8 @@ def main() -> int:
     case = work / "fully-supported"
     write_pack(case, corpus, GOLD)
     write_answer(case, good_claim, good_text)
-    sem = semantic_file(work / "sem", "PASS", "the span contains every asserted step")
+    sem = semantic_file(work / "sem", "PASS", "the span contains every asserted step",
+                        answers=case, supported_claims=[0])
     code, result = run_grader(case, corpus, semantic=sem)
     check("fully supported + semantic PASS: formal PASS",
           result.get("verdict") == "PASS", json.dumps(
@@ -373,7 +414,8 @@ def main() -> int:
     write_answer(case, [{"text": "partial", "citations": [citation(GOLD[0], GOLD[0] + 1, sha)]}],
                  "partial answer")
     code, result = run_grader(case, corpus, semantic=semantic_file(
-        work / "sem", "PASS", "the single cited line is accurate"))
+        work / "sem", "PASS", "the single cited line is accurate", answers=case,
+        supported_claims=[0]))
     check("semantic PASS cannot rescue a structural failure",
           result.get("verdict") != "PASS", str(result.get("verdict")))
 
@@ -387,6 +429,123 @@ def main() -> int:
     check("missing required step lowers C6/C3",
           (result.get("criteria") or {}).get("C6", {}).get("score", 2) < 2,
           json.dumps((result.get("criteria") or {}).get("C6")))
+
+    # ------------------------ 22. semantic consistency: PASS + unsupported claim
+    # The reviewer's reproduction: the verdict contradicts its own judgement.
+    case = work / "pass-with-unsupported"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    sem = semantic_file(work / "sem", "PASS", "claims are supported", answers=case,
+                        unsupported_claims=[0], supported_claims=[])
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("semantic PASS carrying an unsupported claim is rejected",
+          result.get("verdict") == "UNGRADABLE"
+          and "unsupported" in (result.get("semantic", {}).get("error") or ""),
+          json.dumps(result.get("semantic"))[:200])
+
+    # -------------------- 23. semantic FAIL with no unsupported claim is invalid
+    sem = semantic_file(work / "sem", "FAIL", "something feels off", answers=case,
+                        supported_claims=[0])
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("semantic FAIL that identifies no unsupported claim is invalid",
+          result.get("verdict") == "UNGRADABLE", json.dumps(result.get("semantic"))[:200])
+
+    # --------------------- 24. judgements must cover every claim exactly once
+    case = work / "unjudged-claims"
+    write_pack(case, corpus, GOLD)
+    two = [good_claim[0], {"text": "second claim",
+                           "citations": [citation(GOLD[0], GOLD[1], sha)]}]
+    write_answer(case, two, "two claims")
+    sem = semantic_file(work / "sem", "PASS", "both supported", answers=case,
+                        supported_claims=[0])
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("a PASS that leaves a claim unjudged is invalid",
+          result.get("verdict") == "UNGRADABLE", json.dumps(result.get("semantic"))[:200])
+
+    # --------------------------- 25. evaluator authority: unknown id, untrusted
+    case = work / "evaluator-authority"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    for label, eid in [("unknown evaluator id", "totally-unknown"),
+                       ("forged evaluator id", "fixture-evaluator "),
+                       ("registered but untrusted", "untrusted-evaluator")]:
+        sem = semantic_file(work / "sem", "PASS", "supported", answers=case,
+                            evaluator_id=eid, supported_claims=[0])
+        code, result = run_grader(case, corpus, semantic=sem)
+        check(f"{label} cannot produce a formal verdict",
+              result.get("verdict") == "UNGRADABLE", json.dumps(result.get("semantic"))[:160])
+
+    # ------------------------- 26. provenance: evaluation bound to wrong inputs
+    case = work / "wrong-eval-inputs"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    for field in ("answer_sha256", "pack_sha256", "question_sha256", "rubric_sha256", "case"):
+        sem = semantic_file(work / "sem", "PASS", "supported", answers=case,
+                            supported_claims=[0], override_inputs={field: "f" * 64})
+        code, result = run_grader(case, corpus, semantic=sem)
+        check(f"evaluation bound to a wrong {field} is rejected",
+              result.get("verdict") == "UNGRADABLE",
+              json.dumps(result.get("semantic"))[:160])
+
+    # ---------------- 27. non-formal (diagnostic) answer never gets formal PASS
+    case = work / "diagnostic-question"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text,
+                 question={"sha256": frozen_question_sha(),
+                           "source": "override-diagnostic", "formal": False})
+    sem = semantic_file(work / "sem", "PASS", "supported", answers=case,
+                        supported_claims=[0],
+                        override_inputs={"question_sha256": frozen_question_sha()})
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("diagnostic question cannot receive a formal PASS",
+          result.get("verdict") == "NOT_MEASURED" and result.get("formal_eligible") is False,
+          json.dumps({k: result.get(k) for k in ("verdict", "formal_eligible", "ineligibility")}))
+
+    # ------------- 28. tampering formal:false -> true is caught by the digest
+    case = work / "question-digest-mismatch"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text,
+                 question={"sha256": "e" * 64, "source": "frozen-case", "formal": True})
+    sem = semantic_file(work / "sem", "PASS", "supported", answers=case,
+                        supported_claims=[0],
+                        override_inputs={"question_sha256": "e" * 64})
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("a claimed frozen question with the wrong digest is not formal",
+          result.get("verdict") == "NOT_MEASURED" and result.get("formal_eligible") is False,
+          json.dumps({k: result.get(k) for k in ("verdict", "formal_eligible")}))
+
+    # ------------- 29. an evaluation cannot be replayed after the answer changes
+    # Produce a valid PASS evaluation, then re-freeze a *different* answer. The
+    # old evaluation now names an answer digest that no longer exists, so it
+    # cannot carry over: this is what stops a favourable verdict being reused.
+    case = work / "replayed-eval"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    sem = semantic_file(work / "sem", "PASS", "supported", answers=case,
+                        supported_claims=[0])
+    swapped = [{"text": "a different claim entirely",
+                "citations": [citation(GOLD[0], GOLD[0] + 1, sha)]}]
+    write_answer(case, swapped, "a different answer")
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("a PASS evaluation cannot be replayed onto a different answer",
+          result.get("verdict") == "UNGRADABLE"
+          and "answer_sha256" in (result.get("semantic", {}).get("error") or ""),
+          json.dumps(result.get("semantic"))[:200])
+
+    # ------------------- 30. validation order: identity is checked first
+    case = work / "unbound-eval"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    sem = work / "sem" / "unbound.json"
+    sem.parent.mkdir(parents=True, exist_ok=True)
+    sem.write_text(json.dumps({"case": CASE, "verdict": "PASS",
+                               "rationale": "trust me",
+                               "evaluator_id": "fixture-evaluator"}))
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("an evaluation that binds no inputs is rejected",
+          result.get("verdict") == "UNGRADABLE"
+          and "bind" in (result.get("semantic", {}).get("error") or ""),
+          json.dumps(result.get("semantic"))[:160])
 
     print()
     if FAILURES:

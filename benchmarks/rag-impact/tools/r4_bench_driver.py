@@ -776,6 +776,14 @@ def generate_plan(answerer: ResponsesTransport, work_dir: Path, case: str,
 def drive(controller: AdapterController, answerer: ResponsesTransport, case: str,
           profile: str, output_dir: Path | None = None,
           verify_at_end: bool = True) -> dict:
+    # Plan identity of the exact file handed to the adapter, computed before the
+    # call so it cannot be substituted afterwards.
+    plan_file = controller.plan_file
+    plan_identity = None
+    if plan_file is not None:
+        plan_bytes = Path(plan_file).read_bytes()
+        plan_identity = {"path": str(plan_file),
+                         "sha256": hashlib.sha256(plan_bytes).hexdigest()}
     conversation = answerer.initial_conversation()
     transcript: list[dict] = []
     violations: list[str] = []
@@ -953,10 +961,33 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
         frozen = {"sha256": digest, "bytes": len(blob.encode("utf-8")),
                   "path": str(answer_path), "status": answer_status,
                   "pack_bound": pack_record is not None}
+    # Plan chain: the pack records the digest of the plan bytes the engine used;
+    # it must equal the file handed to the adapter and the generated provenance.
+    plan_binding = None
+    if plan_identity is not None:
+        pack_plan = None
+        packs_dir = Path(controller.session_dir) / "packs"
+        for path in sorted(packs_dir.glob("pack-*.json")) if packs_dir.is_dir() else []:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload.get("plan"), dict):
+                pack_plan = payload["plan"].get("sha256")
+        plan_binding = {
+            "frozen_plan_sha256": plan_identity["sha256"],
+            "plan_file": plan_identity["path"],
+            "pack_plan_sha256": pack_plan,
+            "chain_ok": pack_plan is not None and pack_plan == plan_identity["sha256"],
+        }
+        if pack_plan is not None and not plan_binding["chain_ok"]:
+            violations.append(
+                "plan provenance mismatch: the pack records a different plan digest"
+            )
+
     budget = receipt.get("budget", {})
     return {
         "case": case,
         "profile": profile,
+        "plan_identity": plan_identity,
+        "plan_binding": plan_binding,
         "transcript": transcript,
         "violations": violations,
         "final": final,
@@ -1081,7 +1112,8 @@ def derive_pack_from_transcript(transcript: list[dict]) -> dict | None:
 
 def grade(frozen_dir: Path, labels_dir: Path, case: str, profile: str,
           corpus: Path | None = None, materials: Path | None = None,
-          packs: Path | None = None, semantic: Path | None = None) -> dict:
+          packs: Path | None = None, semantic: Path | None = None,
+          registry: Path | None = None) -> dict:
     """Runs the independent grader in a separate process and returns its verdict.
 
     The grader receives the frozen artefacts, the evaluator-only materials and
@@ -1097,6 +1129,8 @@ def grade(frozen_dir: Path, labels_dir: Path, case: str, profile: str,
         args += ["--packs", str(packs)]
     if semantic is not None:
         args += ["--semantic", str(semantic)]
+    if registry is not None:
+        args += ["--registry", str(registry)]
     proc = subprocess.run(args, capture_output=True, text=True, timeout=600)
     if proc.returncode == 3:
         # UNGRADABLE is a graded outcome, not a driver crash: surface it.
@@ -1135,6 +1169,12 @@ def main() -> int:
     parser.add_argument("--materials", type=Path,
                         default=Path(__file__).resolve().parents[1] / "cases" / "c3-steps.json",
                         help="evaluator-only rubric + C3 steps (never sent to the answerer)")
+    parser.add_argument("--semantic", type=Path,
+                        help="independent semantic evaluation for this case (bound to the "
+                             "frozen answer/pack/question/rubric identities)")
+    parser.add_argument("--evaluator-registry", type=Path,
+                        help="trusted evaluator registry; an unregistered evaluator cannot "
+                             "produce a formal verdict")
     parser.add_argument("--authorized-inference", action="store_true",
                         help="explicit owner authorization flag required for the real backend")
     args = parser.parse_args()
@@ -1215,17 +1255,25 @@ def main() -> int:
     controller.create()
     report = drive(controller, answerer, args.case, args.profile, args.answers_dir)
     report["plan_provenance"] = plan_provenance
+    # The chain must close: generated plan file digest == what the driver handed
+    # to the adapter == what the workflow pack records.
+    chain = report.get("plan_binding")
     if plan_provenance is not None:
-        packs = (report.get("receipt") or {}).get("packs") or []
-        plan_entry = None
-        for entry in packs:
-            if entry.get("kind") == "workflow":
-                plan_entry = entry
-                break
-        report["plan_binding"] = {
-            "frozen_sha256": plan_provenance["sha256_file"],
-            "workflow_pack_present": plan_entry is not None,
+        generated = plan_provenance["sha256_file"]
+        report["plan_chain"] = {
+            "generated_sha256": generated,
+            "handed_to_adapter_sha256": (plan_identity or {}).get("sha256")
+            if (plan_identity := report.get("plan_identity")) else None,
+            "pack_sha256": (chain or {}).get("pack_plan_sha256"),
+            "ok": bool(
+                (report.get("plan_identity") or {}).get("sha256") == generated
+                and (chain or {}).get("pack_plan_sha256") == generated
+                and (chain or {}).get("chain_ok")
+            ),
         }
+        if not report["plan_chain"]["ok"]:
+            print("CONTRACT_ERROR: plan provenance chain did not close", file=sys.stderr)
+            return ERROR_EXIT
     report["corpus"] = corpus
     report["case_identity"] = case_info
     report["question_identity"] = {
@@ -1240,6 +1288,7 @@ def main() -> int:
         report["grading"] = grade(
             args.answers_dir, args.labels_dir, args.case, args.profile,
             corpus=args.root, materials=args.materials,
+            semantic=args.semantic, registry=args.evaluator_registry,
         )
     if args.output:
         args.output.write_text(json.dumps(report, indent=1), encoding="utf-8")

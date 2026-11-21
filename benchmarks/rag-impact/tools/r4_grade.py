@@ -394,41 +394,117 @@ def analyse_runtime_claims(text: str) -> dict:
 
 # ----------------------------------------------------------------- semantic
 
-def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None) -> dict:
+def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
+                      binding: dict, registry: dict | None,
+                      answer_sha: str, pack_sha: str,
+                      question_sha: str, case: str,
+                      materials_sha: str) -> dict:
     """Applies an independent semantic evaluation, if one exists.
 
-    An evaluator must return a verdict from SEMANTIC_VERDICTS plus a non-empty
-    rationale and its own identity. Anything else is INVALID, never PASS.
+    Acceptance requires all of:
+
+    * the evaluator is registered in the benchmark's trusted registry (a caller
+      cannot mint authority by writing an `evaluator_id`);
+    * the evaluation names the exact frozen inputs it judged — answer, pack,
+      question and §rubric identity — and those match what is being graded;
+    * the result is internally consistent: a PASS cannot carry any unsupported
+      claim, and a FAIL must identify at least one.
+
+    Anything else is INVALID, and an INVALID evaluation can never become PASS.
     """
     if evaluator is None:
         return {"status": "NOT_EVALUATED", "verdict": None,
                 "rationale": "no independent semantic evaluator supplied",
                 "evaluator": None, "claims_reviewed": 0}
+
+    def invalid(error: str, **extra) -> dict:
+        out = {"status": "INVALID", "verdict": evaluator.get("verdict"),
+               "rationale": (evaluator.get("rationale") or "").strip(),
+               "error": error,
+               "evaluator": evaluator.get("evaluator_id") or "",
+               "claims_reviewed": 0}
+        out.update(extra)
+        return out
+
     verdict = evaluator.get("verdict")
     rationale = (evaluator.get("rationale") or "").strip()
     identity = evaluator.get("evaluator_id") or ""
-    if verdict not in SEMANTIC_VERDICTS:
-        return {"status": "INVALID", "verdict": verdict, "rationale": rationale,
-                "error": f"semantic verdict must be one of {SEMANTIC_VERDICTS}",
-                "evaluator": identity, "claims_reviewed": 0}
-    if not rationale:
-        return {"status": "INVALID", "verdict": verdict, "rationale": rationale,
-                "error": "semantic verdict carries no rationale",
-                "evaluator": identity, "claims_reviewed": 0}
-    if not identity:
-        return {"status": "INVALID", "verdict": verdict, "rationale": rationale,
-                "error": "semantic verdict identifies no evaluator",
-                "evaluator": identity, "claims_reviewed": 0}
     claims = artifact.get("claims") or []
+
+    if verdict not in SEMANTIC_VERDICTS:
+        return invalid(f"semantic verdict must be one of {SEMANTIC_VERDICTS}")
+    if not rationale:
+        return invalid("semantic verdict carries no rationale")
+    if not identity:
+        return invalid("semantic verdict identifies no evaluator")
+
+    # Authority: only a registered evaluator may grade. An unknown identity is
+    # not evidence of trust just because the caller wrote it down.
+    if registry is None:
+        return invalid("no evaluator registry was supplied; an unregistered evaluator "
+                       "cannot produce a formal verdict")
+    registered = (registry.get("evaluators") or {}).get(identity)
+    if registered is None:
+        return invalid(f"evaluator {identity!r} is not in the benchmark registry")
+    if not registered.get("trusted"):
+        return invalid(f"evaluator {identity!r} is registered but not trusted")
+
+    # Provenance: the evaluation must name the frozen inputs it judged.
+    inputs = evaluator.get("inputs") or {}
+    expected = {
+        "case": case,
+        "answer_sha256": answer_sha,
+        "pack_sha256": pack_sha,
+        "question_sha256": question_sha,
+        "rubric_sha256": materials_sha,
+    }
+    missing = [name for name in expected if not inputs.get(name)]
+    if missing:
+        return invalid(f"semantic evaluation does not bind these inputs: {missing}")
+    mismatched = {
+        name: {"expected": want, "given": inputs.get(name)}
+        for name, want in expected.items() if inputs.get(name) != want
+    }
+    if mismatched:
+        return invalid(
+            "semantic evaluation was produced for different inputs: "
+            + json.dumps(mismatched)
+        )
+
+    # Consistency: the verdict must agree with its own claim judgements.
     unsupported = evaluator.get("unsupported_claims") or []
+    supported = evaluator.get("supported_claims")
     for index in unsupported:
         if not isinstance(index, int) or not 0 <= index < len(claims):
-            return {"status": "INVALID", "verdict": verdict, "rationale": rationale,
-                    "error": f"unsupported_claims index {index!r} is out of range",
-                    "evaluator": identity, "claims_reviewed": 0}
+            return invalid(f"unsupported_claims index {index!r} is out of range")
+    if supported is not None:
+        if not isinstance(supported, list):
+            return invalid("supported_claims must be a list of claim indices")
+        for index in supported:
+            if not isinstance(index, int) or not 0 <= index < len(claims):
+                return invalid(f"supported_claims index {index!r} is out of range")
+        overlap = sorted(set(unsupported) & set(supported))
+        if overlap:
+            return invalid(f"claims judged both supported and unsupported: {overlap}")
+        judged = sorted(set(unsupported) | set(supported))
+        if judged != list(range(len(claims))):
+            return invalid(
+                "every claim must be judged exactly once; judged "
+                f"{judged} of {len(claims)}"
+            )
+    if verdict == "PASS" and unsupported:
+        return invalid(
+            f"a PASS cannot carry unsupported claims: {sorted(set(unsupported))}"
+        )
+    if verdict == "FAIL" and not unsupported:
+        return invalid("a FAIL must identify at least one unsupported claim")
+    if verdict == "PASS" and supported is not None and len(supported) != len(claims):
+        return invalid("a PASS must have every claim supported")
+
     return {"status": "EVALUATED", "verdict": verdict, "rationale": rationale,
             "evaluator": identity, "claims_reviewed": len(claims),
-            "unsupported_claims": unsupported}
+            "unsupported_claims": sorted(set(unsupported)),
+            "inputs": expected}
 
 
 # ----------------------------------------------------------------- scoring
@@ -436,7 +512,8 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None) -> dic
 def score_case(case: str, artifact: dict, pack: dict, materials: dict,
                gold_spans: list[tuple[str, tuple[int, int]]],
                source_lines: dict[str, list[str]],
-               evaluator: dict | None) -> dict:
+               semantic: dict, formal_eligible: bool,
+               ineligibility: str | None) -> dict:
     spans = pack_spans(pack)
     if not spans:
         raise GradingError("pack contains no spans")
@@ -454,7 +531,6 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
     step_state = analyse_steps(steps, spans, claims)
     gap_state = analyse_gaps(claims, final, pack)
     runtime = analyse_runtime_claims(str(final.get("answer", "")))
-    semantic = evaluate_semantic(artifact, pack, evaluator)
 
     addressable = [s for s in step_state["steps"] if s["status"] == "ADDRESSABLE"]
     packed = [s for s in addressable if s["in_pack"]]
@@ -603,7 +679,12 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
 
     # Formal verdict: structural thresholds are necessary, never sufficient.
     provenance_blocked = sum(1 for span in spans if span["verified"]) == 0
-    if semantic["status"] == "INVALID":
+    if not formal_eligible:
+        # A diagnostic run (overridden question, missing identity) is evaluated
+        # for development only: it can never be reported as a frozen benchmark
+        # result, whatever its structural or semantic outcome.
+        formal = "NOT_MEASURED"
+    elif semantic["status"] == "INVALID":
         formal = "UNGRADABLE"
     elif provenance_blocked:
         # An arm without a verification capability cannot produce verifiable
@@ -640,6 +721,8 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
         "structural_verdict": structural_verdict,
         "verdict": formal,
         "semantic": semantic,
+        "formal_eligible": formal_eligible,
+        "ineligibility": ineligibility,
         "provenance_blocked": provenance_blocked,
         "failure_attribution": ("provenance:no_verifiable_evidence" if provenance_blocked
                                 else "answer" if formal == "FAIL" else None),
@@ -673,6 +756,8 @@ def main() -> int:
     parser.add_argument("--profile", required=True)
     parser.add_argument("--semantic", type=Path,
                         help="independent semantic evaluation JSON for this case")
+    parser.add_argument("--registry", type=Path,
+                        help="trusted evaluator registry (default: cases/evaluators.json)")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -687,6 +772,13 @@ def main() -> int:
             raise GradingError(
                 f"semantic evaluation is for case {evaluator.get('case')}, not {args.case}"
             )
+        registry_path = args.registry or (args.labels / "cases" / "evaluators.json")
+        if args.semantic and not registry_path.is_file():
+            raise GradingError(
+                f"semantic evaluation supplied but no evaluator registry exists at "
+                f"{registry_path}; an unregistered evaluator cannot grade formally"
+            )
+        registry = load_json(registry_path) if registry_path.is_file() else None
 
         manifest_path = args.labels / "scope-manifest.json"
         if not manifest_path.is_file():
@@ -717,8 +809,40 @@ def main() -> int:
                 "frozen source; refusing to guess anchors"
             )
 
+        # Frozen question identity: the artifact must claim the frozen question,
+        # and that claim must match the frozen case text.
+        cases = load_json(args.labels / "cases" / "dev.json")["cases"]
+        entry = next((item for item in cases if item["id"] == args.case), None)
+        if entry is None:
+            raise GradingError(f"case {args.case} is not in the frozen dev set")
+        frozen_question_sha = sha256_bytes(entry["question"].encode("utf-8"))
+        claimed = artifact.get("question") or {}
+        formal_eligible = True
+        ineligibility = None
+        if claimed.get("formal") is not True:
+            formal_eligible = False
+            ineligibility = (
+                "artifact declares a non-formal question "
+                f"({claimed.get('source') or 'unknown source'}); a diagnostic run "
+                "cannot be reported as a frozen benchmark result"
+            )
+        elif claimed.get("sha256") != frozen_question_sha:
+            formal_eligible = False
+            ineligibility = (
+                f"artifact question digest {claimed.get('sha256')} does not match the "
+                f"frozen {args.case} question digest {frozen_question_sha}"
+            )
+
+        semantic = evaluate_semantic(
+            artifact, pack, evaluator, binding, registry,
+            answer_sha=answer_record["sha256"],
+            pack_sha=pack_record["sha256"],
+            question_sha=frozen_question_sha,
+            case=args.case,
+            materials_sha=sha256_bytes(args.materials.read_bytes()),
+        )
         result = score_case(args.case, artifact, pack, materials, gold,
-                            source_lines, evaluator)
+                            source_lines, semantic, formal_eligible, ineligibility)
         result["artefacts"]["answer"] = answer_record
         result["artefacts"]["pack"] = pack_record
         result["binding"] = binding

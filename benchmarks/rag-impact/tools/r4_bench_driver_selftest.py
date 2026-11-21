@@ -49,6 +49,7 @@ from r4_tool_schema import (  # noqa: E402
 )
 
 FAILURES: list[str] = []
+REGISTRY_PATH: Path | None = None
 
 
 def check(name: str, condition: bool, detail: str = "") -> None:
@@ -138,13 +139,21 @@ def run_arm(adapter: Path, root: Path, work: Path, profile: str, tag: str = "",
     report = drv.drive(controller, answerer, CASE, profile, answers)
     if grade:
         report["grading"] = drv.grade(answers, LABELS, CASE, profile, corpus=root,
-                                      materials=MATERIALS, semantic=semantic)
+                                      materials=MATERIALS, semantic=semantic,
+                                      registry=REGISTRY_PATH)
     return report, answerer
 
 
 def main() -> int:
     adapter, root, work = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
     work.mkdir(parents=True, exist_ok=True)
+    global REGISTRY_PATH
+    registry = work / "evaluators.json"
+    registry.write_text(json.dumps({
+        "schema_version": 1,
+        "evaluators": {"selftest-evaluator": {"trusted": True, "kind": "fixture"}},
+    }), encoding="utf-8")
+    REGISTRY_PATH = registry
     question = drv.resolve_question(LABELS, CASE, None, False)["text"]
 
     # ---------------------------------------------------------- 1. schemas
@@ -251,7 +260,8 @@ def main() -> int:
     (case_dir / f"answer-{CASE}-arm-c.json").write_bytes(blob)
     (case_dir / f"answer-{CASE}-arm-c.sha256").write_text(
         hashlib.sha256(blob).hexdigest() + f"  answer-{CASE}-arm-c.json\n")
-    verdict = drv.grade(case_dir, LABELS, CASE, "arm-c", corpus=root, materials=MATERIALS)
+    verdict = drv.grade(case_dir, LABELS, CASE, "arm-c", corpus=root,
+                        materials=MATERIALS, registry=registry)
     check("wrong-but-cited cannot be a formal PASS",
           verdict.get("verdict") != "PASS", str(verdict.get("verdict")))
     check("wrong-but-cited is NOT_MEASURED without an evaluator",
@@ -259,6 +269,60 @@ def main() -> int:
     check("wrong-but-cited structural score is reported separately",
           verdict.get("structural_measured_total") is not None,
           json.dumps(verdict.get("structural_measured_total")))
+
+    # An evaluation bound to those exact artefacts is accepted; a fabricated one
+    # that names them without judging the claims consistently is not.
+    def bounded_semantic(directory: Path, verdict_word: str, rationale: str,
+                         **extra) -> Path:
+        answers = work / "answers-arm-c"
+        dev = json.loads((LABELS / "cases" / "dev.json").read_text(encoding="utf-8"))
+        question_sha = hashlib.sha256(
+            next(item["question"] for item in dev["cases"] if item["id"] == CASE)
+            .encode("utf-8")).hexdigest()
+        payload = {
+            "case": CASE, "verdict": verdict_word, "rationale": rationale,
+            "evaluator_id": "selftest-evaluator",
+            "inputs": {
+                "case": CASE,
+                "answer_sha256": hashlib.sha256(
+                    (answers / f"answer-{CASE}-arm-c.json").read_bytes()).hexdigest(),
+                "pack_sha256": hashlib.sha256(
+                    (answers / f"pack-{CASE}-arm-c.json").read_bytes()).hexdigest(),
+                "question_sha256": question_sha,
+                "rubric_sha256": hashlib.sha256(MATERIALS.read_bytes()).hexdigest(),
+            },
+        }
+        payload.update(extra)
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"sem-{verdict_word}-{abs(hash(rationale))}.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    claims_in_answer = len(art["claims"])
+    good_sem = bounded_semantic(work / "semantics", "PASS", "every claim is supported",
+                                supported_claims=list(range(claims_in_answer)))
+    evaluated = drv.grade(work / "answers-arm-c", LABELS, CASE, "arm-c", corpus=root,
+                          materials=MATERIALS, semantic=good_sem, registry=registry)
+    check("a bound, registered evaluation is accepted",
+          evaluated.get("semantic", {}).get("status") == "EVALUATED",
+          json.dumps(evaluated.get("semantic"))[:200])
+    contradictory = bounded_semantic(work / "semantics", "PASS", "claims are supported",
+                                     supported_claims=[], unsupported_claims=[0])
+    contradictory_result = drv.grade(work / "answers-arm-c", LABELS, CASE, "arm-c",
+                                     corpus=root, materials=MATERIALS,
+                                     semantic=contradictory, registry=registry)
+    check("an end-to-end contradictory evaluation cannot yield a formal PASS",
+          contradictory_result.get("verdict") != "PASS",
+          str(contradictory_result.get("verdict")))
+    forged = bounded_semantic(work / "semantics", "PASS", "trust me", supported_claims=[0])
+    forged_payload = json.loads(forged.read_text())
+    forged_payload["evaluator_id"] = "not-a-registered-evaluator"
+    forged.write_text(json.dumps(forged_payload))
+    forged_result = drv.grade(work / "answers-arm-c", LABELS, CASE, "arm-c", corpus=root,
+                              materials=MATERIALS, semantic=forged, registry=registry)
+    check("an unregistered evaluator identity cannot yield a formal verdict",
+          forged_result.get("verdict") == "UNGRADABLE",
+          json.dumps(forged_result.get("semantic"))[:160])
 
     # ------------------------------------------ 5. final answer contract (neg)
     for mode, expect_status in [("malformed-json", "INVALID_OUTPUT"),
@@ -279,7 +343,8 @@ def main() -> int:
               f"got {got}")
         if expect_status == "INVALID_OUTPUT":
             graded = drv.grade(work / f"answers-{profile}-ans-{mode}", LABELS, CASE,
-                               profile, corpus=root, materials=MATERIALS)
+                               profile, corpus=root, materials=MATERIALS,
+                               registry=registry)
             check(f"answer contract: {mode} is UNGRADABLE, not a quality FAIL",
                   graded.get("status") == "UNGRADABLE", json.dumps(graded)[:120])
 
