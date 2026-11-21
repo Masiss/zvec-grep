@@ -1543,3 +1543,157 @@ fn facts_reads_the_file_once_and_reports_one_op() {
     assert_eq!(session.ledger.read_files.len(), 1);
     assert_eq!(session.ledger.read_files[0], "Core/Service.cs");
 }
+/// Fills the read-operation budget up to `target` using real verification
+/// reads (one open per pack item), so boundary tests never tamper with the
+/// ledger.
+fn fill_read_ops_to(session: &mut Session, target: usize) {
+    let mut guard = 0;
+    while session.ledger.read_ops < target && guard < 200 {
+        let verify = input(Tool::Verify, 1);
+        let envelope = call(session, verify);
+        assert_eq!(envelope["ok"], json!(true), "{envelope}");
+        guard += 1;
+    }
+    assert_eq!(session.ledger.read_ops, target, "failed to reach the boundary exactly");
+}
+
+#[test]
+fn multiple_spans_in_one_file_cost_multiple_read_ops() {
+    // Each served span is one open of its file. Reserving only distinct files
+    // would under-count and let a call read more than its budget.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("Many")).expect("dir");
+    for name in ["one", "two"] {
+        fs::write(
+            root.join(format!("Many/{name}.cs")),
+            "line1\nline2\nline3\nline4\nline5\nline6\n",
+        )
+        .expect("w");
+    }
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![
+        span_request("Many/one.cs", 1, 2),
+        span_request("Many/one.cs", 3, 4),
+        span_request("Many/one.cs", 5, 6),
+    ];
+    let envelope = call(&mut session, evidence);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    assert_eq!(session.ledger.read_files.len(), 1, "one distinct file");
+    assert_eq!(session.ledger.read_ops, 3, "three served spans, three reads");
+}
+
+#[test]
+fn span_that_cannot_be_paid_for_is_refused_before_the_file_is_opened() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("Many")).expect("dir");
+    for name in ["a", "b"] {
+        fs::write(root.join(format!("Many/{name}.cs")), "one\ntwo\nthree\nfour\nfive\nsix\n")
+            .expect("w");
+    }
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    // A single-item pack, so each verification costs exactly one operation.
+    let mut first = input(Tool::Evidence, 1);
+    first.requests = vec![span_request("Many/a.cs", 1, 2)];
+    assert_eq!(call(&mut session, first)["ok"], json!(true));
+    fill_read_ops_to(&mut session, MAX_READ_OPS - 2);
+    let before = session.ledger.read_ops;
+
+    // Three spans, two operations: exactly two may be served, the third is a
+    // typed gap and its file is never opened for it.
+    let mut many = input(Tool::Evidence, 1);
+    many.requests = vec![
+        span_request("Many/b.cs", 1, 2),
+        span_request("Many/b.cs", 3, 4),
+        span_request("Many/b.cs", 5, 6),
+    ];
+    let envelope = call(&mut session, many);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    assert_eq!(session.ledger.read_ops, MAX_READ_OPS, "only paid-for spans read");
+    assert_eq!(session.ledger.read_ops - before, 2);
+    let gaps = envelope["result"]["gaps"].as_array().cloned().unwrap_or_default();
+    assert!(
+        gaps.iter().any(|g| g["code"] == json!("file_budget_exceeded")),
+        "the unpaid span must be a typed gap: {envelope}"
+    );
+}
+
+#[test]
+fn repeated_reads_of_a_known_file_still_cost_read_ops() {
+    let fixture = Fixture::new();
+    let mut session = fixture.session(Profile::ArmC, "D04");
+    for round in 1..=3 {
+        let mut facts = input(Tool::Facts, round);
+        facts.path = Some("Core/Service.cs".to_owned());
+        let envelope = call(&mut session, facts);
+        assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    }
+    assert_eq!(session.ledger.read_files.len(), 1);
+    assert_eq!(session.ledger.read_ops, 3, "a known file is re-opened and re-counted");
+}
+
+#[test]
+fn facts_counts_the_read_when_decoding_fails() {
+    // The bytes were read from disk; failing to decode must not make the ledger
+    // report that no source was accessed.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("Bin")).expect("dir");
+    fs::write(root.join("Bin/Broken.cs"), [0xff, 0xfe, 0x00, 0x41, 0x00]).expect("w");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut facts = input(Tool::Facts, 1);
+    facts.path = Some("Bin/Broken.cs".to_owned());
+    let envelope = call(&mut session, facts);
+    assert_eq!(envelope["ok"], json!(false), "{envelope}");
+    assert_eq!(session.ledger.read_ops, 1, "the failed read still happened");
+    assert_eq!(session.ledger.read_files, vec!["Bin/Broken.cs".to_owned()]);
+}
+
+#[test]
+fn path_resolution_that_never_opens_does_not_record_a_read() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("Dir.cs")).expect("dir");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut facts = input(Tool::Facts, 1);
+    facts.path = Some("Dir.cs".to_owned());
+    let envelope = call(&mut session, facts);
+    assert_eq!(envelope["ok"], json!(false), "{envelope}");
+    assert_eq!(session.ledger.read_ops, 0, "no open happened");
+}
+
+#[test]
+fn search_does_not_hash_when_no_read_op_remains() {
+    // A fresh indexed item is hashed by opening its file, so it needs an
+    // operation. With none left the item is delivered unhashed with a gap
+    // instead of being read anyway.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("Core")).expect("dir");
+    fs::write(root.join("Core/Service.cs"), "class Service { void SaveChanges() {} }\n")
+        .expect("w");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![span_request("Core/Service.cs", 1, 1)];
+    assert_eq!(call(&mut session, evidence)["ok"], json!(true));
+    fill_read_ops_to(&mut session, MAX_READ_OPS);
+
+    let mut search = input(Tool::Search, 2);
+    search.mode = Some("rg".into());
+    search.query = Some("SaveChanges".to_owned());
+    let envelope = call(&mut session, search);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    assert_eq!(session.ledger.read_ops, MAX_READ_OPS, "no read beyond the cap");
+    let items = envelope["result"]["items"].as_array().cloned().unwrap_or_default();
+    assert!(
+        items.iter().all(|item| item["sha256"].is_null()),
+        "no item may be hashed without a read: {envelope}"
+    );
+    let gaps = envelope["result"]["gaps"].as_array().cloned().unwrap_or_default();
+    assert!(
+        gaps.iter().any(|g| g["code"] == json!("file_budget_exceeded")),
+        "the unread item must be reported as a gap: {envelope}"
+    );
+}

@@ -356,14 +356,18 @@ pub struct PackCommit {
 pub struct ToolOutput {
     pub result: Value,
     pub files: Vec<String>,
-    pub reads: Vec<String>,
-    pub read_ops: usize,
     pub commit: Option<PackCommit>,
 }
 
 pub struct Session {
     pub dir: PathBuf,
     pub ledger: Ledger,
+    /// Reads performed by the call currently in flight. Recorded at the moment
+    /// of the open, so an error, panic-free abort or decode failure after the
+    /// read cannot make the ledger report fewer source accesses than happened.
+    /// Merged into `ledger` once the call finishes (success or failure).
+    pending_reads: Vec<String>,
+    pending_read_ops: usize,
 }
 
 /// RAII guard for the session-wide `flock`. Dropping releases the lock.
@@ -407,6 +411,8 @@ impl Session {
         let session = Self {
             dir: dir.to_path_buf(),
             ledger,
+            pending_reads: Vec::new(),
+            pending_read_ops: 0,
         };
         session.save_ledger()?;
         Ok(session)
@@ -494,6 +500,8 @@ impl Session {
         Ok(Self {
             dir: dir.to_path_buf(),
             ledger,
+            pending_reads: Vec::new(),
+            pending_read_ops: 0,
         })
     }
 
@@ -674,47 +682,29 @@ impl Session {
         let execution = self.execute(tool, &input, call_index);
         let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
 
-        let (mut ok, mut result, files, reads, read_ops, mut commit) = match execution {
+        let (mut ok, mut result, files, mut commit) = match execution {
             Ok(output) => {
                 // Delivered-file budget: content from new files beyond the
                 // cap is dropped with an explicit gap before serialization.
                 // (Read budgets were enforced by each tool before reading.)
                 let (filtered, files) =
                     self.apply_file_budget(output.result, &output.files);
-                (true, filtered, files, output.reads, output.read_ops, output.commit)
+                (true, filtered, files, output.commit)
             }
-            Err(call_error) => (
-                false,
-                error_value(&call_error),
-                Vec::new(),
-                Vec::new(),
-                0,
-                None,
-            ),
+            Err(call_error) => (false, error_value(&call_error), Vec::new(), None),
         };
-        // Exact accounting. Tools admit reads before opening source, so this
-        // block only ever records the truth; it never clamps a counter to
-        // manufacture a passing budget. If a tool nevertheless reports more
-        // reads than were admitted, the session fails closed: the reads
-        // happened (they are counted in full) and the run is invalidated.
+        // Source-read accounting is recorded at the moment of each open, so a
+        // decode error, I/O error or engine failure after the read still
+        // counts. It is the single source of truth: no tool-reported counter
+        // is added on top of it, and no counter is ever clamped.
+        let pending_over = self.commit_pending_reads();
         for file in &files {
             if !self.ledger.distinct_files.contains(file) {
                 self.ledger.distinct_files.push(file.clone());
             }
         }
-        let new_reads: Vec<String> = reads
-            .iter()
-            .filter(|file| !self.ledger.read_files.contains(file))
-            .cloned()
-            .collect();
-        let over_ops = read_ops > self.remaining_read_ops();
-        let over_files = new_reads.len() > self.remaining_read_files();
-        for file in &new_reads {
-            self.ledger.read_files.push(file.clone());
-        }
-        self.ledger.read_ops += read_ops;
         let read_ops = self.ledger.read_ops;
-        if (over_ops || over_files) && ok {
+        if pending_over && ok {
             self.ledger.terminal = Some("read_budget_violation".to_owned());
             ok = false;
             result = json!({
@@ -909,11 +899,50 @@ impl Session {
     }
 
     fn remaining_read_ops(&self) -> usize {
-        MAX_READ_OPS.saturating_sub(self.ledger.read_ops)
+        MAX_READ_OPS
+            .saturating_sub(self.ledger.read_ops)
+            .saturating_sub(self.pending_read_ops)
     }
 
     fn remaining_read_files(&self) -> usize {
-        MAX_DISTINCT_READS.saturating_sub(self.ledger.read_files.len())
+        MAX_DISTINCT_READS
+            .saturating_sub(self.ledger.read_files.len())
+            .saturating_sub(
+                self.pending_reads
+                    .iter()
+                    .filter(|file| !self.ledger.read_files.contains(file))
+                    .count(),
+            )
+    }
+
+    /// Records a source read at the moment it happens. This is the only
+    /// accounting a failure path can rely on, so it deliberately does not
+    /// depend on the tool returning successfully.
+    fn note_source_read(&mut self, path: &str) {
+        if !self.pending_reads.iter().any(|known| known == path) {
+            self.pending_reads.push(path.to_owned());
+        }
+        self.pending_read_ops += 1;
+    }
+
+    /// Merges the in-flight read accounting into the ledger. Returns true when
+    /// a read happened that was not admitted for (call must fail closed).
+    fn commit_pending_reads(&mut self) -> bool {
+        let mut over = false;
+        for file in std::mem::take(&mut self.pending_reads) {
+            if !self.ledger.read_files.contains(&file) {
+                if self.ledger.read_files.len() >= MAX_DISTINCT_READS {
+                    over = true;
+                }
+                self.ledger.read_files.push(file);
+            }
+        }
+        let ops = std::mem::take(&mut self.pending_read_ops);
+        if self.ledger.read_ops + ops > MAX_READ_OPS {
+            over = true;
+        }
+        self.ledger.read_ops += ops;
+        over
     }
 
     /// Admits source reads BEFORE any file is opened. Both budgets must be
@@ -1092,8 +1121,6 @@ impl Session {
                         "terminal": self.ledger.terminal,
                     }),
                     files: Vec::new(),
-                    reads: Vec::new(),
-                    read_ops: 0,
                     commit: None,
                 })
             }
@@ -1186,13 +1213,19 @@ impl Session {
                 match hashes.get(&path) {
                     Some(known) => Some(known.clone()),
                     None => {
+                        // Hashing a fresh item opens its file, so it costs a
+                        // read operation whether or not the file was already
+                        // read: a known file is still re-read here. Admission
+                        // happens first; with no op left the item is dropped
+                        // with a gap and the file is never opened.
                         let known = self.ledger.read_files.contains(&path)
                             || reads.contains(&path);
-                        if known
-                            || (self.ledger.read_files.len() + reads.len() < MAX_DISTINCT_READS
-                                && read_ops < self.remaining_read_ops())
-                        {
-                            let computed = fs::read(self.ledger.root.join(&item.relative_path))
+                        let new_files = usize::from(!known);
+                        let admitted = self.admit_reads(1, new_files, "search hashing").is_ok();
+                        if admitted {
+                            self.note_source_read(&path);
+                            let source = fs::read(self.ledger.root.join(&item.relative_path));
+                            let computed = source
                                 .ok()
                                 .map(|bytes| {
                                     let encoding = detect_encoding(&bytes);
@@ -1271,8 +1304,6 @@ impl Session {
         Ok(ToolOutput {
             result,
             files,
-            reads,
-            read_ops,
             commit: None,
         })
     }
@@ -1326,8 +1357,6 @@ impl Session {
                 "gaps": [],
             }),
             files: Vec::new(),
-            reads: Vec::new(),
-            read_ops: 0,
             commit: None,
         })
     }
@@ -1346,6 +1375,9 @@ impl Session {
         self.admit_reads(1, usize::from(!already_read), "facts")?;
         let bytes = fs::read(root.join(&relative))
             .map_err(|error| invalid(&format!("cannot read {path}: {error}")))?;
+        // The source access has happened: account for it before any decoding or
+        // parsing step that could fail, so a decode error cannot under-report.
+        self.note_source_read(&display);
         let sha = hex(&Sha256::digest(&bytes));
         let text = String::from_utf8(bytes)
             .map_err(|_| invalid(&format!("cannot read {path}: stream did not contain valid UTF-8")))?;
@@ -1393,16 +1425,12 @@ impl Session {
                     }],
                 }),
                 files,
-                reads,
-                read_ops: 1,
                 commit: None,
             });
         }
         Ok(ToolOutput {
             result,
             files,
-            reads,
-            read_ops: 1,
             commit: None,
         })
     }
@@ -1427,20 +1455,30 @@ impl Session {
         // read-operation budgets. Requests that cannot be admitted are dropped
         // with an explicit typed gap instead of being opened.
         let mut gaps = Vec::new();
-        let mut admitted: Vec<String> = Vec::new();
+        let mut admitted: Vec<usize> = Vec::new();
+        let mut admitted_files: Vec<String> = Vec::new();
         let mut admitted_ops = 0usize;
-        for request in &input.requests {
+        for (index, request) in input.requests.iter().enumerate() {
             let path = request
                 .relative_path
                 .to_string_lossy()
                 .replace('\\', "/");
-            if admitted.contains(&path) {
-                continue;
-            }
-            let known = self.ledger.read_files.contains(&path);
+            // Each served span is one open of its file, so every request needs
+            // its own read operation even when several spans share a path.
+            let known = self.ledger.read_files.contains(&path) || admitted_files.contains(&path);
             let new_files = usize::from(!known);
-            if self.admit_reads(1, new_files, "evidence").is_err()
-                || admitted_ops + 1 > self.remaining_read_ops()
+            if self
+                .admit_reads(1, new_files, "evidence")
+                .and_then(|()| {
+                    if admitted_ops + 1 > self.remaining_read_ops() {
+                        return Err(CallError::Execution {
+                            code: "read_budget_exceeded".into(),
+                            message: "remaining read operations exhausted".into(),
+                        });
+                    }
+                    Ok(())
+                })
+                .is_err()
             {
                 gaps.push(json!({
                     "code": AdapterGapCode::FileBudgetExceeded,
@@ -1450,19 +1488,19 @@ impl Session {
                 continue;
             }
             admitted_ops += 1;
-            admitted.push(path);
+            if new_files == 1 {
+                admitted_files.push(path.clone());
+            }
+            admitted.push(index);
         }
+        // Admission is per request (one served span = one open), not per path:
+        // two spans of the same file are two operations.
         let spans: Vec<SpanRequest> = input
             .requests
             .iter()
-            .filter(|request| {
-                let path = request
-                    .relative_path
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                admitted.contains(&path)
-            })
-            .cloned()
+            .enumerate()
+            .filter(|(index, _request)| admitted.contains(index))
+            .map(|(_, request)| request.clone())
             .collect();
         let pack = surface::assemble_spans(&root, &spans, budget).map_err(|error| {
             CallError::Execution {
@@ -1484,7 +1522,9 @@ impl Session {
                 reads.push(path.clone());
             }
             // Each served span is one open of its file, even when several
-            // spans share a path.
+            // spans share a path. Recorded at the open so a later serialization
+            // failure cannot hide it.
+            self.note_source_read(&path);
             read_ops += 1;
             items.push(json!({
                 "project": item.project,
@@ -1513,11 +1553,18 @@ impl Session {
                 surface_gap_codes::Missing | surface_gap_codes::OutOfRoot | surface_gap_codes::Traversal
                     | surface_gap_codes::AbsolutePath | surface_gap_codes::InvalidProject | surface_gap_codes::Symlink
             );
-            if opened && !reads.contains(&path) {
-                // A gap path that was opened but served no item still counts as
-                // a distinct read file; its open was admitted above. The op was
-                // already counted for the requested span.
-                reads.push(path.clone());
+            if opened {
+                if !reads.contains(&path) {
+                    reads.push(path.clone());
+                }
+                // A gap path that was opened without producing an item is a
+                // real source access: reserve and record its operation. When an
+                // item for the same path was already served, the assembler
+                // opened it for that item and the op is already counted.
+                if !files.contains(&path) {
+                    self.note_source_read(&path);
+                    read_ops += 1;
+                }
             }
         }
         let engine_gaps = serde_json::to_value(&pack.gaps).map_err(|e| {
@@ -1553,8 +1600,6 @@ impl Session {
         Ok(ToolOutput {
             result,
             files,
-            reads,
-            read_ops,
             commit: Some(PackCommit {
                 kind: "evidence".into(),
                 sha256: sha,
@@ -1644,13 +1689,15 @@ impl Session {
                 (gaps, paths)
             }
         };
-        // Revalidation re-opens every pack item file: honest read accounting.
+        // Revalidation re-opens every pack item file: honest read accounting,
+        // recorded at the open so a later failure path keeps the truth.
         let mut reads = Vec::new();
         let mut read_ops = 0usize;
         for path in &item_paths {
             if !reads.contains(path) {
                 reads.push(path.clone());
             }
+            self.note_source_read(path);
             read_ops += 1;
         }
         // Current validity: a failed revalidation clears the persisted
@@ -1668,8 +1715,6 @@ impl Session {
                 "gaps": gaps,
             }),
             files: Vec::new(),
-            reads,
-            read_ops,
             commit: None,
         })
     }
@@ -1847,13 +1892,12 @@ impl Session {
         });
         self.ledger.internal_calls += stats.tool_calls;
         // Accounting identity: the workflow *read* these files (open + decode);
-        // the selected spans are only what it delivered. Report the actual
-        // read set so distinct-file/read-op budgets reflect real work.
-        let read_paths: Vec<String> = stats
-            .read_paths
-            .iter()
-            .map(|path| path.replace('\\', "/"))
-            .collect();
+        // the selected spans are only what it delivered. Record each actual
+        // read now, so the distinct-file and read-op budgets reflect real work
+        // even if a later step fails.
+        for path in &stats.read_paths {
+            self.note_source_read(&path.replace('\\', "/"));
+        }
         let serialized = serde_json::to_string(&result).map_err(|e| {
             CallError::Execution { code: "serialize".into(), message: e.to_string() }
         })?;
@@ -1863,8 +1907,6 @@ impl Session {
         Ok(ToolOutput {
             result,
             files: files.clone(),
-            reads: read_paths,
-            read_ops: stats.source_reads,
             commit: Some(PackCommit {
                 kind: "workflow".into(),
                 sha256: sha,
