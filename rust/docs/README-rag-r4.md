@@ -116,6 +116,17 @@ that result was on branch `work/r4-deep-opt-20261118` @ `7030bd7`.
   in-engine generative model; the direct MCP agent surface still lacks symbols
   and typed relations.
 
+## 2026-11-21 benchmark-validity corrections
+
+`rust/docs/r4-benchmark-validity-corrections-20261121.md` closes the findings of
+the second independent review: structural, semantic and formal verdicts are now
+separate (no formal PASS without a semantic evaluation), C5 counts only the
+answerer's own declaration, the real arm-b planner uses the `emit_plan` contract,
+grading provenance fails closed, the frozen question is enforced, the final
+answer is a strict `submit_answer` contract, and source reads are accounted at
+the open. Verdict: **READY_FOR_AUTHORIZED_INFERENCE —
+SEMANTIC_EVALUATION_PENDING**. Answer quality remains **NOT_MEASURED**.
+
 ## 2026-11-21 benchmark-readiness milestone
 
 `rust/docs/r4-benchmark-readiness-20261121.md` reports the final contract

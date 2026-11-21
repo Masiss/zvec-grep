@@ -175,6 +175,43 @@ three-arm runs, 0 violations, 0 plan-egress findings), `r4_grade_selftest.py`
 (15 fixture checks) and `r4_bench_driver_selftest.py` (38 acceptance checks).
 Real private-source inference remains gated on §7 item 4.
 
+## 6d. Harness amendment 3 (2026-11-21, still pre-outcome)
+
+A second independent review found that the harness could still award a formal
+PASS to a wrong answer, could mistake an engine gap for an answerer declaration,
+and had three source-read accounting holes. The following corrections were made
+before any real answer-quality outcome exists. No comparison condition, target,
+budget, rubric definition or checklist changes.
+
+- **Structural, semantic and formal verdicts are separate.** A formal PASS now
+  requires a complete structural evaluation *and* an independent semantic verdict
+  of PASS carrying a rationale and evaluator identity. Without such an evaluator
+  the formal verdict is `NOT_MEASURED`; an invalid evaluation is `UNGRADABLE`.
+  Structural scores remain available as diagnostics only.
+- **C5 counts only the answerer's own declaration.** A pack gap is the
+  obligation to be honest, never evidence that the answerer was.
+- **The real Arm B planner uses the plan contract.** `emit_plan` only, shared
+  request construction with the mock, validated before egress and enforced again
+  by the loopback server in tests.
+- **Grading provenance fails closed.** Mandatory sidecars, an answer-to-pack
+  binding by exact hash, exact pack naming, citation hashes that must match the
+  served item, and `verified` that is never assumed.
+- **The frozen case question is enforced.** A different `--question-file` is
+  refused in formal mode and, when explicitly allowed, is classified non-formal
+  with its own digest.
+- **The final answer is a contract.** Every arm ends with a strict
+  `submit_answer` tool; prose or malformed output is `INVALID_OUTPUT` →
+  `UNGRADABLE`, never a quality failure.
+- **Source reads are accounted at the open.** Per-span evidence admission, a
+  search operation for known files, and counted failed reads. Per-call deltas
+  reconcile with the session counter in every receipt.
+
+Evidence: `rust/docs/r4-benchmark-validity-corrections-20261121.md`
+(45 adapter tests, 76 harness checks, 32 grader fixtures, 36/36 synthetic runs,
+0 formal PASS without semantic evaluation). Real private-source inference remains
+gated on §7 item 4, and a semantic evaluator must be preregistered before any
+formal PASS is possible.
+
 ## 7. Launch gates
 
 1. Adapter contract suite green (34/34) — DONE.
