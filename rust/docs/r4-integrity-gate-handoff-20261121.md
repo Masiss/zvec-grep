@@ -14,8 +14,8 @@ Not `QUALIFIED`, not `RAG_MVP_GO`, no architecture winner.
 | HEAD | tip of the branch (`git log 77e681e..HEAD`); **not pushed** |
 | Worktree | clean |
 | Report | `rust/docs/r4-integrity-gate-20261121.md` |
-| Review bundle | `/home/masis/.cache/zvec-grep/r4-integrity-gate-20261121/r4-integrity-gate-rereview-20261121.zip` |
-| Bundle integrity | `bundle2/MANIFEST.sha256` (content-addressed; the ZIP is rebuilt from it) |
+| Review bundle | `/home/masis/.cache/zvec-grep/r4-integrity-gate-20261121/r4-integrity-gate-final-20261121.zip` (SHA-256 `4932c56990440650fc73f6089d4ea62bb666d6f7ae1e22fc465551a55027e5c1`, 154,754 B, 23 files) |
+| Bundle integrity | `bundle-final/MANIFEST.sha256` (sha256 `eb7367f9…`, 23/23 OK; the ZIP is rebuilt from it) |
 | Synthetic receipts | `/home/masis/.cache/zvec-grep/r4-longrun-20261121/three-arm-v6/` |
 | Runner + summarizer | `run_three_arm_v5.py` (writes `three-arm-v6`), summary inside its JSON |
 
@@ -32,12 +32,12 @@ Not `QUALIFIED`, not `RAG_MVP_GO`, no architecture winner.
 
 ## 3. Verified in this mission
 
-- Adapter contract tests: **50/50** (boundary accounting, failure injection,
+- Adapter contract tests: **51/51** (+2 internal accounting tests) (boundary accounting, failure injection,
   admission-vs-observed guard).
 - `zg-engine` lib tests: **804/804** serially (the two `config::tests` collide on
   a shared path when run in parallel — pre-existing, unrelated).
 - Harness acceptance: **79 checks**.
-- Grader fixtures: **50 checks** (every required negative control).
+- Grader fixtures: **56 checks** (every required negative control).
 - Synthetic three-arm E2E: **36/36 runs**, 0 violations, 36/36 answers `OK`,
   36/36 packs bound, 36/36 read deltas reconcile, **12/12 arm-b plan chains
   closed**, **0 formal PASS without a semantic evaluator**.
