@@ -209,6 +209,30 @@ ARG_SPECS: dict[str, dict[str, P]] = {
     "status": {},
 }
 
+CITATION_SPECS = {
+    "path": P(type="string", required=True, pattern=PATH_PATTERN),
+    "start_line": P(type="integer", required=True, minimum=1),
+    "end_line": P(type="integer", required=True, minimum=1),
+    "sha256": P(type="string", required=True, pattern=r"^[0-9a-f]{64}$"),
+}
+
+CLAIM_SPECS = {
+    "text": P(type="string", required=True, nonempty=True, max_length=MAX_QUESTION_CHARS),
+    "citations": P(type="array", required=True, nonempty=True,
+                   items=P(type="object", required=True,
+                           properties=CITATION_SPECS)),
+}
+
+ANSWER_SPECS = {
+    "answer": P(type="string", required=True, nonempty=True),
+    "claims": P(type="array", required=True, nonempty=True,
+                items=P(type="object", required=True, properties=CLAIM_SPECS)),
+    "gaps": P(type="array", required=True, items=P(type="string", required=True, nonempty=True)),
+    "abstain": P(type="boolean", required=True),
+}
+
+MAX_CLAIMS = 40
+
 PLAN_SPECS = {
     "queries": P(type="array", required=True, nonempty=True, items=P(type="string", required=True, nonempty=True, max_length=MAX_QUESTION_CHARS)),
     "symbols": P(type="array", required=True, items=P(type="string", required=True, nonempty=True)),
@@ -246,6 +270,60 @@ def plan_parameters() -> dict:
         "required": sorted(PLAN_SPECS),
         "additionalProperties": False,
     }
+
+
+def answer_parameters() -> dict:
+    return {
+        "type": "object",
+        "properties": {name: spec.to_schema() for name, spec in ANSWER_SPECS.items()},
+        "required": sorted(ANSWER_SPECS),
+        "additionalProperties": False,
+    }
+
+
+def answer_tool() -> dict:
+    return {
+        "type": "function",
+        "name": "submit_answer",
+        "description": "Submit the final answer: the human-readable text, one claim "
+                       "per assertion with the evidence spans that support it, and any "
+                       "gaps you could not resolve. Nothing else ends the session.",
+        "parameters": answer_parameters(),
+        "strict": True,
+    }
+
+
+def normalize_answer(args) -> dict:
+    """Validates a submitted final answer. Raises SchemaViolation on anything
+    that does not meet the contract, so an unparseable answer is reported as
+    INVALID_OUTPUT instead of being graded as a wrong answer."""
+    if not isinstance(args, dict):
+        raise SchemaViolation("answer must be an object")
+    unknown = set(args) - set(ANSWER_SPECS)
+    if unknown:
+        raise SchemaViolation(f"answer has undefined field(s): {sorted(unknown)}")
+    out = {}
+    for name, spec in ANSWER_SPECS.items():
+        if name not in args or args[name] is None:
+            raise SchemaViolation(f"answer.{name} is required")
+        out[name] = spec.validate(args[name], f"answer.{name}")
+    if out["abstain"] and out["claims"]:
+        # An abstention that still asserts claims is contradictory: the caller
+        # must choose. Refuse rather than guess which one is meant.
+        raise SchemaViolation("abstain=true cannot be combined with claims")
+    if len(out["claims"]) > MAX_CLAIMS:
+        raise SchemaViolation(f"answer may carry at most {MAX_CLAIMS} claims")
+    for index, claim in enumerate(out["claims"]):
+        for citation in claim["citations"]:
+            _check_relative_path(citation["path"], f"answer.claims[{index}].citations.path")
+            if citation["end_line"] < citation["start_line"]:
+                raise SchemaViolation(
+                    f"answer.claims[{index}] has a citation whose end precedes its start")
+    return out
+
+
+def strict_violations_for_answer() -> list[str]:
+    return strict_violations(answer_parameters(), "$answer")
 
 
 def plan_tool() -> dict:
@@ -308,14 +386,21 @@ def tool_parameters(tool: str) -> dict:
 
 
 def tool_payload_schema(profile: str) -> list[dict]:
-    """Responses-API function tools for one arm, in stable order."""
-    return [{
+    """Responses-API function tools for one arm, in stable order.
+
+    The terminal `submit_answer` tool is part of every arm's contract: an arm
+    cannot end a session with free prose, because the answer must be
+    structurally gradable.
+    """
+    tools = [{
         "type": "function",
         "name": name,
         "description": TOOL_DESCRIPTIONS[name],
         "parameters": tool_parameters(name),
         "strict": True,
     } for name in sorted(ARM_TOOLS[profile])]
+    tools.append(answer_tool())
+    return tools
 
 
 # -------------------------------------------------------- strict validator

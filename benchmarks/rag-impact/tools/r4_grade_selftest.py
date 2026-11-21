@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
-"""r4_grade_selftest.py — fixture validation for the independent grader.
+"""r4_grade_selftest.py — fixtures that prove the grader cannot be fooled.
 
-Each fixture is a frozen artefact pair (answer + pack) plus evaluator-only
-materials. The grader is invoked in a SEPARATE process, exactly as in a real
-run, and the expected verdict is asserted. This proves the pipeline
-distinguishes supported / incomplete / unsupported / stale / false-negative /
-abstention answers instead of defaulting to PASS.
+Each fixture is a frozen artefact triple (answer + pack + sidecars) plus
+evaluator-only materials. The grader runs in a SEPARATE process, exactly as in
+a real run, and each expected outcome is asserted.
+
+The control that matters most: an answer that cites a real, verified, in-pack
+span while asserting the opposite of what the source says must never be a
+formal PASS. Without an independent semantic evaluation the formal verdict is
+NOT_MEASURED, and even a structurally perfect score cannot lift it to PASS.
 
 Usage: r4_grade_selftest.py <corpus-root> <work-dir>
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
 import sys
-import hashlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -40,18 +43,16 @@ def check(name: str, condition: bool, detail: str = "") -> None:
         FAILURES.append(name)
 
 
-def span_block(corpus: Path, start: int, end: int) -> str:
-    lines = (corpus / PATH).read_text(encoding="utf-8").split("\n")
-    return "\n".join(lines[start - 1:end])
-
-
 def file_sha(corpus: Path) -> str:
     return hashlib.sha256((corpus / PATH).read_bytes()).hexdigest()
 
 
-def write_pack(directory: Path, corpus: Path, span: tuple[int, int]) -> Path:
+def write_pack(directory: Path, corpus: Path, span: tuple[int, int],
+               verification: str = "verified", gaps: list | None = None,
+               mutate: bool = False) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     start, end = span
+    lines = (corpus / PATH).read_text(encoding="utf-8").split("\n")
     pack = {
         "schema_version": 1,
         "status": "ok",
@@ -59,13 +60,13 @@ def write_pack(directory: Path, corpus: Path, span: tuple[int, int]) -> Path:
             "project": "hrm",
             "relative_path": PATH,
             "sha256": file_sha(corpus),
-            "verification": "verified",
+            "verification": verification,
             "range": {"kind": "text", "start_line": start, "end_line": end + 1,
                       "start_byte_offset": 0, "end_byte_offset": 0,
                       "start_byte_column": 0, "end_byte_column": 0},
-            "content": span_block(corpus, start, end),
+            "content": "\n".join(lines[start - 1:end]),
         }],
-        "gaps": [],
+        "gaps": gaps or [],
         "deduplicated": 0,
     }
     path = directory / f"pack-{CASE}-{PROFILE}.json"
@@ -73,48 +74,68 @@ def write_pack(directory: Path, corpus: Path, span: tuple[int, int]) -> Path:
     path.write_bytes(raw)
     (directory / f"pack-{CASE}-{PROFILE}.sha256").write_text(
         hashlib.sha256(raw).hexdigest() + "  " + path.name + "\n")
+    if mutate:
+        path.write_bytes(path.read_bytes().replace(b"UpdateEmployeeAttr", b"X"))
     return path
 
 
 def write_answer(directory: Path, claims: list[dict], answer_text: str,
                  abstain: bool = False, gaps: list[str] | None = None,
-                 sha: str | None = None) -> Path:
+                 pack_sha: str | None = None, status: str = "OK",
+                 sidecar: bool = True, sidecar_sha: str | None = None) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
+    pack_path = directory / f"pack-{CASE}-{PROFILE}.json"
+    if pack_sha is None and pack_path.is_file():
+        pack_sha = hashlib.sha256(pack_path.read_bytes()).hexdigest()
     artifact = {
-        "case": CASE, "profile": PROFILE,
-        "final": {"answer": answer_text, "abstain": abstain},
+        "case": CASE, "profile": PROFILE, "status": status,
+        "final": {"answer": answer_text, "abstain": abstain,
+                  "claims": claims, "gaps": gaps or []},
         "claims": claims,
         "gaps": gaps or [],
+        "pack": {"sha256": pack_sha, "kind": "evidence"} if pack_sha else None,
+        "question": {"sha256": "a" * 64, "source": "frozen-case", "formal": True},
         "transcript_tools": ["search", "evidence"],
     }
     path = directory / f"answer-{CASE}-{PROFILE}.json"
     raw = json.dumps(artifact, ensure_ascii=False, indent=1).encode()
     path.write_bytes(raw)
-    digest = sha or hashlib.sha256(raw).hexdigest()
-    (directory / f"answer-{CASE}-{PROFILE}.sha256").write_text(
-        digest + "  " + path.name + "\n")
+    if sidecar:
+        digest = sidecar_sha or hashlib.sha256(raw).hexdigest()
+        (directory / f"answer-{CASE}-{PROFILE}.sha256").write_text(
+            digest + "  " + path.name + "\n")
     return path
 
 
-def citation(start: int, end: int, sha: str | None = None) -> dict:
-    entry = {"path": PATH, "start_line": start, "end_line": end}
-    if sha is not None:
-        entry["sha256"] = sha
-    return entry
+def citation(start: int, end: int, sha: str | None) -> dict:
+    return {"path": PATH, "start_line": start, "end_line": end, "sha256": sha}
 
 
-def run_grader(answers: Path, corpus: Path, materials: Path) -> tuple[int, dict]:
-    proc = subprocess.run([
-        sys.executable, str(GRADER),
-        "--answers", str(answers), "--labels", str(LABELS),
-        "--corpus", str(corpus), "--materials", str(materials),
-        "--case", CASE, "--profile", PROFILE,
-    ], capture_output=True, text=True, timeout=300)
+def run_grader(answers: Path, corpus: Path, materials: Path | None = None,
+               semantic: Path | None = None) -> tuple[int, dict]:
+    args = [sys.executable, str(GRADER), "--answers", str(answers),
+            "--labels", str(LABELS), "--corpus", str(corpus),
+            "--materials", str(materials or MATERIALS),
+            "--case", CASE, "--profile", PROFILE]
+    if semantic is not None:
+        args += ["--semantic", str(semantic)]
+    proc = subprocess.run(args, capture_output=True, text=True, timeout=300)
     try:
         return proc.returncode, json.loads(proc.stdout)
     except json.JSONDecodeError:
         print(proc.stdout[:400], proc.stderr[:400])
         raise
+
+
+def semantic_file(directory: Path, verdict: str, rationale: str,
+                  evaluator_id: str = "evaluator-a", **extra) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    payload = {"case": CASE, "verdict": verdict, "rationale": rationale,
+               "evaluator_id": evaluator_id}
+    payload.update(extra)
+    path = directory / f"semantic-{verdict}-{abs(hash((verdict, rationale)))}.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
 
 
 def main() -> int:
@@ -123,107 +144,249 @@ def main() -> int:
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     sha = file_sha(corpus)
-    full_span = [{"text": "UpdateEmployeeAttr switches on model.Attr and saves",
-                  "citations": [citation(GOLD[0], GOLD[1], sha)]}]
-    answer_text = "UpdateEmployeeAttr switches on model.Attr, handles Avatar, then SaveChanges."
+    good_claim = [{"text": "UpdateEmployeeAttr switches on model.Attr, handles Avatar, then SaveChanges",
+                   "citations": [citation(GOLD[0], GOLD[1], sha)]}]
+    good_text = "UpdateEmployeeAttr switches on model.Attr, handles Avatar, then SaveChanges."
 
-    # 1. Positive: the pack covers the whole gold span and the answer cites it.
-    case_dir = work / "positive"
-    write_pack(case_dir, corpus, GOLD)
-    write_answer(case_dir, full_span, answer_text + " Not observed: deployment.")
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    check("positive: graded", code == 0, str(result)[:200])
-    check("positive: verdict PASS", result.get("verdict") == "PASS",
-          json.dumps({k: v["score"] for k, v in (result.get("criteria") or {}).items()}))
-    check("positive: total 12", result.get("total") == 12, str(result.get("total")))
+    # ---------------------------------------------------------------- 1. NULL
+    # The reviewer's reproduction: a wrong answer with a real, verified,
+    # in-pack citation. Structurally perfect, semantically false.
+    case = work / "wrong-but-cited"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [{"text": "This method silently deletes every employee and has no switch.",
+                         "citations": [citation(GOLD[0], GOLD[1], sha)]}],
+                 "This method silently deletes every employee and has no switch.")
+    code, result = run_grader(case, corpus)
+    check("wrong-but-cited: structural score may be high",
+          (result.get("structural_measured_total") or 0) >= 8,
+          json.dumps({k: v.get("score") for k, v in (result.get("criteria") or {}).items()}))
+    check("wrong-but-cited: formal verdict is NOT_MEASURED, never PASS",
+          result.get("verdict") == "NOT_MEASURED", str(result.get("verdict")))
 
-    # 2. Incomplete: the answer cites only part of the required span.
-    case_dir = work / "incomplete"
-    write_pack(case_dir, corpus, GOLD)
-    partial = [{"text": "UpdateEmployeeAttr switches on model.Attr",
-                "citations": [citation(GOLD[0], GOLD[0] + 1, sha)]}]
-    write_answer(case_dir, partial, answer_text + " Not observed: deployment.")
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    criteria = result.get("criteria") or {}
-    check("incomplete: C6 detects omitted packed steps",
-          (criteria.get("C6") or {}).get("score", 2) < 2, json.dumps(criteria.get("C6")))
-    check("incomplete: verdict is not PASS", result.get("verdict") != "PASS",
+    # The same answer, with a semantic evaluator that says it is unsupported.
+    semantic = semantic_file(work / "sem", "FAIL",
+                             "the cited span contains a switch on model.Attr and SaveChanges, "
+                             "not a delete of every employee", unsupported_claims=[0])
+    code, result = run_grader(case, corpus, semantic=semantic)
+    check("wrong-but-cited + semantic FAIL: formal FAIL", result.get("verdict") == "FAIL",
+          str(result.get("verdict")))
+    check("wrong-but-cited + semantic FAIL: C2 is 0",
+          (result.get("criteria") or {}).get("C2", {}).get("score") == 0,
+          json.dumps((result.get("criteria") or {}).get("C2")))
+
+    # ------------------------------------------------- 2. citation does not help
+    case = work / "citeless-claim"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [{"text": "unsupported claim", "citations": []}], "unsupported claim")
+    code, result = run_grader(case, corpus)
+    check("claim without citation: C2 structural zero",
+          (result.get("criteria") or {}).get("C2", {}).get("structural", {})
+          .get("claims_with_valid_citation") == 0, json.dumps(result.get("criteria", {}).get("C2")))
+    check("claim without citation: not PASS", result.get("verdict") != "PASS",
           str(result.get("verdict")))
 
-    # 3. Unsupported: a claim with no citation at all.
-    case_dir = work / "unsupported"
-    write_pack(case_dir, corpus, GOLD)
-    unsupported = [
-        {"text": "UpdateEmployeeAttr switches on model.Attr and saves",
-         "citations": [citation(GOLD[0], GOLD[1], sha)]},
-        {"text": "It also writes Keyword", "citations": []},
-    ]
-    write_answer(case_dir, unsupported, answer_text)
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    criteria = result.get("criteria") or {}
-    check("unsupported: C2 penalised", (criteria.get("C2") or {}).get("score", 2) < 2,
-          json.dumps(criteria.get("C2")))
-    check("unsupported: verdict is not PASS", result.get("verdict") != "PASS",
+    # --------------------------------------------- 3. citation outside the pack
+    case = work / "outside-pack"
+    write_pack(case, corpus, (GOLD[0], GOLD[0] + 2))
+    write_answer(case, [{"text": "claim", "citations": [citation(GOLD[1] - 1, GOLD[1], sha)]}],
+                 "claim")
+    code, result = run_grader(case, corpus)
+    check("citation outside the pack: invalid and no C2 credit",
+          (result.get("criteria") or {}).get("C2", {}).get("structural", {})
+          .get("invalid"), json.dumps((result.get("criteria") or {}).get("C2")))
+
+    # ------------------------------------------------------- 4. stale citation
+    case = work / "stale"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [{"text": "claim", "citations": [citation(GOLD[0], GOLD[1], "b" * 64)]}],
+                 "claim")
+    code, result = run_grader(case, corpus)
+    invalid = (result.get("criteria") or {}).get("C2", {}).get("structural", {}).get("invalid") or []
+    check("stale citation hash: rejected as invalid", bool(invalid), json.dumps(invalid))
+
+    # ------------------------------------- 5. citation without any source hash
+    case = work / "no-hash"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [{"text": "claim", "citations": [citation(GOLD[0], GOLD[1], None)]}],
+                 "claim")
+    code, result = run_grader(case, corpus)
+    invalid = (result.get("criteria") or {}).get("C2", {}).get("structural", {}).get("invalid") or []
+    check("citation without a source hash: rejected", bool(invalid), json.dumps(invalid))
+
+    # ------------------------------------ 6. unverified pack (arm-a capability)
+    case = work / "unverified-pack"
+    write_pack(case, corpus, GOLD, verification="unverified")
+    write_answer(case, good_claim, good_text)
+    code, result = run_grader(case, corpus, semantic=semantic_file(
+        work / "sem", "PASS", "the span supports both statements"))
+    check("unverified pack: no C2 credit even with a passing evaluator",
+          (result.get("criteria") or {}).get("C2", {}).get("score") == 0,
+          json.dumps((result.get("criteria") or {}).get("C2")))
+    check("unverified pack: formal verdict is not PASS", result.get("verdict") != "PASS",
           str(result.get("verdict")))
 
-    # 4. Out-of-pack citation is rejected even with a valid-looking range.
-    case_dir = work / "outside-pack"
-    write_pack(case_dir, corpus, (GOLD[0], GOLD[0] + 2))
-    outside = [{"text": "a claim", "citations": [citation(GOLD[1] - 1, GOLD[1], sha)]}]
-    write_answer(case_dir, outside, "claim")
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    criteria = result.get("criteria") or {}
-    check("outside-pack: C2 zero", (criteria.get("C2") or {}).get("score") == 0,
-          json.dumps(criteria.get("C2")))
+    # ------------------------------------------- 7. missing verification field
+    case = work / "missing-verification"
+    write_pack(case, corpus, GOLD)
+    pack_path = case / f"pack-{CASE}-{PROFILE}.json"
+    pack = json.loads(pack_path.read_text())
+    pack["items"][0].pop("verification")
+    raw = json.dumps(pack, indent=1).encode()
+    pack_path.write_bytes(raw)
+    (case / f"pack-{CASE}-{PROFILE}.sha256").write_text(
+        hashlib.sha256(raw).hexdigest() + "  " + pack_path.name + "\n")
+    write_answer(case, good_claim, good_text)
+    code, result = run_grader(case, corpus)
+    check("missing verification state is not assumed true",
+          result.get("artefacts", {}).get("verified_spans") == 0,
+          json.dumps(result.get("artefacts")))
 
-    # 5. Stale: answer sidecar hash does not match the frozen artefact.
-    case_dir = work / "stale"
-    write_pack(case_dir, corpus, GOLD)
-    write_answer(case_dir, full_span, answer_text, sha="0" * 64)
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    check("stale: UNGRADABLE", result.get("status") == "UNGRADABLE", json.dumps(result)[:200])
-    check("stale: non-zero exit", code == 3, str(code))
+    # -------------------------------------------------- 8. missing sidecar
+    case = work / "no-sidecar"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text, sidecar=False)
+    code, result = run_grader(case, corpus)
+    check("answer without a sidecar is UNGRADABLE",
+          result.get("status") == "UNGRADABLE" and code == 3, json.dumps(result)[:160])
 
-    # 6. Abstention: the pack lacks required steps and the answer says so.
-    case_dir = work / "abstention"
-    write_pack(case_dir, corpus, (GOLD[0], GOLD[0] + 1))
-    write_answer(case_dir, [], "Cannot determine from the selected evidence.",
-                 abstain=True, gaps=["missing required lines in the pack"])
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    criteria = result.get("criteria") or {}
-    check("abstention: C5 honours the declaration",
-          (criteria.get("C5") or {}).get("score") == 2, json.dumps(criteria.get("C5")))
-    check("abstention: not PASS (evidence incomplete)",
+    # ------------------------------------------------------ 9. tampered answer
+    case = work / "tampered"
+    write_pack(case, corpus, GOLD)
+    path = write_answer(case, good_claim, good_text)
+    path.write_bytes(path.read_bytes().replace(b"UpdateEmployeeAttr", b"SomethingElse"))
+    code, result = run_grader(case, corpus)
+    check("edited answer after freezing is UNGRADABLE",
+          result.get("status") == "UNGRADABLE", json.dumps(result)[:160])
+
+    # ------------------------------------------- 10. answer bound to other pack
+    case = work / "wrong-binding"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text, pack_sha="c" * 64)
+    code, result = run_grader(case, corpus)
+    check("answer bound to a different pack is UNGRADABLE",
+          result.get("status") == "UNGRADABLE" and "different pack" in result.get("error", ""),
+          json.dumps(result)[:160])
+
+    # -------------------------------------------- 11. swapped pack, same names
+    case = work / "swapped-pack"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    write_pack(case, corpus, (GOLD[0], GOLD[0] + 3))  # new pack, answer unchanged
+    code, result = run_grader(case, corpus)
+    check("a pack swapped after freezing breaks the binding",
+          result.get("status") == "UNGRADABLE", json.dumps(result)[:160])
+
+    # ------------------------------------------------- 12. INVALID_OUTPUT status
+    case = work / "invalid-output"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [], "prose only", status="INVALID_OUTPUT")
+    code, result = run_grader(case, corpus)
+    check("INVALID_OUTPUT artifact is UNGRADABLE, not a quality FAIL",
+          result.get("status") == "UNGRADABLE", json.dumps(result)[:160])
+
+    # --------------------------------------- 13. C5: engine gap is not a claim
+    case = work / "engine-gap-silent-answer"
+    write_pack(case, corpus, (GOLD[0], GOLD[0] + 1),
+               gaps=[{"code": "missing_required_lines", "path": PATH}])
+    write_answer(case, [{"text": "the method is fully explained",
+                         "citations": [citation(GOLD[0], GOLD[0] + 1, sha)]}],
+                 "The method is fully explained and complete.")
+    code, result = run_grader(case, corpus)
+    c5 = (result.get("criteria") or {}).get("C5", {})
+    check("engine gap + silent answer: C5 is not maximum", c5.get("score", 2) < 2, json.dumps(c5))
+    check("engine gap is recorded as the obligation, not as a declaration",
+          c5.get("engine_gaps") and not c5.get("answer_declared_gaps"), json.dumps(c5))
+
+    # --------------------------- 14. C5: answer declares the engine gap itself
+    case = work / "engine-gap-declared"
+    write_pack(case, corpus, (GOLD[0], GOLD[0] + 1),
+               gaps=[{"code": "missing_required_lines", "path": PATH}])
+    write_answer(case, [{"text": "the switch handles model.Attr",
+                         "citations": [citation(GOLD[0], GOLD[0] + 1, sha)]}],
+                 "The switch handles model.Attr; the remaining required lines were not in the pack.",
+                 gaps=["missing_required_lines"])
+    code, result = run_grader(case, corpus)
+    c5 = (result.get("criteria") or {}).get("C5", {})
+    check("declared engine gap scores full C5", c5.get("score") == 2, json.dumps(c5))
+
+    # ------------------------------- 15. C5: abstention with an engine gap
+    case = work / "engine-gap-abstain"
+    write_pack(case, corpus, (GOLD[0], GOLD[0] + 1),
+               gaps=[{"code": "missing_required_lines", "path": PATH}])
+    write_answer(case, [], "Cannot determine from the selected evidence.",
+                 abstain=True, gaps=["missing_required_lines"])
+    code, result = run_grader(case, corpus)
+    check("abstention that names the gap scores full C5",
+          (result.get("criteria") or {}).get("C5", {}).get("score") == 2, json.dumps(result.get("criteria", {}).get("C5")))
+
+    # ---------------------------- 16. C5: no gap but a fabricated declaration
+    case = work / "fake-gap"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text, gaps=["the pack was incomplete"])
+    code, result = run_grader(case, corpus)
+    check("fabricated gap is not full C5",
+          (result.get("criteria") or {}).get("C5", {}).get("score") == 1,
+          json.dumps((result.get("criteria") or {}).get("C5")))
+
+    # ------------------------ 17. C5: abstains although the pack is complete
+    case = work / "unwarranted-abstain"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, [], "I cannot answer.", abstain=True)
+    code, result = run_grader(case, corpus)
+    check("abstaining on a complete pack is C5 zero",
+          (result.get("criteria") or {}).get("C5", {}).get("score") == 0,
+          json.dumps((result.get("criteria") or {}).get("C5")))
+
+    # ------------------------------------------- 18. semantic verdict invalid
+    case = work / "semantic-invalid"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    for label, payload in [
+        ("verdict outside the contract", {"verdict": "MAYBE", "rationale": "x"}),
+        ("no rationale", {"verdict": "PASS", "rationale": ""}),
+        ("no evaluator identity", {"verdict": "PASS", "rationale": "x", "evaluator_id": ""}),
+        ("out-of-range claim index", {"verdict": "FAIL", "rationale": "x",
+                                      "unsupported_claims": [99]}),
+    ]:
+        sem = work / "sem" / f"bad-{abs(hash(label))}.json"
+        sem.parent.mkdir(parents=True, exist_ok=True)
+        sem.write_text(json.dumps({"case": CASE, **payload}), encoding="utf-8")
+        code, result = run_grader(case, corpus, semantic=sem)
+        check(f"invalid semantic evaluation ({label}) cannot PASS",
+              result.get("verdict") == "UNGRADABLE", str(result.get("verdict")))
+
+    # ------------------------------- 19. valid semantic PASS + structure PASS
+    case = work / "fully-supported"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    sem = semantic_file(work / "sem", "PASS", "the span contains every asserted step")
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("fully supported + semantic PASS: formal PASS",
+          result.get("verdict") == "PASS", json.dumps(
+              {k: v.get("score") for k, v in (result.get("criteria") or {}).items()}))
+    check("fully supported: structural total is complete",
+          result.get("structural_complete") is True and result.get("structural_total") == 12)
+
+    # --------------------------------- 20. semantic PASS but structure fails
+    case = work / "semantic-pass-structure-fail"
+    write_pack(case, corpus, (GOLD[0], GOLD[0] + 1))
+    write_answer(case, [{"text": "partial", "citations": [citation(GOLD[0], GOLD[0] + 1, sha)]}],
+                 "partial answer")
+    code, result = run_grader(case, corpus, semantic=semantic_file(
+        work / "sem", "PASS", "the single cited line is accurate"))
+    check("semantic PASS cannot rescue a structural failure",
           result.get("verdict") != "PASS", str(result.get("verdict")))
 
-    # 7. Missing rubric: materials without the rubric fail clearly.
-    case_dir = work / "missing-rubric"
-    write_pack(case_dir, corpus, GOLD)
-    write_answer(case_dir, full_span, answer_text)
-    broken = work / "materials-no-rubric.json"
-    data = json.loads(MATERIALS.read_text(encoding="utf-8"))
-    data.pop("rubric", None)
-    broken.write_text(json.dumps(data), encoding="utf-8")
-    code, result = run_grader(case_dir, corpus, broken)
-    check("missing rubric: UNGRADABLE", result.get("status") == "UNGRADABLE",
-          json.dumps(result)[:200])
-
-    # 8. Missing pack: nothing to grade against.
-    case_dir = work / "missing-pack"
-    case_dir.mkdir(parents=True, exist_ok=True)
-    write_answer(case_dir, full_span, answer_text)
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    check("missing pack: UNGRADABLE", result.get("status") == "UNGRADABLE",
-          json.dumps(result)[:200])
-
-    # 9. Tampered pack: sidecar hash mismatch.
-    case_dir = work / "tampered-pack"
-    pack_path = write_pack(case_dir, corpus, GOLD)
-    write_answer(case_dir, full_span, answer_text)
-    pack_path.write_bytes(pack_path.read_bytes().replace(b"UpdateEmployeeAttr", b"UpdateEmployeeAttrX"))
-    code, result = run_grader(case_dir, corpus, MATERIALS)
-    check("tampered pack: UNGRADABLE", result.get("status") == "UNGRADABLE",
-          json.dumps(result)[:200])
+    # ------------------------------------------------ 21. required step missing
+    case = work / "missing-step"
+    write_pack(case, corpus, GOLD)
+    claims = [{"text": "sets FullName and Email",
+               "citations": [citation(GOLD[0], GOLD[0] + 1, sha)]}]
+    write_answer(case, claims, "sets FullName and Email")
+    code, result = run_grader(case, corpus)
+    check("missing required step lowers C6/C3",
+          (result.get("criteria") or {}).get("C6", {}).get("score", 2) < 2,
+          json.dumps((result.get("criteria") or {}).get("C6")))
 
     print()
     if FAILURES:

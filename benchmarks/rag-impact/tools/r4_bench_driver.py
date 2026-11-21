@@ -50,6 +50,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from r4_tool_schema import (  # noqa: E402
     ARM_TOOLS,
+    normalize_answer,
     normalize_plan,
     plan_tool,
     plan_wire_form,
@@ -220,11 +221,18 @@ class ResponsesTransport:
     conversation state, tool-call parsing) is shared with the real path.
     """
 
-    def __init__(self, model: str, instructions: str, profile: str, question: str):
+    def __init__(self, model: str, instructions: str, profile: str, question: str,
+                 question_sha256: str | None = None,
+                 question_source: str = "frozen-case",
+                 question_formal: bool = True):
         self.model = model
         self.instructions = instructions
         self.profile = profile
         self.question = question
+        self.question_sha256 = question_sha256 or hashlib.sha256(
+            question.encode("utf-8")).hexdigest()
+        self.question_source = question_source
+        self.question_formal = question_formal
         self.usage_log: list[dict] = []
         self.identity: dict = {}
         self.requests: list[dict] = []
@@ -275,9 +283,12 @@ class PlanTransport(ResponsesTransport):
     arm tools. The plan must be derived from the question and permitted folder
     hints only (no gold, no checklist, no prior answers)."""
 
-    def __init__(self, model, instructions, question, hints, corpus_marker=""):
+    def __init__(self, model, instructions, question, hints, corpus_marker="",
+                 question_sha256=None, question_source="frozen-case",
+                 question_formal=True):
         super().__init__(model=model, instructions=instructions, profile="arm-b",
-                         question=question)
+                         question=question, question_sha256=question_sha256,
+                         question_source=question_source, question_formal=question_formal)
         self.hints = list(hints)
         self.corpus_marker = corpus_marker
         self.served = 0
@@ -331,18 +342,35 @@ class MockPlanTransport(PlanTransport):
         }
 
     def _validate_request(self, payload: dict) -> None:
-        if payload.get("tools") != [plan_tool()]:
-            raise ContractError("plan request must expose exactly the emit_plan tool")
-        if strict_violations_for_plan():
-            raise ContractError("plan tool schema is not strict-compliant")
-        text = payload["input"][0]["content"][0]["text"]
-        if self.corpus_marker and self.corpus_marker in text:
-            raise Violation("plan request leaked the corpus root path")
-        if self.question not in text:
-            raise ContractError("plan request must carry the question verbatim")
-        for forbidden in ("gold", "C3", "checklist", "expected answer"):
-            if forbidden.lower() in text.lower():
-                raise Violation(f"plan prompt carries evaluator-only material: {forbidden}")
+        validate_plan_request(payload, self)
+
+
+def validate_plan_request(payload: dict, planner) -> None:
+    """The plan request contract, checked by every planner (mock and real)."""
+    if payload.get("instructions") != planner.instructions:
+        raise ContractError("plan request must carry the planning instructions verbatim")
+    if payload.get("tools") != [plan_tool()]:
+        raise ContractError(
+            "plan request must expose exactly the strict emit_plan tool, got "
+            f"{[tool.get('name') for tool in payload.get('tools') or []]}"
+        )
+    if strict_violations_for_plan():
+        raise ContractError("plan tool schema is not strict-compliant")
+    if payload.get("tool_choice") != "auto" or payload.get("parallel_tool_calls") is not False:
+        raise ContractError("plan request must allow one tool call at a time")
+    text = payload["input"][0]["content"][0]["text"]
+    if planner.corpus_marker and planner.corpus_marker in text:
+        raise Violation("plan request leaked the corpus root path")
+    if planner.question not in text:
+        raise ContractError("plan request must carry the question verbatim")
+    for hint in planner.hints:
+        if hint not in text:
+            raise ContractError(f"plan request dropped a permitted folder hint: {hint}")
+    if not planner.hints and "Permitted folder hints" not in text:
+        raise ContractError("plan request must declare the permitted-hint section")
+    for forbidden in ("gold", "c3", "checklist", "expected answer", "rubric", "dev.json"):
+        if forbidden in text.lower():
+            raise Violation(f"plan prompt carries evaluator-only material: {forbidden}")
 
 
 def derive_plan(question: str, hints: list[str]) -> dict:
@@ -369,6 +397,40 @@ def derive_plan(question: str, hints: list[str]) -> dict:
         "scopes": scopes[:6],
         "terms": words[:12],
     }
+
+
+class HttpPlanTransport(PlanTransport):
+    """Real provider client for plan generation.
+
+    It shares request construction, prompt, strict `emit_plan` schema and
+    response parsing with the mock planner; only the transport differs. The
+    request is validated against the same contract before it leaves the
+    process, so a wrong tool set or evaluator material can never be sent.
+    """
+
+    def __init__(self, *args, endpoint: str, api_key: str, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not endpoint or not api_key:
+            raise ContractError("real plan transport requires an endpoint and a key")
+        self.endpoint = endpoint.rstrip("/")
+        self.api_key = api_key
+        self.identity = {"requested_model": self.model, "endpoint": self.endpoint}
+
+    def post(self, payload: dict) -> dict:
+        validate_plan_request(payload, self)
+        body = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            f"{self.endpoint}/responses", data=body, method="POST",
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {self.api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=600) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            raise ContractError(f"provider HTTP {error.code}: {error.read()[:400]!r}")
+        except urllib.error.URLError as error:
+            raise ContractError(f"provider unreachable: {error.reason}")
 
 
 class HttpTransport(ResponsesTransport):
@@ -467,11 +529,18 @@ class MockTransport(ResponsesTransport):
                 # Second request is derived from the delivered top item.
                 if self.profile == "arm-c":
                     start, end = top["content_range"]
-                    return self._tool("evidence", {"requests": [{
+                    request = {
                         "project": "hrm",
                         "relative_path": top["path"],
                         "address": {"mode": "lines", "start_line": start, "end_line": end},
-                    }]})
+                    }
+                    # Pin the hash the search delivered, so the evidence item is
+                    # `verified` rather than merely `observed`: this is the
+                    # protocol step that makes a citation verifiable, and doing
+                    # it here keeps the synthetic run honest about capabilities.
+                    if top.get("sha256"):
+                        request["expected_sha256"] = top["sha256"]
+                    return self._tool("evidence", {"requests": [request]})
                 return self._tool("search", {
                     "query": top["path"].split("/")[-1], "mode": "fts", "limit": 5})
             claims = []
@@ -530,7 +599,7 @@ class MockTransport(ResponsesTransport):
         if self.corpus_marker and self.corpus_marker in raw:
             raise Violation("answerer request leaked the corpus root path")
         names = {tool["name"] for tool in payload["tools"]}
-        expected = set(ARM_TOOLS[self.profile])
+        expected = set(ARM_TOOLS[self.profile]) | {"submit_answer"}
         if names != expected:
             raise ContractError(
                 f"mock transport: tool schema mismatch, got {sorted(names)} wanted {sorted(expected)}"
@@ -565,17 +634,31 @@ class MockTransport(ResponsesTransport):
         }
 
     def _final(self, text: str, abstain: bool, claims=None, gaps=None) -> dict:
+        """Submits the final answer through the protocol's terminal tool.
+
+        The mock emits exactly the same `submit_answer` function call a real
+        model must emit, so the driver's answer validation is exercised for
+        every synthetic run instead of being bypassed by prose.
+        """
+        claims = claims or []
         payload = {"answer": text, "abstain": abstain,
-                   "claims": claims or [], "gaps": gaps or []}
+                   "claims": claims, "gaps": gaps or []}
+        try:
+            normalize_answer(payload)
+        except Exception:
+            # An abstention cannot carry claims; keep the submission legal and
+            # let the driver record what the model actually produced.
+            payload["claims"] = []
         return {
             "id": f"mock-{self.served}",
             "object": "response",
             "model": self.model,
             "system_fingerprint": "mock-fingerprint",
             "output": [{
-                "type": "message",
-                "role": "assistant",
-                "content": [{"type": "output_text", "text": json.dumps(payload)}],
+                "type": "function_call",
+                "call_id": f"answer-{self.served}",
+                "name": "submit_answer",
+                "arguments": json.dumps(payload),
             }],
             "usage": {"input_tokens": 100 * self.served, "output_tokens": 30},
         }
@@ -594,25 +677,48 @@ def parse_output(response: dict) -> tuple[str, object]:
                 raise Violation("provider returned unparseable tool arguments")
             return "tool", (item.get("name"), args, item.get("call_id"), item)
         if item.get("type") == "message":
+            # Free prose is not an answer under the frozen protocol: the answer
+            # must arrive as a validated `submit_answer` call, otherwise the
+            # case is INVALID_OUTPUT rather than an ungraded "wrong" answer.
             texts = [part.get("text", "") for part in item.get("content") or []
                      if part.get("type") == "output_text"]
-            text = "\n".join(texts).strip()
-            try:
-                parsed = json.loads(text)
-                if isinstance(parsed, dict) and "answer" in parsed:
-                    claims = parsed.get("claims") or []
-                    if not isinstance(claims, list):
-                        raise Violation("final claims must be a list")
-                    return "final", {
-                        "answer": str(parsed["answer"]),
-                        "abstain": bool(parsed.get("abstain", False)),
-                        "claims": claims,
-                        "gaps": parsed.get("gaps") or [],
-                    }
-            except json.JSONDecodeError:
-                pass
-            return "final", {"answer": text, "abstain": not text, "claims": [], "gaps": []}
+            return "prose", {"text": "\n".join(texts).strip()}
     raise Violation("provider response had neither a tool call nor a final message")
+
+
+def resolve_question(labels_dir: Path, case: str, question_file: Path | None,
+                     allow_override: bool) -> dict:
+    """Returns the exact question to send, plus its identity.
+
+    The formal D01–D12 protocol is defined by the frozen case text. A different
+    `--question-file` may only be used as an explicit non-formal diagnostic and
+    never inherits the frozen case's identity.
+    """
+    cases = json.loads((labels_dir / "cases" / "dev.json").read_text(encoding="utf-8"))["cases"]
+    entry = next((item for item in cases if item["id"] == case), None)
+    if entry is None:
+        raise ContractError(f"case {case} is not in the frozen dev set")
+    frozen = entry["question"]
+    frozen_sha = hashlib.sha256(frozen.encode("utf-8")).hexdigest()
+    if question_file is None:
+        return {"text": frozen, "sha256": frozen_sha, "source": "frozen-case",
+                "formal": True, "frozen_sha256": frozen_sha}
+    text = question_file.read_text(encoding="utf-8").strip()
+    if not text:
+        raise ContractError(f"question file {question_file} is empty")
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if digest == frozen_sha:
+        return {"text": text, "sha256": digest, "source": "frozen-case",
+                "formal": True, "frozen_sha256": frozen_sha}
+    if not allow_override:
+        raise ContractError(
+            f"question in {question_file} does not match the frozen {case} question "
+            f"(file {digest[:12]} != frozen {frozen_sha[:12]}); a formal run cannot "
+            "substitute the question. Pass --allow-question-override only for a "
+            "clearly labelled non-formal diagnostic"
+        )
+    return {"text": text, "sha256": digest, "source": "override-diagnostic",
+            "formal": False, "frozen_sha256": frozen_sha}
 
 
 def generate_plan(answerer: ResponsesTransport, work_dir: Path, case: str,
@@ -657,6 +763,8 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
     round_no = 1
     turns = 0
     final = {"answer": "", "abstain": True}
+    answer_status = "MISSING_FINAL_ANSWER"
+    answer_error = "the session ended without a submit_answer call"
     while True:
         if turns >= MAX_TURNS:
             violations.append("turn budget exhausted before a final answer")
@@ -667,10 +775,28 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
         response = answerer.next_turn(conversation)
         turns += 1
         kind, payload = parse_output(response)
-        if kind == "final":
-            final = payload
+        if kind == "prose":
+            answer_status = "INVALID_OUTPUT"
+            answer_error = "the model returned prose instead of a submit_answer call"
+            transcript.append({"round": round_no, "tool": "prose",
+                               "contract_error": answer_error})
+            final = {"answer": payload.get("text", ""), "claims": [], "gaps": [],
+                     "abstain": False}
             break
         tool, args, call_id, raw_item = payload
+        if tool == "submit_answer":
+            conversation.append(raw_item)
+            try:
+                final = normalize_answer(args)
+                answer_status = "OK"
+                answer_error = None
+            except Exception as error:  # SchemaViolation
+                answer_status = "INVALID_OUTPUT"
+                answer_error = str(error)
+                final = {"answer": "", "claims": [], "gaps": [], "abstain": False}
+            transcript.append({"round": round_no, "tool": "submit_answer",
+                               "status": answer_status, "error": answer_error})
+            break
         # Faithful Responses-API conversation: the assistant's function_call
         # item precedes its function_call_output.
         conversation.append(raw_item)
@@ -738,13 +864,56 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
 
     receipt = controller.finalize(cancelled=bool(violations))
     frozen = None
-    if output_dir is not None and final.get("answer"):
+    pack_record = None
+    if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)
+        # Freeze the pack FIRST: the answer artifact names the exact pack it was
+        # produced from, so the grader can prove the binding instead of trusting
+        # whatever pack happens to sit next to the answer.
+        packs_dir = controller.session_dir / "packs"
+        session_packs = sorted(packs_dir.glob("pack-*.json")) if packs_dir.is_dir() else []
+        if session_packs:
+            if len(session_packs) > 1:
+                raise ContractError(
+                    f"session produced {len(session_packs)} packs; refusing to guess "
+                    "which one the answer used"
+                )
+            pack_raw = session_packs[0].read_bytes()
+            pack_name = f"pack-{case}-{profile}.json"
+            (output_dir / pack_name).write_bytes(pack_raw)
+            (output_dir / f"pack-{case}-{profile}.sha256").write_text(
+                hashlib.sha256(pack_raw).hexdigest() + "  " + pack_name + "\n",
+                encoding="utf-8")
+            pack_record = {"sha256": hashlib.sha256(pack_raw).hexdigest(),
+                           "kind": "workflow" if b'"selected"' in pack_raw else "evidence",
+                           "path": str(output_dir / pack_name)}
+        else:
+            derived = derive_pack_from_transcript(transcript)
+            if derived is not None:
+                # Arm A has no evidence/verify tool, so it cannot produce a
+                # verified pack. Its delivered excerpts are frozen as an
+                # explicitly unverified pack, so the same grader applies and the
+                # missing verification shows up as a C2 penalty.
+                pack_name = f"pack-{case}-{profile}.json"
+                raw = json.dumps(derived, indent=1, ensure_ascii=False).encode("utf-8")
+                (output_dir / pack_name).write_bytes(raw)
+                (output_dir / f"pack-{case}-{profile}.sha256").write_text(
+                    hashlib.sha256(raw).hexdigest() + "  " + pack_name + "\n",
+                    encoding="utf-8")
+                pack_record = {"sha256": hashlib.sha256(raw).hexdigest(),
+                               "kind": "evidence", "path": str(output_dir / pack_name)}
+
         artifact = {
             "case": case,
             "profile": profile,
-            "final": {"answer": final.get("answer", ""),
-                      "abstain": bool(final.get("abstain", False))},
+            "status": answer_status,
+            "error": answer_error,
+            "question": {"sha256": answerer.question_sha256,
+                         "source": answerer.question_source,
+                         "formal": answerer.question_formal},
+            "pack": ({"sha256": pack_record["sha256"], "kind": pack_record["kind"]}
+                     if pack_record else None),
+            "final": final,
             "claims": final.get("claims") or [],
             "gaps": final.get("gaps") or [],
             "transcript_tools": [entry.get("tool") for entry in transcript],
@@ -753,37 +922,11 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
         answer_path = output_dir / f"answer-{case}-{profile}.json"
         answer_path.write_text(blob, encoding="utf-8")
         digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()
-        # Sidecar hash: the grader refuses an answer whose freeze hash does not
-        # match, so a later edit cannot be graded as if it were the frozen one.
-        answer_path.with_suffix(".sha256").write_text(digest + "  " + answer_path.name + "\n",
-                                                     encoding="utf-8")
+        answer_path.with_suffix(".sha256").write_text(
+            digest + "  " + answer_path.name + "\n", encoding="utf-8")
         frozen = {"sha256": digest, "bytes": len(blob.encode("utf-8")),
-                  "path": str(answer_path)}
-        # Freeze the pack the answer was produced from (hash + sidecar), so the
-        # grader can work from the artefact pair alone.
-        packs_dir = controller.session_dir / "packs"
-        derived = None if packs_dir.is_dir() and sorted(packs_dir.glob("pack-*.json")) \
-            else derive_pack_from_transcript(transcript)
-        if derived is not None:
-            # Arm A has no evidence/verify tool, so it cannot produce a verified
-            # pack. Its delivered excerpts are frozen instead, marked unverified,
-            # so the same pack format and the same grader still apply and the
-            # missing verification shows up as a C2 penalty rather than a
-            # silently absent artefact.
-            pack_name = f"pack-{case}-{profile}.json"
-            raw = json.dumps(derived, indent=1, ensure_ascii=False).encode("utf-8")
-            (output_dir / pack_name).write_bytes(raw)
-            (output_dir / f"pack-{case}-{profile}.sha256").write_text(
-                hashlib.sha256(raw).hexdigest() + "  " + pack_name + "\n", encoding="utf-8")
-        packs = sorted(packs_dir.glob("pack-*.json")) if packs_dir.is_dir() else []
-        if True:
-            if packs:
-                pack_raw = packs[-1].read_bytes()
-                pack_name = f"pack-{case}-{profile}.json"
-                (output_dir / pack_name).write_bytes(pack_raw)
-                (output_dir / f"pack-{case}-{profile}.sha256").write_text(
-                    hashlib.sha256(pack_raw).hexdigest() + "  " + pack_name + "\n",
-                    encoding="utf-8")
+                  "path": str(answer_path), "status": answer_status,
+                  "pack_bound": pack_record is not None}
     budget = receipt.get("budget", {})
     return {
         "case": case,
@@ -953,6 +1096,9 @@ def main() -> int:
                         help="permitted folder hint for plan generation (repeatable)")
     parser.add_argument("--allow-no-plan", action="store_true",
                         help="arm-b diagnostic: run question-only without a plan")
+    parser.add_argument("--allow-question-override", action="store_true",
+                        help="allow a question that differs from the frozen case text; "
+                             "the run is then classified non-formal")
     parser.add_argument("--answer-instructions-file", type=Path)
     parser.add_argument("--model", default="gpt-5.5")
     parser.add_argument("--answers-dir", type=Path)
@@ -967,10 +1113,9 @@ def main() -> int:
 
     corpus = check_corpus(args.labels_dir, args.root)
     case_info = check_case(args.labels_dir, args.case)
-    question = args.question_file.read_text(encoding="utf-8").strip() if args.question_file else ""
-    if not question:
-        cases = json.loads((args.labels_dir / "cases" / "dev.json").read_text(encoding="utf-8"))["cases"]
-        question = next(entry["question"] for entry in cases if entry["id"] == args.case)
+    identity = resolve_question(args.labels_dir, args.case, args.question_file,
+                                args.allow_question_override)
+    question = identity["text"]
     plan_provenance = None
     plan_file = args.plan_file
     if args.profile == "arm-b" and plan_file is None:
@@ -984,9 +1129,13 @@ def main() -> int:
                     print("CONTRACT_ERROR: plan generation for arm-b needs the same "
                           "inference authorization as the answerer", file=sys.stderr)
                     return ERROR_EXIT
-                planner = HttpTransport(
-                    model=args.model, instructions=PLAN_INSTRUCTIONS, profile="arm-b",
-                    question=question,
+                hints = [line.strip() for line in (args.folder_hints or []) if line.strip()]
+                planner = HttpPlanTransport(
+                    model=args.model, instructions=PLAN_INSTRUCTIONS, question=question,
+                    hints=hints, corpus_marker=str(args.root.resolve()),
+                    question_sha256=identity["sha256"],
+                    question_source=identity["source"],
+                    question_formal=identity["formal"],
                     endpoint=os.environ.get("R4_INFERENCE_ENDPOINT", ""),
                     api_key=os.environ.get("R4_INFERENCE_TOKEN", ""),
                 )
@@ -995,6 +1144,9 @@ def main() -> int:
                 planner = MockPlanTransport(
                     model=args.model, instructions=PLAN_INSTRUCTIONS, question=question,
                     hints=hints, corpus_marker=str(args.root.resolve()),
+                    question_sha256=identity["sha256"],
+                    question_source=identity["source"],
+                    question_formal=identity["formal"],
                 )
             plan_provenance = generate_plan(planner, args.session_dir.parent / "plans",
                                             args.case, question)
@@ -1012,14 +1164,17 @@ def main() -> int:
             return ERROR_EXIT
         answerer = HttpTransport(
             model=args.model, instructions=instructions, profile=args.profile,
-            question=question,
+            question=question, question_sha256=identity["sha256"],
+            question_source=identity["source"], question_formal=identity["formal"],
             endpoint=os.environ.get("R4_INFERENCE_ENDPOINT", ""),
             api_key=os.environ.get("R4_INFERENCE_TOKEN", ""),
         )
     else:
         answerer = MockTransport(
             model=args.model, instructions=instructions, profile=args.profile,
-            question=question, corpus_marker=str(args.root.resolve()),
+            question=question, question_sha256=identity["sha256"],
+            question_source=identity["source"], question_formal=identity["formal"],
+            corpus_marker=str(args.root.resolve()),
         )
 
     controller = AdapterController(args.adapter, args.session_dir, args.root,
@@ -1040,6 +1195,13 @@ def main() -> int:
         }
     report["corpus"] = corpus
     report["case_identity"] = case_info
+    report["question_identity"] = {
+        "sha256": identity["sha256"],
+        "source": identity["source"],
+        "formal": identity["formal"],
+        "frozen_sha256": identity["frozen_sha256"],
+        "matches_frozen": identity["sha256"] == identity["frozen_sha256"],
+    }
     report["transport_requests"] = len(answerer.requests)
     if args.grade and args.answers_dir is not None:
         report["grading"] = grade(
