@@ -29,7 +29,7 @@
   {
    "id": "local-open-weights-eval",
    "kind": "local-model",
-   "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+   "endpoint": "http://127.0.0.1:8000/v1/responses",
    "model": "<owner-selected open-weights model tag>",
    "served_identity": "record the server name, weights digest and quantization at run time",
    "data_flow": "no data leaves the machine; full cited source stays local",

@@ -88,12 +88,14 @@ Then score five dimensions from 0 to 2 (2 best):
 
 Verdict rules: `PASS` only if every claim is supported and claim_correctness
 is 2, citation_support is 2, and uncertainty, abstention and completeness are
-at least 1. Otherwise `FAIL`, and at least one claim must be `unsupported`
-(if the answer contains no claims, `PASS` requires abstention = 2, meaning the
-answer correctly declined to assert anything).
+at least 1. Otherwise `FAIL`, and at least one claim must be `unsupported`.
+An answer that asserts no claims is not a valid benchmark answer: the
+structural layer fails it, and this workflow refuses to produce a formal
+evaluation for it.
 
 Output exactly one JSON object, no prose, with exactly these keys:
-{"verdict": "PASS"|"FAIL",
+{"packet_sha256": "<copy the packet's packet_sha256 verbatim>",
+ "verdict": "PASS"|"FAIL",
  "rationale": "<why, non-empty>",
  "claims": [{"index": <int>, "judgement": "supported"|"unsupported",
              "reason": "<non-empty>"}, ...],
@@ -105,9 +107,10 @@ Every claim index must appear exactly once. Do not add keys.
 
 OUTPUT_SCHEMA = {
     "type": "object",
-    "required": ["verdict", "rationale", "claims", "dimensions"],
+    "required": ["packet_sha256", "verdict", "rationale", "claims", "dimensions"],
     "additionalProperties": False,
     "properties": {
+        "packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "verdict": {"enum": ["PASS", "FAIL"]},
         "rationale": {"type": "string", "minLength": 1},
         "claims": {
@@ -175,26 +178,38 @@ def _frozen_question(labels: Path, case: str) -> dict:
     raise EvaluatorError(f"case {case} is not in the frozen development set")
 
 
-def _resolve_cited_span(corpus: Path, path: str, start: int, end: int) -> dict:
+def _resolve_cited_span(corpus: Path, path: str, start: int, end: int,
+                        max_span_bytes: int = 65536) -> dict:
     """Reads exactly one cited span. Path traversal and absolute paths are
-    refused: the evaluator may see cited source, never browse the corpus."""
+    refused: the evaluator may see cited source, never browse the corpus.
+    Oversized spans are refused rather than truncated, because a truncated span
+    would be judged as if it were the whole text."""
     relative = Path(path)
     if relative.is_absolute() or ".." in relative.parts:
         raise EvaluatorError(f"citation path is outside the frozen corpus: {path!r}")
-    target = (corpus / relative).resolve()
     try:
+        target = (corpus / relative).resolve()
         target.relative_to(corpus.resolve())
-    except ValueError as error:
-        raise EvaluatorError(f"citation path escapes the corpus: {path!r}") from error
+    except (OSError, ValueError) as error:
+        raise EvaluatorError(f"citation path is not readable: {path!r} ({error})") from error
     if not target.is_file():
         return {"path": path, "start_line": start, "end_line": end,
-                "resolved": False, "content": None}
-    lines = target.read_text(encoding="utf-8", errors="replace").split("\n")
+                "resolved": False, "content": None, "source_sha256": None}
+    raw = target.read_bytes()
+    source_sha = sha256_bytes(raw)
+    if len(raw) > 4 * max_span_bytes:
+        raise EvaluatorError(f"cited file is too large to evaluate: {path!r}")
+    lines = raw.decode("utf-8", errors="replace").split("\n")
     if start < 1 or end < start:
         return {"path": path, "start_line": start, "end_line": end,
-                "resolved": False, "content": None}
+                "resolved": False, "content": None, "source_sha256": source_sha}
+    content = "\n".join(lines[start - 1:end])
+    if len(content.encode("utf-8")) > max_span_bytes:
+        raise EvaluatorError(
+            f"cited span is larger than {max_span_bytes} bytes: {path!r} "
+            f"lines {start}-{end}")
     return {"path": path, "start_line": start, "end_line": end,
-            "resolved": True, "content": "\n".join(lines[start - 1:end])}
+            "resolved": True, "content": content, "source_sha256": source_sha}
 
 
 def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
@@ -211,10 +226,88 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
     if not materials.is_file():
         raise EvaluatorError(f"grading materials are missing: {materials}")
 
+    # Delivered evidence is the pack, not the corpus. A citation may be narrower
+    # than a pack item but never wider; anything outside the delivered bytes is
+    # reported as unresolved and is NOT read from the corpus.
+    delivered = grade.pack_spans(pack)
+    content_by_span: dict[tuple, str | None] = {}
+    items = []
+    if "selected" in pack:
+        for item in pack.get("selected") or []:
+            path = item.get("path")
+            start = item.get("start_line")
+            end = item.get("end_line")
+            if isinstance(start, int) and isinstance(end, int):
+                content_by_span[(path, start, end)] = item.get("content")
+            items.append({"path": path, "start_line": start, "end_line": end,
+                          "sha256": item.get("source_sha256"),
+                          "verified": item.get("verified") is True,
+                          "content": item.get("content")})
+    else:
+        for item in pack.get("items") or []:
+            rng = item.get("range") or {}
+            path = item.get("relative_path") or item.get("path")
+            start = rng.get("start_line")
+            end = rng.get("end_line")
+            normalized_end = end
+            if rng.get("end_byte_column") == 0 and isinstance(start, int) and isinstance(end, int):
+                normalized_end = max(start, end - 1)
+            if isinstance(start, int) and isinstance(normalized_end, int):
+                content_by_span[(path, start, normalized_end)] = item.get("content")
+            items.append({"path": path, "start_line": start, "end_line": end,
+                          "sha256": item.get("sha256") or item.get("source_sha256"),
+                          "verified": item.get("verification") == "verified",
+                          "content": item.get("content")})
+
+    def delivered_span(citation: dict) -> dict:
+        path = citation["path"]
+        start = citation["start_line"]
+        end = citation["end_line"]
+        outer = next((span for span in delivered if span["path"] == path
+                      and grade.contains(span["range"], (start, end))), None)
+        base = {"path": path, "start_line": start, "end_line": end,
+                "citation_sha256": citation.get("sha256"),
+                "in_pack": outer is not None,
+                "pack_verified": bool(outer and outer["verified"]),
+                "pack_sha256": outer["sha256"] if outer else None,
+                "resolved": False, "content": None, "source_sha256": None,
+                "hash_ok": False}
+        if outer is None:
+            base["reason"] = "citation is not contained in a delivered pack span"
+            return base
+        content = content_by_span.get((outer["path"], *outer["range"]))
+        if content is not None:
+            lines = content.split("\n")
+            offset = start - outer["range"][0]
+            text = "\n".join(lines[offset:offset + (end - start) + 1])
+            if len(text.encode("utf-8")) > 65536:
+                raise EvaluatorError(f"cited span is too large to evaluate: {path!r}")
+            base.update({"resolved": True, "content": text,
+                         "source_sha256": outer["sha256"]})
+        else:
+            try:
+                read = _resolve_cited_span(corpus, path, start, end)
+            except (OSError, ValueError) as error:
+                raise EvaluatorError(
+                    f"cited span could not be read ({path!r}): {error}") from error
+            base.update({"resolved": read["resolved"], "content": read["content"],
+                         "source_sha256": read["source_sha256"]})
+        base["hash_ok"] = (
+            base["resolved"]
+            and isinstance(citation.get("sha256"), str)
+            and citation["sha256"] == outer["sha256"]
+            and (base["source_sha256"] is None
+                 or base["source_sha256"] == outer["sha256"])
+        )
+        return base
+
     claims = artifact.get("claims") or []
     cited: dict[tuple[str, int, int], dict] = {}
+    max_total_cited_bytes = 512 * 1024
     claim_view = []
     for index, claim in enumerate(claims):
+        if not isinstance(claim.get("text"), str):
+            raise EvaluatorError(f"claim {index} has no string text")
         citations = []
         for citation in claim.get("citations") or []:
             if not isinstance(citation, dict):
@@ -224,37 +317,19 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
             end = citation.get("end_line")
             if not isinstance(path, str) or type(start) is not int or type(end) is not int:
                 raise EvaluatorError(f"claim {index} has a malformed citation: {citation!r}")
-            span = _resolve_cited_span(corpus, path, start, end)
-            span["citation_sha256"] = citation.get("sha256")
-            span["hash_ok"] = (span["resolved"]
-                               and isinstance(citation.get("sha256"), str)
-                               and sha256_path((corpus / path).resolve())
-                               == citation["sha256"])
+            span = delivered_span({"path": path, "start_line": start,
+                                   "end_line": end, "sha256": citation.get("sha256")})
             cited[(path, start, end)] = span
             citations.append({"path": path, "start_line": start, "end_line": end,
                               "sha256": citation.get("sha256")})
         claim_view.append({"index": index, "text": claim.get("text"), "citations": citations})
 
-    # Pack content when the pack carries it (evidence packs do, workflow packs
-    # record only paths/ranges — the cited-span text above covers those).
-    items = []
-    if "selected" in pack:
-        for item in pack.get("selected") or []:
-            items.append({"path": item.get("path"),
-                          "start_line": item.get("start_line"),
-                          "end_line": item.get("end_line"),
-                          "sha256": item.get("source_sha256"),
-                          "verified": item.get("verified") is True,
-                          "content": item.get("content")})
-    else:
-        for item in pack.get("items") or []:
-            rng = item.get("range") or {}
-            items.append({"path": item.get("relative_path"),
-                          "start_line": rng.get("start_line"),
-                          "end_line": rng.get("end_line"),
-                          "sha256": item.get("sha256") or item.get("source_sha256"),
-                          "verified": item.get("verification") == "verified",
-                          "content": item.get("content")})
+    total_cited = sum(len((span.get("content") or "").encode("utf-8"))
+                      for span in cited.values())
+    if total_cited > max_total_cited_bytes:
+        raise EvaluatorError(
+            f"cited evidence is larger than {max_total_cited_bytes} bytes; refuse "
+            "rather than send an unbounded packet")
 
     gaps = pack.get("gaps")
     if isinstance(gaps, dict):
@@ -303,8 +378,12 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
 
 
 def render_prompt(packet: dict) -> str:
-    """The exact text a transport sends to an evaluator model."""
-    payload = dict(packet)
+    """The exact text a transport sends to an evaluator model.
+
+    The instructions are prepended once and stripped from the embedded copy, so
+    a real prompt does not pay for them twice; the standalone packet keeps them
+    for a human or a transport that sends the packet alone."""
+    payload = {key: value for key, value in packet.items() if key != "instructions"}
     return INSTRUCTIONS + "\nPACKET\n" + json.dumps(payload, indent=1,
                                                     ensure_ascii=False)
 
@@ -323,13 +402,22 @@ def verify_packet(packet: dict) -> None:
     if not isinstance(inputs, dict) or set(inputs) != {
             "case", "answer_sha256", "pack_sha256", "question_sha256", "rubric_sha256"}:
         raise EvaluatorError("evaluator packet has malformed binding inputs")
+    if inputs.get("case") != packet.get("case"):
+        raise EvaluatorError("evaluator packet binds a different case than it names")
+    question = packet.get("question") or {}
+    if inputs.get("question_sha256") != question.get("sha256"):
+        raise EvaluatorError("evaluator packet binds a different question than it shows")
+    if not isinstance(question.get("text"), str):
+        raise EvaluatorError("evaluator packet has no question text")
     identity = (packet.get("evaluator") or {}).get("id")
     if not isinstance(identity, str) or not identity:
         raise EvaluatorError("evaluator packet names no evaluator identity")
-    if not isinstance(packet.get("answer"), dict) or not isinstance(packet.get("claims", []), list):
+    if not isinstance(packet.get("answer"), dict):
         raise EvaluatorError("evaluator packet has no answer")
-    schema = (packet.get("evaluator") or {}).get("output_schema")
-    if schema != OUTPUT_SCHEMA:
+    evaluator = packet.get("evaluator") or {}
+    if evaluator.get("instructions_sha256") != sha256_bytes(INSTRUCTIONS.encode("utf-8")):
+        raise EvaluatorError("evaluator packet was built for different instructions")
+    if evaluator.get("output_schema") != OUTPUT_SCHEMA:
         raise EvaluatorError("evaluator packet carries a different output schema")
 
 
@@ -366,10 +454,20 @@ def validate_response(packet: dict, response: dict) -> dict:
     packet; anything in the response that tries to set them is rejected."""
     verify_packet(packet)
     response = _require_object(response, "evaluator response",
-                               {"verdict", "rationale", "claims", "dimensions"})
+                               {"packet_sha256", "verdict", "rationale",
+                                "claims", "dimensions"})
     identity = packet["evaluator"]["id"]
     inputs = dict(packet["inputs"])
     claims = packet["answer"].get("claims") or []
+
+    # The response is bound to this exact packet, so a favourable verdict for
+    # one answer cannot be replayed onto another at the same digest set.
+    if response.get("packet_sha256") != packet["packet_sha256"]:
+        raise EvaluatorError("response is not bound to this packet (packet_sha256 mismatch)")
+    if not claims:
+        raise EvaluatorError(
+            "an answer with no claims cannot be semantically evaluated; its "
+            "structural verdict governs")
 
     if response.get("verdict") not in ("PASS", "FAIL"):
         raise EvaluatorError("verdict must be PASS or FAIL")
@@ -416,16 +514,13 @@ def validate_response(packet: dict, response: dict) -> dict:
     if verdict == "PASS":
         if unsupported:
             raise EvaluatorError(f"PASS cannot carry unsupported claims: {unsupported}")
-        if not claims and dimensions["abstention"]["score"] < 2:
-            raise EvaluatorError("an answer with no claims may only PASS with abstention = 2")
-        if claims:
-            if dimensions["claim_correctness"]["score"] != 2:
-                raise EvaluatorError("PASS requires claim_correctness = 2")
-            if dimensions["citation_support"]["score"] != 2:
-                raise EvaluatorError("PASS requires citation_support = 2")
-            for name in ("completeness", "uncertainty", "abstention"):
-                if dimensions[name]["score"] < 1:
-                    raise EvaluatorError(f"PASS requires {name} >= 1")
+        if dimensions["claim_correctness"]["score"] != 2:
+            raise EvaluatorError("PASS requires claim_correctness = 2")
+        if dimensions["citation_support"]["score"] != 2:
+            raise EvaluatorError("PASS requires citation_support = 2")
+        for name in ("completeness", "uncertainty", "abstention"):
+            if dimensions[name]["score"] < 1:
+                raise EvaluatorError(f"PASS requires {name} >= 1")
     else:
         if not unsupported:
             raise EvaluatorError("FAIL must mark at least one claim unsupported")
@@ -446,7 +541,8 @@ def validate_response(packet: dict, response: dict) -> dict:
 
 
 def accept(packet_path: Path, response_path: Path, out: Path,
-           identity: str | None = None) -> dict:
+           identity: str | None = None,
+           served_identity: str | None = None) -> dict:
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     verify_packet(packet)
     packet_identity = packet["evaluator"]["id"]
@@ -455,6 +551,11 @@ def accept(packet_path: Path, response_path: Path, out: Path,
             f"packet names evaluator {packet_identity!r}, not {identity!r}")
     response = json.loads(response_path.read_text(encoding="utf-8"))
     document = validate_response(packet, response)
+    if served_identity is not None:
+        if not isinstance(served_identity, str) or not served_identity.strip():
+            raise EvaluatorError("served identity must be a non-empty string")
+        document["served_identity"] = served_identity.strip()
+        document["served_identity_source"] = "transport"
     document["packet_identity"] = {"path": str(packet_path),
                                    "sha256": packet["packet_sha256"]}
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -520,7 +621,7 @@ def estimate(answers: Path, labels: Path, corpus: Path, candidates: Path,
         pricing.append({"id": candidate.get("id"),
                         "rates_usd_per_1m": {"input": input_rate, "output": output_rate},
                         "estimated_total_usd": round(cost, 6),
-                        "estimated_per_case_usd": round(cost / max(1, len(usable)), 6)})
+                        "estimated_per_evaluation_usd": round(cost / max(1, len(usable)), 6)})
     cases_covered = {r["case"] for r in usable}
     return {
         "schema_version": SCHEMA_VERSION,
@@ -560,6 +661,8 @@ def main(argv: list[str] | None = None) -> int:
     accept_cmd.add_argument("--packet", required=True, type=Path)
     accept_cmd.add_argument("--response", required=True, type=Path)
     accept_cmd.add_argument("--identity")
+    accept_cmd.add_argument("--served-identity",
+                            help="identity reported by the transport/provider (recorded, not trusted)")
     accept_cmd.add_argument("--out", required=True, type=Path)
 
     estimate_cmd = sub.add_parser("estimate", help="cost/token estimate over frozen answers")
@@ -585,7 +688,8 @@ def main(argv: list[str] | None = None) -> int:
                               "prompt_bytes": len(render_prompt(packet).encode("utf-8")),
                               "inputs": packet["inputs"]}, indent=1))
         elif args.command == "accept":
-            document = accept(args.packet, args.response, args.out, args.identity)
+            document = accept(args.packet, args.response, args.out, args.identity,
+                              served_identity=args.served_identity)
             print(json.dumps({"evaluation": str(args.out),
                               "verdict": document["verdict"],
                               "evaluator_id": document["evaluator_id"],

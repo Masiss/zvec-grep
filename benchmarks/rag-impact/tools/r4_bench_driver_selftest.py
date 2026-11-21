@@ -291,6 +291,13 @@ def main() -> int:
                 "question_sha256": question_sha,
                 "rubric_sha256": hashlib.sha256(MATERIALS.read_bytes()).hexdigest(),
             },
+            "dimensions": {
+                "claim_correctness": {"score": 2, "rationale": "selftest"},
+                "citation_support": {"score": 2, "rationale": "selftest"},
+                "completeness": {"score": 2, "rationale": "selftest"},
+                "uncertainty": {"score": 2, "rationale": "selftest"},
+                "abstention": {"score": 2, "rationale": "selftest"},
+            },
         }
         payload.update(extra)
         directory.mkdir(parents=True, exist_ok=True)

@@ -44,6 +44,8 @@ MIN_MEAN_C245 = 1.8
 MIN_MEAN_TOTAL = 10.0
 
 SEMANTIC_VERDICTS = ("PASS", "FAIL")
+SEMANTIC_DIMENSIONS = ("claim_correctness", "citation_support", "completeness",
+                       "uncertainty", "abstention")
 
 RUNTIME_ASSERTIONS = [
     (r"\b(is|are) (currently )?running\b", "runtime"),
@@ -81,6 +83,17 @@ def load_json(path: Path) -> dict:
 
 def overlaps(a: tuple[int, int], b: tuple[int, int]) -> bool:
     return max(a[0], b[0]) <= min(a[1], b[1])
+
+
+def contains(outer: tuple[int, int], inner: tuple[int, int]) -> bool:
+    """True when `inner` lies entirely inside `outer`.
+
+    Used for the delivered-evidence boundary: a citation may be narrower than
+    the pack span it draws on, but never wider. Overlap is not delivery — a
+    citation that reaches past the pack would let a claim be dressed with source
+    the answerer never received.
+    """
+    return outer[0] <= inner[0] and inner[1] <= outer[1]
 
 
 # ------------------------------------------------------------ frozen inputs
@@ -126,6 +139,30 @@ def load_answer(answers_dir: Path, case: str, profile: str) -> tuple[dict, dict]
     claims = artifact.get("claims")
     if not isinstance(claims, list):
         raise GradingError("answer artifact has no structured claims list")
+    # Shape is validated at the boundary: a malformed claim or citation must be
+    # UNGRADABLE, not an AttributeError from deep inside the analysis.
+    for index, claim in enumerate(claims):
+        if not isinstance(claim, dict):
+            raise GradingError(f"claim {index} is not an object")
+        citations = claim.get("citations")
+        if citations is None:
+            continue
+        if not isinstance(citations, list):
+            raise GradingError(f"claim {index} citations must be a list")
+        for position, citation in enumerate(citations):
+            where = f"claim {index} citation {position}"
+            if not isinstance(citation, dict):
+                raise GradingError(f"{where} is not an object")
+            cited_path = citation.get("path")
+            if cited_path is not None and not isinstance(cited_path, str):
+                raise GradingError(f"{where} has a non-string path")
+            for field in ("start_line", "end_line"):
+                value = citation.get(field)
+                if value is not None and type(value) is not int:
+                    raise GradingError(f"{where} has a non-integer {field}")
+            sha = citation.get("sha256")
+            if sha is not None and not isinstance(sha, str):
+                raise GradingError(f"{where} has a non-string source hash")
     return artifact, {"path": str(path), "sha256": digest,
                       "bytes": path.stat().st_size, "sidecar_verified": True}
 
@@ -308,12 +345,12 @@ def analyse_citations(claims: list[dict], spans: list[dict]) -> dict:
             for span in spans:
                 if span["path"] != path:
                     continue
-                if overlaps(span["range"], (int(start), int(end))):
+                if contains(span["range"], (int(start), int(end))):
                     match = span
                     break
             if match is None:
                 invalid.append({"claim": claim_index,
-                                "reason": "citation is outside the pack",
+                                "reason": "citation is not contained in a delivered pack span",
                                 "path": path, "range": [start, end]})
                 continue
             if match["sha256"] != sha:
@@ -471,9 +508,11 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
 
     # Authority: only a registered evaluator may grade. An unknown identity is
     # not evidence of trust just because the caller wrote it down.
-    if not isinstance(registry, dict):
+    if registry is None:
         return invalid("no evaluator registry was supplied; an unregistered evaluator "
                        "cannot produce a formal verdict")
+    if not isinstance(registry, dict):
+        return invalid("the evaluator registry must be a JSON object")
     evaluators = registry.get("evaluators")
     if not isinstance(evaluators, dict):
         return invalid("the evaluator registry has no 'evaluators' object")
@@ -548,11 +587,58 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
         )
     if verdict == "FAIL" and not unsupported:
         return invalid("a FAIL must identify at least one unsupported claim")
+    if verdict == "PASS" and not claims:
+        # An answer that asserts nothing is not a benchmark answer, whatever it
+        # says about abstention. The structural layer already fails it (C2 = 0);
+        # the semantic layer must not lift it with a PASS.
+        return invalid("an answer with no claims cannot receive a PASS")
+
+    # The scored dimensions are the semantic half of the evidence. They live in
+    # `accept` too, but the grader is the authority: a PASS that lacks them (or
+    # claims a floor it did not meet) is INVALID here, not only upstream.
+    dimensions = evaluator.get("dimensions")
+    validated_dimensions = None
+    if dimensions is not None or verdict == "PASS":
+        if not isinstance(dimensions, dict):
+            return invalid("a semantic verdict must carry the scored dimensions")
+        if set(dimensions) != set(SEMANTIC_DIMENSIONS):
+            return invalid(
+                f"semantic dimensions must be exactly {list(SEMANTIC_DIMENSIONS)}"
+            )
+        validated_dimensions = {}
+        for name in SEMANTIC_DIMENSIONS:
+            entry = dimensions.get(name)
+            if not isinstance(entry, dict):
+                return invalid(f"dimension {name!r} must be an object")
+            score = entry.get("score")
+            if type(score) is not int or score not in (0, 1, 2):
+                return invalid(f"dimension {name!r} score must be the integer 0, 1 or 2")
+            if not isinstance(entry.get("rationale"), str) or not entry["rationale"].strip():
+                return invalid(f"dimension {name!r} carries no rationale")
+            validated_dimensions[name] = {"score": score,
+                                          "rationale": entry["rationale"].strip()}
+        if verdict == "PASS":
+            if validated_dimensions["claim_correctness"]["score"] != 2:
+                return invalid("a PASS requires claim_correctness = 2")
+            if validated_dimensions["citation_support"]["score"] != 2:
+                return invalid("a PASS requires citation_support = 2")
+            for name in ("completeness", "uncertainty", "abstention"):
+                if validated_dimensions[name]["score"] < 1:
+                    return invalid(f"a PASS requires {name} >= 1")
+
+    packet_sha = evaluator.get("packet_sha256")
+    if packet_sha is not None and not (isinstance(packet_sha, str) and len(packet_sha) == 64):
+        return invalid("packet_sha256 must be a 64-character hex digest")
 
     return {"status": "EVALUATED", "verdict": verdict, "rationale": rationale,
             "evaluator": identity, "claims_reviewed": len(judged),
             "supported_claims": sorted(set(supported)),
             "unsupported_claims": sorted(set(unsupported)),
+            "dimensions": validated_dimensions,
+            "packet_sha256": packet_sha,
+            "served_identity": (evaluator.get("served_identity")
+                                if isinstance(evaluator.get("served_identity"), str)
+                                else None),
             "inputs": expected}
 
 
@@ -607,9 +693,11 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
     else:
         measured_invalid = len(citations["invalid"])
         verified_spans = sum(1 for span in spans if span["verified"])
-        if verified_spans == 0:
-            # No citation can resolve to verified evidence: a provenance
-            # failure, independent of how good the reasoning was.
+        if verified_spans == 0 or measured_invalid:
+            # No citation can resolve to delivered verified evidence, or at
+            # least one citation is structurally invalid (outside the pack,
+            # wider than its pack item, wrong hash, unverified). This is
+            # measured without any evaluator and cannot be softened by one.
             score = 0
         elif semantic["status"] == "EVALUATED":
             unsupported = set(semantic.get("unsupported_claims") or [])
@@ -895,6 +983,10 @@ def main() -> int:
         )
         result = score_case(args.case, artifact, pack, materials, gold,
                             source_lines, semantic, formal_eligible, ineligibility)
+        # The exact evaluation file that was graded, so a report can point at
+        # the bytes rather than at a path that may have changed since.
+        result["semantic_sha256"] = (sha256_bytes(args.semantic.read_bytes())
+                                     if args.semantic else None)
         result["artefacts"]["answer"] = answer_record
         result["artefacts"]["pack"] = pack_record
         result["binding"] = binding

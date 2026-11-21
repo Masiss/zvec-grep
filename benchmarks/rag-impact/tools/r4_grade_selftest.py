@@ -166,7 +166,14 @@ def semantic_file(directory: Path, verdict: str, rationale: str,
     payload = {"case": CASE, "verdict": verdict, "rationale": rationale,
                "evaluator_id": evaluator_id, "inputs": inputs,
                "supported_claims": index if verdict == "PASS" else index[1:],
-               "unsupported_claims": [] if verdict == "PASS" else index[:1]}
+               "unsupported_claims": [] if verdict == "PASS" else index[:1],
+               "dimensions": {
+                   "claim_correctness": {"score": 2, "rationale": "fixture"},
+                   "citation_support": {"score": 2, "rationale": "fixture"},
+                   "completeness": {"score": 2, "rationale": "fixture"},
+                   "uncertainty": {"score": 2, "rationale": "fixture"},
+                   "abstention": {"score": 2, "rationale": "fixture"},
+               }}
     payload.update(extra)
     path = directory / f"semantic-{evaluator_id}-{verdict}-{abs(hash((verdict, rationale, str(inputs))))}.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -383,6 +390,37 @@ def main() -> int:
           (result.get("criteria") or {}).get("C5", {}).get("score") == 0,
           json.dumps((result.get("criteria") or {}).get("C5")))
 
+    # ------------------- 17b. a citation wider than the pack is not delivered
+    # Overlap is not delivery: a citation that starts inside a pack item but
+    # reaches past it must not earn C2/C3, whatever the semantic evaluator says.
+    case = work / "citation-wider-than-pack"
+    write_pack(case, corpus, GOLD)
+    wide = citation(GOLD[0], GOLD[1] + 20, sha)
+    write_answer(case, [{"text": "UpdateEmployeeAttr switches on model.Attr",
+                         "citations": [wide]}],
+                 "UpdateEmployeeAttr switches on model.Attr")
+    code, result = run_grader(case, corpus)
+    check("citation wider than the pack span is structurally invalid",
+          (result.get("criteria") or {}).get("C2", {}).get("score") == 0,
+          json.dumps((result.get("criteria") or {}).get("C2"))[:200])
+    check("a PASS evaluation cannot rescue an undelivered citation",
+          result.get("verdict") != "PASS", str(result.get("verdict")))
+
+    # ------------------- 17c. malformed answer shapes are UNGRADABLE, not crashes
+    for name, claims in [
+        ("claim is not an object", ["not an object"]),
+        ("citation is not an object", [{"text": "x", "citations": [["not", "object"]]}]),
+        ("citation line is a bool", [{"text": "x", "citations": [
+            {"path": PATH, "start_line": True, "end_line": 5, "sha256": sha}]}]),
+    ]:
+        case = work / f"malformed-{abs(hash(name))}"
+        write_pack(case, corpus, GOLD)
+        write_answer(case, claims, "prose")
+        code, result = run_grader(case, corpus)
+        check(f"malformed artifact ({name}) is UNGRADABLE",
+              result.get("status") == "UNGRADABLE",
+              json.dumps(result)[:160])
+
     # ------------------------------------------- 18. semantic verdict invalid
     case = work / "semantic-invalid"
     write_pack(case, corpus, GOLD)
@@ -457,6 +495,25 @@ def main() -> int:
                    encoding="utf-8")
     code, result = run_grader(case, corpus, semantic=good_sem, registry=reg)
     check("registry with a non-object top level grants no authority",
+          result.get("verdict") == "UNGRADABLE",
+          json.dumps({k: result.get(k) for k in ("verdict", "error")})[:200])
+
+    # A PASS that omits the scored dimensions is not gradeable: the grader must
+    # not accept what `accept` would have refused.
+    no_dims = json.loads(json.dumps(base_payload))
+    no_dims.pop("dimensions", None)
+    sem = mutated("pass-without-dimensions", lambda p: p.pop("dimensions", None))
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("a PASS without scored dimensions is UNGRADABLE",
+          result.get("verdict") == "UNGRADABLE",
+          json.dumps({k: result.get(k) for k in ("verdict", "error")})[:200])
+
+    weak = json.loads(json.dumps(base_payload))
+    weak["dimensions"]["citation_support"]["score"] = 1
+    sem = mutated("pass-with-weak-citation", lambda p: p["dimensions"][
+        "citation_support"].__setitem__("score", 1))
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("a PASS below the citation_support floor is UNGRADABLE",
           result.get("verdict") == "UNGRADABLE",
           json.dumps({k: result.get(k) for k in ("verdict", "error")})[:200])
 

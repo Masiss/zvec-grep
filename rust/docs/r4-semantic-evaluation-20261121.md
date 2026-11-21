@@ -29,11 +29,13 @@ Directly adjacent type-confusion defects found while fixing them, all now
 - `verdict` / `inputs` of the wrong type;
 - `rationale` that is a list, dict or bool.
 
-Evidence: `r4_grade_selftest.py` grew from 56 to **72 checks**; 16 of them are
-the new regression fixtures (8 malformed-evaluation shapes, 7 registry shapes
-that must not grant authority, plus the literal-`true` control that still
-grades). The `invalid()` path no longer calls any method on an unvalidated
-value, so a malformed evaluation cannot raise inside the grader.
+Evidence: `r4_grade_selftest.py` grew from 56 to **79 checks**; the new ones
+cover 8 malformed-evaluation shapes, 7 registry shapes that must not grant
+authority, the literal-`true` control that still grades, a PASS that omits or
+weakens the scored dimensions, a citation wider than its pack item, and three
+malformed answer-artifact shapes (review W9). The
+`invalid()` path no longer calls any method on an unvalidated value, so a
+malformed evaluation cannot raise inside the grader.
 
 ## 2. Independent evaluator workflow (packet → response → accept)
 
@@ -56,8 +58,16 @@ frozen answer + pack + frozen question + cited-span text
 **What the packet contains** (built from frozen artefacts, hash-checked, pack
 binding re-verified): question text and digest, answer text/claims/citations/
 declared gaps, the pack's items (paths, ranges, hashes, verification state and
-content when the pack carries it), the exact source text of the spans the
-answer itself cited, the public C1–C6 rubric and `REPORT-CONTRACT.md`.
+content when the pack carries it), the exact text of the parts of those items
+the answer cited, the public C1–C6 rubric and `REPORT-CONTRACT.md`.
+
+**Delivered-evidence boundary (review W1).** A citation may be narrower than a
+pack item but never wider: the region shown to the evaluator is the
+intersection, and a citation that is not fully inside one delivered pack item
+is reported as `in_pack: false` with no content and is **never read from the
+corpus**. The grader enforces the same rule structurally (`contains`, not
+`overlaps`), and an invalid citation now scores C2 = 0 without needing an
+evaluator. Overlap is not delivery.
 
 **What it never contains**: gold spans, the scope manifest, the per-case C3
 checklist (only the materials file's SHA-256 is used as a binding digest), the
@@ -71,21 +81,27 @@ pack_sha256, question_sha256, rubric_sha256}` and `packet_sha256` from the
 packet, never from the response. A response carrying an extra key (including
 `evaluator_id`) is rejected; an `accept --identity` that disagrees with the
 packet is rejected before any response is read. The packet's own digest is
-recomputed, so a packet edited after it was built is rejected.
+recomputed, the instructions digest is checked, and the response must echo
+`packet_sha256`, so a verdict cannot be replayed onto a different packet
+(review W5/W7). The packet digest is an integrity checksum, **not**
+authentication: the owner-side receipt review remains the root of trust.
 
-**Response contract** (strict, `additionalProperties: false`): `verdict`
-(PASS|FAIL), non-empty `rationale`, `claims[]` judging every claim index exactly
-once as `supported|unsupported` with a non-empty reason, and five dimensions
-(`claim_correctness`, `citation_support`, `completeness`, `uncertainty`,
-`abstention`) each scored 0–2 with a rationale. `bool` is rejected as an index,
-scores must be integer `0|1|2`, duplicates and gaps are rejected.
+**Response contract** (strict, `additionalProperties: false`): the packet digest,
+`verdict` (PASS|FAIL), non-empty `rationale`, `claims[]` judging every claim
+index exactly once as `supported|unsupported` with a non-empty reason, and five
+dimensions (`claim_correctness`, `citation_support`, `completeness`,
+`uncertainty`, `abstention`) each scored 0–2 with a rationale. `bool` is
+rejected as an index, scores must be integer `0|1|2`, duplicates and gaps are
+rejected. An answer with **no claims** is refused: it cannot be semantically
+evaluated and the structural layer governs (review W3).
 
-**Consistency enforced before the grader sees it**: `PASS` cannot carry an
+**Consistency enforced in both places (review W2)**: `PASS` cannot carry an
 unsupported claim, requires `claim_correctness = 2`, `citation_support = 2`, and
-`completeness/uncertainty/abstention ≥ 1`; an answer with no claims may only
-`PASS` with `abstention = 2`; `FAIL` must mark at least one claim unsupported.
-The grader then independently re-checks the claim lists, so an inconsistent
-evaluation is `UNGRADABLE` even if `accept` were bypassed.
+`completeness/uncertainty/abstention ≥ 1`; `FAIL` must mark at least one claim
+unsupported. The grader independently re-checks the claim lists **and the five
+dimension scores** (mandatory on PASS), so bypassing `accept` cannot produce a
+PASS that `accept` would have refused. A PASS without dimensions, or with a
+score below a floor, is `UNGRADABLE`.
 
 The tool is transport-agnostic and contains **no network client**: a remote
 model and the loopback judge exchange the same two JSON files. Sending private
@@ -108,6 +124,7 @@ Command (see §6) produced `r4-semantic-eval-20261121/e2e/receipts/`.
 | Evaluations accepted → grader `EVALUATED` | 36 / 36 |
 | Formal verdict without an evaluator | 36 × `NOT_MEASURED`, 0 PASS |
 | Formal verdict with the loopback judge | 24 FAIL, 12 NOT_MEASURED (arm A, provenance blocked) |
+| Runs a contrived (always-PASS) evaluator would have lifted | 6 of 24 grounded FAILs (5 → PASS, 1 → PARTIAL) |
 | Formal PASS with a real independent evaluator | **0 — still not measurable** |
 
 The mock transports' answers are pointer-style claims ("excerpt … lines …"),
@@ -120,17 +137,34 @@ evaluations, and the impossibility of a formal PASS without an evaluator.
 
 Each fixture is built from the frozen span and graded in a separate process.
 
-| Fixture | Expected semantic | Observed semantic | Expected formal | Observed formal |
-|---|---|---|---|---|
-| correct (grounded claim, verified pack) | PASS | PASS | PASS | **PASS** |
-| contradicted (valid hash, claim names `Email` which the span lacks) | FAIL | FAIL | FAIL | FAIL |
-| runtime-assertion ("deployed in production…") | FAIL | FAIL | FAIL | FAIL (C4 = 0) |
-| missing-evidence (claim with no citation) | FAIL | FAIL | FAIL | FAIL (C2 = 0) |
-| unsupported-citation (valid hash, cited span says otherwise) | FAIL | FAIL | FAIL | FAIL |
+| Fixture | Grounded semantic | Grounded formal | Contrived-PASS formal |
+|---|---|---|---|
+| correct (grounded claim, verified pack) | PASS | **PASS** | PASS |
+| contradicted (valid hash, claim names a field the span lacks) | FAIL | FAIL | **PASS** |
+| runtime-assertion ("deployed in production…") | FAIL | FAIL | FAIL (C4 = 0) |
+| missing-evidence (claim with no citation) | FAIL | FAIL | FAIL (C2 = 0) |
+| unsupported-citation (valid hash, cited span says otherwise) | FAIL | FAIL | FAIL (C3/C6) |
+| citation-wider-than-pack (starts inside, ends outside) | FAIL | FAIL | FAIL (C2 = 0) |
+| abstention with a declared pack gap | REFUSED | FAIL | n/a (no claims) |
 
-The first row is the only way to reach a formal `PASS`; every negative row
-stays non-PASS even though the citation hash and line range can be valid. That
-is the property the semantic layer exists for.
+Within this fixture set only the grounded row reaches a formal `PASS`. The
+contrived column is the reviewer's W12 counterfactual: grade the same frozen
+artifacts with an evaluator that PASSes every claim. `contradicted` then becomes
+`PASS` while the grounded evaluation says `FAIL`, which is the only
+demonstration that the semantic layer is *decisive* rather than redundant — the
+structural layer and a permissive evaluator would have accepted it.
+
+The "wider than pack" row is the review's W1 attack: overlap used to be enough
+for the structural layer, so widening the end line could hide an unsupported
+claim behind bytes that were never delivered. It is now a measured C2 failure
+and the evaluator never sees the undelivered part. The last row records the
+abstention policy: an honest abstention with a declared gap scores full C5 but a
+claim-free answer never receives a formal PASS (W3).
+
+The positive row is a property of this fixture set, not of the semantic layer:
+the loopback's own rule (identifier containment) is what calls it supported, and
+a real evaluator may disagree. That is why §5 keeps answer quality
+`NOT_MEASURED`.
 
 ## 4. Proposed evaluator configuration (owner decision D1)
 
@@ -141,15 +175,36 @@ remains empty, so every real case is `NOT_MEASURED` by construction.
 | Candidate | Endpoint / identity | Data flow | Cost for 36 evaluations |
 |---|---|---|---|
 | local open-weights | local Responses-compatible server; record server name, weights digest, quantization | none off-machine; D2 not required | electricity/time only |
-| remote frontier | `https://api.openai.com/v1/responses`, model pinned and served identity recorded per evaluation | question + answer + pack metadata + cited span text leave the machine | **$0.87** at the illustrative 2.00/8.00 USD per 1M input/output tokens |
+| remote frontier | `https://api.openai.com/v1/responses`, model pinned and served identity recorded per evaluation | question + answer + pack metadata + cited span text leave the machine | **$0.81** at the illustrative 2.00/8.00 USD per 1M input/output tokens |
 | named human | owner-named reviewer, no session/gold access | none | reviewer time per evaluation |
 
-Cost basis: measured over the 36 frozen answers in this round — 334,375
+Cost basis: measured over the 36 frozen answers in this round — 304,592
 estimated prompt tokens (UTF-8 bytes / 4) + 25,200 assumed output tokens
-(700/evaluation) = 359,575 tokens ≈ **$0.024 per evaluation**, **$0.87 for the
+(700/evaluation) = 329,792 tokens ≈ **$0.0225 per evaluation**, **$0.81 for the
 full three-arm set**. The rate card is a labelled assumption, not a quote; token
 counts are estimates. A repeat costs the same; four arm-profile repeats would
-be ≈ $3.5.
+be ≈ $3.2.
+
+Exact registration shape (the tool never writes this file; the owner does):
+
+```json
+{"evaluators": {
+  "<approved-id>": {
+    "trusted": true,
+    "kind": "local-model" | "remote-model" | "human",
+    "model": "<exact model/version>",
+    "served_identity": "<provider-returned snapshot or human name>",
+    "endpoint": "<or null for a human>",
+    "instructions_sha256": "b103f3e0befebc2529bbe99d2983d2da53bc6759dcdb018a777b85a61e323370",
+    "packet_policy_sha256": "9f87c24c1eea4d95f244136da4e2d80ad20894ae5e5f3960d95561f76aea9b4d",
+    "fingerprint": "<owner-recorded digest of the approval note>"
+  }
+}}
+```
+
+`instructions_sha256` is the digest of the packet instructions
+(`r4_semantic_evaluator.INSTRUCTIONS`, 2,418 bytes), and every packet records
+it; an evaluator that changes its prompt must be re-approved and re-registered.
 
 Privacy: the remote candidate is exactly the egress the frozen benchmark was
 designed to keep local. It needs D2 (provider, endpoint, data classes) *and*
@@ -181,7 +236,7 @@ export LD_LIBRARY_PATH=/home/masis/.cache/zvec-grep/rust-target-recovered-202611
 export ZG_ORT_CACHE_DIR=/home/masis/.cache/zvec-grep/rust-target-recovered-20261105/ort-prebuilt
 export CARGO_TARGET_DIR=/home/masis/.cache/zvec-grep/r4-evidence-20261119/target
 
-# 1. validation regressions (72 checks) + evaluator contract (31 checks)
+# 1. validation regressions (79 checks) + evaluator contract (40 checks)
 python3 benchmarks/rag-impact/tools/r4_grade_selftest.py \
   /home/masis/.cache/zvec-grep/r4-sql-symbols-20261118/corpus /tmp/g
 python3 benchmarks/rag-impact/tools/r4_semantic_evaluator_selftest.py /tmp/se
@@ -205,7 +260,7 @@ python3 benchmarks/rag-impact/tools/r4_semantic_evaluator.py estimate \
   --out /home/masis/.cache/zvec-grep/r4-semantic-eval-20261121/cost-estimate.json
 ```
 
-Expected: 72/72, 31/31, 79/79, E2E exit 0 with `all_as_expected: true`,
+Expected: 79/79, 40/40, 79/79, E2E exit 0 with `all_as_expected: true`,
 36/36 accepted evaluations and no formal PASS without an evaluator.
 
 ## 7. Owner decisions still required
@@ -222,3 +277,45 @@ Expected: 72/72, 31/31, 79/79, E2E exit 0 with `all_as_expected: true`,
    then one grader process per frozen pair with `--semantic` and the registry.
    Structural and semantic layers are reported separately; a formal PASS needs
    both.
+
+## 8. Independent review and resolution
+
+Reviewer: DeepSeek Flash 4.1 High (`opencode-go/deepseek-v4.1-flash`,
+thinking=high), sanitized bundle only — never the corpus, packs, answers, gold
+spans or the answerer session. First pass: **FIX-FIRST** with one P0, two P1 and
+the rest P2. Every material finding was reproduced, fixed at the cause, and
+pinned by a fixture; the second pass re-checked the corrected bundle.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| W1 the evaluator's evidence boundary was chosen by the answer; the structural gate accepted a citation that only *overlapped* a pack item, so widening the end line could hide an unsupported claim | P0 | the packet shows only the intersection with a delivered pack item and never reads outside it (`in_pack=false`); the grader uses `contains`, not `overlaps`, and an invalid citation scores C2 = 0 without an evaluator; two new fixtures (wider-than-pack at packet and grader level) |
+| W2 dimension floors lived only in `accept`, so a dimension-less evaluation could still be a formal PASS | P1 | the grader now requires the five dimensions on PASS, validates integer 0–2 scores, and enforces `claim_correctness = 2`, `citation_support = 2`, `completeness/uncertainty/abstention ≥ 1`; two new grader fixtures |
+| W3 claim-free answers had no coherent grade; the prompt asked for a verdict the grader discards | P1 | claim-free answers are refused by `accept` (structural verdict governs) and a PASS with zero claims is `INVALID` in the grader; abstention fixture added; the prompt says so |
+| W4 the 36-run arm half could not be verified from the bundle | P1 | the bundle now carries `r4_bench_driver.py`, its selftest, `receipts/arms.json` (per-run digests, verdicts, plan chain, ledger reconciliation) and `e2e-summary.json`; packets/answers/session receipts stay out because they contain private source |
+| W5 the packet digest was described as tamper-proofing | P2 | `verify_packet` checks `instructions_sha256`; the doc calls the digest an integrity checksum, not authentication |
+| W6 the audit chain was not recorded | P2 | the grader records `semantic_sha256`, `packet_sha256`; `accept --served-identity` records the transport-reported identity, explicitly not trusted |
+| W7 a response was not bound to the packet it answered | P2 | the response must echo `packet_sha256`, checked in `validate_response`; the schema requires it |
+| W8 no cited-span size cap; a NUL path raised instead of refusing | P2 | per-span and total cited-byte caps; all path resolution wrapped into `EvaluatorError`; NUL-path fixture |
+| W9 the same type-confusion class was open on the answer side | P2 | `load_answer` validates claim/citation shapes and raises `GradingError` → `UNGRADABLE`; three new fixtures |
+| W10 leak checks were substring smoke tests; one fixture's pack range did not match its content | P2 | an uncited corpus sentinel and an item-content equality check replace them; the pack fixture uses the `end_line = end + 1` convention |
+| W11 vacuous metrics and dead assertions | P2 | the dead top-level `claims` check is gone; `packets_built` requires a 64-hex digest; `estimated_per_evaluation_usd` is named for what it divides by; fixture rows no longer carry a hard-coded empty `violations` |
+| W12 the suite never showed the semantic layer being decisive | P2 | every fixture (and arm run) is also graded with a contrived evaluator that PASSes all claims; `contradicted` flips `FAIL → PASS` only under that contrivance, recorded as `semantic_decisive` |
+| W13 the positive fixture is circular | P2 | stated explicitly: the PASS is the loopback's rule, not an independent judgment; answer quality remains `NOT_MEASURED` |
+
+No finding was left "acknowledged but unfixed" except the root-of-trust limits
+that no local code can close: the frozen-question identity and the evaluator
+identity are owner-approved declarations, checked by digests and receipt review,
+not by a signature. That is recorded in §5.
+
+## 9. Residual limitations after the corrections
+
+1. No independent evaluator is registered; every real case is `NOT_MEASURED`.
+2. The arm half of the E2E proves mechanics, not answer quality; the mock
+   transports' pointer-style claims are refused by design.
+3. The contract is signature-free: a local attacker owning artifacts and
+   receipts can rewrite them consistently. Owner-side review is the control.
+4. The loopback judge's rule is coarse; the contrived-PASS counterfactual shows
+   the *layer* is decisive, not that a real evaluator would agree on any single
+   answer.
+5. The remote candidate's rate card is illustrative; the real budget needs the
+   provider's current price sheet.

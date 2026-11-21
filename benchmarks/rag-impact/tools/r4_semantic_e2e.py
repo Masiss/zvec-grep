@@ -87,9 +87,10 @@ def frozen_case_span(labels: Path, corpus: Path, case: str) -> tuple[str, int, i
 
 # ------------------------------------------------------- crafted fixtures
 
-def fixture_pack(directory: Path, corpus: Path, case: str, items: list[dict]) -> Path:
+def fixture_pack(directory: Path, corpus: Path, case: str, items: list[dict],
+                 gaps: list | None = None) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
-    pack = {"schema_version": 1, "status": "ok", "items": [], "gaps": [],
+    pack = {"schema_version": 1, "status": "ok", "items": [], "gaps": gaps or [],
             "deduplicated": 0}
     for path, start, end in items:
         lines = (corpus / path).read_text(encoding="utf-8").split("\n")
@@ -222,6 +223,7 @@ def loopback_response(packet: dict) -> dict:
     if abstain and not answer_gaps and pack_gaps:
         abstention = 1
     return {
+        "packet_sha256": packet["packet_sha256"],
         "verdict": verdict,
         "rationale": rationale,
         "claims": claims,
@@ -239,6 +241,30 @@ def loopback_response(packet: dict) -> dict:
     }
 
 
+def contrived_pass_evaluation(packet: dict, work: Path, tag: str) -> Path:
+    """A counterfactual evaluator that PASSes every claim.
+
+    Used only to answer one question: would the same frozen artifacts reach a
+    formal PASS if the semantic layer were taken out of the decision? If yes,
+    the grounded FAIL in the real row is what the semantic layer contributed.
+    This is not an evaluation of the answer's meaning.
+    """
+    claims = packet["answer"]["claims"]
+    response = {
+        "packet_sha256": packet["packet_sha256"],
+        "verdict": "PASS",
+        "rationale": "contrived counterfactual: every claim declared supported",
+        "claims": [{"index": c["index"], "judgement": "supported",
+                    "reason": "contrived"} for c in claims],
+        "dimensions": {name: {"score": 2, "rationale": "contrived"}
+                       for name in se.DIMENSIONS},
+    }
+    document = se.validate_response(packet, response)
+    path = work / "evaluator" / tag / "contrived-pass.json"
+    write_json(path, document)
+    return path
+
+
 def evaluate(answers: Path, corpus: Path, case: str, profile: str, work: Path,
              registry: Path, tag: str) -> dict:
     """packet -> loopback judge -> accept -> grader, all on frozen files."""
@@ -249,7 +275,15 @@ def evaluate(answers: Path, corpus: Path, case: str, profile: str, work: Path,
     write_json(packet_path, packet)
     write_json(response_path, loopback_response(packet))
     document = se.accept(packet_path, response_path, evaluation_path)
+    contrived = None
+    if packet["answer"]["claims"]:
+        contrived = drv.grade(
+            answers, LABELS, case, profile, corpus=corpus,
+            materials=LABELS / "cases" / "c3-steps.json",
+            semantic=contrived_pass_evaluation(packet, work, tag),
+            registry=registry)
     return {
+        "contrived_pass": contrived,
         "packet_sha256": packet["packet_sha256"],
         "packet_inputs": packet["inputs"],
         "evaluation": {
@@ -278,18 +312,32 @@ def run_fixtures(corpus: Path, work: Path, registry: Path) -> list[dict]:
 
     def run(name: str, claims: list[dict], text: str, items: list[tuple[str, int, int]],
             expect_semantic: str, expect_formal: str, abstain: bool = False,
-            gaps: list[str] | None = None) -> None:
+            gaps: list[str] | None = None, pack_gaps: list | None = None) -> None:
         directory = work / "fixtures" / name
-        pack = fixture_pack(directory, corpus, case, items)
+        pack = fixture_pack(directory, corpus, case, items, gaps=pack_gaps)
         fixture_answer(directory, case, claims, text, sha(pack), LABELS,
                        abstain=abstain, gaps=gaps)
-        result = evaluate(directory, corpus, case, PROFILE, work, registry,
-                          f"fixture-{name}")
-        grading = result["grading"]
+        rejected = None
+        try:
+            result = evaluate(directory, corpus, case, PROFILE, work, registry,
+                              f"fixture-{name}")
+            observed_semantic = result["evaluation"]["verdict"]
+            grading = result["grading"]
+            packet_sha = result["packet_sha256"]
+            inputs = result["packet_inputs"]
+        except se.EvaluatorError as error:
+            # A claim-free answer cannot be semantically evaluated; the
+            # structural layer governs. This refusal is the intended behaviour.
+            rejected = str(error)
+            grading = drv.grade(directory, LABELS, case, PROFILE, corpus=corpus,
+                                 materials=LABELS / "cases" / "c3-steps.json")
+            observed_semantic = "REFUSED"
+            packet_sha = None
+            inputs = None
         rows.append({
             "fixture": name,
             "expected_semantic": expect_semantic,
-            "observed_semantic": result["evaluation"]["verdict"],
+            "observed_semantic": observed_semantic,
             "expected_formal": expect_formal,
             "observed_formal": grading.get("verdict"),
             "structural_measured_total": grading.get("structural_measured_total"),
@@ -297,9 +345,12 @@ def run_fixtures(corpus: Path, work: Path, registry: Path) -> list[dict]:
             "criteria": {k: v.get("score") for k, v in
                          (grading.get("criteria") or {}).items()},
             "provenance_blocked": grading.get("provenance_blocked"),
-            "violations": [],
-            "packet_sha256": result["packet_sha256"],
-            "inputs": result["packet_inputs"],
+            "refusal": rejected,
+            "packet_sha256": packet_sha,
+            "inputs": inputs,
+            "formal_with_contrived_pass": (
+                (result.get("contrived_pass") or {}).get("verdict")
+                if rejected is None else None),
         })
 
     grounded = ("UpdateEmployeeAttr switches on model.Attr, handles Avatar, "
@@ -335,6 +386,21 @@ def run_fixtures(corpus: Path, work: Path, registry: Path) -> list[dict]:
         "SaveChanges is called on the DbContext for WorkLog entities",
         [(path, start, end), (path, decoy["start_line"], decoy["end_line"])],
         "FAIL", "FAIL")
+
+    # A citation that reaches past the delivered pack span: valid start line,
+    # end outside the pack. The structural gate must refuse it too (overlap is
+    # not delivery), so there is no path to a formal PASS.
+    wide = citation(path, start, end + 25, corpus)
+    run("citation-wider-than-pack",
+        [{"text": grounded, "citations": [wide]}], grounded,
+        [(path, start, end)], "FAIL", "FAIL")
+
+    # A correct abstention with a declared pack gap: honest, structural C5 full,
+    # but a claim-free answer is semantically refused and never a formal PASS.
+    run("abstention-declared-gap", [], "Cannot determine from the delivered evidence.",
+        [(path, start, end)], "REFUSED", "FAIL", abstain=True,
+        gaps=["missing_required_lines"],
+        pack_gaps=[{"code": "missing_required_lines", "path": path}])
     return rows
 
 
@@ -390,6 +456,7 @@ def run_arms(adapter: Path, corpus: Path, work: Path, registry: Path,
                 "semantic": result["evaluation"],
                 "semantic_status": (grading.get("semantic") or {}).get("status"),
                 "formal": grading.get("verdict"),
+                "formal_with_contrived_pass": (result.get("contrived_pass") or {}).get("verdict"),
                 "structural_measured_total": grading.get("structural_measured_total"),
                 "structural_complete": grading.get("structural_complete"),
                 "formal_without_evaluator": result["grading_without_evaluator"].get("verdict"),
@@ -417,7 +484,9 @@ def summarise(arm_rows: list[dict], fixture_rows: list[dict]) -> dict:
             "read_deltas_reconcile": sum(1 for r in arm_rows if r["read_deltas_reconcile"]),
             "arm_b_runs": len(arm_b),
             "arm_b_plan_chain_ok": sum(1 for r in arm_b if r["plan_chain_ok"]),
-            "packets_built": sum(1 for r in arm_rows if r["packet_sha256"]),
+            "packets_built": sum(1 for r in arm_rows
+                                 if isinstance(r["packet_sha256"], str)
+                                 and len(r["packet_sha256"]) == 64),
             "evaluations_accepted": sum(1 for r in arm_rows
                                         if r["semantic_status"] == "EVALUATED"),
             "semantic_status": dict(Counter(r["semantic_status"] for r in arm_rows)),
@@ -426,6 +495,11 @@ def summarise(arm_rows: list[dict], fixture_rows: list[dict]) -> dict:
                 Counter(r["formal_without_evaluator"] for r in arm_rows)),
             "any_formal_pass_without_evaluator": any(
                 r["formal_without_evaluator"] == "PASS" for r in arm_rows),
+            # How many runs a permissive (contrived-PASS) evaluator would have
+            # lifted, i.e. what the grounded semantic layer is actually holding.
+            "contrived_pass_flips": sum(
+                1 for r in arm_rows
+                if r["formal_with_contrived_pass"] not in (None, r["formal"])),
             "evaluator": EVALUATOR_ID,
             "evaluator_kind": "synthetic loopback judge (not an independent evaluator)",
         },
@@ -433,9 +507,14 @@ def summarise(arm_rows: list[dict], fixture_rows: list[dict]) -> dict:
             "runs": len(fixture_rows),
             "as_expected": len(fixture_ok),
             "all_as_expected": len(fixture_ok) == len(fixture_rows),
+            "semantic_decisive": sum(
+                1 for r in fixture_rows
+                if r["formal_with_contrived_pass"] is not None
+                and r["formal_with_contrived_pass"] != r["observed_formal"]),
             "rows": [{"fixture": r["fixture"],
                       "semantic": r["observed_semantic"],
                       "formal": r["observed_formal"],
+                      "formal_with_contrived_pass": r["formal_with_contrived_pass"],
                       "ok": r in fixture_ok} for r in fixture_rows],
         },
     }
