@@ -116,6 +116,17 @@ that result was on branch `work/r4-deep-opt-20261118` @ `7030bd7`.
   in-engine generative model; the direct MCP agent surface still lacks symbols
   and typed relations.
 
+## 2026-11-21 integrity gate and semantic-evaluation preparation
+
+`rust/docs/r4-integrity-gate-20261121.md` closes the third review round:
+semantic verdicts now require a registered evaluator, an evaluation bound to the
+exact answer/pack/question/rubric digests, and a judgement for every claim;
+source reads are counted at the I/O boundary and cannot be lost on failure
+paths; arm-b's plan chain closes from generation to the workflow pack in 12/12
+synthetic runs. An independent DeepSeek Flash 4.1 High review drove one
+blocking and several medium corrections, all applied. Verdict:
+**READY_FOR_AUTHORIZED_INFERENCE — SEMANTIC_EVALUATION_PENDING**.
+
 ## 2026-11-21 benchmark-validity corrections
 
 `rust/docs/r4-benchmark-validity-corrections-20261121.md` closes the findings of
