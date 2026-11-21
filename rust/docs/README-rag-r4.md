@@ -116,6 +116,14 @@ that result was on branch `work/r4-deep-opt-20261118` @ `7030bd7`.
   in-engine generative model; the direct MCP agent surface still lacks symbols
   and typed relations.
 
+## 2026-11-21 next-session handoff
+
+`rust/docs/r4-next-session-handoff-20261121.md` is the single entry point: repo
+and worktree state (branch pushed, main restored), the post-housekeeping build
+layout (**do not delete the recovered `zvec-prebuilt`/`ort-prebuilt` dirs**), the
+reproduce commands, the two owner decisions that unblock real inference, and the
+do-not-retry list.
+
 ## 2026-11-21 integrity gate and semantic-evaluation preparation
 
 `rust/docs/r4-integrity-gate-20261121.md` closes the third review round:

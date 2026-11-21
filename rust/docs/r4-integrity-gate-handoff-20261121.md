@@ -11,7 +11,7 @@ Not `QUALIFIED`, not `RAG_MVP_GO`, no architecture winner.
 | Repo | `/home/masis/src/zvec-grep-r4-evidence-20261119` |
 | Branch | `work/r4-evidence-representation-20261119` |
 | Base checkpoint | `77e681e` |
-| HEAD | tip of the branch (`git log 77e681e..HEAD`); **not pushed** |
+| HEAD | `60160c0` — pushed, tracks `origin/work/r4-evidence-representation-20261119` |
 | Worktree | clean |
 | Report | `rust/docs/r4-integrity-gate-20261121.md` |
 | Review bundle | `/home/masis/.cache/zvec-grep/r4-integrity-gate-20261121/r4-integrity-gate-final-20261121.zip` (SHA-256 built from `bundle-final/`; the ZIP digest is reported with the handoff message because it changes whenever the manifest is regenerated) |
@@ -65,5 +65,7 @@ Then: run D01–D12 × 3 arms with `--backend openai-responses
 with `--semantic <evaluation> --registry cases/evaluators.json`. Report the
 structural and semantic layers separately; a formal PASS requires both.
 
-Not authorized here: ranking/embedding/index changes, held-out H01–H08,
-GQ5/R5/R6, push, merge, release.
+Out of scope: ranking/embedding/index changes, held-out H01–H08, GQ5/R5/R6,
+merge, release.
+
+Next-session entry point: `rust/docs/r4-next-session-handoff-20261121.md`.
