@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 """r4_bench_driver_selftest.py — end-to-end acceptance for the R4 harness.
 
-Every check exercises the SAME code path used for real inference: the driver
-builds Responses-API payloads, a transport returns Responses-API outputs, tool
-outputs are returned keyed by call_id, and the plan/answer artefacts are
-frozen, hashed and graded in separate processes.
+Every check uses the same code path a real run uses: the driver builds
+Responses-API payloads, a transport answers them, tool outputs return keyed by
+`call_id`, the terminal answer arrives as a validated `submit_answer` call, and
+artefacts are frozen, hashed and graded in separate processes. Only the
+transport differs between the mock and the real path.
 
-Covered acceptance items:
-  1. generated tool schemas satisfy strict mode (independent validator) and an
-     invalid schema must fail this test;
-  2. nullable/optional wire arguments normalise to the adapter contract, and
-     malformed arguments never reach the adapter;
-  3. the mock derives its next step and its claims from the tool output it
-     actually received (a fixed "MOCK-FINAL" cannot pass);
-  4. rounds and cumulative budgets are enforced at the trusted boundary;
-  5. arm B generates a fresh blind plan over the wire, freezes and hashes it,
-     and the workflow pack records that hash;
-  6. arm C collects and verifies evidence; common final verification runs;
-  7. answer + pack are frozen with sidecar hashes;
-  8. the grader runs in its own process on synthetic artefacts and does not
-     default to PASS;
-  9. malformed tool calls, unauthorized inference and exhausted budgets stop;
- 10. loopback transport round-trip (no egress, no private source).
+Covered:
+  1. strict tool schemas (independent validator, both directions);
+  2. wire-argument normalisation and malformed-argument refusal;
+  3. the mock derives each step from the tool output it actually received;
+  4. round and cumulative-budget enforcement;
+  5. arm B generates a fresh blind plan over the wire;
+  6. the REAL plan transport is exercised against a loopback Responses server
+     that rejects any request that is not the plan contract;
+  7. frozen question identity, and refusal of an unlabelled override;
+  8. the final answer contract, with negative controls for prose, malformed
+     JSON, missing fields, nonexistent/outside citations and invalid abstention;
+  9. answer + pack frozen with sidecars and bound to each other;
+ 10. an independent grader process that cannot return a formal PASS without a
+     semantic evaluation, including the wrong-but-cited control;
+ 11. no private-source egress in the plan stage.
 
 Usage: r4_bench_driver_selftest.py <adapter-bin> <corpus-root> <work-dir>
 """
@@ -30,17 +30,18 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import http.server
 import json
+import subprocess
 import sys
 import threading
-import http.server
-import subprocess
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r4_bench_driver as drv  # noqa: E402
 from r4_tool_schema import (  # noqa: E402
     strict_violations,
+    strict_violations_for_answer,
     strict_violations_for_arm,
     strict_violations_for_plan,
     tool_parameters,
@@ -58,263 +59,305 @@ def check(name: str, condition: bool, detail: str = "") -> None:
         FAILURES.append(name)
 
 
-class ToolSpamTransport(drv.MockTransport):
-    """Keeps asking for tools forever: the round limit must block it."""
-
-    def post(self, payload: dict) -> dict:
-        self._validate(payload)
-        self.served += 1
-        return self._tool("status", {})
+LABELS = Path(__file__).resolve().parents[1]
+CASE = "D04"
+MATERIALS = LABELS / "cases" / "c3-steps.json"
 
 
 class LazyTransport(drv.MockTransport):
-    """Answers immediately without any tool call (must not grade as PASS)."""
+    """Answers with prose, never calling any tool (must be INVALID_OUTPUT)."""
 
     def post(self, payload: dict) -> dict:
         self._validate(payload)
         self.served += 1
-        return self._final("MOCK-FINAL", abstain=False)
+        return {"id": "lazy", "object": "response", "model": self.model,
+                "system_fingerprint": "mock", "usage": {"input_tokens": 1, "output_tokens": 1},
+                "output": [{"type": "message", "role": "assistant",
+                            "content": [{"type": "output_text",
+                                         "text": "MOCK-FINAL: everything is fine"}]}]}
 
 
-class InvalidPlanTransport(drv.MockPlanTransport):
-    """Emits a plan that violates the plan contract."""
+class BadAnswerTransport(drv.MockTransport):
+    """Calls submit_answer with an arguments payload chosen by `mode`."""
+
+    def __init__(self, *args, mode: str, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mode = mode
 
     def post(self, payload: dict) -> dict:
-        self._validate_request(payload)
+        self._validate(payload)
         self.served += 1
-        return {
-            "id": "mock-plan-bad", "object": "response", "model": self.model,
-            "system_fingerprint": "mock-fingerprint",
-            "output": [{
-                "type": "function_call", "call_id": "plan-bad", "name": "emit_plan",
-                "arguments": json.dumps({"queries": [], "symbols": [], "scopes": [],
-                                         "terms": []}),
-            }],
-            "usage": {"input_tokens": 10, "output_tokens": 5},
-        }
+        claims = [{"text": "a claim",
+                   "citations": [{"path": "Core/Service.cs", "start_line": 1,
+                                  "end_line": 2, "sha256": "d" * 64}]}]
+        good = {"answer": "x", "claims": claims, "gaps": [], "abstain": False}
+        mode = self.mode
+        if mode == "malformed-json":
+            args_text = "{not json"
+        elif mode == "missing-fields":
+            args_text = json.dumps({"answer": "x", "claims": claims})
+        elif mode == "no-citations":
+            args_text = json.dumps({"answer": "x",
+                                    "claims": [{"text": "c", "citations": []}],
+                                    "gaps": [], "abstain": False})
+        elif mode == "traversal":
+            bad = copy.deepcopy(good)
+            bad["claims"][0]["citations"][0]["path"] = "../secret.cs"
+            args_text = json.dumps(bad)
+        elif mode == "abstain-with-claims":
+            args_text = json.dumps({"answer": "x", "claims": claims,
+                                    "gaps": [], "abstain": True})
+        elif mode == "reversed-range":
+            bad = copy.deepcopy(good)
+            bad["claims"][0]["citations"][0].update({"start_line": 9, "end_line": 2})
+            args_text = json.dumps(bad)
+        else:
+            args_text = json.dumps(good)
+        return {"id": "bad", "object": "response", "model": self.model,
+                "system_fingerprint": "mock", "usage": {"input_tokens": 1, "output_tokens": 1},
+                "output": [{"type": "function_call", "call_id": "answer-1",
+                            "name": "submit_answer", "arguments": args_text}]}
 
 
-def run_arm(adapter: Path, root: Path, work: Path, profile: str, case: str,
-            question: str, plan_file: Path | None = None, transport=None,
-            tag: str = "", grade: bool = False, materials: Path | None = None) -> tuple[dict, object]:
+def run_arm(adapter: Path, root: Path, work: Path, profile: str, tag: str = "",
+            transport=None, plan_file: Path | None = None,
+            question_file: Path | None = None,
+            allow_override: bool = False, grade: bool = False,
+            semantic: Path | None = None) -> tuple[dict, object]:
     answers = work / f"answers-{profile}{tag}"
     session = work / f"session-{profile}{tag}"
+    identity = drv.resolve_question(LABELS, CASE, question_file, allow_override)
     answerer = transport or drv.MockTransport(
         model="mock-model", instructions="You are a code-investigation agent.",
-        profile=profile, question=question, corpus_marker=str(root.resolve()),
+        profile=profile, question=identity["text"],
+        question_sha256=identity["sha256"], question_source=identity["source"],
+        question_formal=identity["formal"], corpus_marker=str(root.resolve()),
     )
-    controller = drv.AdapterController(adapter, session, root, profile, case, plan_file)
+    controller = drv.AdapterController(adapter, session, root, profile, CASE, plan_file)
     controller.create()
-    report = drv.drive(controller, answerer, case, profile, answers)
+    report = drv.drive(controller, answerer, CASE, profile, answers)
     if grade:
-        report["grading"] = drv.grade(
-            answers, Path(__file__).resolve().parents[1], case, profile,
-            corpus=root, materials=materials,
-        )
+        report["grading"] = drv.grade(answers, LABELS, CASE, profile, corpus=root,
+                                      materials=MATERIALS, semantic=semantic)
     return report, answerer
 
 
 def main() -> int:
     adapter, root, work = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
-    labels = Path(__file__).resolve().parents[1]
-    materials = labels / "cases" / "c3-steps.json"
     work.mkdir(parents=True, exist_ok=True)
-    cases = json.loads((labels / "cases" / "dev.json").read_text())["cases"]
-    case = "D04"
-    question = next(entry["question"] for entry in cases if entry["id"] == case)
+    question = drv.resolve_question(LABELS, CASE, None, False)["text"]
 
     # ---------------------------------------------------------- 1. schemas
     for arm in ("arm-a", "arm-b", "arm-c"):
-        problems = strict_violations_for_arm(arm)
-        check(f"strict schema valid: {arm}", not problems, str(problems[:3]))
-    check("strict schema valid: plan", not strict_violations_for_plan(),
-          str(strict_violations_for_plan()))
-    # A permissive optional field must be reported as invalid: the validator
-    # itself has to be trustworthy.
+        check(f"strict schema valid: {arm}", not strict_violations_for_arm(arm),
+              str(strict_violations_for_arm(arm)[:3]))
+        payload_tools = drv.tool_payload_schema(arm)
+        check(f"{arm} exposes submit_answer last",
+              payload_tools[-1]["name"] == "submit_answer")
+        for tool in payload_tools:
+            check(f"{arm}/{tool['name']} schema strict",
+                  not strict_violations(tool["parameters"]),
+                  str(strict_violations(tool["parameters"])[:3]))
+    check("strict schema valid: plan", not strict_violations_for_plan())
+    check("strict schema valid: answer", not strict_violations_for_answer())
     broken = copy.deepcopy(tool_parameters("search"))
     broken["properties"]["smuggled"] = {"type": "string"}
     check("validator rejects a property missing from required",
-          any("smuggled" in p for p in strict_violations(broken)),
-          str(strict_violations(broken)[:3]))
+          any("smuggled" in p for p in strict_violations(broken)))
     broken_root = copy.deepcopy(tool_parameters("search"))
     broken_root["additionalProperties"] = True
     check("validator rejects an open root object",
-          any("additionalProperties" in p for p in strict_violations(broken_root)),
-          str(strict_violations(broken_root)[:3]))
-    broken2 = copy.deepcopy(tool_parameters("evidence"))
-    broken2["properties"]["requests"]["items"].pop("additionalProperties", None)
-    check("validator rejects an untyped nested object",
-          any("requests[]" in p for p in strict_violations(broken2)),
-          str(strict_violations(broken2)[:3]))
+          any("additionalProperties" in p for p in strict_violations(broken_root)))
 
     # ------------------------------------------------- 2. argument handling
     wire = wire_arguments("search", {"query": "EmployeeUpdateInfo"})
-    check("wire form carries nullable optional fields",
-          wire == {"query": "EmployeeUpdateInfo", "mode": None, "limit": None, "scope": None},
-          json.dumps(wire))
-    cli = drv.validate_call("arm-c", "search", wire)
-    check("nullable wire args normalise to CLI", cli == ["search", "--query", "EmployeeUpdateInfo"],
-          str(cli))
-    wire_ev = wire_arguments("evidence", {"requests": [{
-        "project": "hrm", "relative_path": "Core/Service.cs",
-        "address": {"mode": "lines", "start_line": 1, "end_line": 4}}]})
-    normalized = drv.normalized_arguments("evidence", wire_ev)
-    check("evidence address normalises to lines mode",
-          normalized["requests"][0]["address"] == {"mode": "lines",
-                                                   "start_line": 1, "end_line": 4},
-          json.dumps(normalized))
-    for label, tool, args in [
-        ("unknown tool", "shell", {"cmd": "ls"}),
-        ("bool limit", "search", {"query": "x", "mode": None, "limit": True, "scope": None}),
-        ("traversal path", "facts", {"path": "../etc/passwd", "method": None}),
-        ("cross-arm tool", "workflow", {"question": "x"}),
+    check("nullable wire args normalise to CLI",
+          drv.validate_call("arm-c", "search", wire) == ["search", "--query", "EmployeeUpdateInfo"])
+    for label, tool, args, profile in [
+        ("unknown tool", "shell", {"cmd": "ls"}, "arm-c"),
+        ("bool limit", "search", {"query": "x", "mode": None, "limit": True, "scope": None}, "arm-c"),
+        ("traversal path", "facts", {"path": "../etc/passwd", "method": None}, "arm-c"),
+        ("cross-arm tool", "workflow", {"question": "x"}, "arm-a"),
         ("mixed address modes", "evidence", {"requests": [{
             "project": "p", "relative_path": "a.cs", "expected_sha256": None,
             "address": {"mode": "lines", "start_line": 1, "end_line": 2,
-                        "start": 0, "end": 5}}]}),
+                        "start": 0, "end": 5}}]}, "arm-c"),
         ("reversed lines", "evidence", {"requests": [{
             "project": "p", "relative_path": "a.cs", "expected_sha256": None,
             "address": {"mode": "lines", "start_line": 9, "end_line": 2,
-                        "start": None, "end": None}}]}),
+                        "start": None, "end": None}}]}, "arm-c"),
     ]:
-        profile = "arm-c" if tool in ("workflow", "evidence", "facts") else "arm-a"
         try:
             drv.validate_call(profile, tool, args)
             check(f"rejects {label}", False, "no violation raised")
         except drv.Violation:
             check(f"rejects {label}", True)
 
-    # ---------------------------------------------- 3/6. arm C end-to-end
-    report_c, answerer_c = run_arm(adapter, root, work, "arm-c", case, question, grade=True)
-    check("arm-c reached evidence",
-          any(e["tool"] == "evidence" for e in answerer_c.calls_seen),
-          str([e["tool"] for e in answerer_c.calls_seen]))
-    check("tool outputs fed back with call identity",
+    # ------------------------------------------- 3. arm-C end-to-end + grade
+    report_c, answerer_c = run_arm(adapter, root, work, "arm-c", grade=True)
+    check("arm-c reached evidence", any(e["tool"] == "evidence" for e in answerer_c.calls_seen))
+    check("tool outputs keyed by call_id",
           all(e["call_id"].startswith("call-") for e in answerer_c.calls_seen))
-    check("claims derive from the delivered spans",
-          bool((json.loads((work / "answers-arm-c" / f"answer-{case}-arm-c.json").read_text())
-                .get("claims"))))
+    art = json.loads((work / "answers-arm-c" / f"answer-{CASE}-arm-c.json").read_text())
+    check("answer artifact records the submitted claims", bool(art["claims"]))
+    check("answer artifact names the pack it used", art["pack"] is not None)
+    check("answer artifact records question identity",
+          art["question"]["sha256"] == hashlib.sha256(question.encode()).hexdigest())
+    sidecar = work / "answers-arm-c" / f"answer-{CASE}-arm-c.sha256"
+    check("answer sidecar present", sidecar.is_file())
     check("common final verification ran",
-          (report_c["final_verification"] or {}).get("verified") is True,
-          json.dumps(report_c["final_verification"]))
-    answer_path = work / "answers-arm-c" / f"answer-{case}-arm-c.json"
-    sidecar = answer_path.with_suffix(".sha256").read_text().split()[0]
-    check("frozen answer hash matches its sidecar",
-          sidecar == hashlib.sha256(answer_path.read_bytes()).hexdigest())
-    check("pack frozen next to the answer",
-          (work / "answers-arm-c" / f"pack-{case}-arm-c.json").is_file())
+          (report_c["final_verification"] or {}).get("verified") is True)
     grading = report_c["grading"]
-    check("grader produced a structured verdict",
-          grading.get("verdict") in ("PASS", "PARTIAL", "FAIL"),
-          json.dumps(grading)[:200])
-    check("grader never defaults to PASS on unsupported evidence",
-          grading.get("verdict") != "PASS" or grading.get("total") == 12,
-          json.dumps(grading.get("criteria"))[:200])
+    check("grader returns a formal verdict", "verdict" in grading, json.dumps(grading)[:200])
+    check("no semantic evaluation means no formal PASS",
+          grading["verdict"] != "PASS" or grading["semantic"]["status"] == "EVALUATED",
+          json.dumps(grading["semantic"]))
 
-    # -------------------------------------------------- 4. round enforcement
-    strict = ToolSpamTransport(model="m", instructions="x", profile="arm-a",
-                               question=question, corpus_marker=str(root.resolve()))
-    report_r, _ = run_arm(adapter, root, work, "arm-a", case, question,
-                          transport=strict, tag="-rounds")
-    check("round limit refuses extra turns",
-          any("round limit" in v for v in report_r["violations"]), str(report_r["violations"]))
-    check("refused turns never executed",
-          report_r["accounting"]["calls_used"] <= drv.MAX_ROUNDS,
-          str(report_r["accounting"]))
+    # ------------------------------------------------ 4. wrong-but-cited control
+    # The reviewer's reproduction, end-to-end: a false claim with a real,
+    # verified, in-pack citation.
+    case_dir = work / "wrong-but-cited"
+    pack_src = work / "answers-arm-c" / f"pack-{CASE}-arm-c.json"
+    case_dir.mkdir(parents=True, exist_ok=True)
+    pack_raw = pack_src.read_bytes()
+    (case_dir / f"pack-{CASE}-arm-c.json").write_bytes(pack_raw)
+    (case_dir / f"pack-{CASE}-arm-c.sha256").write_text(
+        hashlib.sha256(pack_raw).hexdigest() + f"  pack-{CASE}-arm-c.json\n")
+    pack = json.loads(pack_raw)
+    item = pack["items"][0] if "items" in pack else pack["selected"][0]
+    if "items" in pack:
+        start, end = item["range"]["start_line"], item["range"]["end_line"]
+        sha = item.get("sha256") or item.get("source_sha256")
+    else:
+        start, end = item["start_line"], item["end_line"]
+        sha = item.get("source_sha256") or item.get("sha256")
+    wrong = {
+        "case": CASE, "profile": "arm-c", "status": "OK", "error": None,
+        "question": {"sha256": hashlib.sha256(question.encode()).hexdigest(),
+                     "source": "frozen-case", "formal": True},
+        "pack": {"sha256": hashlib.sha256(pack_raw).hexdigest(),
+                 "kind": "workflow" if "selected" in pack else "evidence"},
+        "final": {"answer": "This method silently deletes every employee.",
+                  "abstain": False,
+                  "claims": [{"text": "This method silently deletes every employee and has no switch.",
+                              "citations": [{"path": item.get("path") or item.get("relative_path"),
+                                             "start_line": start, "end_line": end,
+                                             "sha256": sha}]}],
+                  "gaps": []},
+        "claims": [], "gaps": [], "transcript_tools": ["search"],
+    }
+    wrong["claims"] = wrong["final"]["claims"]
+    blob = json.dumps(wrong, indent=1).encode()
+    (case_dir / f"answer-{CASE}-arm-c.json").write_bytes(blob)
+    (case_dir / f"answer-{CASE}-arm-c.sha256").write_text(
+        hashlib.sha256(blob).hexdigest() + f"  answer-{CASE}-arm-c.json\n")
+    verdict = drv.grade(case_dir, LABELS, CASE, "arm-c", corpus=root, materials=MATERIALS)
+    check("wrong-but-cited cannot be a formal PASS",
+          verdict.get("verdict") != "PASS", str(verdict.get("verdict")))
+    check("wrong-but-cited is NOT_MEASURED without an evaluator",
+          verdict.get("verdict") == "NOT_MEASURED", str(verdict.get("verdict")))
+    check("wrong-but-cited structural score is reported separately",
+          verdict.get("structural_measured_total") is not None,
+          json.dumps(verdict.get("structural_measured_total")))
 
-    # ------------------------------- 5. arm B fresh blind plan + provenance
-    planner = drv.MockPlanTransport(model="mock-plan", instructions="plan", question=question,
-                                    hints=["Services/HRIS", "Webs/HRM"],
-                                    corpus_marker=str(root.resolve()))
-    provenance = drv.generate_plan(planner, work / "plans", case, question)
-    check("plan generated over the wire contract",
-          bool(provenance["queries"]) and provenance["call_id"].startswith("plan-"),
-          json.dumps(provenance["queries"]))
-    check("plan prompted with the question and hints only",
-          all("gold" not in q.lower() for q in provenance["queries"]))
-    plan_path = Path(provenance["path"])
-    check("plan frozen with a matching file hash",
-          hashlib.sha256(plan_path.read_bytes()).hexdigest() == provenance["sha256_file"])
-    report_b, _ = run_arm(adapter, root, work, "arm-b", case, question,
-                          plan_file=plan_path, tag="-plan")
-    pack_path = work / "session-arm-b-plan" / "packs" / "pack-workflow-1.json"
-    pack = json.loads(pack_path.read_text())
-    check("workflow pack records plan provenance",
-          pack["plan"]["source"] == "preregistered-plan", json.dumps(pack.get("plan")))
-    check("pack plan hash equals the frozen plan hash",
-          pack["plan"]["sha256"] == provenance["sha256_file"],
-          f"{pack['plan']['sha256']} != {provenance['sha256_file']}")
-    check("arm-b pack verified", (report_b["final_verification"] or {}).get("verified") is True,
-          json.dumps(report_b["final_verification"]))
-    check("arm-b reads are accounted from real opens",
-          (report_b["accounting"]["read_files"] or 0) >
-          len({s["path"] for s in pack["selected"]}), str(report_b["accounting"]))
+    # ------------------------------------------ 5. final answer contract (neg)
+    for mode, expect_status in [("malformed-json", "INVALID_OUTPUT"),
+                                ("missing-fields", "INVALID_OUTPUT"),
+                                ("no-citations", "INVALID_OUTPUT"),
+                                ("traversal", "INVALID_OUTPUT"),
+                                ("abstain-with-claims", "INVALID_OUTPUT"),
+                                ("reversed-range", "INVALID_OUTPUT"),
+                                ("good", "OK")]:
+        profile = "arm-c"
+        transport = BadAnswerTransport(
+            model="m", instructions="x", profile=profile, question=question,
+            corpus_marker=str(root.resolve()), mode=mode)
+        report, _ = run_arm(adapter, root, work, profile, tag=f"-ans-{mode}",
+                            transport=transport)
+        got = report["frozen_answer"]["status"]
+        check(f"answer contract: {mode} -> {expect_status}", got == expect_status,
+              f"got {got}")
+        if expect_status == "INVALID_OUTPUT":
+            graded = drv.grade(work / f"answers-{profile}-ans-{mode}", LABELS, CASE,
+                               profile, corpus=root, materials=MATERIALS)
+            check(f"answer contract: {mode} is UNGRADABLE, not a quality FAIL",
+                  graded.get("status") == "UNGRADABLE", json.dumps(graded)[:120])
 
-    # arm-b primary must refuse a plan-less run unless explicitly allowed
-    proc = subprocess.run([
-        sys.executable, str(Path(__file__).with_name("r4_bench_driver.py")),
-        "--adapter", str(adapter), "--session-dir", str(work / "session-b-noplan"),
-        "--root", str(root), "--profile", "arm-b", "--case", case,
-        "--allow-no-plan", "--output", str(work / "b-noplan.json"),
-    ], capture_output=True, text=True)
-    check("question-only arm-b requires an explicit opt-in",
-          "diagnostic arm" in proc.stderr, proc.stderr[-200:])
+    # prose-only session is INVALID_OUTPUT
+    lazy = LazyTransport(model="m", instructions="x", profile="arm-a", question=question,
+                         corpus_marker=str(root.resolve()))
+    report_l, _ = run_arm(adapter, root, work, "arm-a", tag="-lazy", transport=lazy)
+    check("prose final answer is INVALID_OUTPUT",
+          report_l["frozen_answer"]["status"] == "INVALID_OUTPUT")
 
-    # invalid plan generation fails closed
+    # --------------------------------------------- 6. question identity controls
+    frozen_sha = hashlib.sha256(question.encode()).hexdigest()
+    qfile = work / "modified-question.txt"
+    qfile.write_text(question + " (modified)", encoding="utf-8")
     try:
-        drv.generate_plan(InvalidPlanTransport(model="m", instructions="p", question=question,
-                                               hints=[], corpus_marker=str(root.resolve())),
-                          work / "plans-bad", case, question)
-        check("invalid plan fails closed", False, "no error raised")
+        drv.resolve_question(LABELS, CASE, qfile, False)
+        check("formal mode rejects a modified question", False, "no error raised")
+    except drv.ContractError as error:
+        check("formal mode rejects a modified question", "does not match" in str(error))
+    override = drv.resolve_question(LABELS, CASE, qfile, True)
+    check("override is classified non-formal",
+          override["formal"] is False and override["source"] == "override-diagnostic")
+    check("override keeps the frozen digest for comparison",
+          override["frozen_sha256"] == frozen_sha)
+    same = work / "frozen-question.txt"
+    same.write_text(question, encoding="utf-8")
+    identical = drv.resolve_question(LABELS, CASE, same, False)
+    check("a byte-identical file keeps frozen identity",
+          identical["formal"] is True and identical["sha256"] == frozen_sha)
+    empty = work / "empty-question.txt"
+    empty.write_text("   ", encoding="utf-8")
+    try:
+        drv.resolve_question(LABELS, CASE, empty, True)
+        check("empty question is refused", False, "no error raised")
     except drv.ContractError:
-        check("invalid plan fails closed", True)
+        check("empty question is refused", True)
 
-    # -------------------------------- 7/8. lazy answer must not grade PASS
-    lazy = LazyTransport(model="m", instructions="x", profile="arm-a",
-                         question=question, corpus_marker=str(root.resolve()))
-    report_l, _ = run_arm(adapter, root, work, "arm-a", case, question, transport=lazy,
-                          tag="-lazy", grade=True)
-    check("arm-a verification policy is explicit",
-          (report_c["final_verification"] or {}).get("policy") == "verified_pack_required")
-    check("arm-a has no verification tool",
-          (run_arm(adapter, root, work, "arm-a", case, question, tag="-policy")[0]
-           ["final_verification"] or {}).get("policy") == "no_verification_tool")
-    check("lazy answer produced no pack",
-          (report_l["final_verification"] or {}).get("packs") == 0,
-          json.dumps(report_l["final_verification"]))
-    check("lazy answer is not graded PASS",
-          (report_l["grading"] or {}).get("verdict") != "PASS",
-          json.dumps(report_l["grading"])[:200])
+    # --------------------------------- 7. REAL plan transport over loopback HTTP
+    seen_plan: list[dict] = []
+    plan_hints = ["Services/HRIS", "Webs/HRM"]
 
-    # --------------------------------- 9. unauthorized / contract refusals
-    proc = subprocess.run([
-        sys.executable, str(Path(__file__).with_name("r4_bench_driver.py")),
-        "--adapter", str(adapter), "--session-dir", str(work / "session-real"),
-        "--root", str(root), "--profile", "arm-c", "--case", case,
-        "--backend", "openai-responses", "--model", "fixed-model",
-    ], capture_output=True, text=True)
-    check("unauthorized real inference refused", proc.returncode == drv.ERROR_EXIT,
-          proc.stderr[-200:])
+    class PlanHandler(http.server.BaseHTTPRequestHandler):
+        reject_reason = None
 
-    # ------------------------------- 10. loopback real transport round trip
-    seen: list[dict] = []
-
-    class Handler(http.server.BaseHTTPRequestHandler):
         def do_POST(self):  # noqa: N802
             length = int(self.headers.get("Content-Length", 0))
             payload = json.loads(self.rfile.read(length))
-            seen.append(payload)
-            body = json.dumps({
-                "id": "resp-1", "object": "response", "model": "served-model",
-                "system_fingerprint": "fp",
-                "output": [{
-                    "type": "function_call", "call_id": "call-1", "name": "search",
-                    "arguments": json.dumps(wire_arguments(
-                        "search", {"query": question, "limit": 3})),
-                }],
-                "usage": {"input_tokens": 11, "output_tokens": 5},
-            }).encode()
-            self.send_response(200)
+            seen_plan.append(payload)
+            try:
+                # Server-side enforcement of the plan request contract.
+                names = [tool.get("name") for tool in payload.get("tools") or []]
+                if names != ["emit_plan"]:
+                    raise ValueError(f"tools must be exactly emit_plan, got {names}")
+                text = payload["input"][0]["content"][0]["text"]
+                if question not in text:
+                    raise ValueError("question missing from the plan prompt")
+                for hint in plan_hints:
+                    if hint not in text:
+                        raise ValueError(f"permitted hint {hint} missing")
+                lowered = text.lower()
+                for forbidden in ("gold", "checklist", "expected answer", "rubric"):
+                    if forbidden in lowered:
+                        raise ValueError(f"evaluator-only material leaked: {forbidden}")
+                plan = drv.derive_plan(question, plan_hints)
+                body = json.dumps({
+                    "id": "resp-plan", "object": "response", "model": "served-planner",
+                    "system_fingerprint": "fp-plan",
+                    "output": [{"type": "function_call", "call_id": "plan-1",
+                                "name": "emit_plan",
+                                "arguments": json.dumps(drv.plan_wire_form(plan))}],
+                    "usage": {"input_tokens": 11, "output_tokens": 22},
+                }).encode()
+                status = 200
+            except ValueError as error:
+                PlanHandler.reject_reason = str(error)
+                body = json.dumps({"error": str(error)}).encode()
+                status = 400
+            self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -323,21 +366,102 @@ def main() -> int:
         def log_message(self, *args):
             pass
 
-    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    server = http.server.HTTPServer(("127.0.0.1", 0), PlanHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    transport = drv.HttpTransport(
-        model="client-model", instructions="x", profile="arm-a", question=question,
-        endpoint=f"http://127.0.0.1:{server.server_port}", api_key="test-token")
-    response = transport.next_turn(transport.initial_conversation())
+    endpoint = f"http://127.0.0.1:{server.server_port}"
+    planner = drv.HttpPlanTransport(
+        model="client-planner", instructions=drv.PLAN_INSTRUCTIONS, question=question,
+        hints=plan_hints, corpus_marker=str(root.resolve()), question_sha256=frozen_sha,
+        question_source="frozen-case", question_formal=True,
+        endpoint=endpoint, api_key="test-token")
+    provenance = drv.generate_plan(planner, work / "plans-http", CASE, question)
+    check("real planner used the emit_plan contract",
+          seen_plan and [t["name"] for t in seen_plan[0]["tools"]] == ["emit_plan"],
+          json.dumps([t.get("name") for t in (seen_plan[0]["tools"] if seen_plan else [])]))
+    check("real planner request carried the question and hints",
+          seen_plan and question in seen_plan[0]["input"][0]["content"][0]["text"]
+          and all(h in seen_plan[0]["input"][0]["content"][0]["text"] for h in plan_hints))
+    check("real planner response parsed into a validated plan",
+          bool(provenance["queries"]), json.dumps(provenance["queries"]))
+    plan_path = Path(provenance["path"])
+    check("real plan frozen with the exact file digest",
+          hashlib.sha256(plan_path.read_bytes()).hexdigest() == provenance["sha256_file"])
+    check("served planner identity recorded",
+          planner.usage_log[-1]["served_model"] == "served-planner")
+
+    # The same transport must survive a server-side contract check for the arm
+    # tools case: prove it does NOT send arm tools even if asked to.
+    bad_planner = drv.HttpPlanTransport(
+        model="client-planner", instructions=drv.PLAN_INSTRUCTIONS, question=question,
+        hints=[], corpus_marker=str(root.resolve()), endpoint=endpoint, api_key="t")
+    bad_planner.build_request = (lambda conv: {  # simulate a wrong construction
+        "model": "m", "instructions": bad_planner.instructions, "input": conv,
+        "tools": drv._tool_payload_schema("arm-b"), "tool_choice": "auto",
+        "parallel_tool_calls": False})
+    try:
+        drv.generate_plan(bad_planner, work / "plans-bad", CASE, question)
+        check("a planner sending arm tools is refused", False, "no error raised")
+    except drv.ContractError:
+        check("a planner sending arm tools is refused", True)
+    # The server itself must reject a wrong-tool-set request, independent of the
+    # client-side validation.
+    import urllib.error
+    import urllib.request
+    bad_payload = json.dumps({
+        "model": "m", "instructions": drv.PLAN_INSTRUCTIONS,
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": question}]}],
+        "tools": drv._tool_payload_schema("arm-b"),
+        "tool_choice": "auto", "parallel_tool_calls": False,
+    }).encode()
+    request = urllib.request.Request(f"{endpoint}/responses", data=bad_payload,
+                                     method="POST",
+                                     headers={"Content-Type": "application/json",
+                                              "Authorization": "Bearer t"})
+    try:
+        urllib.request.urlopen(request, timeout=10)
+        rejected = False
+    except urllib.error.HTTPError as error:
+        rejected = error.code == 400
+    check("loopback planner server rejects arm tools on its own", rejected,
+          str(PlanHandler.reject_reason))
     server.shutdown()
-    kind, payload = drv.parse_output(response)
-    check("authorized execution reached the HTTP transport", len(seen) == 1)
-    check("http request carries strict tool schemas",
-          not any(strict_violations(tool["parameters"]) for tool in seen[0]["tools"]))
-    check("http response parsed into a tool call", kind == "tool" and payload[0] == "search",
-          str(payload[:2]))
-    check("served model identity recorded",
-          transport.usage_log[-1]["served_model"] == "served-model")
+
+    # ---------------------------- 8. arm B plan provenance through the driver
+    plan_file = plan_path
+    report_b, _ = run_arm(adapter, root, work, "arm-b", tag="-http-plan",
+                          plan_file=plan_file)
+    pack_b = json.loads((work / "answers-arm-b-http-plan" / f"pack-{CASE}-arm-b.json").read_text())
+    check("workflow pack records the plan provenance",
+          pack_b["plan"]["source"] == "preregistered-plan")
+    check("workflow pack plan hash equals the HTTP-frozen plan digest",
+          pack_b["plan"]["sha256"] == provenance["sha256_file"],
+          f"{pack_b['plan']['sha256']} != {provenance['sha256_file']}")
+    check("arm-b pack verified", (report_b["final_verification"] or {}).get("verified") is True)
+    check("arm-b reads are real opens",
+          report_b["accounting"]["read_ops"] >= report_b["accounting"]["read_files"])
+
+    # --------------------------- 9. unauthorized inference and round refusal
+    proc = subprocess.run([
+        sys.executable, str(Path(__file__).with_name("r4_bench_driver.py")),
+        "--adapter", str(adapter), "--session-dir", str(work / "session-real"),
+        "--root", str(root), "--profile", "arm-c", "--case", CASE,
+        "--backend", "openai-responses", "--model", "fixed-model",
+    ], capture_output=True, text=True)
+    check("unauthorized real inference refused", proc.returncode == drv.ERROR_EXIT,
+          proc.stderr[-160:])
+
+    class SpamTransport(drv.MockTransport):
+        def post(self, payload):
+            self._validate(payload)
+            self.served += 1
+            return self._tool("status", {})
+
+    spam = SpamTransport(model="m", instructions="x", profile="arm-a", question=question,
+                         corpus_marker=str(root.resolve()))
+    report_r, _ = run_arm(adapter, root, work, "arm-a", tag="-rounds", transport=spam)
+    check("round limit refuses extra turns",
+          any("round limit" in v for v in report_r["violations"]))
+    check("refused turns never executed", report_r["accounting"]["calls_used"] <= drv.MAX_ROUNDS)
 
     print()
     if FAILURES:

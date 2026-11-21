@@ -183,9 +183,13 @@ pub struct CallRecord {
     pub ok: bool,
     pub wall_ms: f64,
     pub delivered_bytes: usize,
-    /// Read operations attributed to this call.
-    #[serde(default)]
+    /// Session read-op total after this call, kept for continuity.
     pub read_ops: usize,
+    /// Read operations this call performed (source opens). Summing these over
+    /// the history equals the session `read_ops` counter, so a receipt can be
+    /// reconciled against the ledger instead of trusted.
+    #[serde(default)]
+    pub read_ops_delta: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -679,6 +683,7 @@ impl Session {
             self.save_ledger()?;
         }
 
+        let reads_before = self.ledger.read_ops;
         let execution = self.execute(tool, &input, call_index);
         let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
 
@@ -856,6 +861,7 @@ impl Session {
                 wall_ms,
                 delivered_bytes: 0,
                 read_ops,
+                read_ops_delta: read_ops.saturating_sub(reads_before),
             });
             self.ledger.in_flight = None;
             self.save_ledger()?;
@@ -884,6 +890,7 @@ impl Session {
             wall_ms,
             delivered_bytes: text.len(),
             read_ops,
+            read_ops_delta: read_ops.saturating_sub(reads_before),
         });
         if tool == Tool::Verify {
             let id = input.pack_id.unwrap_or(self.ledger.packs.len());
@@ -1084,7 +1091,8 @@ impl Session {
             ok: false,
             wall_ms: 0.0,
             delivered_bytes: text.len(),
-            read_ops: 0,
+            read_ops: self.ledger.read_ops,
+            read_ops_delta: 0,
         });
         self.save_ledger()?;
         self.append_trace(&envelope)?;

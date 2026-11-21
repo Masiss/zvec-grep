@@ -112,6 +112,8 @@ class P:
         elif expected == "array":
             if not isinstance(value, list):
                 raise SchemaViolation(f"{path} must be an array")
+            if self.nonempty and not value:
+                raise SchemaViolation(f"{path} must not be empty")
         elif expected == "object":
             if not isinstance(value, dict):
                 raise SchemaViolation(f"{path} must be an object")
@@ -225,7 +227,7 @@ CLAIM_SPECS = {
 
 ANSWER_SPECS = {
     "answer": P(type="string", required=True, nonempty=True),
-    "claims": P(type="array", required=True, nonempty=True,
+    "claims": P(type="array", required=True,
                 items=P(type="object", required=True, properties=CLAIM_SPECS)),
     "gaps": P(type="array", required=True, items=P(type="string", required=True, nonempty=True)),
     "abstain": P(type="boolean", required=True),
@@ -307,6 +309,11 @@ def normalize_answer(args) -> dict:
         if name not in args or args[name] is None:
             raise SchemaViolation(f"answer.{name} is required")
         out[name] = spec.validate(args[name], f"answer.{name}")
+    if not out["abstain"] and not out["claims"]:
+        raise SchemaViolation(
+            "a non-abstaining answer must carry at least one claim; abstain=true "
+            "with empty claims is the only way to submit no claims"
+        )
     if out["abstain"] and out["claims"]:
         # An abstention that still asserts claims is contradictory: the caller
         # must choose. Refuse rather than guess which one is meant.

@@ -1697,3 +1697,34 @@ fn search_does_not_hash_when_no_read_op_remains() {
         "the unread item must be reported as a gap: {envelope}"
     );
 }
+#[test]
+fn history_read_ops_reconcile_with_the_ledger() {
+    // Receipt reconciliation: the sum of per-call deltas must equal the final
+    // session counter, so a reader can audit opens instead of trusting a total.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("Core")).expect("dir");
+    for index in 0..3 {
+        fs::write(root.join(format!("Core/S{index}.cs")),
+                  "namespace X { class S { } }\n").expect("w");
+    }
+    fs::write(root.join("Core/Bad.cs"), [0xff, 0xfe, 0x41]).expect("w");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    for (round, path) in [(1, "Core/S0.cs"), (1, "Core/S0.cs"), (2, "Core/S1.cs"),
+                          (2, "Core/Bad.cs")] {
+        let mut facts = input(Tool::Facts, round);
+        facts.path = Some(path.to_owned());
+        let _ = call(&mut session, facts);
+    }
+    let mut evidence = input(Tool::Evidence, 3);
+    evidence.requests = vec![span_request("Core/S2.cs", 1, 1)];
+    assert_eq!(call(&mut session, evidence)["ok"], json!(true));
+
+    let delta_sum: usize = session.ledger.history.iter().map(|c| c.read_ops_delta).sum();
+    assert_eq!(delta_sum, session.ledger.read_ops,
+               "per-call deltas must reconcile with the session counter");
+    assert_eq!(session.ledger.read_ops, 5,
+               "4 facts opens (one of them a failed decode) + 1 evidence span");
+    assert_eq!(session.ledger.history.last().unwrap().read_ops, 5);
+}
+

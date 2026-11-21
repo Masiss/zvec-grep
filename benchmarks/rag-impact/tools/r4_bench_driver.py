@@ -673,8 +673,10 @@ def parse_output(response: dict) -> tuple[str, object]:
         if item.get("type") == "function_call":
             try:
                 args = json.loads(item.get("arguments") or "{}")
-            except json.JSONDecodeError:
-                raise Violation("provider returned unparseable tool arguments")
+            except json.JSONDecodeError as error:
+                # Unparseable arguments are an output-contract failure, not a
+                # wrong answer: report INVALID_OUTPUT instead of guessing.
+                return "invalid", {"error": f"unparseable tool arguments: {error}"}
             return "tool", (item.get("name"), args, item.get("call_id"), item)
         if item.get("type") == "message":
             # Free prose is not an answer under the frozen protocol: the answer
@@ -775,6 +777,13 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
         response = answerer.next_turn(conversation)
         turns += 1
         kind, payload = parse_output(response)
+        if kind == "invalid":
+            answer_status = "INVALID_OUTPUT"
+            answer_error = payload["error"]
+            transcript.append({"round": round_no, "tool": "invalid",
+                               "contract_error": answer_error})
+            final = {"answer": "", "claims": [], "gaps": [], "abstain": False}
+            break
         if kind == "prose":
             answer_status = "INVALID_OUTPUT"
             answer_error = "the model returned prose instead of a submit_answer call"
@@ -1055,7 +1064,7 @@ def derive_pack_from_transcript(transcript: list[dict]) -> dict | None:
 
 def grade(frozen_dir: Path, labels_dir: Path, case: str, profile: str,
           corpus: Path | None = None, materials: Path | None = None,
-          packs: Path | None = None) -> dict:
+          packs: Path | None = None, semantic: Path | None = None) -> dict:
     """Runs the independent grader in a separate process and returns its verdict.
 
     The grader receives the frozen artefacts, the evaluator-only materials and
@@ -1069,6 +1078,8 @@ def grade(frozen_dir: Path, labels_dir: Path, case: str, profile: str,
         args += ["--corpus", str(corpus)]
     if packs is not None:
         args += ["--packs", str(packs)]
+    if semantic is not None:
+        args += ["--semantic", str(semantic)]
     proc = subprocess.run(args, capture_output=True, text=True, timeout=600)
     if proc.returncode == 3:
         # UNGRADABLE is a graded outcome, not a driver crash: surface it.

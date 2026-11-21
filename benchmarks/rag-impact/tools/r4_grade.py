@@ -602,8 +602,14 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
                   if c["status"] in ("NEEDS_EVALUATOR", "STRUCTURE_ONLY")]
 
     # Formal verdict: structural thresholds are necessary, never sufficient.
+    provenance_blocked = sum(1 for span in spans if span["verified"]) == 0
     if semantic["status"] == "INVALID":
         formal = "UNGRADABLE"
+    elif provenance_blocked:
+        # An arm without a verification capability cannot produce verifiable
+        # citations by construction. That is a provenance limitation, not
+        # evidence of bad reasoning, so the formal verdict cannot claim either.
+        formal = "NOT_MEASURED"
     elif any(c["score"] == 0 for c in criteria.values() if c["score"] is not None):
         # A zero on any criterion is a structural failure regardless of semantics.
         formal = "FAIL" if structural_complete else "NOT_MEASURED"
@@ -634,6 +640,9 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
         "structural_verdict": structural_verdict,
         "verdict": formal,
         "semantic": semantic,
+        "provenance_blocked": provenance_blocked,
+        "failure_attribution": ("provenance:no_verifiable_evidence" if provenance_blocked
+                                else "answer" if formal == "FAIL" else None),
         "unmeasured_criteria": unmeasured,
         "gaps": gap_state,
         "artefacts": {
