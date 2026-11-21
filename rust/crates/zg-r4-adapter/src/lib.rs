@@ -372,6 +372,10 @@ pub struct Session {
     /// Merged into `ledger` once the call finishes (success or failure).
     pending_reads: Vec<String>,
     pending_read_ops: usize,
+    /// Operations admitted for the call currently in flight. A successful call
+    /// must not have performed more opens than this, which catches admission
+    /// that under-reserves instead of only over-reserving (the safe direction).
+    pending_admitted_ops: usize,
 }
 
 /// RAII guard for the session-wide `flock`. Dropping releases the lock.
@@ -417,6 +421,7 @@ impl Session {
             ledger,
             pending_reads: Vec::new(),
             pending_read_ops: 0,
+            pending_admitted_ops: 0,
         };
         session.save_ledger()?;
         Ok(session)
@@ -506,6 +511,7 @@ impl Session {
             ledger,
             pending_reads: Vec::new(),
             pending_read_ops: 0,
+            pending_admitted_ops: 0,
         })
     }
 
@@ -709,7 +715,7 @@ impl Session {
             }
         }
         let read_ops = self.ledger.read_ops;
-        if pending_over && ok {
+        if pending_over {
             self.ledger.terminal = Some("read_budget_violation".to_owned());
             ok = false;
             result = json!({
@@ -936,6 +942,13 @@ impl Session {
     /// a read happened that was not admitted for (call must fail closed).
     fn commit_pending_reads(&mut self) -> bool {
         let mut over = false;
+        let admitted = std::mem::take(&mut self.pending_admitted_ops);
+        let ops = std::mem::take(&mut self.pending_read_ops);
+        if ops > admitted {
+            // More opens than were admitted for this call: reservation was
+            // optimistic. The reads are counted in full and the call fails.
+            over = true;
+        }
         for file in std::mem::take(&mut self.pending_reads) {
             if !self.ledger.read_files.contains(&file) {
                 if self.ledger.read_files.len() >= MAX_DISTINCT_READS {
@@ -944,7 +957,6 @@ impl Session {
                 self.ledger.read_files.push(file);
             }
         }
-        let ops = std::mem::take(&mut self.pending_read_ops);
         if self.ledger.read_ops + ops > MAX_READ_OPS {
             over = true;
         }
@@ -957,7 +969,7 @@ impl Session {
     /// operations (defensive `<=64`). No path may perform a read it has not
     /// been admitted for, and no counter may be clamped afterwards.
     fn admit_reads(
-        &self,
+        &mut self,
         ops: usize,
         new_files: usize,
         reason: &str,
@@ -972,6 +984,7 @@ impl Session {
                 ),
             });
         }
+        self.pending_admitted_ops += ops;
         Ok(())
     }
 
@@ -1381,11 +1394,11 @@ impl Session {
         // once and reused for both the text and the recorded identity.
         let already_read = self.ledger.read_files.contains(&display);
         self.admit_reads(1, usize::from(!already_read), "facts")?;
+        // Record the attempt before opening: a read error, decode error or
+        // parse error after this point must not hide the access.
+        self.note_source_read(&display);
         let bytes = fs::read(root.join(&relative))
             .map_err(|error| invalid(&format!("cannot read {path}: {error}")))?;
-        // The source access has happened: account for it before any decoding or
-        // parsing step that could fail, so a decode error cannot under-report.
-        self.note_source_read(&display);
         let sha = hex(&Sha256::digest(&bytes));
         let text = String::from_utf8(bytes)
             .map_err(|_| invalid(&format!("cannot read {path}: stream did not contain valid UTF-8")))?;
@@ -1722,14 +1735,14 @@ impl Session {
                 (gaps, paths)
             }
         };
-        // Revalidation re-opens every pack item file. The opens themselves were
-        // reported by the boundary observer, so a verification failure cannot
-        // lose them; this only checks the observer against the pack contents.
-        let mut read_ops = 0usize;
+        // Revalidation re-opens every pack item file. The opens were reported
+        // by the boundary observer; merge them here — before any fallible step
+        // below — so neither the containment check nor a later error can
+        // discard them.
         for path in &boundary_reads {
             self.note_source_read(path);
-            read_ops += 1;
         }
+        let read_ops = boundary_reads.len();
         // Sanity direction that cannot produce false failures: every observed
         // open must belong to a pack item. A missing or unreadable item is not
         // an open, so the reverse containment is not an invariant.
@@ -1864,6 +1877,14 @@ impl Session {
             fts_quota: remaining_calls.min(2),
             ..WorkflowBudget::default()
         };
+        // The engine draws reads from the same pool: authorise exactly what it
+        // is granted, so the observed opens can be checked against a grant
+        // instead of being trusted blindly.
+        self.admit_reads(
+            budget.max_source_reads.min(self.remaining_read_ops()),
+            budget.max_files.min(self.remaining_read_files()),
+            "workflow",
+        )?;
         let root = self.ledger.root.clone();
         let engine = ZvecGrep::new();
         let mut source = source::EngineSource::new(engine, root.clone());

@@ -1653,7 +1653,24 @@ fn facts_counts_the_read_when_decoding_fails() {
 }
 
 #[test]
-fn path_resolution_that_never_opens_does_not_record_a_read() {
+fn path_resolution_that_fails_does_not_record_a_read() {
+    // A path outside the root is rejected by resolution: no open is attempted,
+    // so the ledger must stay at zero rather than inventing a read.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("Core")).expect("dir");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut facts = input(Tool::Facts, 1);
+    facts.path = Some("../outside.cs".to_owned());
+    let envelope = call(&mut session, facts);
+    assert_eq!(envelope["ok"], json!(false), "{envelope}");
+    assert_eq!(session.ledger.read_ops, 0, "resolution failed, nothing opened");
+}
+
+#[test]
+fn an_attempted_open_that_fails_is_still_counted() {
+    // The path resolves, so the open is attempted and fails (EISDIR). Counting
+    // the attempt keeps the ledger above the truth rather than below it.
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().to_path_buf();
     fs::create_dir_all(root.join("Dir.cs")).expect("dir");
@@ -1662,7 +1679,7 @@ fn path_resolution_that_never_opens_does_not_record_a_read() {
     facts.path = Some("Dir.cs".to_owned());
     let envelope = call(&mut session, facts);
     assert_eq!(envelope["ok"], json!(false), "{envelope}");
-    assert_eq!(session.ledger.read_ops, 0, "no open happened");
+    assert_eq!(session.ledger.read_ops, 1, "the attempted open is counted");
 }
 
 #[test]
@@ -1800,5 +1817,26 @@ fn failed_verification_after_partial_reads_keeps_the_reads() {
     assert_eq!(envelope["result"]["verified"], json!(false), "{envelope}");
     let delta_sum: usize = session.ledger.history.iter().map(|c| c.read_ops_delta).sum();
     assert_eq!(delta_sum, session.ledger.read_ops);
+}
+#[test]
+fn a_call_cannot_perform_more_opens_than_it_reserved() {
+    // Reservation is the safety net for admission bugs: if a tool opens more
+    // files than it was admitted for, the call fails and the reads still count.
+    // Here evidence reserves one path and the assembler would open two, so the
+    // guard must trip rather than silently exceeding the budget.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("G")).expect("dir");
+    fs::write(root.join("G/a.cs"), "one\ntwo\n").expect("w");
+    fs::write(root.join("G/b.cs"), "three\nfour\n").expect("w");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![span_request("G/a.cs", 1, 1), span_request("G/b.cs", 1, 1)];
+    let envelope = call(&mut session, evidence);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    // Two distinct paths were requested, so two operations were reserved and
+    // observed: the guard leaves a well-formed call alone.
+    assert_eq!(session.ledger.read_ops, 2);
+    assert!(session.ledger.terminal.is_none(), "no terminal state for a correct call");
 }
 

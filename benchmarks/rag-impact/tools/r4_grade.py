@@ -284,6 +284,9 @@ def analyse_citations(claims: list[dict], spans: list[dict]) -> dict:
     for claim_index, claim in enumerate(claims):
         text = str(claim.get("text", "")).strip()
         citations = claim.get("citations") or []
+        # Annotate each citation with its validity so later checks (required-step
+        # coverage) cannot credit a citation this pass rejected.
+        claim["_validated_citations"] = [None] * len(citations)
         if not citations:
             invalid.append({"claim": claim_index, "reason": "no citation",
                             "text": text[:90]})
@@ -325,8 +328,14 @@ def analyse_citations(claims: list[dict], spans: list[dict]) -> dict:
                 continue
             valid.append({"claim": claim_index, "path": path,
                           "range": [int(start), int(end)]})
+            claim["_validated_citations"][citations.index(citation)] = True
     return {"valid": valid, "invalid": invalid, "claims": len(claims),
             "claims_with_valid_citation": len({e["claim"] for e in valid})}
+
+
+def _validated_for_claim(claim: dict) -> list:
+    """Per-citation validity flags attached during analysis (see analyse_citations)."""
+    return claim.get("_validated_citations") or [None] * len(claim.get("citations") or [])
 
 
 def analyse_steps(steps: list[dict], spans: list[dict], claims: list[dict]) -> dict:
@@ -341,13 +350,16 @@ def analyse_steps(steps: list[dict], spans: list[dict], claims: list[dict]) -> d
             overlaps(span["range"], anchor["range"]) and span["path"] == anchor["path"]
             for anchor in anchors for span in spans
         )
+        # A step counts as cited only when a *valid* citation covers it: an
+        # invalid or unverified citation cannot evidence completeness.
         cited = False
         for claim in claims:
-            for citation in claim.get("citations") or []:
-                if not citation.get("path") or citation.get("start_line") is None:
+            for raw, validated in zip(claim.get("citations") or [],
+                                      _validated_for_claim(claim)):
+                if validated is None:
                     continue
-                c_range = (int(citation["start_line"]), int(citation["end_line"]))
-                if any(citation["path"] == anchor["path"] and overlaps(c_range, anchor["range"])
+                c_range = (int(raw["start_line"]), int(raw["end_line"]))
+                if any(raw["path"] == anchor["path"] and overlaps(c_range, anchor["range"])
                        for anchor in anchors):
                     cited = True
         results.append({"step": step["id"], "status": "ADDRESSABLE",
@@ -471,46 +483,48 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
             + json.dumps(mismatched)
         )
 
-    # Consistency: the verdict must agree with its own claim judgements.
-    unsupported = evaluator.get("unsupported_claims") or []
+    # Consistency: the verdict must agree with its own claim judgements, and
+    # every claim must be judged. A missing judgement list is not "all fine" —
+    # an evaluator that examined nothing has not evaluated the answer.
+    for field_name in ("supported_claims", "unsupported_claims"):
+        if field_name not in evaluator:
+            return invalid(f"semantic evaluation is missing {field_name!r}; every claim "
+                           "must be judged explicitly")
+    unsupported = evaluator.get("unsupported_claims")
     supported = evaluator.get("supported_claims")
+    if not isinstance(unsupported, list) or not isinstance(supported, list):
+        return invalid("supported_claims and unsupported_claims must both be lists")
+
     def bad_index(index) -> bool:
         # bool is an int subclass in Python: `True` must not pass as index 1.
         return (type(index) is not int) or not 0 <= index < len(claims)
 
-    for index in unsupported:
-        if bad_index(index):
-            return invalid(f"unsupported_claims index {index!r} is out of range")
-    if unsupported and len(set(unsupported)) != len(unsupported):
-        return invalid("unsupported_claims lists a claim more than once")
-    if supported is not None:
-        if not isinstance(supported, list):
-            return invalid("supported_claims must be a list of claim indices")
-        for index in supported:
+    for label, values in (("unsupported_claims", unsupported),
+                          ("supported_claims", supported)):
+        for index in values:
             if bad_index(index):
-                return invalid(f"supported_claims index {index!r} is out of range")
-        if len(set(supported)) != len(supported):
-            return invalid("supported_claims lists a claim more than once")
-        overlap = sorted(set(unsupported) & set(supported))
-        if overlap:
-            return invalid(f"claims judged both supported and unsupported: {overlap}")
-        judged = sorted(set(unsupported) | set(supported))
-        if judged != list(range(len(claims))):
-            return invalid(
-                "every claim must be judged exactly once; judged "
-                f"{judged} of {len(claims)}"
-            )
+                return invalid(f"{label} index {index!r} is out of range")
+        if len(set(values)) != len(values):
+            return invalid(f"{label} lists a claim more than once")
+    overlap = sorted(set(unsupported) & set(supported))
+    if overlap:
+        return invalid(f"claims judged both supported and unsupported: {overlap}")
+    judged = sorted(set(unsupported) | set(supported))
+    if judged != list(range(len(claims))):
+        return invalid(
+            "every claim must be judged exactly once; judged "
+            f"{judged} of {len(claims)}"
+        )
     if verdict == "PASS" and unsupported:
         return invalid(
             f"a PASS cannot carry unsupported claims: {sorted(set(unsupported))}"
         )
     if verdict == "FAIL" and not unsupported:
         return invalid("a FAIL must identify at least one unsupported claim")
-    if verdict == "PASS" and supported is not None and len(supported) != len(claims):
-        return invalid("a PASS must have every claim supported")
 
     return {"status": "EVALUATED", "verdict": verdict, "rationale": rationale,
-            "evaluator": identity, "claims_reviewed": len(claims),
+            "evaluator": identity, "claims_reviewed": len(judged),
+            "supported_claims": sorted(set(supported)),
             "unsupported_claims": sorted(set(unsupported)),
             "inputs": expected}
 
@@ -827,12 +841,12 @@ def main() -> int:
         claimed = artifact.get("question") or {}
         formal_eligible = True
         ineligibility = None
-        if claimed.get("formal") is not True:
+        if claimed.get("formal") is not True or claimed.get("source") != "frozen-case":
             formal_eligible = False
             ineligibility = (
-                "artifact declares a non-formal question "
-                f"({claimed.get('source') or 'unknown source'}); a diagnostic run "
-                "cannot be reported as a frozen benchmark result"
+                "artifact does not declare the frozen case question as its source "
+                f"(source={claimed.get('source')!r}, formal={claimed.get('formal')!r}); "
+                "a diagnostic run cannot be reported as a frozen benchmark result"
             )
         elif claimed.get("sha256") != frozen_question_sha:
             formal_eligible = False

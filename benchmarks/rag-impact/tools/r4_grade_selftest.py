@@ -159,8 +159,13 @@ def semantic_file(directory: Path, verdict: str, rationale: str,
     }
     if override_inputs:
         inputs.update(override_inputs)
+    claims = json.loads((answers / f"answer-{CASE}-{PROFILE}.json").read_text())["claims"] \
+        if answers is not None else []
+    index = list(range(len(claims)))
     payload = {"case": CASE, "verdict": verdict, "rationale": rationale,
-               "evaluator_id": evaluator_id, "inputs": inputs}
+               "evaluator_id": evaluator_id, "inputs": inputs,
+               "supported_claims": index if verdict == "PASS" else index[1:],
+               "unsupported_claims": [] if verdict == "PASS" else index[:1]}
     payload.update(extra)
     path = directory / f"semantic-{evaluator_id}-{verdict}-{abs(hash((verdict, rationale, str(inputs))))}.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -565,6 +570,41 @@ def main() -> int:
         code, result = run_grader(case, corpus, semantic=sem)
         check(f"{label} is rejected", result.get("verdict") == "UNGRADABLE",
               json.dumps(result.get("semantic"))[:160])
+
+    # ------- 32. an evaluation that judges nothing cannot pass (review W1 repro)
+    case = work / "unjudged-nothing"
+    write_pack(case, corpus, GOLD)
+    bad_claim = [{"text": "This method silently deletes every employee and has no switch.",
+                  "citations": [citation(GOLD[0], GOLD[1], sha)]}]
+    write_answer(case, bad_claim, "This method silently deletes every employee.")
+    sem = semantic_file(work / "sem", "PASS", "looks fine to me", answers=case,
+                        supported_claims=[], unsupported_claims=[])
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("an evaluation that judges no claim is rejected",
+          result.get("verdict") == "UNGRADABLE"
+          and "exactly once" in (result.get("semantic", {}).get("error") or ""),
+          json.dumps(result.get("semantic"))[:200])
+    # Omitting the judgement fields entirely must behave the same way.
+    unbound = work / "sem" / "no-judgements.json"
+    payload = json.loads(sem.read_text())
+    payload.pop("supported_claims"); payload.pop("unsupported_claims")
+    unbound.write_text(json.dumps(payload))
+    code, result = run_grader(case, corpus, semantic=unbound)
+    check("an evaluation with no judgement fields is rejected",
+          result.get("verdict") == "UNGRADABLE"
+          and "missing" in (result.get("semantic", {}).get("error") or ""),
+          json.dumps(result.get("semantic"))[:200])
+
+    # ---- 33. an invalid citation cannot make a required step look complete
+    case = work / "invalid-citation-step"
+    write_pack(case, corpus, (GOLD[0], GOLD[0] + 1))
+    outside = [{"text": "covers the switch",
+                "citations": [citation(GOLD[1] - 1, GOLD[1], sha)]}]
+    write_answer(case, outside, "the switch is handled")
+    code, result = run_grader(case, corpus)
+    check("C3 does not credit an invalid citation",
+          (result.get("criteria") or {}).get("C3", {}).get("score") == 0,
+          json.dumps((result.get("criteria") or {}).get("C3")))
 
     print()
     if FAILURES:
