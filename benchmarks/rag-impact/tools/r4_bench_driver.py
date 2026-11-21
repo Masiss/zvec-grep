@@ -918,8 +918,9 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
             (output_dir / f"pack-{case}-{profile}.sha256").write_text(
                 hashlib.sha256(pack_raw).hexdigest() + "  " + pack_name + "\n",
                 encoding="utf-8")
+            pack_kind = "workflow" if "selected" in json.loads(pack_raw) else "evidence"
             pack_record = {"sha256": hashlib.sha256(pack_raw).hexdigest(),
-                           "kind": "workflow" if b'"selected"' in pack_raw else "evidence",
+                           "kind": pack_kind,
                            "path": str(output_dir / pack_name)}
         else:
             derived = derive_pack_from_transcript(transcript)
@@ -966,21 +967,47 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
     plan_binding = None
     if plan_identity is not None:
         pack_plan = None
+        pack_executed = None
         packs_dir = Path(controller.session_dir) / "packs"
         for path in sorted(packs_dir.glob("pack-*.json")) if packs_dir.is_dir() else []:
             payload = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(payload.get("plan"), dict):
                 pack_plan = payload["plan"].get("sha256")
+                pack_executed = payload["plan"].get("executed_sha256")
+        # The engine hashes the plan it executed; recompute the same canonical
+        # form from the frozen file so a plan substituted after freezing is
+        # visible instead of being blessed by the file digest alone.
+        executed_expected = None
+        try:
+            frozen_plan = json.loads(Path(plan_identity["path"]).read_text(encoding="utf-8"))
+            normalized = {key: frozen_plan.get(key, []) for key in
+                          ("queries", "terms", "symbols", "scopes")}
+            executed_expected = hashlib.sha256(
+                json.dumps(normalized, sort_keys=True, ensure_ascii=False,
+                           separators=(",", ":")).encode("utf-8")).hexdigest()
+        except (OSError, json.JSONDecodeError):
+            executed_expected = None
         plan_binding = {
             "frozen_plan_sha256": plan_identity["sha256"],
             "plan_file": plan_identity["path"],
             "pack_plan_sha256": pack_plan,
-            "chain_ok": pack_plan is not None and pack_plan == plan_identity["sha256"],
+            "pack_executed_sha256": pack_executed,
+            "executed_expected_sha256": executed_expected,
+            "chain_ok": (pack_plan is not None and pack_plan == plan_identity["sha256"]
+                         and pack_executed is not None
+                         and pack_executed == executed_expected),
         }
-        if pack_plan is not None and not plan_binding["chain_ok"]:
+        if not plan_binding["chain_ok"]:
             violations.append(
-                "plan provenance mismatch: the pack records a different plan digest"
+                "plan provenance mismatch: the workflow pack does not record the plan "
+                "file that was handed to the adapter"
             )
+    elif profile == "arm-b":
+        # Primary arm B without a plan identity is an invalid control, not a
+        # valid no-plan run: say so instead of leaving the field null.
+        violations.append(
+            "arm-b produced no plan identity: this run is not a valid primary control"
+        )
 
     budget = receipt.get("budget", {})
     return {
@@ -1262,9 +1289,10 @@ def main() -> int:
         generated = plan_provenance["sha256_file"]
         report["plan_chain"] = {
             "generated_sha256": generated,
-            "handed_to_adapter_sha256": (plan_identity or {}).get("sha256")
-            if (plan_identity := report.get("plan_identity")) else None,
+            "handed_to_adapter_sha256": (report.get("plan_identity") or {}).get("sha256"),
             "pack_sha256": (chain or {}).get("pack_plan_sha256"),
+            "pack_executed_sha256": (chain or {}).get("pack_executed_sha256"),
+            "executed_expected_sha256": (chain or {}).get("executed_expected_sha256"),
             "ok": bool(
                 (report.get("plan_identity") or {}).get("sha256") == generated
                 and (chain or {}).get("pack_plan_sha256") == generated

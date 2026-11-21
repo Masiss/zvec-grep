@@ -300,7 +300,8 @@ def main() -> int:
 
     claims_in_answer = len(art["claims"])
     good_sem = bounded_semantic(work / "semantics", "PASS", "every claim is supported",
-                                supported_claims=list(range(claims_in_answer)))
+                                supported_claims=list(range(claims_in_answer)),
+                                unsupported_claims=[])
     evaluated = drv.grade(work / "answers-arm-c", LABELS, CASE, "arm-c", corpus=root,
                           materials=MATERIALS, semantic=good_sem, registry=registry)
     check("a bound, registered evaluation is accepted",
@@ -314,7 +315,8 @@ def main() -> int:
     check("an end-to-end contradictory evaluation cannot yield a formal PASS",
           contradictory_result.get("verdict") != "PASS",
           str(contradictory_result.get("verdict")))
-    forged = bounded_semantic(work / "semantics", "PASS", "trust me", supported_claims=[0])
+    forged = bounded_semantic(work / "semantics", "PASS", "trust me",
+                              supported_claims=[0], unsupported_claims=[])
     forged_payload = json.loads(forged.read_text())
     forged_payload["evaluator_id"] = "not-a-registered-evaluator"
     forged.write_text(json.dumps(forged_payload))

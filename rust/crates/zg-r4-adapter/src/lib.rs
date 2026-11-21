@@ -1891,10 +1891,22 @@ impl Session {
         source::enable_symbols(&mut source);
         // Plan provenance is computed BEFORE execution and delivered with the
         // result, so a receipt can prove which plan produced the pack.
+        // Plan identity carries BOTH the digest of the file the caller read and
+        // the digest of the plan actually executed. They must agree; a caller
+        // that hands over a plan differing from the file it claims cannot hide
+        // it, because the executed form is what gets hashed here.
         let plan_identity = input.plan.as_ref().map(|plan| {
+            // Canonical form: serialise through `serde_json::Value`, whose map
+            // is sorted by key, so an external verifier can reproduce this
+            // digest with any JSON library that can sort keys.
+            let canonical = serde_json::to_string(
+                &serde_json::to_value(plan).unwrap_or(Value::Null),
+            )
+            .unwrap_or_default();
             json!({
                 "source": "preregistered-plan",
                 "sha256": input.plan_sha256,
+                "executed_sha256": hex(&Sha256::digest(canonical.as_bytes())),
                 "queries": plan.queries.len(),
                 "symbols": plan.symbols.len(),
                 "scopes": plan.scopes.len(),
