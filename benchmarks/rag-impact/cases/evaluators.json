@@ -5,9 +5,9 @@
  "registration_procedure": [
   "1. The owner names the evaluator (independent model identity or named human), its prompt/instructions and the artifacts it may read.",
   "2. The evaluator must not receive private source beyond the frozen pack the answerer already received, and never gold spans, checklists or grader verdicts.",
-  "3. Its verdict is written as {case, evaluator_id, verdict, rationale, inputs{case,answer_sha256,pack_sha256,question_sha256,rubric_sha256}, supported_claims[], unsupported_claims[]}.",
+  "3. Its verdict is written as {case, evaluator_id, verdict, rationale, inputs{case,answer_sha256,pack_sha256,question_sha256,rubric_sha256}, supported_claims[], unsupported_claims[], omissions[], dimensions{claim_correctness,citation_support,completeness,uncertainty,abstention} each {score:0|1|2, rationale}}. A PASS requires completeness=2, no unsupported claims and no omissions; a FAIL needs an unsupported claim or an omission.",
   "4. Only after the owner approves the identity is it added here with trusted=true and a fingerprint."
  ],
  "fixtures_note": "Synthetic evaluators used by r4_grade_selftest.py are registered in a test-local registry file, never in this production registry.",
- "workflow": "tools/r4_semantic_evaluator.py (packet → response → accept). Proposed, unapproved configurations live in evaluator-candidates.json; see rust/docs/r4-semantic-evaluation-20261121.md."
+ "workflow": "tools/r4_semantic_evaluator.py (packet \u2192 response \u2192 accept). Proposed, unapproved configurations live in evaluator-candidates.json; see rust/docs/r4-semantic-evaluation-20261121.md."
 }

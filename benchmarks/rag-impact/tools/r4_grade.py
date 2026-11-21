@@ -648,7 +648,9 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
                 return invalid("a PASS requires claim_correctness = 2")
             if validated_dimensions["citation_support"]["score"] != 2:
                 return invalid("a PASS requires citation_support = 2")
-            for name in ("completeness", "uncertainty", "abstention"):
+            if validated_dimensions["completeness"]["score"] != 2:
+                return invalid("a PASS requires completeness = 2")
+            for name in ("uncertainty", "abstention"):
                 if validated_dimensions[name]["score"] < 1:
                     return invalid(f"a PASS requires {name} >= 1")
 
@@ -731,10 +733,12 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
             score = 0
         elif semantic["status"] == "EVALUATED":
             unsupported = set(semantic.get("unsupported_claims") or [])
-            if measured_invalid or semantic["verdict"] == "FAIL":
-                # A semantic FAIL is graded by how much of the answer is
-                # unsupported: everything -> 0, some -> 1.
-                score = 0 if len(unsupported) >= len(claims) else 1
+            if measured_invalid or unsupported:
+                # Only claims the evaluator marked unsupported (or a
+                # structurally invalid citation) can lower C2. An omission-only
+                # FAIL means every claim is supported, so citation support is
+                # still complete.
+                score = 0 if unsupported and len(unsupported) >= len(claims) else 1
             elif citations["claims_with_valid_citation"] < len(claims):
                 score = 1
             else:
@@ -856,7 +860,6 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
             "step": step["id"],
             "reason": "no_identifiers" if not step_tokens(step["text"])
             else "outside_gold",
-            "text": step["text"],
         })
 
     # Formal verdict: structural thresholds are necessary, never sufficient.

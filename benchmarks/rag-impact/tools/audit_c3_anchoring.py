@@ -7,10 +7,16 @@ grader's own step locator (`locate_step`) and reports, per step:
 
   * ADDRESSABLE   — at least one backticked identifier was found inside the
     case's frozen gold spans, so C1/C3/C6 can measure it;
-  * NO_IDENTIFIERS — the step has no backticked identifier, so it can never be
-    anchored; the pre-registered policy excludes it rather than guessing.
+  * NO_IDENTIFIERS — the step has no backticked identifier, so the current token
+    locator cannot anchor it. Some of these rows may still be checkable by
+    other deterministic rules (a negative claim by absence, a prose-described
+    anchor), but the frozen policy does not implement those.
   * OUTSIDE_GOLD   — identifiers exist but none occurs inside this case's frozen
     gold spans (a negative claim, a conditional, or evidence outside gold).
+
+The audit also verifies each case's corpus bytes against the per-anchor
+`sha256` in the manifest; a drifted corpus is reported, not silently
+reclassified.
 
 The audit exists to make that exclusion visible: an answer can omit an
 UNADDRESSABLE positive requirement and still reach a structurally perfect
@@ -63,8 +69,19 @@ def main(argv: list[str] | None = None) -> int:
         if not entries or any(not isinstance(e, dict) or "anchor" not in e for e in entries):
             report[case] = {"authored": False, "reason": "no authored gold spans"}
             continue
+        anchor_hashes = {anchor["id"]: anchor.get("sha256")
+                         for anchor in manifest.get("source_anchors", [])}
         gold = [(anchor_paths[e["anchor"]], (int(start), int(end)))
                 for e in entries for start, end in e["spans"]]
+        corpus_mismatch = []
+        for anchor_id in {e["anchor"] for e in entries}:
+            target = args.corpus / anchor_paths[anchor_id]
+            expected = anchor_hashes.get(anchor_id)
+            actual = (grade.sha256_bytes(target.read_bytes())
+                      if target.is_file() else None)
+            if expected is not None and actual != expected:
+                corpus_mismatch.append({"anchor": anchor_id,
+                                        "expected": expected, "actual": actual})
         source_lines = {}
         for path, _span in gold:
             target = args.corpus / path
@@ -94,6 +111,8 @@ def main(argv: list[str] | None = None) -> int:
             step_rows.append(row)
         report[case] = {
             "authored": True,
+            "corpus_verified": not corpus_mismatch,
+            "corpus_mismatch": corpus_mismatch,
             "steps": steps,
             "addressable": sum(1 for step in steps if step["addressable"]),
             "unaddressable": [step["step"] for step in steps if not step["addressable"]],
@@ -107,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
     summary = {
         "cases": len([case for case in report if report[case].get("authored")]),
         "steps": len(measured),
+        "corpus_mismatch_cases": sorted(
+            case for case, entry in report.items() if entry.get("corpus_mismatch")),
         "addressable": sum(1 for row in measured if row["addressable"]),
         "unaddressable": sum(1 for row in measured if not row["addressable"]),
         "no_identifiers": sum(1 for row in measured
@@ -119,9 +140,11 @@ def main(argv: list[str] | None = None) -> int:
                            "no_identifiers": entry.get("no_identifiers", []),
                            "outside_gold": entry.get("outside_gold", [])}
                     for case, entry in report.items()},
-        "policy": ("UNADDRESSABLE steps are excluded from C1/C3/C6 by the frozen "
-                   "measurement policy; the semantic completeness dimension is the "
-                   "control for missing requirements that have no anchor."),
+        "policy": ("Steps the current token locator cannot anchor are excluded from "
+                   "C1/C3/C6 by the frozen measurement policy; the semantic "
+                   "completeness dimension is the control for missing requirements "
+                   "that have no anchor. 'Unaddressable' here means 'not addressable "
+                   "by this locator', not 'unmeasurable in principle'."),
     }
     document = {"schema_version": 1, "kind": "r4-c3-anchoring-audit",
                 "summary": summary, "report": report}

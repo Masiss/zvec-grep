@@ -569,6 +569,12 @@ def main() -> int:
           result.get("verdict") == "FAIL"
           and (result.get("semantic") or {}).get("omissions"),
           json.dumps({k: result.get(k) for k in ("verdict", "semantic")})[:240])
+    check("an omission-only FAIL does not lower C2",
+          (result.get("criteria") or {}).get("C2", {}).get("score") == 2,
+          json.dumps((result.get("criteria") or {}).get("C2"))[:240])
+    check("an omission-only FAIL keeps the structural total at 12",
+          result.get("structural_measured_total") == 12,
+          str(result.get("structural_measured_total")))
 
     no_omission = json.loads(json.dumps(complete_payload))
     no_omission.pop("omissions", None)
@@ -576,6 +582,16 @@ def main() -> int:
     sem.write_text(json.dumps({**no_omission, "case": CASE}), encoding="utf-8")
     code, result = run_grader(case, corpus, semantic=sem)
     check("correct-but-incomplete FAIL without omissions is UNGRADABLE",
+          result.get("verdict") == "UNGRADABLE", str(result.get("verdict")))
+
+    pass_completeness_one = json.loads(json.dumps(base))
+    pass_completeness_one["dimensions"]["completeness"] = {
+        "score": 1, "rationale": "one required part is arguably missing"}
+    sem = work / "sem" / "pass-completeness-one.json"
+    sem.write_text(json.dumps({**pass_completeness_one, "case": CASE}),
+                   encoding="utf-8")
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("a PASS with completeness 1 is UNGRADABLE",
           result.get("verdict") == "UNGRADABLE", str(result.get("verdict")))
 
     pass_with_omission = json.loads(json.dumps(base))

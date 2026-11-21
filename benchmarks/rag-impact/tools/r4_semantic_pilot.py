@@ -276,9 +276,8 @@ def citation(start: int, end: int) -> dict:
 
 
 def run_scenario(name: str, work: Path, world: dict, registry: Path,
-                 claims: list[dict], text: str, expected_semantic: str,
-                 expected_formal: str, with_content: bool = True,
-                 stale: bool = False) -> dict:
+                 claims: list[dict], text: str, expected: dict,
+                 with_content: bool = True, stale: bool = False) -> dict:
     directory = work / "answers" / name
     pack = write_pack(directory, world["corpus"], with_content=with_content,
                       stale=stale)
@@ -311,26 +310,40 @@ def run_scenario(name: str, work: Path, world: dict, registry: Path,
         directory, world["labels"], CASE, PROFILE, corpus=world["corpus"],
         materials=world["labels"] / "cases" / "c3-steps.json",
         semantic=contrived_pass(packet, work, name), registry=registry)
+    observed = {
+        "semantic": observed_semantic,
+        "unsupported": document and document["unsupported_claims"],
+        "omissions": document and document["omissions"],
+        "formal": grading.get("verdict"),
+        "structural_measured_total": grading.get("structural_measured_total"),
+        "contrived": contrived.get("verdict"),
+        "stale_spans": sum(1 for span in packet["cited_spans"]
+                           if span.get("stale_source")),
+        "spans_with_content": sum(1 for span in packet["cited_spans"]
+                                  if span.get("content") is not None),
+    }
+    # Assert the distinguishing evidence, not only the verdict: verdicts alone
+    # cannot tell a correct-but-incomplete answer from a wrong one.
+    checks = {}
+    for key, want in expected.items():
+        got = observed.get(key)
+        checks[key] = (got == want)
     return {
         "scenario": name,
-        "expected_semantic": expected_semantic,
-        "observed_semantic": observed_semantic,
-        "expected_formal": expected_formal,
-        "observed_formal": grading.get("verdict"),
-        "structural_measured_total": grading.get("structural_measured_total"),
+        "expected": expected,
+        "observed": observed,
+        "checks": checks,
         "criteria": {key: value.get("score") for key, value
                      in (grading.get("criteria") or {}).items()},
         "semantic": {
-            "verdict": document and document["verdict"],
-            "unsupported": document and document["unsupported_claims"],
-            "omissions": document and document["omissions"],
+            "verdict": observed["semantic"],
+            "unsupported": observed["unsupported"],
+            "omissions": observed["omissions"],
             "dimensions": document and {k: v["score"] for k, v
                                         in document["dimensions"].items()},
         },
-        "formal_with_contrived_pass": contrived.get("verdict"),
         "refusal": rejected,
-        "ok": observed_semantic == expected_semantic
-              and grading.get("verdict") == expected_formal,
+        "ok": all(checks.values()),
     }
 
 
@@ -366,17 +379,31 @@ def main(argv: list[str] | None = None) -> int:
     rows = [
         run_scenario("complete", work, world, registry, complete_claims,
                      "Rename assigns Name; Save ends with SaveChanges.",
-                     "PASS", "PASS"),
+                     {"semantic": "PASS", "unsupported": [], "omissions": [],
+                      "formal": "PASS", "structural_measured_total": 12,
+                      "contrived": "PASS", "stale_spans": 0,
+                      "spans_with_content": 2}),
         run_scenario("incomplete", work, world, registry, incomplete_claims,
                      "Rename assigns the incoming value; Save ends with SaveChanges.",
-                     "FAIL", "FAIL"),
+                     {"semantic": "FAIL", "unsupported": [], "omissions": ["Name"],
+                      "formal": "FAIL", "structural_measured_total": 12,
+                      "contrived": "PASS", "stale_spans": 0}),
         run_scenario("wrong", work, world, registry, wrong_claims,
-                     "Rename deletes the widget.", "FAIL", "FAIL"),
+                     "Rename deletes the widget.",
+                     {"semantic": "FAIL", "unsupported": [0],
+                      "omissions": ["Name", "SaveChanges"],
+                      "formal": "FAIL", "contrived": "PARTIAL"}),
         run_scenario("wrong-citation", work, world, registry, wrong_citation_claims,
-                     "SaveChanges is called by Save.", "FAIL", "FAIL"),
+                     "SaveChanges is called by Save.",
+                     {"semantic": "FAIL", "unsupported": [0],
+                      "omissions": ["Rename", "Name"],
+                      "formal": "FAIL", "contrived": "PARTIAL"}),
         run_scenario("stale", work, world, registry, complete_claims,
                      "Rename assigns Name; Save ends with SaveChanges.",
-                     "FAIL", "FAIL", with_content=False, stale=True),
+                     {"semantic": "FAIL", "unsupported": [0, 1], "omissions": [],
+                      "formal": "FAIL", "contrived": "PASS",
+                      "stale_spans": 2, "spans_with_content": 0},
+                     with_content=False, stale=True),
     ]
 
     summary = {
@@ -384,19 +411,23 @@ def main(argv: list[str] | None = None) -> int:
         "as_expected": sum(1 for row in rows if row["ok"]),
         "all_as_expected": all(row["ok"] for row in rows),
         "semantic_distinguishes": {
-            "complete": next(row["observed_semantic"] for row in rows
+            "complete": next(row["observed"]["semantic"] for row in rows
                              if row["scenario"] == "complete"),
-            "incomplete": next(row["observed_semantic"] for row in rows
+            "incomplete": next(row["observed"]["semantic"] for row in rows
                                if row["scenario"] == "incomplete"),
-            "wrong": next(row["observed_semantic"] for row in rows
+            "wrong": next(row["observed"]["semantic"] for row in rows
                           if row["scenario"] == "wrong"),
-            "wrong-citation": next(row["observed_semantic"] for row in rows
+            "wrong-citation": next(row["observed"]["semantic"] for row in rows
                                    if row["scenario"] == "wrong-citation"),
-            "stale": next(row["observed_semantic"] for row in rows
+            "stale": next(row["observed"]["semantic"] for row in rows
                           if row["scenario"] == "stale"),
         },
+        "incomplete_has_omissions_without_unsupported": next(
+            row["observed"]["omissions"] == ["Name"]
+            and row["observed"]["unsupported"] == [] for row in rows
+            if row["scenario"] == "incomplete"),
         "structural_only_would_accept_incomplete": next(
-            row["formal_with_contrived_pass"] for row in rows
+            row["observed"]["contrived"] for row in rows
             if row["scenario"] == "incomplete") == "PASS",
         "evaluator": EVALUATOR_ID,
         "evaluator_kind": "scripted pilot judge (not a production evaluator)",
@@ -404,10 +435,9 @@ def main(argv: list[str] | None = None) -> int:
     write_json(work / "receipts" / "pilot-summary.json",
                {"summary": summary, "rows": rows})
     print(json.dumps({"summary": summary,
-                      "rows": [{key: row[key] for key in
-                                ("scenario", "observed_semantic", "observed_formal",
-                                 "structural_measured_total", "formal_with_contrived_pass")}
-                               for row in rows]}, indent=1))
+                      "rows": [{"scenario": row["scenario"],
+                                "observed": row["observed"],
+                                "ok": row["ok"]} for row in rows]}, indent=1))
     return 0 if summary["all_as_expected"] else 1
 
 

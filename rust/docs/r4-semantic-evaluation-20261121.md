@@ -107,7 +107,7 @@ evaluated and the structural layer governs (review W3).
 
 **Consistency enforced in both places (review W2)**: `PASS` cannot carry an
 unsupported claim, requires `claim_correctness = 2`, `citation_support = 2`, and
-`completeness/uncertainty/abstention ≥ 1`; `FAIL` must mark at least one claim
+`completeness = 2` and `uncertainty/abstention ≥ 1`; `FAIL` must mark at least one claim
 unsupported. The grader independently re-checks the claim lists **and the five
 dimension scores** (mandatory on PASS), so bypassing `accept` cannot produce a
 PASS that `accept` would have refused. A PASS without dimensions, or with a
@@ -207,15 +207,14 @@ Exact registration shape (the tool never writes this file; the owner does):
     "model": "<exact model/version>",
     "served_identity": "<provider-returned snapshot or human name>",
     "endpoint": "<or null for a human>",
-    "instructions_sha256": "4ce060dc2bc189051e2d03489cbee92d6c93a7a841b2c5ee952a23ed7ce8958c",
-    "packet_policy_sha256": "573c68907360d1a48684bd3bd996b578f96d0122d0e97c4b7a552751b06ab585",
+    "instructions_sha256": "4e9e20413c8ae2172844298ed743ab24c5fb79c0a36defeb957bee0c4f28cd55",
     "fingerprint": "<owner-recorded digest of the approval note>"
   }
 }}
 ```
 
 `instructions_sha256` is the digest of the packet instructions
-(`r4_semantic_evaluator.INSTRUCTIONS`, 2,969 bytes), and every packet records
+(`r4_semantic_evaluator.INSTRUCTIONS`, 2,974 bytes), and every packet records
 it; an evaluator that changes its prompt must be re-approved and re-registered.
 
 Privacy: the remote candidate is exactly the egress the frozen benchmark was
@@ -301,7 +300,7 @@ pinned by a fixture; the second pass re-checked the corrected bundle.
 | Finding | Severity | Resolution |
 |---|---|---|
 | W1 the evaluator's evidence boundary was chosen by the answer; the structural gate accepted a citation that only *overlapped* a pack item, so widening the end line could hide an unsupported claim | P0 | the packet shows only the intersection with a delivered pack item and never reads outside it (`in_pack=false`); the grader uses `contains`, not `overlaps`, and an invalid citation scores C2 = 0 without an evaluator; two new fixtures (wider-than-pack at packet and grader level) |
-| W2 dimension floors lived only in `accept`, so a dimension-less evaluation could still be a formal PASS | P1 | the grader now requires the five dimensions on PASS, validates integer 0–2 scores, and enforces `claim_correctness = 2`, `citation_support = 2`, `completeness/uncertainty/abstention ≥ 1`; two new grader fixtures |
+| W2 dimension floors lived only in `accept`, so a dimension-less evaluation could still be a formal PASS | P1 | the grader now requires the five dimensions on PASS, validates integer 0–2 scores, and enforces `claim_correctness = 2`, `citation_support = 2`, `completeness = 2` and `uncertainty/abstention ≥ 1`; two new grader fixtures |
 | W3 claim-free answers had no coherent grade; the prompt asked for a verdict the grader discards | P1 | claim-free answers are refused by `accept` (structural verdict governs) and a PASS with zero claims is `INVALID` in the grader; abstention fixture added; the prompt says so |
 | W4 the 36-run arm half could not be verified from the bundle | P1 | the bundle now carries `r4_bench_driver.py`, its selftest, `receipts/arms.json` (per-run digests, verdicts, plan chain, ledger reconciliation) and `e2e-summary.json`; packets/answers/session receipts stay out because they contain private source |
 | W5 the packet digest was described as tamper-proofing | P2 | `verify_packet` checks `instructions_sha256`; the doc calls the digest an integrity checksum, not authentication |

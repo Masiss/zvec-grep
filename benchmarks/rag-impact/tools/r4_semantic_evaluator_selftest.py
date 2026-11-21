@@ -202,6 +202,10 @@ def main() -> int:
          response(packet, "FAIL", ["supported"], omissions=["x", "x"], completeness=0)),
         ("completeness 2 with omissions",
          response(packet, "FAIL", ["supported"], omissions=["x"], completeness=2)),
+        ("PASS with completeness 1",
+         response(packet, "PASS", ["supported"], completeness=1)),
+        ("PASS with completeness 1 and an omission",
+         response(packet, "PASS", ["supported"], omissions=["x"], completeness=1)),
     ]:
         rejected(f"SE-01 invalid shape: {label}", payload)
 
@@ -433,6 +437,56 @@ def main() -> int:
             check("forged non-stale packet refused", True)
     finally:
         (corpus / "src" / "Widget.cs").write_text(frozen_source)
+
+    # SE-02b: a pack item with neither content nor a frozen hash. There is
+    # nothing to verify against, so no source text may enter the packet.
+    nohash = work / "no-hash"
+    shutil.copytree(answers, nohash)
+    pack_path = nohash / f"pack-{CASE}-{PROFILE}.json"
+    pack_doc = json.loads(pack_path.read_text())
+    pack_doc["items"][0].pop("content", None)
+    pack_doc["items"][0].pop("sha256", None)
+    raw_pack = json.dumps(pack_doc, indent=1)
+    pack_path.write_text(raw_pack)
+    (nohash / f"pack-{CASE}-{PROFILE}.sha256").write_text(
+        hashlib.sha256(raw_pack.encode()).hexdigest()
+        + f"  pack-{CASE}-{PROFILE}.json\n")
+    artifact = json.loads((nohash / f"answer-{CASE}-{PROFILE}.json").read_text())
+    artifact["pack"]["sha256"] = hashlib.sha256(raw_pack.encode()).hexdigest()
+    raw = json.dumps(artifact, indent=1)
+    (nohash / f"answer-{CASE}-{PROFILE}.json").write_text(raw)
+    (nohash / f"answer-{CASE}-{PROFILE}.sha256").write_text(
+        hashlib.sha256(raw.encode()).hexdigest()
+        + f"  answer-{CASE}-{PROFILE}.json\n")
+    packet_nohash = se.build_packet(nohash, labels, corpus, CASE, PROFILE,
+                                    "eval-fixture")
+    span_nohash = packet_nohash["cited_spans"][0]
+    check("unverifiable source (no frozen hash) is withheld",
+          span_nohash["resolved"] is False and span_nohash["content"] is None
+          and span_nohash["unverifiable_source"] is True)
+    write_json(work / "nohash-packet.json", packet_nohash)
+    write_json(work / "nohash-response.json",
+               response(packet_nohash, "FAIL", ["unsupported"], completeness=1))
+    document = se.accept(work / "nohash-packet.json", work / "nohash-response.json",
+                         work / "nohash-eval.json", corpus=corpus)
+    check("unverifiable evidence yields a valid semantic FAIL",
+          document["verdict"] == "FAIL" and document["unsupported_claims"] == [0])
+    forged = json.loads(json.dumps(packet_nohash))
+    forged["cited_spans"][0].update({"resolved": True, "unverifiable_source": False,
+                                     "content": "fabricated"})
+    body = {key: value for key, value in forged.items() if key != "packet_sha256"}
+    forged["packet_sha256"] = hashlib.sha256(
+        se.canonical_json(body).encode("utf-8")).hexdigest()
+    write_json(work / "forged-nohash-packet.json", forged)
+    write_json(work / "forged-nohash-response.json",
+               response(forged, "FAIL", ["unsupported"], completeness=1))
+    try:
+        se.accept(work / "forged-nohash-packet.json",
+                  work / "forged-nohash-response.json",
+                  work / "forged-nohash-eval.json", corpus=corpus)
+        check("fabricated unverifiable evidence refused", False)
+    except se.EvaluatorError:
+        check("fabricated unverifiable evidence refused", True)
 
     # P1-2 exploit: rewrite the text the evaluator "read", recompute the packet
     # digest, and bind a PASS response to it. accept must rebuild the span from

@@ -87,8 +87,8 @@ Then score five dimensions from 0 to 2 (2 best):
                      than invented?
 
 Verdict rules: `PASS` only if every claim is supported, no required information
-is missing, claim_correctness is 2, citation_support is 2, and uncertainty,
-abstention and completeness are at least 1.
+is missing, claim_correctness is 2, citation_support is 2, completeness is 2,
+and uncertainty and abstention are at least 1.
 
 `FAIL` is also valid when every claim is true but the answer is incomplete: in
 that case list the missing required parts in `omissions` and set
@@ -281,7 +281,8 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
                 "pack_verified": bool(outer and outer["verified"]),
                 "pack_sha256": outer["sha256"] if outer else None,
                 "resolved": False, "content": None, "source_sha256": None,
-                "stale_source": False, "hash_ok": False}
+                "stale_source": False, "unverifiable_source": False,
+                "hash_ok": False}
         if outer is None:
             base["reason"] = "citation is not contained in a delivered pack span"
             return base
@@ -303,9 +304,15 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
             # The pack item stores no content, so the text has to come from the
             # corpus — but only if the corpus still matches the frozen hash.
             # A stale read is withheld: the evaluator must judge frozen
-            # evidence, never whatever the file says now.
-            if (read["source_sha256"] is not None
-                    and outer["sha256"] is not None
+            # evidence, never whatever the file says now. With no frozen hash
+            # there is nothing to verify against, so the text is withheld too.
+            if outer["sha256"] is None:
+                base.update({"resolved": False, "content": None,
+                             "source_sha256": read["source_sha256"],
+                             "unverifiable_source": True,
+                             "reason": "pack item carries no frozen hash; source "
+                                       "text cannot be verified and is withheld"})
+            elif (read["source_sha256"] is not None
                     and read["source_sha256"] != outer["sha256"]):
                 base.update({"resolved": False, "content": None,
                              "source_sha256": read["source_sha256"],
@@ -547,13 +554,13 @@ def validate_response(packet: dict, response: dict) -> dict:
             raise EvaluatorError(f"PASS cannot carry unsupported claims: {unsupported}")
         if omissions:
             raise EvaluatorError("PASS cannot carry omissions")
-        if dimensions["completeness"]["score"] < 1:
-            raise EvaluatorError("a PASS requires completeness >= 1")
+        if dimensions["completeness"]["score"] != 2:
+            raise EvaluatorError("a PASS requires completeness = 2")
         if dimensions["claim_correctness"]["score"] != 2:
             raise EvaluatorError("PASS requires claim_correctness = 2")
         if dimensions["citation_support"]["score"] != 2:
             raise EvaluatorError("PASS requires citation_support = 2")
-        for name in ("completeness", "uncertainty", "abstention"):
+        for name in ("uncertainty", "abstention"):
             if dimensions[name]["score"] < 1:
                 raise EvaluatorError(f"PASS requires {name} >= 1")
     else:
@@ -624,8 +631,16 @@ def _verify_cited_evidence(packet: dict, corpus: Path | None) -> None:
                         "pack item has no stored content; pass --corpus so the cited "
                         "span text can be re-derived and checked")
                 read = _resolve_cited_span(corpus, key[0], key[1], key[2])
-                if (item.get("sha256") is not None
-                        and read["source_sha256"] != item["sha256"]):
+                if item.get("sha256") is None:
+                    # No frozen hash: the packet must not carry text it cannot
+                    # prove was delivered.
+                    if (span.get("content") is not None
+                            or span.get("unverifiable_source") is not True):
+                        raise EvaluatorError(
+                            f"pack item for {key} has no frozen hash and the packet "
+                            "does not mark the span unverifiable")
+                    continue
+                if read["source_sha256"] != item["sha256"]:
                     # The frozen source no longer matches. The packet must carry
                     # no stale text; the evaluator grades the absence, not the
                     # new file content.
