@@ -86,9 +86,16 @@ Then score five dimensions from 0 to 2 (2 best):
   abstention         are missing, stale or out-of-scope parts declared rather
                      than invented?
 
-Verdict rules: `PASS` only if every claim is supported and claim_correctness
-is 2, citation_support is 2, and uncertainty, abstention and completeness are
-at least 1. Otherwise `FAIL`, and at least one claim must be `unsupported`.
+Verdict rules: `PASS` only if every claim is supported, no required information
+is missing, claim_correctness is 2, citation_support is 2, and uncertainty,
+abstention and completeness are at least 1.
+
+`FAIL` is also valid when every claim is true but the answer is incomplete: in
+that case list the missing required parts in `omissions` and set
+completeness to 0. Do not invent an unsupported claim to express incompleteness.
+A `FAIL` needs at least one unsupported claim or at least one omission.
+`completeness = 0` requires at least one omission; `PASS` requires none.
+
 An answer that asserts no claims is not a valid benchmark answer: the
 structural layer fails it, and this workflow refuses to produce a formal
 evaluation for it.
@@ -99,20 +106,24 @@ Output exactly one JSON object, no prose, with exactly these keys:
  "rationale": "<why, non-empty>",
  "claims": [{"index": <int>, "judgement": "supported"|"unsupported",
              "reason": "<non-empty>"}, ...],
+ "omissions": ["<required part the answer is missing>", ...],
  "dimensions": {"claim_correctness": {"score": 0|1|2, "rationale": "..."},
                 "citation_support": {...}, "completeness": {...},
                 "uncertainty": {...}, "abstention": {...}}}
-Every claim index must appear exactly once. Do not add keys.
+Every claim index must appear exactly once. `omissions` may be empty; do not
+omit the key. Do not add keys.
 """
 
 OUTPUT_SCHEMA = {
     "type": "object",
-    "required": ["packet_sha256", "verdict", "rationale", "claims", "dimensions"],
+    "required": ["packet_sha256", "verdict", "rationale", "claims",
+                 "omissions", "dimensions"],
     "additionalProperties": False,
     "properties": {
         "packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "verdict": {"enum": ["PASS", "FAIL"]},
         "rationale": {"type": "string", "minLength": 1},
+        "omissions": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "claims": {
             "type": "array",
             "items": {
@@ -270,7 +281,7 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
                 "pack_verified": bool(outer and outer["verified"]),
                 "pack_sha256": outer["sha256"] if outer else None,
                 "resolved": False, "content": None, "source_sha256": None,
-                "hash_ok": False}
+                "stale_source": False, "hash_ok": False}
         if outer is None:
             base["reason"] = "citation is not contained in a delivered pack span"
             return base
@@ -289,8 +300,20 @@ def build_packet(answers: Path, labels: Path, corpus: Path, case: str,
             except (OSError, ValueError) as error:
                 raise EvaluatorError(
                     f"cited span could not be read ({path!r}): {error}") from error
-            base.update({"resolved": read["resolved"], "content": read["content"],
-                         "source_sha256": read["source_sha256"]})
+            # The pack item stores no content, so the text has to come from the
+            # corpus — but only if the corpus still matches the frozen hash.
+            # A stale read is withheld: the evaluator must judge frozen
+            # evidence, never whatever the file says now.
+            if (read["source_sha256"] is not None
+                    and outer["sha256"] is not None
+                    and read["source_sha256"] != outer["sha256"]):
+                base.update({"resolved": False, "content": None,
+                             "source_sha256": read["source_sha256"],
+                             "stale_source": True,
+                             "reason": "source changed since freeze; stale text withheld"})
+            else:
+                base.update({"resolved": read["resolved"], "content": read["content"],
+                             "source_sha256": read["source_sha256"]})
         base["hash_ok"] = (
             base["resolved"]
             and isinstance(citation.get("sha256"), str)
@@ -454,7 +477,7 @@ def validate_response(packet: dict, response: dict) -> dict:
     verify_packet(packet)
     response = _require_object(response, "evaluator response",
                                {"packet_sha256", "verdict", "rationale",
-                                "claims", "dimensions"})
+                                "claims", "omissions", "dimensions"})
     identity = packet["evaluator"]["id"]
     inputs = dict(packet["inputs"])
     claims = packet["answer"].get("claims") or []
@@ -502,6 +525,15 @@ def validate_response(packet: dict, response: dict) -> dict:
             "rationale": _require_text(dim["rationale"], f"dimensions.{name}.rationale"),
         }
 
+    raw_omissions = response.get("omissions")
+    if not isinstance(raw_omissions, list):
+        raise EvaluatorError("omissions must be a list (possibly empty)")
+    omissions = []
+    for position, omission in enumerate(raw_omissions):
+        omissions.append(_require_text(omission, f"omissions[{position}]"))
+    if len(set(omissions)) != len(omissions):
+        raise EvaluatorError("omissions lists the same missing part more than once")
+
     supported = sorted(i for i, entry in judged.items() if entry["judgement"] == "supported")
     unsupported = sorted(i for i, entry in judged.items() if entry["judgement"] == "unsupported")
     verdict = response["verdict"]
@@ -513,6 +545,10 @@ def validate_response(packet: dict, response: dict) -> dict:
     if verdict == "PASS":
         if unsupported:
             raise EvaluatorError(f"PASS cannot carry unsupported claims: {unsupported}")
+        if omissions:
+            raise EvaluatorError("PASS cannot carry omissions")
+        if dimensions["completeness"]["score"] < 1:
+            raise EvaluatorError("a PASS requires completeness >= 1")
         if dimensions["claim_correctness"]["score"] != 2:
             raise EvaluatorError("PASS requires claim_correctness = 2")
         if dimensions["citation_support"]["score"] != 2:
@@ -521,8 +557,15 @@ def validate_response(packet: dict, response: dict) -> dict:
             if dimensions[name]["score"] < 1:
                 raise EvaluatorError(f"PASS requires {name} >= 1")
     else:
-        if not unsupported:
-            raise EvaluatorError("FAIL must mark at least one claim unsupported")
+        # A correct but incomplete answer is a legitimate FAIL: it must name
+        # the missing parts instead of inventing an unsupported claim.
+        if not unsupported and not omissions:
+            raise EvaluatorError(
+                "FAIL must mark at least one claim unsupported or name an omission")
+    if dimensions["completeness"]["score"] == 0 and not omissions:
+        raise EvaluatorError("completeness = 0 requires at least one omission")
+    if dimensions["completeness"]["score"] == 2 and omissions:
+        raise EvaluatorError("completeness = 2 cannot carry omissions")
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -533,6 +576,7 @@ def validate_response(packet: dict, response: dict) -> dict:
         "inputs": inputs,
         "supported_claims": supported,
         "unsupported_claims": unsupported,
+        "omissions": omissions,
         "claim_assessments": [judged[i] for i in sorted(judged)],
         "dimensions": dimensions,
         "packet_sha256": packet["packet_sha256"],
@@ -579,7 +623,19 @@ def _verify_cited_evidence(packet: dict, corpus: Path | None) -> None:
                     raise EvaluatorError(
                         "pack item has no stored content; pass --corpus so the cited "
                         "span text can be re-derived and checked")
-                recomputed = _resolve_cited_span(corpus, key[0], key[1], key[2])["content"]
+                read = _resolve_cited_span(corpus, key[0], key[1], key[2])
+                if (item.get("sha256") is not None
+                        and read["source_sha256"] != item["sha256"]):
+                    # The frozen source no longer matches. The packet must carry
+                    # no stale text; the evaluator grades the absence, not the
+                    # new file content.
+                    if (span.get("content") is not None
+                            or span.get("stale_source") is not True):
+                        raise EvaluatorError(
+                            f"source for {key} changed since freeze and the packet "
+                            "does not mark the span stale")
+                    continue
+                recomputed = read["content"]
             if span.get("content") != recomputed:
                 raise EvaluatorError(
                     f"cited span {key} content does not match the delivered evidence")

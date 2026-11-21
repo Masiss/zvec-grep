@@ -92,11 +92,13 @@ def build_world(root: Path) -> tuple[Path, Path, Path]:
     return corpus, labels, answers
 
 
-def response(packet: dict, verdict: str, judgements: list[str], **dims) -> dict:
+def response(packet: dict, verdict: str, judgements: list[str],
+             omissions: list[str] | None = None, **dims) -> dict:
     dimensions = {name: {"score": dims.get(name, 2 if verdict == "PASS" else 0),
                          "rationale": "fixture"} for name in se.DIMENSIONS}
     return {"packet_sha256": packet["packet_sha256"],
             "verdict": verdict, "rationale": "fixture rationale",
+            "omissions": omissions or [],
             "claims": [{"index": i, "judgement": j, "reason": "fixture reason"}
                        for i, j in enumerate(judgements)],
             "dimensions": dimensions}
@@ -176,6 +178,34 @@ def main() -> int:
     rejected("out-of-range claim index rejected", bad)
     rejected("PASS with an unsupported claim rejected",
              response(packet, "PASS", ["unsupported"]))
+    # SE-01: all claims true but required information missing. This must be a
+    # valid FAIL that names the omissions, not an invented unsupported claim.
+    incomplete = response(packet, "FAIL", ["supported"],
+                          omissions=["the second requested part is absent"],
+                          completeness=0)
+    accepted = se.validate_response(packet, incomplete)
+    check("correct-but-incomplete FAIL is accepted",
+          accepted["verdict"] == "FAIL" and accepted["omissions"]
+          and not accepted["unsupported_claims"]
+          and accepted["dimensions"]["completeness"]["score"] == 0)
+    for label, payload in [
+        ("completeness 0 without omissions",
+         response(packet, "FAIL", ["supported"], completeness=0)),
+        ("PASS carrying omissions",
+         response(packet, "PASS", ["supported"], omissions=["missing piece"])),
+        ("omissions of the wrong type",
+         {**response(packet, "FAIL", ["supported"], completeness=0),
+          "omissions": "a string"}),
+        ("empty omission string",
+         response(packet, "FAIL", ["supported"], omissions=["  "], completeness=0)),
+        ("duplicate omissions",
+         response(packet, "FAIL", ["supported"], omissions=["x", "x"], completeness=0)),
+        ("completeness 2 with omissions",
+         response(packet, "FAIL", ["supported"], omissions=["x"], completeness=2)),
+    ]:
+        rejected(f"SE-01 invalid shape: {label}", payload)
+
+
     rejected("FAIL without an unsupported claim rejected",
              response(packet, "FAIL", ["supported"]))
     rejected("PASS with citation_support 1 rejected",
@@ -346,6 +376,63 @@ def main() -> int:
         check("identity override refused", False)
     except se.EvaluatorError:
         check("identity override refused", True)
+
+    # SE-02: a workflow-shaped pack (item without content) whose frozen source
+    # has since changed. The packet must withhold the stale text, and accept
+    # must grade the absence rather than the new file content.
+    stale = work / "stale-source"
+    shutil.copytree(answers, stale)
+    pack_path = stale / f"pack-{CASE}-{PROFILE}.json"
+    pack_doc = json.loads(pack_path.read_text())
+    pack_doc["items"][0].pop("content")
+    raw_pack = json.dumps(pack_doc, indent=1)
+    pack_path.write_text(raw_pack)
+    (stale / f"pack-{CASE}-{PROFILE}.sha256").write_text(
+        hashlib.sha256(raw_pack.encode()).hexdigest()
+        + f"  pack-{CASE}-{PROFILE}.json\n")
+    artifact = json.loads((stale / f"answer-{CASE}-{PROFILE}.json").read_text())
+    artifact["pack"]["sha256"] = hashlib.sha256(raw_pack.encode()).hexdigest()
+    raw = json.dumps(artifact, indent=1)
+    (stale / f"answer-{CASE}-{PROFILE}.json").write_text(raw)
+    (stale / f"answer-{CASE}-{PROFILE}.sha256").write_text(
+        hashlib.sha256(raw.encode()).hexdigest()
+        + f"  answer-{CASE}-{PROFILE}.json\n")
+    frozen_source = (corpus / "src" / "Widget.cs").read_text()
+    (corpus / "src" / "Widget.cs").write_text(frozen_source + "\n// changed\n")
+    try:
+        packet_stale = se.build_packet(stale, labels, corpus, CASE, PROFILE,
+                                       "eval-fixture")
+        span = packet_stale["cited_spans"][0]
+        check("stale source text is withheld from the packet",
+              span["resolved"] is False and span["content"] is None
+              and span["stale_source"] is True and span["hash_ok"] is False)
+        write_json(work / "stale-packet.json", packet_stale)
+        write_json(work / "stale-response.json",
+                   response(packet_stale, "FAIL", ["unsupported"],
+                            completeness=1))
+        document = se.accept(work / "stale-packet.json", work / "stale-response.json",
+                             work / "stale-eval.json", corpus=corpus)
+        check("stale evidence yields a valid semantic FAIL",
+              document["verdict"] == "FAIL" and document["unsupported_claims"] == [0])
+        # A packet that pretends the stale text is current must be refused.
+        forged = json.loads(json.dumps(packet_stale))
+        forged["cited_spans"][0].update({"resolved": True, "stale_source": False,
+                                         "content": frozen_source})
+        body = {key: value for key, value in forged.items() if key != "packet_sha256"}
+        forged["packet_sha256"] = hashlib.sha256(
+            se.canonical_json(body).encode("utf-8")).hexdigest()
+        write_json(work / "forged-stale-packet.json", forged)
+        write_json(work / "forged-stale-response.json",
+                   response(forged, "FAIL", ["unsupported"], completeness=1))
+        try:
+            se.accept(work / "forged-stale-packet.json",
+                      work / "forged-stale-response.json",
+                      work / "forged-stale-eval.json", corpus=corpus)
+            check("forged non-stale packet refused", False)
+        except se.EvaluatorError:
+            check("forged non-stale packet refused", True)
+    finally:
+        (corpus / "src" / "Widget.cs").write_text(frozen_source)
 
     # P1-2 exploit: rewrite the text the evaluator "read", recompute the packet
     # digest, and bind a PASS response to it. accept must rebuild the span from

@@ -207,15 +207,15 @@ Exact registration shape (the tool never writes this file; the owner does):
     "model": "<exact model/version>",
     "served_identity": "<provider-returned snapshot or human name>",
     "endpoint": "<or null for a human>",
-    "instructions_sha256": "b103f3e0befebc2529bbe99d2983d2da53bc6759dcdb018a777b85a61e323370",
-    "packet_policy_sha256": "9f87c24c1eea4d95f244136da4e2d80ad20894ae5e5f3960d95561f76aea9b4d",
+    "instructions_sha256": "4ce060dc2bc189051e2d03489cbee92d6c93a7a841b2c5ee952a23ed7ce8958c",
+    "packet_policy_sha256": "573c68907360d1a48684bd3bd996b578f96d0122d0e97c4b7a552751b06ab585",
     "fingerprint": "<owner-recorded digest of the approval note>"
   }
 }}
 ```
 
 `instructions_sha256` is the digest of the packet instructions
-(`r4_semantic_evaluator.INSTRUCTIONS`, 2,418 bytes), and every packet records
+(`r4_semantic_evaluator.INSTRUCTIONS`, 2,969 bytes), and every packet records
 it; an evaluator that changes its prompt must be re-approved and re-registered.
 
 Privacy: the remote candidate is exactly the egress the frozen benchmark was

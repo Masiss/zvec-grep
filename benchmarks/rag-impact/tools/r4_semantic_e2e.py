@@ -227,6 +227,7 @@ def loopback_response(packet: dict) -> dict:
     return {
         "packet_sha256": packet["packet_sha256"],
         "verdict": verdict,
+        "omissions": [],
         "rationale": rationale,
         "claims": claims,
         "dimensions": {
@@ -258,6 +259,7 @@ def contrived_pass_evaluation(packet: dict, work: Path, tag: str) -> Path:
         "rationale": "contrived counterfactual: every claim declared supported",
         "claims": [{"index": c["index"], "judgement": "supported",
                     "reason": "contrived"} for c in claims],
+        "omissions": [],
         "dimensions": {name: {"score": 2, "rationale": "contrived"}
                        for name in se.DIMENSIONS},
     }

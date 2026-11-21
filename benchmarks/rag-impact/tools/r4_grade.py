@@ -588,8 +588,27 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
         return invalid(
             f"a PASS cannot carry unsupported claims: {sorted(set(unsupported))}"
         )
-    if verdict == "FAIL" and not unsupported:
-        return invalid("a FAIL must identify at least one unsupported claim")
+    # A correct but incomplete answer is a legitimate FAIL: it names the
+    # missing required parts instead of inventing an unsupported claim. The
+    # omission list is the only other admissible basis for FAIL.
+    raw_omissions = evaluator.get("omissions")
+    if raw_omissions is None:
+        omissions = []
+    elif not isinstance(raw_omissions, list):
+        return invalid("omissions must be a list when present")
+    else:
+        omissions = []
+        for omission in raw_omissions:
+            if not isinstance(omission, str) or not omission.strip():
+                return invalid("every omission must be a non-empty string")
+            omissions.append(omission.strip())
+        if len(set(omissions)) != len(omissions):
+            return invalid("omissions lists the same missing part more than once")
+    if verdict == "FAIL" and not unsupported and not omissions:
+        return invalid(
+            "a FAIL must identify at least one unsupported claim or one omission")
+    if verdict == "PASS" and omissions:
+        return invalid("a PASS cannot carry omissions")
     if verdict == "PASS" and not claims:
         # An answer that asserts nothing is not a benchmark answer, whatever it
         # says about abstention. The structural layer already fails it (C2 = 0);
@@ -620,6 +639,10 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
                 return invalid(f"dimension {name!r} carries no rationale")
             validated_dimensions[name] = {"score": score,
                                           "rationale": entry["rationale"].strip()}
+        if validated_dimensions["completeness"]["score"] == 0 and not omissions:
+            return invalid("completeness = 0 requires at least one omission")
+        if validated_dimensions["completeness"]["score"] == 2 and omissions:
+            return invalid("completeness = 2 cannot carry omissions")
         if verdict == "PASS":
             if validated_dimensions["claim_correctness"]["score"] != 2:
                 return invalid("a PASS requires claim_correctness = 2")
@@ -637,6 +660,7 @@ def evaluate_semantic(artifact: dict, pack: dict, evaluator: dict | None,
             "evaluator": identity, "claims_reviewed": len(judged),
             "supported_claims": sorted(set(supported)),
             "unsupported_claims": sorted(set(unsupported)),
+            "omissions": omissions,
             "dimensions": validated_dimensions,
             "packet_sha256": packet_sha,
             # Only a transport-recorded identity counts; an evaluation that
@@ -819,6 +843,21 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
 
     unmeasured = [name for name, c in criteria.items()
                   if c["status"] in ("NEEDS_EVALUATOR", "STRUCTURE_ONLY")]
+    # Required steps the frozen anchoring policy cannot measure. A perfect
+    # structural total does not imply that these were present in the answer;
+    # the semantic completeness dimension is the control for them.
+    unmeasured_steps = []
+    for step in steps:
+        state = next((entry for entry in step_state["steps"]
+                      if entry["step"] == step["id"]), None)
+        if state is None or state["status"] != "UNADDRESSABLE":
+            continue
+        unmeasured_steps.append({
+            "step": step["id"],
+            "reason": "no_identifiers" if not step_tokens(step["text"])
+            else "outside_gold",
+            "text": step["text"],
+        })
 
     # Formal verdict: structural thresholds are necessary, never sufficient.
     provenance_blocked = sum(1 for span in spans if span["verified"]) == 0
@@ -870,6 +909,7 @@ def score_case(case: str, artifact: dict, pack: dict, materials: dict,
         "failure_attribution": ("provenance:no_verifiable_evidence" if provenance_blocked
                                 else "answer" if formal == "FAIL" else None),
         "unmeasured_criteria": unmeasured,
+        "unmeasured_required_steps": unmeasured_steps,
         "gaps": gap_state,
         "artefacts": {
             "claims": len(claims),

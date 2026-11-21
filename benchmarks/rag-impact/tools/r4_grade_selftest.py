@@ -545,6 +545,47 @@ def main() -> int:
           result.get("verdict") == "UNGRADABLE",
           json.dumps({k: result.get(k) for k in ("verdict", "error")})[:200])
 
+    # SE-01: all claims true, required information missing. A FAIL that names
+    # the omissions is gradeable; the same FAIL without omissions is not.
+    case = work / "incomplete-but-correct"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    base = json.loads(good_sem.read_text(encoding="utf-8"))
+    complete_payload = json.loads(json.dumps(base))
+    complete_payload.update({
+        "verdict": "FAIL", "rationale": "claims are true but the answer is incomplete",
+        "supported_claims": [0], "unsupported_claims": [],
+        "omissions": ["the SaveChanges step was never stated"],
+        "dimensions": {name: {"score": 2, "rationale": "fixture"}
+                       for name in ("claim_correctness", "citation_support",
+                                    "completeness", "uncertainty", "abstention")},
+    })
+    complete_payload["dimensions"]["completeness"] = {
+        "score": 0, "rationale": "a required part is missing"}
+    sem = work / "sem" / "incomplete-correct.json"
+    sem.write_text(json.dumps({**complete_payload, "case": CASE}), encoding="utf-8")
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("correct-but-incomplete FAIL is a valid formal FAIL",
+          result.get("verdict") == "FAIL"
+          and (result.get("semantic") or {}).get("omissions"),
+          json.dumps({k: result.get(k) for k in ("verdict", "semantic")})[:240])
+
+    no_omission = json.loads(json.dumps(complete_payload))
+    no_omission.pop("omissions", None)
+    sem = work / "sem" / "incomplete-no-omission.json"
+    sem.write_text(json.dumps({**no_omission, "case": CASE}), encoding="utf-8")
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("correct-but-incomplete FAIL without omissions is UNGRADABLE",
+          result.get("verdict") == "UNGRADABLE", str(result.get("verdict")))
+
+    pass_with_omission = json.loads(json.dumps(base))
+    pass_with_omission["omissions"] = ["a required part is missing"]
+    sem = work / "sem" / "pass-with-omission.json"
+    sem.write_text(json.dumps({**pass_with_omission, "case": CASE}), encoding="utf-8")
+    code, result = run_grader(case, corpus, semantic=sem)
+    check("a PASS carrying omissions is UNGRADABLE",
+          result.get("verdict") == "UNGRADABLE", str(result.get("verdict")))
+
     # A boolean `true` (the only accepted value) still grades normally.
     reg = registry_dir / "trusted-literal-true.json"
     reg.write_text(json.dumps({"evaluators": {"fixture-evaluator": {"trusted": True}}}),
@@ -565,6 +606,19 @@ def main() -> int:
               {k: v.get("score") for k, v in (result.get("criteria") or {}).items()}))
     check("fully supported: structural total is complete",
           result.get("structural_complete") is True and result.get("structural_total") == 12)
+
+    # ------------- 19b. unmeasured required steps are reported, not hidden
+    case = work / "unmeasured-steps"
+    write_pack(case, corpus, GOLD)
+    write_answer(case, good_claim, good_text)
+    code, result = run_grader(case, corpus)
+    reported = result.get("unmeasured_required_steps") or []
+    check("unaddressable required steps are reported by id",
+          any(entry.get("step") == 4 for entry in reported),
+          json.dumps(reported)[:240])
+    check("unmeasured steps name the reason",
+          all(entry.get("reason") in ("no_identifiers", "outside_gold")
+              for entry in reported))
 
     # --------------------------------- 20. semantic PASS but structure fails
     case = work / "semantic-pass-structure-fail"
