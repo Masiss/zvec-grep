@@ -1558,9 +1558,10 @@ fn fill_read_ops_to(session: &mut Session, target: usize) {
 }
 
 #[test]
-fn multiple_spans_in_one_file_cost_multiple_read_ops() {
-    // Each served span is one open of its file. Reserving only distinct files
-    // would under-count and let a call read more than its budget.
+fn multiple_spans_in_one_file_cost_one_read_op() {
+    // The assembler caches one read per file within a call, and the boundary
+    // observer counts exactly those opens: three spans of one file are one
+    // source read, not three.
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().to_path_buf();
     fs::create_dir_all(root.join("Many")).expect("dir");
@@ -1581,7 +1582,7 @@ fn multiple_spans_in_one_file_cost_multiple_read_ops() {
     let envelope = call(&mut session, evidence);
     assert_eq!(envelope["ok"], json!(true), "{envelope}");
     assert_eq!(session.ledger.read_files.len(), 1, "one distinct file");
-    assert_eq!(session.ledger.read_ops, 3, "three served spans, three reads");
+    assert_eq!(session.ledger.read_ops, 1, "one cached open serves three spans");
 }
 
 #[test]
@@ -1589,7 +1590,7 @@ fn span_that_cannot_be_paid_for_is_refused_before_the_file_is_opened() {
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().to_path_buf();
     fs::create_dir_all(root.join("Many")).expect("dir");
-    for name in ["a", "b"] {
+    for name in ["a", "b", "c", "d"] {
         fs::write(root.join(format!("Many/{name}.cs")), "one\ntwo\nthree\nfour\nfive\nsix\n")
             .expect("w");
     }
@@ -1601,13 +1602,13 @@ fn span_that_cannot_be_paid_for_is_refused_before_the_file_is_opened() {
     fill_read_ops_to(&mut session, MAX_READ_OPS - 2);
     let before = session.ledger.read_ops;
 
-    // Three spans, two operations: exactly two may be served, the third is a
-    // typed gap and its file is never opened for it.
+    // Three distinct files, two operations: exactly two may be served, the
+    // third is a typed gap and its file is never opened for it.
     let mut many = input(Tool::Evidence, 1);
     many.requests = vec![
         span_request("Many/b.cs", 1, 2),
-        span_request("Many/b.cs", 3, 4),
-        span_request("Many/b.cs", 5, 6),
+        span_request("Many/c.cs", 1, 2),
+        span_request("Many/d.cs", 1, 2),
     ];
     let envelope = call(&mut session, many);
     assert_eq!(envelope["ok"], json!(true), "{envelope}");
@@ -1726,5 +1727,78 @@ fn history_read_ops_reconcile_with_the_ledger() {
     assert_eq!(session.ledger.read_ops, 5,
                "4 facts opens (one of them a failed decode) + 1 evidence span");
     assert_eq!(session.ledger.history.last().unwrap().read_ops, 5);
+}
+#[test]
+fn evidence_reads_that_are_not_served_are_still_counted() {
+    // The assembler opens the file, then drops the span because the caller's
+    // expected hash does not match. The open happened: the ledger must show it.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("E")).expect("dir");
+    fs::write(root.join("E/one.cs"), "alpha\nbeta\ngamma\n").expect("w");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut request = span_request("E/one.cs", 1, 2);
+    request.expected_sha256 = Some("0".repeat(64));
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![request];
+    let envelope = call(&mut session, evidence);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    let items = envelope["result"]["items"].as_array().cloned().unwrap_or_default();
+    assert!(items.is_empty(), "a stale expected hash must not serve an item: {envelope}");
+    assert_eq!(session.ledger.read_ops, 1, "the open is counted even though nothing was served");
+    assert_eq!(session.ledger.read_files, vec!["E/one.cs".to_owned()]);
+}
+
+#[test]
+fn verification_counts_every_file_it_reopens_even_when_it_fails() {
+    // Two pack items; one file changes after the pack was frozen. Revalidation
+    // re-opens both files, reports a gap for the changed one, and must count
+    // both opens.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("V")).expect("dir");
+    fs::write(root.join("V/a.cs"), "one\ntwo\nthree\n").expect("w");
+    fs::write(root.join("V/b.cs"), "four\nfive\nsix\n").expect("w");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![span_request("V/a.cs", 1, 2), span_request("V/b.cs", 1, 2)];
+    assert_eq!(call(&mut session, evidence)["ok"], json!(true));
+    let before = session.ledger.read_ops;
+    fs::write(root.join("V/b.cs"), "changed\ncontent\nhere\n").expect("w");
+
+    let verify = input(Tool::Verify, 2);
+    let envelope = call(&mut session, verify);
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    assert_eq!(envelope["result"]["verified"], json!(false), "{envelope}");
+    assert_eq!(session.ledger.read_ops - before, 2, "both re-opened files are counted");
+    let gaps = envelope["result"]["gaps"].as_array().cloned().unwrap_or_default();
+    assert!(gaps.iter().any(|g| g["code"] == json!("stale_hash")), "{envelope}");
+}
+
+#[test]
+fn failed_verification_after_partial_reads_keeps_the_reads() {
+    // One item is readable, the next has been deleted. Revalidation reads the
+    // first, fails on the second, and neither read may vanish from the ledger.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().to_path_buf();
+    fs::create_dir_all(root.join("P")).expect("dir");
+    fs::write(root.join("P/keep.cs"), "keep\nme\n").expect("w");
+    fs::write(root.join("P/gone.cs"), "delete\nme\n").expect("w");
+    let mut session = session_at(&dir.path().join("s"), &root, Profile::ArmC, "D04");
+    let mut evidence = input(Tool::Evidence, 1);
+    evidence.requests = vec![span_request("P/keep.cs", 1, 2), span_request("P/gone.cs", 1, 2)];
+    assert_eq!(call(&mut session, evidence)["ok"], json!(true));
+    let before = session.ledger.read_ops;
+    fs::remove_file(root.join("P/gone.cs")).expect("remove");
+
+    let envelope = call(&mut session, input(Tool::Verify, 2));
+    assert_eq!(envelope["ok"], json!(true), "{envelope}");
+    // Only the readable item is opened: a deleted file fails path resolution
+    // before any read, so inventing a read for it would be a fake count.
+    assert_eq!(session.ledger.read_ops - before, 1,
+               "the readable item is counted, the deleted one was never opened");
+    assert_eq!(envelope["result"]["verified"], json!(false), "{envelope}");
+    let delta_sum: usize = session.ledger.history.iter().map(|c| c.read_ops_delta).sum();
+    assert_eq!(delta_sum, session.ledger.read_ops);
 }
 

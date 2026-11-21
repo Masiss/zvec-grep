@@ -166,6 +166,25 @@ pub fn assemble_spans(
     spans: &[SpanRequest],
     budget: EvidenceBudget,
 ) -> Result<SpanPack, SurfaceError> {
+    assemble_spans_observed(root, spans, budget, &mut |_| {})
+}
+
+/// Same as [`assemble_spans`], but reports every source file it opens to
+/// `observer` *before* the read happens. Callers that must account for real
+/// source access (budgets, receipts) use this instead of inferring reads from
+/// the returned items: a span can be read and then dropped (stale hash, bad
+/// range, budget), and a failure path must not lose that access.
+///
+/// # Errors
+///
+/// Same conditions as [`assemble_spans`].
+#[allow(clippy::too_many_lines)]
+pub fn assemble_spans_observed(
+    root: &Path,
+    spans: &[SpanRequest],
+    budget: EvidenceBudget,
+    observer: &mut dyn FnMut(&Path),
+) -> Result<SpanPack, SurfaceError> {
     if budget.max_bytes == 0 || budget.max_items == 0 {
         return Err(SurfaceError::InvalidBudget);
     }
@@ -214,13 +233,16 @@ pub fn assemble_spans(
         };
         let source = match cache.entry(path.clone()) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-            std::collections::hash_map::Entry::Vacant(entry) => match CachedSource::read(&path) {
-                Ok(source) => entry.insert(source),
-                Err(code) => {
-                    gap(code, format!("cannot read: {}", path.display()));
-                    continue;
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                observer(&path);
+                match CachedSource::read(&path) {
+                    Ok(source) => entry.insert(source),
+                    Err(code) => {
+                        gap(code, format!("cannot read: {}", path.display()));
+                        continue;
+                    }
                 }
-            },
+            }
         };
         let verification = match &span.expected_sha256 {
             Some(expected) if expected.to_ascii_lowercase() != source.sha256 => {
@@ -352,6 +374,20 @@ fn line_offsets(
 ///
 /// Returns [`SurfaceError::InvalidRoot`] when the root is not a directory.
 pub fn revalidate_spans(root: &Path, pack: &SpanPack) -> Result<Vec<EvidenceGap>, SurfaceError> {
+    revalidate_spans_observed(root, pack, &mut |_| {})
+}
+
+/// Same as [`revalidate_spans`], but reports each re-opened file to `observer`
+/// before the read, so a verification failure cannot hide source access.
+///
+/// # Errors
+///
+/// Same conditions as [`revalidate_spans`].
+pub fn revalidate_spans_observed(
+    root: &Path,
+    pack: &SpanPack,
+    observer: &mut dyn FnMut(&Path),
+) -> Result<Vec<EvidenceGap>, SurfaceError> {
     let evidence = EvidencePack {
         schema_version: EVIDENCE_SCHEMA_VERSION,
         status: pack.status,
@@ -369,7 +405,7 @@ pub fn revalidate_spans(root: &Path, pack: &SpanPack) -> Result<Vec<EvidenceGap>
         gaps: Vec::new(),
         deduplicated: 0,
     };
-    Ok(revalidate(root, &evidence)?)
+    Ok(super::revalidate_observed(root, &evidence, observer)?)
 }
 
 #[cfg(test)]

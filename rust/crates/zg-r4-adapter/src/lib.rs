@@ -1466,19 +1466,24 @@ impl Session {
         let mut admitted: Vec<usize> = Vec::new();
         let mut admitted_files: Vec<String> = Vec::new();
         let mut admitted_ops = 0usize;
+        // Reservation is per distinct request path, not per span: the
+        // assembler caches one read per file, and the boundary observer counts
+        // exactly those opens. Distinct paths are an upper bound on opens, so
+        // admission can only be conservative, never optimistic.
+        let mut reserved_paths: Vec<String> = Vec::new();
         for (index, request) in input.requests.iter().enumerate() {
             let path = request
                 .relative_path
                 .to_string_lossy()
                 .replace('\\', "/");
-            // Each served span is one open of its file, so every request needs
-            // its own read operation even when several spans share a path.
             let known = self.ledger.read_files.contains(&path) || admitted_files.contains(&path);
             let new_files = usize::from(!known);
+            let already_reserved = reserved_paths.contains(&path);
+            let op_needed = usize::from(!already_reserved);
             if self
-                .admit_reads(1, new_files, "evidence")
+                .admit_reads(op_needed, new_files, "evidence")
                 .and_then(|()| {
-                    if admitted_ops + 1 > self.remaining_read_ops() {
+                    if admitted_ops + op_needed > self.remaining_read_ops() {
                         return Err(CallError::Execution {
                             code: "read_budget_exceeded".into(),
                             message: "remaining read operations exhausted".into(),
@@ -1495,7 +1500,10 @@ impl Session {
                 }));
                 continue;
             }
-            admitted_ops += 1;
+            admitted_ops += op_needed;
+            if !already_reserved {
+                reserved_paths.push(path.clone());
+            }
             if new_files == 1 {
                 admitted_files.push(path.clone());
             }
@@ -1510,11 +1518,27 @@ impl Session {
             .filter(|(index, _request)| admitted.contains(index))
             .map(|(_, request)| request.clone())
             .collect();
-        let pack = surface::assemble_spans(&root, &spans, budget).map_err(|error| {
-            CallError::Execution {
-                code: "evidence".into(),
-                message: error.to_string(),
-            }
+        // Assemble with a read observer: every file the assembler opens is
+        // counted at the I/O boundary, including spans that end up as gaps and
+        // files opened before a later failure.
+        let mut boundary_reads: Vec<String> = Vec::new();
+        let assembled = {
+            let mut observer = |path: &std::path::Path| {
+                boundary_reads.push(
+                    path.strip_prefix(&root)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                );
+            };
+            surface::assemble_spans_observed(&root, &spans, budget, &mut observer)
+        };
+        for path in &boundary_reads {
+            self.note_source_read(path);
+        }
+        let pack = assembled.map_err(|error| CallError::Execution {
+            code: "evidence".into(),
+            message: error.to_string(),
         })?;
 
         let mut items = Vec::new();
@@ -1529,10 +1553,8 @@ impl Session {
             if !reads.contains(&path) {
                 reads.push(path.clone());
             }
-            // Each served span is one open of its file, even when several
-            // spans share a path. Recorded at the open so a later serialization
-            // failure cannot hide it.
-            self.note_source_read(&path);
+            // The open itself was recorded by the boundary observer above; the
+            // item loop only counts served items for the receipt cross-check.
             read_ops += 1;
             items.push(json!({
                 "project": item.project,
@@ -1561,18 +1583,10 @@ impl Session {
                 surface_gap_codes::Missing | surface_gap_codes::OutOfRoot | surface_gap_codes::Traversal
                     | surface_gap_codes::AbsolutePath | surface_gap_codes::InvalidProject | surface_gap_codes::Symlink
             );
-            if opened {
-                if !reads.contains(&path) {
-                    reads.push(path.clone());
-                }
-                // A gap path that was opened without producing an item is a
-                // real source access: reserve and record its operation. When an
-                // item for the same path was already served, the assembler
-                // opened it for that item and the op is already counted.
-                if !files.contains(&path) {
-                    self.note_source_read(&path);
-                    read_ops += 1;
-                }
+            if opened && !reads.contains(&path) {
+                // A gap path that was opened but served no item is already
+                // counted by the boundary observer; only the file list needs it.
+                reads.push(path.clone());
             }
         }
         let engine_gaps = serde_json::to_value(&pack.gaps).map_err(|e| {
@@ -1655,13 +1669,23 @@ impl Session {
         // Both pack families are revalidated against the live source. Evidence
         // packs re-check recorded bytes; workflow packs re-hash the selected
         // spans against their recorded source identity.
+        let mut boundary_reads: Vec<String> = Vec::new();
         let (gaps, item_paths) = match &payload {
             PackPayload::Spans(pack) => {
-                let gaps = surface::revalidate_spans(&root, pack).map_err(|error| {
-                    CallError::Execution {
-                        code: "verify".into(),
-                        message: error.to_string(),
-                    }
+                let gaps = {
+                    let mut observer = |path: &std::path::Path| {
+                        boundary_reads.push(
+                            path.strip_prefix(&root)
+                                .unwrap_or(path)
+                                .to_string_lossy()
+                                .replace('\\', "/"),
+                        );
+                    };
+                    surface::revalidate_spans_observed(&root, pack, &mut observer)
+                }
+                .map_err(|error| CallError::Execution {
+                    code: "verify".into(),
+                    message: error.to_string(),
                 })?;
                 let paths = pack
                     .items
@@ -1678,6 +1702,7 @@ impl Session {
                 let mut gaps: Vec<serde_json::Value> = Vec::new();
                 for span in spans {
                     let absolute = root.join(&span.path);
+                    boundary_reads.push(span.path.clone());
                     let actual = fs::read(&absolute).ok().map(|bytes| hex(&Sha256::digest(&bytes)));
                     match actual {
                         Some(hash) if hash == span.source_sha256 => {}
@@ -1697,16 +1722,27 @@ impl Session {
                 (gaps, paths)
             }
         };
-        // Revalidation re-opens every pack item file: honest read accounting,
-        // recorded at the open so a later failure path keeps the truth.
-        let mut reads = Vec::new();
+        // Revalidation re-opens every pack item file. The opens themselves were
+        // reported by the boundary observer, so a verification failure cannot
+        // lose them; this only checks the observer against the pack contents.
         let mut read_ops = 0usize;
-        for path in &item_paths {
-            if !reads.contains(path) {
-                reads.push(path.clone());
-            }
+        for path in &boundary_reads {
             self.note_source_read(path);
             read_ops += 1;
+        }
+        // Sanity direction that cannot produce false failures: every observed
+        // open must belong to a pack item. A missing or unreadable item is not
+        // an open, so the reverse containment is not an invariant.
+        let item_set: std::collections::HashSet<&String> = item_paths.iter().collect();
+        for path in &boundary_reads {
+            if !item_set.contains(path) {
+                return Err(CallError::Execution {
+                    code: "read_accounting_mismatch".into(),
+                    message: format!(
+                        "verification opened {path}, which is not one of its pack items"
+                    ),
+                });
+            }
         }
         // Current validity: a failed revalidation clears the persisted
         // verified state; the historical verification event stays in history.
@@ -1856,8 +1892,15 @@ impl Session {
                 plan,
             ),
             None => workflow::run(&mut source, &root, &question, budget.clone()),
+        };
+        // The engine reads through `EngineSource`, which records every attempt
+        // at the I/O boundary. Commit those reads before looking at the result,
+        // so a failed workflow still accounts for the files it touched.
+        let boundary_reads = std::mem::take(&mut source.reads);
+        for path in &boundary_reads {
+            self.note_source_read(path);
         }
-        .map_err(|message| CallError::Execution {
+        let outcome = outcome.map_err(|message| CallError::Execution {
             code: "workflow".into(),
             message,
         })?;
@@ -1899,12 +1942,21 @@ impl Session {
             },
         });
         self.ledger.internal_calls += stats.tool_calls;
-        // Accounting identity: the workflow *read* these files (open + decode);
-        // the selected spans are only what it delivered. Record each actual
-        // read now, so the distinct-file and read-op budgets reflect real work
-        // even if a later step fails.
-        for path in &stats.read_paths {
-            self.note_source_read(&path.replace('\\', "/"));
+        // Cross-check: the engine's own counter must not exceed the reads seen
+        // at the I/O boundary. A mismatch means the boundary observer missed
+        // something, so the call fails closed instead of under-counting.
+        let boundary_distinct = boundary_reads
+            .iter()
+            .filter(|path| !path.is_empty())
+            .count();
+        if stats.source_reads > boundary_distinct {
+            return Err(CallError::Execution {
+                code: "read_accounting_mismatch".into(),
+                message: format!(
+                    "engine reported {} source reads but the I/O boundary observed {}; refusing to under-count",
+                    stats.source_reads, boundary_distinct
+                ),
+            });
         }
         let serialized = serde_json::to_string(&result).map_err(|e| {
             CallError::Execution { code: "serialize".into(), message: e.to_string() }

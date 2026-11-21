@@ -266,6 +266,21 @@ pub fn assemble(
 ///
 /// Returns [`EvidenceError::InvalidRoot`] when the root is not a directory.
 pub fn revalidate(root: &Path, pack: &EvidencePack) -> Result<Vec<EvidenceGap>, EvidenceError> {
+    revalidate_observed(root, pack, &mut |_| {})
+}
+
+/// Same as [`revalidate`], but reports every file it re-opens to `observer`
+/// before reading it, so real source access is accounted even when
+/// revalidation fails.
+///
+/// # Errors
+///
+/// Returns [`EvidenceError::InvalidRoot`] when the root is not a directory.
+pub fn revalidate_observed(
+    root: &Path,
+    pack: &EvidencePack,
+    observer: &mut dyn FnMut(&Path),
+) -> Result<Vec<EvidenceGap>, EvidenceError> {
     if !root.is_dir() {
         return Err(EvidenceError::InvalidRoot(root.to_path_buf()));
     }
@@ -289,6 +304,7 @@ pub fn revalidate(root: &Path, pack: &EvidencePack) -> Result<Vec<EvidenceGap>, 
                 continue;
             }
         };
+        observer(&path);
         let source = match CachedSource::read(&path) {
             Ok(source) => source,
             Err(code) => {

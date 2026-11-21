@@ -19,6 +19,10 @@ pub struct EngineSource {
     root: PathBuf,
     symbols_supported: bool,
     entity_ranges: HashMap<String, Vec<SearchUnit>>,
+    /// Every source path this source was asked to read, in order. Recorded at
+    /// the I/O boundary (`read`), so engine work that fails part-way still
+    /// reports the files it actually touched.
+    pub reads: Vec<String>,
 }
 
 impl EngineSource {
@@ -31,6 +35,7 @@ impl EngineSource {
             root,
             symbols_supported: false,
             entity_ranges: HashMap::new(),
+            reads: Vec::new(),
         }
     }
 
@@ -178,6 +183,9 @@ impl EvidenceSource for EngineSource {
     }
 
     fn read(&mut self, path: &str) -> Result<Option<String>, String> {
+        // The exact I/O boundary for workflow reads: record the attempt before
+        // opening, so a failure after the open is still accounted for.
+        self.reads.push(path.replace('\\', "/"));
         let resolved = crate::resolve_under_root(&self.root, path)?;
         std::fs::read_to_string(self.root.join(resolved))
             .map(Some)
