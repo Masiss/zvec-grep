@@ -127,6 +127,9 @@ control, each with its expected verdict fixed in the test before execution:
 |---|---|---|
 | Semantic PASS + unsupported claim | UNGRADABLE | PASS |
 | Semantic PASS + invalid citation support | no formal PASS | PASS |
+| Semantic PASS judging **no** claim | UNGRADABLE | PASS |
+| Semantic evaluation with judgement fields omitted | UNGRADABLE | PASS |
+| Invalid citation cannot complete a required step | C3 = 0 | PASS |
 | Semantic PASS + unjudged claim | UNGRADABLE | PASS |
 | Semantic FAIL + unsupported claim | FAIL | PASS |
 | Missing semantic evaluator | NOT_MEASURED | PASS |
@@ -134,6 +137,7 @@ control, each with its expected verdict fixed in the test before execution:
 | Wrong answer / pack / question / rubric digest | UNGRADABLE | PASS |
 | Wrong case identity in evaluation | UNGRADABLE | PASS |
 | Diagnostic question in a formal run | NOT_MEASURED | PASS |
+| Artifact claiming `formal: true` with an override source | NOT_MEASURED | PASS |
 | Replayed evaluation onto another answer | UNGRADABLE | PASS |
 | Evaluation binding no inputs | UNGRADABLE | PASS |
 | Valid synthetic PASS | PASS | PASS |
@@ -181,6 +185,7 @@ independent grader process.
 | Read-delta reconciliation | 36/36 |
 | Arm B plan chain closed | 12/12 |
 | Formal verdicts without an evaluator | 36 × `NOT_MEASURED` |
+| Any formal PASS without an evaluator | **false** (computed from the rows) |
 | Formal PASS | 0 |
 
 With a *fixture* evaluator applied to the same artifacts (clearly labelled as a
@@ -206,6 +211,31 @@ Receipts: `/home/masis/.cache/zvec-grep/r4-longrun-20261121/three-arm-v5/`.
 | Answer quality | NOT_MEASURED (no evaluator) |
 | Real provider readiness | BLOCKED (owner authorization) |
 | Resource gates | unchanged; cold latency reported as measured |
+
+## 6b. Independent review (DeepSeek Flash 4.1 High) and what it changed
+
+An independent reviewer (`opencode-go/deepseek-v4.1-flash`, thinking=high) read
+only the sanitized delta bundle — never the corpus, packs or answers — and built
+its own fixtures. Verdict at that snapshot: **FIX-FIRST**, one blocking finding.
+
+| Review finding | Severity | Status |
+|---|---|---|
+| Judgement coverage was optional: an evaluation with no `supported_claims`/`unsupported_claims` passed and reported `claims_reviewed = len(claims)` | HIGH (blocking) | **Fixed** — both lists are mandatory, coverage is compared against the claim count, and `claims_reviewed` is the validated judgement count |
+| `formal_eligible` relied on the artifact's own `formal` flag | MEDIUM | **Fixed** — the artifact must also declare `source == "frozen-case"` and match the frozen digest |
+| C3/C6 credited citations the grader had itself rejected | MEDIUM | **Fixed** — required-step coverage uses only validated citations |
+| The pack's plan identity was a caller field, unbound to the executed plan | MEDIUM | **Fixed** — the pack records an `executed_sha256` of the plan actually run; the driver recomputes it from the frozen file and fails closed on mismatch |
+| With `--plan-file`, arm-b had no chain check; a missing plan block was silent | MEDIUM | **Fixed** — the chain is checked whenever a plan is used, and a missing plan identity is an explicit invalid primary control |
+| Budget violation was only terminal when the call succeeded | MEDIUM | **Fixed** — terminal on any pending over-run |
+| `facts` recorded its read after the open | MEDIUM | **Fixed** — recorded before |
+| `verify` merged reads after fallible steps | MEDIUM | **Fixed** — merged first, before the containment check |
+| No post-condition that observed opens ≤ admitted operations | MEDIUM | **Fixed** — per-call admitted/observed comparison |
+| Pack kind inferred from a byte substring | LOW | **Fixed** — parsed JSON |
+| Boolean claim indices accepted as ints | LOW | **Fixed** before the review landed (same class of bug) |
+| E2E receipts mixed criteria from one grading with the verdict from another | MEDIUM (evidence integrity) | **Fixed** — separate records per grading, summary derived from rows |
+
+Not changed: the reviewer's suggestions to redesign the grading pipeline or to
+widen scope were out of mission scope and are not adopted. Findings the reviewer
+marked "suspected, not reproduced" were re-checked and are listed in §7.
 
 ## 7. Residual limitations
 
