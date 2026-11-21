@@ -14,8 +14,8 @@ Not `QUALIFIED`, not `RAG_MVP_GO`, no architecture winner.
 | HEAD | tip of the branch (`git log 77e681e..HEAD`); **not pushed** |
 | Worktree | clean |
 | Report | `rust/docs/r4-integrity-gate-20261121.md` |
-| Review bundle | `/home/masis/.cache/zvec-grep/r4-integrity-gate-20261121/r4-integrity-gate-final-20261121.zip` (SHA-256 `4932c56990440650fc73f6089d4ea62bb666d6f7ae1e22fc465551a55027e5c1`, 154,754 B, 23 files) |
-| Bundle integrity | `bundle-final/MANIFEST.sha256` (sha256 `eb7367f9…`, 23/23 OK; the ZIP is rebuilt from it) |
+| Review bundle | `/home/masis/.cache/zvec-grep/r4-integrity-gate-20261121/r4-integrity-gate-final-20261121.zip` (SHA-256 `3d382883cc7623b3e3108c33bcb5fb0b2930f6dce5859c98e2adfbb2688869fc`, 154,904 B, 23 files) |
+| Bundle integrity | `bundle-final/MANIFEST.sha256` (sha256 `3715287e…`, 23/23 OK; the ZIP is rebuilt from it) |
 | Synthetic receipts | `/home/masis/.cache/zvec-grep/r4-longrun-20261121/three-arm-v6/` |
 | Runner + summarizer | `run_three_arm_v5.py` (writes `three-arm-v6`), summary inside its JSON |
 
