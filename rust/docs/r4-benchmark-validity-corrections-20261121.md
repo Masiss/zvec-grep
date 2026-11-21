@@ -166,7 +166,7 @@ one source of truth. Every call's `read_ops_delta` sums to the session counter
 | Check | Result |
 |---|---|
 | Adapter contract tests | **45/45** |
-| `zg-engine` lib tests (unchanged by this mission) | 804/804 at `43565f5`; adapter-only change |
+| `zg-engine` lib tests (adapter-only change) | 802/804 in parallel; the two `config::tests` failures are the known pre-existing collision on a shared config path (14/14 when run serially, each passes alone) |
 | clippy (adapter, all targets) | no errors |
 | Harness acceptance (`r4_bench_driver_selftest.py`) | **76 checks PASS** |
 | Grader fixtures (`r4_grade_selftest.py`) | **32 checks PASS** |
