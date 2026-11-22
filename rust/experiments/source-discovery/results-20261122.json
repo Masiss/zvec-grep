@@ -1,0 +1,794 @@
+{
+  "schema": 1,
+  "repetitions": 3,
+  "aggregate": {
+    "dev": {
+      "valid_tasks": 11,
+      "candidate_declaration_tp": 15,
+      "candidate_declaration_fp": 0,
+      "candidate_declaration_fn": 0,
+      "candidate_caller_tp": 12,
+      "candidate_caller_fp": 0,
+      "candidate_caller_fn": 0,
+      "excluded_tasks": 1
+    },
+    "validation": {
+      "valid_tasks": 6,
+      "candidate_declaration_tp": 7,
+      "candidate_declaration_fp": 1,
+      "candidate_declaration_fn": 1,
+      "candidate_caller_tp": 7,
+      "candidate_caller_fp": 0,
+      "candidate_caller_fn": 0,
+      "excluded_tasks": 0
+    }
+  },
+  "tasks": [
+    {
+      "suite": "dev",
+      "id": "partial-load-config",
+      "query": "loadConf",
+      "expected_declarations": [
+        "src/session.rs::load_configuration"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::load_configuration"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::load_configuration"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 4.5,
+      "rg_peak_rss_kb_median": 6312,
+      "candidate_callers": [
+        "src/session.rs::start_service"
+      ],
+      "expected_callers": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 243,
+      "candidate_latency_ms_median": 2.521,
+      "candidate_peak_rss_kb_median": 4160,
+      "candidate_internal_latency_ms": 0.997,
+      "files_scanned": 1,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "dev",
+      "id": "partial-cache-key",
+      "query": "cacheKey",
+      "expected_declarations": [
+        "src/session.rs::load_cache_key"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::load_cache_key"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::load_cache_key"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 4.68,
+      "rg_peak_rss_kb_median": 6472,
+      "candidate_callers": [
+        "src/session.rs::start_service"
+      ],
+      "expected_callers": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 241,
+      "candidate_latency_ms_median": 2.608,
+      "candidate_peak_rss_kb_median": 4156,
+      "candidate_internal_latency_ms": 1.056,
+      "files_scanned": 1,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "dev",
+      "id": "partial-request-context",
+      "query": "requestCont",
+      "expected_declarations": [
+        "src/session.rs::request_context_for_user"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::request_context_for_user"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::request_context_for_user"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 6.104,
+      "rg_peak_rss_kb_median": 6152,
+      "candidate_callers": [
+        "src/session.rs::start_service"
+      ],
+      "expected_callers": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 254,
+      "candidate_latency_ms_median": 3.59,
+      "candidate_peak_rss_kb_median": 4172,
+      "candidate_internal_latency_ms": 2.338,
+      "files_scanned": 1,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "dev",
+      "id": "partial-refresh-catalog",
+      "query": "refreshCat",
+      "expected_declarations": [
+        "src/session.rs::refresh_catalog"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::refresh_catalog"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::refresh_catalog"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 5.35,
+      "rg_peak_rss_kb_median": 6472,
+      "candidate_callers": [
+        "src/session.rs::start_service"
+      ],
+      "expected_callers": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 244,
+      "candidate_latency_ms_median": 2.893,
+      "candidate_peak_rss_kb_median": 4172,
+      "candidate_internal_latency_ms": 0.823,
+      "files_scanned": 1,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "dev",
+      "id": "ambiguous-parse",
+      "query": "parse",
+      "expected_declarations": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line",
+        "src/session.rs::parse_request",
+        "src/session.rs::parse_request_line"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line",
+        "src/session.rs::parse_request",
+        "src/session.rs::parse_request_line"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line",
+        "src/session.rs::parse_request",
+        "src/session.rs::parse_request_line"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line",
+        "src/session.rs::parse_request",
+        "src/session.rs::parse_request_line"
+      ],
+      "rg_raw_match_count": 6,
+      "rg_output_bytes": 807,
+      "rg_latency_ms_median": 6.023,
+      "rg_peak_rss_kb_median": 6464,
+      "candidate_callers": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_request"
+      ],
+      "expected_callers": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_request"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_request"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 587,
+      "candidate_latency_ms_median": 2.805,
+      "candidate_peak_rss_kb_median": 4168,
+      "candidate_internal_latency_ms": 2.015,
+      "files_scanned": 1,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:38:pub fn parse_config_line(input: &str) -> &str {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:42:pub fn parse_request_line(input: &str) -> &str {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:46:pub fn parse_config(input: &str) -> &str {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:47:    parse_config_line(input)",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:50:pub fn parse_request(input: &str) -> &str {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:51:    parse_request_line(input)"
+      ]
+    },
+    {
+      "suite": "dev",
+      "id": "ambiguous-cache",
+      "query": "cache",
+      "expected_declarations": [
+        "src/session.rs::SessionCache",
+        "src/session.rs::load_cache_key"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::SessionCache",
+        "src/session.rs::load_cache_key"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::SessionCache",
+        "src/session.rs::load_cache_key"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/session.rs::SessionCache",
+        "src/session.rs::load_cache_key"
+      ],
+      "rg_raw_match_count": 6,
+      "rg_output_bytes": 777,
+      "rg_latency_ms_median": 8.079,
+      "rg_peak_rss_kb_median": 6504,
+      "candidate_callers": [
+        "src/session.rs::start_service"
+      ],
+      "expected_callers": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 324,
+      "candidate_latency_ms_median": 5.807,
+      "candidate_peak_rss_kb_median": 4164,
+      "candidate_internal_latency_ms": 2.391,
+      "files_scanned": 1,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:12:pub fn load_cache_key(seed: &str) -> String {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:20:pub fn refresh_catalog(cache: &SessionCache) {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:21:    let _ = cache;",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:31:    let _key = load_cache_key(\"startup\");",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:33:    let cache = SessionCache;",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:34:    refresh_catalog(&cache);"
+      ]
+    },
+    {
+      "suite": "dev",
+      "id": "exact-write-manifest",
+      "query": "write_manifest",
+      "expected_declarations": [
+        "src/session.rs::write_manifest"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::write_manifest"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::write_manifest"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/session.rs::write_manifest"
+      ],
+      "rg_raw_match_count": 2,
+      "rg_output_bytes": 255,
+      "rg_latency_ms_median": 9.698,
+      "rg_peak_rss_kb_median": 6344,
+      "candidate_callers": [
+        "src/session.rs::refresh_catalog"
+      ],
+      "expected_callers": [
+        "src/session.rs::refresh_catalog"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::refresh_catalog"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 249,
+      "candidate_latency_ms_median": 5.507,
+      "candidate_peak_rss_kb_median": 4128,
+      "candidate_internal_latency_ms": 2.449,
+      "files_scanned": 1,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:22:    write_manifest(\"catalog\");",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:25:pub fn write_manifest(name: &str) {"
+      ]
+    },
+    {
+      "suite": "dev",
+      "id": "exact-create-request-context",
+      "query": "create_request_context",
+      "expected_declarations": [
+        "src/worker.py::create_request_context"
+      ],
+      "missing_expected_source_files": [
+        "src/worker.py"
+      ],
+      "candidate_declarations": [],
+      "candidate_declaration_tp": [],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [
+        "src/worker.py::create_request_context"
+      ],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 8.053,
+      "rg_peak_rss_kb_median": 6632,
+      "candidate_callers": [],
+      "expected_callers": [],
+      "candidate_caller_tp": [],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 92,
+      "candidate_latency_ms_median": 5.521,
+      "candidate_peak_rss_kb_median": 4128,
+      "candidate_internal_latency_ms": 2.431,
+      "files_scanned": 1,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "dev",
+      "id": "caller-load-cache-key",
+      "query": "load_cache_key",
+      "expected_declarations": [
+        "src/session.rs::load_cache_key"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::load_cache_key"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::load_cache_key"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/session.rs::load_cache_key"
+      ],
+      "rg_raw_match_count": 2,
+      "rg_output_bytes": 276,
+      "rg_latency_ms_median": 8.555,
+      "rg_peak_rss_kb_median": 6824,
+      "candidate_callers": [
+        "src/session.rs::start_service"
+      ],
+      "expected_callers": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 247,
+      "candidate_latency_ms_median": 5.168,
+      "candidate_peak_rss_kb_median": 4080,
+      "candidate_internal_latency_ms": 2.533,
+      "files_scanned": 1,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:12:pub fn load_cache_key(seed: &str) -> String {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:31:    let _key = load_cache_key(\"startup\");"
+      ]
+    },
+    {
+      "suite": "dev",
+      "id": "caller-parse-config",
+      "query": "parse_config",
+      "expected_declarations": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/session.rs::parse_config",
+        "src/session.rs::parse_config_line"
+      ],
+      "rg_raw_match_count": 3,
+      "rg_output_bytes": 402,
+      "rg_latency_ms_median": 8.462,
+      "rg_peak_rss_kb_median": 6504,
+      "candidate_callers": [
+        "src/session.rs::parse_config"
+      ],
+      "expected_callers": [
+        "src/session.rs::parse_config"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::parse_config"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 336,
+      "candidate_latency_ms_median": 6.332,
+      "candidate_peak_rss_kb_median": 4172,
+      "candidate_internal_latency_ms": 1.247,
+      "files_scanned": 1,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:38:pub fn parse_config_line(input: &str) -> &str {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:46:pub fn parse_config(input: &str) -> &str {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:47:    parse_config_line(input)"
+      ]
+    },
+    {
+      "suite": "dev",
+      "id": "definition-session-config",
+      "query": "SessionConfig",
+      "expected_declarations": [
+        "src/session.rs::SessionConfig"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/session.rs::SessionConfig"
+      ],
+      "candidate_declaration_tp": [
+        "src/session.rs::SessionConfig"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/session.rs::SessionConfig"
+      ],
+      "rg_raw_match_count": 3,
+      "rg_output_bytes": 405,
+      "rg_latency_ms_median": 4.552,
+      "rg_peak_rss_kb_median": 6664,
+      "candidate_callers": [
+        "src/session.rs::load_configuration",
+        "src/session.rs::start_service"
+      ],
+      "expected_callers": [
+        "src/session.rs::load_configuration",
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_tp": [
+        "src/session.rs::load_configuration",
+        "src/session.rs::start_service"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 319,
+      "candidate_latency_ms_median": 2.411,
+      "candidate_peak_rss_kb_median": 4156,
+      "candidate_internal_latency_ms": 1.09,
+      "files_scanned": 1,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:1:pub struct SessionConfig {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:7:pub fn load_configuration(path: &str) -> SessionConfig {",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/fixtures/corpus/src/session.rs:9:    SessionConfig { timeout_seconds: 30 }"
+      ]
+    },
+    {
+      "suite": "dev",
+      "id": "negative-no-symbol",
+      "query": "zzqNoSuchSymbol",
+      "expected_declarations": [],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [],
+      "candidate_declaration_tp": [],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 5.39,
+      "rg_peak_rss_kb_median": 6632,
+      "candidate_callers": [],
+      "expected_callers": [],
+      "candidate_caller_tp": [],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 85,
+      "candidate_latency_ms_median": 3.004,
+      "candidate_peak_rss_kb_median": 4160,
+      "candidate_internal_latency_ms": 1.205,
+      "files_scanned": 1,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "validation",
+      "id": "type-definition-and-callers",
+      "query": "accountSnap",
+      "expected_declarations": [
+        "src/accounts.rs::AccountSnapshot"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/accounts.rs::AccountSnapshot"
+      ],
+      "candidate_declaration_tp": [
+        "src/accounts.rs::AccountSnapshot"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 5.769,
+      "rg_peak_rss_kb_median": 6472,
+      "candidate_callers": [
+        "src/accounts.rs::accept_account",
+        "src/accounts.rs::rebuild_account_cache"
+      ],
+      "expected_callers": [
+        "src/accounts.rs::accept_account",
+        "src/accounts.rs::rebuild_account_cache"
+      ],
+      "candidate_caller_tp": [
+        "src/accounts.rs::accept_account",
+        "src/accounts.rs::rebuild_account_cache"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 326,
+      "candidate_latency_ms_median": 4.974,
+      "candidate_peak_rss_kb_median": 5684,
+      "candidate_internal_latency_ms": 2.708,
+      "files_scanned": 3,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "validation",
+      "id": "ambiguous-python-prefix",
+      "query": "invoiceNo",
+      "expected_declarations": [
+        "src/invoices.py::invoice_note",
+        "src/invoices.py::invoice_notification",
+        "src/invoices.py::normalize_invoice_number"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/invoices.py::invoice_note",
+        "src/invoices.py::invoice_notification",
+        "src/invoices.py::send_invoice_notification"
+      ],
+      "candidate_declaration_tp": [
+        "src/invoices.py::invoice_note",
+        "src/invoices.py::invoice_notification"
+      ],
+      "candidate_declaration_fp": [
+        "src/invoices.py::send_invoice_notification"
+      ],
+      "candidate_declaration_fn": [
+        "src/invoices.py::normalize_invoice_number"
+      ],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 6.232,
+      "rg_peak_rss_kb_median": 6472,
+      "candidate_callers": [
+        "src/invoices.py::create_invoice",
+        "src/invoices.py::send_invoice_notification"
+      ],
+      "expected_callers": [
+        "src/invoices.py::create_invoice",
+        "src/invoices.py::send_invoice_notification"
+      ],
+      "candidate_caller_tp": [
+        "src/invoices.py::create_invoice",
+        "src/invoices.py::send_invoice_notification"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 528,
+      "candidate_latency_ms_median": 3.238,
+      "candidate_peak_rss_kb_median": 5544,
+      "candidate_internal_latency_ms": 2.891,
+      "files_scanned": 3,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "validation",
+      "id": "ambiguous-typescript-prefix",
+      "query": "widgetPay",
+      "expected_declarations": [
+        "src/widgets.ts::get_widget_payment",
+        "src/widgets.ts::parse_widget_payload"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/widgets.ts::get_widget_payment",
+        "src/widgets.ts::parse_widget_payload"
+      ],
+      "candidate_declaration_tp": [
+        "src/widgets.ts::get_widget_payment",
+        "src/widgets.ts::parse_widget_payload"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 7.871,
+      "rg_peak_rss_kb_median": 6472,
+      "candidate_callers": [
+        "src/widgets.ts::submit_widget"
+      ],
+      "expected_callers": [
+        "src/widgets.ts::submit_widget"
+      ],
+      "candidate_caller_tp": [
+        "src/widgets.ts::submit_widget"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 412,
+      "candidate_latency_ms_median": 5.515,
+      "candidate_peak_rss_kb_median": 5696,
+      "candidate_internal_latency_ms": 2.95,
+      "files_scanned": 3,
+      "rg_raw_matches": []
+    },
+    {
+      "suite": "validation",
+      "id": "exact-event-caller",
+      "query": "publish_account_event",
+      "expected_declarations": [
+        "src/accounts.rs::publish_account_event"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/accounts.rs::publish_account_event"
+      ],
+      "candidate_declaration_tp": [
+        "src/accounts.rs::publish_account_event"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/accounts.rs::publish_account_event"
+      ],
+      "rg_raw_match_count": 2,
+      "rg_output_bytes": 282,
+      "rg_latency_ms_median": 8.428,
+      "rg_peak_rss_kb_median": 6504,
+      "candidate_callers": [
+        "src/accounts.rs::accept_account"
+      ],
+      "expected_callers": [
+        "src/accounts.rs::accept_account"
+      ],
+      "candidate_caller_tp": [
+        "src/accounts.rs::accept_account"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 264,
+      "candidate_latency_ms_median": 6.26,
+      "candidate_peak_rss_kb_median": 5524,
+      "candidate_internal_latency_ms": 1.691,
+      "files_scanned": 3,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/validation/corpus/src/accounts.rs:13:    publish_account_event(account_id);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/validation/corpus/src/accounts.rs:16:pub fn publish_account_event(account_id: &str) {"
+      ]
+    },
+    {
+      "suite": "validation",
+      "id": "exact-python-function",
+      "query": "normalize_invoice_number",
+      "expected_declarations": [
+        "src/invoices.py::normalize_invoice_number"
+      ],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [
+        "src/invoices.py::normalize_invoice_number"
+      ],
+      "candidate_declaration_tp": [
+        "src/invoices.py::normalize_invoice_number"
+      ],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [
+        "src/invoices.py::normalize_invoice_number"
+      ],
+      "rg_raw_match_count": 2,
+      "rg_output_bytes": 295,
+      "rg_latency_ms_median": 8.479,
+      "rg_peak_rss_kb_median": 6472,
+      "candidate_callers": [
+        "src/invoices.py::create_invoice"
+      ],
+      "expected_callers": [
+        "src/invoices.py::create_invoice"
+      ],
+      "candidate_caller_tp": [
+        "src/invoices.py::create_invoice"
+      ],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 269,
+      "candidate_latency_ms_median": 6.061,
+      "candidate_peak_rss_kb_median": 5504,
+      "candidate_internal_latency_ms": 2.695,
+      "files_scanned": 3,
+      "rg_raw_matches": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/validation/corpus/src/invoices.py:1:def normalize_invoice_number(value):",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/validation/corpus/src/invoices.py:14:    return normalize_invoice_number(value) + invoice_note(value)"
+      ]
+    },
+    {
+      "suite": "validation",
+      "id": "negative-invented-name",
+      "query": "zzqSyntheticAbsent",
+      "expected_declarations": [],
+      "missing_expected_source_files": [],
+      "candidate_declarations": [],
+      "candidate_declaration_tp": [],
+      "candidate_declaration_fp": [],
+      "candidate_declaration_fn": [],
+      "rg_expected_declarations_seen": [],
+      "rg_raw_match_count": 0,
+      "rg_output_bytes": 0,
+      "rg_latency_ms_median": 8.664,
+      "rg_peak_rss_kb_median": 6632,
+      "candidate_callers": [],
+      "expected_callers": [],
+      "candidate_caller_tp": [],
+      "candidate_caller_fp": [],
+      "candidate_caller_fn": [],
+      "candidate_output_bytes": 88,
+      "candidate_latency_ms_median": 6.56,
+      "candidate_peak_rss_kb_median": 5696,
+      "candidate_internal_latency_ms": 3.068,
+      "files_scanned": 3,
+      "rg_raw_matches": []
+    }
+  ]
+}
