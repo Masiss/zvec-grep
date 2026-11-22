@@ -246,3 +246,28 @@ Root cause: ACQUISITION — hai hybrid candidate sets đều bỏ sót controlle
 Giữ R4 ở HOLD; không tốn thêm lượt D01 và không mở D06/D12 vì can thiệp đã thử không lấy được evidence dispatch cần thiết và chưa có value signal so với rg. Session D01 đã finalized; không reset R0 bằng session mới. Nếu owner muốn tiếp tục sau mission này, hãy preregister riêng giả thuyết literal-anchor routing, giới hạn truncation/candidate coverage và evaluator materials chỉ gồm D01 trước khi chạy answerer. Không có code/API/default/index thay đổi; dirty/untracked state của source-discovery worktree ban đầu được giữ nguyên.
 
 **Hành động ngay:** đóng mission này ở trạng thái HOLD; không chạy thêm probe hoặc answerer. Thí nghiệm literal-anchor là quyết định mới của owner về sau, không được handoff này tự động kích hoạt.
+
+## Tiếp nối — replay public kiểm chứng luồng agent–evidence (2026-11-23)
+
+### Kết luận
+
+**`CONTRACT_WORKING` cho vertical slice scripted qua R4 CLI adapter; quyết định `KEEP_PRIVATE`.** Scripted agent đã tiêu thụ các envelope search/evidence/verify thực tế của R4 adapter trên fixture mã nguồn public, tạo hai citation chính xác gắn với path/range/hash đã xác minh và abstain khi chỉ có candidate, range sai, hash cũ hoặc span vượt byte cap. Đây chỉ là bằng chứng về cơ chế tích hợp; không phải đánh giá chất lượng model hay retrieval.
+
+Không promote capability. Sol High reviewer kết luận `GO_WITH_LIMITS` sau một vòng sửa harness. Giới hạn chính: chưa quan sát được live delivery qua MCP `Full` trong sandbox; chưa khóa được source/build provenance của adapter binary; N3 dùng fixed cap 24 KiB chứ chưa thử `max_bytes` tùy chỉnh; không có câu trả lời từ model bên ngoài.
+
+### Provenance và interface thực tế
+
+- R4 source worktree ở HEAD `efbbd093337226e9ca5805d1e4deffe3dfd9b335`, branch `work/r4-evidence-representation-20261119`, ahead origin 13 và sạch trước lần ghi handoff. Maintained Node/TypeScript MCP có search/rg nhưng không đăng ký evidence. Rust MCP `Full` source đăng ký `zvec_grep_evidence` với `max_bytes`/`max_items`; toolset `Agent` tắt các route `Full` và chỉ giữ search. R1 evidence surface cùng source test nằm dưới `rust/crates/zg-engine/src/api/evidence` và `rust/crates/zg-transport-mcp/src/lib.rs`.
+- Host Codex hiện tại chỉ expose `zvec_grep_search`; semantic call lỗi mở FTS fragment đã lưu. Không rebuild/repair index. Host này không expose `zvec_grep_rg` hoặc `zvec_grep_evidence`.
+- Đã chạy cached R4 adapter binary SHA-256 `bdd6f6207e35757a0f6cec5797ca5d6b72739fea59257cc9c41b8e9535f810fd` với cached `libzvec_c_api.so` SHA-256 `5093c7d722304b0efaa7425f206456ca902dc377d5a0ae8056f1c5c010fe763e`. Chưa chứng minh được binary này được build từ source commit nào. Contract, fixture, raw receipts, replay và reviewer findings ở `/home/masis/src/zvec-grep/.tmp/agent-evidence-gap-20261123/`.
+
+### Evidence và giới hạn
+
+- Task EG01 tìm được `surface.rs`; evidence trả lines 164–170 và 234–240 với `verification=verified`, cùng SHA-256 toàn file `2aec2954dfc7f8f09d98723b5c76f74d1807ed99f2a86c40e82cff0ffbc96f1f`; verify xác nhận pack 1 trong đúng session. Ledger session chính: 3 charged calls (4 lần gọi adapter gồm lượt search đầu không có hit và verify), 12,014 envelope bytes, 2 files, 5 source read ops, 1 round.
+- N1 trả `invalid_range`; N2 trả `stale_hash`; cả hai có `items=[]`. N3 trả `snippet_budget_exceeded` cho span 24,577 bytes so với fixed cap 24,576 của adapter. CLI adapter không nhận `max_bytes` riêng theo request, nên biến thể tiny configurable budget trong contract chưa chạy.
+- Thử `zg --server --stdio --mcp-toolset full` bị daemon IPC từ chối với `Operation not permitted`. Cargo test không tới được bước chạy test vì native build setup cần network hoặc cache ghi được. Vì vậy Full handler mới được xác nhận qua source và test assertion hiện có, chưa có live delivery receipt.
+- Sol High ban đầu phát hiện thiếu ràng buộc identity trong script; một lần rescue đã thêm ràng buộc path/hash/candidate/session/pack, citation lấy động từ evidence item và kiểm tra abstention cho candidate-only/N1/N2/N3. Re-review kết luận `GO_WITH_LIMITS`, không còn blocker về tính đúng đắn của scripted replay này. Không đo model identity hoặc answer quality.
+
+Không sửa production, API, defaults, index, benchmark, HRM2.0 source; không push/merge/release. Dirty-state source-discovery ban đầu được giữ nguyên. Rollback: chỉ cần xóa thư mục thử nghiệm `.tmp/agent-evidence-gap-20261123/`.
+
+Chỉ tiếp tục nếu được ủy quyền riêng: chạy một phiên agent thật qua MCP `Full` hoặc `full_direct`/Tokio duplex với `max_bytes` tùy chỉnh và pin source/build identity của adapter trước khi đề xuất public exposure. Không chạy lại D01/D06/D12 hoặc mở H01–H08.
