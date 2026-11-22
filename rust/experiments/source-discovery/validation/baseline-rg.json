@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "method": "ordinary rg -n -F -- QUERY CORPUS",
+  "identity": {
+    "cases.json": "2368b904046a35b8b789bc1435824c1d348e7998569fdd98466d2d721335b7d1",
+    "corpus/src/accounts.rs": "67c4bd1fadd7a10becaee9217877d50352a80d292236c8399f6b1240d2fb9cfd",
+    "corpus/src/invoices.py": "4cfa9c88b2f592f8bd501037f77cea67b0977776e1b18fd9636c8d41352d6605",
+    "corpus/src/widgets.ts": "03636ec5a6b1704030ffe1b4acce20e50a346be903a5c63db845834e5529f7f2"
+  },
+  "results": [
+    {
+      "id": "type-definition-and-callers",
+      "exit_code": 1,
+      "elapsed_ns": 5979052,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "ambiguous-python-prefix",
+      "exit_code": 1,
+      "elapsed_ns": 5120874,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "ambiguous-typescript-prefix",
+      "exit_code": 1,
+      "elapsed_ns": 4409951,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "exact-event-caller",
+      "exit_code": 0,
+      "elapsed_ns": 5814244,
+      "output_bytes": 230,
+      "matches": [
+        "rust/experiments/source-discovery/validation/corpus/src/accounts.rs:13:    publish_account_event(account_id);",
+        "rust/experiments/source-discovery/validation/corpus/src/accounts.rs:16:pub fn publish_account_event(account_id: &str) {"
+      ]
+    },
+    {
+      "id": "exact-python-function",
+      "exit_code": 0,
+      "elapsed_ns": 4935034,
+      "output_bytes": 243,
+      "matches": [
+        "rust/experiments/source-discovery/validation/corpus/src/invoices.py:1:def normalize_invoice_number(value):",
+        "rust/experiments/source-discovery/validation/corpus/src/invoices.py:14:    return normalize_invoice_number(value) + invoice_note(value)"
+      ]
+    },
+    {
+      "id": "negative-invented-name",
+      "exit_code": 1,
+      "elapsed_ns": 6274750,
+      "output_bytes": 0,
+      "matches": []
+    }
+  ]
+}

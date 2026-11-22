@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "corpus": "validation/corpus",
+  "tasks": [
+    {"id":"type-definition-and-callers","query":"accountSnap","expected_declarations":["src/accounts.rs::AccountSnapshot"],"expected_callers":["src/accounts.rs::accept_account","src/accounts.rs::rebuild_account_cache"]},
+    {"id":"ambiguous-python-prefix","query":"invoiceNo","expected_declarations":["src/invoices.py::normalize_invoice_number","src/invoices.py::invoice_note","src/invoices.py::invoice_notification"],"expected_callers":["src/invoices.py::create_invoice","src/invoices.py::send_invoice_notification"]},
+    {"id":"ambiguous-typescript-prefix","query":"widgetPay","expected_declarations":["src/widgets.ts::parse_widget_payload","src/widgets.ts::get_widget_payment"],"expected_callers":["src/widgets.ts::submit_widget"]},
+    {"id":"exact-event-caller","query":"publish_account_event","expected_declarations":["src/accounts.rs::publish_account_event"],"expected_callers":["src/accounts.rs::accept_account"]},
+    {"id":"exact-python-function","query":"normalize_invoice_number","expected_declarations":["src/invoices.py::normalize_invoice_number"],"expected_callers":["src/invoices.py::create_invoice"]},
+    {"id":"negative-invented-name","query":"zzqSyntheticAbsent","expected_declarations":[],"expected_callers":[]}
+  ]
+}
