@@ -147,3 +147,16 @@ in/out rate card (~$0.024/evaluation; 331,949 estimated prompt tokens +
 Do not add infrastructure. Either get D1+D2 from the owner and run D3, or stop
 at the authorization gate. The next milestone is **measured Arm A/B/C answer
 quality**, not more schema.
+
+
+## Continuation update — 2026-11-22 (real-agent RAG evaluation)
+
+The evaluator and benchmark remain **PILOT_READY at the harness level; real answer quality NOT_MEASURED**. No private inference was run. The current gate report is rust/docs/r4-real-agent-rag-evaluation-gate-20261122.md; the owner decision form is rust/docs/r4-real-agent-rag-approval-package-20261122.md.
+
+Readiness checks found that the frozen index and local Potion vector route execute on a disposable copy; the original cache corpus is read-only in this sandbox. The unrelated main workspace FTS index still fails to open. A complete Potion artifact is present in an existing local experiment cache, so the older “missing artifact” note is stale for this host, though the exact selected artifact path was not logged.
+
+A mock test reproduced an absolute corpus-root leak in an adapter error sent as a model tool result. The boundary now replaces corpus and session roots before sending tool output; local transcripts retain the original. Fix checkpoint: 360c797. Offline checks after the fix: grader 89/89, evaluator 57/57, driver 79/79, synthetic pilot 5/5 and synthetic E2E exit 0. These remain harness results only.
+
+Fresh-context review found the real remaining blockers: D1 evaluator identity/trust, D2 private-source inference approval, verified retention, and an enforceable all-in cost ceiling. The existing GPT-4.1 evaluator candidate is deprecated. No production evaluator is registered.
+
+**Next action:** wait for the owner to fill/approve the decision form, including an all-in USD cap. Before any private request, implement and verify request/output-token bounds and a pre-call budget guard. Then run only the fixed 3×3 development pilot; proceed to full 12×3 only if the preregistered operational gate passes. Keep H01–H08 sealed. Do not treat synthetic E2E as answer-quality evidence.
