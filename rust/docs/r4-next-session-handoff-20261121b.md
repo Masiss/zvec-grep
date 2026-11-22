@@ -209,3 +209,40 @@ Báo cáo tiếng Việt đã sanitize: `rust/docs/r4-d12-retrieval-vs-reasoning
 Một fresh-context reviewer blind X/Y kết luận `RETRIEVAL_LIMITED` dựa trên chênh lệch evidence. Sau khi đối chiếu line range và việc A không thực sự search, kết luận bàn giao là `INCONCLUSIVE`: chưa đo retrieval engine và có cả omission/citation defect ở oracle answer. Reviewer không gán formal C1–C6. Requested answerer config giống nhau (`gpt-6-luna/high`), served identity/usage/latency không quan sát được. Shared workspace không có ACL per-agent.
 
 Raw questions, source excerpts, answers và receipt vẫn local trong authorized temp storage; report chỉ có sanitized findings/digests. Hai hash source refs khớp; diagnostic index copy không đổi. Không gọi Responses API, không mở case khác, không sửa code/index/benchmark. Không chạy lại answerer theo stopping rule. Không có rollback vì không có code changes.
+
+## Tiếp nối — kiểm tra RAG capture-first D01 (2026-11-23)
+
+**Kết quả: LIMITATION_CONFIRMED cho đường Arm C được thử trên D01; quyết định sản phẩm: HOLD.** Đây là một tác vụ thăm dò, không phải paired benchmark chính thức và không đại diện cho toàn bộ RAG. Adversarial review cuối của GPT-6.1 Sol High trả INSUFFICIENT_EVIDENCE cho hiệu quả tổng quát, khuyến nghị đóng mission với lỗi truy xuất D01. Không chạy thêm answerer, không chạy D06/D12, không gọi thêm truy vấn, không sửa code, không gọi Responses API, không thay index persisted, push, merge hay release.
+
+### Identity và môi trường chạy
+
+- Frozen scope: D01 only; H01–H08 stayed sealed.
+- SHA-256 corpus manifest: c706c8dd9b560572a2c1739c2c2bda676982f4c3b5da4cd4b32bcfeb66359cdb (manifest frozen 822 files). SHA-256 index manifest: f6f9695a9a4cf2f42ffbd36d13eed5110fe1c61a99be18508e8b7ee77ec05917; index v3; storage generation cea13512-733a-4c9f-96a7-5e131b57d1dc; Potion Code 16M v2, 256-D, CPU. Lúc chạy đã dùng một bản copy tạm dưới /tmp/zvec-rag-overnight-20261122/index-copy/corpus; copy này hiện không còn. Không rebuild; index v3 vẫn chưa qualified.
+- Adapter binary có SHA-256 bdd6f6207e35757a0f6cec5797ca5d6b72739fea59257cc9c41b8e9535f810fd, mtime 2026-11-21 10:38 +07; native library SHA-256 5093c7d722304b0efaa7425f206456ca902dc377d5a0ae8056f1c5c010fe763e. Không xác minh được chính xác source commit đã build ra binary cache này.
+- Answerers được yêu cầu dùng gpt-6-luna / reasoning HIGH. Không thấy served model identity, tokens, cost hoặc latency của answerer. Host không cung cấp ACL filesystem/tool theo agent hoặc transcript đầy đủ cho parent; mọi so sánh là exploratory.
+
+### Probe Arm B và evidence Arm C thực tế
+
+Một probe Arm B do controller chạy chọn 10 references, ghi 7 gaps sau 32 source reads; selected-content bytes là 15,648 và delivered envelope là 16,337 bytes. Các selected records không có literal source content. Profile Arm B chỉ cho workflow/verify/status, không cho evidence, nên output này chưa thể cấp source content cho answerer trong cùng session. Không chạy answerer Arm B.
+
+Arm C chạy hai hybrid query chỉ dựa trên D01: “Form 1, update thông tin cá nhân đi qua đâu?” và “Form 1 update thông tin cá nhân”. Mỗi query trả 5 candidates; không query nào có EmployeeController.cs. Kết quả query thứ hai có candidate không liên quan EmployeeChangeRequestCommand.cs. Evidence call trả 2 verified spans — EmployeeChangeRequestCommand.cs:647–679 và WorkLogResource.cs:219–247 — trong pack 4,787 bytes / 2 items. Final answer cite đúng hai range/hash của pack nhưng nói rõ không đủ để xác nhận controller/API của Form 1.
+
+Các digest ghi nhận tại thời điểm chạy: Arm-C receipt 5a68bf995b4519839b2d5dc9e52dfc6244eac0d1bafb201c993c24891e515dd3; trace 97659ba6d543f4bd2d1a2ba9a0c56f6e1b748696f10d8bc18dbf0baaa847c6c8; pack efe06eb807ed70ce34663470aeadee201caf827cefaa2e25232df6f0b021c1d8; answer e3c143c317d0219b49a78d3fae537cd0762409e25f725fc2923f6f47bf79ef17. Đây là digest lịch sử; files gốc không còn. Bundle metadata-only hiện lưu tại .tmp/rag-overnight-20261122/d01-capture-summary.json (SHA-256 abba226f9ced4d412464d68dd46896c57e87b828d09bf11a63093cf4deb33d0b). Các file run từng nằm trong /tmp đã biến mất sau runtime interruption. Không thể replay hoặc rehash raw receipt/trace/answer/pack; không dựng lại private source content từ trí nhớ.
+
+Cộng dồn bảo thủ Arm C qua lần lock thất bại, status-only probe và session cuối: 4 charged calls / 3 rounds / 5 distinct source files / 13 read ops / 36,586 adapter-envelope bytes; pack cuối 2 items / 4,787 bytes. Tổng này nằm trong frozen R0 caps. Đây là số adapter ghi nhận, không chứng minh đầy đủ payload mà model thực sự thấy sau lớp shell wrapper. Arm A không có transcript/resource ledger xác minh được; usage và delivered-source membership không rõ.
+
+### Correctness và failure attribution
+
+Một Arm-A native Codex subagent fresh-context được yêu cầu cùng gpt-6-luna/high. Theo tự báo cáo, agent dùng rg và đọc source, mô tả flow EmployeeChangeRequest phê duyệt khác, trích controller/service liên quan nhưng không nêu Form 1 EmployeeEdit dispatch. Không có transcript hoặc usage để xác minh.
+
+Sau khi answer được freeze, đánh giá C1–C6/C3 trên D01 xác định source route là EmployeeController.EmployeeEdit: Form == "1" dispatch tới EmployeeEditThongTinCaNhan, tách biệt create branch; method đích tra employee qua Context.Employees. Cả Arm A và Arm C đều không nêu đủ các bước bắt buộc. Automated projection báo C1=0/3 required steps có trong Arm-C pack. Projection cấu trúc của prose Arm C (chuẩn hóa sau khi nhận answer; JSON không do answerer phát ra) đo C1=0, C3=0, C4=2, C5=1, C6=2; C2 chỉ STRUCTURE_ONLY vì 2/2 citation khớp pack verified, nên tổng vẫn NOT_MEASURED. Một Sol evaluator chưa đăng ký chấm Arm C 7/12 exploratory FAIL: C1=0, C2=1, C3=0, C4=2, C5=2, C6=2; C6 có caveat về granularity. Evaluator Arm A chấm C3=0/2; C1/C6 ungradable do không có delivery capture; citation support partial. Không evaluator nào là trusted/formal.
+
+Root cause: ACQUISITION — hai hybrid candidate sets đều bỏ sót controller cần thiết; SELECTION/DELIVERY — pack verified nhưng chứa flow EmployeeChangeRequest không trả lời Form 1; REASONING — Arm C biết abstain phần chính nhưng thêm liên hệ yếu, Arm A kể flow chi tiết hơn nhưng vẫn sai task. Đây là lỗi của D01 path đã thử, không phải bằng chứng mọi kiến trúc RAG thất bại.
+
+**Sự cố evaluator isolation:** evaluator Arm C báo rằng lookup làm lộ checklist rows kế cận D02/D04 (và D12); evaluator nói không dùng chúng. Evaluator Arm A không báo trạng thái lộ rows kế cận nên vẫn UNKNOWN. Không đọc source D02/D04 hoặc H01–H08. Coi hai điểm số là exploratory/non-blind. Lần đánh giá sau cần packet evaluator chỉ chứa D01, không tìm trong file checklist nhiều case.
+
+### Quyết định tiếp
+
+Giữ R4 ở HOLD; không tốn thêm lượt D01 và không mở D06/D12 vì can thiệp đã thử không lấy được evidence dispatch cần thiết và chưa có value signal so với rg. Session D01 đã finalized; không reset R0 bằng session mới. Nếu owner muốn tiếp tục sau mission này, hãy preregister riêng giả thuyết literal-anchor routing, giới hạn truncation/candidate coverage và evaluator materials chỉ gồm D01 trước khi chạy answerer. Không có code/API/default/index thay đổi; dirty/untracked state của source-discovery worktree ban đầu được giữ nguyên.
+
+**Hành động ngay:** đóng mission này ở trạng thái HOLD; không chạy thêm probe hoặc answerer. Thí nghiệm literal-anchor là quyết định mới của owner về sau, không được handoff này tự động kích hoạt.
