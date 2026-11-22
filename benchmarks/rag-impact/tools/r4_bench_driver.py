@@ -860,11 +860,16 @@ def drive(controller: AdapterController, answerer: ResponsesTransport, case: str
             "budget": envelope.get("budget"),
             "result": envelope.get("result"),
         })
-        # Actual tool output goes back to the model verbatim, keyed by call_id.
+        # Keep full tool output in the local transcript, but remove local
+        # filesystem roots before sending it back to the model.
+        model_output = json.dumps(envelope, ensure_ascii=False)
+        for local_path in (controller.root.resolve(),
+                           controller.session_dir.resolve()):
+            model_output = model_output.replace(str(local_path), "<local-path>")
         conversation.append({
             "type": "function_call_output",
             "call_id": call_id or f"call-{turns}",
-            "output": json.dumps(envelope, ensure_ascii=False),
+            "output": model_output,
         })
         round_no += 1
 
