@@ -293,9 +293,11 @@ pub(crate) fn discover(root: &Path, query: &str) -> Result<Discovery, String> {
     let matched_unresolved: Vec<UnresolvedCall> = unresolved
         .into_iter()
         .filter(|call| {
-            call.candidate_callees
-                .iter()
-                .any(|id| matched_ids.contains(id))
+            matched_ids.contains(&call.caller)
+                || call
+                    .candidate_callees
+                    .iter()
+                    .any(|id| matched_ids.contains(id))
         })
         .collect();
 
@@ -330,6 +332,7 @@ fn identifier_match_score(query: &[String], candidate: &[String]) -> Option<usiz
                         Some(score + 1)
                     }
                 })
+                .map(|score| score + usize::from(candidate.len() == query.len()) * 2)
         })
         .max()
 }

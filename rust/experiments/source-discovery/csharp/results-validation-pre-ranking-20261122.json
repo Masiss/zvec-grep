@@ -1,0 +1,495 @@
+{
+  "schema": 1,
+  "suite": "validation",
+  "repetitions": 3,
+  "totals": {
+    "declaration_tp": 7,
+    "declaration_fp": 0,
+    "declaration_fn": 0,
+    "edge_tp": 10,
+    "edge_fp": 0,
+    "edge_fn": 0,
+    "uncertainty_tp": 1,
+    "uncertainty_fp": 1,
+    "uncertainty_fn": 1
+  },
+  "tasks": [
+    {
+      "id": "partial-class-cross-file",
+      "query": "loadInv",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "candidate_declarations": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "declaration_tp": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "declaration_fp": [],
+      "declaration_fn": [],
+      "expected_edges": [
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ]
+      ],
+      "candidate_edges": [
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ]
+      ],
+      "edge_tp": [
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ]
+      ],
+      "edge_fp": [],
+      "edge_fn": [],
+      "expected_unresolved": [],
+      "candidate_unresolved": [],
+      "uncertainty_tp": [],
+      "uncertainty_fp": [],
+      "uncertainty_fn": [],
+      "rg_exact_lines": [],
+      "rg_case_insensitive_lines": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/obj/Generated/InvoiceStore.g.cs:5:    public void LoadInvoice(byte id) { }",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceCoordinator.cs:7:        store.LoadInvoice(id);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:7:        LoadInvoice(id);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:5:    public void LoadInvoice(int id) { }"
+      ],
+      "old_prototype_files_scanned": 0,
+      "candidate_files_scanned": 4,
+      "candidate_files_skipped": 0,
+      "candidate_truncated": false,
+      "latency_ms_median": {
+        "rg_exact": 4.856,
+        "rg_case_insensitive": 6.5,
+        "candidate": 3.663
+      },
+      "rss_kb_median": {
+        "rg_exact": 6472,
+        "rg_case_insensitive": 6472,
+        "candidate": 5944
+      },
+      "output_bytes_median": {
+        "rg_exact": 0,
+        "rg_case_insensitive": 602,
+        "candidate": 733
+      }
+    },
+    {
+      "id": "overload-edges-by-parameter-type",
+      "query": "tryGet",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::TryGet(int)",
+        "Validation.Billing.InvoiceStore::TryGet(string)"
+      ],
+      "candidate_declarations": [
+        "Validation.Billing.InvoiceStore::TryGet(int)",
+        "Validation.Billing.InvoiceStore::TryGet(string)"
+      ],
+      "declaration_tp": [
+        "Validation.Billing.InvoiceStore::TryGet(int)",
+        "Validation.Billing.InvoiceStore::TryGet(string)"
+      ],
+      "declaration_fp": [],
+      "declaration_fn": [],
+      "expected_edges": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::TryGet(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "Validation.Billing.InvoiceStore::TryGet(string)"
+        ]
+      ],
+      "candidate_edges": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::TryGet(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "Validation.Billing.InvoiceStore::TryGet(string)"
+        ]
+      ],
+      "edge_tp": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::TryGet(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "Validation.Billing.InvoiceStore::TryGet(string)"
+        ]
+      ],
+      "edge_fp": [],
+      "edge_fn": [],
+      "expected_unresolved": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(object)",
+          "TryGet",
+          "ambiguous_overloads"
+        ]
+      ],
+      "candidate_unresolved": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)",
+          "TryGet",
+          "dynamic_dispatch"
+        ]
+      ],
+      "uncertainty_tp": [],
+      "uncertainty_fp": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)",
+          "TryGet",
+          "dynamic_dispatch"
+        ]
+      ],
+      "uncertainty_fn": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(object)",
+          "TryGet",
+          "ambiguous_overloads"
+        ]
+      ],
+      "rg_exact_lines": [],
+      "rg_case_insensitive_lines": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:8:        TryGet(id);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:14:        TryGet(key);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:20:        TryGet(value);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:6:    public bool TryGet(int id) => true;",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:7:    public bool TryGet(string key) => true;"
+      ],
+      "old_prototype_files_scanned": 0,
+      "candidate_files_scanned": 4,
+      "candidate_files_skipped": 0,
+      "candidate_truncated": false,
+      "latency_ms_median": {
+        "rg_exact": 5.152,
+        "rg_case_insensitive": 7.197,
+        "candidate": 5.728
+      },
+      "rss_kb_median": {
+        "rg_exact": 6632,
+        "rg_case_insensitive": 6600,
+        "candidate": 5876
+      },
+      "output_bytes_median": {
+        "rg_exact": 0,
+        "rg_case_insensitive": 723,
+        "candidate": 1136
+      }
+    },
+    {
+      "id": "duplicate-save-by-type",
+      "query": "save",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceAudit::Save(string)",
+        "Validation.Billing.InvoiceStore::Save(string)"
+      ],
+      "candidate_declarations": [
+        "Validation.Billing.InvoiceAudit::Save(string)",
+        "Validation.Billing.InvoiceStore::Save(string)"
+      ],
+      "declaration_tp": [
+        "Validation.Billing.InvoiceAudit::Save(string)",
+        "Validation.Billing.InvoiceStore::Save(string)"
+      ],
+      "declaration_fp": [],
+      "declaration_fn": [],
+      "expected_edges": [
+        [
+          "Validation.Billing.InvoiceAudit::Record(string)",
+          "Validation.Billing.InvoiceAudit::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ]
+      ],
+      "candidate_edges": [
+        [
+          "Validation.Billing.InvoiceAudit::Record(string)",
+          "Validation.Billing.InvoiceAudit::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ]
+      ],
+      "edge_tp": [
+        [
+          "Validation.Billing.InvoiceAudit::Record(string)",
+          "Validation.Billing.InvoiceAudit::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "Validation.Billing.InvoiceStore::Save(string)"
+        ]
+      ],
+      "edge_fp": [],
+      "edge_fn": [],
+      "expected_unresolved": [],
+      "candidate_unresolved": [],
+      "uncertainty_tp": [],
+      "uncertainty_fp": [],
+      "uncertainty_fn": [],
+      "rg_exact_lines": [],
+      "rg_case_insensitive_lines": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceCoordinator.cs:8:        store.Save(\"invoice\");",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceAudit.cs:5:    public void Save(string invoice) { }",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceAudit.cs:6:    public void Record(string invoice) { Save(invoice); }",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:9:        Save(\"invoice\");",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:15:        Save(key);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:8:    public void Save(string invoice) { }"
+      ],
+      "old_prototype_files_scanned": 0,
+      "candidate_files_scanned": 4,
+      "candidate_files_skipped": 0,
+      "candidate_truncated": false,
+      "latency_ms_median": {
+        "rg_exact": 7.018,
+        "rg_case_insensitive": 5.023,
+        "candidate": 3.543
+      },
+      "rss_kb_median": {
+        "rg_exact": 6312,
+        "rg_case_insensitive": 6632,
+        "candidate": 5872
+      },
+      "output_bytes_median": {
+        "rg_exact": 0,
+        "rg_case_insensitive": 893,
+        "candidate": 1166
+      }
+    },
+    {
+      "id": "uncertain-overload-call",
+      "query": "BuildInvoiceUnknown",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)"
+      ],
+      "candidate_declarations": [
+        "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)"
+      ],
+      "declaration_tp": [
+        "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)"
+      ],
+      "declaration_fp": [],
+      "declaration_fn": [],
+      "expected_edges": [],
+      "candidate_edges": [],
+      "edge_tp": [],
+      "edge_fp": [],
+      "edge_fn": [],
+      "expected_unresolved": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)",
+          "TryGet",
+          "dynamic_dispatch"
+        ]
+      ],
+      "candidate_unresolved": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)",
+          "TryGet",
+          "dynamic_dispatch"
+        ]
+      ],
+      "uncertainty_tp": [
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)",
+          "TryGet",
+          "dynamic_dispatch"
+        ]
+      ],
+      "uncertainty_fp": [],
+      "uncertainty_fn": [],
+      "rg_exact_lines": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:18:    public void BuildInvoiceUnknown(dynamic value)"
+      ],
+      "rg_case_insensitive_lines": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:18:    public void BuildInvoiceUnknown(dynamic value)"
+      ],
+      "old_prototype_files_scanned": 0,
+      "candidate_files_scanned": 4,
+      "candidate_files_skipped": 0,
+      "candidate_truncated": false,
+      "latency_ms_median": {
+        "rg_exact": 8.434,
+        "rg_case_insensitive": 7.121,
+        "candidate": 4.137
+      },
+      "rss_kb_median": {
+        "rg_exact": 6312,
+        "rg_case_insensitive": 6952,
+        "candidate": 6160
+      },
+      "output_bytes_median": {
+        "rg_exact": 167,
+        "rg_case_insensitive": 167,
+        "candidate": 708
+      }
+    },
+    {
+      "id": "generated-file-excluded",
+      "query": "loadInvoice",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "candidate_declarations": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "declaration_tp": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "declaration_fp": [],
+      "declaration_fn": [],
+      "expected_edges": [
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ]
+      ],
+      "candidate_edges": [
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ]
+      ],
+      "edge_tp": [
+        [
+          "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ],
+        [
+          "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        ]
+      ],
+      "edge_fp": [],
+      "edge_fn": [],
+      "expected_unresolved": [],
+      "candidate_unresolved": [],
+      "uncertainty_tp": [],
+      "uncertainty_fp": [],
+      "uncertainty_fn": [],
+      "rg_exact_lines": [],
+      "rg_case_insensitive_lines": [
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/obj/Generated/InvoiceStore.g.cs:5:    public void LoadInvoice(byte id) { }",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceCoordinator.cs:7:        store.LoadInvoice(id);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:7:        LoadInvoice(id);",
+        "/home/masis/src/zvec-grep/rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:5:    public void LoadInvoice(int id) { }"
+      ],
+      "old_prototype_files_scanned": 0,
+      "candidate_files_scanned": 4,
+      "candidate_files_skipped": 0,
+      "candidate_truncated": false,
+      "latency_ms_median": {
+        "rg_exact": 9.408,
+        "rg_case_insensitive": 9.63,
+        "candidate": 5.657
+      },
+      "rss_kb_median": {
+        "rg_exact": 6632,
+        "rg_case_insensitive": 6632,
+        "candidate": 5944
+      },
+      "output_bytes_median": {
+        "rg_exact": 0,
+        "rg_case_insensitive": 602,
+        "candidate": 737
+      }
+    },
+    {
+      "id": "negative-missing-method",
+      "query": "zzqInvoiceMissing",
+      "expected_declarations": [],
+      "candidate_declarations": [],
+      "declaration_tp": [],
+      "declaration_fp": [],
+      "declaration_fn": [],
+      "expected_edges": [],
+      "candidate_edges": [],
+      "edge_tp": [],
+      "edge_fp": [],
+      "edge_fn": [],
+      "expected_unresolved": [],
+      "candidate_unresolved": [],
+      "uncertainty_tp": [],
+      "uncertainty_fp": [],
+      "uncertainty_fn": [],
+      "rg_exact_lines": [],
+      "rg_case_insensitive_lines": [],
+      "old_prototype_files_scanned": 0,
+      "candidate_files_scanned": 4,
+      "candidate_files_skipped": 0,
+      "candidate_truncated": false,
+      "latency_ms_median": {
+        "rg_exact": 7.491,
+        "rg_case_insensitive": 9.278,
+        "candidate": 6.21
+      },
+      "rss_kb_median": {
+        "rg_exact": 6472,
+        "rg_case_insensitive": 6792,
+        "candidate": 6052
+      },
+      "output_bytes_median": {
+        "rg_exact": 0,
+        "rg_case_insensitive": 0,
+        "candidate": 250
+      }
+    }
+  ]
+}
