@@ -228,6 +228,9 @@ test("default agent contract exposes only indexed search", async (t) => {
   assert.match(instructions, /unrelated open-world questions/);
   assert.match(instructions, /solely to locate workspace material/);
   assert.match(instructions, /user-provided or verified exact symbols/);
+  assert.match(instructions, /remembers only part of an identifier/);
+  assert.match(instructions, /distinctive literal substring/);
+  assert.match(instructions, /no-hit indexed query does not establish/);
   assert.match(
     instructions,
     /start discovery with focused zvec_grep_search before broad file discovery/,
@@ -442,6 +445,8 @@ test("full server contract exposes all tools with stable annotations", async (t)
   assert.match(rg.description, /exhaustive, AST-enriched ripgrep/);
   assert.match(rg.description, /code or non-code workspace material/);
   assert.match(rg.description, /known word, symbol, filename/);
+  assert.match(rg.description, /partial identifier/);
+  assert.match(rg.description, /Scope partial-identifier searches/);
   assert.match(rg.description, /exhaustive unless/);
   assert.match(rg.description, /trailing `\| head -N`/);
   assert.deepEqual(Object.keys(rg.inputSchema.properties).toSorted(), [

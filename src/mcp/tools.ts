@@ -230,6 +230,7 @@ export interface ZvecGrepDaemonBackend {
 function searchRoutingRules(exactTool: string, focusedTools: string): string[] {
   return [
     `Use ${exactTool} first only when exact lookup alone is sufficient, such as locating one definition, literal, filename, configuration key, error message, regex match, or exhaustive occurrence list.`,
+    `When the user remembers only part of an identifier, search that distinctive literal substring with ${exactTool}, scoped to the likely code path or file type. A no-hit indexed query does not establish that the symbol is absent.`,
     "Use zvec_grep_search first when wording or location is unknown, or when the answer requires architecture, lifecycle, call relationships, dependencies, data or control flow, design rationale, comparison, or synthesis across files or components.",
     `When user-provided or verified exact symbols are present but the answer spans multiple files, components, stages, implementations, or relationships, treat the task as mixed: call zvec_grep_search with the semantic intent and those anchors, then use ${focusedTools} for focused verification.`,
     "For a semantic or mixed workspace task, start discovery with focused zvec_grep_search before broad file discovery.",
@@ -560,7 +561,7 @@ export function registerZvecGrepTools(
       {
         title: "Search with managed ripgrep",
         description:
-          "Run exhaustive, AST-enriched ripgrep across code or non-code workspace material without an index. Use it when a known word, symbol, filename, source fragment, or regex can answer the workspace-grounded question. Pass a command starting with `rg`; results are exhaustive unless a trailing `| head -N` explicitly bounds them.",
+          "Run exhaustive, AST-enriched ripgrep across code or non-code workspace material without an index. Use it when a known word, symbol, filename, source fragment, partial identifier, or regex can answer the workspace-grounded question. Scope partial-identifier searches to likely code paths or file types. Pass a command starting with `rg`; results are exhaustive unless a trailing `| head -N` explicitly bounds them.",
         inputSchema: zvecGrepRgInputSchema,
         annotations: {
           readOnlyHint: true,

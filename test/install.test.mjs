@@ -487,6 +487,8 @@ test("Codex installer refreshes legacy managed guidance", async (t) => {
     agents,
     /when an exact word, phrase, name, date,[^\n]+use `zvec_grep_rg` when it is listed by the current host; otherwise native Grep or `rg`/i,
   );
+  assert.match(agents, /remembers only part of an identifier/);
+  assert.match(agents, /distinctive literal substring/);
   assert.match(
     agents,
     /Use `zvec_grep_search` when wording or location is unknown/,
@@ -774,6 +776,7 @@ test("Claude Code installer configures MCP trust and guidance", async (t) => {
     guidance,
     /when an exact word, phrase, name, date,[^\n]+use `zvec_grep_rg` when it is listed by the current host; otherwise native Grep or `rg`/i,
   );
+  assert.match(guidance, /remembers only part of an identifier/);
   assert.doesNotMatch(guidance, /managed-rg/);
   assert.doesNotMatch(guidance, /Indexing and status/);
   assert.doesNotMatch(guidance, /Remote data authorization/);
@@ -2222,6 +2225,7 @@ test("OpenCode installer preserves config and manages a remote MCP server", asyn
     guidance,
     /when an exact word, phrase, name, date,[^\n]+use `zvec_grep_zvec_grep_rg` when it is listed by the current host; otherwise native Grep or `rg`/i,
   );
+  assert.match(guidance, /remembers only part of an identifier/);
   assert.match(
     guidance,
     /Use `zvec_grep_zvec_grep_search` when wording or location is unknown/,
