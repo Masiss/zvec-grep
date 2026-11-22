@@ -173,3 +173,14 @@ The prepared exploratory pilot uses D01/D06/D12 × Arms A/B/C, nine fresh answer
 Key limitation: this session's subagent interface provides no per-agent tool allowlist/filesystem root, and the parent cannot independently see complete per-tool traces, token usage, cost or served-model fingerprint. Fresh context is not filesystem isolation. Arm A shell operations and unmediated Arm C activity are not covered by the R4 adapter ledger. Any pilot under these conditions is exploratory, not formal trusted evaluation. Full sanitized readiness and reviewer findings are in rust/docs/r4-codex-subagent-pilot-readiness-20261122.md.
 
 **Stop here:** no private inputs go to subagents until the owner explicitly approves that data flow. Do not poll approval fields or use Responses API. Preserve H01–H08 and do not claim arm superiority from a three-case exploratory pilot.
+
+
+## Continuation update — native Codex-subagent pilot results (2026-11-22)
+
+The exploratory D01/D06/D12 × A/B/C pilot has completed using native Codex subagents; no Responses API calls were made. Results, per-case structural scores, pack-budget violations, evaluator judgments, model-identity limits, tool receipts and independent review are in rust/docs/r4-subagent-pilot-results-20261122.md. Raw private artifacts remain in a local temporary directory; the sanitized artifact manifest SHA-256 is 2312c6bfda87489b1d65ae30353853f2b7e1656d36b21b0419f594bcdeed8535.
+
+Decision: **INCONCLUSIVE for comparative RAG answer quality.** Six gradeable structural cells all failed; three cells were ungradable; zero semantic verdicts were trusted. Requested answerer/planner model was gpt-6-luna/high and evaluator request gpt-6.2-sol/high; Codex accepted these requests but did not expose served snapshots, actual reasoning identity, token usage or per-agent latency. No fallback was used. Three semantic judgments were accepted by the local validator but rejected by the empty trusted-evaluator registry. Several search-derived packs exceeded 24 KiB/10 items, and one case/arm had no adapter receipt.
+
+The reviewer found the run useful for process observations only. Shared workspace/tool access means gold/C3 isolation cannot be independently proven; pack reconstruction and unverified receipts further limit formal comparison. No frozen benchmark, source, index, embedding, production default, or API was changed.
+
+**Stop at this owner gate.** Do not claim an arm winner or formal answer-quality result. No further infrastructure work or cases are in scope for this run.
