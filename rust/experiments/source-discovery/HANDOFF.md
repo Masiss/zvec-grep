@@ -11,8 +11,7 @@ embedding, or public API changed.
 - Starting checkpoint: `fb880c267a41595e4d67d9ab24bf57cb4ecd2e6b`
 - Frozen development data: commit `6308350`
 - Frozen independent validation: commit `e13c35f`
-- Final implementation/results checkpoint: see `git log` after this handoff
-  was committed.
+- Final implementation/results checkpoint: `cd95929`
 - Main artifacts: this directory; detailed measurements are in `RESULTS.md`
   and `results-20261122.json`.
 
@@ -78,4 +77,6 @@ current validation set unchanged. Caller links should be resolved by scoped
 symbol identity before any broader adoption claim.
 
 No index repair/rebuild, model download/change, live database access, private
-source upload, push, merge, or release was performed.
+source upload, push, merge, or release was performed. Revert the implementation
+and results checkpoint with `git revert cd95929`; remove the frozen benchmark
+commits as well by reverting `e13c35f` and then `6308350`.

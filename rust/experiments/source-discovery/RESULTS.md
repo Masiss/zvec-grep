@@ -128,6 +128,6 @@ coverage concerns still apply. There was no second review pass.
 ## Rollback
 
 This is a standalone experiment; no product route depends on it. To revert the
-implementation, evaluator, and results commit, use `git revert <final-commit>`.
+implementation, evaluator, and results commit, use `git revert cd95929`.
 To remove the frozen benchmark artifacts as well, revert `e13c35f` and then
 `6308350`. Do not reset or discard unrelated pre-existing worktree files.
