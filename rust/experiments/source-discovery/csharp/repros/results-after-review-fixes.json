@@ -1,0 +1,356 @@
+{
+  "schema": 2,
+  "queries": {
+    "Ping": {
+      "call_edges": [
+        {
+          "callee": "Review.Repro.Box`1::Ping()",
+          "caller": "Review.Repro.Box`1::Caller()",
+          "line": 6,
+          "path": "GenericTypes.cs"
+        },
+        {
+          "callee": "Review.Repro.Box`2::Ping()",
+          "caller": "Review.Repro.Box`2::Caller()",
+          "line": 12,
+          "path": "GenericTypes.cs"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "method",
+          "line": 5,
+          "name": "Ping",
+          "path": "GenericTypes.cs",
+          "symbol_id": "Review.Repro.Box`1::Ping()"
+        },
+        {
+          "kind": "method",
+          "line": 11,
+          "name": "Ping",
+          "path": "GenericTypes.cs",
+          "symbol_id": "Review.Repro.Box`2::Ping()"
+        }
+      ],
+      "directories_scanned": 1,
+      "files_found": 6,
+      "files_scanned": 6,
+      "files_skipped": 0,
+      "local_functions_skipped": 1,
+      "oversized_files": 0,
+      "parse_error_files": 0,
+      "truncated": false,
+      "unresolved_calls": []
+    },
+    "Target": {
+      "call_edges": [
+        {
+          "callee": "Review.Repro.NumericOverloads::Target(uint)",
+          "caller": "Review.Repro.NumericOverloads::Run()",
+          "line": 19,
+          "path": "InferenceEdges.cs"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "method",
+          "line": 5,
+          "name": "Target",
+          "path": "DynamicLocal.cs",
+          "symbol_id": "Review.Repro.DynamicCase::Target(string)"
+        },
+        {
+          "kind": "method",
+          "line": 5,
+          "name": "Target",
+          "path": "LocalFunctionCollision.cs",
+          "symbol_id": "Review.Repro.LocalFunctionCase::Target()"
+        },
+        {
+          "kind": "method",
+          "line": 17,
+          "name": "Target",
+          "path": "InferenceEdges.cs",
+          "symbol_id": "Review.Repro.NumericOverloads::Target(int)"
+        },
+        {
+          "kind": "method",
+          "line": 18,
+          "name": "Target",
+          "path": "InferenceEdges.cs",
+          "symbol_id": "Review.Repro.NumericOverloads::Target(uint)"
+        },
+        {
+          "kind": "method",
+          "line": 10,
+          "name": "Target",
+          "path": "InferenceEdges.cs",
+          "symbol_id": "Review.Repro.PropertyOverloads::Target(int)"
+        },
+        {
+          "kind": "method",
+          "line": 11,
+          "name": "Target",
+          "path": "InferenceEdges.cs",
+          "symbol_id": "Review.Repro.PropertyOverloads::Target(string)"
+        }
+      ],
+      "directories_scanned": 1,
+      "files_found": 6,
+      "files_scanned": 6,
+      "files_skipped": 0,
+      "local_functions_skipped": 1,
+      "oversized_files": 0,
+      "parse_error_files": 0,
+      "truncated": false,
+      "unresolved_calls": [
+        {
+          "callee_name": "Target",
+          "caller": "Review.Repro.DynamicCase::Caller()",
+          "candidate_callees": [
+            "Review.Repro.DynamicCase::Target(string)"
+          ],
+          "line": 10,
+          "path": "DynamicLocal.cs",
+          "reason": "unknown_argument_type"
+        },
+        {
+          "callee_name": "Target",
+          "caller": "Review.Repro.LocalFunctionCase::Caller()",
+          "candidate_callees": [
+            "Review.Repro.DynamicCase::Target(string)",
+            "Review.Repro.LocalFunctionCase::Target()",
+            "Review.Repro.NumericOverloads::Target(int)",
+            "Review.Repro.NumericOverloads::Target(uint)",
+            "Review.Repro.PropertyOverloads::Target(int)",
+            "Review.Repro.PropertyOverloads::Target(string)"
+          ],
+          "line": 10,
+          "path": "LocalFunctionCollision.cs",
+          "reason": "local_function_scope_unsupported"
+        },
+        {
+          "callee_name": "Target",
+          "caller": "Review.Repro.PropertyOverloads::Run(Strange)",
+          "candidate_callees": [
+            "Review.Repro.PropertyOverloads::Target(int)",
+            "Review.Repro.PropertyOverloads::Target(string)"
+          ],
+          "line": 12,
+          "path": "InferenceEdges.cs",
+          "reason": "unknown_argument_type"
+        }
+      ]
+    },
+    "Parse": {
+      "call_edges": [],
+      "declarations": [
+        {
+          "kind": "method",
+          "line": 5,
+          "name": "Parse",
+          "path": "GenericMethods.cs",
+          "symbol_id": "Review.Repro.GenericMethods::Parse()"
+        },
+        {
+          "kind": "method",
+          "line": 6,
+          "name": "Parse",
+          "path": "GenericMethods.cs",
+          "symbol_id": "Review.Repro.GenericMethods::Parse``1()"
+        }
+      ],
+      "directories_scanned": 1,
+      "files_found": 6,
+      "files_scanned": 6,
+      "files_skipped": 0,
+      "local_functions_skipped": 1,
+      "oversized_files": 0,
+      "parse_error_files": 0,
+      "truncated": false,
+      "unresolved_calls": [
+        {
+          "callee_name": "Parse",
+          "caller": "Review.Repro.GenericMethods::Run()",
+          "candidate_callees": [
+            "Review.Repro.GenericMethods::Parse()",
+            "Review.Repro.GenericMethods::Parse``1()"
+          ],
+          "line": 9,
+          "path": "GenericMethods.cs",
+          "reason": "generic_method_resolution"
+        },
+        {
+          "callee_name": "Parse",
+          "caller": "Review.Repro.GenericMethods::Run()",
+          "candidate_callees": [
+            "Review.Repro.GenericMethods::Parse()",
+            "Review.Repro.GenericMethods::Parse``1()"
+          ],
+          "line": 10,
+          "path": "GenericMethods.cs",
+          "reason": "generic_method_resolution"
+        }
+      ]
+    },
+    "Read": {
+      "call_edges": [],
+      "declarations": [
+        {
+          "kind": "method",
+          "line": 5,
+          "name": "Read",
+          "path": "RefOverloads.cs",
+          "symbol_id": "Review.Repro.RefOverloads::Read(int)"
+        },
+        {
+          "kind": "method",
+          "line": 6,
+          "name": "Read",
+          "path": "RefOverloads.cs",
+          "symbol_id": "Review.Repro.RefOverloads::Read(ref int)"
+        }
+      ],
+      "directories_scanned": 1,
+      "files_found": 6,
+      "files_scanned": 6,
+      "files_skipped": 0,
+      "local_functions_skipped": 1,
+      "oversized_files": 0,
+      "parse_error_files": 0,
+      "truncated": false,
+      "unresolved_calls": [
+        {
+          "callee_name": "Read",
+          "caller": "Review.Repro.RefOverloads::Run()",
+          "candidate_callees": [
+            "Review.Repro.RefOverloads::Read(int)",
+            "Review.Repro.RefOverloads::Read(ref int)"
+          ],
+          "line": 11,
+          "path": "RefOverloads.cs",
+          "reason": "unknown_argument_type"
+        },
+        {
+          "callee_name": "Read",
+          "caller": "Review.Repro.RefOverloads::Run()",
+          "candidate_callees": [
+            "Review.Repro.RefOverloads::Read(int)",
+            "Review.Repro.RefOverloads::Read(ref int)"
+          ],
+          "line": 12,
+          "path": "RefOverloads.cs",
+          "reason": "unknown_argument_type"
+        }
+      ]
+    },
+    "Touch": {
+      "call_edges": [],
+      "declarations": [
+        {
+          "kind": "method",
+          "line": 29,
+          "name": "Touch",
+          "path": "InferenceEdges.cs",
+          "symbol_id": "Review.Repro.Other::Touch()"
+        },
+        {
+          "kind": "method",
+          "line": 24,
+          "name": "Touch",
+          "path": "InferenceEdges.cs",
+          "symbol_id": "Review.Repro.T::Touch()"
+        }
+      ],
+      "directories_scanned": 1,
+      "files_found": 6,
+      "files_scanned": 6,
+      "files_skipped": 0,
+      "local_functions_skipped": 1,
+      "oversized_files": 0,
+      "parse_error_files": 0,
+      "truncated": false,
+      "unresolved_calls": [
+        {
+          "callee_name": "Touch",
+          "caller": "Review.Repro.ShadowedTypeName::Run()",
+          "candidate_callees": [
+            "Review.Repro.Other::Touch()",
+            "Review.Repro.T::Touch()"
+          ],
+          "line": 37,
+          "path": "InferenceEdges.cs",
+          "reason": "unknown_receiver_type"
+        }
+      ]
+    },
+    "Caller": {
+      "call_edges": [],
+      "declarations": [
+        {
+          "kind": "method",
+          "line": 6,
+          "name": "Caller",
+          "path": "GenericTypes.cs",
+          "symbol_id": "Review.Repro.Box`1::Caller()"
+        },
+        {
+          "kind": "method",
+          "line": 12,
+          "name": "Caller",
+          "path": "GenericTypes.cs",
+          "symbol_id": "Review.Repro.Box`2::Caller()"
+        },
+        {
+          "kind": "method",
+          "line": 7,
+          "name": "Caller",
+          "path": "DynamicLocal.cs",
+          "symbol_id": "Review.Repro.DynamicCase::Caller()"
+        },
+        {
+          "kind": "method",
+          "line": 7,
+          "name": "Caller",
+          "path": "LocalFunctionCollision.cs",
+          "symbol_id": "Review.Repro.LocalFunctionCase::Caller()"
+        }
+      ],
+      "directories_scanned": 1,
+      "files_found": 6,
+      "files_scanned": 6,
+      "files_skipped": 0,
+      "local_functions_skipped": 1,
+      "oversized_files": 0,
+      "parse_error_files": 0,
+      "truncated": false,
+      "unresolved_calls": [
+        {
+          "callee_name": "Target",
+          "caller": "Review.Repro.DynamicCase::Caller()",
+          "candidate_callees": [
+            "Review.Repro.DynamicCase::Target(string)"
+          ],
+          "line": 10,
+          "path": "DynamicLocal.cs",
+          "reason": "unknown_argument_type"
+        },
+        {
+          "callee_name": "Target",
+          "caller": "Review.Repro.LocalFunctionCase::Caller()",
+          "candidate_callees": [
+            "Review.Repro.DynamicCase::Target(string)",
+            "Review.Repro.LocalFunctionCase::Target()",
+            "Review.Repro.NumericOverloads::Target(int)",
+            "Review.Repro.NumericOverloads::Target(uint)",
+            "Review.Repro.PropertyOverloads::Target(int)",
+            "Review.Repro.PropertyOverloads::Target(string)"
+          ],
+          "line": 10,
+          "path": "LocalFunctionCollision.cs",
+          "reason": "local_function_scope_unsupported"
+        }
+      ]
+    }
+  }
+}

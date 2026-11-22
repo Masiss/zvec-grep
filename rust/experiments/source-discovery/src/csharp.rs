@@ -11,6 +11,8 @@ use crate::identifier_parts;
 
 const MAX_FILES: usize = 2_500;
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_DIRECTORIES: usize = 10_000;
+const MAX_DIRECTORY_DEPTH: usize = 64;
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct Declaration {
@@ -41,10 +43,13 @@ pub(crate) struct UnresolvedCall {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct Discovery {
+    pub(crate) files_found: usize,
+    pub(crate) directories_scanned: usize,
     pub(crate) files_scanned: usize,
     pub(crate) files_skipped: usize,
     pub(crate) oversized_files: usize,
     pub(crate) parse_error_files: usize,
+    pub(crate) local_functions_skipped: usize,
     pub(crate) truncated: bool,
     pub(crate) declarations: Vec<Declaration>,
     pub(crate) call_edges: Vec<CallEdge>,
@@ -59,12 +64,23 @@ struct TypeContext {
     path: String,
     line: usize,
     partial: bool,
+    generic_arity: usize,
 }
 
 #[derive(Clone, Debug)]
 struct Parameter {
     name: String,
     ty: Option<String>,
+    modifier: Option<String>,
+}
+
+impl Parameter {
+    fn signature_type(&self) -> String {
+        let ty = self.ty.as_deref().unwrap_or("?");
+        self.modifier
+            .as_ref()
+            .map_or_else(|| ty.to_owned(), |modifier| format!("{modifier} {ty}"))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +88,8 @@ struct Method {
     symbol_id: String,
     name: String,
     type_id: String,
+    generic_arity: usize,
+    explicit_interface: Option<String>,
     parameters: Vec<Parameter>,
     path: String,
     line: usize,
@@ -82,6 +100,7 @@ struct CallerContext {
     symbol_id: String,
     type_id: String,
     parameters: BTreeMap<String, String>,
+    local_function_scope_unsupported: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -99,12 +118,20 @@ struct Collected {
     types: Vec<TypeContext>,
     methods: Vec<Method>,
     invocations: Vec<Invocation>,
+    local_functions_skipped: usize,
 }
 
 pub(crate) fn discover(root: &Path, query: &str) -> Result<Discovery, String> {
     let mut paths = Vec::new();
     let mut truncated = false;
-    collect_cs_files(root, &mut paths, &mut truncated)?;
+    let mut directories_scanned = 0;
+    collect_cs_files(
+        root,
+        &mut paths,
+        &mut truncated,
+        &mut directories_scanned,
+        0,
+    )?;
     paths.sort();
 
     let mut collected = Collected::default();
@@ -151,6 +178,14 @@ pub(crate) fn discover(root: &Path, query: &str) -> Result<Discovery, String> {
     let mut unresolved = BTreeSet::new();
 
     for invocation in &collected.invocations {
+        if invocation.caller.local_function_scope_unsupported {
+            unresolved.insert(unresolved_call(
+                invocation,
+                methods_by_name(&collected.methods, &invocation.name),
+                "local_function_scope_unsupported",
+            ));
+            continue;
+        }
         let candidate_type = resolve_receiver_type(invocation, &type_ids_by_name, &collected.types);
         let (type_id, receiver_error) = match candidate_type {
             ReceiverType::Known(type_id) => (Some(type_id), None),
@@ -173,6 +208,13 @@ pub(crate) fn discover(root: &Path, query: &str) -> Result<Discovery, String> {
             continue;
         }
         if scoped_candidates.is_empty() {
+            if !same_name_candidates.is_empty() {
+                unresolved.insert(unresolved_call(
+                    invocation,
+                    same_name_candidates,
+                    "unresolved_receiver_target",
+                ));
+            }
             continue;
         }
 
@@ -190,6 +232,18 @@ pub(crate) fn discover(root: &Path, query: &str) -> Result<Discovery, String> {
             continue;
         }
 
+        if arity_candidates
+            .iter()
+            .any(|method| method.generic_arity > 0)
+        {
+            unresolved.insert(unresolved_call(
+                invocation,
+                arity_candidates,
+                "generic_method_resolution",
+            ));
+            continue;
+        }
+
         let dynamic_argument = invocation
             .argument_types
             .iter()
@@ -199,6 +253,15 @@ pub(crate) fn discover(root: &Path, query: &str) -> Result<Discovery, String> {
                 invocation,
                 arity_candidates,
                 "dynamic_dispatch",
+            ));
+            continue;
+        }
+
+        if invocation.argument_types.iter().any(Option::is_none) {
+            unresolved.insert(unresolved_call(
+                invocation,
+                arity_candidates,
+                "unknown_argument_type",
             ));
             continue;
         }
@@ -302,10 +365,13 @@ pub(crate) fn discover(root: &Path, query: &str) -> Result<Discovery, String> {
         .collect();
 
     Ok(Discovery {
+        files_found: paths.len(),
+        directories_scanned,
         files_scanned,
         files_skipped,
         oversized_files,
         parse_error_files,
+        local_functions_skipped: collected.local_functions_skipped,
         truncated,
         declarations,
         call_edges: matched_edges,
@@ -341,10 +407,20 @@ fn collect_cs_files(
     root: &Path,
     out: &mut Vec<PathBuf>,
     truncated: &mut bool,
+    directories_scanned: &mut usize,
+    depth: usize,
 ) -> Result<(), String> {
+    if depth > MAX_DIRECTORY_DEPTH || *directories_scanned >= MAX_DIRECTORIES {
+        *truncated = true;
+        return Ok(());
+    }
+    *directories_scanned += 1;
     let entries = fs::read_dir(root).map_err(|error| format!("{}: {error}", root.display()))?;
+    let mut entries = entries
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(std::fs::DirEntry::file_name);
     for entry in entries {
-        let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
         if file_type.is_dir() {
@@ -352,7 +428,7 @@ fn collect_cs_files(
             if is_excluded_directory(&name) {
                 continue;
             }
-            collect_cs_files(&path, out, truncated)?;
+            collect_cs_files(&path, out, truncated, directories_scanned, depth + 1)?;
         } else if file_type.is_file()
             && path
                 .extension()
@@ -472,8 +548,9 @@ fn collect_node(
                 "interface_declaration" => "interface",
                 _ => "record",
             };
+            let generic_arity = type_parameter_arity(node);
             let mut nested_types = types.to_vec();
-            nested_types.push(name.to_owned());
+            nested_types.push(generic_metadata_name(name, generic_arity));
             let type_name = join_name(namespace, &nested_types.join("."));
             let partial = has_modifier(node, source, "partial");
             out.types.push(TypeContext {
@@ -483,6 +560,7 @@ fn collect_node(
                 path: path.to_owned(),
                 line: node.start_position().row + 1,
                 partial,
+                generic_arity,
             });
             if let Some(body) = node.child_by_field_name("body") {
                 collect_node(
@@ -514,14 +592,27 @@ fn collect_node(
                 .unwrap_or_default();
             let signature = parameters
                 .iter()
-                .map(|parameter| parameter.ty.as_deref().unwrap_or("?"))
+                .map(Parameter::signature_type)
                 .collect::<Vec<_>>()
                 .join(",");
-            let symbol_id = format!("{type_id}::{name}({signature})");
+            let generic_arity = type_parameter_arity(node);
+            let method_name = if generic_arity == 0 {
+                name.to_owned()
+            } else {
+                format!("{name}``{generic_arity}")
+            };
+            let explicit_interface = explicit_interface_name(node, source);
+            let qualified_method_name = explicit_interface.as_ref().map_or_else(
+                || method_name.clone(),
+                |interface| format!("{interface}.{method_name}"),
+            );
+            let symbol_id = format!("{type_id}::{qualified_method_name}({signature})");
             let method = Method {
                 symbol_id: symbol_id.clone(),
                 name: name.to_owned(),
                 type_id,
+                generic_arity,
+                explicit_interface,
                 parameters: parameters.clone(),
                 path: path.to_owned(),
                 line: node.start_position().row + 1,
@@ -540,6 +631,9 @@ fn collect_node(
                     .type_id
                     .clone(),
                 parameters,
+                local_function_scope_unsupported: node
+                    .child_by_field_name("body")
+                    .is_some_and(contains_local_function),
             };
             if let Some(body) = node.child_by_field_name("body") {
                 collect_node(
@@ -576,6 +670,9 @@ fn collect_node(
             }
             recurse_named(node, source, path, namespace, types, caller, out, depth);
         }
+        "local_function_statement" => {
+            out.local_functions_skipped += 1;
+        }
         _ => recurse_named(node, source, path, namespace, types, caller, out, depth),
     }
 }
@@ -605,6 +702,15 @@ fn recurse_named(
     }
 }
 
+fn contains_local_function(node: Node<'_>) -> bool {
+    if node.kind() == "local_function_statement" {
+        return true;
+    }
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .any(contains_local_function)
+}
+
 fn parse_parameters(node: Node<'_>, source: &[u8]) -> Vec<Parameter> {
     let mut output = Vec::new();
     let mut cursor = node.walk();
@@ -621,7 +727,17 @@ fn parse_parameters(node: Node<'_>, source: &[u8]) -> Vec<Parameter> {
             .child_by_field_name("type")
             .and_then(|ty| ty.utf8_text(source).ok())
             .map(canonical_type);
-        output.push(Parameter { name, ty });
+        let mut child_cursor = parameter.walk();
+        let modifier = parameter
+            .named_children(&mut child_cursor)
+            .filter(|child| child.kind() == "modifier")
+            .filter_map(|child| child.utf8_text(source).ok())
+            .find(|modifier| matches!(*modifier, "ref" | "out" | "in"));
+        output.push(Parameter {
+            name,
+            ty,
+            modifier: modifier.map(str::to_owned),
+        });
     }
     output
 }
@@ -666,24 +782,7 @@ fn infer_expression_type(
     parameters: &BTreeMap<String, String>,
 ) -> Option<String> {
     match node.kind() {
-        "integer_literal" => {
-            let literal = node.utf8_text(source).ok()?.to_ascii_lowercase();
-            let suffix = literal
-                .chars()
-                .rev()
-                .take_while(|character| character.is_ascii_alphabetic())
-                .collect::<String>();
-            let suffix = suffix.chars().rev().collect::<String>();
-            Some(
-                match suffix.as_str() {
-                    "ul" | "lu" => "ulong",
-                    "u" => "uint",
-                    "l" => "long",
-                    _ => "int",
-                }
-                .to_owned(),
-            )
-        }
+        "integer_literal" => infer_integer_literal(node.utf8_text(source).ok()?),
         "real_literal" => {
             let literal = node.utf8_text(source).ok()?.to_ascii_lowercase();
             Some(
@@ -708,7 +807,15 @@ fn infer_expression_type(
         "member_access_expression" => {
             let member = node.child_by_field_name("name")?.utf8_text(source).ok()?;
             if member == "Length" {
-                Some("int".to_owned())
+                let receiver = node.child_by_field_name("expression")?;
+                let receiver_type = infer_expression_type(receiver, source, parameters)?;
+                if matches!(receiver_type.as_str(), "string" | "System.String")
+                    || receiver_type.ends_with("[]")
+                {
+                    Some("int".to_owned())
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -748,9 +855,15 @@ fn resolve_receiver_type(
             .map(ReceiverType::Known)
             .unwrap_or(ReceiverType::Unknown);
     }
-    resolve_type_name(receiver, type_ids_by_name, types)
-        .map(ReceiverType::Known)
-        .unwrap_or(ReceiverType::Unknown)
+    if receiver.starts_with("global::") {
+        resolve_type_name(receiver, type_ids_by_name, types)
+            .map(ReceiverType::Known)
+            .unwrap_or(ReceiverType::Unknown)
+    } else {
+        // An untracked local can shadow a class name. Only a parameter with a
+        // known type or an explicitly global-qualified name can prove this edge.
+        ReceiverType::Unknown
+    }
 }
 
 enum ReceiverType {
@@ -765,21 +878,77 @@ fn resolve_type_name(
     types: &[TypeContext],
 ) -> Option<String> {
     let normalized = canonical_type(name);
-    if normalized.contains('.') {
-        let exact: Vec<_> = types
-            .iter()
-            .filter(|ty| ty.symbol_id == normalized)
-            .collect();
-        if exact.len() == 1 || exact.iter().all(|ty| ty.partial) {
-            return Some(normalized);
+    let (base_name, generic_arity) = split_generic_type(&normalized);
+    let expected_id = generic_metadata_name(base_name, generic_arity.unwrap_or_default());
+    let target_id = if normalized.contains('.') {
+        Some(
+            normalized
+                .strip_suffix('>')
+                .and_then(|value| value.rsplit_once('<').map(|(prefix, _)| prefix))
+                .map_or_else(
+                    || normalized.clone(),
+                    |prefix| format!("{prefix}`{}", generic_arity.unwrap_or_default()),
+                ),
+        )
+    } else {
+        None
+    };
+    let matching: Vec<&TypeContext> = types
+        .iter()
+        .filter(|ty| {
+            if let Some(target_id) = target_id.as_deref() {
+                ty.symbol_id == target_id
+            } else {
+                ty.name == base_name && generic_arity.is_none_or(|arity| ty.generic_arity == arity)
+            }
+        })
+        .collect();
+    if let Some(id) = unique_type_id(&matching) {
+        return Some(id);
+    }
+    if generic_arity.is_none() && target_id.is_none() {
+        let ids = type_ids_by_name.get(&expected_id)?;
+        if ids.len() == 1 {
+            return ids.iter().next().cloned();
         }
     }
-    let ids = type_ids_by_name.get(&normalized)?;
-    if ids.len() == 1 {
-        ids.iter().next().cloned()
+    None
+}
+
+fn unique_type_id(matching: &[&TypeContext]) -> Option<String> {
+    let ids: BTreeSet<&str> = matching.iter().map(|ty| ty.symbol_id.as_str()).collect();
+    if ids.len() != 1 {
+        return None;
+    }
+    let id = *ids.iter().next()?;
+    let declarations: Vec<&&TypeContext> =
+        matching.iter().filter(|ty| ty.symbol_id == id).collect();
+    if declarations.len() <= 1 || declarations.iter().all(|ty| ty.partial) {
+        Some(id.to_owned())
     } else {
         None
     }
+}
+
+fn split_generic_type(text: &str) -> (&str, Option<usize>) {
+    let Some(open) = text.find('<') else {
+        return (text, None);
+    };
+    if !text.ends_with('>') {
+        return (text, None);
+    }
+    let body = &text[open + 1..text.len() - 1];
+    let mut depth = 0_usize;
+    let mut arity = 1_usize;
+    for character in body.chars() {
+        match character {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => arity += 1,
+            _ => {}
+        }
+    }
+    (&text[..open], Some(arity))
 }
 
 fn arguments_compatible(method: &Method, arguments: &[Option<String>]) -> bool {
@@ -790,7 +959,7 @@ fn arguments_compatible(method: &Method, arguments: &[Option<String>]) -> bool {
             .zip(arguments)
             .all(|(parameter, argument)| match (&parameter.ty, argument) {
                 (Some(parameter), Some(argument)) => types_equivalent(parameter, argument),
-                (Some(_), None) => true,
+                (Some(_), None) => false,
                 _ => false,
             })
 }
@@ -808,6 +977,43 @@ fn types_equivalent(left: &str, right: &str) -> bool {
                 | ("bool", "System.Boolean")
                 | ("System.Boolean", "bool")
         )
+}
+
+fn infer_integer_literal(literal: &str) -> Option<String> {
+    let lower = literal.to_ascii_lowercase().replace('_', "");
+    let (radix, body) = if let Some(body) = lower.strip_prefix("0x") {
+        (16, body)
+    } else if let Some(body) = lower.strip_prefix("0b") {
+        (2, body)
+    } else {
+        (10, lower.as_str())
+    };
+    let suffix_index = body
+        .char_indices()
+        .rev()
+        .find(|(_, character)| !matches!(character, 'u' | 'l'))
+        .map_or(0, |(index, character)| index + character.len_utf8());
+    let digits = &body[..suffix_index];
+    let suffix = &body[suffix_index..];
+    let value = u128::from_str_radix(digits, radix).ok()?;
+    let fits_u32 = value <= u128::from(u32::MAX);
+    let fits_i32 = value <= i32::MAX as u128;
+    let fits_i64 = value <= i64::MAX as u128;
+    Some(
+        match suffix {
+            "ul" | "lu" => "ulong",
+            "u" if fits_u32 => "uint",
+            "u" => "ulong",
+            "l" if fits_i64 => "long",
+            "l" => "ulong",
+            "" if fits_i32 => "int",
+            "" if fits_u32 => "uint",
+            "" if fits_i64 => "long",
+            "" => "ulong",
+            _ => return None,
+        }
+        .to_owned(),
+    )
 }
 
 fn unresolved_call(
@@ -834,6 +1040,9 @@ fn unresolved_call(
 fn method_groups(methods: &[Method]) -> BTreeMap<(String, String), Vec<Method>> {
     let mut output: BTreeMap<(String, String), Vec<Method>> = BTreeMap::new();
     for method in methods {
+        if method.explicit_interface.is_some() {
+            continue;
+        }
         output
             .entry((method.type_id.clone(), method.name.clone()))
             .or_default()
@@ -844,6 +1053,20 @@ fn method_groups(methods: &[Method]) -> BTreeMap<(String, String), Vec<Method>> 
         group.dedup_by(|left, right| left.symbol_id == right.symbol_id);
     }
     output
+}
+
+fn explicit_interface_name(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .find(|child| child.kind() == "explicit_interface_specifier")
+        .and_then(|specifier| {
+            let mut cursor = specifier.walk();
+            specifier
+                .named_children(&mut cursor)
+                .next()
+                .and_then(|name| name.utf8_text(source).ok())
+        })
+        .map(canonical_type)
 }
 
 fn methods_by_name<'a>(methods: &'a [Method], name: &str) -> Vec<&'a Method> {
@@ -931,4 +1154,27 @@ fn canonical_type(text: &str) -> String {
         .filter(|character| !character.is_whitespace())
         .collect::<String>()
         .replace("global::", "")
+}
+
+fn named_child_count(node: Node<'_>) -> usize {
+    node.named_child_count()
+}
+
+fn type_parameter_arity(node: Node<'_>) -> usize {
+    node.child_by_field_name("type_parameters")
+        .or_else(|| {
+            let mut cursor = node.walk();
+            node.named_children(&mut cursor)
+                .find(|child| child.kind() == "type_parameter_list")
+        })
+        .map(named_child_count)
+        .unwrap_or_default()
+}
+
+fn generic_metadata_name(name: &str, arity: usize) -> String {
+    if arity == 0 {
+        name.to_owned()
+    } else {
+        format!("{name}`{arity}")
+    }
 }

@@ -80,3 +80,20 @@ No index repair/rebuild, model download/change, live database access, private
 source upload, push, merge, or release was performed. Revert the implementation
 and results checkpoint with `git revert cd95929`; remove the frozen benchmark
 commits as well by reverting `e13c35f` and then `6308350`.
+
+## C# continuation at `e1f3d9d`
+
+The C# continuation is an offline-only branch of the same standalone prototype.
+Current measurements are in `csharp/RESULTS.md`; diagnostic reproductions are
+in `csharp/repros/`. Frozen C# data is at `9ee18f8`; earlier implementation
+checkpoints are `7723fdc` and `55f8aa2`; final reviewer fixes will be
+checkpointed with this handoff. Preserve all frozen cases. The independent
+validation case `overload-edges-by-parameter-type` has a source/gold mismatch
+(`dynamic` in source, `object` in expected metadata); do not change it.
+
+The final prototype measured 20/20 development and 10/10 independent
+caller-to-callee symbol edges with zero false edges. Review reproductions now
+fail closed on generic identity, dynamic/unknown arguments, property types,
+numeric literal ranges, shadowed type names, and local-function scope. Decision:
+Decision: INCONCLUSIVE for product adoption and generalization. The synthetic
+suites do not establish real HRM2.0 gains or full C# binding behavior.

@@ -34,6 +34,7 @@ struct ResultSet {
     files_scanned: usize,
     declarations: Vec<Declaration>,
     csharp: Option<csharp::Discovery>,
+    legacy_truncated: bool,
 }
 
 #[derive(Clone)]
@@ -55,6 +56,8 @@ struct RawCall {
 }
 
 const MAX_LEGACY_FILES: usize = 2_500;
+const MAX_LEGACY_DIRECTORIES: usize = 10_000;
+const MAX_LEGACY_DIRECTORY_DEPTH: usize = 64;
 
 fn main() {
     let mut args = env::args_os().skip(1);
@@ -93,7 +96,15 @@ fn main() {
 fn discover(root: &Path, query: &str) -> Result<(ResultSet, u128), String> {
     let started = Instant::now();
     let mut paths = Vec::new();
-    collect_legacy_files(root, &mut paths)?;
+    let mut legacy_truncated = false;
+    let mut legacy_directories = 0;
+    collect_legacy_files(
+        root,
+        &mut paths,
+        &mut legacy_truncated,
+        &mut legacy_directories,
+        0,
+    )?;
     paths.sort();
 
     let mut parser = Parser::new();
@@ -207,11 +218,9 @@ fn discover(root: &Path, query: &str) -> Result<(ResultSet, u128), String> {
         })
         .collect();
 
-    let csharp = if paths.iter().any(|path| {
-        path.extension()
-            .is_some_and(|extension| matches!(extension.to_str(), Some("cs" | "csx")))
-    }) {
-        Some(csharp::discover(root, query)?)
+    let csharp_scan = csharp::discover(root, query)?;
+    let csharp = if csharp_scan.files_found > 0 {
+        Some(csharp_scan)
     } else {
         None
     };
@@ -230,21 +239,38 @@ fn discover(root: &Path, query: &str) -> Result<(ResultSet, u128), String> {
             files_scanned: legacy_files_scanned,
             declarations: results,
             csharp,
+            legacy_truncated,
         },
         started.elapsed().as_nanos(),
     ))
 }
 
-fn collect_legacy_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+fn collect_legacy_files(
+    root: &Path,
+    out: &mut Vec<PathBuf>,
+    truncated: &mut bool,
+    directories_scanned: &mut usize,
+    depth: usize,
+) -> Result<(), String> {
     if out.len() >= MAX_LEGACY_FILES {
+        *truncated = true;
         return Ok(());
     }
+    if depth > MAX_LEGACY_DIRECTORY_DEPTH || *directories_scanned >= MAX_LEGACY_DIRECTORIES {
+        *truncated = true;
+        return Ok(());
+    }
+    *directories_scanned += 1;
     let entries = fs::read_dir(root).map_err(|error| format!("{}: {error}", root.display()))?;
+    let mut entries = entries
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(std::fs::DirEntry::file_name);
     for entry in entries {
         if out.len() >= MAX_LEGACY_FILES {
+            *truncated = true;
             break;
         }
-        let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
         if file_type.is_dir() {
@@ -265,15 +291,12 @@ fn collect_legacy_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Strin
                     | "target"
             ) && !name.starts_with('.')
             {
-                collect_legacy_files(&path, out)?;
+                collect_legacy_files(&path, out, truncated, directories_scanned, depth + 1)?;
             }
         } else if file_type.is_file()
-            && path.extension().is_some_and(|ext| {
-                matches!(
-                    ext.to_str(),
-                    Some("rs" | "py" | "ts" | "tsx" | "cs" | "csx")
-                )
-            })
+            && path
+                .extension()
+                .is_some_and(|ext| matches!(ext.to_str(), Some("rs" | "py" | "ts" | "tsx")))
         {
             out.push(path);
         }
