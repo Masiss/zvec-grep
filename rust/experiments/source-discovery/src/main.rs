@@ -9,6 +9,8 @@ use std::{
 use serde::Serialize;
 use tree_sitter::{Language, Node, Parser};
 
+mod csharp;
+
 #[derive(Clone, Debug, Serialize)]
 struct Caller {
     name: String,
@@ -31,6 +33,7 @@ struct ResultSet {
     query: String,
     files_scanned: usize,
     declarations: Vec<Declaration>,
+    csharp: Option<csharp::Discovery>,
 }
 
 #[derive(Clone)]
@@ -50,6 +53,8 @@ struct RawCall {
     caller_line: usize,
     call_line: usize,
 }
+
+const MAX_LEGACY_FILES: usize = 2_500;
 
 fn main() {
     let mut args = env::args_os().skip(1);
@@ -88,7 +93,7 @@ fn main() {
 fn discover(root: &Path, query: &str) -> Result<(ResultSet, u128), String> {
     let started = Instant::now();
     let mut paths = Vec::new();
-    collect_rust_files(root, &mut paths)?;
+    collect_legacy_files(root, &mut paths)?;
     paths.sort();
 
     let mut parser = Parser::new();
@@ -202,28 +207,73 @@ fn discover(root: &Path, query: &str) -> Result<(ResultSet, u128), String> {
         })
         .collect();
 
+    let csharp = if paths.iter().any(|path| {
+        path.extension()
+            .is_some_and(|extension| matches!(extension.to_str(), Some("cs" | "csx")))
+    }) {
+        Some(csharp::discover(root, query)?)
+    } else {
+        None
+    };
+    let legacy_files_scanned = paths
+        .iter()
+        .filter(|path| {
+            path.extension().is_some_and(|extension| {
+                matches!(extension.to_str(), Some("rs" | "py" | "ts" | "tsx"))
+            })
+        })
+        .count();
+
     Ok((
         ResultSet {
             query: query.to_owned(),
-            files_scanned: paths.len(),
+            files_scanned: legacy_files_scanned,
             declarations: results,
+            csharp,
         },
         started.elapsed().as_nanos(),
     ))
 }
 
-fn collect_rust_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+fn collect_legacy_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    if out.len() >= MAX_LEGACY_FILES {
+        return Ok(());
+    }
     let entries = fs::read_dir(root).map_err(|error| format!("{}: {error}", root.display()))?;
     for entry in entries {
+        if out.len() >= MAX_LEGACY_FILES {
+            break;
+        }
         let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
         if file_type.is_dir() {
-            collect_rust_files(&path, out)?;
+            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            if !matches!(
+                name.as_str(),
+                ".git"
+                    | "bin"
+                    | "obj"
+                    | "vendor"
+                    | "vendors"
+                    | "packages"
+                    | "node_modules"
+                    | "generated"
+                    | "third_party"
+                    | "third-party"
+                    | "external"
+                    | "target"
+            ) && !name.starts_with('.')
+            {
+                collect_legacy_files(&path, out)?;
+            }
         } else if file_type.is_file()
-            && path
-                .extension()
-                .is_some_and(|ext| matches!(ext.to_str(), Some("rs" | "py" | "ts" | "tsx")))
+            && path.extension().is_some_and(|ext| {
+                matches!(
+                    ext.to_str(),
+                    Some("rs" | "py" | "ts" | "tsx" | "cs" | "csx")
+                )
+            })
         {
             out.push(path);
         }
@@ -346,7 +396,7 @@ fn language_for_path(path: &Path) -> Option<Language> {
     }
 }
 
-fn identifier_parts(value: &str) -> Vec<String> {
+pub(crate) fn identifier_parts(value: &str) -> Vec<String> {
     let chars: Vec<char> = value.chars().collect();
     let mut words = Vec::new();
     let mut current = String::new();
@@ -375,7 +425,7 @@ fn identifier_parts(value: &str) -> Vec<String> {
     words
 }
 
-fn matches_query(query: &[String], candidate: &[String]) -> bool {
+pub(crate) fn matches_query(query: &[String], candidate: &[String]) -> bool {
     if query.is_empty() || candidate.is_empty() || query.len() > candidate.len() {
         return false;
     }
