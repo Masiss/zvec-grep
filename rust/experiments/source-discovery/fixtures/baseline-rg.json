@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "method": "ordinary rg -n -F -- QUERY CORPUS",
+  "identity": {
+    "cases.json": "777834784a5010d0b4bcafcc42616e4a6137886e5c3926aeac8f4c08eb38730e",
+    "corpus/src/session.rs": "912f3d7b608fc61fcae171c9a0934fa46742e2feab12c815be801518e7d72583"
+  },
+  "results": [
+    {
+      "id": "partial-load-config",
+      "exit_code": 2,
+      "elapsed_ns": 1847700,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "partial-cache-key",
+      "exit_code": 2,
+      "elapsed_ns": 1798341,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "partial-request-context",
+      "exit_code": 2,
+      "elapsed_ns": 1714727,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "partial-refresh-catalog",
+      "exit_code": 2,
+      "elapsed_ns": 1813430,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "ambiguous-parse",
+      "exit_code": 2,
+      "elapsed_ns": 2357891,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "ambiguous-cache",
+      "exit_code": 2,
+      "elapsed_ns": 2640091,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "exact-write-manifest",
+      "exit_code": 2,
+      "elapsed_ns": 3195478,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "exact-create-request-context",
+      "exit_code": 2,
+      "elapsed_ns": 1686281,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "caller-load-cache-key",
+      "exit_code": 2,
+      "elapsed_ns": 1652060,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "caller-parse-config",
+      "exit_code": 2,
+      "elapsed_ns": 1731459,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "definition-session-config",
+      "exit_code": 2,
+      "elapsed_ns": 1672523,
+      "output_bytes": 0,
+      "matches": []
+    },
+    {
+      "id": "negative-no-symbol",
+      "exit_code": 2,
+      "elapsed_ns": 1653293,
+      "output_bytes": 0,
+      "matches": []
+    }
+  ]
+}

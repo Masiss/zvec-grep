@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "corpus": "fixtures/corpus",
+  "tasks": [
+    {"id":"partial-load-config","query":"loadConf","expected_declarations":["src/session.rs::load_configuration"],"expected_callers":["src/session.rs::start_service"]},
+    {"id":"partial-cache-key","query":"cacheKey","expected_declarations":["src/session.rs::load_cache_key"],"expected_callers":["src/session.rs::start_service"]},
+    {"id":"partial-request-context","query":"requestCont","expected_declarations":["src/session.rs::request_context_for_user"],"expected_callers":["src/session.rs::start_service"]},
+    {"id":"partial-refresh-catalog","query":"refreshCat","expected_declarations":["src/session.rs::refresh_catalog"],"expected_callers":["src/session.rs::start_service"]},
+    {"id":"ambiguous-parse","query":"parse","expected_declarations":["src/session.rs::parse_config_line","src/session.rs::parse_request_line","src/session.rs::parse_config","src/session.rs::parse_request"],"expected_callers":["src/session.rs::parse_config","src/session.rs::parse_request"]},
+    {"id":"ambiguous-cache","query":"cache","expected_declarations":["src/session.rs::SessionCache","src/session.rs::load_cache_key"],"expected_callers":["src/session.rs::start_service"]},
+    {"id":"exact-write-manifest","query":"write_manifest","expected_declarations":["src/session.rs::write_manifest"],"expected_callers":["src/session.rs::refresh_catalog"]},
+    {"id":"exact-create-request-context","query":"create_request_context","expected_declarations":["src/worker.py::create_request_context"],"expected_callers":[]},
+    {"id":"caller-load-cache-key","query":"load_cache_key","expected_declarations":["src/session.rs::load_cache_key"],"expected_callers":["src/session.rs::start_service"]},
+    {"id":"caller-parse-config","query":"parse_config","expected_declarations":["src/session.rs::parse_config_line","src/session.rs::parse_config"],"expected_callers":["src/session.rs::parse_config"]},
+    {"id":"definition-session-config","query":"SessionConfig","expected_declarations":["src/session.rs::SessionConfig"],"expected_callers":["src/session.rs::load_configuration","src/session.rs::start_service"]},
+    {"id":"negative-no-symbol","query":"zzqNoSuchSymbol","expected_declarations":[],"expected_callers":[]}
+  ]
+}
