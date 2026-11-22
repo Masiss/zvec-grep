@@ -160,3 +160,16 @@ A mock test reproduced an absolute corpus-root leak in an adapter error sent as 
 Fresh-context review found the real remaining blockers: D1 evaluator identity/trust, D2 private-source inference approval, verified retention, and an enforceable all-in cost ceiling. The existing GPT-4.1 evaluator candidate is deprecated. No production evaluator is registered.
 
 **Next action:** wait for the owner to fill/approve the decision form, including an all-in USD cap. Before any private request, implement and verify request/output-token bounds and a pre-call budget guard. Then run only the fixed 3×3 development pilot; proceed to full 12×3 only if the preregistered operational gate passes. Keep H01–H08 sealed. Do not treat synthetic E2E as answer-quality evidence.
+
+
+## Continuation update — native Codex subagent pilot readiness (2026-11-22)
+
+The current checkpoint remains 135844ed before this handoff-only update. Native Codex delegation was verified with a fresh-context reviewer using sanitized pilot information only. No HRM2.0 case, source, evidence, gold or checklist was sent to a subagent; no answerer/evaluator or Responses API call was run.
+
+Tool availability: native rg, the collaboration spawn interface, R4 adapter CLI, and MCP zvec_grep_search are present. The adapter exposes search/symbol/facts/evidence/verify/workflow/status. The host has no zvec_grep_rg MCP tool; the current workspace FTS failure remains separate from the frozen R4 index.
+
+The prepared exploratory pilot uses D01/D06/D12 × Arms A/B/C, nine fresh answerer contexts and three separate blind Arm-B plans. Evaluators would run only after all answers, one packet at a time, without gold/checklist/peer outputs. The frozen budgets remain targets; do not claim they are enforced uniformly by native subagents.
+
+Key limitation: this session's subagent interface provides no per-agent tool allowlist/filesystem root, and the parent cannot independently see complete per-tool traces, token usage, cost or served-model fingerprint. Fresh context is not filesystem isolation. Arm A shell operations and unmediated Arm C activity are not covered by the R4 adapter ledger. Any pilot under these conditions is exploratory, not formal trusted evaluation. Full sanitized readiness and reviewer findings are in rust/docs/r4-codex-subagent-pilot-readiness-20261122.md.
+
+**Stop here:** no private inputs go to subagents until the owner explicitly approves that data flow. Do not poll approval fields or use Responses API. Preserve H01–H08 and do not claim arm superiority from a three-case exploratory pilot.
