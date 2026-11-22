@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "corpus_path": "rust/experiments/source-discovery/csharp/fixtures/validation",
+  "identity": {
+    "cases.json": "5312bb03117bb3b9db7930f6ff87ab043ebda98b6bd75cc0cae0656783420490",
+    "obj/Generated/InvoiceStore.g.cs": "3580b502c1cac59cd896982b8da3e687026a516366583ba5bc7afbb524484e21",
+    "src/InvoiceAudit.cs": "8c5cd03f2261efea91d9686451c70f8a546b47c270868dab20021673cbcb665f",
+    "src/InvoiceCoordinator.cs": "d4e6b6fb416d7973a68f241ae27e936703c5348de5058c13c16008b72686636d",
+    "src/InvoiceStore.Read.cs": "723b3e6af4e5727be24987128d12aabdeb6f4ebdeeb10e54a86cf2ec3c977e86",
+    "src/InvoiceStore.Write.cs": "fdbf5d7e9638333ffcfa03c224d6575317745e9e0110203bc87853c4c9c72b7e"
+  },
+  "tasks": [
+    {
+      "id": "partial-class-cross-file",
+      "query": "loadInv",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "callee": "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        },
+        {
+          "caller": "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "callee": "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        }
+      ],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/validation/obj/Generated/InvoiceStore.g.cs:5:    public void LoadInvoice(byte id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:7:        LoadInvoice(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:5:    public void LoadInvoice(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceCoordinator.cs:7:        store.LoadInvoice(id);"
+          ],
+          "bytes": 498
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 132829,
+            "files_scanned": 0,
+            "query": "loadInv"
+          },
+          "bytes": 76
+        }
+      }
+    },
+    {
+      "id": "overload-edges-by-parameter-type",
+      "query": "tryGet",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::TryGet(int)",
+        "Validation.Billing.InvoiceStore::TryGet(string)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "callee": "Validation.Billing.InvoiceStore::TryGet(int)"
+        },
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "callee": "Validation.Billing.InvoiceStore::TryGet(string)"
+        }
+      ],
+      "expected_unresolved": [
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(object)",
+          "callee_name": "TryGet",
+          "reason": "ambiguous_overloads"
+        }
+      ],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:8:        TryGet(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:14:        TryGet(key);",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:20:        TryGet(value);",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:6:    public bool TryGet(int id) => true;",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:7:    public bool TryGet(string key) => true;"
+          ],
+          "bytes": 593
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 178466,
+            "files_scanned": 0,
+            "query": "tryGet"
+          },
+          "bytes": 75
+        }
+      }
+    },
+    {
+      "id": "duplicate-save-by-type",
+      "query": "save",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::Save(string)",
+        "Validation.Billing.InvoiceAudit::Save(string)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "callee": "Validation.Billing.InvoiceStore::Save(string)"
+        },
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoice(string)",
+          "callee": "Validation.Billing.InvoiceStore::Save(string)"
+        },
+        {
+          "caller": "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "callee": "Validation.Billing.InvoiceStore::Save(string)"
+        },
+        {
+          "caller": "Validation.Billing.InvoiceAudit::Record(string)",
+          "callee": "Validation.Billing.InvoiceAudit::Save(string)"
+        }
+      ],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:8:    public void Save(string invoice) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceCoordinator.cs:8:        store.Save(\"invoice\");",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceAudit.cs:5:    public void Save(string invoice) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceAudit.cs:6:    public void Record(string invoice) { Save(invoice); }",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:9:        Save(\"invoice\");",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:15:        Save(key);"
+          ],
+          "bytes": 737
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 173610,
+            "files_scanned": 0,
+            "query": "save"
+          },
+          "bytes": 73
+        }
+      }
+    },
+    {
+      "id": "uncertain-overload-call",
+      "query": "BuildInvoiceUnknown",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)"
+      ],
+      "expected_edges": [],
+      "expected_unresolved": [
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoiceUnknown(dynamic)",
+          "callee_name": "TryGet",
+          "reason": "dynamic_dispatch"
+        }
+      ],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:18:    public void BuildInvoiceUnknown(dynamic value)"
+          ],
+          "bytes": 141
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:18:    public void BuildInvoiceUnknown(dynamic value)"
+          ],
+          "bytes": 141
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 279178,
+            "files_scanned": 0,
+            "query": "BuildInvoiceUnknown"
+          },
+          "bytes": 88
+        }
+      }
+    },
+    {
+      "id": "generated-file-excluded",
+      "query": "loadInvoice",
+      "expected_declarations": [
+        "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Validation.Billing.InvoiceStore::BuildInvoice(int)",
+          "callee": "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        },
+        {
+          "caller": "Validation.Billing.InvoiceCoordinator::Open(InvoiceStore,int)",
+          "callee": "Validation.Billing.InvoiceStore::LoadInvoice(int)"
+        }
+      ],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/validation/obj/Generated/InvoiceStore.g.cs:5:    public void LoadInvoice(byte id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Write.cs:7:        LoadInvoice(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceCoordinator.cs:7:        store.LoadInvoice(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/validation/src/InvoiceStore.Read.cs:5:    public void LoadInvoice(int id) { }"
+          ],
+          "bytes": 498
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 302248,
+            "files_scanned": 0,
+            "query": "loadInvoice"
+          },
+          "bytes": 80
+        }
+      }
+    },
+    {
+      "id": "negative-missing-method",
+      "query": "zzqInvoiceMissing",
+      "expected_declarations": [],
+      "expected_edges": [],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 357618,
+            "files_scanned": 0,
+            "query": "zzqInvoiceMissing"
+          },
+          "bytes": 86
+        }
+      }
+    }
+  ]
+}

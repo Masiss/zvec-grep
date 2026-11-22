@@ -1,0 +1,475 @@
+{
+  "schema": 1,
+  "corpus_path": "rust/experiments/source-discovery/csharp/fixtures/dev",
+  "identity": {
+    "cases.json": "d4f25b81663b1d8c2c42104dffc707b35d1da608b8589635e4a9d68cb1f696e6",
+    "obj/Generated/CustomerService.g.cs": "ef6667da3348785114c2fe8db8de8d9cbd930eae8cccad6ced996fd85b0f8b25",
+    "src/AuditService.cs": "767d01e91018561798c7c0bb59cb489aace37f4e61e8dd2f114a9a30c0ac249f",
+    "src/Coordinator.cs": "e45bc3ec8c7329a25e72b6d3305c86c2327d912efc62bef604b1ee7bdc403b16",
+    "src/CustomerService.Core.cs": "06db8efb1167aa0802ed748216d593bbc8ea341758ad7bd7d3a00d6e907e14a8",
+    "src/CustomerService.Identity.cs": "a5c020432618530b9b623b02ed1f898bed63bc570343b7b166a65332036484da",
+    "vendor/ThirdParty/CustomerHelpers.cs": "d2b082eb1646a5fd92837485ea3b73571ecf6c10401de89e832c2c0840051684"
+  },
+  "tasks": [
+    {
+      "id": "partial-method-across-files",
+      "query": "refreshCust",
+      "expected_declarations": [
+        "Demo.App.CustomerService::RefreshCustomer(int)",
+        "Demo.App.CustomerService::RefreshCustomer(string)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(int)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(string)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(string)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int,bool)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(int)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessName(string)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(string)"
+        }
+      ],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/vendor/ThirdParty/CustomerHelpers.cs:5:    public void RefreshCustomer(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/obj/Generated/CustomerService.g.cs:5:    public void RefreshCustomer(byte id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:10:        RefreshCustomer(name);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:5:    public void RefreshCustomer(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:6:    public void RefreshCustomer(string id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:11:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:17:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:22:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:28:        // NeverCalled() and RefreshCustomer(\"comment\") are not references.",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:29:        var example = \"RefreshCustomer(id); NeverCalled();\";"
+          ],
+          "bytes": 1301
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 110533,
+            "files_scanned": 0,
+            "query": "refreshCust"
+          },
+          "bytes": 80
+        }
+      }
+    },
+    {
+      "id": "duplicate-method-names-scoped",
+      "query": "saveCustAud",
+      "expected_declarations": [
+        "Demo.App.CustomerService::SaveCustomerAudit(int)",
+        "Demo.App.AuditService::SaveCustomerAudit(int)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int)",
+          "callee": "Demo.App.CustomerService::SaveCustomerAudit(int)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int,bool)",
+          "callee": "Demo.App.CustomerService::SaveCustomerAudit(int)"
+        },
+        {
+          "caller": "Demo.App.AuditService::ProcessAudit(int)",
+          "callee": "Demo.App.AuditService::SaveCustomerAudit(int)"
+        },
+        {
+          "caller": "Demo.App.Coordinator::Start(CustomerService,int)",
+          "callee": "Demo.App.CustomerService::SaveCustomerAudit(int)"
+        }
+      ],
+      "expected_unresolved": [
+        {
+          "caller": "Demo.App.Coordinator::StartUnknown(dynamic,int)",
+          "callee_name": "SaveCustomerAudit",
+          "reason": "dynamic_dispatch"
+        }
+      ],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 105150,
+            "files_scanned": 0,
+            "query": "saveCustAud"
+          },
+          "bytes": 80
+        }
+      }
+    },
+    {
+      "id": "partial-overload-set",
+      "query": "processCust",
+      "expected_declarations": [
+        "Demo.App.CustomerService::ProcessCustomer(int)",
+        "Demo.App.CustomerService::ProcessCustomer(string)",
+        "Demo.App.CustomerService::ProcessCustomer(int,bool)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Demo.App.Coordinator::Start(CustomerService,int)",
+          "callee": "Demo.App.CustomerService::ProcessCustomer(int)"
+        }
+      ],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/Coordinator.cs:7:        service.ProcessCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:9:    public void ProcessCustomer(int id)",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:15:    public void ProcessCustomer(string id)",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:20:    public void ProcessCustomer(int id, bool writeAudit)"
+          ],
+          "bytes": 506
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 129063,
+            "files_scanned": 0,
+            "query": "processCust"
+          },
+          "bytes": 80
+        }
+      }
+    },
+    {
+      "id": "ambiguous-overloads-conservative",
+      "query": "parse",
+      "expected_declarations": [
+        "Demo.App.CustomerService::Parse(int)",
+        "Demo.App.CustomerService::Parse(string)",
+        "Demo.App.CustomerService::Parse(object)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Demo.App.CustomerService::ParseKnown(int)",
+          "callee": "Demo.App.CustomerService::Parse(int)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ParseStringKnown(string)",
+          "callee": "Demo.App.CustomerService::Parse(string)"
+        }
+      ],
+      "expected_unresolved": [
+        {
+          "caller": "Demo.App.CustomerService::ParseUnknown(dynamic)",
+          "callee_name": "Parse",
+          "reason": "dynamic_dispatch"
+        }
+      ],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:13:    public void Parse(int value) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:14:    public void Parse(string value) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:15:    public void Parse(object value) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:17:    public void ParseKnown(int value) { Parse(value); }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:18:    public void ParseStringKnown(string value) { Parse(value); }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:19:    public void ParseUnknown(dynamic value) { Parse(value); }"
+          ],
+          "bytes": 834
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 180551,
+            "files_scanned": 0,
+            "query": "parse"
+          },
+          "bytes": 74
+        }
+      }
+    },
+    {
+      "id": "partial-definition-entry-point",
+      "query": "normalizeCust",
+      "expected_declarations": [
+        "Demo.App.CustomerService::NormalizeCustomerName(string)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Demo.App.CustomerService::ProcessName(string)",
+          "callee": "Demo.App.CustomerService::NormalizeCustomerName(string)"
+        }
+      ],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:5:    public void NormalizeCustomerName(string name) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:9:        NormalizeCustomerName(name);"
+          ],
+          "bytes": 268
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 162362,
+            "files_scanned": 0,
+            "query": "normalizeCust"
+          },
+          "bytes": 82
+        }
+      }
+    },
+    {
+      "id": "case-insensitive-exact-overload",
+      "query": "RefreshCustomer",
+      "expected_declarations": [
+        "Demo.App.CustomerService::RefreshCustomer(int)",
+        "Demo.App.CustomerService::RefreshCustomer(string)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(int)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(string)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(string)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int,bool)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(int)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessName(string)",
+          "callee": "Demo.App.CustomerService::RefreshCustomer(string)"
+        }
+      ],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/vendor/ThirdParty/CustomerHelpers.cs:5:    public void RefreshCustomer(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:10:        RefreshCustomer(name);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:5:    public void RefreshCustomer(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:6:    public void RefreshCustomer(string id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:11:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:17:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:22:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:28:        // NeverCalled() and RefreshCustomer(\"comment\") are not references.",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:29:        var example = \"RefreshCustomer(id); NeverCalled();\";",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/obj/Generated/CustomerService.g.cs:5:    public void RefreshCustomer(byte id) { }"
+          ],
+          "bytes": 1301
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/vendor/ThirdParty/CustomerHelpers.cs:5:    public void RefreshCustomer(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:5:    public void RefreshCustomer(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:6:    public void RefreshCustomer(string id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:11:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:17:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:22:        RefreshCustomer(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:28:        // NeverCalled() and RefreshCustomer(\"comment\") are not references.",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:29:        var example = \"RefreshCustomer(id); NeverCalled();\";",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Identity.cs:10:        RefreshCustomer(name);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/obj/Generated/CustomerService.g.cs:5:    public void RefreshCustomer(byte id) { }"
+          ],
+          "bytes": 1301
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 519940,
+            "files_scanned": 0,
+            "query": "RefreshCustomer"
+          },
+          "bytes": 84
+        }
+      }
+    },
+    {
+      "id": "negative-comment-and-generated-noise",
+      "query": "NeverCalled",
+      "expected_declarations": [],
+      "expected_edges": [],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/vendor/ThirdParty/CustomerHelpers.cs:6:    public void NeverCalled() { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:28:        // NeverCalled() and RefreshCustomer(\"comment\") are not references.",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:29:        var example = \"RefreshCustomer(id); NeverCalled();\";"
+          ],
+          "bytes": 434
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/vendor/ThirdParty/CustomerHelpers.cs:6:    public void NeverCalled() { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:28:        // NeverCalled() and RefreshCustomer(\"comment\") are not references.",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:29:        var example = \"RefreshCustomer(id); NeverCalled();\";"
+          ],
+          "bytes": 434
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 430472,
+            "files_scanned": 0,
+            "query": "NeverCalled"
+          },
+          "bytes": 80
+        }
+      }
+    },
+    {
+      "id": "uncertain-receiver-not-an-edge",
+      "query": "SaveCustomerAudit",
+      "expected_declarations": [
+        "Demo.App.CustomerService::SaveCustomerAudit(int)",
+        "Demo.App.AuditService::SaveCustomerAudit(int)"
+      ],
+      "expected_edges": [
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int)",
+          "callee": "Demo.App.CustomerService::SaveCustomerAudit(int)"
+        },
+        {
+          "caller": "Demo.App.CustomerService::ProcessCustomer(int,bool)",
+          "callee": "Demo.App.CustomerService::SaveCustomerAudit(int)"
+        },
+        {
+          "caller": "Demo.App.AuditService::ProcessAudit(int)",
+          "callee": "Demo.App.AuditService::SaveCustomerAudit(int)"
+        },
+        {
+          "caller": "Demo.App.Coordinator::Start(CustomerService,int)",
+          "callee": "Demo.App.CustomerService::SaveCustomerAudit(int)"
+        }
+      ],
+      "expected_unresolved": [
+        {
+          "caller": "Demo.App.Coordinator::StartUnknown(dynamic,int)",
+          "callee_name": "SaveCustomerAudit",
+          "reason": "dynamic_dispatch"
+        }
+      ],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:7:    public void SaveCustomerAudit(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:12:        SaveCustomerAudit(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:23:        if (writeAudit) SaveCustomerAudit(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/Coordinator.cs:8:        service.SaveCustomerAudit(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/Coordinator.cs:13:        service.SaveCustomerAudit(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/AuditService.cs:5:    public void SaveCustomerAudit(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/AuditService.cs:6:    public void ProcessAudit(int id) { SaveCustomerAudit(id); }"
+          ],
+          "bytes": 869
+        },
+        "rg_case_insensitive": {
+          "exit_code": 0,
+          "lines": [
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/Coordinator.cs:8:        service.SaveCustomerAudit(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/Coordinator.cs:13:        service.SaveCustomerAudit(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/AuditService.cs:5:    public void SaveCustomerAudit(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/AuditService.cs:6:    public void ProcessAudit(int id) { SaveCustomerAudit(id); }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:7:    public void SaveCustomerAudit(int id) { }",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:12:        SaveCustomerAudit(id);",
+            "rust/experiments/source-discovery/csharp/fixtures/dev/src/CustomerService.Core.cs:23:        if (writeAudit) SaveCustomerAudit(id);"
+          ],
+          "bytes": 869
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 121595,
+            "files_scanned": 0,
+            "query": "SaveCustomerAudit"
+          },
+          "bytes": 86
+        }
+      }
+    },
+    {
+      "id": "negative-absent-identifier",
+      "query": "zzqNoMethod",
+      "expected_declarations": [],
+      "expected_edges": [],
+      "expected_unresolved": [],
+      "baselines": {
+        "rg_exact": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "rg_case_insensitive": {
+          "exit_code": 1,
+          "lines": [],
+          "bytes": 0
+        },
+        "prototype_before": {
+          "exit_code": 0,
+          "json": {
+            "declarations": [],
+            "elapsed_ns": 167082,
+            "files_scanned": 0,
+            "query": "zzqNoMethod"
+          },
+          "bytes": 80
+        }
+      }
+    }
+  ]
+}
