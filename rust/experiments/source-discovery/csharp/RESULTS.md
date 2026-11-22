@@ -1,10 +1,12 @@
 # C# source discovery — continuation results
 
-Date: 2026-11-22  
-Start checkpoint: `e1f3d9d`  
-Frozen C# corpora/cases: `9ee18f8`  
-Initial C# implementation: `7723fdc`  
-Caller uncertainty fix: `55f8aa2`
+Date: 2026-11-22
+
+- Start checkpoint: `e1f3d9d`
+- Frozen C# corpora/cases: `9ee18f8`
+- Initial C# implementation: `7723fdc`
+- Caller uncertainty fix: `55f8aa2`
+- Final code checkpoint: `9cf8eea`
 
 ## Decision
 

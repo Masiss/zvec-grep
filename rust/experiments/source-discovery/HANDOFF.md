@@ -81,19 +81,41 @@ source upload, push, merge, or release was performed. Revert the implementation
 and results checkpoint with `git revert cd95929`; remove the frozen benchmark
 commits as well by reverting `e13c35f` and then `6308350`.
 
-## C# continuation at `e1f3d9d`
+## C# continuation — final code checkpoint `9cf8eea`
 
-The C# continuation is an offline-only branch of the same standalone prototype.
-Current measurements are in `csharp/RESULTS.md`; diagnostic reproductions are
-in `csharp/repros/`. Frozen C# data is at `9ee18f8`; earlier implementation
-checkpoints are `7723fdc` and `55f8aa2`; final reviewer fixes will be
-checkpointed with this handoff. Preserve all frozen cases. The independent
-validation case `overload-edges-by-parameter-type` has a source/gold mismatch
-(`dynamic` in source, `object` in expected metadata); do not change it.
+The C# continuation extends the same standalone offline prototype. Results,
+review findings, and limitations are in `csharp/RESULTS.md`; frozen C# fixtures
+and baselines are under `csharp/fixtures/`; review reproductions are under
+`csharp/repros/`.
 
-The final prototype measured 20/20 development and 10/10 independent
-caller-to-callee symbol edges with zero false edges. Review reproductions now
-fail closed on generic identity, dynamic/unknown arguments, property types,
-numeric literal ranges, shadowed type names, and local-function scope. Decision:
-Decision: INCONCLUSIVE for product adoption and generalization. The synthetic
-suites do not establish real HRM2.0 gains or full C# binding behavior.
+- Frozen cases checkpoint: `9ee18f8` (do not edit).
+- Initial C# implementation: `7723fdc`.
+- Caller uncertainty fix: `55f8aa2`.
+- Final reviewer fixes, repro outputs, results, and this handoff: `9cf8eea`.
+- Decision: **INCONCLUSIVE** for product adoption/generalization.
+
+The development suite measured 20/20 exact caller-to-callee symbol pairs. The
+independent suite measured 10/10, with zero false edges. The validation
+uncertainty score has a frozen source/gold mismatch (`dynamic` in source,
+`object` in expected metadata); it was not edited. Reviewer findings about
+identity collisions and type inference were reproduced and fixed. The reviewer
+recommends INCONCLUSIVE for adoption. These synthetic tests do not establish an
+HRM2.0 gain or full C# compiler-equivalent resolution.
+
+Remaining limits: inheritance, extension methods, aliases/usings, generic
+method invocation binding, explicit-interface dispatch, optional parameters,
+implicit numeric conversions, local-function bodies, and very large flat
+directories can remain unresolved or costly. The implementation is 1,162 lines
+plus an evaluator and is materially larger than invoking `rg`. Continue only
+with a public multi-project C# corpus and a Roslyn comparison if broader
+semantic binding is required; preserve the frozen suites unchanged.
+
+The cached `tree-sitter-c-sharp 0.23.5` parser built offline. Synthetic C#
+sources compiled with the local .NET SDK using a cleared package-source list.
+No package/model download, private source upload, index repair, live database
+access, push, merge, or release occurred. An initial local indexed search failed
+while opening the corrupt FTS index; it was not used by this prototype.
+
+Rollback from the final code checkpoint: `git revert 9cf8eea`, then revert
+`55f8aa2`, `7723fdc`, and `9ee18f8` in that order. A later documentation-only
+handoff commit may be reverted first if present.
