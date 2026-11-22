@@ -1,0 +1,23 @@
+[
+  {
+    "task": "partial_method_create_bitmap",
+    "query": "CreateBitmap",
+    "rss_kib": 7272,
+    "matching_lines": 17,
+    "output_bytes": 2958
+  },
+  {
+    "task": "partial_method_snapshot_undo",
+    "query": "SnapshotUndo",
+    "rss_kib": 7592,
+    "matching_lines": 15,
+    "output_bytes": 1659
+  },
+  {
+    "task": "partial_method_update_pseudo",
+    "query": "UpdatePseudo",
+    "rss_kib": 7752,
+    "matching_lines": 99,
+    "output_bytes": 11766
+  }
+]

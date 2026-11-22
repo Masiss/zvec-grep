@@ -150,3 +150,69 @@ Decision: **NO_GO for the tested rg-first budgeted evidence-pack workflow.** The
 - Source diff: no source, index, embedding, default, API, or frozen benchmark changed. The only implementation was a one-off script in local temporary storage; no product-code rollback is needed. Optional documentation cleanup is to remove the goal's sanitized research directory and this appended section. Temporary scripts/receipts can be deleted separately. Existing unrelated dirty artifacts were preserved.
 
 Checkpoint: this handoff update and sanitized evidence bundle are committed together at the current HEAD on `work/source-discovery-autonomous-20261122`. The base HEAD before recording this evaluation was `53372b18ba035ac83fa76d0fdad395bf2c0cb2fd`. HRM2.0 working tree, index, and exact source revision were not changed. No push, merge, release, or remote private inference occurred.
+
+## Quyết định reset kiến trúc — 22-11-2026
+
+Đã xác minh source/runtime trên nhánh `work/source-discovery-autonomous-20261122`,
+source HEAD `663566546f03768b9b021c65eb3accc4aa0720a1`. Worktree có sẵn các
+untracked `docs/research/session-retrospective-20261122.md`, `research/m4-native/`
+và `rust/experiments/source-discovery/real-csharp-20261122/`; tất cả được giữ
+nguyên. Mission thêm probe lexical public đã đóng băng ở
+`research/architecture-reset-20261122/` và memo đã sanitize tại
+`docs/research/architecture-reset-decision-20261122.md`.
+
+Quyết định: **SIMPLIFY**. Dừng đầu tư vào resolver C# Tree-Sitter và capped
+`rg` pack đã thử; dùng lexical search cho exact/partial identifier; lợi ích sản
+phẩm của semantic retrieval vẫn **INCONCLUSIVE** cho đến khi đo trên index khỏe
+mạnh với lexical baseline tốt. Prototype Tree-Sitter offline riêng cho
+Rust/Python/TypeScript vẫn experimental, opt-in; quyết định này không đánh giá
+prototype đó.
+
+Probe source công khai mới: native `rg` và `zg --rg` đều tìm 5/5 declaration
+targets dương tính đã đóng băng; negative task có 0 source matches. Native
+`rg` tốn ít thời gian và memory hơn trong mọi task đo được. Với query mơ hồ
+`format`, native chạy 5,3 ms / 7.300 KiB so với 88,9 ms / 39.032 KiB của
+`zg --rg`; output managed nhỏ hơn 5,2 KB nhưng nhiều hơn 89 dòng. Đây là so
+sánh khả năng/chi phí trên 6 task, một repo; không phải agent A/B hay chấm
+false-positive. Chưa xác minh binary managed được build từ HEAD này.
+
+Independent fresh-context challenge yêu cầu sửa kết luận nhân quả cũ về FTS:
+“No matches” trước đó không thể tách khỏi index corruption được xác nhận sau.
+Báo cáo sanitized đã được đính chính. Reviewer fresh-context thứ hai xác minh
+hash, số liệu, phạm vi; yêu cầu làm rõ kết luận chỉ nhắm resolver C# và phân
+biệt zero source match với output/exit behavior. Các điểm này đã được sửa.
+
+Kiểm tra index chỉ đọc trả `CORRUPT` cho generation
+`6e3c3a4d-4690-4868-8f9e-1023bbb7577c`; không rebuild, refresh hay repair.
+CLI cài sẵn là `zg 0.0.1`, SHA-256
+`6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4`; native
+`rg` là 15.2.0, SHA-256
+`e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849`. Không
+đổi source/API/default/index/embedding/benchmark hoặc private data. Không
+inference, install, push, merge hay release.
+
+Quyết định tiếp theo: default MCP agent hosts có cần expose tool no-index
+`zvec_grep_rg` hiện có hay có thể dùng native shell search. Không đổi public
+toolset/API trong mission này. Nếu sau này đo semantic value, trước hết phải
+có đường đánh giá local đã được cho phép và index khỏe; không dùng index hỏng
+hiện tại làm baseline. Bằng chứng và giới hạn đầy đủ nằm trong
+`docs/research/architecture-reset-decision-20261122.md` và
+`research/architecture-reset-20261122/partial-id-results.json`.
+
+Checkpoint nguồn được freeze tại `663566546f03768b9b021c65eb3accc4aa0720a1`;
+report/handoff chỉ đổi tài liệu và evidence, không đổi runtime.
+
+Trạng thái Git khi bàn giao: HEAD vẫn là
+`663566546f03768b9b021c65eb3accc4aa0720a1`; không tạo commit mới. Thay đổi của
+mission này còn local: sửa report `docs/research/source-discovery-autonomous-20261122.md`
+và handoff này; thêm `docs/research/architecture-reset-decision-20261122.md`
+cùng hai artifact freeze/results trong `research/architecture-reset-20261122/`.
+Các untracked có từ trước `docs/research/session-retrospective-20261122.md`,
+`research/m4-native/` và `rust/experiments/source-discovery/real-csharp-20261122/`
+được giữ nguyên, không đưa vào thay đổi của mission.
+
+## Continuation — indexed semantic retrieval qualification (2026-11-22)
+
+Goal về indexed semantic retrieval được tiếp tục trên R4 index v3 hoạt động trong disposable copy, nhưng kết luận là **INCONCLUSIVE** vì verifier read-only hiện có chỉ hỗ trợ v2 và từ chối v3 với `INCOMPLETE`. Ba task local-only cho thấy vector/hybrid chạm target files nhưng 0/9 searchable gold-span overlap; capped native `rg` và post-hoc IDF lexical ranking mỗi route đạt 1/9. OR first-hit `rg` pool (`--max-count 1`/file) đạt 3/9 với median output 1.43 MB; đây không phải full-recall ceiling vì IDF gộp context từ các lần tìm term riêng. Đây là retrieval overlap, không phải answer quality. Một D07 gold span `NOT_PERSISTED` được loại khỏi mẫu số; source/index file count 822/818 và cached binary build provenance cần được giải thích.
+
+Đọc [handoff ngắn](../../../docs/research/indexed-semantic-qualification-handoff-20261122.md) rồi [báo cáo đầy đủ](../../../docs/research/indexed-semantic-qualification-20261122.md). Bước tiếp theo là xác minh v3 bằng verifier tương thích mà không rebuild index, làm rõ file-count delta và binary provenance; sau đó mới cân nhắc rerun freeze. Không mở H01–H08 hoặc phát sinh remote inference. Không đổi production/index/schema/default/API/benchmark; không upstream sync/push/merge/release.

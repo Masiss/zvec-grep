@@ -1,0 +1,4 @@
+ rust/experiments/source-discovery/Cargo.lock    |   11 +
+ rust/experiments/source-discovery/Cargo.toml    |    1 +
+ rust/experiments/source-discovery/src/csharp.rs | 1180 +++++++++++++++++++++++
+ 3 files changed, 1192 insertions(+)

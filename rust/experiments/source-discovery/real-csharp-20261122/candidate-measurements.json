@@ -1,0 +1,257 @@
+{
+  "freeze": {
+    "head": "53372b18ba035ac83fa76d0fdad395bf2c0cb2fd",
+    "frozen_at_utc": "2026-11-22T04:30:43.800161+00:00",
+    "artifacts": {
+      "corpus-manifest.json": "67b9f776608eb0580eef766910cfd230c825a335109e69268756a6539d9859d6",
+      "tasks-frozen.json": "d92ba2062d0f50ca347d727db5040ac63352d959adea5b60017c135dbd2354e2",
+      "baseline-rg.json": "90a817ef582e504b4bc9d6b13706d63eadb7b2698a231f38fbb5d1e3065a6196",
+      "roslyn-oracle.json": "539381535d89f99654298f89bf8fa384d21bab2adfed9b68fa248885b9024ff9",
+      "README.md": "f45f3885b606ddb357191263269f9a7527cb24bfc512dd857eaa19f56ffaa690"
+    },
+    "note": "Git index is read-only in this sandbox; hashes are the immutable pre-candidate freeze record."
+  },
+  "candidate_head": "53372b18ba035ac83fa76d0fdad395bf2c0cb2fd",
+  "candidate_code_changes_during_realworld_eval": false,
+  "selected_corpus": {
+    "files": 1959,
+    "bytes": 11186709,
+    "projects": 4,
+    "source_sha256_mismatches": 0,
+    "scan_files_found": 1959,
+    "scan_files_scanned": 1915,
+    "parse_errors_skipped": 44,
+    "scan_truncated": false
+  },
+  "tasks": [
+    {
+      "task": "partial_autocomplete",
+      "query": "AutoComplete",
+      "metric": "declarations",
+      "prototype_elapsed_ms": 5718.719586,
+      "prototype_output_bytes": 923,
+      "prototype_files_found": 1959,
+      "prototype_files_scanned": 1915,
+      "prototype_files_skipped": 44,
+      "prototype_parse_error_files": 44,
+      "prototype_truncated": false,
+      "prototype_declarations": 3,
+      "prototype_edges": 0,
+      "prototype_unresolved_records": 0,
+      "rg_output_bytes": 32314,
+      "rg_matching_lines": 196,
+      "rg_median_latency_ms": 14.835849
+    },
+    {
+      "task": "partial_dispatcher",
+      "query": "Dispatcher",
+      "metric": "declarations",
+      "prototype_elapsed_ms": 5805.056996,
+      "prototype_output_bytes": 498,
+      "prototype_files_found": 1959,
+      "prototype_files_scanned": 1915,
+      "prototype_files_skipped": 44,
+      "prototype_parse_error_files": 44,
+      "prototype_truncated": false,
+      "prototype_declarations": 1,
+      "prototype_edges": 0,
+      "prototype_unresolved_records": 0,
+      "rg_output_bytes": 118917,
+      "rg_matching_lines": 811,
+      "rg_median_latency_ms": 13.828623
+    },
+    {
+      "task": "partial_calendar_picker",
+      "query": "CalendarDatePicker",
+      "metric": "declarations",
+      "prototype_elapsed_ms": 6985.083624,
+      "prototype_output_bytes": 543,
+      "prototype_files_found": 1959,
+      "prototype_files_scanned": 1915,
+      "prototype_files_skipped": 44,
+      "prototype_parse_error_files": 44,
+      "prototype_truncated": false,
+      "prototype_declarations": 1,
+      "prototype_edges": 0,
+      "prototype_unresolved_records": 0,
+      "rg_output_bytes": 15249,
+      "rg_matching_lines": 86,
+      "rg_median_latency_ms": 13.529869
+    },
+    {
+      "task": "edges_update_pseudo",
+      "query": "UpdatePseudoClasses",
+      "metric": "edges",
+      "prototype_elapsed_ms": 8945.140339,
+      "prototype_output_bytes": 136329,
+      "prototype_files_found": 1959,
+      "prototype_files_scanned": 1915,
+      "prototype_files_skipped": 44,
+      "prototype_parse_error_files": 44,
+      "prototype_truncated": false,
+      "prototype_declarations": 20,
+      "prototype_edges": 0,
+      "prototype_unresolved_records": 124,
+      "rg_output_bytes": 11766,
+      "rg_matching_lines": 99,
+      "rg_median_latency_ms": 14.466459,
+      "roslyn_bound_gold_edges": 61,
+      "TP": 0,
+      "FP": 0,
+      "FN": 61,
+      "gold_sites_reported_unresolved": 61,
+      "gold_site_unresolved_rate": 1.0
+    },
+    {
+      "task": "edges_snapshot_undo",
+      "query": "SnapshotUndoRedo",
+      "metric": "edges",
+      "prototype_elapsed_ms": 7915.817202,
+      "prototype_output_bytes": 4243,
+      "prototype_files_found": 1959,
+      "prototype_files_scanned": 1915,
+      "prototype_files_skipped": 44,
+      "prototype_parse_error_files": 44,
+      "prototype_truncated": false,
+      "prototype_declarations": 1,
+      "prototype_edges": 0,
+      "prototype_unresolved_records": 14,
+      "rg_output_bytes": 1659,
+      "rg_matching_lines": 15,
+      "rg_median_latency_ms": 13.4096,
+      "roslyn_bound_gold_edges": 13,
+      "TP": 0,
+      "FP": 0,
+      "FN": 13,
+      "gold_sites_reported_unresolved": 13,
+      "gold_site_unresolved_rate": 1.0
+    },
+    {
+      "task": "edges_color_map",
+      "query": "CreateBitmapsAndColorMap",
+      "metric": "edges",
+      "prototype_elapsed_ms": 11503.519074,
+      "prototype_output_bytes": 100148,
+      "prototype_files_found": 1959,
+      "prototype_files_scanned": 1915,
+      "prototype_files_skipped": 44,
+      "prototype_parse_error_files": 44,
+      "prototype_truncated": false,
+      "prototype_declarations": 1,
+      "prototype_edges": 0,
+      "prototype_unresolved_records": 31,
+      "rg_output_bytes": 1269,
+      "rg_matching_lines": 9,
+      "rg_median_latency_ms": 13.852583,
+      "roslyn_bound_gold_edges": 7,
+      "TP": 0,
+      "FP": 0,
+      "FN": 7,
+      "gold_sites_reported_unresolved": 7,
+      "gold_site_unresolved_rate": 1.0
+    },
+    {
+      "task": "edges_set_at",
+      "query": "SetAt",
+      "metric": "edges",
+      "prototype_elapsed_ms": 19076.268086,
+      "prototype_output_bytes": 24063,
+      "prototype_files_found": 1959,
+      "prototype_files_scanned": 1915,
+      "prototype_files_skipped": 44,
+      "prototype_parse_error_files": 44,
+      "prototype_truncated": false,
+      "prototype_declarations": 5,
+      "prototype_edges": 0,
+      "prototype_unresolved_records": 87,
+      "rg_output_bytes": 11482,
+      "rg_matching_lines": 95,
+      "rg_median_latency_ms": 14.21038,
+      "roslyn_bound_gold_edges": 87,
+      "TP": 0,
+      "FP": 0,
+      "FN": 87,
+      "gold_sites_reported_unresolved": 87,
+      "gold_site_unresolved_rate": 1.0
+    }
+  ],
+  "roslyn_oracle": {
+    "projects": [
+      {
+        "project": "Avalonia.Base",
+        "files": 1328,
+        "invocations": 17366,
+        "bound_invocations": 16307,
+        "bound_rate": 0.9390187723137164,
+        "error_diagnostics": 757
+      },
+      {
+        "project": "Avalonia.Controls",
+        "files": 542,
+        "invocations": 14765,
+        "bound_invocations": 13196,
+        "bound_rate": 0.8937351845580765,
+        "error_diagnostics": 916
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "files": 40,
+        "invocations": 1266,
+        "bound_invocations": 1116,
+        "bound_rate": 0.8815165876777251,
+        "error_diagnostics": 128
+      },
+      {
+        "project": "Avalonia.Markup.Xaml",
+        "files": 49,
+        "invocations": 314,
+        "bound_invocations": 269,
+        "bound_rate": 0.856687898089172,
+        "error_diagnostics": 67
+      }
+    ],
+    "total_invocations": 33711,
+    "total_bound_invocations": 30888,
+    "total_error_diagnostics": 1868,
+    "gold_edges": 168,
+    "limitations": "CSharpCompilation over selected project source sets; TPA references; prior project compilations as metadata refs; no csproj props, packages, analyzers, or generators. It emits compilation errors, so only sites where GetSymbolInfo returned a concrete method are gold."
+  },
+  "resources": {
+    "prototype_full_src_scan": {
+      "wall_seconds": 19.63,
+      "max_rss_kib": 143176,
+      "files_found": 2500,
+      "files_scanned": 2446,
+      "parse_errors_skipped": 54,
+      "truncated": true,
+      "edge_count": 0
+    },
+    "rg_SetAt": {
+      "wall_seconds": 0.02,
+      "max_rss_kib": 7428,
+      "matching_lines": 95
+    },
+    "prototype_query_latency_ms_range": [
+      5718.719586,
+      19076.268086
+    ],
+    "rg_query_median_latency_ms_range": [
+      13.4096,
+      14.835849
+    ]
+  },
+  "declaration_summary": {
+    "gold_type_identities": 3,
+    "identities_found": 3,
+    "false_positive_declarations": 2,
+    "all_partial_source_locations": 11,
+    "representative_locations_returned": 3
+  },
+  "source_diff_since_9ee18f8": {
+    "csharp_rs_lines_added": 1180,
+    "Cargo_toml_lines_added": 1,
+    "Cargo_lock_lines_added": 11,
+    "total_lines_added": 1192
+  },
+  "reviewer": "fresh-context independent review: NO_GO for adoption; wider generalization INCONCLUSIVE; verified all 168 gold sites unresolved, 3/11 declaration paths, and optional argument issue."
+}

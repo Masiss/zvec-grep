@@ -1,0 +1,388 @@
+[
+  {
+    "task": "partial_method_create_bitmap",
+    "query": "CreateBitmap",
+    "prototype_wall_ms": 14889.665171,
+    "prototype_elapsed_ms": 14869.035755,
+    "prototype_rss_kib": 94928,
+    "prototype_output_bytes": 3147,
+    "prototype_files_found": 1959,
+    "prototype_files_scanned": 1915,
+    "prototype_files_skipped": 44,
+    "prototype_parse_errors": 44,
+    "prototype_declarations": [
+      {
+        "kind": "method",
+        "line": 619,
+        "name": "CreateBitmapFromPixelData",
+        "path": "Avalonia.Controls.ColorPicker/Helpers/ColorPickerHelpers.cs",
+        "symbol_id": "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+      }
+    ],
+    "prototype_edges": [],
+    "prototype_unresolved": [
+      {
+        "callee_name": "CreateBitmapFromPixelData",
+        "caller": "Avalonia.Controls.Primitives.ColorSlider::UpdateBackground()",
+        "candidate_callees": [
+          "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+        ],
+        "line": 133,
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "CreateBitmapFromPixelData",
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum::CreateBitmapsAndColorMap()",
+        "candidate_callees": [
+          "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+        ],
+        "line": 1196,
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "CreateBitmapFromPixelData",
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum::CreateBitmapsAndColorMap()",
+        "candidate_callees": [
+          "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+        ],
+        "line": 1197,
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "CreateBitmapFromPixelData",
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum::CreateBitmapsAndColorMap()",
+        "candidate_callees": [
+          "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+        ],
+        "line": 1218,
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "CreateBitmapFromPixelData",
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum::CreateBitmapsAndColorMap()",
+        "candidate_callees": [
+          "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+        ],
+        "line": 1220,
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "CreateBitmapFromPixelData",
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum::CreateBitmapsAndColorMap()",
+        "candidate_callees": [
+          "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+        ],
+        "line": 1222,
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "CreateBitmapFromPixelData",
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum::CreateBitmapsAndColorMap()",
+        "candidate_callees": [
+          "Avalonia.Controls.Primitives.ColorPickerHelpers::CreateBitmapFromPixelData(PooledList<byte>,int,int)"
+        ],
+        "line": 1224,
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "reason": "unknown_receiver_type"
+      }
+    ],
+    "rg_latency_ms": [
+      12.118454,
+      11.214485,
+      11.591273
+    ],
+    "rg_median_ms": 11.591273
+  },
+  {
+    "task": "partial_method_snapshot_undo",
+    "query": "SnapshotUndo",
+    "prototype_wall_ms": 11606.415789,
+    "prototype_elapsed_ms": 11597.834559,
+    "prototype_rss_kib": 95880,
+    "prototype_output_bytes": 4240,
+    "prototype_files_found": 1959,
+    "prototype_files_scanned": 1915,
+    "prototype_files_skipped": 44,
+    "prototype_parse_errors": 44,
+    "prototype_declarations": [
+      {
+        "kind": "method",
+        "line": 2665,
+        "name": "SnapshotUndoRedo",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "symbol_id": "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+      }
+    ],
+    "prototype_edges": [],
+    "prototype_unresolved": [
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::CoerceText(string?)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 666,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "no_matching_arity"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::Cut()",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1316,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "no_matching_arity"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::HandleTextInput(string?)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1215,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "incomplete_scan"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnKeyDown(KeyEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1626,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "local_function_scope_unsupported"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnKeyDown(KeyEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1669,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "local_function_scope_unsupported"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnKeyDown(KeyEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1678,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "local_function_scope_unsupported"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnKeyDown(KeyEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1704,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "local_function_scope_unsupported"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnKeyDown(KeyEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1715,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "local_function_scope_unsupported"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnKeyDown(KeyEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1729,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "local_function_scope_unsupported"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnKeyDown(KeyEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1745,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "local_function_scope_unsupported"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::OnPropertyChanged(AvaloniaPropertyChangedEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1073,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "no_matching_arity"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::PasteCoreAsync(IClipboard?)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 1404,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "no_matching_arity"
+      },
+      {
+        "callee_name": "Snapshot",
+        "caller": "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)",
+        "candidate_callees": [
+          "Avalonia.Controls.Utils.UndoRedoHelper`1::Snapshot()",
+          "Avalonia.Rendering.Composition.Animations.KeyFrames`1::Snapshot()",
+          "Avalonia.Rendering.Composition.CompositionPropertySet::Snapshot()"
+        ],
+        "line": 2674,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "SnapshotUndoRedo",
+        "caller": "Avalonia.Controls.TextBox::Undo()",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::SnapshotUndoRedo(bool)"
+        ],
+        "line": 2699,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "no_matching_arity"
+      }
+    ],
+    "rg_latency_ms": [
+      10.136389,
+      9.740095,
+      10.198168
+    ],
+    "rg_median_ms": 10.136389
+  },
+  {
+    "task": "partial_method_update_pseudo",
+    "query": "UpdatePseudo",
+    "prototype_wall_ms": 11924.916262,
+    "prototype_elapsed_ms": 11915.555023,
+    "prototype_rss_kib": 95504,
+    "prototype_output_bytes": 4804,
+    "prototype_files_found": 1959,
+    "prototype_files_scanned": 1915,
+    "prototype_files_skipped": 44,
+    "prototype_parse_errors": 44,
+    "prototype_declarations": [
+      {
+        "kind": "method",
+        "line": 2646,
+        "name": "UpdatePseudoclasses",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "symbol_id": "Avalonia.Controls.TextBox::UpdatePseudoclasses()"
+      }
+    ],
+    "prototype_edges": [],
+    "prototype_unresolved": [
+      {
+        "callee_name": "UpdatePseudoclasses",
+        "caller": "Avalonia.Controls.TextBox::OnPointerPressed(PointerPressedEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::UpdatePseudoclasses()"
+        ],
+        "line": 1926,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "incomplete_scan"
+      },
+      {
+        "callee_name": "UpdatePseudoclasses",
+        "caller": "Avalonia.Controls.TextBox::OnPropertyChanged(AvaloniaPropertyChangedEventArgs)",
+        "candidate_callees": [
+          "Avalonia.Controls.TextBox::UpdatePseudoclasses()"
+        ],
+        "line": 1082,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "incomplete_scan"
+      },
+      {
+        "callee_name": "Set",
+        "caller": "Avalonia.Controls.TextBox::UpdatePseudoclasses()",
+        "candidate_callees": [
+          "Avalonia.AvaloniaProperty::IPropertyInfo.Set(object,object?)",
+          "Avalonia.Controls.Classes::Set(string,bool)",
+          "Avalonia.Controls.ControlExtensions::Set(IPseudoClasses,string,IObservable<bool>)",
+          "Avalonia.Controls.Platform.ManagedDispatcherImpl.AutoResetWakeupEvent::Set()",
+          "Avalonia.Controls.Platform.ManagedDispatcherImpl.IWakeupEvent::Set()",
+          "Avalonia.Controls.PseudoClassesExtensions::Set(IPseudoClasses,string,bool)",
+          "Avalonia.Data.Core.ClrPropertyInfo::Set(object,object?)",
+          "Avalonia.Data.Core.ClrPropertyInfo`2::IPropertyInfo.Set(object,object?)",
+          "Avalonia.Data.Core.ClrPropertyInfo`2::Set(TSource,TValue)",
+          "Avalonia.Data.Core.IPropertyInfo::Set(object,object?)",
+          "Avalonia.Data.Core.IPropertyInfo`2::Set(TSource,TValue)",
+          "Avalonia.Input.DataTransferItem::Set``1(DataFormat<T>,Func<T?>)",
+          "Avalonia.Input.DataTransferItem::Set``1(DataFormat<T>,T?)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.FunctionPointerPropertyInfo::Set(object,object?)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.FunctionPointerPropertyInfo`2::IPropertyInfo.Set(object,object?)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.FunctionPointerPropertyInfo`2::Set(TSource,TValue)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.XamlIlRuntimeHelpers.LastParentStack::Set(IAvaloniaXamlIlParentStackProvider,IResourceNode[])",
+          "Avalonia.Media.GlyphRun::Set``1(ref T,T)",
+          "Avalonia.Media.TextFormatting.Unicode.UnicodeTrieBuilder::Set(int,uint)",
+          "Avalonia.Rendering.Composition.CompositionPropertySet::Set(string,CompositionObject)",
+          "Avalonia.Rendering.Composition.CompositionPropertySet::Set(string,ExpressionVariant)",
+          "Avalonia.Utilities.InlineDictionary`2::Set(TKey,TValue)",
+          "Avalonia.Utilities.SpanVector::Set(int,int,object?,Equals,SpanPosition)"
+        ],
+        "line": 2648,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "unknown_receiver_type"
+      },
+      {
+        "callee_name": "Set",
+        "caller": "Avalonia.Controls.TextBox::UpdatePseudoclasses()",
+        "candidate_callees": [
+          "Avalonia.AvaloniaProperty::IPropertyInfo.Set(object,object?)",
+          "Avalonia.Controls.Classes::Set(string,bool)",
+          "Avalonia.Controls.ControlExtensions::Set(IPseudoClasses,string,IObservable<bool>)",
+          "Avalonia.Controls.Platform.ManagedDispatcherImpl.AutoResetWakeupEvent::Set()",
+          "Avalonia.Controls.Platform.ManagedDispatcherImpl.IWakeupEvent::Set()",
+          "Avalonia.Controls.PseudoClassesExtensions::Set(IPseudoClasses,string,bool)",
+          "Avalonia.Data.Core.ClrPropertyInfo::Set(object,object?)",
+          "Avalonia.Data.Core.ClrPropertyInfo`2::IPropertyInfo.Set(object,object?)",
+          "Avalonia.Data.Core.ClrPropertyInfo`2::Set(TSource,TValue)",
+          "Avalonia.Data.Core.IPropertyInfo::Set(object,object?)",
+          "Avalonia.Data.Core.IPropertyInfo`2::Set(TSource,TValue)",
+          "Avalonia.Input.DataTransferItem::Set``1(DataFormat<T>,Func<T?>)",
+          "Avalonia.Input.DataTransferItem::Set``1(DataFormat<T>,T?)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.FunctionPointerPropertyInfo::Set(object,object?)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.FunctionPointerPropertyInfo`2::IPropertyInfo.Set(object,object?)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.FunctionPointerPropertyInfo`2::Set(TSource,TValue)",
+          "Avalonia.Markup.Xaml.XamlIl.Runtime.XamlIlRuntimeHelpers.LastParentStack::Set(IAvaloniaXamlIlParentStackProvider,IResourceNode[])",
+          "Avalonia.Media.GlyphRun::Set``1(ref T,T)",
+          "Avalonia.Media.TextFormatting.Unicode.UnicodeTrieBuilder::Set(int,uint)",
+          "Avalonia.Rendering.Composition.CompositionPropertySet::Set(string,CompositionObject)",
+          "Avalonia.Rendering.Composition.CompositionPropertySet::Set(string,ExpressionVariant)",
+          "Avalonia.Utilities.InlineDictionary`2::Set(TKey,TValue)",
+          "Avalonia.Utilities.SpanVector::Set(int,int,object?,Equals,SpanPosition)"
+        ],
+        "line": 2649,
+        "path": "Avalonia.Controls/TextBox.cs",
+        "reason": "unknown_receiver_type"
+      }
+    ],
+    "rg_latency_ms": [
+      11.376816,
+      10.535738,
+      11.366673
+    ],
+    "rg_median_ms": 11.366673
+  }
+]

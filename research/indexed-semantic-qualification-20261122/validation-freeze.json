@@ -1,0 +1,53 @@
+{
+  "experiment": "R4 validation: indexed semantic retrieval against strongest lexical route",
+  "source_commit": "2bf2f1ef13e71d321668eef89f1de75f37978033",
+  "dev_json_sha256": "27626109fe4d2bf02beec474809424bbd58dd5a2b709263c6dde0926a4a9c311",
+  "corpus_generation": "cea13512-733a-4c9f-96a7-5e131b57d1dc",
+  "index_version": 3,
+  "corpus_inventory_sha256": "2b761e66fa43f47d9b5ee9b0cc3a799f05cf8b92c2f8794304aa297efab874a3",
+  "engine_binary_sha256": "144fa20e48dba9f908f606bee8db68cd3d2db891e762ba409ba4b9c911729c48",
+  "model_weights_sha256": "75cf7a6c2171b230ad19b1e7d8e0b1aee86da5a02af8e7cacedd9921d227623c",
+  "routes": [
+    "native_rg_or_terms",
+    "fts",
+    "vector",
+    "hybrid"
+  ],
+  "per_route_result_item_cap": 10,
+  "per_route_source_text_byte_cap": 24576,
+  "scoring": "gold remains sealed until route outputs are complete; per-task target-file recall and target-span overlap; top-k non-target items as noise; no answer-quality inference",
+  "exclusions": {
+    "D01_D06": "development diagnostics; excluded from validation metrics",
+    "D12": "referent is unspecified (frozen question lacks procedure identity); excluded as unscorable"
+  },
+  "task_freeze": {
+    "D02": {
+      "frozen_question_sha256": "c6448e46b079a18836024cd7021b6feb1471971de90b74036e2cea8113c182fe",
+      "query_sha256": "911b7f19caaf95733003e3216b09c247d218242f920373a1736f68481c40c2e5",
+      "lexical_term_recipe_sha256": "051b8e94dbadb883377e23177ee23d446f0f83b0e9d3c108ab4d7660699f9c5d",
+      "gold_ref_count": 4,
+      "gold_span_count": 6,
+      "gold_target_set_sha256": "a655aa0cf512092728d5d1da1a788eb24103d3a8b4557f042182830558d99dd7",
+      "exact_identifier_in_query": false
+    },
+    "D05": {
+      "frozen_question_sha256": "9273e65c1d944cf1b4a016196881881dc2c09db482de91f2588be0671e67d3dd",
+      "query_sha256": "499917ef9e5b4b4ccf4ca18d5aa09f7567e10e0b0d73f0507cc94e5b44986465",
+      "lexical_term_recipe_sha256": "1d586e6d0dde202bd207df426634fc62bec80747b0b41b27962991bf4cbb4582",
+      "gold_ref_count": 1,
+      "gold_span_count": 1,
+      "gold_target_set_sha256": "32c631f010c442b5a17d505c3320ee5208edcfa0ebb04cfccf7dc9a5b254ace7",
+      "exact_identifier_in_query": false
+    },
+    "D07": {
+      "frozen_question_sha256": "d8e386730bb8ad18357ab039141293d45976ee1ec32c2240c943480d3e61d52e",
+      "query_sha256": "edb19fe567edaa7ae0bf704cd6817eb4f81fc641d08c5686acc0bb06c922e900",
+      "lexical_term_recipe_sha256": "80642c3d0707da6fdbf48b123197acaa0e429c477e6fb54f15f566b3cf338aaf",
+      "gold_ref_count": 3,
+      "gold_span_count": 3,
+      "gold_target_set_sha256": "d1ddcc4f44c2ff063d2450183d081ee51d4cb5a94fa91f521d4bc69fc2ebf6fa",
+      "exact_identifier_in_query": false
+    }
+  },
+  "index_tree_sha256": "c36ca81d7e794506866694199ec03ff981864b2c0532a32cc75ee812efacb28d"
+}

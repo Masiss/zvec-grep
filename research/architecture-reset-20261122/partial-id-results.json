@@ -1,0 +1,94 @@
+{
+  "freeze_sha256": "81a98b6b3bc99565ddba6456bcc5019c8a6177c8a0d94b74e9b81cc30c43430e",
+  "repository_revision": "663566546f03768b9b021c65eb3accc4aa0720a1",
+  "runtime": {
+    "zg_version": "0.0.1",
+    "zg_path": "/home/masis/.local/bin/zg",
+    "zg_sha256": "6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4",
+    "source_to_binary_provenance": "not established"
+  },
+  "index": {
+    "read_only_verify": "CORRUPT",
+    "generation": "6e3c3a4d-4690-4868-8f9e-1023bbb7577c",
+    "error": "IndexUnpacker rejected header/footer/segment table/content CRC",
+    "refresh_or_rebuild": false
+  },
+  "protocol": {
+    "native": "rg -n -F QUERY src",
+    "managed": "zg --rg -n -F QUERY src",
+    "timing": "7 paired process launches per task; command order alternated each pair; report wall-time median/min/max",
+    "rss": "one separate /usr/bin/time launch for each command on query format",
+    "agent_behavior_tested": false,
+    "indexed_search_tested": false
+  },
+  "tasks": [
+    {
+      "id": "P1",
+      "query": "registerZvec",
+      "kind": "positive",
+      "expected_targets_found": {"native_rg": 1, "managed": 1},
+      "expected_targets_total": 1,
+      "native_rg": {"median_ms": 5.662, "min_ms": 4.073, "max_ms": 6.296, "bytes": 124, "lines": 2},
+      "managed": {"median_ms": 13.637, "min_ms": 13.303, "max_ms": 23.076, "bytes": 113, "lines": 3}
+    },
+    {
+      "id": "P2",
+      "query": "parseMcp",
+      "kind": "positive",
+      "expected_targets_found": {"native_rg": 1, "managed": 1},
+      "expected_targets_total": 1,
+      "native_rg": {"median_ms": 5.344, "min_ms": 3.922, "max_ms": 5.483, "bytes": 664, "lines": 8},
+      "managed": {"median_ms": 16.428, "min_ms": 14.898, "max_ms": 17.673, "bytes": 590, "lines": 11}
+    },
+    {
+      "id": "P3",
+      "query": "traceContextFromMcp",
+      "kind": "positive",
+      "expected_targets_found": {"native_rg": 2, "managed": 2},
+      "expected_targets_total": 2,
+      "native_rg": {"median_ms": 5.395, "min_ms": 4.145, "max_ms": 6.191, "bytes": 565, "lines": 8},
+      "managed": {"median_ms": 15.981, "min_ms": 14.789, "max_ms": 17.934, "bytes": 461, "lines": 13}
+    },
+    {
+      "id": "P4",
+      "query": "formatPrompt",
+      "kind": "positive",
+      "expected_targets_found": {"native_rg": 1, "managed": 1},
+      "expected_targets_total": 1,
+      "native_rg": {"median_ms": 4.966, "min_ms": 4.04, "max_ms": 5.647, "bytes": 788, "lines": 11},
+      "managed": {"median_ms": 23.534, "min_ms": 22.29, "max_ms": 27.675, "bytes": 675, "lines": 16}
+    },
+    {
+      "id": "A1",
+      "query": "format",
+      "kind": "ambiguous",
+      "expected_target_found": {"native_rg": true, "managed": true},
+      "native_rg": {"median_ms": 5.285, "min_ms": 4.085, "max_ms": 5.919, "bytes": 22870, "lines": 276, "literal_occurrences": 388},
+      "managed": {"median_ms": 88.914, "min_ms": 86.225, "max_ms": 90.341, "bytes": 17688, "lines": 365, "literal_occurrences": 306}
+    },
+    {
+      "id": "N1",
+      "query": "__zg_discovery_missing_20261122__",
+      "kind": "negative",
+      "expected_matches": 0,
+      "native_rg": {"median_ms": 5.594, "min_ms": 5.139, "max_ms": 7.034, "bytes": 0, "lines": 0, "exit_code": 1},
+      "managed": {"median_ms": 11.339, "min_ms": 9.369, "max_ms": 16.181, "bytes": 12, "lines": 1, "exit_code": 0}
+    }
+  ],
+  "resource_measurement_query": "format",
+  "peak_rss_kib": {"native_rg": 7300, "managed": 39032},
+  "separate_partial_identifier_probe": {
+    "query": "searchWork",
+    "native_rg": {"median_ms": 5.983, "min_ms": 4.244, "max_ms": 6.891, "bytes": 358, "lines": 4},
+    "managed": {"median_ms": 15.778, "min_ms": 14.117, "max_ms": 17.483, "bytes": 297, "lines": 7},
+    "peak_rss_kib": {"native_rg": 6792, "managed": 36780},
+    "expected_hits": "same four occurrence lines across two files"
+  },
+  "interpretation_limits": [
+    "One repository, six frozen task queries plus one earlier diagnostic query, one host.",
+    "Positive queries were selected from known declarations; recall on unseen identifiers is not measured.",
+    "Output line/byte reductions are not adjudicated false-positive reductions.",
+    "The existing indexed-search path is corrupt, so this experiment compares two lexical routes only.",
+    "No agent behavior, answer quality, semantic retrieval, or guidance effect was tested."
+  ]
+}

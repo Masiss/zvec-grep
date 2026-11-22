@@ -1,0 +1,10 @@
+{
+  "frozen_at_utc": "2026-11-22T04:45:23.581023+00:00",
+  "head": "53372b18ba035ac83fa76d0fdad395bf2c0cb2fd",
+  "task_generation": "Deterministic prefixes of previously frozen exact edge-task identifiers; expected declarations and edges generated solely from public pinned source and Roslyn semantic binding before candidate execution.",
+  "artifacts": {
+    "partial-methods-frozen.json": "81b1b5a9e159f910f5115d93e69f794cc20565e1c060c4779b4cc32d70c85996",
+    "partial-methods-roslyn-oracle.json": "f054af6287e9004834067a3c2a846c3e4f2361fdb888285b00d9ef76f254be99",
+    "partial-methods-baseline-rg.json": "cb7e772c8888be133f501e22ca7e0f40646b5992993beb1a044a8e22b1b06c84"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "head": "53372b18ba035ac83fa76d0fdad395bf2c0cb2fd",
+  "frozen_at_utc": "2026-11-22T04:30:43.800161+00:00",
+  "artifacts": {
+    "corpus-manifest.json": "67b9f776608eb0580eef766910cfd230c825a335109e69268756a6539d9859d6",
+    "tasks-frozen.json": "d92ba2062d0f50ca347d727db5040ac63352d959adea5b60017c135dbd2354e2",
+    "baseline-rg.json": "90a817ef582e504b4bc9d6b13706d63eadb7b2698a231f38fbb5d1e3065a6196",
+    "roslyn-oracle.json": "539381535d89f99654298f89bf8fa384d21bab2adfed9b68fa248885b9024ff9",
+    "README.md": "9f17b0cc0451db87381c66a745ae7a24c7fcc000400c29ae50084498ffb9bf57"
+  },
+  "note": "Git index is read-only in this sandbox; hashes are the immutable pre-candidate freeze record.",
+  "freeze_metadata_note": "README wording was corrected after the sandbox rejected a Git commit; task, gold, corpus, Roslyn, and baseline artifacts remain byte-identical to their pre-candidate frozen hashes."
+}

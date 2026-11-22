@@ -1,0 +1,1172 @@
+[
+  {
+    "id": "partial_method_create_bitmap",
+    "query": "CreateBitmap",
+    "methods": [
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1057,
+        "name": "CreateBitmapsAndColorMap",
+        "containing": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "symbol": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/Helpers/ColorPickerHelpers.cs",
+        "line": 619,
+        "name": "CreateBitmapFromPixelData",
+        "containing": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "symbol": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)"
+      }
+    ],
+    "bound_calls": [
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "line": 133,
+        "caller": "Avalonia.Controls.Primitives.ColorSlider.UpdateBackground()",
+        "callee": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)",
+        "callee_type": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "callee_name": "CreateBitmapFromPixelData"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 156,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "CreateBitmapsAndColorMap"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 177,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "CreateBitmapsAndColorMap"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 466,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "CreateBitmapsAndColorMap"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 491,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "CreateBitmapsAndColorMap"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 516,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "CreateBitmapsAndColorMap"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 521,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "CreateBitmapsAndColorMap"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 542,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "CreateBitmapsAndColorMap"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1196,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)",
+        "callee_type": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "callee_name": "CreateBitmapFromPixelData"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1197,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)",
+        "callee_type": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "callee_name": "CreateBitmapFromPixelData"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1218,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)",
+        "callee_type": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "callee_name": "CreateBitmapFromPixelData"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1220,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)",
+        "callee_type": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "callee_name": "CreateBitmapFromPixelData"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1222,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)",
+        "callee_type": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "callee_name": "CreateBitmapFromPixelData"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1224,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+        "callee": "Avalonia.Controls.Primitives.ColorPickerHelpers.CreateBitmapFromPixelData(Avalonia.Collections.Pooled.PooledList<byte>, int, int)",
+        "callee_type": "Avalonia.Controls.Primitives.ColorPickerHelpers",
+        "callee_name": "CreateBitmapFromPixelData"
+      }
+    ]
+  },
+  {
+    "id": "partial_method_snapshot_undo",
+    "query": "SnapshotUndo",
+    "methods": [
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 2665,
+        "name": "SnapshotUndoRedo",
+        "containing": "Avalonia.Controls.TextBox",
+        "symbol": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)"
+      }
+    ],
+    "bound_calls": [
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 666,
+        "caller": "Avalonia.Controls.TextBox.CoerceText(string?)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 701,
+        "caller": null,
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1073,
+        "caller": "Avalonia.Controls.TextBox.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1215,
+        "caller": "Avalonia.Controls.TextBox.HandleTextInput(string?)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1316,
+        "caller": "Avalonia.Controls.TextBox.Cut()",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1404,
+        "caller": "Avalonia.Controls.TextBox.PasteCoreAsync(Avalonia.Input.Platform.IClipboard?)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1626,
+        "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1669,
+        "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1678,
+        "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1704,
+        "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1715,
+        "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1729,
+        "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1745,
+        "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 2699,
+        "caller": "Avalonia.Controls.TextBox.Undo()",
+        "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "SnapshotUndoRedo"
+      }
+    ]
+  },
+  {
+    "id": "partial_method_update_pseudo",
+    "query": "UpdatePseudo",
+    "methods": [
+      {
+        "project": "Avalonia.Base",
+        "path": "Avalonia.Base/Input/InputElement.cs",
+        "line": 1056,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Input.InputElement",
+        "symbol": "Avalonia.Input.InputElement.UpdatePseudoClasses(bool?, bool?)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/AutoCompleteBox/AutoCompleteBox.cs",
+        "line": 1671,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.AutoCompleteBox",
+        "symbol": "Avalonia.Controls.AutoCompleteBox.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Button.cs",
+        "line": 725,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Button",
+        "symbol": "Avalonia.Controls.Button.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ButtonSpinner.cs",
+        "line": 291,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.ButtonSpinner",
+        "symbol": "Avalonia.Controls.ButtonSpinner.UpdatePseudoClasses(Avalonia.Controls.Location)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 101,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.CalendarDatePicker",
+        "symbol": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ContentControl.cs",
+        "line": 166,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.ContentControl",
+        "symbol": "Avalonia.Controls.ContentControl.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Expander.cs",
+        "line": 287,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Expander",
+        "symbol": "Avalonia.Controls.Expander.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ItemsControl.cs",
+        "line": 796,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.ItemsControl",
+        "symbol": "Avalonia.Controls.ItemsControl.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Notifications/WindowNotificationManager.cs",
+        "line": 241,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Notifications.WindowNotificationManager",
+        "symbol": "Avalonia.Controls.Notifications.WindowNotificationManager.UpdatePseudoClasses(Avalonia.Controls.Notifications.NotificationPosition)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/PipsPager/PipsPager.cs",
+        "line": 465,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.PipsPager",
+        "symbol": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Presenters/ContentPresenter.cs",
+        "line": 803,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Presenters.ContentPresenter",
+        "symbol": "Avalonia.Controls.Presenters.ContentPresenter.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/ScrollBar.cs",
+        "line": 548,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Primitives.ScrollBar",
+        "symbol": "Avalonia.Controls.Primitives.ScrollBar.UpdatePseudoClasses(Avalonia.Layout.Orientation)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/ToggleButton.cs",
+        "line": 143,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Primitives.ToggleButton",
+        "symbol": "Avalonia.Controls.Primitives.ToggleButton.UpdatePseudoClasses(bool?)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/Track.cs",
+        "line": 528,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Primitives.Track",
+        "symbol": "Avalonia.Controls.Primitives.Track.UpdatePseudoClasses(Avalonia.Layout.Orientation)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ProgressBar.cs",
+        "line": 396,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.ProgressBar",
+        "symbol": "Avalonia.Controls.ProgressBar.UpdatePseudoClasses(bool?, Avalonia.Layout.Orientation?)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Slider.cs",
+        "line": 479,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Slider",
+        "symbol": "Avalonia.Controls.Slider.UpdatePseudoClasses(Avalonia.Layout.Orientation)"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 165,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.SplitButton",
+        "symbol": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 2646,
+        "name": "UpdatePseudoclasses",
+        "containing": "Avalonia.Controls.TextBox",
+        "symbol": "Avalonia.Controls.TextBox.UpdatePseudoclasses()"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ToolTip.cs",
+        "line": 498,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.ToolTip",
+        "symbol": "Avalonia.Controls.ToolTip.UpdatePseudoClasses(bool)"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "line": 49,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Primitives.ColorSlider",
+        "symbol": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 595,
+        "name": "UpdatePseudoClasses",
+        "containing": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "symbol": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()"
+      }
+    ],
+    "bound_calls": [
+      {
+        "project": "Avalonia.Base",
+        "path": "Avalonia.Base/Input/InputElement.cs",
+        "line": 275,
+        "caller": null,
+        "callee": "Avalonia.Input.InputElement.UpdatePseudoClasses(bool?, bool?)",
+        "callee_type": "Avalonia.Input.InputElement",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Base",
+        "path": "Avalonia.Base/Input/InputElement.cs",
+        "line": 978,
+        "caller": "Avalonia.Input.InputElement.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Input.InputElement.UpdatePseudoClasses(bool?, bool?)",
+        "callee_type": "Avalonia.Input.InputElement",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Base",
+        "path": "Avalonia.Base/Input/InputElement.cs",
+        "line": 982,
+        "caller": "Avalonia.Input.InputElement.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Input.InputElement.UpdatePseudoClasses(bool?, bool?)",
+        "callee_type": "Avalonia.Input.InputElement",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/AutoCompleteBox/AutoCompleteBox.cs",
+        "line": 340,
+        "caller": "Avalonia.Controls.AutoCompleteBox.OnIsDropDownOpenChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.AutoCompleteBox.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.AutoCompleteBox",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/AutoCompleteBox/AutoCompleteBox.cs",
+        "line": 998,
+        "caller": "Avalonia.Controls.AutoCompleteBox.ClosingDropDown(bool)",
+        "callee": "Avalonia.Controls.AutoCompleteBox.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.AutoCompleteBox",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/AutoCompleteBox/AutoCompleteBox.cs",
+        "line": 1023,
+        "caller": "Avalonia.Controls.AutoCompleteBox.OpeningDropDown(bool)",
+        "callee": "Avalonia.Controls.AutoCompleteBox.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.AutoCompleteBox",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Button.cs",
+        "line": 479,
+        "caller": "Avalonia.Controls.Button.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+        "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Button",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Button.cs",
+        "line": 542,
+        "caller": "Avalonia.Controls.Button.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Button",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Button.cs",
+        "line": 562,
+        "caller": "Avalonia.Controls.Button.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Button",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Button.cs",
+        "line": 751,
+        "caller": "Avalonia.Controls.Button.Flyout_Opened(object?, System.EventArgs)",
+        "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Button",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Button.cs",
+        "line": 768,
+        "caller": "Avalonia.Controls.Button.Flyout_Closed(object?, System.EventArgs)",
+        "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Button",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ButtonSpinner.cs",
+        "line": 43,
+        "caller": null,
+        "callee": "Avalonia.Controls.ButtonSpinner.UpdatePseudoClasses(Avalonia.Controls.Location)",
+        "callee_type": "Avalonia.Controls.ButtonSpinner",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ButtonSpinner.cs",
+        "line": 221,
+        "caller": "Avalonia.Controls.ButtonSpinner.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.ButtonSpinner.UpdatePseudoClasses(Avalonia.Controls.Location)",
+        "callee_type": "Avalonia.Controls.ButtonSpinner",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 203,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 243,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 350,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OnPointerPressed(Avalonia.Input.PointerPressedEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 373,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OnPointerReleased(Avalonia.Input.PointerReleasedEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 383,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OnPointerCaptureLost(Avalonia.Input.PointerCaptureLostEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 431,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OnLostFocus(Avalonia.Input.FocusChangedEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 469,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OnKeyUp(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 652,
+        "caller": "Avalonia.Controls.CalendarDatePicker.DropDownButton_PointerPressed(object?, Avalonia.Input.PointerPressedEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 659,
+        "caller": "Avalonia.Controls.CalendarDatePicker.DropDownButton_PointerReleased(object?, Avalonia.Input.PointerReleasedEventArgs)",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs",
+        "line": 713,
+        "caller": "Avalonia.Controls.CalendarDatePicker.OpenDropDown()",
+        "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.CalendarDatePicker",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ContentControl.cs",
+        "line": 67,
+        "caller": null,
+        "callee": "Avalonia.Controls.ContentControl.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.ContentControl",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ContentControl.cs",
+        "line": 163,
+        "caller": "Avalonia.Controls.ContentControl.ContentChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.ContentControl.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.ContentControl",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Expander.cs",
+        "line": 110,
+        "caller": null,
+        "callee": "Avalonia.Controls.Expander.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Expander",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Expander.cs",
+        "line": 268,
+        "caller": "Avalonia.Controls.Expander.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Expander.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Expander",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Expander.cs",
+        "line": 275,
+        "caller": "Avalonia.Controls.Expander.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Expander.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Expander",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ItemsControl.cs",
+        "line": 96,
+        "caller": null,
+        "callee": "Avalonia.Controls.ItemsControl.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.ItemsControl",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ItemsControl.cs",
+        "line": 141,
+        "caller": null,
+        "callee": "Avalonia.Controls.ItemsControl.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.ItemsControl",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Notifications/WindowNotificationManager.cs",
+        "line": 74,
+        "caller": null,
+        "callee": "Avalonia.Controls.Notifications.WindowNotificationManager.UpdatePseudoClasses(Avalonia.Controls.Notifications.NotificationPosition)",
+        "callee_type": "Avalonia.Controls.Notifications.WindowNotificationManager",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Notifications/WindowNotificationManager.cs",
+        "line": 202,
+        "caller": "Avalonia.Controls.Notifications.WindowNotificationManager.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Notifications.WindowNotificationManager.UpdatePseudoClasses(Avalonia.Controls.Notifications.NotificationPosition)",
+        "callee_type": "Avalonia.Controls.Notifications.WindowNotificationManager",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/PipsPager/PipsPager.cs",
+        "line": 131,
+        "caller": null,
+        "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.PipsPager",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/PipsPager/PipsPager.cs",
+        "line": 278,
+        "caller": "Avalonia.Controls.PipsPager.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+        "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.PipsPager",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/PipsPager/PipsPager.cs",
+        "line": 355,
+        "caller": "Avalonia.Controls.PipsPager.OnSelectedPageIndexChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.PipsPager",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/PipsPager/PipsPager.cs",
+        "line": 405,
+        "caller": "Avalonia.Controls.PipsPager.OnNumberOfPagesChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.PipsPager",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/PipsPager/PipsPager.cs",
+        "line": 423,
+        "caller": "Avalonia.Controls.PipsPager.OnOrientationChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.PipsPager",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Presenters/ContentPresenter.cs",
+        "line": 208,
+        "caller": null,
+        "callee": "Avalonia.Controls.Presenters.ContentPresenter.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Presenters.ContentPresenter",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Presenters/ContentPresenter.cs",
+        "line": 799,
+        "caller": "Avalonia.Controls.Presenters.ContentPresenter.ContentChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Presenters.ContentPresenter.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Presenters.ContentPresenter",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/ScrollBar.cs",
+        "line": 109,
+        "caller": null,
+        "callee": "Avalonia.Controls.Primitives.ScrollBar.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+        "callee_type": "Avalonia.Controls.Primitives.ScrollBar",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/ScrollBar.cs",
+        "line": 318,
+        "caller": "Avalonia.Controls.Primitives.ScrollBar.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ScrollBar.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+        "callee_type": "Avalonia.Controls.Primitives.ScrollBar",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/ToggleButton.cs",
+        "line": 43,
+        "caller": null,
+        "callee": "Avalonia.Controls.Primitives.ToggleButton.UpdatePseudoClasses(bool?)",
+        "callee_type": "Avalonia.Controls.Primitives.ToggleButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/ToggleButton.cs",
+        "line": 138,
+        "caller": "Avalonia.Controls.Primitives.ToggleButton.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ToggleButton.UpdatePseudoClasses(bool?)",
+        "callee_type": "Avalonia.Controls.Primitives.ToggleButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/Track.cs",
+        "line": 64,
+        "caller": null,
+        "callee": "Avalonia.Controls.Primitives.Track.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+        "callee_type": "Avalonia.Controls.Primitives.Track",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Primitives/Track.cs",
+        "line": 307,
+        "caller": "Avalonia.Controls.Primitives.Track.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.Track.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+        "callee_type": "Avalonia.Controls.Primitives.Track",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ProgressBar.cs",
+        "line": 247,
+        "caller": null,
+        "callee": "Avalonia.Controls.ProgressBar.UpdatePseudoClasses(bool?, Avalonia.Layout.Orientation?)",
+        "callee_type": "Avalonia.Controls.ProgressBar",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ProgressBar.cs",
+        "line": 316,
+        "caller": "Avalonia.Controls.ProgressBar.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.ProgressBar.UpdatePseudoClasses(bool?, Avalonia.Layout.Orientation?)",
+        "callee_type": "Avalonia.Controls.ProgressBar",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ProgressBar.cs",
+        "line": 320,
+        "caller": "Avalonia.Controls.ProgressBar.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.ProgressBar.UpdatePseudoClasses(bool?, Avalonia.Layout.Orientation?)",
+        "callee_type": "Avalonia.Controls.ProgressBar",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Slider.cs",
+        "line": 123,
+        "caller": null,
+        "callee": "Avalonia.Controls.Slider.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+        "callee_type": "Avalonia.Controls.Slider",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/Slider.cs",
+        "line": 408,
+        "caller": "Avalonia.Controls.Slider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Slider.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+        "callee_type": "Avalonia.Controls.Slider",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 259,
+        "caller": "Avalonia.Controls.SplitButton.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 346,
+        "caller": "Avalonia.Controls.SplitButton.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 360,
+        "caller": "Avalonia.Controls.SplitButton.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 374,
+        "caller": "Avalonia.Controls.SplitButton.OnKeyUp(Avalonia.Input.KeyEventArgs)",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 521,
+        "caller": "Avalonia.Controls.SplitButton.Flyout_PlacementPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 540,
+        "caller": "Avalonia.Controls.SplitButton.Flyout_Opened(object?, System.EventArgs)",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/SplitButton.cs",
+        "line": 558,
+        "caller": "Avalonia.Controls.SplitButton.Flyout_Closed(object?, System.EventArgs)",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/SplitButton/ToggleSplitButton.cs",
+        "line": 107,
+        "caller": "Avalonia.Controls.ToggleSplitButton.OnIsCheckedChanged()",
+        "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.SplitButton",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 441,
+        "caller": null,
+        "callee": "Avalonia.Controls.TextBox.UpdatePseudoclasses()",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "UpdatePseudoclasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1082,
+        "caller": "Avalonia.Controls.TextBox.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.UpdatePseudoclasses()",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "UpdatePseudoclasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/TextBox.cs",
+        "line": 1926,
+        "caller": "Avalonia.Controls.TextBox.OnPointerPressed(Avalonia.Input.PointerPressedEventArgs)",
+        "callee": "Avalonia.Controls.TextBox.UpdatePseudoclasses()",
+        "callee_type": "Avalonia.Controls.TextBox",
+        "callee_name": "UpdatePseudoclasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ToolTip.cs",
+        "line": 488,
+        "caller": "Avalonia.Controls.ToolTip.OnPopupClosed(object?, System.EventArgs)",
+        "callee": "Avalonia.Controls.ToolTip.UpdatePseudoClasses(bool)",
+        "callee_type": "Avalonia.Controls.ToolTip",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls",
+        "path": "Avalonia.Controls/ToolTip.cs",
+        "line": 495,
+        "caller": "Avalonia.Controls.ToolTip.OnPopupOpened(object?, System.EventArgs)",
+        "callee": "Avalonia.Controls.ToolTip.UpdatePseudoClasses(bool)",
+        "callee_type": "Avalonia.Controls.ToolTip",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "line": 396,
+        "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "line": 413,
+        "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "line": 426,
+        "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "line": 446,
+        "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSlider/ColorSlider.cs",
+        "line": 468,
+        "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 181,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 375,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnGotFocus(Avalonia.Input.FocusChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 390,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnLostFocus(Avalonia.Input.FocusChangedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 405,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPointerExited(Avalonia.Input.PointerEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 722,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.UpdateColor(Avalonia.Controls.Primitives.Hsv)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 995,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.UpdateEllipse()",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1001,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerEntered(object?, Avalonia.Input.PointerEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1008,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerExited(object?, Avalonia.Input.PointerEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1026,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerPressed(object?, Avalonia.Input.PointerPressedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      },
+      {
+        "project": "Avalonia.Controls.ColorPicker",
+        "path": "Avalonia.Controls.ColorPicker/ColorSpectrum/ColorSpectrum.cs",
+        "line": 1051,
+        "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerReleased(object?, Avalonia.Input.PointerReleasedEventArgs)",
+        "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+        "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+        "callee_name": "UpdatePseudoClasses"
+      }
+    ]
+  }
+]

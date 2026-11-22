@@ -1,0 +1,40 @@
+{
+  "experiment": "R4 same-snapshot indexed semantic vs lexical retrieval probe",
+  "source_commit": "2bf2f1ef13e71d321668eef89f1de75f37978033",
+  "dev_json_sha256": "27626109fe4d2bf02beec474809424bbd58dd5a2b709263c6dde0926a4a9c311",
+  "corpus_generation": "cea13512-733a-4c9f-96a7-5e131b57d1dc",
+  "index_version": 3,
+  "corpus_inventory_sha256": "2b761e66fa43f47d9b5ee9b0cc3a799f05cf8b92c2f8794304aa297efab874a3",
+  "engine_binary_sha256": "144fa20e48dba9f908f606bee8db68cd3d2db891e762ba409ba4b9c911729c48",
+  "model_weights_sha256": "75cf7a6c2171b230ad19b1e7d8e0b1aee86da5a02af8e7cacedd9921d227623c",
+  "routes": [
+    "native_rg",
+    "fts",
+    "vector",
+    "hybrid"
+  ],
+  "per_route_result_item_cap": 10,
+  "per_route_source_text_byte_cap": 24576,
+  "scoring": "gold hidden from retrieval; report relevant file reachability and returned-span overlap only; no answer-quality inference",
+  "task_freeze": {
+    "D01": {
+      "frozen_question_sha256": "0f04e526b5c754668b44ea0b7e092926243c03bf08aed670a7c57003f51f8aaa",
+      "query_sha256": "2c2000256567e4d978b5b51c6577bd0818e48d3bb20f343af135c7f1c60b60cb",
+      "lexical_term_recipe_sha256": "3079f548312e78c3318daad08a92cc1ac7b36495e26417c02b874ec4345fcb8c",
+      "gold_ref_count": 2,
+      "gold_span_count": 2,
+      "gold_target_set_sha256": "2435400919818276d515f05293afb1142ff210f9dd9582125bd84d4b329aebe8",
+      "exact_identifier_in_query": false
+    },
+    "D06": {
+      "frozen_question_sha256": "dc5dd4369b72811f680a4a65e84e6684b15a48f840f8476f74cfc1728d48d7b5",
+      "query_sha256": "fe65dee22041cf4964f6f702ca6eec9113429778ea48bbc5dacd73daea7bd3e4",
+      "lexical_term_recipe_sha256": "823090a7e9bc0c15158bf0f81d911e77f1a767b1b367eb2ef58ab1cb9dcd788d",
+      "gold_ref_count": 2,
+      "gold_span_count": 3,
+      "gold_target_set_sha256": "5eb2b35bbc167b30906c9d3f3b17e0fe9052e2ca1b66a24e666876473064570b",
+      "exact_identifier_in_query": false
+    }
+  },
+  "index_tree_sha256": "c36ca81d7e794506866694199ec03ff981864b2c0532a32cc75ee812efacb28d"
+}

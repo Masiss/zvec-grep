@@ -1,0 +1,72 @@
+[
+  {
+    "task": "partial_autocomplete",
+    "query": "AutoComplete",
+    "latency_ms": [
+      16.977213,
+      13.903862,
+      14.835849
+    ],
+    "median_ms": 14.835849
+  },
+  {
+    "task": "partial_dispatcher",
+    "query": "Dispatcher",
+    "latency_ms": [
+      16.962403,
+      13.435459,
+      13.828623
+    ],
+    "median_ms": 13.828623
+  },
+  {
+    "task": "partial_calendar_picker",
+    "query": "CalendarDatePicker",
+    "latency_ms": [
+      12.682952,
+      13.887309,
+      13.529869
+    ],
+    "median_ms": 13.529869
+  },
+  {
+    "task": "edges_update_pseudo",
+    "query": "UpdatePseudoClasses",
+    "latency_ms": [
+      15.122094,
+      14.466459,
+      13.805635
+    ],
+    "median_ms": 14.466459
+  },
+  {
+    "task": "edges_snapshot_undo",
+    "query": "SnapshotUndoRedo",
+    "latency_ms": [
+      13.575457,
+      13.4096,
+      13.393133
+    ],
+    "median_ms": 13.4096
+  },
+  {
+    "task": "edges_color_map",
+    "query": "CreateBitmapsAndColorMap",
+    "latency_ms": [
+      12.254676,
+      13.852583,
+      14.686359
+    ],
+    "median_ms": 13.852583
+  },
+  {
+    "task": "edges_set_at",
+    "query": "SetAt",
+    "latency_ms": [
+      13.707575,
+      14.70531,
+      14.21038
+    ],
+    "median_ms": 14.21038
+  }
+]

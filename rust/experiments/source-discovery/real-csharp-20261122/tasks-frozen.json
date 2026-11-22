@@ -1,0 +1,1591 @@
+{
+  "corpus_manifest": "corpus-manifest.json",
+  "prototype_head": "53372b18ba035ac83fa76d0fdad395bf2c0cb2fd",
+  "roslyn": {
+    "sdk": "10.0.114",
+    "compiler": "Microsoft.CodeAnalysis.CSharp.dll from SDK",
+    "method": "CSharpCompilation + SemanticModel.GetSymbolInfo over each selected project in dependency order; Avalonia.Base compilation is a reference for later projects",
+    "known_limit": "Package/build props/source generators are not loaded; semantic oracle used to validate bound invocation edges only. Compiler diagnostics are retained."
+  },
+  "tasks": [
+    {
+      "id": "partial_autocomplete",
+      "query": "AutoComplete",
+      "metric": "declarations",
+      "gold_type": "Avalonia.Controls.AutoCompleteBox",
+      "gold_paths": [
+        "Avalonia.Controls/AutoCompleteBox/AutoCompleteBox.Properties.cs",
+        "Avalonia.Controls/AutoCompleteBox/AutoCompleteBox.cs"
+      ]
+    },
+    {
+      "id": "partial_dispatcher",
+      "query": "Dispatcher",
+      "metric": "declarations",
+      "gold_type": "Avalonia.Threading.Dispatcher",
+      "gold_paths": [
+        "Avalonia.Base/Threading/Dispatcher.Exceptions.cs",
+        "Avalonia.Base/Threading/Dispatcher.Invoke.cs",
+        "Avalonia.Base/Threading/Dispatcher.MainLoop.cs",
+        "Avalonia.Base/Threading/Dispatcher.Queue.cs",
+        "Avalonia.Base/Threading/Dispatcher.ThreadStorage.cs",
+        "Avalonia.Base/Threading/Dispatcher.Timers.cs",
+        "Avalonia.Base/Threading/Dispatcher.cs"
+      ]
+    },
+    {
+      "id": "partial_calendar_picker",
+      "query": "CalendarDatePicker",
+      "metric": "declarations",
+      "gold_type": "Avalonia.Controls.CalendarDatePicker",
+      "gold_paths": [
+        "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.Properties.cs",
+        "Avalonia.Controls/CalendarDatePicker/CalendarDatePicker.cs"
+      ]
+    },
+    {
+      "id": "edges_update_pseudo",
+      "query": "UpdatePseudoClasses",
+      "metric": "edges",
+      "gold_edges": [
+        {
+          "project": "Avalonia.Base",
+          "path": "Input/InputElement.cs",
+          "line": 978,
+          "caller": "Avalonia.Input.InputElement.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Input.InputElement.UpdatePseudoClasses(bool?, bool?)",
+          "callee_type": "Avalonia.Input.InputElement",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Input/InputElement.cs",
+          "line": 982,
+          "caller": "Avalonia.Input.InputElement.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Input.InputElement.UpdatePseudoClasses(bool?, bool?)",
+          "callee_type": "Avalonia.Input.InputElement",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "AutoCompleteBox/AutoCompleteBox.cs",
+          "line": 340,
+          "caller": "Avalonia.Controls.AutoCompleteBox.OnIsDropDownOpenChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.AutoCompleteBox.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.AutoCompleteBox",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "AutoCompleteBox/AutoCompleteBox.cs",
+          "line": 998,
+          "caller": "Avalonia.Controls.AutoCompleteBox.ClosingDropDown(bool)",
+          "callee": "Avalonia.Controls.AutoCompleteBox.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.AutoCompleteBox",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "AutoCompleteBox/AutoCompleteBox.cs",
+          "line": 1023,
+          "caller": "Avalonia.Controls.AutoCompleteBox.OpeningDropDown(bool)",
+          "callee": "Avalonia.Controls.AutoCompleteBox.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.AutoCompleteBox",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Button.cs",
+          "line": 479,
+          "caller": "Avalonia.Controls.Button.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+          "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Button",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Button.cs",
+          "line": 542,
+          "caller": "Avalonia.Controls.Button.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Button",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Button.cs",
+          "line": 562,
+          "caller": "Avalonia.Controls.Button.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Button",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Button.cs",
+          "line": 751,
+          "caller": "Avalonia.Controls.Button.Flyout_Opened(object?, System.EventArgs)",
+          "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Button",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Button.cs",
+          "line": 768,
+          "caller": "Avalonia.Controls.Button.Flyout_Closed(object?, System.EventArgs)",
+          "callee": "Avalonia.Controls.Button.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Button",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "ButtonSpinner.cs",
+          "line": 221,
+          "caller": "Avalonia.Controls.ButtonSpinner.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.ButtonSpinner.UpdatePseudoClasses(Avalonia.Controls.Location)",
+          "callee_type": "Avalonia.Controls.ButtonSpinner",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 203,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 243,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 350,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OnPointerPressed(Avalonia.Input.PointerPressedEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 373,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OnPointerReleased(Avalonia.Input.PointerReleasedEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 383,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OnPointerCaptureLost(Avalonia.Input.PointerCaptureLostEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 431,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OnLostFocus(Avalonia.Input.FocusChangedEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 469,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OnKeyUp(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 652,
+          "caller": "Avalonia.Controls.CalendarDatePicker.DropDownButton_PointerPressed(object?, Avalonia.Input.PointerPressedEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 659,
+          "caller": "Avalonia.Controls.CalendarDatePicker.DropDownButton_PointerReleased(object?, Avalonia.Input.PointerReleasedEventArgs)",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "CalendarDatePicker/CalendarDatePicker.cs",
+          "line": 713,
+          "caller": "Avalonia.Controls.CalendarDatePicker.OpenDropDown()",
+          "callee": "Avalonia.Controls.CalendarDatePicker.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.CalendarDatePicker",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "ContentControl.cs",
+          "line": 163,
+          "caller": "Avalonia.Controls.ContentControl.ContentChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.ContentControl.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.ContentControl",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Expander.cs",
+          "line": 268,
+          "caller": "Avalonia.Controls.Expander.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Expander.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Expander",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Expander.cs",
+          "line": 275,
+          "caller": "Avalonia.Controls.Expander.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Expander.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Expander",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Notifications/WindowNotificationManager.cs",
+          "line": 202,
+          "caller": "Avalonia.Controls.Notifications.WindowNotificationManager.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Notifications.WindowNotificationManager.UpdatePseudoClasses(Avalonia.Controls.Notifications.NotificationPosition)",
+          "callee_type": "Avalonia.Controls.Notifications.WindowNotificationManager",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "PipsPager/PipsPager.cs",
+          "line": 278,
+          "caller": "Avalonia.Controls.PipsPager.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+          "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.PipsPager",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "PipsPager/PipsPager.cs",
+          "line": 355,
+          "caller": "Avalonia.Controls.PipsPager.OnSelectedPageIndexChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.PipsPager",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "PipsPager/PipsPager.cs",
+          "line": 405,
+          "caller": "Avalonia.Controls.PipsPager.OnNumberOfPagesChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.PipsPager",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "PipsPager/PipsPager.cs",
+          "line": 423,
+          "caller": "Avalonia.Controls.PipsPager.OnOrientationChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.PipsPager.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.PipsPager",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Presenters/ContentPresenter.cs",
+          "line": 799,
+          "caller": "Avalonia.Controls.Presenters.ContentPresenter.ContentChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Presenters.ContentPresenter.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Presenters.ContentPresenter",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Primitives/ScrollBar.cs",
+          "line": 318,
+          "caller": "Avalonia.Controls.Primitives.ScrollBar.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ScrollBar.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+          "callee_type": "Avalonia.Controls.Primitives.ScrollBar",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Primitives/ToggleButton.cs",
+          "line": 138,
+          "caller": "Avalonia.Controls.Primitives.ToggleButton.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ToggleButton.UpdatePseudoClasses(bool?)",
+          "callee_type": "Avalonia.Controls.Primitives.ToggleButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Primitives/Track.cs",
+          "line": 307,
+          "caller": "Avalonia.Controls.Primitives.Track.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.Track.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+          "callee_type": "Avalonia.Controls.Primitives.Track",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "ProgressBar.cs",
+          "line": 316,
+          "caller": "Avalonia.Controls.ProgressBar.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.ProgressBar.UpdatePseudoClasses(bool?, Avalonia.Layout.Orientation?)",
+          "callee_type": "Avalonia.Controls.ProgressBar",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "ProgressBar.cs",
+          "line": 320,
+          "caller": "Avalonia.Controls.ProgressBar.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.ProgressBar.UpdatePseudoClasses(bool?, Avalonia.Layout.Orientation?)",
+          "callee_type": "Avalonia.Controls.ProgressBar",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "Slider.cs",
+          "line": 408,
+          "caller": "Avalonia.Controls.Slider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Slider.UpdatePseudoClasses(Avalonia.Layout.Orientation)",
+          "callee_type": "Avalonia.Controls.Slider",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/SplitButton.cs",
+          "line": 259,
+          "caller": "Avalonia.Controls.SplitButton.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/SplitButton.cs",
+          "line": 346,
+          "caller": "Avalonia.Controls.SplitButton.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/SplitButton.cs",
+          "line": 360,
+          "caller": "Avalonia.Controls.SplitButton.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/SplitButton.cs",
+          "line": 374,
+          "caller": "Avalonia.Controls.SplitButton.OnKeyUp(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/SplitButton.cs",
+          "line": 521,
+          "caller": "Avalonia.Controls.SplitButton.Flyout_PlacementPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/SplitButton.cs",
+          "line": 540,
+          "caller": "Avalonia.Controls.SplitButton.Flyout_Opened(object?, System.EventArgs)",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/SplitButton.cs",
+          "line": 558,
+          "caller": "Avalonia.Controls.SplitButton.Flyout_Closed(object?, System.EventArgs)",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "SplitButton/ToggleSplitButton.cs",
+          "line": 107,
+          "caller": "Avalonia.Controls.ToggleSplitButton.OnIsCheckedChanged()",
+          "callee": "Avalonia.Controls.SplitButton.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.SplitButton",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "ToolTip.cs",
+          "line": 488,
+          "caller": "Avalonia.Controls.ToolTip.OnPopupClosed(object?, System.EventArgs)",
+          "callee": "Avalonia.Controls.ToolTip.UpdatePseudoClasses(bool)",
+          "callee_type": "Avalonia.Controls.ToolTip",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "ToolTip.cs",
+          "line": 495,
+          "caller": "Avalonia.Controls.ToolTip.OnPopupOpened(object?, System.EventArgs)",
+          "callee": "Avalonia.Controls.ToolTip.UpdatePseudoClasses(bool)",
+          "callee_type": "Avalonia.Controls.ToolTip",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSlider/ColorSlider.cs",
+          "line": 396,
+          "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSlider/ColorSlider.cs",
+          "line": 413,
+          "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSlider/ColorSlider.cs",
+          "line": 426,
+          "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSlider/ColorSlider.cs",
+          "line": 446,
+          "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSlider/ColorSlider.cs",
+          "line": 468,
+          "caller": "Avalonia.Controls.Primitives.ColorSlider.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSlider.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSlider",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 181,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 375,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnGotFocus(Avalonia.Input.FocusChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 390,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnLostFocus(Avalonia.Input.FocusChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 405,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPointerExited(Avalonia.Input.PointerEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 722,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.UpdateColor(Avalonia.Controls.Primitives.Hsv)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 995,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.UpdateEllipse()",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 1001,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerEntered(object?, Avalonia.Input.PointerEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 1008,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerExited(object?, Avalonia.Input.PointerEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 1026,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerPressed(object?, Avalonia.Input.PointerPressedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 1051,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.InputTarget_PointerReleased(object?, Avalonia.Input.PointerReleasedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.UpdatePseudoClasses()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "UpdatePseudoClasses"
+        }
+      ],
+      "gold_edge_count": 61
+    },
+    {
+      "id": "edges_snapshot_undo",
+      "query": "SnapshotUndoRedo",
+      "metric": "edges",
+      "gold_edges": [
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 666,
+          "caller": "Avalonia.Controls.TextBox.CoerceText(string?)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1073,
+          "caller": "Avalonia.Controls.TextBox.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1215,
+          "caller": "Avalonia.Controls.TextBox.HandleTextInput(string?)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1316,
+          "caller": "Avalonia.Controls.TextBox.Cut()",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1404,
+          "caller": "Avalonia.Controls.TextBox.PasteCoreAsync(Avalonia.Input.Platform.IClipboard?)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1626,
+          "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1669,
+          "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1678,
+          "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1704,
+          "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1715,
+          "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1729,
+          "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 1745,
+          "caller": "Avalonia.Controls.TextBox.OnKeyDown(Avalonia.Input.KeyEventArgs)",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        },
+        {
+          "project": "Avalonia.Controls",
+          "path": "TextBox.cs",
+          "line": 2699,
+          "caller": "Avalonia.Controls.TextBox.Undo()",
+          "callee": "Avalonia.Controls.TextBox.SnapshotUndoRedo(bool)",
+          "callee_type": "Avalonia.Controls.TextBox",
+          "callee_name": "SnapshotUndoRedo"
+        }
+      ],
+      "gold_edge_count": 13
+    },
+    {
+      "id": "edges_color_map",
+      "query": "CreateBitmapsAndColorMap",
+      "metric": "edges",
+      "gold_edges": [
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 156,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "CreateBitmapsAndColorMap"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 177,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "CreateBitmapsAndColorMap"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 466,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "CreateBitmapsAndColorMap"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 491,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "CreateBitmapsAndColorMap"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 516,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "CreateBitmapsAndColorMap"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 521,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "CreateBitmapsAndColorMap"
+        },
+        {
+          "project": "Avalonia.Controls.ColorPicker",
+          "path": "ColorSpectrum/ColorSpectrum.cs",
+          "line": 542,
+          "caller": "Avalonia.Controls.Primitives.ColorSpectrum.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs)",
+          "callee": "Avalonia.Controls.Primitives.ColorSpectrum.CreateBitmapsAndColorMap()",
+          "callee_type": "Avalonia.Controls.Primitives.ColorSpectrum",
+          "callee_name": "CreateBitmapsAndColorMap"
+        }
+      ],
+      "gold_edge_count": 7
+    },
+    {
+      "id": "edges_set_at",
+      "query": "SetAt",
+      "metric": "edges",
+      "gold_edges": [
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 185,
+          "caller": "Avalonia.Utilities.FrugalListBase<T>.Compacter.IncludeOverride(int, int)",
+          "callee": "Avalonia.Utilities.FrugalListBase<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.FrugalListBase<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 196,
+          "caller": "Avalonia.Utilities.FrugalListBase<T>.Compacter.Finish()",
+          "callee": "Avalonia.Utilities.FrugalListBase<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.FrugalListBase<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 317,
+          "caller": "Avalonia.Utilities.SingleItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SingleItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SingleItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 330,
+          "caller": "Avalonia.Utilities.SingleItemList<T>.Promote(Avalonia.Utilities.SingleItemList<T>)",
+          "callee": "Avalonia.Utilities.SingleItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SingleItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 584,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 585,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 586,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 590,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 591,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 595,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 616,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.SingleItemList<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 628,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 629,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 630,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 634,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 635,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 639,
+          "caller": "Avalonia.Utilities.ThreeItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.ThreeItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ThreeItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1040,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1041,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1042,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1043,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1044,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1045,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1049,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1050,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1051,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1052,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1053,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1057,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1058,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1059,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1060,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1064,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1065,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1066,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1070,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1071,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1075,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.FrugalListBase<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1104,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1105,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1106,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1110,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1111,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1115,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.ThreeItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1142,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1143,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1144,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1145,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1146,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1147,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1151,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1152,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1153,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1154,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1155,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1159,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1160,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1161,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1162,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1166,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1167,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1168,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1172,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1173,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1177,
+          "caller": "Avalonia.Utilities.SixItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.SixItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.SixItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1493,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1494,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1495,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1496,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1497,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1498,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1502,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1503,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1504,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1505,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1506,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1510,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1511,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1512,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1513,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1517,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1518,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1519,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1523,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1524,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1528,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.SixItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        },
+        {
+          "project": "Avalonia.Base",
+          "path": "Utilities/FrugalList.cs",
+          "line": 1550,
+          "caller": "Avalonia.Utilities.ArrayItemList<T>.Promote(Avalonia.Utilities.ArrayItemList<T>)",
+          "callee": "Avalonia.Utilities.ArrayItemList<T>.SetAt(int, T)",
+          "callee_type": "Avalonia.Utilities.ArrayItemList<T>",
+          "callee_name": "SetAt"
+        }
+      ],
+      "gold_edge_count": 87
+    }
+  ]
+}

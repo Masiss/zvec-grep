@@ -9,11 +9,15 @@ Scope: find a useful source entry point when the caller remembers only part of a
 
 ## Finding
 
-The primary failure in this case is **acquisition**. Indexed FTS found the exact
-identifier `searchWorkspaceIndex` at rank 1, but returned no result for the
-distinctive substring `searchWork`. There is no candidate for ranking or context
-construction to rescue. The existing managed-ripgrep route found the definition
-and its call sites without an index.
+**Correction after read-only integrity verification:** this record does not
+establish that partial-identifier failure was intrinsic to indexed FTS. The
+original transcript recorded an exact-name result and “No matches” for
+`searchWork`, but a later read-only check found the same workspace index
+`CORRUPT`, and a subsequent run of the partial FTS query failed with checksum /
+storage errors. Because the index state was not proven valid at the time of the
+earlier observations, the FTS contrast cannot isolate query acquisition from
+index failure. The native ripgrep result remains valid evidence that the
+fallback can find this fragment on this source tree.
 
 The useful entry point is `src/engine/pipeline/search/index.ts:89`; the same
 literal also finds its caller at line 193 and the import/call in
@@ -45,8 +49,8 @@ Observed outputs:
 
 | Query | Result |
 |---|---|
-| FTS `searchWorkspaceIndex` | `src/engine/pipeline/search/index.ts:89-180`, `searchWorkspaceIndex`, rank 1; two related results followed |
-| FTS `searchWork` | `No matches.` |
+| FTS `searchWorkspaceIndex` | Historical output: `src/engine/pipeline/search/index.ts:89-180`, `searchWorkspaceIndex`, rank 1; index validity was not established |
+| FTS `searchWork` | Historical output: `No matches.`; a later query against the corrupt index failed, so this is not a valid indexed-search miss |
 | `rg -F searchWork src` | Four occurrences in two files: the definition, its call, and the service import/call; all four were relevant for this query |
 | Scoped `rg` cost | One observation: 0.01 s elapsed; 36,256 KiB maximum RSS on this host |
 
@@ -69,13 +73,15 @@ checkout. The temporary probe test was removed; no Rust source change remains.
 
 | Hypothesis | Evidence | Decision |
 |---|---|---|
-| Split or normalize a partial CamelCase query and send it through indexed FTS | The exact identifier succeeds and the partial literal fails. A later existing-index probe reported an invalid checksum; disposable FTS probes were blocked by a missing local model and an ABI-mismatched native library. | `INCONCLUSIVE`; do not change the index or ranking under the current handoff. |
+| Split or normalize a partial CamelCase query and send it through indexed FTS | The original output looked like a partial-literal miss, but subsequent read-only integrity checks found index corruption and a repeated FTS request failed. | `INCONCLUSIVE`; no query-semantics conclusion is supported. Do not change the index or ranking under the current handoff. |
 | Route a distinctive partial identifier to managed ripgrep, scoped to likely code paths | The actual `searchWork` query finds the definition and caller; one scoped run took 0.01 s / 36 MiB RSS. | `GO` as a low-complexity fallback-guidance change. Agent behavioral efficacy is `INCONCLUSIVE`; this is one query on one host, not a measured false-positive or broader-scan rate. |
 | Add fuzzy/prefix matching to symbol metadata | It would require new search semantics and broader candidate acquisition; the current handoff rules out ranking/index work. | `NO_GO` for this mission. |
 | Use a remote semantic planner to infer the missing identifier | The handoff blocks private-source inference without explicit authorization; this test needs no such inference. | `NO_GO` under the current authorization boundary. |
 
-This probe separates acquisition from later stages: FTS has no hit, so ranking,
-context construction, and navigation cannot explain or repair this miss.
+This probe does not separate acquisition from later stages on the indexed path,
+because index validity is unknown for the historical “No matches” response. It
+does establish that literal ripgrep can find the definition and immediate
+navigation sites for this one partial identifier.
 
 ## Change
 

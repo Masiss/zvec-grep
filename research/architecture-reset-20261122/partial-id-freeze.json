@@ -1,0 +1,58 @@
+{
+  "purpose": "Measure lexical partial-identifier discovery cost and declaration acquisition on public source without using the existing index.",
+  "repository": "zvec-grep",
+  "revision": "663566546f03768b9b021c65eb3accc4aa0720a1",
+  "source_scope": "tracked src/**/*.ts at the frozen revision; no untracked files",
+  "candidate_commands": [
+    "rg -n -F QUERY src",
+    "zg --rg -n -F QUERY src"
+  ],
+  "scoring": {
+    "positive": "target declaration is present at the frozen path and line; also record total output lines/bytes",
+    "ambiguous": "descriptive only; report output size and hits without claiming target precision",
+    "negative": "expected zero matches",
+    "timing": "seven sequential process runs per command; report median/min/max wall milliseconds",
+    "memory": "one separate /usr/bin/time run per command; peak RSS is host/process measurement"
+  },
+  "tasks": [
+    {
+      "id": "P1",
+      "query": "registerZvec",
+      "kind": "positive",
+      "expected_declaration": {"path": "src/mcp/tools.ts", "line": 335, "symbol": "registerZvecGrepTools"}
+    },
+    {
+      "id": "P2",
+      "query": "parseMcp",
+      "kind": "positive",
+      "expected_declaration": {"path": "src/mcp/toolset.ts", "line": 7, "symbol": "parseMcpToolset"}
+    },
+    {
+      "id": "P3",
+      "query": "traceContextFromMcp",
+      "kind": "positive",
+      "expected_declarations": [
+        {"path": "src/observability/trace-context.ts", "line": 25, "symbol": "traceContextFromMcpBody"},
+        {"path": "src/observability/trace-context.ts", "line": 36, "symbol": "traceContextFromMcpMeta"}
+      ]
+    },
+    {
+      "id": "P4",
+      "query": "formatPrompt",
+      "kind": "positive",
+      "expected_declaration": {"path": "src/prompts/zvec-grep-guidance.ts", "line": 7, "symbol": "formatPromptRules"}
+    },
+    {
+      "id": "A1",
+      "query": "format",
+      "kind": "ambiguous",
+      "expected_declaration": {"path": "src/prompts/zvec-grep-guidance.ts", "line": 7, "symbol": "formatPromptRules"}
+    },
+    {
+      "id": "N1",
+      "query": "__zg_discovery_missing_20261122__",
+      "kind": "negative",
+      "expected_matches": 0
+    }
+  ]
+}
