@@ -1,5 +1,7 @@
 # Handoff — next session (2026-11-21, semantic evaluator pilot ready)
 
+> **Latest continuation (2026-11-22):** The native-subagent D01/D06/D12 × A/B/C pilot has been analyzed and independently reviewed against local raw artifacts. Pilot analysis started from base R4 HEAD `44f9640c50494af4bafb5d06f96fd89f96453e44` and is now recorded at the current HEAD of this branch; resume from current HEAD. The latest decision is **BLOCKED** for a budget-auditable paired rerun and **NO_GO** for arm-winner or answer-quality improvement claims. Read `rust/docs/r4-subagent-pilot-results-20261122.md` first for the current, detailed Vietnamese report. This continuation supersedes the older PILOT_READY and owner-gate statuses below. No rerun or code change was made.
+
 Single entry point. Read this, then
 `rust/docs/r4-semantic-evaluator-pilot-20261121.md` (report: SE-01/SE-02,
 C3 audit, pilot, review) and, for the earlier round,
@@ -184,3 +186,15 @@ Decision: **INCONCLUSIVE for comparative RAG answer quality.** Six gradeable str
 The reviewer found the run useful for process observations only. Shared workspace/tool access means gold/C3 isolation cannot be independently proven; pack reconstruction and unverified receipts further limit formal comparison. No frozen benchmark, source, index, embedding, production default, or API was changed.
 
 **Stop at this owner gate.** Do not claim an arm winner or formal answer-quality result. No further infrastructure work or cases are in scope for this run.
+
+## Continuation — R4 native-subagent pilot failure analysis (2026-11-22)
+
+Đọc `rust/docs/r4-subagent-pilot-results-20261122.md` để xem phân tích tiếng Việt chi tiết và sanitized review bundle. Raw private evidence vẫn chỉ lưu local; report ghi raw manifest SHA-256 `2312c6bfda87489b1d65ae30353853f2b7e1656d36b21b0419f594bcdeed8535`, không chứa source/question/gold text.
+
+**Trạng thái hiện tại: BLOCKED cho paired rerun có so sánh budget; NO_GO cho claim arm winner/answer-quality improvement.** Sáu cell có structural grade đều fail, ba ungradable; không có semantic verdict trusted. D01/A, D01/C, D06/C, D12/A có search-derived pack dựng hậu kỳ; pack cap breach chỉ chắc chắn ở artifact chấm, chưa chứng minh payload answerer đã nhận vượt cap. D12/C ledger ghi 6 calls, 3 rounds, 21 read ops, 16 files, 63,368 bytes, đọc 2/2 gold files nhưng không có pack/final receipt (`terminal=null`).
+
+Root causes đã thấy: D01/B final schema sai kiểu; D01/C evidence request sai address schema và adapter fail-closed; D06/A có 5 lỗi cú pháp CLI và một `--help` (việc thiếu grammar trong prompt chỉ là giả thuyết); D06/B lần đầu không tạo session, nguyên nhân chưa xác minh, rồi retry thành công; D12/B đọc relevant file nhưng pack không chứa gold-file coverage; D12/C adapter trace có search results nhưng không có successful evidence/verify/finalize hay pack. Các B workflow không lưu candidate pool nên chưa phân biệt được acquisition miss với selector omission. Không sửa source/retrieval/ranking; source diff rỗng.
+
+Fresh-context OpenAI reviewer đã kiểm tra raw local artifacts trong phạm vi D01/D06/D12: 127/127 manifest files khớp digest; diff từ pilot checkpoint `bad498e` chỉ gồm hai tài liệu. Reviewer xác nhận phải phân biệt selected content bytes với JSON disk bytes; D12/C có adapter trace 7 envelopes/6 charged calls nhưng không có native transcript, delivery confirmation, pack hoặc final receipt. D12/A citation resolve/hash_ok nhưng `pack_verified=false`; exploratory PASS không xác nhận frozen completeness. Findings chi tiết đã sanitize trong report. Offline negative controls tái lập fail-closed cho D01/B schema, D01/C address, hai D06/A CLI syntax forms và D12/C missing pack; không synthetic PASS, không sửa source. Reviewer không yêu cầu code patch; không có source diff. Paired rerun nhỏ nhất đáng cân nhắc là D01 × A/B/C sau preflight offline, **chỉ** khi cap được enforce tại delivery boundary và exact serialized payload được lưu. Nếu native subagents không hỗ trợ, dừng, không dựng framework mới.
+
+Model settings `gpt-6-luna/high` cho answerers/planners và `gpt-6.2-sol/high` cho evaluators chỉ là requested settings; served identity, usage, cost, latency không được lộ. Không có Responses API, không mở H01–H08, không đổi evaluator registry, không push/merge/release. Báo cáo và handoff được checkpoint tại commit sẽ ghi trong kết quả bàn giao; checkpoint chỉ gồm hai tài liệu.
