@@ -1,8 +1,13 @@
 # Continuation handoff — 2026-10-31 (after M2 diagnostic and rejected M3-B overlap)
 
-Read this first. It supersedes the “Next action” at the bottom of `HANDOFF.md`
-for the current worktree. Historical detail remains in `HANDOFF.md`,
-`docs/release/FEATURE-MATRIX.md`, and `docs/release/BENCHMARK-RESULTS.md`.
+> **Historical checkpoint:** superseded by
+> [`rust/docs/continuation-20261125-rc3-promotion.md`](rust/docs/continuation-20261125-rc3-promotion.md).
+> Do not use the branch/worktree/runtime instructions below for current work.
+
+This historical file previously superseded the “Next action” at the bottom of
+`HANDOFF.md`. It is retained for evidence only. Historical detail remains in
+`HANDOFF.md`, `docs/release/FEATURE-MATRIX.md`, and
+`docs/release/BENCHMARK-RESULTS.md`.
 
 ## Branch / worktree
 

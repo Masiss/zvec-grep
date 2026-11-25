@@ -1,8 +1,8 @@
 # Upstream Rust integration handoff — 2026-10-31
 
-> **Current continuation checkpoint:** [`HANDOFF-20261031-NEXT.md`](HANDOFF-20261031-NEXT.md).
-> Read that first for the active branch state, M2 diagnostic result, optimize
-> bottleneck, and exact next action. This file is historical detail.
+> **Current continuation checkpoint:** [`rust/docs/continuation-20261125-rc3-promotion.md`](rust/docs/continuation-20261125-rc3-promotion.md).
+> Read that first for the promoted RC3 runtime, rebuilt project index, rollback
+> and exact next-session actions. This file is historical integration detail.
 
 ## Scope and branch
 
@@ -248,6 +248,6 @@ Release package and full evidence: [`docs/release/README.md`](docs/release/READM
 
 ## Next action
 
-See [`HANDOFF-20261031-NEXT.md`](HANDOFF-20261031-NEXT.md). Current priority is
-the finalization bottleneck; the overlap approach is closed. Do not run 421
-files until a replacement is measured.
+See [`rust/docs/continuation-20261125-rc3-promotion.md`](rust/docs/continuation-20261125-rc3-promotion.md).
+The 2026-10-31 optimization work is historical; current priority is daily use of
+the promoted RC3 runtime and explicit rebuild of any newly activated v2 workspace.

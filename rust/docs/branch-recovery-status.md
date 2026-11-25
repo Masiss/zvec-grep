@@ -1,5 +1,15 @@
 # Fork recovery — canonical source checkpoint
 
+> **Current checkpoint — 2026-11-25:** RC3 has been locally promoted and is the
+> daily runtime. Read
+> [`continuation-20261125-rc3-promotion.md`](continuation-20261125-rc3-promotion.md)
+> first. Maintained branch/tag: `work/zg-recovered` /
+> `rust-v0.3.0-rc.3` @ `6cd4bde`; maintained worktree:
+> `/home/masis/src/zvec-grep-core-20261124`. Plain `zg` is RC3, the primary
+> project index is rebuilt v3, and rollback receipts are retained. The sections
+> below are historical recovery evidence; their old paths, PIDs, format-2 and
+> “not production rollout” statements are superseded by the current checkpoint.
+
 ## Scope and protected state
 
 Owner authorized recovery of newer V1 work onto released V2, Luna implementation

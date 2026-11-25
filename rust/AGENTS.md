@@ -7,11 +7,12 @@ override the root repository policy.
 ## Scope
 
 - This guidance applies to `rust/` and its crates.
-- The maintained fork branch is `work/zg-recovered`, based on the released
-  `rust-v0.3.0-rc.2` (code baseline `289674b`, packaged tip `c2347d5`). The
-  `0.3.0-rc.3` qualification branch is `work/core-acceptance-20261124`.
-  The old personal branches are retired recovery inputs, not implementation
-  targets. Historical release tags and upstream comparison refs stay unchanged.
+- The maintained fork branch is `work/zg-recovered`, based on the locally
+  promoted `rust-v0.3.0-rc.3` (`6cd4bde`). The maintained worktree is
+  `/home/masis/src/zvec-grep-core-20261124`. Read
+  `rust/docs/continuation-20261125-rc3-promotion.md` first for current runtime,
+  index, rollback and next-session state. Historical release tags and upstream
+  comparison refs stay unchanged.
 - Read `rust/docs/branch-recovery-status.md` for active recovery state. Documents
   under `rust/docs/archive/v1/` describe the retired 0.7.2-era fork; their PASS,
   installed-state and next-action statements do not qualify this 0.8.0 runtime.
@@ -94,6 +95,8 @@ cargo build -p zg --release
   `research/m4-native/results/`.
 - Historical RC gates/evidence: `docs/release/`. New recovery verification:
   `rust/docs/branch-recovery-status.md`; do not overwrite historical receipts.
+- Current continuation and operational state:
+  `rust/docs/continuation-20261125-rc3-promotion.md`.
 - Do not create new root-level handoff or plan files for this workstream.
 
 ## Reporting
