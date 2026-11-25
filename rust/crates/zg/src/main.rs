@@ -2,7 +2,7 @@ use std::{
     error::Error,
     future::Future,
     io::{self, IsTerminal, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::ExitCode,
     sync::{
         Arc, OnceLock,
@@ -119,9 +119,15 @@ fn parse_cli() -> (Cli, Option<String>) {
     (cli, warning)
 }
 
+#[allow(clippy::too_many_lines)]
 fn run() -> Result<ExitCode, Box<dyn Error>> {
     let (cli, warning) = parse_cli();
     let _ = OUTPUT_OPTIONS.set(cli.output_options());
+    // Validate configuration even for help/build-info paths: an invalid or
+    // partial observability environment must never be silently ignored.
+    let default_runtime_home = zg_daemon::resolve_home(None).unwrap_or_else(|_| PathBuf::from("."));
+    let _ = zg_observability::config_from_env(&default_runtime_home)
+        .map_err(|message| io::Error::other(format!("ZG.OBSERVABILITY.CONFIG: {message}")))?;
     let warn = || {
         if let Some(warning) = &warning {
             let _ = zg_cli::write_warning(
@@ -136,6 +142,10 @@ fn run() -> Result<ExitCode, Box<dyn Error>> {
     let plan = cli
         .into_plan(std::env::current_dir()?)
         .inspect_err(|_| warn())?;
+    let runtime_home = zg_daemon::resolve_home(cli_home(&plan).map(Path::to_owned))
+        .unwrap_or_else(|_| PathBuf::from("."));
+    zg_observability::init(&runtime_home)
+        .map_err(|error| io::Error::other(format!("ZG.OBSERVABILITY.CONFIG: {error}")))?;
     match &plan {
         CliPlan::Help(topic) => {
             warn();
@@ -232,6 +242,7 @@ fn install_darwin_metal_residency_mitigation() -> io::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn execute_plan(plan: CliPlan) -> Result<ExitCode, Box<dyn Error>> {
     match plan {
         CliPlan::Files { request, null } => return Ok(execute_files(*request, null).await),
@@ -276,6 +287,49 @@ async fn execute_plan(plan: CliPlan) -> Result<ExitCode, Box<dyn Error>> {
             check_ready,
             output,
         } => execute_status(mode, home.as_deref(), request, check_ready, output).await,
+        CliPlan::Observability(args) => {
+            let home = args
+                .home
+                .or_else(|| std::env::var_os("ZVEC_GREP_OBSERVABILITY_HOME").map(PathBuf::from))
+                .or_else(|| zg_daemon::resolve_home(None).ok())
+                .ok_or_else(|| io::Error::other("cannot resolve observability home"))?;
+            let home = if ["runtime", "retrieval", "investigation", "research"]
+                .iter()
+                .any(|stream| home.join(stream).is_dir())
+            {
+                home
+            } else {
+                home.join("observability")
+            };
+            zg_observability::maintain(&home)?;
+            let summary = zg_observability::summary(&home)?;
+            if args.json {
+                writeln!(
+                    zg_cli::stdout(),
+                    "{}",
+                    serde_json::to_string_pretty(&summary)?
+                )?;
+            } else {
+                for (stream, value) in summary
+                    .as_object()
+                    .ok_or_else(|| io::Error::other("bad summary"))?
+                {
+                    writeln!(
+                        zg_cli::stdout(),
+                        "{stream}: {} events in {} files",
+                        value
+                            .get("events")
+                            .and_then(serde_json::Value::as_u64)
+                            .unwrap_or(0),
+                        value
+                            .get("files")
+                            .and_then(serde_json::Value::as_u64)
+                            .unwrap_or(0),
+                    )?;
+                }
+            }
+            Ok(())
+        }
         CliPlan::Config(args) => execute_config(args),
         CliPlan::Auth(args) => {
             let root = args
@@ -571,6 +625,153 @@ fn engine_error_report(error: &(dyn Error + 'static)) -> Option<zg_engine::Error
     }
 }
 
+fn query_identity(request: &ContextOptions) -> (String, usize, Vec<serde_json::Value>) {
+    let mut entries = Vec::new();
+    if let Some(query) = &request.query {
+        entries.push(("query", query.as_str()));
+    }
+    for query in &request.queries {
+        entries.push(("queries", query.as_str()));
+    }
+    for route in &request.routes {
+        if !route.query.is_empty() {
+            entries.push(("route", route.query.as_str()));
+        }
+    }
+    let combined = entries
+        .iter()
+        .map(|(_, value)| *value)
+        .collect::<Vec<_>>()
+        .join("\0");
+    let len = entries.iter().map(|(_, value)| value.len()).sum();
+    let hashes = entries
+        .iter()
+        .map(|(kind, value)| {
+            serde_json::json!({"kind": kind, "sha256": zg_observability::hash(value)})
+        })
+        .collect();
+    (zg_observability::hash(&combined), len, hashes)
+}
+
+#[allow(clippy::too_many_lines)]
+fn record_retrieval_event(
+    request: &ContextOptions,
+    result: &zg_engine::api::context::ContextResult,
+) {
+    if !zg_observability::enabled() {
+        return;
+    }
+    let ids = zg_observability::current_ids();
+    let root_id = zg_observability::source_identity(&result.root);
+    let generation = zg_observability::index_generation(&result.root);
+    let (query_sha256, query_len, query_hashes) = query_identity(request);
+    let groups = result
+        .diagnostics
+        .index
+        .as_ref()
+        .map(|index| {
+            index
+                .query_groups
+                .iter()
+                .map(|group| serde_json::json!({"id": group.id, "role": group.role}))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let routes = result
+        .diagnostics
+        .index
+        .as_ref()
+        .map(|index| {
+            index
+                .routes
+                .iter()
+                .map(|route| serde_json::json!({"id": route.id, "mode": route.mode}))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let ranking = result
+        .items
+        .iter()
+        .map(|item| {
+            let range = match (item.range.start_line(), item.range.last_line()) {
+                (Some(start), Some(end)) => format!("{}:{start}-{end}", item.relative_path.display()),
+                _ => item.relative_path.to_string_lossy().into_owned(),
+            };
+            serde_json::json!({
+                "rank": item.rank,
+                "score": item.score,
+                "matched_by": item.matched_by,
+                "selection_reason": item.selection_reason,
+                "evidence_id": zg_observability::evidence_id(&root_id, &item.relative_path.to_string_lossy(), &range, &item.content, &generation),
+                "span_id": zg_observability::short_hash(&range),
+                "lineage": serde_json::to_value(&item.trace).unwrap_or(serde_json::Value::Null),
+            })
+        })
+        .collect::<Vec<_>>();
+    let group_results = result
+        .group_results
+        .iter()
+        .map(|group| {
+            serde_json::json!({
+                "id": group.id,
+                "role": group.role,
+                "items": group.items.iter().map(|item| {
+                    serde_json::json!({
+                        "rank": item.rank,
+                        "score": item.score,
+                        "matched_by": item.matched_by,
+                        "selection_reason": item.selection_reason,
+                        "span_id": zg_observability::short_hash(&match (item.range.start_line(), item.range.last_line()) {
+                            (Some(start), Some(end)) => format!("{}:{start}-{end}", item.relative_path.display()),
+                            _ => item.relative_path.to_string_lossy().into_owned(),
+                        }),
+                        "evidence_id": zg_observability::evidence_id(
+                            &root_id,
+                            &item.relative_path.to_string_lossy(),
+                            &match (item.range.start_line(), item.range.last_line()) {
+                                (Some(start), Some(end)) => format!("{}:{start}-{end}", item.relative_path.display()),
+                                _ => item.relative_path.to_string_lossy().into_owned(),
+                            },
+                            &item.content,
+                            &generation,
+                        ),
+                    })
+                }).collect::<Vec<_>>(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let timings =
+        serde_json::to_value(&result.diagnostics.timings).unwrap_or(serde_json::Value::Null);
+    let fields = serde_json::json!({
+        "request_id": ids.request_id.unwrap_or_else(zg_observability::new_id),
+        "query_sha256": query_sha256,
+        "query_len": query_len,
+        "query_hashes": query_hashes,
+        "root_id": root_id,
+        "index_generation": generation,
+        "source": result.source,
+        "coverage": result.coverage,
+        "freshness": result.freshness,
+        "background_refresh": result.background_refresh,
+        "refresh_policy": request.refresh,
+        "fuse": request.fuse,
+        "limit": request.limit,
+        "acquisition": {
+            "hits_returned": result.diagnostics.index.as_ref().map_or(result.items.len(), |index| index.hits_returned),
+            "empty_reason": result.diagnostics.empty_reason,
+        },
+        "groups": groups,
+        "routes": routes,
+        "fusion": {"enabled": request.fuse, "group_count": result.group_results.len()},
+        "group_results": group_results,
+        "ranking": ranking,
+        "selection": {"delivered": result.items.len(), "group_results": result.group_results.len()},
+        "timings": timings,
+        "resource": zg_observability::resource_sample(),
+    });
+    zg_observability::emit("retrieval", "retrieval.delivery", fields);
+}
+
 async fn execute_context(
     request: ContextOptions,
     server: bool,
@@ -579,10 +780,12 @@ async fn execute_context(
 ) -> Result<(), Box<dyn Error>> {
     if server {
         let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
-        let reply = zg_daemon::execute_command(&home, DaemonCommand::Context(request)).await?;
+        let reply =
+            zg_daemon::execute_command(&home, DaemonCommand::Context(request.clone())).await?;
         let DaemonReply::Context(result) = reply else {
             return Err(protocol_mismatch("context"));
         };
+        record_retrieval_event(&request, &result);
         zg_cli::write_context_with_options(
             zg_cli::stdout(),
             &result,
@@ -951,7 +1154,8 @@ async fn execute_direct_context(
     let engine = ZvecGrep::new();
     let inspect_status = !request.rg
         && request.refresh == Some(zg_engine::api::context::options::RefreshPolicy::Off);
-    let mut result = engine.context(request).await?;
+    let mut result = engine.context(request.clone()).await?;
+    record_retrieval_event(&request, &result);
     if inspect_status {
         let info = engine
             .info(zg_engine::api::info::InfoOptions {
@@ -1005,6 +1209,9 @@ async fn execute_index(
     match operation {
         IndexOperation::Build(mut request) => {
             authorize_index(&mut request, server, home).await?;
+            if let Some(trace_id) = zg_observability::current_ids().trace_id {
+                request.trace_id = Some(trace_id);
+            }
             if no_wait || wait_timeout_ms.is_some() {
                 if !server {
                     return Err(io::Error::other(
@@ -1129,6 +1336,26 @@ where
     }
 }
 
+fn record_index_event(result: &zg_engine::api::index::IndexResult, root: &Path) {
+    if !zg_observability::enabled() {
+        return;
+    }
+    let fields = serde_json::json!({
+        "trace_id": zg_observability::current_ids().trace_id,
+        "root_id": zg_observability::source_identity(root),
+        "files_scanned": result.files_scanned,
+        "files_indexed": result.files_added,
+        "files_failed": result.files_failed,
+        "files_added": result.files_added,
+        "files_modified": result.files_modified,
+        "files_deleted": result.files_deleted,
+        "entities": result.entities_created,
+        "duration_micros": result.duration_micros,
+        "resource": zg_observability::resource_sample(),
+    });
+    zg_observability::emit("runtime", "runtime.index_request", fields);
+}
+
 async fn write_completed_index(
     result: zg_engine::api::index::IndexResult,
     server: bool,
@@ -1136,6 +1363,7 @@ async fn write_completed_index(
     root: &Path,
     output: zg_cli::OutputOptions,
 ) -> Result<ExitCode, Box<dyn Error>> {
+    record_index_event(&result, root);
     let info = read_workspace_info(
         server,
         home,
@@ -1311,13 +1539,63 @@ async fn read_workspace_info(
     }
 }
 
+fn cli_home(plan: &CliPlan) -> Option<&Path> {
+    match plan {
+        CliPlan::Query { home, .. }
+        | CliPlan::Index { home, .. }
+        | CliPlan::Status { home, .. } => home.as_deref(),
+        CliPlan::Observability(args) => args.home.as_deref(),
+        _ => None,
+    }
+}
+
+async fn verify_daemon_observability(home: &Path) -> Result<(), Box<dyn Error>> {
+    let local = zg_observability::config_from_env(home)
+        .map_err(|message| io::Error::other(format!("ZG.OBSERVABILITY.CONFIG: {message}")))?;
+    let status = zg_daemon::server_status(home).await?;
+    if !status.running {
+        return Ok(());
+    }
+    let remote = status.observability;
+    match (local, remote) {
+        (_, None) if zg_observability::enabled() => {
+            return Err(io::Error::other(
+                "ZG.OBSERVABILITY.CONFIG_MISMATCH: this CLI has observability enabled but the daemon does not; start the daemon with the same ZVEC_GREP_OBSERVABILITY* variables or use --mode direct",
+            )
+            .into());
+        }
+        (None, Some(_)) => {
+            return Err(io::Error::other(
+                "ZG.OBSERVABILITY.CONFIG_MISMATCH: the daemon has observability enabled but this CLI does not; set the same ZVEC_GREP_OBSERVABILITY* variables for this command or use --mode direct",
+            )
+            .into());
+        }
+        (Some(left), Some(right)) if left != right => {
+            return Err(io::Error::other(format!(
+                "ZG.OBSERVABILITY.CONFIG_MISMATCH: CLI {left:?} vs daemon {right:?}; restart the daemon with matching variables or use --mode direct"
+            ))
+            .into());
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 async fn use_server(mode: ClientMode, home: Option<&Path>) -> Result<bool, Box<dyn Error>> {
     match mode {
         ClientMode::Direct => Ok(false),
-        ClientMode::Server => Ok(true),
+        ClientMode::Server => {
+            let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
+            verify_daemon_observability(&home).await?;
+            Ok(true)
+        }
         ClientMode::Auto => {
             let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
-            Ok(zg_daemon::server_status(&home).await?.ready)
+            let status = zg_daemon::server_status(&home).await?;
+            if status.ready {
+                verify_daemon_observability(&home).await?;
+            }
+            Ok(status.ready)
         }
     }
 }
@@ -1381,6 +1659,9 @@ async fn execute_server_plan(plan: ServerPlan) -> Result<(), Box<dyn Error>> {
         ServerPlan::Run(args) => {
             let config = server_config(args)?;
             zg_daemon::run_server_with_logging(config, Arc::new(ZvecGrep::new()), |home| {
+                zg_observability::init(home).map_err(|error| {
+                    zg_daemon::DaemonError::InvalidObservabilityConfig(error.to_string())
+                })?;
                 let options = zg_engine::config::daemon_log_options()?;
                 let log = zg_daemon::rolling_log::RollingLog::open(home, options)?;
                 init_daemon_tracing(log, options.debug);

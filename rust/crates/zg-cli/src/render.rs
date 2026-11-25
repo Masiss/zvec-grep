@@ -371,6 +371,7 @@ Management:
   --help [topic] Show help for search, a management command, or a topic
   --version      Print the installed version
   --build-info   Print embedded build provenance as JSON
+  --observability Summarize local runtime/retrieval/investigation events
 
 Bare words such as query, index, and help are literal search text.
 Positional words are joined into one query; repeat --hybrid for separate queries.
@@ -395,6 +396,10 @@ Environment:
   ZVEC_GREP_EMBEDDING   Default model for new indexes and auth grant
   ZVEC_GREP_API_KEY     Embedding provider credential fallback
   ZVEC_GREP_SERVER_URL  MCP server URL used by CLI clients
+  ZVEC_GREP_OBSERVABILITY         Enable opt-in local event capture (1/true)
+  ZVEC_GREP_OBSERVABILITY_MODE    runtime | dogfood | research
+  ZVEC_GREP_OBSERVABILITY_CAPTURE metadata | redacted | full
+  ZVEC_GREP_OBSERVABILITY_HOME    Event directory (defaults to $ZVEC_GREP_HOME/observability)
 
 Run zg --help models or zg --help file-types for supported indexing capabilities.
 Run zg --help environment for all variables, scopes, aliases, and precedence.

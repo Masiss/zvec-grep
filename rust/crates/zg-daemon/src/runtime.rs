@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use axum::{
     Json, Router,
@@ -100,6 +103,26 @@ pub(crate) async fn run_server(
         }
     };
     let shutdown = CancellationToken::new();
+    if zg_observability::enabled() {
+        let sampler_shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(Duration::from_secs(5));
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                tokio::select! {
+                    () = sampler_shutdown.cancelled() => return,
+                    _ = ticker.tick() => {
+                        let Some(resource) = zg_observability::resource_sample() else { continue };
+                        zg_observability::emit(
+                            "runtime",
+                            "runtime.resource_sample",
+                            json!({"sample_kind": "periodic", "resource": resource}),
+                        );
+                    }
+                }
+            }
+        });
+    }
     let runtimes = WorkspaceRuntimeManager::native_with_idle_ttl(
         Arc::clone(&engine),
         idle_ttl,

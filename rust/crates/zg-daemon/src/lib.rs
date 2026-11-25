@@ -154,6 +154,8 @@ pub enum DaemonError {
         "ZVEC_GREP_WATCHER_IDLE_TIMEOUT_SECONDS must be an integer between 0 and 2147483; 0 disables idle watcher eviction"
     )]
     InvalidWatcherIdleTimeout,
+    #[error("invalid observability configuration: {0}")]
+    InvalidObservabilityConfig(String),
     #[error("daemon I/O failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("daemon state serialization failed: {0}")]

@@ -2,7 +2,7 @@
 
 use std::{
     collections::{HashMap, VecDeque},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -172,6 +172,8 @@ impl SchedulerState {
 struct ScheduledJob {
     id: Uuid,
     canonical_root: PathBuf,
+    trace_id: Mutex<Option<String>>,
+    blocked_by: Mutex<Option<Uuid>>,
     submitted_at: Instant,
     started_at: Mutex<Option<Instant>>,
     snapshot: Mutex<IndexJobSnapshot>,
@@ -248,6 +250,7 @@ impl IndexJobScheduler {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn submit(
         &self,
         canonical_root: PathBuf,
@@ -265,6 +268,7 @@ impl IndexJobScheduler {
         if self.inner.closed.load(Ordering::Acquire) {
             return Err(SchedulerError::Closed);
         }
+        let attach_trace = options.trace_id.clone();
         if let Some(active) = state.active_by_root.get(&canonical_root).cloned() {
             let active_snapshot = lock(&active.snapshot).clone();
             let has_followup = state.followup_by_root.contains_key(&canonical_root);
@@ -298,6 +302,10 @@ impl IndexJobScheduler {
                     active.coalescing_wakeup.notify_waiters();
                     active.lane_wakeup.notify_waiters();
                 }
+                if reason == JobReason::Manual && attach_trace.is_some() {
+                    (*lock(&active.trace_id)).clone_from(&attach_trace);
+                    record_job_attach(&active.canonical_root, active.id, attach_trace.as_deref());
+                }
                 return Ok(SubmitIndexJobResult {
                     job: lock(&active.snapshot).clone(),
                     reused: true,
@@ -318,6 +326,14 @@ impl IndexJobScheduler {
                         followup.coalescing_wakeup.notify_waiters();
                         followup.lane_wakeup.notify_waiters();
                     }
+                    if reason == JobReason::Manual && attach_trace.is_some() {
+                        (*lock(&followup.trace_id)).clone_from(&attach_trace);
+                        record_job_attach(
+                            &followup.canonical_root,
+                            followup.id,
+                            attach_trace.as_deref(),
+                        );
+                    }
                     return Ok(SubmitIndexJobResult {
                         job: lock(&followup.snapshot).clone(),
                         reused: true,
@@ -326,7 +342,7 @@ impl IndexJobScheduler {
                 if !slot_reserved {
                     self.reserve_slot()?;
                 }
-                let followup = create_job(canonical_root.clone(), options, reason);
+                let followup = create_job(canonical_root.clone(), options, reason, Some(active.id));
                 let snapshot = lock(&followup.snapshot).clone();
                 state.jobs.insert(followup.id, Arc::clone(&followup));
                 state.followup_by_root.insert(canonical_root, followup);
@@ -335,6 +351,10 @@ impl IndexJobScheduler {
                     reused: true,
                 });
             }
+            if reason == JobReason::Manual && attach_trace.is_some() {
+                (*lock(&active.trace_id)).clone_from(&attach_trace);
+                record_job_attach(&active.canonical_root, active.id, attach_trace.as_deref());
+            }
             return Ok(SubmitIndexJobResult {
                 job: active_snapshot,
                 reused: true,
@@ -342,7 +362,7 @@ impl IndexJobScheduler {
         }
 
         self.reserve_slot()?;
-        let job = create_job(canonical_root.clone(), options, reason);
+        let job = create_job(canonical_root.clone(), options, reason, None);
         let snapshot = lock(&job.snapshot).clone();
         state.jobs.insert(job.id, Arc::clone(&job));
         state
@@ -487,7 +507,7 @@ impl IndexJobScheduler {
             state.followup_by_root.remove(root);
             job.cancellation.cancel();
             finish_cancelled(&job, "indexing was cancelled");
-            mark_finished(&self.inner, &mut state, &job);
+            mark_finished(&self.inner, &mut state, &job, None);
             return true;
         }
         if state
@@ -522,7 +542,7 @@ impl IndexJobScheduler {
             if let Some(ref followup) = followup {
                 followup.cancellation.cancel();
                 finish_cancelled(followup, "indexing was cancelled");
-                mark_finished(&self.inner, &mut state, followup);
+                mark_finished(&self.inner, &mut state, followup, None);
             }
             (active, followup)
         };
@@ -596,7 +616,7 @@ impl IndexJobScheduler {
                         &job,
                         "indexing was cancelled because the daemon is shutting down",
                     );
-                    mark_finished(&self.inner, &mut state, &job);
+                    mark_finished(&self.inner, &mut state, &job, None);
                 }
                 active
             };
@@ -644,12 +664,17 @@ fn create_job(
     canonical_root: PathBuf,
     options: IndexOptions,
     reason: JobReason,
+    blocked_by: Option<Uuid>,
 ) -> Arc<ScheduledJob> {
     let id = Uuid::new_v4();
+    let trace_id = options.trace_id.clone();
+    record_job_submit(&canonical_root, reason, id, trace_id.as_deref());
     let pending_changes = options.changes.clone();
     Arc::new(ScheduledJob {
         id,
         canonical_root: canonical_root.clone(),
+        trace_id: Mutex::new(trace_id),
+        blocked_by: Mutex::new(blocked_by),
         submitted_at: Instant::now(),
         started_at: Mutex::new(None),
         snapshot: Mutex::new(IndexJobSnapshot {
@@ -749,11 +774,21 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
             // submit inspects state and merges options under this same lock.
             // Claiming must be atomic with that decision or a queued grant can be lost.
             *lock(&job.started_at) = Some(Instant::now());
-            lock(&job.snapshot).state = JobState::Running;
+            let running_snapshot = {
+                let mut snapshot = lock(&job.snapshot);
+                snapshot.state = JobState::Running;
+                snapshot.clone()
+            };
             let options = lock(&job.options)
                 .take()
                 .expect("a queued daemon job must retain its index options");
             drop(state);
+            record_job_state(
+                "runtime.job_running",
+                &job,
+                &running_snapshot,
+                *lock(&job.blocked_by),
+            );
             break (lane_permit, permit, options);
         };
         run_claimed_job(&inner, &job, lane_permit, permit, options).await;
@@ -845,8 +880,9 @@ fn finish_job(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
                 .latest_by_root
                 .insert(job.canonical_root.clone(), Arc::clone(followup));
         }
+        let blocker = *lock(&job.blocked_by);
         // Publish completion and retention before the root can be observed as idle.
-        mark_finished(inner, &mut state, job);
+        mark_finished(inner, &mut state, job, blocker);
         followup
     };
     if let Some(followup) = followup {
@@ -1488,7 +1524,86 @@ async fn wait_for_job(
     }
 }
 
-fn mark_finished(inner: &SchedulerInner, state: &mut SchedulerState, job: &ScheduledJob) {
+fn record_job_submit(root: &Path, reason: JobReason, id: Uuid, trace_id: Option<&str>) {
+    if !zg_observability::enabled() {
+        return;
+    }
+    let fields = serde_json::json!({
+        "trace_id": trace_id.map(str::to_owned),
+        "job_id": id.to_string(),
+        "root_id": zg_observability::source_identity(root),
+        "reason": match reason { JobReason::Manual => "manual", JobReason::Watch => "watch" },
+        "state": "queued",
+    });
+    std::thread::spawn(move || zg_observability::emit("runtime", "runtime.job_submit", fields));
+}
+
+fn record_job_attach(root: &Path, job_id: Uuid, trace_id: Option<&str>) {
+    if !zg_observability::enabled() || trace_id.is_none() {
+        return;
+    }
+    let fields = serde_json::json!({
+        "trace_id": trace_id.map(str::to_owned),
+        "job_id": job_id.to_string(),
+        "root_id": zg_observability::source_identity(root),
+        "event": "attached",
+    });
+    std::thread::spawn(move || zg_observability::emit("runtime", "runtime.job_attached", fields));
+}
+
+fn record_job_state(
+    event: &str,
+    job: &ScheduledJob,
+    snapshot: &IndexJobSnapshot,
+    blocker: Option<Uuid>,
+) {
+    if !zg_observability::enabled() {
+        return;
+    }
+    let waited = lock(&job.started_at)
+        .unwrap_or(job.submitted_at)
+        .saturating_duration_since(job.submitted_at)
+        .as_millis();
+    let fields = serde_json::json!({
+        "trace_id": lock(&job.trace_id).clone(),
+        "job_id": snapshot.id.to_string(),
+        "root_id": zg_observability::source_identity(&snapshot.canonical_root),
+        "reason": match snapshot.reason { JobReason::Manual => "manual", JobReason::Watch => "watch" },
+        "state": match snapshot.state {
+            JobState::Queued => "queued",
+            JobState::Running => "running",
+            JobState::Succeeded => "succeeded",
+            JobState::Failed => "failed",
+            JobState::Cancelled => "cancelled",
+        },
+        "phase": snapshot.progress.as_ref().map(|progress| format!("{:?}", progress.phase)),
+        "waited_ms": waited,
+        "blocking_job_id": blocker.map(|id| id.to_string()),
+        "error_code": snapshot.error.as_ref().map(|error| error.report.code.clone()),
+        "progress": snapshot.progress.as_ref().map(|progress| serde_json::json!({
+            "files_indexed": progress.files_indexed,
+            "files_total": progress.files_total,
+            "files_failed": progress.files_failed,
+            "detail": progress.detail,
+        })),
+    });
+    let event = event.to_owned();
+    std::thread::spawn(move || {
+        let mut fields = fields;
+        fields["resource"] = serde_json::to_value(zg_observability::resource_sample())
+            .unwrap_or(serde_json::Value::Null);
+        zg_observability::emit("runtime", &event, fields);
+    });
+}
+
+fn mark_finished(
+    inner: &SchedulerInner,
+    state: &mut SchedulerState,
+    job: &ScheduledJob,
+    blocker: Option<Uuid>,
+) {
+    let finished_snapshot = lock(&job.snapshot).clone();
+    record_job_state("runtime.job_finish", job, &finished_snapshot, blocker);
     // Queued cancellations never pass their options to the executor. Release
     // credentials and caller callbacks instead of pinning them in job history.
     lock(&job.options).take();

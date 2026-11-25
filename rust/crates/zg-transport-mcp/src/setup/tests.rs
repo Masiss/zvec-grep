@@ -158,6 +158,22 @@ impl ClientHandler for Client {
     }
 }
 
+/// Some CI worktrees force TMPDIR inside the indexed repository. Search/status
+/// discover the nearest workspace ancestor, so fixtures must live outside it.
+fn outside_tempdir() -> tempfile::TempDir {
+    #[cfg(unix)]
+    let base = std::env::var_os("ZG_TEST_OUTSIDE_TMPDIR").map_or_else(
+        || std::path::PathBuf::from("/tmp"),
+        std::path::PathBuf::from,
+    );
+    #[cfg(not(unix))]
+    let base = std::env::temp_dir();
+    tempfile::Builder::new()
+        .prefix("zg-mcp-setup-")
+        .tempdir_in(base)
+        .expect("workspace outside indexed ancestors")
+}
+
 fn request(root: &Path) -> CallToolRequestParams {
     CallToolRequestParams::new("zvec_grep_search").with_arguments(
         json!({"root": root, "fts": "needle"})
@@ -347,7 +363,7 @@ async fn an_existing_index_preserves_the_original_model_not_found_error() {
     ) {
         return;
     }
-    let root = tempfile::tempdir().expect("workspace");
+    let root = outside_tempdir();
     let server = ZvecGrepMcpServer::build_with_index_operations(
         Arc::new(ZvecGrep::new()),
         McpToolset::Agent,
@@ -397,7 +413,7 @@ async fn modern_setup_accepts_key_reordering_binds_arguments_and_rejects_replay(
         return;
     }
     tokio::time::timeout(Duration::from_secs(15), async {
-        let root = tempfile::tempdir().expect("workspace");
+        let root = outside_tempdir();
         let jobs = Arc::new(Jobs::default());
         let server = ZvecGrepMcpServer::build_with_index_operations(
             Arc::new(ZvecGrep::new()),
@@ -531,7 +547,7 @@ async fn cancelled_or_expired_setup_never_submits_an_index() {
         return;
     }
     tokio::time::timeout(Duration::from_secs(15), async {
-        let root = tempfile::tempdir().expect("workspace");
+        let root = outside_tempdir();
         let jobs = Arc::new(Jobs::default());
         let server = ZvecGrepMcpServer::build_with_index_operations(
             Arc::new(ZvecGrep::new()),
@@ -629,7 +645,7 @@ async fn legacy_forms_can_select_models_and_unsupported_clients_receive_instruct
             (ProtocolVersion::V_2025_11_25, true),
             (ProtocolVersion::V_2025_11_25, false),
         ] {
-            let root = tempfile::tempdir().expect("workspace");
+            let root = outside_tempdir();
             let jobs = Arc::new(Jobs::default());
             let server = ZvecGrepMcpServer::build_with_index_operations(
                 Arc::new(ZvecGrep::new()),

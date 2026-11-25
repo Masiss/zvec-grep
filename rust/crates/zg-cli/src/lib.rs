@@ -119,6 +119,16 @@ pub enum CommandLine {
     Version,
     /// Print embedded build provenance as JSON.
     BuildInfo,
+    /// Summarize local observability events.
+    Observability(ObservabilityArgs),
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct ObservabilityArgs {
+    #[arg(long, env = "ZVEC_GREP_OBSERVABILITY_HOME")]
+    pub home: Option<PathBuf>,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Args)]
@@ -734,6 +744,7 @@ pub enum CliPlan {
     Help(Option<String>),
     Version,
     BuildInfo,
+    Observability(ObservabilityArgs),
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -949,6 +960,7 @@ impl Cli {
             CommandLine::Help(args) => Ok(CliPlan::Help(args.topic)),
             CommandLine::Version => Ok(CliPlan::Version),
             CommandLine::BuildInfo => Ok(CliPlan::BuildInfo),
+            CommandLine::Observability(args) => Ok(CliPlan::Observability(args)),
             CommandLine::Config(args) => Ok(CliPlan::Config(args)),
             CommandLine::Auth(mut args) => {
                 args.root = Some(resolve_from(&current_dir, args.root.as_deref()));
@@ -975,6 +987,7 @@ fn action_for_flag(value: &OsStr) -> Option<&'static str> {
         "--config" => Some("config"),
         "--auth" => Some("auth"),
         "--server" => Some("server"),
+        "--observability" => Some("observability"),
         _ => None,
     }
 }
@@ -991,6 +1004,7 @@ pub fn compatibility_warning_for_args(arguments: &[OsString]) -> Option<String> 
         "config" => Some("To manage configuration"),
         "auth" => Some("To manage workspace authorization"),
         "server" => Some("To manage the server"),
+        "observability" => Some("To summarize local observability events"),
         "help" => Some("To display help"),
         "version" => Some("To display the CLI version"),
         "build-info" => Some("To display build provenance"),
@@ -1084,6 +1098,7 @@ fn normalize_build_info(
     Ok(arguments.to_vec())
 }
 
+#[allow(clippy::too_many_lines)]
 fn normalize_command(mut arguments: Vec<OsString>) -> Result<Vec<OsString>, clap::Error> {
     let Some(first) = arguments.get(1).cloned() else {
         return Ok(arguments);
@@ -1112,6 +1127,10 @@ fn normalize_command(mut arguments: Vec<OsString>) -> Result<Vec<OsString>, clap
             return Ok(arguments);
         }
         Some("--build-info") => return normalize_build_info(&mut arguments),
+        Some("--observability") => {
+            arguments[1] = "observability".into();
+            return Ok(arguments);
+        }
         Some("-v" | "--version") => {
             if arguments.len() != 2 {
                 return Err(clap::Error::raw(

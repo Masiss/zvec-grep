@@ -22,6 +22,7 @@ tokio-util.workspace = true
 uuid.workspace = true
 zg-cli = { path = "../zg-cli" }
 zg-engine = { path = "../zg-engine" }
+zg-observability = { path = "../zg-observability" }
 
 [dev-dependencies]
 tempfile.workspace = true

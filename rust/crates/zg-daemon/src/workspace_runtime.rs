@@ -7,6 +7,7 @@ use std::{
         Arc, Mutex, MutexGuard, Weak,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
+    time::Instant,
 };
 
 use thiserror::Error;
@@ -31,6 +32,37 @@ use zg_host_native::{
     AllowAllPaths, HostError, HostErrorSite, RootSpec, TaskControl, WatchRequest, WorkspaceChange,
     WorkspaceWatchSessionPort, WorkspaceWatcherFactoryPort,
 };
+
+fn record_observability(event: &str, fields: serde_json::Value) {
+    if zg_observability::enabled() {
+        zg_observability::emit("runtime", event, fields);
+    }
+}
+
+fn record_watcher_batch(root: &Path, changes: usize, job_id: uuid::Uuid, rescan: bool) {
+    record_observability(
+        "runtime.watcher_batch",
+        serde_json::json!({
+            "root_id": zg_observability::source_identity(root),
+            "changes": changes,
+            "rescan": rescan,
+            "job_id": job_id.to_string(),
+        }),
+    );
+}
+
+fn record_refresh_admission(request: &ContextOptions, waited_ms: u128, outcome: &str) {
+    record_observability(
+        "runtime.refresh_admission",
+        serde_json::json!({
+            "root_id": request.root.as_deref().map(zg_observability::source_identity),
+            "refresh": request.refresh,
+            "auto_update": request.auto_update,
+            "waited_ms": waited_ms,
+            "outcome": outcome,
+        }),
+    );
+}
 
 use crate::job_scheduler::{
     IndexExecutor, IndexJobScheduler, IndexJobSnapshot, JobReason, JobState, SchedulerConfig,
@@ -533,6 +565,7 @@ impl WorkspaceRuntimeManager {
     }
 
     /// Returns whether refresh work was scheduled or is already in flight.
+    #[allow(clippy::too_many_lines)]
     async fn refresh_index(
         &self,
         mut options: IndexOptions,
@@ -602,6 +635,12 @@ impl WorkspaceRuntimeManager {
             let submitted = runtime
                 .submit_tracked(&self.inner.scheduler, options.clone(), JobReason::Watch)
                 .map_err(|error| WorkspaceRuntimeError::from(error).into_engine_error())?;
+            record_watcher_batch(
+                &runtime.canonical_root,
+                options.changes.len(),
+                submitted.job.id,
+                true,
+            );
             scheduled = true;
             {
                 let manager = self.clone();
@@ -1380,11 +1419,21 @@ async fn wait_for_search_admission<T>(
     work: impl std::future::Future<Output = Result<T, EngineError>>,
 ) -> Result<T, EngineError> {
     let timeout = std::time::Duration::from_millis(request.lock_timeout_ms.unwrap_or(30_000));
+    let started = Instant::now();
     let deadline = tokio::time::Instant::now()
         .checked_add(timeout)
         .ok_or_else(|| EngineError::invalid_argument("workspace lock timeout is too large"))?;
-    tokio::time::timeout_at(deadline, work)
-        .await
+    let result = tokio::time::timeout_at(deadline, work).await;
+    record_refresh_admission(
+        request,
+        started.elapsed().as_millis(),
+        if result.is_ok() {
+            "admitted"
+        } else {
+            "timeout"
+        },
+    );
+    result
         .map_err(|_| EngineError::resource_busy("timed out waiting for search refresh admission"))?
 }
 
@@ -1461,14 +1510,23 @@ async fn watch_loop(
         // One-operation consent must never authorize later watcher jobs.
         let mut options = lock(&runtime.index_template).clone();
         options.root = Some(runtime.canonical_root.clone());
+        options.trace_id = None;
         options.changes = batch.changes.into_iter().map(map_change).collect();
-        if options.changes.contains(&IndexChange::Rescan) {
+        let change_count = options.changes.len();
+        let rescan = options.changes.contains(&IndexChange::Rescan);
+        if rescan {
             runtime.require_reconciliation();
         }
         let Ok(submitted) = runtime.submit_tracked(&inner.scheduler, options, JobReason::Watch)
         else {
             continue;
         };
+        record_watcher_batch(
+            &runtime.canonical_root,
+            change_count,
+            submitted.job.id,
+            rescan,
+        );
         let manager = WorkspaceRuntimeManager { inner };
         tokio::spawn(async move {
             let runtime = activity;
@@ -1529,6 +1587,7 @@ fn index_template(options: &IndexOptions) -> IndexOptions {
     template.rebuild = false;
     template.reset_paths = false;
     template.changes.clear();
+    template.trace_id = None;
     template.scan = ScanRulesUpdate::default();
     template.embedding = None;
     template
@@ -1857,11 +1916,27 @@ mod tests {
         assert!(cache.snapshot.is_none());
     }
 
+    /// The forced TMPDIR may sit inside an indexed worktree; use a system temp
+    /// base outside any workspace ancestor so status discovery sees no index.
+    fn outside_tempdir() -> tempfile::TempDir {
+        #[cfg(unix)]
+        let base = std::env::var_os("ZG_TEST_OUTSIDE_TMPDIR").map_or_else(
+            || std::path::PathBuf::from("/tmp"),
+            std::path::PathBuf::from,
+        );
+        #[cfg(not(unix))]
+        let base = std::env::temp_dir();
+        tempfile::Builder::new()
+            .prefix("zg-daemon-fixture-")
+            .tempdir_in(base)
+            .expect("workspace outside indexed ancestors")
+    }
+
     #[tokio::test]
     async fn inspection_populates_runtime_memory_and_drop_removes_it() {
         use zg_engine::api::info::result::IndexStatus;
         use zg_transport_mcp::IndexOperationProvider;
-        let workspace = tempdir().expect("workspace");
+        let workspace = outside_tempdir();
         let root = workspace.path().canonicalize().expect("root");
         let engine = zg_engine::ZvecGrep::new();
         let manager = WorkspaceRuntimeManager::native(Arc::new(zg_engine::ZvecGrep::new()));

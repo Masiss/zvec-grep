@@ -132,6 +132,7 @@ async fn finish_relay(task: JoinHandle<Result<(), DaemonError>>) -> Result<(), D
 
 fn status(pid: u32, url: &str) -> DaemonStatus {
     DaemonStatus {
+        observability: None,
         running: true,
         ready: true,
         pid: Some(pid),

@@ -24,6 +24,7 @@ zg-cli = { path = "../zg-cli" }
 zg-daemon = { path = "../zg-daemon" }
 zg-daemon-protocol = { path = "../zg-daemon-protocol" }
 zg-engine = { path = "../zg-engine" }
+zg-observability = { path = "../zg-observability" }
 zvec-rust.workspace = true
 
 [build-dependencies]

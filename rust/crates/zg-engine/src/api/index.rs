@@ -46,6 +46,9 @@ pub mod options {
         /// Maximum time to wait for workspace admission, in milliseconds (default: 30 seconds).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub lock_timeout_ms: Option<u64>,
+        /// Opt-in correlation id for observability; runtime-only and never persisted.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub trace_id: Option<String>,
         /// Allows remote embedding for this operation without persisting a grant.
         #[serde(default)]
         pub allow_remote: bool,

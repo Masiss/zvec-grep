@@ -4292,6 +4292,7 @@ dependencies = [
  "zg-daemon",
  "zg-daemon-protocol",
  "zg-engine",
+ "zg-observability",
  "zg-testkit",
  "zvec-rust",
  "zvec-rust-build",
@@ -4347,6 +4348,7 @@ dependencies = [
  "zg-daemon-protocol",
  "zg-engine",
  "zg-host-native",
+ "zg-observability",
  "zg-transport-mcp",
 ]
 
@@ -4446,6 +4448,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zg-observability"
+version = "0.3.0-rc.3"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sysinfo",
+ "uuid",
+]
+
+[[package]]
 name = "zg-testkit"
 version = "0.3.0-rc.3"
 dependencies = [
@@ -4476,6 +4490,7 @@ dependencies = [
  "uuid",
  "zg-cli",
  "zg-engine",
+ "zg-observability",
  "zg-testkit",
 ]
 

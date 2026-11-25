@@ -399,10 +399,21 @@ impl ZvecGrepMcpServer {
         .await;
 
         Ok(match result {
-            Ok(reply) => CallToolResult::success(vec![ContentBlock::text(
-                search_format::format_search_result(&reply, preview),
-            )])
-            .into(),
+            Ok(reply) => {
+                record_mcp_retrieval(&reply, &original);
+                let mut result = CallToolResult::success(vec![ContentBlock::text(
+                    search_format::format_search_result(&reply, preview),
+                )]);
+                if let Some(config) = zg_observability::config() {
+                    let mut meta = serde_json::Map::new();
+                    meta.insert(
+                        "zvecGrepObservability".to_owned(),
+                        serde_json::to_value(config).unwrap_or(serde_json::Value::Null),
+                    );
+                    result.meta = Some(rmcp::model::MetaObject(meta));
+                }
+                result.into()
+            }
             Err(error) if error.code() == EngineError::NOT_FOUND => {
                 return self
                     .setup_state
@@ -2365,6 +2376,116 @@ fn index_policy_label(policy: WorkspaceIndexPolicy) -> &'static str {
 #[allow(clippy::trivially_copy_pass_by_ref)]
 const fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn query_identity(request: &ContextOptions) -> (String, usize, Vec<serde_json::Value>) {
+    let mut entries = Vec::new();
+    if let Some(query) = &request.query {
+        entries.push(("query", query.as_str()));
+    }
+    for query in &request.queries {
+        entries.push(("queries", query.as_str()));
+    }
+    for route in &request.routes {
+        if !route.query.is_empty() {
+            entries.push(("route", route.query.as_str()));
+        }
+    }
+    let combined = entries
+        .iter()
+        .map(|(_, value)| *value)
+        .collect::<Vec<_>>()
+        .join("\0");
+    let len = entries.iter().map(|(_, value)| value.len()).sum();
+    let hashes = entries
+        .iter()
+        .map(|(kind, value)| serde_json::json!({"kind": kind, "sha256": zg_observability::hash(value)}))
+        .collect();
+    (zg_observability::hash(&combined), len, hashes)
+}
+
+fn record_mcp_retrieval(reply: &ContextResult, request: &ContextOptions) {
+    if !zg_observability::enabled() {
+        return;
+    }
+    let ids = zg_observability::current_ids();
+    let root_id = zg_observability::source_identity(&reply.root);
+    let generation = zg_observability::index_generation(&reply.root);
+    let (query_sha256, query_len, query_hashes) = query_identity(request);
+    let ranking = reply
+        .items
+        .iter()
+        .map(|item| {
+            let range = match (item.range.start_line(), item.range.last_line()) {
+                (Some(start), Some(end)) => format!("{}:{start}-{end}", item.relative_path.display()),
+                _ => item.relative_path.to_string_lossy().into_owned(),
+            };
+            serde_json::json!({
+                "rank": item.rank,
+                "score": item.score,
+                "matched_by": item.matched_by,
+                "selection_reason": item.selection_reason,
+                "root_id": root_id,
+                "span_id": zg_observability::short_hash(&range),
+                "evidence_id": zg_observability::evidence_id(&root_id, &item.relative_path.to_string_lossy(), &range, &item.content, &generation),
+                "lineage": serde_json::to_value(&item.trace).unwrap_or(serde_json::Value::Null),
+            })
+        })
+        .collect::<Vec<_>>();
+    let group_results = reply
+        .group_results
+        .iter()
+        .map(|group| {
+            serde_json::json!({
+                "id": group.id,
+                "role": group.role,
+                "items": group.items.iter().map(|item| serde_json::json!({
+                    "rank": item.rank,
+                    "score": item.score,
+                    "span_id": zg_observability::short_hash(&match (item.range.start_line(), item.range.last_line()) {
+                        (Some(start), Some(end)) => format!("{}:{start}-{end}", item.relative_path.display()),
+                        _ => item.relative_path.to_string_lossy().into_owned(),
+                    }),
+                    "evidence_id": zg_observability::evidence_id(
+                        &root_id,
+                        &item.relative_path.to_string_lossy(),
+                        &match (item.range.start_line(), item.range.last_line()) {
+                            (Some(start), Some(end)) => format!("{}:{start}-{end}", item.relative_path.display()),
+                            _ => item.relative_path.to_string_lossy().into_owned(),
+                        },
+                        &item.content,
+                        &generation,
+                    ),
+                })).collect::<Vec<_>>(),
+            })
+        })
+        .collect::<Vec<_>>();
+    zg_observability::emit(
+        "retrieval",
+        "retrieval.delivery",
+        serde_json::json!({
+            "trace_id": ids.trace_id.unwrap_or_else(zg_observability::new_id),
+            "request_id": ids.request_id.unwrap_or_else(zg_observability::new_id),
+            "transport": "mcp",
+            "query_sha256": query_sha256,
+            "query_len": query_len,
+            "query_hashes": query_hashes,
+            "root_id": root_id,
+            "index_generation": generation,
+            "source": reply.source,
+            "coverage": reply.coverage,
+            "freshness": reply.freshness,
+            "groups": reply.diagnostics.index.as_ref().map(|index| index.query_groups.iter().map(|group| serde_json::json!({"id": group.id, "role": group.role})).collect::<Vec<_>>()).unwrap_or_default(),
+            "routes": reply.diagnostics.index.as_ref().map(|index| index.routes.iter().map(|route| serde_json::json!({"id": route.id, "mode": route.mode})).collect::<Vec<_>>()).unwrap_or_default(),
+            "acquisition": {"hits_returned": reply.diagnostics.index.as_ref().map_or(reply.items.len(), |index| index.hits_returned), "empty_reason": reply.diagnostics.empty_reason},
+            "fusion": {"group_count": reply.group_results.len()},
+            "group_results": group_results,
+            "ranking": ranking,
+            "selection": {"delivered": reply.items.len(), "group_results": reply.group_results.len()},
+            "timings": serde_json::to_value(&reply.diagnostics.timings).unwrap_or(serde_json::Value::Null),
+            "resource": zg_observability::resource_sample(),
+        }),
+    );
 }
 
 fn context_result_to_tool_result(reply: &ContextResult) -> CallToolResult {
