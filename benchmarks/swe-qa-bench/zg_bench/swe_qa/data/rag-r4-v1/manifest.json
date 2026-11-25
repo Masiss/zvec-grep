@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "corpus_id": "public-csharp-source-20261123-v1",
+  "source_lock_sha256": "214298e7f84f610a2a47acee48aa1f102f472bee6c9e8a76cdd95a6a9df7ebf2",
+  "assets": {
+    "prompts.json": "4769a1eb44c8d39762a9566becb7a800b353bffdcba1ab583dbc6eef0bb9295a",
+    "gold.json": "beba061d52dbd1691ec316a3633d5525f448453d99cdc4ee4cf0e2fcc7568b9c",
+    "references.json": "84a6fce20ca5efe3796ab02505dbd595ed415af426faa5d6108c00b022671f49"
+  },
+  "task_count": 24
+}

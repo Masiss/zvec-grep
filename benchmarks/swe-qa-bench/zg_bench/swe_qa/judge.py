@@ -96,6 +96,7 @@ def judge_pairs(
             attempts=attempts,
             concurrency=concurrency,
             model=model,
+            profile_names=PROFILE_NAMES,
         )
         profile_results: dict[str, dict[str, Any]] = {}
         for profile_name in PROFILE_NAMES:

@@ -9,6 +9,32 @@ from zg_bench import doctor
 
 
 class RunDoctorTests(unittest.TestCase):
+    def test_base_checks_accept_an_explicit_harbor_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            harbor = Path(temp_dir) / "harbor"
+            harbor.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            harbor.chmod(0o755)
+
+            def fake_which(command: str) -> str | None:
+                return "/usr/bin/docker" if command == "docker" else None
+
+            def fake_version(command: list[str]) -> tuple[bool, str]:
+                if command[-2:] == ["version", "--format"]:
+                    return True, "Docker 28.0.0"
+                if command[-2:] == ["compose", "version"]:
+                    return True, "Docker Compose version v2.30.0"
+                return True, "Harbor 0.18.0"
+
+            with (
+                patch.object(doctor.shutil, "which", side_effect=fake_which),
+                patch.object(doctor, "_run_version", side_effect=fake_version),
+            ):
+                checks = doctor.collect_checks(harbor_executable=str(harbor))
+
+        harbor_check = next(check for check in checks if check.name == "Harbor")
+        self.assertTrue(harbor_check.ok)
+        self.assertIn("0.18.0", harbor_check.detail)
+
     def test_base_checks_reject_legacy_docker_compose(self) -> None:
         def fake_which(command: str) -> str | None:
             return f"/usr/bin/{command}"

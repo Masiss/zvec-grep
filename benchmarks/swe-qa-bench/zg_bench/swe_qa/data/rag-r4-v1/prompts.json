@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "corpus_id": "public-csharp-source-20261123-v1",
+  "gold_visibility": "grader-only",
+  "answer_instructions": "Answer only the repository behavior asked about. Cite every material claim with a source path and line or line range from the evidence provided. Distinguish source-visible behavior from deployment behavior. State when the evidence is insufficient and abstain from unsupported claims. Do not modify the repository.",
+  "tasks": [
+    {
+      "task_id": "a01",
+      "question": "Can this token stream serialize its cursor and restore parser state in a different process after a restart?",
+      "question_sha256": "a087cf1a4372c056f1234a0bc58d6628c7d841f7e0c1ef2d413e2aa6375bbed8",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "development",
+      "task_type": "abstention"
+    },
+    {
+      "task_id": "a02",
+      "question": "After a buffered token stream has advanced, what does Reset do to its current position?",
+      "question_sha256": "ab9182c1dbf56698b40dbca76f6ca8d6949e6b1178a63949df0359aa3bd5acde",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "development",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "a03",
+      "question": "How does the buffered stream fetch tokens in batches, and what makes it stop fetching at end-of-input?",
+      "question_sha256": "528e9f23beb8c826cf06a33d79754a206e5a76d5a7d46f35b3e085f422fbcb0b",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "development",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "a04",
+      "question": "How does an unbuffered stream keep already-consumed input available while a caller holds a checkpoint, and when can it discard that prefix?",
+      "question_sha256": "4c0a2e8fd53dd9b326bf53a42207d0dc148c8bdbbf1e3ebd54ef4450b4447aa5",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "development",
+      "task_type": "vocabulary_divergent"
+    },
+    {
+      "task_id": "d05",
+      "question": "What value does ExecuteScalar<T> return from a command, and how does it pass the command to the implementation?",
+      "question_sha256": "65f695d9b7eaaeb63d8b5a4b3e0d0faa39c7ffe8734703f2836bb2d49a371e6e",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "development",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "d06",
+      "question": "When Execute receives an enumerable of parameter objects, how are commands run by default, and what changes when Pipelined is enabled?",
+      "question_sha256": "0b8bd1a3a1b3c86911f1a1ef3ee96a4db5c88fac7fa366c94111a5d9be9ecaa1",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "development",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "d07",
+      "question": "What does DynamicParameters.RemoveUnused control when Dapper builds the command parameter list?",
+      "question_sha256": "b196b29dcdef8919b62506593200e85456e7f7767a9ab81dd5383c055f4791aa",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "development",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "d08",
+      "question": "How does SqlBuilder combine accumulated clauses into a template and keep their parameter values available?",
+      "question_sha256": "d4d34c48e72022dc77db6049edc800f2e41417fab97e15ef18652ffeac716138",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "development",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "n09",
+      "question": "Does JsonTextWriter validate each emitted document against a JSON Schema before writing it?",
+      "question_sha256": "61a72719d8ed5daeee5b4191b1fdbf8e3f45bbaed3ed0b38d0d6cb85cdfb766f",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "development",
+      "task_type": "abstention"
+    },
+    {
+      "task_id": "n10",
+      "question": "How does JsonTextWriter serialize a decimal value?",
+      "question_sha256": "92584f15b7661e1c394aeab5c14d7f8bf4ffe8c9495e17e63f8f72d7aa32576d",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "development",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "n11",
+      "question": "How does JsonTextReader handle comments while reading tokens, and which comment forms does its parser recognize?",
+      "question_sha256": "1cede99928cc844722ca4b566f7229200a788a098f28cdab2c3e631ded674395",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "development",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "n12",
+      "question": "When asked to close whichever JSON container is currently open, how does JsonWriter choose the matching closing token?",
+      "question_sha256": "fef44c614510e94454214b1cb1238b7aff0b3f7996a27b47228c481be442fd43",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "development",
+      "task_type": "vocabulary_divergent"
+    },
+    {
+      "task_id": "a13",
+      "question": "Can the C# lexer runtime guarantee that its token position survives machine failure and can be resumed from a saved checkpoint?",
+      "question_sha256": "ee84a82ed9b29df6d9dfcda84f6afd096f30ba95627d44893b8636f669ce2325",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "validation",
+      "task_type": "abstention"
+    },
+    {
+      "task_id": "a14",
+      "question": "What bookkeeping lets an unbuffered token stream support nested checkpoints, and how is the buffer compacted after checkpoint use ends?",
+      "question_sha256": "96db65ad6f80f7efd20c78ab2dd916935dc8c45d90141b372c359a38456dcd87",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "validation",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "a15",
+      "question": "When a lexer rule requests More, what marker does Lexer store for the current token attempt?",
+      "question_sha256": "d344bff86d3370ba32f636f88bb182767721a01d17c492cfacc1cce2e480a0e3",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "validation",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "a16",
+      "question": "How can a lexer temporarily enter a nested lexical context and return to the previous context?",
+      "question_sha256": "a6a529fd212c28730e01469775946439e82577c450cc72cda7a5597bf1b10e82",
+      "repository": "antlr",
+      "repository_commit": "2ac185af855ff39b4b8c41854b756767099c356f",
+      "split": "validation",
+      "task_type": "vocabulary_divergent"
+    },
+    {
+      "task_id": "d17",
+      "question": "Does Dapper itself configure TLS certificate validation for the database connection, regardless of provider?",
+      "question_sha256": "b68100eb3f8b7f9a74b1a85825fccfdd7b381c395bd6e554d1e6c7ea22ebba8e",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "validation",
+      "task_type": "abstention"
+    },
+    {
+      "task_id": "d18",
+      "question": "What distinguishes QueryFirstOrDefault<T> from QueryFirst<T> when the result set contains no rows?",
+      "question_sha256": "2c78c79484337b15bea2f67c05bc7f32616ec0fd9b77f781d5a24500df3199a5",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "validation",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "d19",
+      "question": "How does Query<T> decide whether to materialize results before returning or expose deferred enumeration?",
+      "question_sha256": "b920f932e90210df6b485e4dbe253a659e05fd43601ce49b48b75d35d4b2790c",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "validation",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "d20",
+      "question": "When SqlBuilder resolves a template, how do clause parameters and unfilled template markers behave?",
+      "question_sha256": "926f6796a05261d60b85017ff289dc1bc64868c431bf4cd06e471e2ec88f7406",
+      "repository": "dapper",
+      "repository_commit": "eb47546a408bbf6c178bda4f04dc205bc51ffbfe",
+      "split": "validation",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "n21",
+      "question": "Which characters does JsonTextWriter emit to begin an object and an array?",
+      "question_sha256": "83089835aa1bcc40d2d7352cb1f02bed6fa61f75938a45976f980cc3ec37c37b",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "validation",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "n22",
+      "question": "When WriteToken is given an object or array start token, how does JsonWriter translate those tokens into writer operations?",
+      "question_sha256": "dd3673a9c31fbfcb517eb752d6f6310a0a40994aa39e266505ae96d8051c51e8",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "validation",
+      "task_type": "multi_step"
+    },
+    {
+      "task_id": "n23",
+      "question": "After JsonTextReader reaches the completed root value, how does Read treat trailing whitespace, comments, and other text?",
+      "question_sha256": "5439a3e9c3bb3b96a64567e3ea9824b6d0f9e851a428c1b3d035189e75e99d00",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "validation",
+      "task_type": "direct_lookup"
+    },
+    {
+      "task_id": "n24",
+      "question": "When a JSON-like value starts with a constructor keyword followed by a name and parentheses, how does the reader capture the constructor name and enter that value?",
+      "question_sha256": "deb2f950caa3055d0b4cc1e84861aeebbe85375039d31f3384490984fb5e4588",
+      "repository": "newtonsoft",
+      "repository_commit": "0a2e291c0d9c0c7675d445703e51750363a549ef",
+      "split": "validation",
+      "task_type": "vocabulary_divergent"
+    }
+  ]
+}

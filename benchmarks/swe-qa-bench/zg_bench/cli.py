@@ -33,6 +33,7 @@ from .settings import (
     ZVEC_GREP_EMBEDDING_ENDPOINT,
     ZVEC_GREP_PACKAGE,
 )
+from .swe_qa.overnight import overnight_main, review_main
 
 
 class BenchmarkArgumentParser(argparse.ArgumentParser):
@@ -192,7 +193,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    values = sys.argv[1:] if argv is None else argv
+    if values and values[0] == "rag-overnight":
+        return overnight_main(values[1:])
+    if values and values[0] == "review-overnight":
+        return review_main(values[1:])
+    args = build_parser().parse_args(values)
     if args.command == "doctor":
         profiles = selected_profiles(args.profile) if args.agent is not None else ()
         return run_doctor(

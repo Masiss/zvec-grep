@@ -1,0 +1,8 @@
+# Real C# validation freeze
+
+Repository: public `AvaloniaUI/Avalonia`, pinned at `debc815ba9dff30a283135b1764e5fdfb609bb91`.
+Source selection and SHA-256 inventory are in `corpus-manifest.json`. The copy used for execution is `/tmp/avalonia-csharp-eval` and contains four complete projects (1,959 C# files, 11,186,709 bytes) selected before running the candidate. The repo's full `src` tree contains 2,965 C# files, above the prototype's 2,500 file cap; full-tree scan behavior will be measured separately and excluded from accuracy scoring.
+
+`tasks-frozen.json` records queries and gold outcomes. Declaration gold is the set of partial type declarations from pinned source. Edge gold is exact bound invocation output from local Roslyn `SemanticModel.GetSymbolInfo`, compiled per project in dependency order with TPA references and prior project compilations where available. The project files, source generators, package references, and build props were not loaded. Diagnostics and binding rates are recorded with oracle outputs; only Roslyn-bound in-source edges are gold. This oracle is therefore a reference for these concrete source call sites, not a claim of whole-project build equivalence.
+
+`baseline-rg.json` contains actual case-insensitive literal `rg` output captured before candidate evaluation. The public-corpus tasks/gold and `rg` baseline are independent validation, separate from the earlier synthetic development diagnostics, and were frozen by SHA-256 before candidate measurements. The attempted Git commit was rejected because `.git` is read-only in this sandbox; no commit was made.

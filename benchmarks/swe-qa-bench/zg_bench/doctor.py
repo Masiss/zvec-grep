@@ -56,6 +56,7 @@ def collect_checks(
     zvec_grep_package: str = ZVEC_GREP_PACKAGE,
     embedding_model: str = ZVEC_GREP_EMBEDDING,
     embedding_endpoint: str | None = ZVEC_GREP_EMBEDDING_ENDPOINT,
+    harbor_executable: str | None = None,
 ) -> list[Check]:
     version = sys.version_info
     python_ok = (3, 12) <= version[:2] < (3, 14)
@@ -67,7 +68,7 @@ def collect_checks(
         )
     ]
 
-    harbor = shutil.which("harbor")
+    harbor = harbor_executable or shutil.which("harbor")
     if harbor is None:
         checks.append(Check("Harbor", False, "not found on PATH"))
     else:
@@ -307,6 +308,7 @@ def run_doctor(
     zvec_grep_package: str = ZVEC_GREP_PACKAGE,
     embedding_model: str = ZVEC_GREP_EMBEDDING,
     embedding_endpoint: str | None = ZVEC_GREP_EMBEDDING_ENDPOINT,
+    harbor_executable: str | None = None,
 ) -> int:
     return print_report(
         collect_checks(
@@ -316,5 +318,6 @@ def run_doctor(
             zvec_grep_package=zvec_grep_package,
             embedding_model=embedding_model,
             embedding_endpoint=embedding_endpoint,
+            harbor_executable=harbor_executable,
         )
     )

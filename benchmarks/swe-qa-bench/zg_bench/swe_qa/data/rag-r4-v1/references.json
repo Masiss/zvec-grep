@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "corpus_id": "public-csharp-source-20261123-v1",
+  "visibility": "judge-only",
+  "references": [
+    {
+      "task_id": "a01",
+      "question": "Can this token stream serialize its cursor and restore parser state in a different process after a restart?",
+      "reference_answer": "The checked source does not define cross-process token-stream state persistence, so the answer must abstain."
+    },
+    {
+      "task_id": "a02",
+      "question": "After a buffered token stream has advanced, what does Reset do to its current position?",
+      "reference_answer": "Reset delegates to Seek(0), which initializes the stream if needed and sets the adjusted token index."
+    },
+    {
+      "task_id": "a03",
+      "question": "How does the buffered stream fetch tokens in batches, and what makes it stop fetching at end-of-input?",
+      "reference_answer": "Fetch returns immediately after EOF has already been recorded and otherwise asks the token source for at most the requested batch size. When a fetched token is EOF, the stream records that state and returns the short batch size; Fill stops when a batch is shorter than its limit."
+    },
+    {
+      "task_id": "a04",
+      "question": "How does an unbuffered stream keep already-consumed input available while a caller holds a checkpoint, and when can it discard that prefix?",
+      "reference_answer": "Mark creates a nested marker and records the current buffer start for the outermost marker. Release validates LIFO marker order and only shifts away consumed tokens when the final marker is released."
+    },
+    {
+      "task_id": "d05",
+      "question": "What value does ExecuteScalar<T> return from a command, and how does it pass the command to the implementation?",
+      "reference_answer": "The generic overload returns the first selected cell converted to T. It delegates to ExecuteScalarImpl<T> with the connection and command definition."
+    },
+    {
+      "task_id": "d06",
+      "question": "When Execute receives an enumerable of parameter objects, how are commands run by default, and what changes when Pipelined is enabled?",
+      "reference_answer": "The multi-execution branch detects an enumerable parameter collection and reuses a command while clearing and rebinding parameters for later objects. Without Pipelined it executes sequentially and sums affected rows; with Pipelined it delegates to the asynchronous multi-execution path."
+    },
+    {
+      "task_id": "d07",
+      "question": "What does DynamicParameters.RemoveUnused control when Dapper builds the command parameter list?",
+      "reference_answer": "RemoveUnused defaults to true and is passed to the parameter-info generator when DynamicParameters adds command parameters."
+    },
+    {
+      "task_id": "d08",
+      "question": "How does SqlBuilder combine accumulated clauses into a template and keep their parameter values available?",
+      "reference_answer": "Clause resolution adds each clause's parameters to DynamicParameters and joins inclusive clauses inside an OR group while joining ordinary clauses with the configured joiner. Template resolution replaces matching comment markers with resolved clauses, removes leftover markers, and caches the result until the builder sequence changes."
+    },
+    {
+      "task_id": "n09",
+      "question": "Does JsonTextWriter validate each emitted document against a JSON Schema before writing it?",
+      "reference_answer": "The pinned writer source does not establish JSON Schema validation, so the answer must abstain."
+    },
+    {
+      "task_id": "n10",
+      "question": "How does JsonTextWriter serialize a decimal value?",
+      "reference_answer": "It advances writer state as a Float token and writes JsonConvert.ToString(value) through WriteValueInternal."
+    },
+    {
+      "task_id": "n11",
+      "question": "How does JsonTextReader handle comments while reading tokens, and which comment forms does its parser recognize?",
+      "reference_answer": "Read dispatches to value, object, or post-value parsing based on reader state and permits comments after the root value. ParseComment distinguishes slash-slash from slash-star and emits or skips the comment according to setToken."
+    },
+    {
+      "task_id": "n12",
+      "question": "When asked to close whichever JSON container is currently open, how does JsonWriter choose the matching closing token?",
+      "reference_answer": "WriteEnd inspects the current container type and routes object, array, or constructor state to its matching end token."
+    },
+    {
+      "task_id": "a13",
+      "question": "Can the C# lexer runtime guarantee that its token position survives machine failure and can be resumed from a saved checkpoint?",
+      "reference_answer": "The source provides in-process marker and seek behavior but no crash-safe persistence guarantee, so the answer must abstain."
+    },
+    {
+      "task_id": "a14",
+      "question": "What bookkeeping lets an unbuffered token stream support nested checkpoints, and how is the buffer compacted after checkpoint use ends?",
+      "reference_answer": "The outermost Mark records the last-token buffer start and every marker is assigned a decreasing negative identifier. Release rejects a marker that is not the most recently opened one and compacts consumed tokens only after the marker count reaches zero."
+    },
+    {
+      "task_id": "a15",
+      "question": "When a lexer rule requests More, what marker does Lexer store for the current token attempt?",
+      "reference_answer": "More sets the current token type to TokenTypes.More so lexing continues without emitting the current match as a separate token."
+    },
+    {
+      "task_id": "a16",
+      "question": "How can a lexer temporarily enter a nested lexical context and return to the previous context?",
+      "reference_answer": "PushMode stores the current mode before switching to the requested mode. PopMode throws if the stack is empty, otherwise restores and returns the previous mode."
+    },
+    {
+      "task_id": "d17",
+      "question": "Does Dapper itself configure TLS certificate validation for the database connection, regardless of provider?",
+      "reference_answer": "The source delegates connection security configuration to the supplied connection/provider and does not establish a universal TLS policy, so the answer must abstain."
+    },
+    {
+      "task_id": "d18",
+      "question": "What distinguishes QueryFirstOrDefault<T> from QueryFirst<T> when the result set contains no rows?",
+      "reference_answer": "QueryFirst uses Row.First and QueryFirstOrDefault uses Row.FirstOrDefault, delegating their empty-result behavior to QueryRowImpl."
+    },
+    {
+      "task_id": "d19",
+      "question": "How does Query<T> decide whether to materialize results before returning or expose deferred enumeration?",
+      "reference_answer": "The buffered argument is converted into the CommandFlags.Buffered flag in the CommandDefinition. QueryImpl creates the row sequence, and the public overload materializes it with ToList only when the command is buffered."
+    },
+    {
+      "task_id": "d20",
+      "question": "When SqlBuilder resolves a template, how do clause parameters and unfilled template markers behave?",
+      "reference_answer": "Resolving clauses merges their parameter objects into DynamicParameters. Template resolution substitutes markers for registered clauses and removes markers that remain unmatched."
+    },
+    {
+      "task_id": "n21",
+      "question": "Which characters does JsonTextWriter emit to begin an object and an array?",
+      "reference_answer": "WriteStartObject updates writer state and emits an opening brace. WriteStartArray updates writer state and emits an opening bracket."
+    },
+    {
+      "task_id": "n22",
+      "question": "When WriteToken is given an object or array start token, how does JsonWriter translate those tokens into writer operations?",
+      "reference_answer": "The token dispatcher routes StartObject to WriteStartObject and StartArray to WriteStartArray. The writer's end-token operations update container state and emit matching object or array closure."
+    },
+    {
+      "task_id": "n23",
+      "question": "After JsonTextReader reaches the completed root value, how does Read treat trailing whitespace, comments, and other text?",
+      "reference_answer": "In Finished state, Read consumes whitespace and returns false at EOF. It can return a trailing comment token, while other trailing content raises JsonReaderException."
+    },
+    {
+      "task_id": "n24",
+      "question": "When a JSON-like value starts with a constructor keyword followed by a name and parentheses, how does the reader capture the constructor name and enter that value?",
+      "reference_answer": "The parser matches the constructor keyword, scans the constructor name until whitespace or an opening parenthesis, and rejects invalid characters or an unterminated name. It requires an opening parenthesis, advances past it, clears recent string state, and emits a StartConstructor token carrying the captured name."
+    }
+  ]
+}

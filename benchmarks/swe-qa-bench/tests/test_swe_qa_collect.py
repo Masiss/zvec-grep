@@ -24,6 +24,109 @@ from zg_bench.swe_qa.collect import collect_pair
 
 
 class CollectTests(unittest.TestCase):
+    def test_collects_one_task_from_a_multi_task_harbor_job(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for profile in ("baseline", "zvec-grep"):
+                _write_harbor_job(
+                    root,
+                    profile=profile,
+                    trials=[
+                        _harbor_trial(
+                            f"reflex-6-{profile}",
+                            answer="target answer",
+                            input_tokens=10,
+                            output_tokens=2,
+                            tool_calls=0,
+                            agent_wall_seconds=3,
+                            cost_usd=None,
+                        ),
+                        _harbor_trial(
+                            f"other-task-{profile}",
+                            answer="other answer",
+                            input_tokens=10,
+                            output_tokens=2,
+                            tool_calls=0,
+                            agent_wall_seconds=3,
+                            cost_usd=None,
+                        ),
+                    ],
+                )
+                other = (
+                    root
+                    / f"fixture-reflex-6-{profile}"
+                    / f"other-task-{profile}"
+                    / "result.json"
+                )
+                result = json.loads(other.read_text())
+                result["task_name"] = "other-task"
+                result["task_id"] = {"path": "/dataset/other-task"}
+                _write_json(other, result)
+
+            pair = collect_pair(
+                runs_dir=root,
+                task="reflex:6",
+                output=root / "pair.json",
+                expected_trials=1,
+            )
+
+        self.assertEqual(pair["profiles"]["baseline"]["trial_count"], 1)
+        self.assertEqual(pair["profiles"]["baseline"]["trials"][0]["answer"], "target answer")
+
+    def test_collects_required_rag_evidence_sidecars(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            packs_root = root / "packs"
+            profile_names = ("lexical-rg", "r4-hybrid", "sufficient-pack")
+            for profile in profile_names:
+                trial_name = f"task-1-{profile}-1"
+                _write_harbor_job(
+                    root,
+                    profile=profile,
+                    trials=[
+                        _harbor_trial(
+                            trial_name,
+                            answer="Answer from provided evidence.",
+                            input_tokens=10,
+                            output_tokens=5,
+                            tool_calls=1,
+                            agent_wall_seconds=2,
+                            cost_usd=0.01,
+                        )
+                    ],
+                )
+                sidecar = packs_root / "reflex-6" / f"{profile}.json"
+                _write_json(
+                    sidecar,
+                    {
+                        "schema_version": 1,
+                        "evidence_items": [],
+                        "navigation_usage": {
+                            "rounds": 1,
+                            "calls": 1,
+                            "opened_files": 0,
+                            "cumulative_source_bytes": 0,
+                        },
+                        "retrieval_latency_seconds": 0.25,
+                        "peak_rss_kib": 2048,
+                    },
+                )
+
+            pair = collect_pair(
+                runs_dir=root,
+                task="reflex:6",
+                output=root / "pairs" / "pair.json",
+                profile_names=profile_names,
+                evidence_packs_root=packs_root,
+            )
+
+        trial = pair["profiles"]["r4-hybrid"]["trials"][0]
+        self.assertEqual(trial["retrieval_latency_seconds"], 0.25)
+        self.assertEqual(trial["peak_rss_kib"], 2048)
+        self.assertEqual(trial["evidence_items"], [])
+        self.assertEqual(trial["navigation_usage"]["calls"], 1)
+        self.assertEqual(len(trial["evidence_sidecar_sha256"]), 64)
+
     def test_collects_three_sorted_trials_from_each_harbor_job(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -241,7 +344,7 @@ class CollectTests(unittest.TestCase):
                     ],
                 )
 
-            with self.assertRaisesRegex(SweQaError, "expected exactly 3"):
+            with self.assertRaisesRegex(SweQaError, "expected at least 3"):
                 collect_pair(
                     runs_dir=root,
                     task="reflex:6",

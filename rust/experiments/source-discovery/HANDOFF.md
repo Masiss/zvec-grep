@@ -150,3 +150,87 @@ Decision: **NO_GO for the tested rg-first budgeted evidence-pack workflow.** The
 - Source diff: no source, index, embedding, default, API, or frozen benchmark changed. The only implementation was a one-off script in local temporary storage; no product-code rollback is needed. Optional documentation cleanup is to remove the goal's sanitized research directory and this appended section. Temporary scripts/receipts can be deleted separately. Existing unrelated dirty artifacts were preserved.
 
 Checkpoint: this handoff update and sanitized evidence bundle are committed together at the current HEAD on `work/source-discovery-autonomous-20261122`. The base HEAD before recording this evaluation was `53372b18ba035ac83fa76d0fdad395bf2c0cb2fd`. HRM2.0 working tree, index, and exact source revision were not changed. No push, merge, release, or remote private inference occurred.
+
+## Quyết định reset kiến trúc — 22-11-2026
+
+Đã xác minh source/runtime trên nhánh `work/source-discovery-autonomous-20261122`,
+source HEAD `663566546f03768b9b021c65eb3accc4aa0720a1`. Worktree có sẵn các
+untracked `docs/research/session-retrospective-20261122.md`, `research/m4-native/`
+và `rust/experiments/source-discovery/real-csharp-20261122/`; tất cả được giữ
+nguyên. Mission thêm probe lexical public đã đóng băng ở
+`research/architecture-reset-20261122/` và memo đã sanitize tại
+`docs/research/architecture-reset-decision-20261122.md`.
+
+Quyết định: **SIMPLIFY**. Dừng đầu tư vào resolver C# Tree-Sitter và capped
+`rg` pack đã thử; dùng lexical search cho exact/partial identifier; lợi ích sản
+phẩm của semantic retrieval vẫn **INCONCLUSIVE** cho đến khi đo trên index khỏe
+mạnh với lexical baseline tốt. Prototype Tree-Sitter offline riêng cho
+Rust/Python/TypeScript vẫn experimental, opt-in; quyết định này không đánh giá
+prototype đó.
+
+Probe source công khai mới: native `rg` và `zg --rg` đều tìm 5/5 declaration
+targets dương tính đã đóng băng; negative task có 0 source matches. Native
+`rg` tốn ít thời gian và memory hơn trong mọi task đo được. Với query mơ hồ
+`format`, native chạy 5,3 ms / 7.300 KiB so với 88,9 ms / 39.032 KiB của
+`zg --rg`; output managed nhỏ hơn 5,2 KB nhưng nhiều hơn 89 dòng. Đây là so
+sánh khả năng/chi phí trên 6 task, một repo; không phải agent A/B hay chấm
+false-positive. Chưa xác minh binary managed được build từ HEAD này.
+
+Independent fresh-context challenge yêu cầu sửa kết luận nhân quả cũ về FTS:
+“No matches” trước đó không thể tách khỏi index corruption được xác nhận sau.
+Báo cáo sanitized đã được đính chính. Reviewer fresh-context thứ hai xác minh
+hash, số liệu, phạm vi; yêu cầu làm rõ kết luận chỉ nhắm resolver C# và phân
+biệt zero source match với output/exit behavior. Các điểm này đã được sửa.
+
+Kiểm tra index chỉ đọc trả `CORRUPT` cho generation
+`6e3c3a4d-4690-4868-8f9e-1023bbb7577c`; không rebuild, refresh hay repair.
+CLI cài sẵn là `zg 0.0.1`, SHA-256
+`6db0f67e05e61ad6d50e8e9ea7b3e4593cfb07c99ac0af9f5064f48398db7ed4`; native
+`rg` là 15.2.0, SHA-256
+`e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849`. Không
+đổi source/API/default/index/embedding/benchmark hoặc private data. Không
+inference, install, push, merge hay release.
+
+Quyết định tiếp theo: default MCP agent hosts có cần expose tool no-index
+`zvec_grep_rg` hiện có hay có thể dùng native shell search. Không đổi public
+toolset/API trong mission này. Nếu sau này đo semantic value, trước hết phải
+có đường đánh giá local đã được cho phép và index khỏe; không dùng index hỏng
+hiện tại làm baseline. Bằng chứng và giới hạn đầy đủ nằm trong
+`docs/research/architecture-reset-decision-20261122.md` và
+`research/architecture-reset-20261122/partial-id-results.json`.
+
+Checkpoint nguồn được freeze tại `663566546f03768b9b021c65eb3accc4aa0720a1`;
+report/handoff chỉ đổi tài liệu và evidence, không đổi runtime.
+
+Trạng thái Git khi bàn giao: HEAD vẫn là
+`663566546f03768b9b021c65eb3accc4aa0720a1`; không tạo commit mới. Thay đổi của
+mission này còn local: sửa report `docs/research/source-discovery-autonomous-20261122.md`
+và handoff này; thêm `docs/research/architecture-reset-decision-20261122.md`
+cùng hai artifact freeze/results trong `research/architecture-reset-20261122/`.
+Các untracked có từ trước `docs/research/session-retrospective-20261122.md`,
+`research/m4-native/` và `rust/experiments/source-discovery/real-csharp-20261122/`
+được giữ nguyên, không đưa vào thay đổi của mission.
+
+## Continuation — indexed semantic retrieval qualification (2026-11-22)
+
+Goal về indexed semantic retrieval được tiếp tục trên R4 index v3 hoạt động trong disposable copy, nhưng kết luận là **INCONCLUSIVE** vì verifier read-only hiện có chỉ hỗ trợ v2 và từ chối v3 với `INCOMPLETE`. Ba task local-only cho thấy vector/hybrid chạm target files nhưng 0/9 searchable gold-span overlap; capped native `rg` và post-hoc IDF lexical ranking mỗi route đạt 1/9. OR first-hit `rg` pool (`--max-count 1`/file) đạt 3/9 với median output 1.43 MB; đây không phải full-recall ceiling vì IDF gộp context từ các lần tìm term riêng. Đây là retrieval overlap, không phải answer quality. Một D07 gold span `NOT_PERSISTED` được loại khỏi mẫu số; source/index file count 822/818 và cached binary build provenance cần được giải thích.
+
+Đọc [handoff ngắn](../../../docs/research/indexed-semantic-qualification-handoff-20261122.md) rồi [báo cáo đầy đủ](../../../docs/research/indexed-semantic-qualification-20261122.md). Bước tiếp theo là xác minh v3 bằng verifier tương thích mà không rebuild index, làm rõ file-count delta và binary provenance; sau đó mới cân nhắc rerun freeze. Không mở H01–H08 hoặc phát sinh remote inference. Không đổi production/index/schema/default/API/benchmark; không upstream sync/push/merge/release.
+
+## Product-reality diagnosis — public R4 / Candidate C / `rg` (2026-11-23)
+
+The final public validation was opened for post-hoc diagnosis and is diagnostic-only. On the same nine answerable tasks, hybrid R4 and frozen lexical `rg` each had useful source on 8/9 and complete support on 3/9; Candidate C matched both task totals. C's two extra useful items were on tasks with existing useful baseline evidence. The final gate remains **`NO_VALIDATED_GAIN` / `HOLD`**. Do not compare this split's 8/9 with the historical, differently scoped 1/9 validation as a before/after.
+
+Detailed per-task paired ranks, gold/source joins, five incomplete-task gap analyses, the S1/S2/S3 distinction, fairness/cost limits, and falsification matrix are in [`indexed-source-delivery-design-evidence-20261123.md`](../../../docs/research/indexed-source-delivery-design-evidence-20261123.md), backed by [`product-reality-analysis-20261123.json`](../../../research/public-source-evaluation-20261123/product-reality-analysis-20261123.json). The audit verifies the locked public source hashes. JSON SHA-256: `a069cd5627e5186c389a476f620852bcb099071abb56156c97a93a2d148e8dec`; script SHA-256: `747713a34cca26e3ea1603d1275732db5dcf1b8179ce759c0d5dc7d7d4f97043`.
+
+Observed: R4 reaches some exact target files/ranges earlier, while `rg` reaches others earlier. Val-03's hybrid entity had relevant sibling fragments internally but the navigator did not receive them; both navigators later found sufficient source through different Dapper paths. The five incomplete tasks are analyzed with source provenance in the linked design evidence. All accepted target source ranges are present in the corpus, which does not imply acquisition, exposure, or reachability. S3 answer correctness remains unmeasured.
+
+The Sol-approved all-task navigation mechanics diagnostic is complete: 20 fresh Codex contexts; 14 units were labeled valid by the blind adjudicator, six were invalid, and val-10's lexical final pack was not verifiable. Among six fully scoreable pairs, both routes were sufficient on 5/6: four ties, one R4-only sufficient outcome (val-02), and one `rg` final-pack sufficiency outcome (val-06). Val-06 is a retention difference, not an `rg` rescue: both frozen packs were complete, then the R4 final pack omitted one required step. Val-02's R4 navigator eventually found the buffered `Consume` path, but the receipt does not establish the starting pack caused the discovery. No unit preserved the first behavior-specific evidence rank with preceding byte cost, so the diagnostic does not answer S1 rank/cost.
+
+Limitations: six invalid/uncertain units are 07, 08, 09, 10, 15, and 16; post-seal audit also found undercounted `rg -n` source-line output in units 02, 03, 12, and 14. No hard-cap breach is established for those four, but exact byte comparisons are unreliable. The blind adjudicator read navigation transcripts despite preregistration requiring final packs only; route-key access remained withheld and the labels were hash-verified before unmasking. The method is therefore route-key-blind, not fully transcript-blind. Navigator model identity is not exposed, and the filesystem was shared. Results are mechanics on an already exposed set, not external coding-agent behavior or validation.
+
+**Product decision: `NO_INCREMENTAL_VALUE_OBSERVED` on the measured endpoints.** R4, Candidate C, and `rg` tied at 8/9 useful and 3/9 complete in frozen delivery; navigation packs tied at 5/6 sufficient among six scoreable pairs. R4 process cost remained materially higher: 1.11 s / 426,918 KiB vs `rg` 0.191 s / 76,416 KiB, with no warm in-process measurement. This does not establish that semantic retrieval can never help. The separate S1 rank/cost measure remains `MEASUREMENT_NOT_DISCRIMINATIVE`; the Candidate C gate remains `NO_VALIDATED_GAIN`; engineering remains **`HOLD`**.
+
+Fresh-context GPT-6.1 Sol High final review returned **`REVISE_INTERPRETATION`**. It recommends documentation closure and no further experiment or tuning in this mission. If a future owner establishes a separate product need, any new study must freeze independent task sampling and record ordered source exposures, exact bytes, first actionable evidence, and final retained source. The review and paired diagnostic are in [`route-comparison-after-unmask.md`](../../../research/public-source-evaluation-20261123/navigation-diagnostic-20261123/route-comparison-after-unmask.md) and the linked design evidence.
+
+Workspace index search again failed opening existing FTS storage; no repair/rebuild was performed. Source HEAD remains `663566546f03768b9b021c65eb3accc4aa0720a1`; only local research artifacts and documentation changed. Existing dirty/untracked files were preserved.

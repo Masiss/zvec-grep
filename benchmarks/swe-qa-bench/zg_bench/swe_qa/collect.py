@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,13 @@ from zg_bench.metrics.usage import (
     SESSION_USAGE_SCOPE,
     compatible_usage_scope,
     validate_session_usage,
+)
+
+RAG_PROFILE_NAMES = (
+    "lexical-rg",
+    "r4-hybrid",
+    "sufficient-pack",
+    "candidate",
 )
 
 
@@ -71,9 +79,9 @@ def _completed_job(job_dir: Path, *, expected_trials: int) -> dict[str, Any]:
     stats = result.get("stats")
     if not isinstance(total, int) or total < 1 or not isinstance(stats, dict):
         raise SweQaError(f"Harbor job result is incomplete: {job_dir.name}")
-    if total != expected_trials:
+    if total < expected_trials:
         raise SweQaError(
-            f"expected exactly {expected_trials} Harbor trial(s) in "
+            f"expected at least {expected_trials} Harbor trial(s) in "
             f"{job_dir.name}, found {total}"
         )
     completed = stats.get("n_completed_trials")
@@ -217,7 +225,9 @@ def _session_usage_for_trial(
 
 def _profile_result(
     *,
+    task: str,
     profile: str,
+    evidence_packs_root: Path | None,
     job_dir: Path,
     trial_dir: Path,
     result: dict[str, Any],
@@ -310,7 +320,7 @@ def _profile_result(
         if isinstance(raw_model, dict) and isinstance(raw_model.get("name"), str):
             model_name = raw_model["name"]
 
-    return {
+    collected = {
         "trial_index": trial_index,
         "profile": profile,
         "job_name": job_dir.name,
@@ -324,6 +334,39 @@ def _profile_result(
         "cost_usd": cost_usd,
         **usage_metrics,
     }
+    if profile in RAG_PROFILE_NAMES:
+        if evidence_packs_root is None:
+            raise SweQaError("RAG collection requires --evidence-packs-root")
+        sidecar_path = evidence_packs_root / _task_slug(task) / f"{profile}.json"
+        sidecar = load_object(sidecar_path, label="RAG evidence sidecar")
+        if sidecar.get("schema_version") != 1:
+            raise SweQaError("RAG evidence sidecar schema_version must be 1")
+        evidence_items = sidecar.get("evidence_items")
+        navigation_usage = sidecar.get("navigation_usage")
+        if not isinstance(evidence_items, list) or not isinstance(navigation_usage, dict):
+            raise SweQaError("RAG evidence sidecar must include evidence_items and navigation_usage")
+        retrieval_latency = require_number(
+            sidecar.get("retrieval_latency_seconds"),
+            label="RAG retrieval_latency_seconds",
+        )
+        peak_rss = require_number(
+            sidecar.get("peak_rss_kib"),
+            label="RAG peak_rss_kib",
+            integer=True,
+            positive=True,
+        )
+        collected.update(
+            {
+                "evidence_items": evidence_items,
+                "navigation_usage": navigation_usage,
+                "retrieval_latency_seconds": retrieval_latency,
+                "peak_rss_kib": peak_rss,
+                "evidence_sidecar_sha256": hashlib.sha256(
+                    sidecar_path.read_bytes()
+                ).hexdigest(),
+            }
+        )
+    return collected
 
 
 def collect_pair(
@@ -332,8 +375,10 @@ def collect_pair(
     task: str,
     output: Path,
     expected_trials: int = 1,
+    profile_names: tuple[str, ...] = PROFILES,
+    evidence_packs_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Collect and validate the expected trials for both task profiles."""
+    """Collect and validate matching trials for each requested task profile."""
     task = task.strip()
     if not task:
         raise SweQaError("task must not be empty")
@@ -343,9 +388,11 @@ def collect_pair(
         raise SweQaError("expected_trials must be an integer")
     if expected_trials < 1:
         raise SweQaError("expected_trials must be positive")
+    if not profile_names or len(set(profile_names)) != len(profile_names):
+        raise SweQaError("profile names must be non-empty and unique")
 
     profiles: dict[str, Any] = {}
-    for profile in PROFILES:
+    for profile in profile_names:
         job_dirs = _job_dirs(runs_dir, profile)
         matching_jobs: list[tuple[Path, list[tuple[Path, dict[str, Any]]]]] = []
         errors: list[SweQaError] = []
@@ -367,7 +414,9 @@ def collect_pair(
         job_dir, trials = matching_jobs[0]
         trial_results = [
             _profile_result(
+                task=task,
                 profile=profile,
+                evidence_packs_root=evidence_packs_root,
                 job_dir=job_dir,
                 trial_dir=trial_dir,
                 result=result,

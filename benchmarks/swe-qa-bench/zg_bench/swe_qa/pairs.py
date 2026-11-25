@@ -140,7 +140,13 @@ def _validate_profile(profile: Any, *, task: str, name: str) -> list[dict[str, A
     return trials
 
 
-def load_pairs(root: Path, expected: Sequence[str]) -> dict[str, dict[str, Any]]:
+def load_pairs(
+    root: Path,
+    expected: Sequence[str],
+    profile_names: Sequence[str] = PROFILE_NAMES,
+) -> dict[str, dict[str, Any]]:
+    if not profile_names or len(set(profile_names)) != len(profile_names):
+        raise SweQaError("profile names must be non-empty and unique")
     expected_set = set(expected)
     if len(expected_set) != len(expected) or not expected:
         raise SweQaError("expected tasks must be non-empty and unique")
@@ -159,8 +165,10 @@ def load_pairs(root: Path, expected: Sequence[str]) -> dict[str, dict[str, Any]]
         profiles = pair.get("profiles")
         if not isinstance(profiles, dict):
             raise SweQaError(f"pair has no profiles for {task_id}")
+        if set(profiles) != set(profile_names):
+            raise SweQaError(f"{task_id} profile names do not match the requested protocol")
         trial_counts: dict[str, int] = {}
-        for name in PROFILE_NAMES:
+        for name in profile_names:
             profile = profiles.get(name)
             if not isinstance(profile, dict):
                 raise SweQaError(f"{task_id} has no valid {name} profile")

@@ -1,0 +1,708 @@
+{
+  "schema_version": 1,
+  "corpus_id": "public-csharp-source-20261123-v1",
+  "tasks": [
+    {
+      "task_id": "a01",
+      "split": "development",
+      "outcome": "abstain",
+      "required_steps": [
+        {
+          "step_id": "a01-step-1",
+          "description": "The checked source does not define cross-process token-stream state persistence, so the answer must abstain.",
+          "accepted_range_ids": []
+        }
+      ],
+      "accepted_source_ranges": []
+    },
+    {
+      "task_id": "a02",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "a02-step-1",
+          "description": "Reset delegates to Seek(0), which initializes the stream if needed and sets the adjusted token index.",
+          "accepted_range_ids": [
+            "a02-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "antlr",
+          "range_id": "a02-range-1",
+          "path": "antlr/runtime/CSharp/src/BufferedTokenStream.cs",
+          "start_line": 146,
+          "end_line": 154,
+          "source_sha256": "a4e54ab1ee4fe1b39764cfc1d9553f8f307a69e02154299370918150ef51babf"
+        }
+      ]
+    },
+    {
+      "task_id": "a03",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "a03-step-1",
+          "description": "Fetch returns immediately after EOF has already been recorded and otherwise asks the token source for at most the requested batch size.",
+          "accepted_range_ids": [
+            "a03-range-1"
+          ]
+        },
+        {
+          "step_id": "a03-step-2",
+          "description": "When a fetched token is EOF, the stream records that state and returns the short batch size; Fill stops when a batch is shorter than its limit.",
+          "accepted_range_ids": [
+            "a03-range-2"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "antlr",
+          "range_id": "a03-range-1",
+          "path": "antlr/runtime/CSharp/src/BufferedTokenStream.cs",
+          "start_line": 232,
+          "end_line": 253,
+          "source_sha256": "a4e54ab1ee4fe1b39764cfc1d9553f8f307a69e02154299370918150ef51babf"
+        },
+        {
+          "repository": "antlr",
+          "range_id": "a03-range-2",
+          "path": "antlr/runtime/CSharp/src/BufferedTokenStream.cs",
+          "start_line": 687,
+          "end_line": 700,
+          "source_sha256": "a4e54ab1ee4fe1b39764cfc1d9553f8f307a69e02154299370918150ef51babf"
+        }
+      ]
+    },
+    {
+      "task_id": "a04",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "a04-step-1",
+          "description": "Mark creates a nested marker and records the current buffer start for the outermost marker.",
+          "accepted_range_ids": [
+            "a04-range-1"
+          ]
+        },
+        {
+          "step_id": "a04-step-2",
+          "description": "Release validates LIFO marker order and only shifts away consumed tokens when the final marker is released.",
+          "accepted_range_ids": [
+            "a04-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "antlr",
+          "range_id": "a04-range-1",
+          "path": "antlr/runtime/CSharp/src/UnbufferedTokenStream.cs",
+          "start_line": 282,
+          "end_line": 313,
+          "source_sha256": "ce7caa8103b985904d61fc837364de494c062c094979b99a6c6958d5f1ec4e4e"
+        }
+      ]
+    },
+    {
+      "task_id": "d05",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "d05-step-1",
+          "description": "The generic overload returns the first selected cell converted to T.",
+          "accepted_range_ids": [
+            "d05-range-1"
+          ]
+        },
+        {
+          "step_id": "d05-step-2",
+          "description": "It delegates to ExecuteScalarImpl<T> with the connection and command definition.",
+          "accepted_range_ids": [
+            "d05-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "dapper",
+          "range_id": "d05-range-1",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 600,
+          "end_line": 625,
+          "source_sha256": "86b7b8e2fec90482eda1d87807c850d495131270175e11b188446c39fcc87cec"
+        }
+      ]
+    },
+    {
+      "task_id": "d06",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "d06-step-1",
+          "description": "The multi-execution branch detects an enumerable parameter collection and reuses a command while clearing and rebinding parameters for later objects.",
+          "accepted_range_ids": [
+            "d06-range-1"
+          ]
+        },
+        {
+          "step_id": "d06-step-2",
+          "description": "Without Pipelined it executes sequentially and sums affected rows; with Pipelined it delegates to the asynchronous multi-execution path.",
+          "accepted_range_ids": [
+            "d06-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "dapper",
+          "range_id": "d06-range-1",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 636,
+          "end_line": 690,
+          "source_sha256": "86b7b8e2fec90482eda1d87807c850d495131270175e11b188446c39fcc87cec"
+        }
+      ]
+    },
+    {
+      "task_id": "d07",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "d07-step-1",
+          "description": "RemoveUnused defaults to true and is passed to the parameter-info generator when DynamicParameters adds command parameters.",
+          "accepted_range_ids": [
+            "d07-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "dapper",
+          "range_id": "d07-range-1",
+          "path": "dapper/Dapper/DynamicParameters.cs",
+          "start_line": 29,
+          "end_line": 39,
+          "source_sha256": "ed0379c8f8e79af4f1a49add9f46c672e6d03fe1c25ed0a3865e10e9f3ac87e6"
+        },
+        {
+          "repository": "dapper",
+          "range_id": "d07-range-2",
+          "path": "dapper/Dapper/DynamicParameters.cs",
+          "start_line": 169,
+          "end_line": 205,
+          "source_sha256": "ed0379c8f8e79af4f1a49add9f46c672e6d03fe1c25ed0a3865e10e9f3ac87e6"
+        }
+      ]
+    },
+    {
+      "task_id": "d08",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "d08-step-1",
+          "description": "Clause resolution adds each clause's parameters to DynamicParameters and joins inclusive clauses inside an OR group while joining ordinary clauses with the configured joiner.",
+          "accepted_range_ids": [
+            "d08-range-1"
+          ]
+        },
+        {
+          "step_id": "d08-step-2",
+          "description": "Template resolution replaces matching comment markers with resolved clauses, removes leftover markers, and caches the result until the builder sequence changes.",
+          "accepted_range_ids": [
+            "d08-range-2"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "dapper",
+          "range_id": "d08-range-1",
+          "path": "dapper/Dapper.SqlBuilder/SqlBuilder.cs",
+          "start_line": 29,
+          "end_line": 54,
+          "source_sha256": "3cf903a02fec09c2793cc4606a138d1baff46632e1a8b9807c504076185bf09a"
+        },
+        {
+          "repository": "dapper",
+          "range_id": "d08-range-2",
+          "path": "dapper/Dapper.SqlBuilder/SqlBuilder.cs",
+          "start_line": 64,
+          "end_line": 108,
+          "source_sha256": "3cf903a02fec09c2793cc4606a138d1baff46632e1a8b9807c504076185bf09a"
+        }
+      ]
+    },
+    {
+      "task_id": "n09",
+      "split": "development",
+      "outcome": "abstain",
+      "required_steps": [
+        {
+          "step_id": "n09-step-1",
+          "description": "The pinned writer source does not establish JSON Schema validation, so the answer must abstain.",
+          "accepted_range_ids": []
+        }
+      ],
+      "accepted_source_ranges": []
+    },
+    {
+      "task_id": "n10",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "n10-step-1",
+          "description": "It advances writer state as a Float token and writes JsonConvert.ToString(value) through WriteValueInternal.",
+          "accepted_range_ids": [
+            "n10-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "newtonsoft",
+          "range_id": "n10-range-1",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonTextWriter.cs",
+          "start_line": 622,
+          "end_line": 640,
+          "source_sha256": "65cedb29bbec9e82057d06f5eaa3a464240b385d84f8aa295abe760148d58f7f"
+        }
+      ]
+    },
+    {
+      "task_id": "n11",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "n11-step-1",
+          "description": "Read dispatches to value, object, or post-value parsing based on reader state and permits comments after the root value.",
+          "accepted_range_ids": [
+            "n11-range-1"
+          ]
+        },
+        {
+          "step_id": "n11-step-2",
+          "description": "ParseComment distinguishes slash-slash from slash-star and emits or skips the comment according to setToken.",
+          "accepted_range_ids": [
+            "n11-range-2"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "newtonsoft",
+          "range_id": "n11-range-1",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonTextReader.cs",
+          "start_line": 414,
+          "end_line": 459,
+          "source_sha256": "a90a4b5899e60963dabfcfabe225a7ff23c6b46e310cf18a5afe7f4ac1b4f0a0"
+        },
+        {
+          "repository": "newtonsoft",
+          "range_id": "n11-range-2",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonTextReader.cs",
+          "start_line": 2258,
+          "end_line": 2300,
+          "source_sha256": "a90a4b5899e60963dabfcfabe225a7ff23c6b46e310cf18a5afe7f4ac1b4f0a0"
+        }
+      ]
+    },
+    {
+      "task_id": "n12",
+      "split": "development",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "n12-step-1",
+          "description": "WriteEnd inspects the current container type and routes object, array, or constructor state to its matching end token.",
+          "accepted_range_ids": [
+            "n12-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "newtonsoft",
+          "range_id": "n12-range-1",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonWriter.cs",
+          "start_line": 490,
+          "end_line": 506,
+          "source_sha256": "75b69b3ebed4305947adeed867ea8780ab2b03f0f3cbe6ffaa391ef56cdb4c73"
+        },
+        {
+          "repository": "newtonsoft",
+          "range_id": "n12-range-2",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonWriter.cs",
+          "start_line": 715,
+          "end_line": 750,
+          "source_sha256": "75b69b3ebed4305947adeed867ea8780ab2b03f0f3cbe6ffaa391ef56cdb4c73"
+        }
+      ]
+    },
+    {
+      "task_id": "a13",
+      "split": "validation",
+      "outcome": "abstain",
+      "required_steps": [
+        {
+          "step_id": "a13-step-1",
+          "description": "The source provides in-process marker and seek behavior but no crash-safe persistence guarantee, so the answer must abstain.",
+          "accepted_range_ids": []
+        }
+      ],
+      "accepted_source_ranges": []
+    },
+    {
+      "task_id": "a14",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "a14-step-1",
+          "description": "The outermost Mark records the last-token buffer start and every marker is assigned a decreasing negative identifier.",
+          "accepted_range_ids": [
+            "a14-range-1"
+          ]
+        },
+        {
+          "step_id": "a14-step-2",
+          "description": "Release rejects a marker that is not the most recently opened one and compacts consumed tokens only after the marker count reaches zero.",
+          "accepted_range_ids": [
+            "a14-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "antlr",
+          "range_id": "a14-range-1",
+          "path": "antlr/runtime/CSharp/src/UnbufferedTokenStream.cs",
+          "start_line": 282,
+          "end_line": 313,
+          "source_sha256": "ce7caa8103b985904d61fc837364de494c062c094979b99a6c6958d5f1ec4e4e"
+        }
+      ]
+    },
+    {
+      "task_id": "a15",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "a15-step-1",
+          "description": "More sets the current token type to TokenTypes.More so lexing continues without emitting the current match as a separate token.",
+          "accepted_range_ids": [
+            "a15-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "antlr",
+          "range_id": "a15-range-1",
+          "path": "antlr/runtime/CSharp/src/Lexer.cs",
+          "start_line": 224,
+          "end_line": 233,
+          "source_sha256": "0824de7203e566e45ed1db1faa418182f55305d5b5babe7750b5e208b1110ac5"
+        }
+      ]
+    },
+    {
+      "task_id": "a16",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "a16-step-1",
+          "description": "PushMode stores the current mode before switching to the requested mode.",
+          "accepted_range_ids": [
+            "a16-range-1"
+          ]
+        },
+        {
+          "step_id": "a16-step-2",
+          "description": "PopMode throws if the stack is empty, otherwise restores and returns the previous mode.",
+          "accepted_range_ids": [
+            "a16-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "antlr",
+          "range_id": "a16-range-1",
+          "path": "antlr/runtime/CSharp/src/Lexer.cs",
+          "start_line": 234,
+          "end_line": 250,
+          "source_sha256": "0824de7203e566e45ed1db1faa418182f55305d5b5babe7750b5e208b1110ac5"
+        }
+      ]
+    },
+    {
+      "task_id": "d17",
+      "split": "validation",
+      "outcome": "abstain",
+      "required_steps": [
+        {
+          "step_id": "d17-step-1",
+          "description": "The source delegates connection security configuration to the supplied connection/provider and does not establish a universal TLS policy, so the answer must abstain.",
+          "accepted_range_ids": []
+        }
+      ],
+      "accepted_source_ranges": []
+    },
+    {
+      "task_id": "d18",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "d18-step-1",
+          "description": "QueryFirst uses Row.First and QueryFirstOrDefault uses Row.FirstOrDefault, delegating their empty-result behavior to QueryRowImpl.",
+          "accepted_range_ids": [
+            "d18-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "dapper",
+          "range_id": "d18-range-1",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 868,
+          "end_line": 894,
+          "source_sha256": "86b7b8e2fec90482eda1d87807c850d495131270175e11b188446c39fcc87cec"
+        },
+        {
+          "repository": "dapper",
+          "range_id": "d18-range-2",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 1297,
+          "end_line": 1338,
+          "source_sha256": "86b7b8e2fec90482eda1d87807c850d495131270175e11b188446c39fcc87cec"
+        }
+      ]
+    },
+    {
+      "task_id": "d19",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "d19-step-1",
+          "description": "The buffered argument is converted into the CommandFlags.Buffered flag in the CommandDefinition.",
+          "accepted_range_ids": [
+            "d19-range-1"
+          ]
+        },
+        {
+          "step_id": "d19-step-2",
+          "description": "QueryImpl creates the row sequence, and the public overload materializes it with ToList only when the command is buffered.",
+          "accepted_range_ids": [
+            "d19-range-2"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "dapper",
+          "range_id": "d19-range-1",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 846,
+          "end_line": 867,
+          "source_sha256": "86b7b8e2fec90482eda1d87807c850d495131270175e11b188446c39fcc87cec"
+        },
+        {
+          "repository": "dapper",
+          "range_id": "d19-range-2",
+          "path": "dapper/Dapper/SqlMapper.cs",
+          "start_line": 1204,
+          "end_line": 1235,
+          "source_sha256": "86b7b8e2fec90482eda1d87807c850d495131270175e11b188446c39fcc87cec"
+        }
+      ]
+    },
+    {
+      "task_id": "d20",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "d20-step-1",
+          "description": "Resolving clauses merges their parameter objects into DynamicParameters.",
+          "accepted_range_ids": [
+            "d20-range-1"
+          ]
+        },
+        {
+          "step_id": "d20-step-2",
+          "description": "Template resolution substitutes markers for registered clauses and removes markers that remain unmatched.",
+          "accepted_range_ids": [
+            "d20-range-2"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "dapper",
+          "range_id": "d20-range-1",
+          "path": "dapper/Dapper.SqlBuilder/SqlBuilder.cs",
+          "start_line": 29,
+          "end_line": 54,
+          "source_sha256": "3cf903a02fec09c2793cc4606a138d1baff46632e1a8b9807c504076185bf09a"
+        },
+        {
+          "repository": "dapper",
+          "range_id": "d20-range-2",
+          "path": "dapper/Dapper.SqlBuilder/SqlBuilder.cs",
+          "start_line": 64,
+          "end_line": 108,
+          "source_sha256": "3cf903a02fec09c2793cc4606a138d1baff46632e1a8b9807c504076185bf09a"
+        }
+      ]
+    },
+    {
+      "task_id": "n21",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "n21-step-1",
+          "description": "WriteStartObject updates writer state and emits an opening brace.",
+          "accepted_range_ids": [
+            "n21-range-1"
+          ]
+        },
+        {
+          "step_id": "n21-step-2",
+          "description": "WriteStartArray updates writer state and emits an opening bracket.",
+          "accepted_range_ids": [
+            "n21-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "newtonsoft",
+          "range_id": "n21-range-1",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonTextWriter.cs",
+          "start_line": 212,
+          "end_line": 230,
+          "source_sha256": "65cedb29bbec9e82057d06f5eaa3a464240b385d84f8aa295abe760148d58f7f"
+        }
+      ]
+    },
+    {
+      "task_id": "n22",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "n22-step-1",
+          "description": "The token dispatcher routes StartObject to WriteStartObject and StartArray to WriteStartArray.",
+          "accepted_range_ids": [
+            "n22-range-1"
+          ]
+        },
+        {
+          "step_id": "n22-step-2",
+          "description": "The writer's end-token operations update container state and emit matching object or array closure.",
+          "accepted_range_ids": [
+            "n22-range-2"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "newtonsoft",
+          "range_id": "n22-range-1",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonWriter.cs",
+          "start_line": 525,
+          "end_line": 555,
+          "source_sha256": "75b69b3ebed4305947adeed867ea8780ab2b03f0f3cbe6ffaa391ef56cdb4c73"
+        },
+        {
+          "repository": "newtonsoft",
+          "range_id": "n22-range-2",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonWriter.cs",
+          "start_line": 422,
+          "end_line": 450,
+          "source_sha256": "75b69b3ebed4305947adeed867ea8780ab2b03f0f3cbe6ffaa391ef56cdb4c73"
+        }
+      ]
+    },
+    {
+      "task_id": "n23",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "n23-step-1",
+          "description": "In Finished state, Read consumes whitespace and returns false at EOF.",
+          "accepted_range_ids": [
+            "n23-range-1"
+          ]
+        },
+        {
+          "step_id": "n23-step-2",
+          "description": "It can return a trailing comment token, while other trailing content raises JsonReaderException.",
+          "accepted_range_ids": [
+            "n23-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "newtonsoft",
+          "range_id": "n23-range-1",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonTextReader.cs",
+          "start_line": 414,
+          "end_line": 459,
+          "source_sha256": "a90a4b5899e60963dabfcfabe225a7ff23c6b46e310cf18a5afe7f4ac1b4f0a0"
+        }
+      ]
+    },
+    {
+      "task_id": "n24",
+      "split": "validation",
+      "outcome": "answerable",
+      "required_steps": [
+        {
+          "step_id": "n24-step-1",
+          "description": "The parser matches the constructor keyword, scans the constructor name until whitespace or an opening parenthesis, and rejects invalid characters or an unterminated name.",
+          "accepted_range_ids": [
+            "n24-range-1"
+          ]
+        },
+        {
+          "step_id": "n24-step-2",
+          "description": "It requires an opening parenthesis, advances past it, clears recent string state, and emits a StartConstructor token carrying the captured name.",
+          "accepted_range_ids": [
+            "n24-range-1"
+          ]
+        }
+      ],
+      "accepted_source_ranges": [
+        {
+          "repository": "newtonsoft",
+          "range_id": "n24-range-1",
+          "path": "newtonsoft/Src/Newtonsoft.Json/JsonTextReader.cs",
+          "start_line": 1878,
+          "end_line": 1960,
+          "source_sha256": "a90a4b5899e60963dabfcfabe225a7ff23c6b46e310cf18a5afe7f4ac1b4f0a0"
+        }
+      ]
+    }
+  ]
+}
