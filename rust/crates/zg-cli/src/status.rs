@@ -63,7 +63,7 @@ pub fn write_info_with_options(
                 theme.danger("native storage failed checksum")
             )
         } else {
-            theme.danger("native storage unavailable").to_string()
+            theme.danger("native storage unavailable").clone()
         };
         write_status_field(&mut writer, theme, "Health", &[health])?;
         if !error.is_empty() {

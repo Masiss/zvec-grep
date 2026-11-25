@@ -68,11 +68,9 @@ pub(crate) fn jieba_dict_dir() -> EngineResult<std::path::PathBuf> {
             std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".zvec-grep"))
         });
     let executable = std::env::current_exe().ok();
-    if let Some(dir) = resolve_jieba_dict_dir(
-        env_dir.as_deref(),
-        home.as_deref(),
-        executable.as_deref(),
-    ) {
+    if let Some(dir) =
+        resolve_jieba_dict_dir(env_dir.as_deref(), home.as_deref(), executable.as_deref())
+    {
         return Ok(dir);
     }
     Err(EngineError::invalid_argument(
@@ -126,10 +124,7 @@ fn persisted_jieba_dict_dir(collection: &Path) -> Option<std::path::PathBuf> {
 /// Opens an existing collection without constructing a schema. Reopening must
 /// not depend on currently discoverable native prerequisites: the FTS
 /// dictionary location is persisted in the stored schema.
-pub(super) fn open_fragment_collection(
-    path: &Path,
-    read_only: bool,
-) -> EngineResult<Collection> {
+pub(super) fn open_fragment_collection(path: &Path, read_only: bool) -> EngineResult<Collection> {
     match persisted_jieba_dict_dir(path) {
         Some(dictionary) if !is_jieba_dict_dir(&dictionary) => {
             return Err(EngineError::storage_failure(format!(
@@ -167,10 +162,7 @@ pub(super) fn open_fragment_collection(
     .map_err(actionable_storage_error)
 }
 
-pub(super) fn open_existing_collection(
-    path: &Path,
-    read_only: bool,
-) -> EngineResult<Collection> {
+pub(super) fn open_existing_collection(path: &Path, read_only: bool) -> EngineResult<Collection> {
     let text = native_path(path)?;
     let mut options = native(CollectionOptions::new(), "configure collection")?;
     native(
@@ -440,8 +432,11 @@ mod tests {
         }
         std::fs::create_dir_all(home.path().join("jieba_dict")).expect("home dict");
         for name in ["jieba.dict.utf8", "hmm_model.utf8"] {
-            std::fs::copy(home.path().join(name), home.path().join("jieba_dict").join(name))
-                .expect("copy");
+            std::fs::copy(
+                home.path().join(name),
+                home.path().join("jieba_dict").join(name),
+            )
+            .expect("copy");
         }
         std::fs::create_dir_all(exe.path().join("data/jieba_dict")).expect("exe dict");
         for name in ["jieba.dict.utf8", "hmm_model.utf8"] {
@@ -457,11 +452,8 @@ mod tests {
             Some(&exe.path().join("zg")),
         );
         assert_eq!(resolved.as_deref(), Some(env_dir.path()));
-        let resolved = super::resolve_jieba_dict_dir(
-            None,
-            Some(home.path()),
-            Some(&exe.path().join("zg")),
-        );
+        let resolved =
+            super::resolve_jieba_dict_dir(None, Some(home.path()), Some(&exe.path().join("zg")));
         assert_eq!(resolved, Some(home.path().join("jieba_dict")));
         let resolved = super::resolve_jieba_dict_dir(None, None, Some(&exe.path().join("zg")));
         assert_eq!(resolved, Some(exe.path().join("data/jieba_dict")));
@@ -487,7 +479,9 @@ mod tests {
 
     #[test]
     fn corruption_classification_is_specific() {
-        assert!(super::is_corruption("Index segments meta checksum is invalid"));
+        assert!(super::is_corruption(
+            "Index segments meta checksum is invalid"
+        ));
         assert!(super::is_corruption("open collection: corrupt record"));
         assert!(!super::is_corruption("permission denied"));
         assert!(!super::is_corruption("jieba_dict_dir not configured"));

@@ -1006,11 +1006,7 @@ fn device_change_requires_rebuild(
     requested != Device::Auto && requested != existing
 }
 
-fn acquire_model(
-    models: &ModelRuntimeManager,
-    existing: Option<&Workspace>,
-    options: &IndexOptions,
-) -> Result<ModelRuntimeLease, EngineError> {
+fn validate_model_options(reference: &str, options: &IndexOptions) -> Result<(), EngineError> {
     if let Some(embedding) = &options.embedding
         && embedding.revision.is_some()
     {
@@ -1018,18 +1014,24 @@ fn acquire_model(
             "embedding revision overrides are not supported by the catalog-backed runtime",
         ));
     }
-    let reference = embedding_reference(existing, options.embedding.as_ref())?;
-    let config = crate::config::read()?;
-    let provider = reference.split('/').next().unwrap_or_default();
-    let local = provider == "local";
+    let local = reference.split('/').next() == Some("local");
     if (!local && options.device.is_some()) || (local && options.endpoint.is_some()) {
         return Err(EngineError::invalid_argument(
             "device requires a local model; endpoint requires a remote model",
         ));
     }
-    let existing_index = existing.and_then(|workspace| workspace.index().descriptor());
-    let existing_runtime =
-        existing_index.and_then(|index| index.embedding_configs().get(&reference));
+    Ok(())
+}
+
+fn resolve_connection(
+    reference: &str,
+    provider: &str,
+    local: bool,
+    existing: Option<&Workspace>,
+    existing_runtime: Option<&ModelConfig<EncryptedApiKey>>,
+    options: &IndexOptions,
+    config: &serde_json::Value,
+) -> Result<(Option<String>, Option<String>), EngineError> {
     let requested_key = options
         .runtime_api_key
         .as_ref()
@@ -1040,7 +1042,7 @@ fn acquire_model(
         runtime
             .api_key
             .as_ref()
-            .map(|key| decrypt_api_key(key, workspace.layout(), &reference))
+            .map(|key| decrypt_api_key(key, workspace.layout(), reference))
             .transpose()?
     } else {
         None
@@ -1051,7 +1053,7 @@ fn acquire_model(
         requested_key
             .cloned()
             .or(saved_key)
-            .or_else(|| crate::config::string(&config, &["providers", provider, "apiKey"]))
+            .or_else(|| crate::config::string(config, &["providers", provider, "apiKey"]))
             .or_else(environment_api_key)
     };
     let endpoint = options.endpoint.clone().or_else(|| {
@@ -1064,17 +1066,42 @@ fn acquire_model(
     let endpoint = if local {
         endpoint
     } else {
-        let endpoint = crate::authorization::remote_endpoint(&reference, endpoint.as_deref())?;
+        let endpoint = crate::authorization::remote_endpoint(reference, endpoint.as_deref())?;
         let root = resolve_directory(options.root.as_deref())?;
         crate::authorization::require_with_targets(
             &root,
-            &reference,
+            reference,
             &endpoint,
             options.allow_remote,
             &options.authorized_remote,
         )?;
         Some(endpoint)
     };
+    Ok((api_key, endpoint))
+}
+
+fn acquire_model(
+    models: &ModelRuntimeManager,
+    existing: Option<&Workspace>,
+    options: &IndexOptions,
+) -> Result<ModelRuntimeLease, EngineError> {
+    let reference = embedding_reference(existing, options.embedding.as_ref())?;
+    validate_model_options(&reference, options)?;
+    let config = crate::config::read()?;
+    let provider = reference.split('/').next().unwrap_or_default();
+    let local = provider == "local";
+    let existing_index = existing.and_then(|workspace| workspace.index().descriptor());
+    let existing_runtime =
+        existing_index.and_then(|index| index.embedding_configs().get(&reference));
+    let (api_key, endpoint) = resolve_connection(
+        &reference,
+        provider,
+        local,
+        existing,
+        existing_runtime,
+        options,
+        &config,
+    )?;
     let mut device = if local {
         crate::config::runtime_device(
             &config,

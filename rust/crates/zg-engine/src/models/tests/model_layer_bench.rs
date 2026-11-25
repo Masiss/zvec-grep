@@ -262,20 +262,23 @@ impl TimingBucket {
             "vectors": self.vectors,
             "chars": self.chars,
             "total_seconds": total,
-            "vectors_per_second": if total > 0.0 { self.vectors as f64 / total } else { 0.0 },
-            "chars_per_second": if total > 0.0 { self.chars as f64 / total } else { 0.0 },
-            "call_latency_ms_p50": percentile(&sorted, 0.50) * 1000.0,
-            "call_latency_ms_p95": percentile(&sorted, 0.95) * 1000.0,
+            "vectors_per_second": if total > 0.0 { f64::from(u32::try_from(self.vectors).unwrap_or(u32::MAX)) / total } else { 0.0 },
+            "chars_per_second": if total > 0.0 { f64::from(u32::try_from(self.chars).unwrap_or(u32::MAX)) / total } else { 0.0 },
+            "call_latency_ms_p50": percentile(&sorted, 1, 2) * 1000.0,
+            "call_latency_ms_p95": percentile(&sorted, 19, 20) * 1000.0,
             "call_latency_ms_max": sorted.last().copied().unwrap_or_default() * 1000.0,
         })
     }
 }
 
-fn percentile(sorted: &[f64], fraction: f64) -> f64 {
+fn percentile(sorted: &[f64], numerator: u64, denominator: u64) -> f64 {
     if sorted.is_empty() {
         return 0.0;
     }
-    let index = ((sorted.len() - 1) as f64 * fraction).round() as usize;
+    let span = u64::try_from(sorted.len() - 1).unwrap_or(u64::MAX);
+    let index = usize::try_from((span * numerator + denominator / 2) / denominator)
+        .unwrap_or(usize::MAX)
+        .min(sorted.len() - 1);
     sorted[index]
 }
 
@@ -344,7 +347,7 @@ async fn model_layer_fixed_workload() {
         .expect("prepare fixed-workload model");
     let cold_load_seconds = load_started.elapsed().as_secs_f64();
     let loaded_rss_bytes = process_metric("VmRSS:");
-    let loaded_pss_bytes = process_pss_bytes();
+    let loaded_proportional_bytes = process_pss_bytes();
 
     let mut buckets = std::collections::BTreeMap::new();
     for (purpose_name, inputs, purpose) in [
@@ -403,7 +406,7 @@ async fn model_layer_fixed_workload() {
             "rounds": rounds,
             "cold_load_seconds": cold_load_seconds,
             "loaded_rss_bytes": loaded_rss_bytes,
-            "loaded_pss_bytes": loaded_pss_bytes,
+            "loaded_pss_bytes": loaded_proportional_bytes,
             "peak_rss_bytes_vmhwm": process_metric("VmHWM:"),
             "buckets": buckets.into_iter().map(|(k, v)| (k, v.value())).collect::<Vec<_>>(),
         })

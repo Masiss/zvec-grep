@@ -988,13 +988,7 @@ fn push_embedding<'context>(
     context: &'context IndexingContext<'context>,
     scheduler: Arc<EmbeddingScheduler>,
 ) {
-    running.push(Box::pin(embed_prepared_files(
-        files,
-        context.embedding_models[0],
-        scheduler,
-        context.signal.clone(),
-        context.on_progress.clone(),
-    )));
+    running.push(Box::pin(embed_prepared_files(files, context, scheduler)));
 }
 
 async fn drain_embedding_futures(running: &mut FuturesUnordered<EmbeddingFuture<'_>>) {
@@ -1253,19 +1247,21 @@ fn reconcile_prepared_fragments(
     Ok(reconcile)
 }
 
-async fn prepare_candidate(
-    context: &IndexingContext<'_>,
-    control: &TaskControl,
-    candidate: &IndexCandidate,
-) -> Result<PreparedCandidate, EngineError> {
-    let source = read_source(context.scanner, control, &candidate.scanned.discovered).await?;
+enum CandidateFileState {
+    Unchanged(FileRecord),
+    Changed(FileRecord),
+}
 
+fn prepare_candidate_file(
+    candidate: &IndexCandidate,
+    source_bytes: &[u8],
+) -> Result<CandidateFileState, EngineError> {
     let mut file = candidate.scanned.to_record()?;
     file.set_snapshot(FileSnapshot {
-        size_bytes: u64::try_from(source.bytes.len())
+        size_bytes: u64::try_from(source_bytes.len())
             .map_err(|_| EngineError::invalid_argument("source byte length exceeds u64"))?,
         modified_epoch_ms: file.snapshot().modified_epoch_ms,
-        content_hash: Some(sha256_hex(&source.bytes)),
+        content_hash: Some(sha256_hex(source_bytes)),
     })?;
     if candidate.kind == CandidateKind::Modified
         && candidate.existing.as_ref().is_some_and(|existing| {
@@ -1281,8 +1277,21 @@ async fn prepare_candidate(
                 .index_status()
                 .clone(),
         )?;
-        return Ok(PreparedCandidate::Unchanged(file));
+        return Ok(CandidateFileState::Unchanged(file));
     }
+    Ok(CandidateFileState::Changed(file))
+}
+
+async fn prepare_candidate(
+    context: &IndexingContext<'_>,
+    control: &TaskControl,
+    candidate: &IndexCandidate,
+) -> Result<PreparedCandidate, EngineError> {
+    let source = read_source(context.scanner, control, &candidate.scanned.discovered).await?;
+    let file = match prepare_candidate_file(candidate, &source.bytes)? {
+        CandidateFileState::Unchanged(file) => return Ok(PreparedCandidate::Unchanged(file)),
+        CandidateFileState::Changed(file) => file,
+    };
 
     let formats = candidate
         .scanned
@@ -1753,20 +1762,17 @@ fn plan_embedding_dedup<'a>(
             }
         };
         plan.requested += 1;
-        let index = match indices.get(&key) {
-            Some(index) => {
-                if first_file.get(&key).copied() != Some(file_index) {
-                    plan.cross_file_duplicates += 1;
-                }
-                *index
+        let index = if let Some(index) = indices.get(&key) {
+            if first_file.get(&key).copied() != Some(file_index) {
+                plan.cross_file_duplicates += 1;
             }
-            None => {
-                let index = plan.contents.len();
-                plan.contents.push(fragment.embedding_content.clone());
-                first_file.insert(key.clone(), file_index);
-                indices.insert(key, index);
-                index
-            }
+            *index
+        } else {
+            let index = plan.contents.len();
+            plan.contents.push(fragment.embedding_content.clone());
+            first_file.insert(key.clone(), file_index);
+            indices.insert(key, index);
+            index
         };
         plan.positions.push(index);
     }
@@ -1784,52 +1790,65 @@ enum EmbeddedFileOutcome {
     },
 }
 
+async fn embed_single_prepared_file(
+    file: PreparedFile,
+    context: &IndexingContext<'_>,
+    scheduler: &EmbeddingScheduler,
+    started: Instant,
+) -> Result<EmbeddingBatchOutcome, ModelError> {
+    let model = context.embedding_models[0];
+    let signal = context.signal.clone();
+    let progress = context.on_progress.clone();
+    let (outcome, requests, unique_inputs) = match embed_file(
+        &file.fragments,
+        model,
+        scheduler,
+        signal.as_ref(),
+        progress.clone(),
+    )
+    .await
+    {
+        Ok(result) => (
+            EmbeddedFileOutcome::Success {
+                file,
+                vectors: result.embedding.vectors,
+            },
+            result.requests,
+            result.unique_inputs,
+        ),
+        Err(error) if error.should_fail_fast() => return Err(error),
+        Err(error) => (
+            EmbeddedFileOutcome::Failed {
+                file,
+                reason: model_error_text(&error),
+            },
+            0,
+            0,
+        ),
+    };
+    Ok(EmbeddingBatchOutcome {
+        outcomes: vec![outcome],
+        duration: started.elapsed(),
+        requests,
+        unique_inputs,
+        cross_file_duplicates: 0,
+    })
+}
+
 async fn embed_prepared_files(
     files: Vec<PreparedFile>,
-    model: &dyn IndexEmbeddingRuntime,
+    context: &IndexingContext<'_>,
     scheduler: Arc<EmbeddingScheduler>,
-    signal: Option<CancellationToken>,
-    progress: Option<IndexProgressReporter>,
 ) -> Result<EmbeddingBatchOutcome, ModelError> {
+    let model = context.embedding_models[0];
+    let signal = context.signal.clone();
+    let progress = context.on_progress.clone();
     let started = Instant::now();
     if files.len() == 1
         && files[0].pending_embedding_count() > model.info().model().max_batch_size()
     {
         let file = files.into_iter().next().expect("one prepared file");
-        let (outcome, requests, unique_inputs) = match embed_file(
-            &file.fragments,
-            model,
-            &scheduler,
-            signal.as_ref(),
-            progress,
-        )
-        .await
-        {
-            Ok(result) => (
-                EmbeddedFileOutcome::Success {
-                    file,
-                    vectors: result.embedding.vectors,
-                },
-                result.requests,
-                result.unique_inputs,
-            ),
-            Err(error) if error.should_fail_fast() => return Err(error),
-            Err(error) => (
-                EmbeddedFileOutcome::Failed {
-                    file,
-                    reason: model_error_text(&error),
-                },
-                0,
-                0,
-            ),
-        };
-        return Ok(EmbeddingBatchOutcome {
-            outcomes: vec![outcome],
-            duration: started.elapsed(),
-            requests,
-            unique_inputs,
-            cross_file_duplicates: 0,
-        });
+        return embed_single_prepared_file(file, context, &scheduler, started).await;
     }
     let dedup = plan_embedding_dedup(files.iter().enumerate().flat_map(|(file_index, file)| {
         file.fragments
@@ -1848,7 +1867,7 @@ async fn embed_prepared_files(
     )
     .await;
     let outcomes = match result {
-        Ok(embedding) => split_embedding(files, &dedup, embedding),
+        Ok(embedding) => split_embedding(files, &dedup, &embedding),
         Err(error) if error.should_fail_fast() => return Err(error),
         Err(_) => {
             let mut outcomes = Vec::with_capacity(files.len());
@@ -1900,7 +1919,7 @@ async fn embed_prepared_files(
 fn split_embedding(
     files: Vec<PreparedFile>,
     dedup: &EmbeddingDedup,
-    embedding: EmbeddingResult,
+    embedding: &EmbeddingResult,
 ) -> Vec<EmbeddedFileOutcome> {
     if embedding.vectors.len() != dedup.contents.len() {
         let reason = format!(
@@ -3346,12 +3365,7 @@ mod tests {
         second.embedding_fingerprint = first.embedding_fingerprint.clone();
         first.fts_text = "first lexical projection".to_owned();
         second.fts_text = "second lexical projection".to_owned();
-        let plan = plan_embedding_dedup(
-            [first.clone(), second.clone()]
-                .iter()
-                .enumerate()
-                .map(|(index, fragment)| (index, fragment)),
-        );
+        let plan = plan_embedding_dedup([first.clone(), second.clone()].iter().enumerate());
         assert_eq!(plan.requested, 2);
         assert_eq!(plan.contents.len(), 1, "identical inputs embed once");
         assert_eq!(plan.positions, vec![0, 0]);
@@ -3368,12 +3382,7 @@ mod tests {
         for fragment in [&mut first, &mut second, &mut third] {
             fragment.embedding_fingerprint = String::new();
         }
-        let plan = plan_embedding_dedup(
-            [first, second, third]
-                .iter()
-                .enumerate()
-                .map(|(index, fragment)| (index, fragment)),
-        );
+        let plan = plan_embedding_dedup([first, second, third].iter().enumerate());
         assert_eq!(plan.requested, 3);
         assert_eq!(
             plan.contents.len(),
@@ -3392,7 +3401,7 @@ mod tests {
         let old_fingerprint = old.embedding_fingerprint.clone();
         let old_model = old.model.clone();
         let mut shifted = prepared_fragment("alpha", 0);
-        let moved_content = Content::Text(format!("\n// line shift\nalpha"));
+        let moved_content = Content::Text("\n// line shift\nalpha".to_string());
         let moved_entity =
             EntityId::new(file_id, &moved_content, Range::Full).expect("moved entity");
         shifted.entity_id = moved_entity.clone();

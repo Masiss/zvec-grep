@@ -52,6 +52,17 @@ pub fn expand(
     expand_with_closure(project, catalog, seeds, query, budget, true)
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ExpandRequest<'a> {
+    pub(crate) project: &'a ProjectFacts,
+    pub(crate) declarations: Option<&'a ProjectDeclarations>,
+    pub(crate) catalog: &'a SqlCatalog,
+    pub(crate) seeds: &'a [Seed],
+    pub(crate) query: &'a str,
+    pub(crate) budget: usize,
+    pub(crate) closure: bool,
+}
+
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn expand_with_closure(
@@ -64,13 +75,15 @@ pub fn expand_with_closure(
 ) -> Vec<CandidateItem> {
     let mut diagnostics = ClosureDiagnostics::default();
     expand_inner(
-        project,
-        None,
-        catalog,
-        seeds,
-        query,
-        budget,
-        closure,
+        ExpandRequest {
+            project,
+            declarations: None,
+            catalog,
+            seeds,
+            query,
+            budget,
+            closure,
+        },
         &mut diagnostics,
     )
 }
@@ -87,13 +100,15 @@ pub fn expand_with_closure_diagnostics(
 ) -> (Vec<CandidateItem>, ClosureDiagnostics) {
     let mut diagnostics = ClosureDiagnostics::default();
     let items = expand_inner(
-        project,
-        None,
-        catalog,
-        seeds,
-        query,
-        budget,
-        closure,
+        ExpandRequest {
+            project,
+            declarations: None,
+            catalog,
+            seeds,
+            query,
+            budget,
+            closure,
+        },
         &mut diagnostics,
     );
     (items, diagnostics)
@@ -102,38 +117,32 @@ pub fn expand_with_closure_diagnostics(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn expand_with_declarations(
-    project: &ProjectFacts,
-    declarations: &ProjectDeclarations,
-    catalog: &SqlCatalog,
-    seeds: &[Seed],
-    query: &str,
-    budget: usize,
-    closure: bool,
+    request: ExpandRequest<'_>,
     diagnostics: &mut ClosureDiagnostics,
 ) -> Vec<CandidateItem> {
     expand_inner(
-        project,
-        Some(declarations),
-        catalog,
-        seeds,
-        query,
-        budget,
-        closure,
+        ExpandRequest {
+            declarations: request.declarations,
+            ..request
+        },
         diagnostics,
     )
 }
 
 #[allow(clippy::too_many_lines)]
 fn expand_inner(
-    project: &ProjectFacts,
-    declarations: Option<&ProjectDeclarations>,
-    catalog: &SqlCatalog,
-    seeds: &[Seed],
-    query: &str,
-    budget: usize,
-    closure: bool,
+    request: ExpandRequest<'_>,
     diagnostics: &mut ClosureDiagnostics,
 ) -> Vec<CandidateItem> {
+    let ExpandRequest {
+        project,
+        declarations,
+        catalog,
+        seeds,
+        query,
+        budget,
+        closure,
+    } = request;
     if budget == 0 {
         return Vec::new();
     }
@@ -895,8 +904,10 @@ mod tests {
                 let mut seeds = Vec::new();
                 for unit in call["units"].as_array().into_iter().flatten() {
                     let path = unit["path"].as_str().unwrap_or_default().to_owned();
-                    let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
-                    let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
+                    let start = usize::try_from(unit["start_line"].as_u64().unwrap_or(0))
+                        .unwrap_or_default();
+                    let end =
+                        usize::try_from(unit["end_line"].as_u64().unwrap_or(0)).unwrap_or_default();
                     if !path.is_empty() && start > 0 {
                         seeds.push(Seed {
                             path,
@@ -1271,8 +1282,10 @@ mod tests {
                 let mut score = if label.contains("code") { 3 } else { 0 };
                 for unit in call["units"].as_array().into_iter().flatten() {
                     let path = unit["path"].as_str().unwrap_or_default();
-                    let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
-                    let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
+                    let start = usize::try_from(unit["start_line"].as_u64().unwrap_or(0))
+                        .unwrap_or_default();
+                    let end =
+                        usize::try_from(unit["end_line"].as_u64().unwrap_or(0)).unwrap_or_default();
                     if path.is_empty() || start == 0 {
                         continue;
                     }
@@ -1310,8 +1323,10 @@ mod tests {
                     best_units.clear();
                     for unit in call["units"].as_array().into_iter().flatten() {
                         let path = unit["path"].as_str().unwrap_or_default().to_owned();
-                        let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
-                        let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
+                        let start = usize::try_from(unit["start_line"].as_u64().unwrap_or(0))
+                            .unwrap_or_default();
+                        let end = usize::try_from(unit["end_line"].as_u64().unwrap_or(0))
+                            .unwrap_or_default();
                         if !path.is_empty() && start > 0 {
                             best_units.push(Seed {
                                 path,
@@ -1612,7 +1627,11 @@ mod h7_e1_tests {
                 if let (Some(start), Some(end)) =
                     (span["start_line"].as_u64(), span["end_line"].as_u64())
                 {
-                    out.push((path.clone(), start as usize, end as usize));
+                    out.push((
+                        path.clone(),
+                        usize::try_from(start).unwrap_or_default(),
+                        usize::try_from(end).unwrap_or_default(),
+                    ));
                 }
             }
         }
@@ -1696,8 +1715,10 @@ mod h7_e1_tests {
             for call in b0_case["calls"].as_array().into_iter().flatten() {
                 for unit in call["units"].as_array().into_iter().flatten() {
                     let path = unit["path"].as_str().unwrap_or_default();
-                    let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
-                    let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
+                    let start = usize::try_from(unit["start_line"].as_u64().unwrap_or(0))
+                        .unwrap_or_default();
+                    let end =
+                        usize::try_from(unit["end_line"].as_u64().unwrap_or(0)).unwrap_or_default();
                     if !path.is_empty() && start > 0 {
                         seeds.insert((path.to_owned(), start, end));
                     }
@@ -1754,14 +1775,6 @@ mod h7_e1_tests {
                     }
                     map
                 });
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            for item in &on {
-                item.path.hash(&mut hasher);
-                item.start_line.hash(&mut hasher);
-                item.end_line.hash(&mut hasher);
-                item.score.hash(&mut hasher);
-                item.reason.hash(&mut hasher);
-            }
             let rank = |items: &[CandidateItem], path: &str, start: usize, end: usize| {
                 items.iter().position(|item| {
                     item.path == path && ranges_overlap(item.start_line, item.end_line, start, end)
@@ -1775,6 +1788,14 @@ mod h7_e1_tests {
                 .iter()
                 .map(|(path, start, end)| rank(&off, path, *start, *end))
                 .collect();
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            for item in &on {
+                item.path.hash(&mut hasher);
+                item.start_line.hash(&mut hasher);
+                item.end_line.hash(&mut hasher);
+                item.score.hash(&mut hasher);
+                item.reason.hash(&mut hasher);
+            }
             let row = serde_json::json!({
                 "id": id,
                 "gold": gold.len(),
@@ -1953,46 +1974,13 @@ mod h7_e1_external {
             let Some(anchor) = by_id.get(id) else {
                 continue;
             };
-            let seeds: Vec<Seed> = anchor["seeds"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|unit| {
-                    Some(Seed {
-                        path: unit["path"].as_str()?.to_owned(),
-                        start_line: unit["start_line"].as_u64()? as usize,
-                        end_line: unit["end_line"].as_u64()? as usize,
-                    })
-                })
-                .collect();
+            let seeds = h7_resource_profile::anchor_seeds(anchor);
             let query = case["question"].as_str().unwrap_or_default();
-            let mut gold = Vec::new();
-            for reference in case["source_refs"].as_array().into_iter().flatten() {
-                let path = reference["path"].as_str().unwrap_or_default().to_owned();
-                for span in reference["spans"].as_array().into_iter().flatten() {
-                    if let (Some(start), Some(end)) =
-                        (span["start_line"].as_u64(), span["end_line"].as_u64())
-                    {
-                        gold.push((path.clone(), start as usize, end as usize));
-                    }
-                }
-            }
+            let gold = h7_resource_profile::gold_spans(case);
             let evaluate = |closure: bool| {
-                let mut items = expand_with_closure(&merged, &catalog, &seeds, query, 500, closure);
-                items.sort_by(|left, right| {
-                    right
-                        .score
-                        .cmp(&left.score)
-                        .then_with(|| left.path.cmp(&right.path))
-                        .then_with(|| left.start_line.cmp(&right.start_line))
-                        .then_with(|| left.end_line.cmp(&right.end_line))
-                });
-                items.dedup_by(|left, right| {
-                    left.path == right.path
-                        && left.start_line == right.start_line
-                        && left.end_line == right.end_line
-                });
-                items
+                h7_resource_profile::sorted_candidates(expand_with_closure(
+                    &merged, &catalog, &seeds, query, 500, closure,
+                ))
             };
             let off = evaluate(false);
             let on = evaluate(true);
@@ -2023,13 +2011,114 @@ mod h7_e1_external {
 
 #[cfg(test)]
 mod h7_resource_profile {
-    use super::*;
+    use super::{CandidateItem, ClosureDiagnostics, ExpandRequest, Seed, expand_with_declarations};
     use crate::extraction::csharp_facts::{
-        ProjectFacts, ProjectIdentity, parse_project, parse_project_with_references,
+        ProjectDeclarations, ProjectFacts, ProjectIdentity, parse_project,
+        parse_project_with_references,
     };
+    use crate::extraction::sql_facts::SqlCatalog;
     use std::collections::BTreeMap;
     use std::path::PathBuf;
     use std::time::Instant;
+
+    pub(super) type GoldSpan = (String, usize, usize);
+
+    pub(super) fn load_project_files(
+        root: &std::path::Path,
+        corpus: &serde_json::Value,
+    ) -> BTreeMap<String, Vec<(String, String)>> {
+        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for file in corpus["files"].as_array().expect("files") {
+            let Some(project) = file["project"].as_str() else {
+                continue;
+            };
+            if file["kind"].as_str() != Some("cs_compile") {
+                continue;
+            }
+            let path = file["path"].as_str().expect("path").to_owned();
+            let source = std::fs::read_to_string(root.join(&path)).expect("source");
+            by_project
+                .entry(project.to_owned())
+                .or_default()
+                .push((path, source));
+        }
+        by_project
+    }
+
+    pub(super) fn gold_spans(case: &serde_json::Value) -> Vec<GoldSpan> {
+        let mut gold = Vec::new();
+        for reference in case["source_refs"].as_array().into_iter().flatten() {
+            let path = reference["path"].as_str().unwrap_or_default().to_owned();
+            for span in reference["spans"].as_array().into_iter().flatten() {
+                if let (Some(start), Some(end)) =
+                    (span["start_line"].as_u64(), span["end_line"].as_u64())
+                {
+                    gold.push((
+                        path.clone(),
+                        usize::try_from(start).unwrap_or_default(),
+                        usize::try_from(end).unwrap_or_default(),
+                    ));
+                }
+            }
+        }
+        gold
+    }
+
+    pub(super) fn anchor_seeds(anchor: &serde_json::Value) -> Vec<Seed> {
+        anchor["seeds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|unit| {
+                Some(Seed {
+                    path: unit["path"].as_str()?.to_owned(),
+                    start_line: usize::try_from(unit["start_line"].as_u64()?).ok()?,
+                    end_line: usize::try_from(unit["end_line"].as_u64()?).ok()?,
+                })
+            })
+            .collect()
+    }
+
+    pub(super) fn sorted_candidates(mut items: Vec<CandidateItem>) -> Vec<CandidateItem> {
+        items.sort_by(|left, right| {
+            right
+                .score
+                .cmp(&left.score)
+                .then_with(|| left.path.cmp(&right.path))
+                .then_with(|| left.start_line.cmp(&right.start_line))
+                .then_with(|| left.end_line.cmp(&right.end_line))
+        });
+        items.dedup_by(|left, right| {
+            left.path == right.path
+                && left.start_line == right.start_line
+                && left.end_line == right.end_line
+        });
+        items
+    }
+
+    pub(super) fn evaluate_declared(
+        project: &ProjectFacts,
+        declarations: &ProjectDeclarations,
+        catalog: &SqlCatalog,
+        seeds: &[Seed],
+        query: &str,
+        closure: bool,
+    ) -> (Vec<CandidateItem>, ClosureDiagnostics) {
+        let mut diagnostics = ClosureDiagnostics::default();
+        let items = expand_with_declarations(
+            ExpandRequest {
+                project,
+                declarations: Some(declarations),
+                catalog,
+                seeds,
+                query,
+                budget: 500,
+                closure,
+            },
+            &mut diagnostics,
+        );
+        (sorted_candidates(items), diagnostics)
+    }
 
     fn status_kib(key: &str) -> usize {
         std::fs::read_to_string("/proc/self/status")
@@ -2133,6 +2222,138 @@ mod h7_e1r_compact {
     use std::collections::{BTreeMap, BTreeSet};
     use std::hash::{Hash, Hasher};
     use std::path::PathBuf;
+    use std::time::Instant;
+
+    fn b0_seeds(b0_case: &serde_json::Value) -> Vec<Seed> {
+        let mut seeds = BTreeSet::new();
+        for call in b0_case["calls"].as_array().into_iter().flatten() {
+            for unit in call["units"].as_array().into_iter().flatten() {
+                let path = unit["path"].as_str().unwrap_or_default();
+                let start =
+                    usize::try_from(unit["start_line"].as_u64().unwrap_or(0)).unwrap_or_default();
+                let end =
+                    usize::try_from(unit["end_line"].as_u64().unwrap_or(0)).unwrap_or_default();
+                if !path.is_empty() && start > 0 {
+                    seeds.insert((path.to_owned(), start, end));
+                }
+            }
+        }
+        seeds
+            .into_iter()
+            .map(|(path, start_line, end_line)| Seed {
+                path,
+                start_line,
+                end_line,
+            })
+            .collect()
+    }
+
+    fn build_compact_declarations(
+        root: &std::path::Path,
+        by_project: &BTreeMap<String, Vec<(String, String)>>,
+    ) -> (ProjectDeclarations, serde_json::Value) {
+        let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
+        let started = Instant::now();
+        let io_before = io_snapshot();
+        let p3 = build_declaration_index(
+            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
+            by_project.get("P3").expect("P3"),
+        );
+        let p3_pss = pss_kib();
+        let p2 = build_declaration_index(
+            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
+            by_project.get("P2").expect("P2"),
+        );
+        let p2_pss = pss_kib();
+        let p1 = build_declaration_index(
+            &identity("Webs/HRM/HRM.csproj"),
+            by_project.get("P1").expect("P1"),
+        );
+        let p1_pss = pss_kib();
+        let mut declarations = ProjectDeclarations::default();
+        declarations.merge(p3);
+        declarations.merge(p2);
+        declarations.merge(p1);
+        let metrics = serde_json::json!({
+            "declaration_build_ms": started.elapsed().as_secs_f64() * 1000.0,
+            "p3_pss_kib": p3_pss, "p2_pss_kib": p2_pss, "p1_pss_kib": p1_pss,
+            "declaration_pss_kib": pss_kib(),
+            "declaration_types": declarations.types.len(),
+            "declaration_fields": declarations.fields.len(),
+            "declaration_db_sets": declarations.db_sets.len(),
+            "io": io_delta(&io_before, &io_snapshot()),
+        });
+        (declarations, metrics)
+    }
+
+    fn compact_catalog(root: &std::path::Path) -> SqlCatalog {
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
+        SqlCatalog::from_sources(&[
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
+                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
+                false,
+                "excluded_variant".to_owned(),
+            ),
+            (
+                "DB/Views/EmployeeBaseViews.sql".to_owned(),
+                read("DB/Views/EmployeeBaseViews.sql"),
+                true,
+                "selected_source_variant".to_owned(),
+            ),
+        ])
+    }
+
+    fn candidate_hash(items: &[CandidateItem]) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for item in items {
+            item.path.hash(&mut hasher);
+            item.start_line.hash(&mut hasher);
+            item.end_line.hash(&mut hasher);
+            item.score.hash(&mut hasher);
+            item.reason.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    fn candidate_rank(
+        items: &[CandidateItem],
+        path: &str,
+        start: usize,
+        end: usize,
+    ) -> Option<usize> {
+        items.iter().position(|item| {
+            item.path == path && ranges_overlap(item.start_line, item.end_line, start, end)
+        })
+    }
+
+    fn add_coverage_totals(
+        totals: &mut BTreeMap<&str, usize>,
+        items: &[CandidateItem],
+        gold: &[(String, usize, usize)],
+    ) {
+        for (budget, value) in [
+            ("10", covered(&items[..items.len().min(10)], gold)),
+            ("50", covered(&items[..items.len().min(50)], gold)),
+            ("100", covered(&items[..items.len().min(100)], gold)),
+            ("250", covered(&items[..items.len().min(250)], gold)),
+            ("500", covered(&items[..items.len().min(500)], gold)),
+        ] {
+            *totals.entry(budget).or_insert(0) += value;
+        }
+    }
 
     fn status_kib(key: &str) -> usize {
         std::fs::read_to_string("/proc/self/status")
@@ -2156,6 +2377,25 @@ mod h7_e1r_compact {
             })
             .unwrap_or(0)
     }
+    fn counts(project: &ProjectFacts) -> serde_json::Value {
+        serde_json::json!({
+            "files": project.files.len(), "types": project.types.len(), "methods": project.methods.len(),
+            "fields": project.fields.len(), "db_sets": project.db_sets.len(),
+            "assignments": project.assignments.len(), "invocations": project.invocations.len(),
+            "saves": project.saves.len(),
+        })
+    }
+    fn sample(label: &str, start: Instant, project: &ProjectFacts) -> serde_json::Value {
+        serde_json::json!({
+            "project": label,
+            "parse_ms": start.elapsed().as_secs_f64() * 1000.0,
+            "counts": counts(project),
+            "pss_kib": pss_kib(),
+            "rss_kib": status_kib("VmRSS:"),
+            "rss_hwm_kib": status_kib("VmHWM:"),
+        })
+    }
+
     fn io_snapshot() -> BTreeMap<String, u64> {
         std::fs::read_to_string("/proc/self/io")
             .ok()
@@ -2206,73 +2446,13 @@ mod h7_e1r_compact {
         let b0 = read_json("benchmarks/rag-impact/results/b0-official.json");
         let dev = read_json("benchmarks/rag-impact/cases/dev.json");
         let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
-        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
-        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
-        for file in corpus["files"].as_array().expect("files") {
-            let Some(project) = file["project"].as_str() else {
-                continue;
-            };
-            if file["kind"].as_str() != Some("cs_compile") {
-                continue;
-            }
-            let path = file["path"].as_str().expect("path").to_owned();
-            by_project
-                .entry(project.to_owned())
-                .or_default()
-                .push((path.clone(), read(&path)));
-        }
-        let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
-        let phase_start = std::time::Instant::now();
+        let by_project = h7_resource_profile::load_project_files(&root, &corpus);
+        let (declarations, declaration_metrics) = build_compact_declarations(&root, &by_project);
+        let catalog = compact_catalog(&root);
+        let phase_start = Instant::now();
         let io_before = io_snapshot();
-        let p3 = build_declaration_index(
-            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
-            by_project.get("P3").expect("P3"),
-        );
-        let p3_pss = pss_kib();
-        let p2 = build_declaration_index(
-            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
-            by_project.get("P2").expect("P2"),
-        );
-        let p2_pss = pss_kib();
-        let p1 = build_declaration_index(
-            &identity("Webs/HRM/HRM.csproj"),
-            by_project.get("P1").expect("P1"),
-        );
-        let p1_pss = pss_kib();
-        let mut declarations = ProjectDeclarations::default();
-        declarations.merge(p3);
-        declarations.merge(p2);
-        declarations.merge(p1);
-        let declaration_ms = phase_start.elapsed().as_secs_f64() * 1000.0;
-        let declaration_pss = pss_kib();
-        let catalog = SqlCatalog::from_sources(&[
-            (
-                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
-                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
-                true,
-                "selected_source_variant".to_owned(),
-            ),
-            (
-                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
-                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
-                false,
-                "excluded_variant".to_owned(),
-            ),
-            (
-                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
-                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
-                false,
-                "excluded_variant".to_owned(),
-            ),
-            (
-                "DB/Views/EmployeeBaseViews.sql".to_owned(),
-                read("DB/Views/EmployeeBaseViews.sql"),
-                true,
-                "selected_source_variant".to_owned(),
-            ),
-        ]);
         let all_files: Vec<(String, String)> = by_project.values().flatten().cloned().collect();
-        let identity_p1 = identity("Webs/HRM/HRM.csproj");
+        let identity_p1 = ProjectIdentity::from_csproj(&root.join("Webs/HRM/HRM.csproj"));
         let mut rows = Vec::new();
         let mut totals = BTreeMap::new();
         for case in dev["cases"].as_array().expect("cases") {
@@ -2292,73 +2472,28 @@ mod h7_e1r_compact {
                 .iter()
                 .find(|entry| entry["id"] == id)
                 .expect("case");
-            let query = case["question"].as_str().unwrap_or_default();
-            let mut seeds = BTreeSet::new();
-            for call in b0_case["calls"].as_array().into_iter().flatten() {
-                for unit in call["units"].as_array().into_iter().flatten() {
-                    let path = unit["path"].as_str().unwrap_or_default();
-                    let start = unit["start_line"].as_u64().unwrap_or(0) as usize;
-                    let end = unit["end_line"].as_u64().unwrap_or(0) as usize;
-                    if !path.is_empty() && start > 0 {
-                        seeds.insert((path.to_owned(), start, end));
-                    }
-                }
-            }
-            let seeds: Vec<Seed> = seeds
-                .into_iter()
-                .map(|(path, start_line, end_line)| Seed {
-                    path,
-                    start_line,
-                    end_line,
-                })
-                .collect();
+            let seeds = b0_seeds(b0_case);
             let anchor_paths: BTreeSet<String> =
                 seeds.iter().map(|seed| seed.path.clone()).collect();
-            let anchor_start = std::time::Instant::now();
+            let io_case_before = io_snapshot();
+            let anchor_start = Instant::now();
             let anchor_pss_before = pss_kib();
             let project =
                 parse_anchor_facts(&identity_p1, &all_files, &anchor_paths, &declarations);
             let anchor_ms = anchor_start.elapsed().as_secs_f64() * 1000.0;
             let anchor_pss = pss_kib();
-            let mut gold = Vec::new();
-            for reference in case["source_refs"].as_array().into_iter().flatten() {
-                let path = reference["path"].as_str().unwrap_or_default().to_owned();
-                for span in reference["spans"].as_array().into_iter().flatten() {
-                    if let (Some(start), Some(end)) =
-                        (span["start_line"].as_u64(), span["end_line"].as_u64())
-                    {
-                        gold.push((path.clone(), start as usize, end as usize));
-                    }
-                }
-            }
+            let gold = h7_resource_profile::gold_spans(case);
+            let query = case["question"].as_str().unwrap_or_default();
             let evaluate = |closure: bool| {
-                let mut diagnostics = ClosureDiagnostics::default();
-                let mut items = expand_with_declarations(
+                h7_resource_profile::evaluate_declared(
                     &project,
                     &declarations,
                     &catalog,
                     &seeds,
                     query,
-                    500,
                     closure,
-                    &mut diagnostics,
-                );
-                items.sort_by(|left, right| {
-                    right
-                        .score
-                        .cmp(&left.score)
-                        .then_with(|| left.path.cmp(&right.path))
-                        .then_with(|| left.start_line.cmp(&right.start_line))
-                        .then_with(|| left.end_line.cmp(&right.end_line))
-                });
-                items.dedup_by(|left, right| {
-                    left.path == right.path
-                        && left.start_line == right.start_line
-                        && left.end_line == right.end_line
-                });
-                (items, diagnostics)
+                )
             };
-            let io_case_before = io_snapshot();
             let off_start = std::time::Instant::now();
             let (off, _off_diag) = evaluate(false);
             let off_ms = off_start.elapsed().as_secs_f64() * 1000.0;
@@ -2369,25 +2504,12 @@ mod h7_e1r_compact {
             let at = |items: &[CandidateItem], budget: usize| {
                 covered(&items[..items.len().min(budget)], &gold)
             };
-            let rank = |items: &[CandidateItem], path: &str, start: usize, end: usize| {
-                items.iter().position(|item| {
-                    item.path == path && ranges_overlap(item.start_line, item.end_line, start, end)
-                })
-            };
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            for item in &on {
-                item.path.hash(&mut hasher);
-                item.start_line.hash(&mut hasher);
-                item.end_line.hash(&mut hasher);
-                item.score.hash(&mut hasher);
-                item.reason.hash(&mut hasher);
-            }
             let row = serde_json::json!({
                 "id": id, "gold": gold.len(),
                 "coverage": {"10": at(&on,10), "50": at(&on,50), "100": at(&on,100), "250": at(&on,250), "500": at(&on,500)},
                 "refs_off": {"10": at(&off,10), "50": at(&off,50), "100": at(&off,100), "250": at(&off,250), "500": at(&off,500)},
-                "ranks_on": gold.iter().map(|(path,start,end)| rank(&on,path,*start,*end)).collect::<Vec<_>>(),
-                "ranks_off": gold.iter().map(|(path,start,end)| rank(&off,path,*start,*end)).collect::<Vec<_>>(),
+                "ranks_on": gold.iter().map(|(path,start,end)| candidate_rank(&on,path,*start,*end)).collect::<Vec<_>>(),
+                "ranks_off": gold.iter().map(|(path,start,end)| candidate_rank(&off,path,*start,*end)).collect::<Vec<_>>(),
                 "candidates": on.len(), "closure_items": on_diag.closure_items,
                 "diagnostics": on_diag,
                 "wall_off_ms": off_ms, "wall_on_ms": on_ms,
@@ -2396,17 +2518,9 @@ mod h7_e1r_compact {
                 "anchor_pss_before_kib": anchor_pss_before,
                 "anchor_pss_after_kib": anchor_pss,
                 "io_case": io_case,
-                "closure_hash": format!("{:016x}", hasher.finish()),
+                "closure_hash": format!("{:016x}", candidate_hash(&on)),
             });
-            for (budget, value) in [
-                ("10", at(&on, 10)),
-                ("50", at(&on, 50)),
-                ("100", at(&on, 100)),
-                ("250", at(&on, 250)),
-                ("500", at(&on, 500)),
-            ] {
-                *totals.entry(budget).or_insert(0) += value;
-            }
+            add_coverage_totals(&mut totals, &on, &gold);
             rows.push(row);
         }
         let io_phase = io_delta(&io_before, &io_snapshot());
@@ -2417,12 +2531,7 @@ mod h7_e1r_compact {
             .filter_map(|file| file["bytes"].as_u64())
             .sum();
         let phase = serde_json::json!({
-            "declaration_build_ms": declaration_ms,
-            "p3_pss_kib": p3_pss, "p2_pss_kib": p2_pss, "p1_pss_kib": p1_pss,
-            "declaration_pss_kib": declaration_pss,
-            "declaration_types": declarations.types.len(),
-            "declaration_fields": declarations.fields.len(),
-            "declaration_db_sets": declarations.db_sets.len(),
+            "phase": declaration_metrics,
             "io": io_phase, "source_bytes": source_bytes,
             "rss_hwm_kib": status_kib("VmHWM:"), "pss_end_kib": pss_kib(),
             "total_ms": phase_start.elapsed().as_secs_f64() * 1000.0,
@@ -2451,64 +2560,11 @@ mod h7_e1r_compact {
         let cases = read_json(&cases_path);
         let anchors = read_json(&anchors_path);
         let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
-        let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("source");
-        let mut by_project: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
-        for file in corpus["files"].as_array().expect("files") {
-            let Some(project) = file["project"].as_str() else {
-                continue;
-            };
-            if file["kind"].as_str() != Some("cs_compile") {
-                continue;
-            }
-            let path = file["path"].as_str().expect("path").to_owned();
-            by_project
-                .entry(project.to_owned())
-                .or_default()
-                .push((path.clone(), read(&path)));
-        }
-        let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
-        let mut declarations = ProjectDeclarations::default();
-        declarations.merge(build_declaration_index(
-            &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
-            by_project.get("P3").expect("P3"),
-        ));
-        declarations.merge(build_declaration_index(
-            &identity("Services/HRIS/Service.Core/Service.Core.csproj"),
-            by_project.get("P2").expect("P2"),
-        ));
-        declarations.merge(build_declaration_index(
-            &identity("Webs/HRM/HRM.csproj"),
-            by_project.get("P1").expect("P1"),
-        ));
+        let by_project = h7_resource_profile::load_project_files(&root, &corpus);
+        let (declarations, _) = build_compact_declarations(&root, &by_project);
         let all_files: Vec<(String, String)> = by_project.values().flatten().cloned().collect();
-
-        let catalog = SqlCatalog::from_sources(&[
-            (
-                "DB/Store/sp_UpdateOrgTotalEmployee.sql".to_owned(),
-                read("DB/Store/sp_UpdateOrgTotalEmployee.sql"),
-                true,
-                "selected_source_variant".to_owned(),
-            ),
-            (
-                "DB/Store/sp_UpdateOrgTotalEmployee_old.sql".to_owned(),
-                read("DB/Store/sp_UpdateOrgTotalEmployee_old.sql"),
-                false,
-                "excluded_variant".to_owned(),
-            ),
-            (
-                "DB/Store/sp_UpdateOrgTotalEmployee_old1.sql".to_owned(),
-                read("DB/Store/sp_UpdateOrgTotalEmployee_old1.sql"),
-                false,
-                "excluded_variant".to_owned(),
-            ),
-            (
-                "DB/Views/EmployeeBaseViews.sql".to_owned(),
-                read("DB/Views/EmployeeBaseViews.sql"),
-                true,
-                "selected_source_variant".to_owned(),
-            ),
-        ]);
-        let project_identity = identity("Webs/HRM/HRM.csproj");
+        let catalog = compact_catalog(&root);
+        let project_identity = ProjectIdentity::from_csproj(&root.join("Webs/HRM/HRM.csproj"));
         let by_id: BTreeMap<String, &serde_json::Value> = anchors["cases"]
             .as_array()
             .expect("anchors")
@@ -2524,84 +2580,30 @@ mod h7_e1r_compact {
             let Some(anchor) = by_id.get(id) else {
                 continue;
             };
-            let seeds: Vec<Seed> = anchor["seeds"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|unit| {
-                    Some(Seed {
-                        path: unit["path"].as_str()?.to_owned(),
-                        start_line: unit["start_line"].as_u64()? as usize,
-                        end_line: unit["end_line"].as_u64()? as usize,
-                    })
-                })
-                .collect();
+            let seeds = h7_resource_profile::anchor_seeds(anchor);
             let anchor_paths: BTreeSet<String> =
                 seeds.iter().map(|seed| seed.path.clone()).collect();
             let project =
                 parse_anchor_facts(&project_identity, &all_files, &anchor_paths, &declarations);
             let query = case["question"].as_str().unwrap_or_default();
-            let mut gold = Vec::new();
-            for reference in case["source_refs"].as_array().into_iter().flatten() {
-                let path = reference["path"].as_str().unwrap_or_default().to_owned();
-                for span in reference["spans"].as_array().into_iter().flatten() {
-                    if let (Some(start), Some(end)) =
-                        (span["start_line"].as_u64(), span["end_line"].as_u64())
-                    {
-                        gold.push((path.clone(), start as usize, end as usize));
-                    }
-                }
-            }
+            let gold = h7_resource_profile::gold_spans(case);
             let evaluate = |closure: bool| {
-                let mut diagnostics = ClosureDiagnostics::default();
-                let mut items = expand_with_declarations(
+                h7_resource_profile::evaluate_declared(
                     &project,
                     &declarations,
                     &catalog,
                     &seeds,
                     query,
-                    500,
                     closure,
-                    &mut diagnostics,
-                );
-                items.sort_by(|left, right| {
-                    right
-                        .score
-                        .cmp(&left.score)
-                        .then_with(|| left.path.cmp(&right.path))
-                        .then_with(|| left.start_line.cmp(&right.start_line))
-                        .then_with(|| left.end_line.cmp(&right.end_line))
-                });
-                items.dedup_by(|left, right| {
-                    left.path == right.path
-                        && left.start_line == right.start_line
-                        && left.end_line == right.end_line
-                });
-                (items, diagnostics)
+                )
             };
             let (on, on_diag) = evaluate(true);
             let (off, _) = evaluate(false);
             let at = |items: &[CandidateItem], budget: usize| {
                 covered(&items[..items.len().min(budget)], &gold)
             };
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            for item in &on {
-                item.path.hash(&mut hasher);
-                item.start_line.hash(&mut hasher);
-                item.end_line.hash(&mut hasher);
-                item.score.hash(&mut hasher);
-                item.reason.hash(&mut hasher);
-            }
-            let row = serde_json::json!({"id":id,"gold":gold.len(),"coverage":{"10":at(&on,10),"50":at(&on,50),"100":at(&on,100),"250":at(&on,250),"500":at(&on,500)},"refs_off":{"10":at(&off,10),"50":at(&off,50),"100":at(&off,100),"250":at(&off,250),"500":at(&off,500)},"candidates":on.len(),"diagnostics":on_diag,"closure_hash":format!("{:016x}",hasher.finish())});
-            for (budget, value) in [
-                ("10", at(&on, 10)),
-                ("50", at(&on, 50)),
-                ("100", at(&on, 100)),
-                ("250", at(&on, 250)),
-                ("500", at(&on, 500)),
-            ] {
-                *totals.entry(budget).or_insert(0) += value;
-            }
+            let row = serde_json::json!({"id":id,"gold":gold.len(),"coverage":{"10":at(&on,10),"50":at(&on,50),"100":at(&on,100),"250":at(&on,250),"500":at(&on,500)},"refs_off":{"10":at(&off,10),"50":at(&off,50),"100":at(&off,100),"250":at(&off,250),"500":at(&off,500)},"candidates":on.len(),"diagnostics":on_diag,"closure_hash":format!("{:016x}",candidate_hash(&on))});
+            add_coverage_totals(&mut totals, &on, &gold);
             rows.push(row);
         }
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_E1R_COMPACT_EXTERNAL","cases":rows,"totals":totals})).expect("json"));

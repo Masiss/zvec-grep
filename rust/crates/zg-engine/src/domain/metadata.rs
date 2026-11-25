@@ -110,6 +110,7 @@ pub enum Language {
 
 #[allow(dead_code)]
 impl Language {
+    #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::C => "c",
