@@ -24,6 +24,10 @@ use zg_daemon::{DaemonStatus, ListenAddress, McpToolset as DaemonMcpToolset, Ser
 use zg_daemon_protocol::{DaemonCommand, DaemonReply};
 use zg_engine::{EngineError, ZvecGrep, api::context::ContextOptions};
 
+mod build_info {
+    include!(concat!(env!("OUT_DIR"), "/build_info.rs"));
+}
+
 static DAEMON_LOGGING: AtomicBool = AtomicBool::new(false);
 static OUTPUT_OPTIONS: OnceLock<zg_cli::OutputOptions> = OnceLock::new();
 
@@ -141,6 +145,11 @@ fn run() -> Result<ExitCode, Box<dyn Error>> {
         CliPlan::Version => {
             warn();
             writeln!(zg_cli::stdout(), "{}", env!("CARGO_PKG_VERSION"))?;
+            return Ok(ExitCode::SUCCESS);
+        }
+        CliPlan::BuildInfo => {
+            warn();
+            writeln!(zg_cli::stdout(), "{}", build_info::BUILD_INFO)?;
             return Ok(ExitCode::SUCCESS);
         }
         CliPlan::Install(args) if args.upgrade_installed => {
@@ -302,7 +311,7 @@ async fn execute_plan(plan: CliPlan) -> Result<ExitCode, Box<dyn Error>> {
         CliPlan::Server(plan) => execute_server_plan(plan).await,
         CliPlan::Install(args) => execute_install_plan(&args).await,
         CliPlan::Uninstall(args) => zg_cli::execute_uninstall(&args).map_err(Into::into),
-        CliPlan::Help(_) | CliPlan::Version => Ok(()),
+        CliPlan::Help(_) | CliPlan::Version | CliPlan::BuildInfo => Ok(()),
     }?;
     Ok(ExitCode::SUCCESS)
 }
@@ -733,6 +742,16 @@ async fn select_query_index(
             selection.set_provider_credential_available(provider);
             request.api_key = Some(api_key);
         }
+        // An implicit first build has no saved device to resolve Auto against.
+        // Use the portable CPU backend unless the caller explicitly selected a
+        // device; accelerator selection remains an explicit user decision.
+        let implicit_device = if model.local {
+            request
+                .device
+                .unwrap_or(zg_engine::api::index::options::Device::Cpu)
+        } else {
+            zg_engine::api::index::options::Device::Auto
+        };
         let mut index_request = IndexOptions {
             root: Some(root.to_path_buf()),
             embedding: Some(EmbeddingModelSpec {
@@ -740,7 +759,7 @@ async fn select_query_index(
                 revision: None,
                 cache_dir: None,
                 endpoint: None,
-                device: zg_engine::api::index::options::Device::Auto,
+                device: implicit_device,
             }),
             // Query credentials remain temporary during the implicit build.
             runtime_api_key: if model.local {
@@ -749,7 +768,11 @@ async fn select_query_index(
                 request.api_key.clone()
             },
             allow_remote: request.allow_remote,
-            runtime_device: if model.local { request.device } else { None },
+            runtime_device: if model.local {
+                Some(implicit_device)
+            } else {
+                None
+            },
             runtime_model_cache: request.model_cache.clone(),
             embedding_concurrency: request.embedding_concurrency,
             lock_timeout_ms: request.lock_timeout_ms,

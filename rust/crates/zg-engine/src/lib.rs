@@ -30,6 +30,9 @@ use api::{
 
 pub use error::{EngineError, EngineResult, ErrorReport, ErrorSite};
 
+/// Compatibility version of the workspace index contents.
+pub const INDEX_FORMAT_VERSION: u32 = workspace::CURRENT_INDEX_VERSION;
+
 /// Process-level resource counts used by resident daemon diagnostics.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct EngineRuntimeSnapshot {

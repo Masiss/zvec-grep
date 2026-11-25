@@ -23,6 +23,7 @@
       "os": "linux",
       "cpu": "x64",
       "libc": "glibc",
+      "minGlibc": "2.39",
       "binary": "zg",
       "defaultVariant": "cuda",
       "components": [

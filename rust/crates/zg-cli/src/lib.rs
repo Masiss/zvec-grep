@@ -117,6 +117,8 @@ pub enum CommandLine {
     Help(HelpArgs),
     /// Print the installed version.
     Version,
+    /// Print embedded build provenance as JSON.
+    BuildInfo,
 }
 
 #[derive(Debug, Args)]
@@ -731,6 +733,7 @@ pub enum CliPlan {
     Uninstall(UninstallArgs),
     Help(Option<String>),
     Version,
+    BuildInfo,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -945,6 +948,7 @@ impl Cli {
             CommandLine::Server(args) => server_plan(args).map(CliPlan::Server),
             CommandLine::Help(args) => Ok(CliPlan::Help(args.topic)),
             CommandLine::Version => Ok(CliPlan::Version),
+            CommandLine::BuildInfo => Ok(CliPlan::BuildInfo),
             CommandLine::Config(args) => Ok(CliPlan::Config(args)),
             CommandLine::Auth(mut args) => {
                 args.root = Some(resolve_from(&current_dir, args.root.as_deref()));
@@ -989,6 +993,7 @@ pub fn compatibility_warning_for_args(arguments: &[OsString]) -> Option<String> 
         "server" => Some("To manage the server"),
         "help" => Some("To display help"),
         "version" => Some("To display the CLI version"),
+        "build-info" => Some("To display build provenance"),
         _ => return None,
     };
     let parsed =
@@ -1066,6 +1071,19 @@ fn management_option_with_value(text: &str) -> bool {
     )
 }
 
+fn normalize_build_info(
+    arguments: &mut [std::ffi::OsString],
+) -> Result<Vec<std::ffi::OsString>, clap::Error> {
+    if arguments.len() != 2 {
+        return Err(clap::Error::raw(
+            clap::error::ErrorKind::TooManyValues,
+            "--build-info does not accept arguments",
+        ));
+    }
+    arguments[1] = "build-info".into();
+    Ok(arguments.to_vec())
+}
+
 fn normalize_command(mut arguments: Vec<OsString>) -> Result<Vec<OsString>, clap::Error> {
     let Some(first) = arguments.get(1).cloned() else {
         return Ok(arguments);
@@ -1093,6 +1111,7 @@ fn normalize_command(mut arguments: Vec<OsString>) -> Result<Vec<OsString>, clap
             arguments.push(topic.into());
             return Ok(arguments);
         }
+        Some("--build-info") => return normalize_build_info(&mut arguments),
         Some("-v" | "--version") => {
             if arguments.len() != 2 {
                 return Err(clap::Error::raw(
@@ -1952,6 +1971,7 @@ mod tests {
             "uninstall",
             "help",
             "version",
+            "build-info",
         ] {
             let CliPlan::Query { request, .. } = plan(&["zg", word, "second", "--limit", "3"])
             else {
@@ -2345,6 +2365,7 @@ mod tests {
             ("server", "To manage the server"),
             ("help", "To display help"),
             ("version", "To display the CLI version"),
+            ("build-info", "To display build provenance"),
         ] {
             for (suffix, tail) in [
                 (vec![], ""),
@@ -2447,6 +2468,8 @@ mod tests {
             assert!(matches!(plan(&["zg", flag]), CliPlan::Version));
             assert!(Cli::try_parse_from(["zg", flag, "extra"]).is_err());
         }
+        assert!(matches!(plan(&["zg", "--build-info"]), CliPlan::BuildInfo));
+        assert!(Cli::try_parse_from(["zg", "--build-info", "extra"]).is_err());
         for arguments in [
             vec!["zg", "--help="],
             vec!["zg", "--help", "search", "extra"],

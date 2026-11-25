@@ -342,7 +342,11 @@ fn config_merges_settings_and_index_consumes_model_defaults() {
         "potion-code-16m-v2"
     );
     let runtime = &manifest["index"]["descriptor"]["embeddingConfigs"]["local/potion-code-16m-v2"];
-    assert!(runtime.get("device").is_none());
+    assert_eq!(
+        runtime["device"],
+        json!("cpu"),
+        "index refresh persists the concrete execution device"
+    );
     assert_eq!(runtime["cacheDir"], json!(cache));
     assert!(
         !fixture
@@ -594,7 +598,7 @@ fn explicit_device_overrides_environment_and_saved_preferences_do_not() {
 }
 
 #[test]
-fn local_model_preferences_save_only_explicit_index_options() {
+fn local_model_preferences_persist_execution_device_and_explicit_index_options() {
     let fixture = Fixture::new();
     fixture.write_config(&json!({
         "version": 1,
@@ -614,7 +618,8 @@ fn local_model_preferences_save_only_explicit_index_options() {
     let original = manifest();
     assert_eq!(
         original["index"]["descriptor"]["embeddingConfigs"]["local/potion-code-16m-v2"],
-        json!({})
+        json!({"device": "cpu"}),
+        "the acquired execution device is bound even when it comes from model preferences"
     );
     let saved_cache = fixture.user.path().join("saved-models");
     fixture.success(&[
@@ -656,7 +661,7 @@ fn local_model_preferences_save_only_explicit_index_options() {
     assert_eq!(
         manifest()["index"]["descriptor"]["embeddingConfigs"]["local/potion-code-16m-v2"],
         json!({
-            "device": "auto", "cacheDir": saved_cache
+            "device": "cpu", "cacheDir": saved_cache
         })
     );
     let replacement_cache = fixture.user.path().join("replacement-models");
@@ -671,7 +676,7 @@ fn local_model_preferences_save_only_explicit_index_options() {
     assert_eq!(
         updated["index"]["descriptor"]["embeddingConfigs"]["local/potion-code-16m-v2"],
         json!({
-            "device": "auto", "cacheDir": replacement_cache
+            "device": "cpu", "cacheDir": replacement_cache
         })
     );
     assert_eq!(updated["storageGeneration"], original["storageGeneration"]);

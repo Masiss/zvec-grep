@@ -8,7 +8,8 @@ override the root repository policy.
 
 - This guidance applies to `rust/` and its crates.
 - The maintained fork branch is `work/zg-recovered`, based on the released
-  `rust-v0.3.0-rc.2` (code baseline `289674b`, packaged tip `c2347d5`).
+  `rust-v0.3.0-rc.2` (code baseline `289674b`, packaged tip `c2347d5`). The
+  `0.3.0-rc.3` qualification branch is `work/core-acceptance-20261124`.
   The old personal branches are retired recovery inputs, not implementation
   targets. Historical release tags and upstream comparison refs stay unchanged.
 - Read `rust/docs/branch-recovery-status.md` for active recovery state. Documents
@@ -50,7 +51,9 @@ cargo build -p zg --release
 - The executable package is `zg`; `zg-cli` is its supporting library and building
   that library alone does not verify the CLI executable.
 - The release CLI needs the native `libzvec_c_api.so` next to the binary or under
-  its `$ORIGIN/../lib` runpath. Do not symlink an installed local `zg` directly
+  its `$ORIGIN/../lib` runpath. zvec 0.8.0 embeds the default Jieba dictionary;
+  external dictionary files are an optional compatibility override, not a
+  runtime prerequisite. `zg --build-info` reports frozen provenance. Do not symlink an installed local `zg` directly
   to a disposable `target/` directory; `cargo clean` will break it.
 
 ## Native and storage invariants
@@ -61,9 +64,10 @@ cargo build -p zg --release
 - Preserve the safe finalization design: fragment optimize outside the store
   state lock; directory/entity/file optimize under the lock; durable
   `optimize.pending` and writer-generation debt.
-- Index format is version 2. Incompatible versions require an explicit rebuild;
-  do not add in-place migration without an owner decision and compatibility
-  tests.
+- Workspace index format is version 3 (`INDEX_FORMAT_VERSION`). Version 2 and
+  older indexes require an explicit rebuild; do not add in-place migration or
+  imply downgrade compatibility without an owner decision and tests. The
+  optional embedding-reuse sidecar remains independently version 2.
 - The M2 `reconciliation/` sidecar is additive and optional. Missing, corrupt,
   torn, oversized, incompatible, symlinked, or non-regular sidecars must remain
   non-fatal. Never make sidecar repair a prerequisite for canonical queries.

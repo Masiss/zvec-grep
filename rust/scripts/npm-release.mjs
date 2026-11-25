@@ -311,6 +311,7 @@ async function packPlatform(options) {
         accelerators: bundleDir ? ["cpu", "cuda"]
           : entry.os === "darwin" ? ["cpu", "metal"]
           : entry.os === "win32" ? ["cpu", "directml"] : ["cpu"],
+        ...(entry.minGlibc ? { minGlibc: entry.minGlibc } : {}),
         ...(components.length ? { bundledAccelerators: ["cpu"], pluginManifest: "plugins.json",
           coreId: checksums.coreId } : {}),
       },
@@ -356,8 +357,8 @@ async function packMeta() {
       description: "Native semantic and lexical code search CLI",
       license: "Apache-2.0",
       repository: "https://github.com/zvec-ai/zvec-grep",
-      bin: { zg: "bin/zg.exe" },
-      files: ["bin", "install.cjs", "plugins.cjs", "platforms.json", "README.md", "LICENSE"],
+      bin: { zg: "launcher/zg.js" },
+      files: ["bin", "launcher", "install.cjs", "plugins.cjs", "platforms.json", "README.md", "LICENSE"],
       scripts: { postinstall: "node install.cjs" },
       engines: { node: manifest.nodeEngine },
       optionalDependencies,

@@ -477,16 +477,16 @@ fn fragments_schema(dimension: u32, metric: MetricType) -> EngineResult<Collecti
         FieldSchema::new("text", DataType::String, false, 0),
         "define full-text field",
     )?;
-    let dictionary = jieba_dict_dir()?;
-    let dictionary = std::path::absolute(&dictionary).unwrap_or(dictionary);
-    let extra_params = serde_json::json!({ "jieba_dict_dir": dictionary });
-    let extra_params = extra_params.to_string();
+    let extra_params = jieba_dict_dir()?.map(|dictionary| {
+        let dictionary = std::path::absolute(&dictionary).unwrap_or(dictionary);
+        serde_json::json!({ "jieba_dict_dir": dictionary }).to_string()
+    });
     native(
         text.set_index_params(&native(
             IndexParams::fts(
                 Some(FTS_CONFIG.tokenizer),
                 Some(FTS_CONFIG.filters),
-                Some(extra_params.as_str()),
+                extra_params.as_deref(),
             ),
             "define full-text index",
         )?),

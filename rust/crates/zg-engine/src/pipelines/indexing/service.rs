@@ -1119,21 +1119,14 @@ fn acquire_model(
         // Auto is only safe for a refresh of an already-device-bound index: it
         // resolves to that index's concrete saved device and cannot relabel a
         // new or unknown-device index. A first build must select explicitly.
-        let requested_auto = options
-            .runtime_device
-            .or(options.device)
-            .or_else(|| options.embedding.as_ref().map(|e| e.device))
-            == Some(Device::Auto);
         let saved = existing_runtime.and_then(|runtime| runtime.device);
-        if requested_auto {
-            let Some(existing_device) = saved.filter(|saved| *saved != Device::Auto) else {
-                return Err(EngineError::invalid_argument(
-                    "Auto device cannot create or relabel an index without a saved execution device",
-                )
-                .with_help("Use an explicit --device cpu, vulkan, cuda, or metal."));
-            };
+        if let Some(existing_device) = saved.filter(|saved| *saved != Device::Auto) {
             device = Some(existing_device);
-        } else if saved != Some(Device::Auto) {
+        } else if options.device.is_none() && options.runtime_device.is_none() {
+            // No device was selected. Auto is the catalog's placeholder, not an
+            // explicit accelerator request; bind a new index to portable CPU.
+            device = Some(Device::Cpu);
+        } else {
             return Err(EngineError::invalid_argument(
                 "Auto device cannot create or relabel an index without a saved execution device",
             )

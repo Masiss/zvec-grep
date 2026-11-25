@@ -778,12 +778,12 @@ fn incompatible_index_errors_are_actionable_without_rebuilding_existing_data() {
             assert!(stderr.contains("zg --index --rebuild"), "{stderr}");
             if presentation == "debug" {
                 assert!(stderr.contains("unsupported index version 1"), "{stderr}");
-                assert!(stderr.contains("expected 2"), "{stderr}");
+                assert!(stderr.contains("expected 3"), "{stderr}");
                 assert!(stderr.contains("Error location:"), "{stderr}");
             } else {
                 for internal_detail in [
                     "unsupported index version",
-                    "expected 2",
+                    "expected 3",
                     "manifest.json",
                     "Error location:",
                     "ZG.ENGINE.",
@@ -1160,7 +1160,10 @@ fn implicit_build_does_not_persist_local_overrides_or_query_credentials() {
         .expect("manifest JSON");
         let runtime =
             &manifest["index"]["descriptor"]["embeddingConfigs"]["local/potion-code-16m-v2"];
-        assert!(runtime.get("device").is_none());
+        assert_eq!(
+            runtime["device"], "cpu",
+            "implicit builds bind the portable CPU backend"
+        );
         assert!(runtime.get("cacheDir").is_none());
         assert!(runtime.get("apiKey").is_none());
         assert!(runtime.get("endpoint").is_none());
@@ -1394,10 +1397,10 @@ fn remote_authorization_can_return_to_model_selection_without_sending_data() {
         &fs::read(fixture.root.path().join(".zvec-grep/manifest.json")).expect("manifest"),
     )
     .expect("manifest JSON");
-    assert!(
-        manifest["index"]["descriptor"]["embeddingConfigs"]["local/potion-code-16m-v2"]
-            .get("device")
-            .is_none()
+    assert_eq!(
+        manifest["index"]["descriptor"]["embeddingConfigs"]["local/potion-code-16m-v2"]["device"],
+        "cpu",
+        "implicit builds bind the portable CPU backend"
     );
     assert!(!String::from_utf8_lossy(&output.stderr).contains("setup-test-secret"));
     assert_eq!(String::from_utf8_lossy(&output.stdout), "No matches.\n");

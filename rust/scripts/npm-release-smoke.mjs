@@ -65,14 +65,6 @@ export async function smokeInstalledPackage({
   const installedMeta = installedPackageRoot(prefix, manifest.metaPackage);
   const installedPlatform = resolvePlatformRoot(installedMeta, entry);
   const binary = join(installedMeta, "bin", "zg.exe");
-  if (
-    (await sha256File(binary)) !==
-    (await sha256File(join(installedPlatform, "bin", entry.binary)))
-  ) {
-    throw new Error(
-      "materialized meta binary does not match the platform package",
-    );
-  }
   await rm(fixtureRoot, { recursive: true, force: true });
   await mkdir(fixtureRoot, { recursive: true });
   await writeFile(
@@ -91,6 +83,39 @@ export async function smokeInstalledPackage({
     })).stdout;
   if ((await execute(["--version"])).trim() !== version) {
     throw new Error(`installed zg version does not match ${version}`);
+  }
+  if ((await sha256File(binary)) !== (await sha256File(join(installedPlatform, "bin", entry.binary)))) {
+    throw new Error("materialized meta binary does not match the platform package");
+  }
+  const provenance = JSON.parse(await execute(["--build-info"]));
+  const nativeLibrary = {
+    linux: "libzvec_c_api.so",
+    darwin: "libzvec_c_api.dylib",
+    win32: "zvec_c_api.dll",
+  }[entry.os];
+  const ortLibrary = {
+    linux: "libonnxruntime.so.1",
+    darwin: "libonnxruntime.dylib",
+    win32: "onnxruntime.dll",
+  }[entry.os];
+  if (
+    provenance.schemaVersion !== 1 || provenance.version !== version ||
+    provenance.target !== {
+      "darwin-arm64": "aarch64-apple-darwin",
+      "darwin-x64": "x86_64-apple-darwin",
+      "linux-x64-gnu": "x86_64-unknown-linux-gnu",
+      "linux-arm64-gnu": "aarch64-unknown-linux-gnu",
+      "win32-x64-msvc": "x86_64-pc-windows-msvc",
+      "win32-arm64-msvc": "aarch64-pc-windows-msvc",
+    }[entry.target] || provenance.indexFormatVersion !== 3 ||
+    provenance.zvecVersion !== "0.8.0" || provenance.jieba !== "embedded-in-zvec-0.8" ||
+    provenance.git?.dirty !== false || !/^[0-9a-f]{40}$/.test(provenance.git?.commit ?? "") ||
+    !/^[0-9a-f]{64}$/.test(provenance.lockfileSha256 ?? "") ||
+    provenance.native?.zvec?.library !== nativeLibrary ||
+    provenance.native?.zvec?.sha256 !== await sha256File(join(installedPlatform, "lib", nativeLibrary)) ||
+    provenance.native?.onnxruntime?.sha256 !== await sha256File(join(installedPlatform, "lib", ortLibrary))
+  ) {
+    throw new Error("installed build provenance is incomplete or does not match the payload");
   }
   if (
     !(await execute([
@@ -157,8 +182,8 @@ function runArtifactNpm(command, args, options) {
   });
 }
 
-async function withArtifactRegistry({ release, entry, tarballRoot, evidence }, operation) {
-  const components = release.packages.filter((pkg) =>
+async function withArtifactRegistry({ release, entry, tarballRoot, evidence, allPackages = false }, operation) {
+  const components = allPackages ? release.packages : release.packages.filter((pkg) =>
     entry.components?.some((component) => component.package === pkg.name));
   const requests = [];
   const server = createHttpServer((request, response) => {
@@ -167,7 +192,8 @@ async function withArtifactRegistry({ release, entry, tarballRoot, evidence }, o
     catch { response.writeHead(400).end(); return; }
     const pkg = components.find((candidate) =>
       path === `/${candidate.name}` || path === `/tarballs/${candidate.file}`);
-    requests.push({ path, component: pkg?.name ?? null });
+    requests.push({ path, package: pkg?.name ?? null,
+      component: pkg && entry.components?.some((candidate) => candidate.package === pkg.name) ? pkg.name : null });
     // No proxy/public registry fallback, nor any files outside the release inventory.
     if (!pkg) { response.writeHead(404).end(); return; }
     if (path.startsWith("/tarballs/")) {
@@ -176,11 +202,24 @@ async function withArtifactRegistry({ release, entry, tarballRoot, evidence }, o
       return;
     }
     response.setHeader("Content-Type", "application/json");
-    response.end(JSON.stringify({ name: pkg.name, "dist-tags": { latest: pkg.version }, versions: {
-      [pkg.version]: { name: pkg.name, version: pkg.version, dist: {
-        tarball: `http://127.0.0.1:${server.address().port}/tarballs/${pkg.file}`, integrity: pkg.integrity,
-      } },
-    } }));
+    let packageJson;
+    try {
+      packageJson = JSON.parse(run("tar", ["-xOf", join(tarballRoot, pkg.file), "package/package.json"],
+        { capture: true }));
+    } catch (error) {
+      // Only the Node test runner may inject opaque placeholder tarballs.
+      if (!process.env.NODE_TEST_CONTEXT) throw error;
+      packageJson = { name: pkg.name, version: pkg.version,
+        ...(pkg.target === entry.target ? { os: [entry.os], cpu: [entry.cpu],
+          ...(entry.libc ? { libc: [entry.libc] } : {}) } : {}),
+        ...(pkg.target === "meta" ? { bin: { zg: "launcher/zg.js" },
+          optionalDependencies: { [entry.package]: pkg.version } } : {}) };
+    }
+    const versionMetadata = { ...packageJson, dist: {
+      tarball: `http://127.0.0.1:${server.address().port}/tarballs/${pkg.file}`, integrity: pkg.integrity,
+    } };
+    response.end(JSON.stringify({ ...packageJson, "dist-tags": { latest: pkg.version },
+      versions: { [pkg.version]: versionMetadata } }));
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -293,6 +332,7 @@ export async function installArtifactRelease({
   accelerator = "auto", expectCpu = false, expectCuda = false,
   runNpm = runArtifactNpm, verifyInstalled = verifyInstalledRelease,
 }) {
+  const realNpm = runNpm === runArtifactNpm;
   if (expectCpu && accelerator !== "auto") throw new Error("CPU-host verification must use default auto installation");
   if (expectCuda && (expectCpu || accelerator === "cpu")) throw new Error("CUDA verification conflicts with CPU installation/verification");
   const { entry, tarballs } = await artifactInputs({ manifest, release, tarballRoot, target, accelerator, expectCpu });
@@ -319,16 +359,33 @@ export async function installArtifactRelease({
       "install", "--global", "--prefix", prefix,
       ...(registry ? [`--registry=${registry}`, `--@zvec:registry=${registry}`, "--fetch-retries=0"] : ["--offline"]),
       "--no-audit", "--no-fund", "--ignore-scripts=false", "--foreground-scripts",
-      `--allow-scripts=${tarballs.at(-1)}`, ...tarballs,
+      ...(registry ? [] : [`--allow-scripts=${tarballs.at(-1)}`]), ...tarballs,
     ],
     { env: artifactEnvironment(prefixRoot, accelerator, registry, tarballRoot) },
   );
   if (expectCpu) {
-    await withArtifactRegistry({ release, entry, tarballRoot, evidence: join(prefixRoot, "cpu-downloads.json") },
+    await withArtifactRegistry({ release, entry, tarballRoot, evidence: join(prefixRoot, "cpu-downloads.json"), allPackages: true },
       async (registry, requests) => {
-        await install(registry);
+        // Install only the exact-version meta package. npm must resolve the
+        // host platform optional dependency from the loopback registry.
+        await runNpm("npm", [
+          "install", "--global", "--prefix", prefix,
+          `--registry=${registry}`, `--@zvec:registry=${registry}`, "--fetch-retries=0",
+          "--no-audit", "--no-fund", "--ignore-scripts=false", "--foreground-scripts",
+          `${manifest.metaPackage}@${release.version}`,
+        ], { env: artifactEnvironment(prefixRoot, accelerator, registry, tarballRoot) });
+        if (realNpm && !requests.some((request) => request.path === `/${entry.package}`)) {
+          throw new Error(`Default CPU-host installation did not resolve the platform package: ${JSON.stringify(requests)}`);
+        }
         if (requests.some((request) => request.component)) {
           throw new Error("Default CPU-host installation requested CUDA plugins (including failed attempts)");
+        }
+        if (realNpm) {
+          await runInstalledCli(prefix, ["--version"], {
+            cwd: prefixRoot,
+            env: installedCliEnvironment(prefix, join(prefixRoot, "workspace/home")),
+            timeout: 120_000,
+          });
         }
       });
   } else await install();

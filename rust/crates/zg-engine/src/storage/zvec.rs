@@ -36,10 +36,10 @@ fn is_jieba_dict_dir(path: &Path) -> bool {
 
 /// Resolves the `jieba` dictionary used by the FTS tokenizer.
 ///
-/// The native zvec library does not discover the dictionary on its own. The
-/// engine must pass it per collection, and opening an existing collection needs
-/// the same directory, so the location is resolved from stable process-level
-/// roots rather than the current working directory.
+/// zvec 0.8 embeds the default Jieba dictionary and HMM model. An external
+/// directory is an optional compatibility override for indexes created by older
+/// native libraries; resolve it from stable process-level roots rather than the
+/// current working directory.
 fn resolve_jieba_dict_dir(
     env_dir: Option<&Path>,
     home: Option<&Path>,
@@ -60,7 +60,7 @@ fn resolve_jieba_dict_dir(
     candidates.into_iter().find(|dir| is_jieba_dict_dir(dir))
 }
 
-pub(crate) fn jieba_dict_dir() -> EngineResult<std::path::PathBuf> {
+pub(crate) fn jieba_dict_dir() -> EngineResult<Option<std::path::PathBuf>> {
     let env_dir = std::env::var_os("ZVEC_JIEBA_DICT_DIR").map(std::path::PathBuf::from);
     let home = std::env::var_os("ZVEC_GREP_HOME")
         .map(std::path::PathBuf::from)
@@ -68,13 +68,18 @@ pub(crate) fn jieba_dict_dir() -> EngineResult<std::path::PathBuf> {
             std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".zvec-grep"))
         });
     let executable = std::env::current_exe().ok();
-    if let Some(dir) =
-        resolve_jieba_dict_dir(env_dir.as_deref(), home.as_deref(), executable.as_deref())
+    if let Some(dir) = env_dir.as_deref()
+        && !is_jieba_dict_dir(dir)
     {
-        return Ok(dir);
+        return Err(EngineError::invalid_argument(format!(
+            "ZVEC_JIEBA_DICT_DIR does not contain jieba.dict.utf8 and hmm_model.utf8: {}",
+            dir.display()
+        )));
     }
-    Err(EngineError::invalid_argument(
-        "FTS dictionary (jieba) is not available: set ZVEC_JIEBA_DICT_DIR to a directory containing jieba.dict.utf8 and hmm_model.utf8, or install the dictionary at <ZVEC_GREP_HOME>/jieba_dict",
+    Ok(resolve_jieba_dict_dir(
+        env_dir.as_deref(),
+        home.as_deref(),
+        executable.as_deref(),
     ))
 }
 
@@ -105,18 +110,33 @@ fn actionable_storage_error(error: EngineError) -> EngineError {
 /// defensive read of one stable text field, not a general native-format parser.
 fn persisted_jieba_dict_dir(collection: &Path) -> Option<std::path::PathBuf> {
     let entries = std::fs::read_dir(collection).ok()?;
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if !name.starts_with("manifest.") {
+    let mut manifests = entries
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name();
+            let version = name
+                .to_str()?
+                .strip_prefix("manifest.")?
+                .parse::<u32>()
+                .ok()?;
+            Some((version, entry.path()))
+        })
+        .collect::<Vec<_>>();
+    manifests.sort_by_key(|(version, _)| *version);
+    let marker = b"\"jieba_dict_dir\":";
+    for (_, path) in manifests.into_iter().rev() {
+        let bytes = std::fs::read(path).ok()?;
+        let Some(position) = bytes
+            .windows(marker.len())
+            .position(|window| window == marker)
+        else {
             continue;
+        };
+        let start = position + marker.len();
+        let mut decoder = serde_json::Deserializer::from_slice(&bytes[start..]);
+        if let Ok(value) = <String as serde::Deserialize>::deserialize(&mut decoder) {
+            return Some(std::path::PathBuf::from(value));
         }
-        let bytes = std::fs::read(entry.path()).ok()?;
-        let marker = b"\"jieba_dict_dir\":\"";
-        let start = bytes.windows(marker.len()).position(|w| w == marker)? + marker.len();
-        let end = bytes[start..].iter().position(|byte| *byte == b'"')? + start;
-        let value = std::str::from_utf8(&bytes[start..end]).ok()?;
-        return Some(std::path::PathBuf::from(value));
     }
     None
 }
@@ -136,15 +156,15 @@ pub(super) fn open_fragment_collection(path: &Path, read_only: bool) -> EngineRe
             ));
         }
         None => {
-            // Indexes created before the dictionary was persisted rely on the
-            // environment at open time.
-            if std::env::var_os("ZVEC_JIEBA_DICT_DIR").is_none() {
-                return Err(EngineError::storage_failure(
-                    "this index does not record an FTS dictionary path",
-                )
-                .with_help(
-                    "set ZVEC_JIEBA_DICT_DIR to a directory containing jieba.dict.utf8 and hmm_model.utf8, or rebuild the index",
-                ));
+            // zvec 0.8 uses its embedded defaults. Older indexes can still opt
+            // into an external dictionary through the environment.
+            if let Some(directory) = std::env::var_os("ZVEC_JIEBA_DICT_DIR")
+                && !is_jieba_dict_dir(std::path::Path::new(&directory))
+            {
+                return Err(EngineError::invalid_argument(format!(
+                    "ZVEC_JIEBA_DICT_DIR does not contain jieba.dict.utf8 and hmm_model.utf8: {}",
+                    directory.to_string_lossy()
+                )));
             }
         }
         Some(_) => {}
@@ -460,6 +480,11 @@ mod tests {
     }
 
     #[test]
+    fn missing_optional_dictionary_uses_embedded_native_defaults() {
+        assert_eq!(super::resolve_jieba_dict_dir(None, None, None), None);
+    }
+
+    #[test]
     fn persisted_dictionary_path_is_read_and_validated() {
         let collection = tempfile::tempdir().expect("collection");
         std::fs::write(
@@ -474,6 +499,27 @@ mod tests {
         assert_eq!(
             super::persisted_jieba_dict_dir(&collection.path().join("missing")),
             None
+        );
+    }
+
+    #[test]
+    fn persisted_dictionary_uses_highest_manifest_and_json_escapes() {
+        let collection = tempfile::tempdir().expect("collection");
+        std::fs::write(
+            collection.path().join("manifest.1"),
+            b"text\x00\"jieba_dict_dir\":\"/old\"\x00",
+        )
+        .expect("old manifest");
+        let path = std::path::PathBuf::from("/tmp/dict with \"quote\"");
+        let encoded = serde_json::json!({ "jieba_dict_dir": path }).to_string();
+        std::fs::write(
+            collection.path().join("manifest.3"),
+            format!("text\x00{encoded}\x00"),
+        )
+        .expect("new manifest");
+        assert_eq!(
+            super::persisted_jieba_dict_dir(collection.path()),
+            Some(path)
         );
     }
 

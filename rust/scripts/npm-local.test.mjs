@@ -271,6 +271,7 @@ test("maps supported native npm targets", () => {
       os: "linux",
       cpu: "x64",
       libc: "glibc",
+      minGlibc: "2.39",
       binary: "zg",
       defaultVariant: "cuda",
       target: "linux-x64-gnu",

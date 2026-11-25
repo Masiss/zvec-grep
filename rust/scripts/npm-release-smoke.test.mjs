@@ -21,6 +21,8 @@ const release = {
   ],
 };
 
+const fixtureBinary = "#!/bin/sh\necho 0.0.1\n";
+
 async function artifactFixture(t, withComponents = false, componentTarget = "linux-x64-gnu") {
   const root = await mkdtemp(join(tmpdir(), "zg-artifact-smoke-"));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -57,9 +59,9 @@ async function installedArtifact(fixture, prefix, variant = defaultReleaseVarian
     await writeFile(join(root, file), content);
   };
   const binary = `bin/${fixture.entry.binary}`;
-  await write(directory, binary, "fixture-executable");
+  await write(directory, binary, fixtureBinary);
   await write(directory, "lib/base-library", "base");
-  const files = { [binary]: checksum("fixture-executable"), "lib/base-library": checksum("base") };
+  const files = { [binary]: checksum(fixtureBinary), "lib/base-library": checksum("base") };
   const external = new Map();
   const pinned = [];
   for (const component of components) {
@@ -145,8 +147,8 @@ test("the shared installer uses real offline npm postinstall without running the
   await copyFile(new URL("../npm/meta/plugins.cjs", import.meta.url), join(metaRoot, "plugins.cjs"));
   await writeFile(join(metaRoot, "platforms.json"), JSON.stringify([fixture.entry]));
   await writeFile(join(metaRoot, "package.json"), JSON.stringify({ name: manifest.metaPackage,
-    version: fixture.release.version, scripts: { postinstall: "node install.cjs" },
-    optionalDependencies: { [fixture.entry.package]: fixture.release.version } }));
+    version: fixture.release.version, bin: { zg: "launcher/zg.js" },
+    scripts: { postinstall: "node install.cjs" }, optionalDependencies: { [fixture.entry.package]: fixture.release.version } }));
   for (const pkg of fixture.release.packages) {
     const staging = join(fixture.tarballRoot, "packing", pkg.name.replaceAll("/", "-"));
     await cp(installedPackageRoot(source, pkg.name), join(staging, "package"), { recursive: true });
@@ -156,7 +158,7 @@ test("the shared installer uses real offline npm postinstall without running the
   }
   const result = await installArtifactRelease(fixture);
   // This is deliberately not an executable: installation must not invoke it.
-  assert.equal(await readFile(join(result.bundle, "bin/zg.exe"), "utf8"), "fixture-executable");
+  assert.equal(await readFile(join(result.bundle, "bin/zg.exe"), "utf8"), fixtureBinary);
   const report = JSON.parse(await readFile(join(fixture.prefixRoot, "installation.json"), "utf8"));
   assert.deepEqual(report.components, []);
   for (const pkg of fixture.release.packages) assert.equal(await sha256File(join(fixture.tarballRoot, pkg.file)), pkg.sha256);
@@ -173,13 +175,15 @@ async function optionalArtifactFixture(t, componentTarget) {
   await rm(join(metaRoot, "lib"), { recursive: true });
   await rm(join(metaRoot, "native-install.json"));
   await writeFile(join(metaRoot, "bin/zg.exe"), "uninstalled placeholder");
-  for (const file of ["install.cjs", "plugins.cjs"]) {
-    await copyFile(new URL(`../npm/meta/${file}`, import.meta.url), join(metaRoot, file));
+  for (const file of ["install.cjs", "plugins.cjs", "launcher/zg.js"]) {
+    const destination = join(metaRoot, file);
+    await mkdir(dirname(destination), { recursive: true });
+    await copyFile(new URL(`../npm/meta/${file}`, import.meta.url), destination);
   }
   await writeFile(join(metaRoot, "platforms.json"), JSON.stringify([fixture.entry]));
   await writeFile(join(metaRoot, "package.json"), JSON.stringify({ name: manifest.metaPackage,
-    version: fixture.release.version, scripts: { postinstall: "node install.cjs" },
-    optionalDependencies: { [fixture.entry.package]: fixture.release.version } }));
+    version: fixture.release.version, bin: { zg: "launcher/zg.js" },
+    scripts: { postinstall: "node install.cjs" }, optionalDependencies: { [fixture.entry.package]: fixture.release.version } }));
   for (const name of [fixture.entry.package, manifest.metaPackage]) {
     await packInstalledArtifact(fixture, source, fixture.release.packages.find((pkg) => pkg.name === name));
   }
@@ -218,7 +222,7 @@ for (const target of ["linux-x64-gnu", "win32-x64-msvc"]) {
     const rebuilt = await rebuildArtifactRelease(fixture);
     assert.equal(rebuilt.bundle, installed.bundle);
     assert.equal(await readFile(join(rebuilt.bundle, "same-installation"), "utf8"), "must survive rebuild");
-    assert.equal(await readFile(join(rebuilt.bundle, "bin/zg.exe"), "utf8"), "fixture-executable");
+    assert.equal(await readFile(join(rebuilt.bundle, "bin/zg.exe"), "utf8"), fixtureBinary);
     const after = JSON.parse(await readFile(join(fixture.prefixRoot, "installation.json"), "utf8"));
     assert.equal(after.operation, "rebuild");
     assert.equal(after.coreId, before.coreId);
@@ -311,7 +315,7 @@ test("successful npm rebuild exit without fetching the real components is not ac
   }), /did not fetch this run's CUDA component/);
   const evidence = JSON.parse(await readFile(join(fixture.prefixRoot, "rebuild-downloads.json"), "utf8"));
   assert.equal(evidence.cudaRequests, 0);
-  assert.equal(await readFile(join(installed.bundle, "bin/zg.exe"), "utf8"), "fixture-executable");
+  assert.equal(await readFile(join(installed.bundle, "bin/zg.exe"), "utf8"), fixtureBinary);
 });
 
 test("rebuild still verifies the installed core after every archive has been fetched", async (t) => {

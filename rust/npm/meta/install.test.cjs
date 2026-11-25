@@ -118,8 +118,15 @@ test("rejects native files that are not covered by the checksum manifest", () =>
   }
 });
 
-test("selects one published platform and rejects unsupported libc", () => {
+test("selects one published platform and rejects unsupported libc or old glibc", () => {
   assert.equal(selectPlatform([entry], "darwin", "arm64"), entry);
+  const linux = { package: "@zvec/zvec-grep-linux-x64-gnu", os: "linux", cpu: "x64",
+    libc: "glibc", minGlibc: "2.39", binary: "zg" };
+  assert.equal(selectPlatform([linux], "linux", "x64", { glibcVersionRuntime: "2.39" }), linux);
+  assert.throws(
+    () => selectPlatform([linux], "linux", "x64", { glibcVersionRuntime: "2.38" }),
+    /requires glibc 2.39/,
+  );
   assert.throws(
     () => selectPlatform([entry], "linux", "x64", { glibcVersionRuntime: "2.39" }),
     /does not publish/,

@@ -2251,10 +2251,10 @@ mod h7_e1r_compact {
     fn build_compact_declarations(
         root: &std::path::Path,
         by_project: &BTreeMap<String, Vec<(String, String)>>,
+        started: Instant,
+        io_before: &BTreeMap<String, u64>,
     ) -> (ProjectDeclarations, serde_json::Value) {
         let identity = |csproj: &str| ProjectIdentity::from_csproj(&root.join(csproj));
-        let started = Instant::now();
-        let io_before = io_snapshot();
         let p3 = build_declaration_index(
             &identity("DBContexts/HRIS/DBContext.Core/DBContext.Core.csproj"),
             by_project.get("P3").expect("P3"),
@@ -2281,9 +2281,23 @@ mod h7_e1r_compact {
             "declaration_types": declarations.types.len(),
             "declaration_fields": declarations.fields.len(),
             "declaration_db_sets": declarations.db_sets.len(),
-            "io": io_delta(&io_before, &io_snapshot()),
+            "io": io_delta(io_before, &io_snapshot()),
         });
         (declarations, metrics)
+    }
+
+    fn finish_phase(
+        mut metrics: serde_json::Value,
+        io: &BTreeMap<String, u64>,
+        source_bytes: u64,
+        started: Instant,
+    ) -> serde_json::Value {
+        metrics["io"] = serde_json::json!(io);
+        metrics["source_bytes"] = serde_json::json!(source_bytes);
+        metrics["rss_hwm_kib"] = serde_json::json!(status_kib("VmHWM:"));
+        metrics["pss_end_kib"] = serde_json::json!(pss_kib());
+        metrics["total_ms"] = serde_json::json!(started.elapsed().as_secs_f64() * 1000.0);
+        metrics
     }
 
     fn compact_catalog(root: &std::path::Path) -> SqlCatalog {
@@ -2447,10 +2461,11 @@ mod h7_e1r_compact {
         let dev = read_json("benchmarks/rag-impact/cases/dev.json");
         let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
         let by_project = h7_resource_profile::load_project_files(&root, &corpus);
-        let (declarations, declaration_metrics) = build_compact_declarations(&root, &by_project);
-        let catalog = compact_catalog(&root);
         let phase_start = Instant::now();
         let io_before = io_snapshot();
+        let (declarations, declaration_metrics) =
+            build_compact_declarations(&root, &by_project, phase_start, &io_before);
+        let catalog = compact_catalog(&root);
         let all_files: Vec<(String, String)> = by_project.values().flatten().cloned().collect();
         let identity_p1 = ProjectIdentity::from_csproj(&root.join("Webs/HRM/HRM.csproj"));
         let mut rows = Vec::new();
@@ -2530,12 +2545,7 @@ mod h7_e1r_compact {
             .flatten()
             .filter_map(|file| file["bytes"].as_u64())
             .sum();
-        let phase = serde_json::json!({
-            "phase": declaration_metrics,
-            "io": io_phase, "source_bytes": source_bytes,
-            "rss_hwm_kib": status_kib("VmHWM:"), "pss_end_kib": pss_kib(),
-            "total_ms": phase_start.elapsed().as_secs_f64() * 1000.0,
-        });
+        let phase = finish_phase(declaration_metrics, &io_phase, source_bytes, phase_start);
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":"H7_E1R_COMPACT","cases":rows,"totals":totals,"phase":phase})).expect("json"));
     }
 
@@ -2561,7 +2571,10 @@ mod h7_e1r_compact {
         let anchors = read_json(&anchors_path);
         let root = PathBuf::from(corpus["source_root"].as_str().expect("root"));
         let by_project = h7_resource_profile::load_project_files(&root, &corpus);
-        let (declarations, _) = build_compact_declarations(&root, &by_project);
+        let phase_start = Instant::now();
+        let io_before = io_snapshot();
+        let (declarations, _) =
+            build_compact_declarations(&root, &by_project, phase_start, &io_before);
         let all_files: Vec<(String, String)> = by_project.values().flatten().cloned().collect();
         let catalog = compact_catalog(&root);
         let project_identity = ProjectIdentity::from_csproj(&root.join("Webs/HRM/HRM.csproj"));

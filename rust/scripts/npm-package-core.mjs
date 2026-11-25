@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, readFileSync } from "node:fs";
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
@@ -51,7 +51,8 @@ export async function stageComponentPayload(sourceRoot, destinationRoot, entry, 
 }
 
 export function loadReleaseManifest() {
-  const manifest = JSON.parse(readFileSync(npmManifestPath, "utf8"));
+  const manifestPath = process.env.ZVEC_GREP_NPM_MANIFEST ?? npmManifestPath;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   if (
     manifest.schemaVersion !== 1 ||
     typeof manifest.metaPackage !== "string" ||
@@ -70,6 +71,10 @@ export function loadReleaseManifest() {
       if (typeof entry[field] !== "string" || entry[field].length === 0) {
         throw new Error(`npm platform entry is missing ${field}`);
       }
+    }
+    if (entry.minGlibc !== undefined &&
+        (entry.libc !== "glibc" || !/^\d+\.\d+$/.test(entry.minGlibc))) {
+      throw new Error(`invalid minimum glibc for ${entry.target}`);
     }
     if (
       entry.defaultVariant !== undefined
@@ -326,6 +331,16 @@ export async function stageZvecRuntime(sourceDir, libDir, platform) {
     const destination = join(libDir, file);
     await mkdir(dirname(destination), { recursive: true });
     await copyFile(join(sourceDir, file), destination);
+  }
+  // ORT is loaded dynamically and may live outside the Cargo profile. Package
+  // the exact runtime selected by the build instead of relying on the host.
+  if (process.env.ORT_DYLIB_PATH) {
+    const source = process.env.ORT_DYLIB_PATH;
+    const name = basename(source);
+    const expected = { linux: /^libonnxruntime\.so(?:\.\d+)*$/, darwin: /^libonnxruntime\.dylib$/, win32: /^onnxruntime\.dll$/i }[platform];
+    if (!expected?.test(name)) throw new Error(`unexpected ORT runtime for ${platform}: ${source}`);
+    await copyFile(source, join(libDir, name));
+    files.push(name);
   }
   // Official ORT/DirectML notices travel with the native libraries on CPU
   // targets too. Use a flat allowlist; never recursively copy a build directory.

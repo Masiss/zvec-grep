@@ -57,20 +57,29 @@ Stop at any failed checkpoint; do not label an incomplete candidate qualified.
 
 ## Sol plan-review amendments (mandatory)
 
+- The current Linux x64 CPU build requires **glibc 2.39 or newer** (Ubuntu
+  24.04 baseline). The installer rejects older glibc before payload activation,
+  and the ABI audit enforces the same ceiling across every shipped ELF. The
+  earlier Ubuntu 20.04/glibc 2.31 claim is not supported by this toolchain.
 - Scope the candidate to **Linux x64 GNU CPU** using a separate qualification
   manifest; do not weaken the default multi-platform/CUDA release policy.
 - Qualify installation by asking npm for only the exact-version meta package
   from a loopback registry that also serves the candidate platform package;
   do not pass both tarballs directly and bypass optional-dependency selection.
 - Bind embedded provenance and receipts to commit, dirty state, lockfile,
-  target/toolchain/features, zvec/native hashes, model/dictionary hashes and
-  index format. Audit ELF architecture, RUNPATH, GLIBC/GLIBCXX/CXXABI and all
-  dependencies; then exercise FTS and FP16 through the installed artifact.
+  target/toolchain/features, zvec/native hashes and index format. zvec 0.8.0
+  embeds the default Jieba dictionary/HMM model (verified by absence of the
+  removed legacy dictionary-configuration symbols); no external dictionary
+  payload is shipped. Audit ELF architecture, RUNPATH, GLIBC/GLIBCXX/CXXABI and
+  all dependencies; then exercise FTS and FP16 through the installed artifact.
 - Clear inherited `ZVEC_JIEBA_DICT_DIR` in installed-artifact tests so a user
   environment cannot mask missing payload.
 - Freeze rc.2 and rc.3 tarballs. Test same-prefix upgrade/rollback, a running
   baseline daemon, interruption/missing/corrupt payload, reinstall/uninstall,
   and v2-index refusal without mutation. Never imply in-place index downgrade.
+- npm 11.19 blocks dependency lifecycle scripts by default. The meta package
+  therefore ships a self-healing launcher outside the native payload directory;
+  qualification must install with scripts blocked and materialize on first run.
 - Reserve contingency; cut optional UI/cross-platform/GPU work first.
 
 ## Required Sol review questions

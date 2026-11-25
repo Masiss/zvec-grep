@@ -151,7 +151,8 @@ async function releaseFixture(
               ]),
             ),
           }
-        : { os: [platform.os], cpu: [platform.cpu], ...(platform.libc ? { libc: [platform.libc] } : {}) }),
+        : { os: [platform.os], cpu: [platform.cpu], ...(platform.libc ? { libc: [platform.libc] } : {}),
+            ...(platform.minGlibc ? { zvecGrep: { minGlibc: platform.minGlibc } } : {}) }),
     };
     mutateMetadata?.(platform.target, metadata);
     await writeFile(join(directory, "package.json"), JSON.stringify(metadata));

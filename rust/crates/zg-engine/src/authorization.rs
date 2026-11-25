@@ -711,7 +711,7 @@ mod tests {
             .env_remove("ZVEC_GREP_ENDPOINT");
         // The isolated child replaces HOME, so it cannot inherit the user-level
         // dictionary location. Forward the resolved native FTS prerequisite.
-        if let Ok(dictionary) = crate::storage::zvec::jieba_dict_dir() {
+        if let Ok(Some(dictionary)) = crate::storage::zvec::jieba_dict_dir() {
             command.env("ZVEC_JIEBA_DICT_DIR", dictionary);
         }
         let output = command.output().expect("isolated authorization test");

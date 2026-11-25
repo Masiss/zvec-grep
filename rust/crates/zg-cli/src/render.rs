@@ -370,6 +370,7 @@ Management:
   --uninstall    Remove agent integrations
   --help [topic] Show help for search, a management command, or a topic
   --version      Print the installed version
+  --build-info   Print embedded build provenance as JSON
 
 Bare words such as query, index, and help are literal search text.
 Positional words are joined into one query; repeat --hybrid for separate queries.
@@ -754,7 +755,7 @@ Topics:
   search                             Indexed search and managed ripgrep
   index, status, config, auth         Workspace management
   server, install, uninstall          Server and agent integrations
-  help, version                      Help and version output
+  help, version, build-info          Help, version and provenance output
   models                             Supported embedding models
   file-types                         Supported file types and structural parsing
   environment, env                   Environment variables and precedence";

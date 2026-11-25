@@ -352,7 +352,10 @@ function materialize(options) {
     if (checksums.schemaVersion !== 3) {
       materializeBase(options);
       if (config.mode === "cuda") throw new Error("this native package has no CUDA plugin support");
-      return verifyInstallation(options);
+      const installed = verifyInstallation(options);
+      writeReceipt(metaRoot, { schemaVersion: 1, target: entry.target, version: expectedVersion,
+        coreId: checksums.files[`bin/${entry.binary}`].sha256, components: [] });
+      return installed;
     }
     const manifest = readPlugins(platformRoot, entry, expectedVersion, checksums);
     let installed;
@@ -419,6 +422,17 @@ function selectPlatform(platforms, platform, arch, reportHeader = {}) {
     entry.os === platform
     && entry.cpu === arch
     && (entry.libc === undefined || entry.libc === libc));
+  if (matches.length === 1 && matches[0].minGlibc) {
+    const actual = reportHeader.glibcVersionRuntime;
+    const compare = (left, right) => {
+      const a = left.split(".").map(Number);
+      const b = right.split(".").map(Number);
+      return a[0] - b[0] || a[1] - b[1];
+    };
+    if (typeof actual !== "string" || compare(actual, matches[0].minGlibc) < 0) {
+      throw new Error(`zvec-grep ${matches[0].package} requires glibc ${matches[0].minGlibc} or newer (found ${actual ?? "unknown"})`);
+    }
+  }
   if (matches.length !== 1) {
     const suffix = libc ? `-${libc}` : "";
     throw new Error(`zvec-grep does not publish a native package for ${platform}-${arch}${suffix}`);
@@ -474,23 +488,30 @@ function installPackage(options) {
   return receipt;
 }
 
-function main() {
-  const metaRoot = __dirname;
+function ensureInstalled(metaRoot = __dirname, force = false, agentUpgrade) {
   const packageJson = JSON.parse(readFileSync(join(metaRoot, "package.json"), "utf8"));
   const platforms = JSON.parse(readFileSync(join(metaRoot, "platforms.json"), "utf8"));
   const report = process.report && process.report.getReport();
   const entry = selectPlatform(platforms, process.platform, process.arch, report?.header ?? {});
   const platformRoot = resolvePlatformRoot(metaRoot, entry);
-  installPackage({
-    metaRoot,
-    platformRoot,
-    entry,
-    expectedVersion: packageJson.version,
-  });
+  const options = { metaRoot, platformRoot, entry, expectedVersion: packageJson.version,
+    ...(agentUpgrade ? { agentUpgrade } : {}) };
+  if (!force) {
+    try {
+      verifyInstallation({ ...options, requireCuda: plugins.settings().mode === "cuda" });
+      return;
+    } catch { /* blocked postinstall or damaged payload: verify and repair below */ }
+  }
+  installPackage(options);
+}
+
+function main() {
+  ensureInstalled();
 }
 
 module.exports = {
   installPackage,
+  ensureInstalled,
   upgradeInstalledAgents,
   materialize,
   resolvePlatformRoot,

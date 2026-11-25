@@ -30,7 +30,8 @@ export function installedCliEnvironment(prefix, home, overrides = {}) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (/^(ZVEC_GREP_|ZG_)/.test(key) ||
-        ["ORT_DYLIB_PATH", "GGML_BACKEND_PATH", "LD_LIBRARY_PATH", "LD_PRELOAD",
+        ["ZVEC_JIEBA_DICT_DIR", "ZVEC_LIB_DIR", "ZVEC_NATIVE_LIBRARY",
+          "ORT_DYLIB_PATH", "GGML_BACKEND_PATH", "LD_LIBRARY_PATH", "LD_PRELOAD",
           "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES"].includes(key)) {
       delete env[key];
     }
