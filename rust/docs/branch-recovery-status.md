@@ -3,10 +3,11 @@
 > **Current checkpoint — 2026-11-25:** RC3 has been locally promoted and is the
 > daily runtime. Read
 > [`continuation-20261125-rc3-promotion.md`](continuation-20261125-rc3-promotion.md)
-> first. Maintained branch/tag: `work/zg-recovered` /
-> `rust-v0.3.0-rc.3` @ `6cd4bde`; maintained worktree:
-> `/home/masis/src/zvec-grep-core-20261124`. Plain `zg` is RC3, the primary
-> project index is rebuilt v3, and rollback receipts are retained. The sections
+> first. Canonical branch: `main` (local and origin); main worktree:
+> `/home/masis/src/zvec-grep`; dogfood worktree:
+> `/home/masis/src/zvec-grep-core-20261124` (detached at `main`). Qualified
+> runtime tag remains `rust-v0.3.0-rc.3` @ `6cd4bde`. Plain `zg` is RC3, the
+> primary project index is rebuilt v3, and rollback receipts are retained. The sections
 > below are historical recovery evidence; their old paths, PIDs, format-2 and
 > “not production rollout” statements are superseded by the current checkpoint.
 

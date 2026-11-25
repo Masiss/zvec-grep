@@ -7,12 +7,13 @@ override the root repository policy.
 ## Scope
 
 - This guidance applies to `rust/` and its crates.
-- The maintained fork branch is `work/zg-recovered`, based on the locally
-  promoted `rust-v0.3.0-rc.3` (`6cd4bde`). The maintained worktree is
-  `/home/masis/src/zvec-grep-core-20261124`. Read
-  `rust/docs/continuation-20261125-rc3-promotion.md` first for current runtime,
-  index, rollback and next-session state. Historical release tags and upstream
-  comparison refs stay unchanged.
+- The canonical development branch is `main`, based on the locally promoted
+  `rust-v0.3.0-rc.3` (`6cd4bde`) and the RC3 handoff. The main worktree is
+  `/home/masis/src/zvec-grep`; the dogfood worktree
+  `/home/masis/src/zvec-grep-core-20261124` is detached at canonical `main`.
+  Read `rust/docs/continuation-20261125-rc3-promotion.md` first for current
+  runtime, index, rollback and next-session state. Historical release tags and
+  upstream comparison refs stay unchanged.
 - Read `rust/docs/branch-recovery-status.md` for active recovery state. Documents
   under `rust/docs/archive/v1/` describe the retired 0.7.2-era fork; their PASS,
   installed-state and next-action statements do not qualify this 0.8.0 runtime.

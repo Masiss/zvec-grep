@@ -7,12 +7,14 @@ Read this first for the current maintained/runtime state. It supersedes the
 
 ## Current state
 
-- Maintained branch: `work/zg-recovered`
+- Canonical development branch: `main` (local and origin)
 - Qualified tag: `rust-v0.3.0-rc.3`
 - Qualified commit: `6cd4bdeddef4e8490ca390113edfc7250c56979c`
-- Runtime provenance remains the qualified tag; subsequent maintained commits
-  are documentation-only unless explicitly stated otherwise.
-- Maintained worktree: `/home/masis/src/zvec-grep-core-20261124`
+- Runtime provenance remains the qualified tag; subsequent `main` commits are
+  documentation-only unless explicitly stated otherwise.
+- Main worktree: `/home/masis/src/zvec-grep` on `main`
+- Dogfood worktree: `/home/masis/src/zvec-grep-core-20261124`, detached at
+  canonical `main` (no second maintained branch)
 - Runtime binary: `/home/masis/.local/bin/zg` = `0.3.0-rc.3`
 - Default runtime home: `~/.zvec-grep` → `~/.zvec-grep-dogfood`
 - Legacy runtime home: `~/.zvec-grep-legacy-backup-20261125`
@@ -21,9 +23,11 @@ Read this first for the current maintained/runtime state. It supersedes the
 - Model: `local/potion-code-16m-v2`, CPU, FP16
 - Native runtime: zvec 0.8.0 with embedded Jieba; index format 3
 
-The maintained worktree is clean at this handoff commit. No push,
-publish, upstream synchronization, RAG experiment integration, new feature, or
-model change was performed.
+The two worktrees are clean at this handoff commit. RC3 was promoted locally,
+research branches were archived, and no upstream synchronization, RAG
+implementation integration, engine behavior change, or model change was made.
+See [`repository-consolidation-20261125.md`](repository-consolidation-20261125.md)
+for the branch inventory and disposition.
 
 ## Indexes
 
