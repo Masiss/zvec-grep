@@ -35,6 +35,8 @@ pub fn write_info_with_options(
         theme,
         result.status.as_ref(),
         result.index_status(),
+        result.storage_error.is_some(),
+        result.storage_corrupt(),
     )?;
     writeln!(writer)?;
     write_embedding(
@@ -52,7 +54,29 @@ pub fn write_info_with_options(
             &storage_path(&result.index_path, &result.root),
             terminal,
         ))],
-    )
+    )?;
+    if let Some(error) = &result.storage_error {
+        writeln!(writer)?;
+        let health = if result.storage_corrupt() {
+            format!(
+                "{}; rebuild with `zg --index --rebuild`",
+                theme.danger("native storage failed checksum")
+            )
+        } else {
+            theme.danger("native storage unavailable").to_string()
+        };
+        write_status_field(&mut writer, theme, "Health", &[health])?;
+        if !error.is_empty() {
+            writeln!(writer)?;
+            write_status_field(
+                &mut writer,
+                theme,
+                "Detail",
+                &[human_text(error, terminal).into_owned()],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 /// Writes workspace index status without ANSI colors.
@@ -83,6 +107,8 @@ fn write_coverage(
     theme: StatusTheme,
     stats: Option<&IndexStats>,
     readiness: IndexStatus,
+    storage_failed: bool,
+    storage_corrupt: bool,
 ) -> io::Result<()> {
     let mut value = if let Some(stats) = stats {
         // Coverage counts unchanged files in the current scan, not stored
@@ -116,6 +142,8 @@ fn write_coverage(
     let note = match readiness {
         IndexStatus::Ready => None,
         IndexStatus::Stale => Some("needs update"),
+        IndexStatus::Failed if storage_corrupt => Some("storage corrupt"),
+        IndexStatus::Failed if storage_failed => Some("storage unavailable"),
         IndexStatus::Failed => Some("failed files"),
         IndexStatus::Disabled => Some("indexing disabled"),
         IndexStatus::Missing => Some("index not created"),
@@ -281,6 +309,7 @@ mod tests {
                 indexed_size_bytes: 4_177_103,
                 ..IndexStats::default()
             }),
+            storage_error: None,
             suggestion: None,
         }
     }

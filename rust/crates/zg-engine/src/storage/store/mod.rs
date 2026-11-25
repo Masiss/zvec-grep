@@ -429,6 +429,14 @@ impl IndexStore {
         ))
     }
 
+    /// Forces the native fragment collections (FTS and vector indexes) to
+    /// open so their checksums are validated. Diagnostics only; no mutation.
+    pub(crate) fn verify_storage(&self) -> EngineResult<()> {
+        let shared = self.shared()?;
+        let state = lock_state(&shared)?;
+        state.fragments.verify_storage()
+    }
+
     pub(crate) fn is_read_only(&self) -> bool {
         self.read_only
     }

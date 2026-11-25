@@ -34,10 +34,21 @@ pub mod result {
         pub source: InfoSource,
         pub workspace_index: Option<WorkspaceIndexInfo>,
         pub status: Option<IndexStats>,
+        /// Native storage health observed by an explicit verification probe.
+        #[serde(default)]
+        pub storage_error: Option<String>,
         pub suggestion: Option<String>,
     }
 
     impl InfoResult {
+        /// Whether the storage probe failed on checksum/corruption evidence.
+        #[must_use]
+        pub fn storage_corrupt(&self) -> bool {
+            self.storage_error
+                .as_deref()
+                .is_some_and(crate::storage::zvec::is_corruption)
+        }
+
         /// Health observed by this inspection. Merely opening metadata cannot establish readiness.
         #[must_use]
         pub fn index_status(&self) -> IndexStatus {
@@ -54,6 +65,9 @@ pub mod result {
             }
             if !self.indexed {
                 return IndexStatus::Missing;
+            }
+            if self.storage_error.is_some() {
+                return IndexStatus::Failed;
             }
             let Some(stats) = &self.status else {
                 return IndexStatus::Unknown;
@@ -284,6 +298,7 @@ mod tests {
             source: InfoSource::Index,
             workspace_index: None,
             status: Some(IndexStats::default()),
+            storage_error: None,
             suggestion: None,
         }
     }

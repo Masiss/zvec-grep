@@ -1133,6 +1133,8 @@ struct PersistentIndexStatusOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     files: Option<IndexFilesOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    storage_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     suggestion: Option<String>,
 }
 
@@ -2190,6 +2192,7 @@ impl From<InfoResult> for IndexStatusOutput {
                 index_path: output_path(&reply.index_path).display().to_string(),
                 workspace_index,
                 files,
+                storage_error: reply.storage_error,
                 suggestion: reply.suggestion,
             },
             runtime: None,
@@ -2519,6 +2522,7 @@ mod tests {
                 source: super::InfoSource::Unindexed,
                 workspace_index: None,
                 status: None,
+                storage_error: None,
                 suggestion: Some("zg --index --rebuild".into()),
             };
             let output = super::info_result_to_tool_result(reply, None)
@@ -2575,6 +2579,7 @@ mod tests {
                 indexed_size_bytes: count + 3,
                 ..IndexStats::default()
             }),
+            storage_error: None,
             suggestion: None,
         };
         let output = super::info_result_to_tool_result(reply, None)
@@ -2765,6 +2770,7 @@ mod tests {
                         updated_epoch_ms: 2,
                     }),
                     status: None,
+                    storage_error: None,
                     suggestion: None,
                 },
                 None,

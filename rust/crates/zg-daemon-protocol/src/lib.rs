@@ -262,6 +262,7 @@ mod tests {
                 indexed_size_bytes: count + 3,
                 ..IndexStats::default()
             }),
+            storage_error: None,
             suggestion: None,
         }));
 

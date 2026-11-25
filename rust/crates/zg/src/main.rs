@@ -1568,6 +1568,7 @@ mod status_diagnostics_tests {
                 updated_epoch_ms: 2,
             }),
             status: Some(IndexStats::default()),
+            storage_error: None,
             suggestion: None,
         }
     }

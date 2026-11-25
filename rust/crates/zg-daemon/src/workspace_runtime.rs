@@ -1814,6 +1814,7 @@ mod tests {
             source: InfoSource::Index,
             workspace_index: None,
             status: Some(IndexStats::default()),
+            storage_error: None,
             suggestion: None,
         }
     }

@@ -38,8 +38,8 @@ use super::{
         StorageSearchPath,
     },
     zvec::{
-        collect_entity_ids, corrupt, doc_key, fetch_map, native, open_collection, quote, scalar,
-        string_field, u32_field, write_docs,
+        collect_entity_ids, corrupt, create_collection, doc_key, fetch_map, jieba_dict_dir, native,
+        open_fragment_collection, quote, scalar, string_field, u32_field, write_docs,
     },
 };
 use crate::{
@@ -121,6 +121,12 @@ impl Fragments {
         self.ensure_indexes().expect("fragment collections")
     }
 
+    /// Opens every fragment collection once, forcing native FTS/vector index
+    /// checksums to be validated. Used by diagnostics; never by a query path.
+    pub(super) fn verify_storage(&self) -> EngineResult<()> {
+        self.ensure_indexes().map(|_| ())
+    }
+
     fn ensure_indexes(&self) -> EngineResult<&BTreeMap<String, Collection>> {
         if let Some(indexes) = self.indexes.get() {
             return Ok(indexes);
@@ -141,11 +147,12 @@ impl Fragments {
                 EmbeddingMetric::Euclidean => MetricType::L2,
             };
             let name = fragment_collection_name(embedding);
-            let collection = open_collection(
-                &self.root.join(&name),
-                &fragments_schema(dimension, metric)?,
-                self.read_only,
-            )?;
+            let path = self.root.join(&name);
+            let collection = if crate::utils::directory_exists(&path)? {
+                open_fragment_collection(&path, self.read_only)?
+            } else {
+                create_collection(&path, &fragments_schema(dimension, metric)?, self.read_only)?
+            };
             indexes.insert(embedding.model().reference(), collection);
         }
         let _ = self.indexes.set(indexes);
@@ -470,9 +477,17 @@ fn fragments_schema(dimension: u32, metric: MetricType) -> EngineResult<Collecti
         FieldSchema::new("text", DataType::String, false, 0),
         "define full-text field",
     )?;
+    let dictionary = jieba_dict_dir()?;
+    let dictionary = std::path::absolute(&dictionary).unwrap_or(dictionary);
+    let extra_params = serde_json::json!({ "jieba_dict_dir": dictionary });
+    let extra_params = extra_params.to_string();
     native(
         text.set_index_params(&native(
-            IndexParams::fts(Some(FTS_CONFIG.tokenizer), Some(FTS_CONFIG.filters), None),
+            IndexParams::fts(
+                Some(FTS_CONFIG.tokenizer),
+                Some(FTS_CONFIG.filters),
+                Some(extra_params.as_str()),
+            ),
             "define full-text index",
         )?),
         "attach full-text index",

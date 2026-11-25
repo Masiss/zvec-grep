@@ -10,6 +10,6 @@ pub(crate) mod read_session;
 mod record;
 mod store;
 pub(crate) mod types;
-mod zvec;
+pub(crate) mod zvec;
 
 pub(crate) use store::IndexStore;

@@ -491,12 +491,16 @@ impl WorkspaceIndexService {
         let metadata_indexed = workspace.index_enabled();
         let storage_exists = directory_exists(workspace.layout().index_dir())?;
         let indexed = metadata_indexed && storage_exists;
+        let mut storage_error = None;
         let status = if options.include_status && indexed {
             let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
                 storage_path: workspace.layout().index_dir().to_path_buf(),
             })?;
             let status =
                 get_workspace_index_status(&workspace, &storage, &self.scanner, None, true).await;
+            if let Err(error) = storage.verify_storage() {
+                storage_error = Some(error.to_string());
+            }
             let close = storage.close();
             let status = status?;
             close?;
@@ -525,6 +529,7 @@ impl WorkspaceIndexService {
             },
             workspace_index: Some(WorkspaceIndexInfo::from_workspace(&workspace)),
             status,
+            storage_error,
             suggestion: workspace_suggestion(&workspace, indexed),
         })
     }
@@ -1268,6 +1273,7 @@ fn unindexed_info(
         source: InfoSource::Unindexed,
         workspace_index: None,
         status: None,
+        storage_error: None,
         suggestion: Some("run zg --index to create a workspace index".to_owned()),
     }
 }

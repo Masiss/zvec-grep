@@ -699,7 +699,8 @@ mod tests {
         // without changing environment variables while other unit tests are running.
         let workspace = tempfile::tempdir().expect("workspace");
         let state = tempfile::tempdir().expect("authorization state");
-        let output = std::process::Command::new(env::current_exe().expect("test executable"))
+        let mut command = std::process::Command::new(env::current_exe().expect("test executable"));
+        command
             .args(["--exact", test_name, "--nocapture"])
             .env(FIXTURE_ENV, workspace.path())
             .env("HOME", state.path())
@@ -707,9 +708,13 @@ mod tests {
             .env("USER", "authorization-test")
             .env("USERNAME", "authorization-test")
             .env_remove("ZVEC_GREP_EMBEDDING")
-            .env_remove("ZVEC_GREP_ENDPOINT")
-            .output()
-            .expect("isolated authorization test");
+            .env_remove("ZVEC_GREP_ENDPOINT");
+        // The isolated child replaces HOME, so it cannot inherit the user-level
+        // dictionary location. Forward the resolved native FTS prerequisite.
+        if let Ok(dictionary) = crate::storage::zvec::jieba_dict_dir() {
+            command.env("ZVEC_JIEBA_DICT_DIR", dictionary);
+        }
+        let output = command.output().expect("isolated authorization test");
         assert!(
             output.status.success(),
             "{}\n{}",
