@@ -20,9 +20,11 @@ library/daemon/index/model change, or RAG implementation merge was performed.
 - Final acceptance requires full SHA equality: local `main` = live
   `origin/refs/heads/main` = detached dogfood worktree `HEAD` = final commit `F`.
 - The complete `6cd4bde..F` diff is restricted to the documentation allowlist:
-  `HANDOFF.md`, `HANDOFF-20261031-NEXT.md`, `rust/AGENTS.md`,
+  `README.md`, `HANDOFF.md`, `HANDOFF-20261031-NEXT.md`, `rust/AGENTS.md`,
   `rust/docs/branch-recovery-status.md`,
-  `rust/docs/continuation-20261125-rc3-promotion.md`, and this file.
+  `rust/docs/continuation-20261125-rc3-promotion.md`, and this file. The root
+  README banner was corrected from the retired `work/zg-recovered` branch to
+  canonical `main`.
 
 ## Worktrees
 

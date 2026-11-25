@@ -1,10 +1,12 @@
-> **Fork development:** use branch `work/zg-recovered`. It recovers the newer
-> work onto this fork's released Rust baseline. Upstream comparison refs are
-> unchanged; the former personal branches are preserved by `archive/zg-v1-*`
-> and `archive/zg-v2-*` tags, not parallel implementation targets. See
-> [`rust/docs/branch-recovery-status.md`](rust/docs/branch-recovery-status.md)
-> for completed verification and source consolidation. Research/native archives are
-> not production integrations.
+> **Canonical development:** use branch `main`. It contains the qualified
+> `0.3.0-rc.3` implementation and the repository-consolidation handoff. Upstream
+> comparison refs are unchanged; retired recovery and research branches are
+> preserved by `archive/*` tags rather than parallel implementation targets. See
+> [`rust/docs/repository-consolidation-20261125.md`](rust/docs/repository-consolidation-20261125.md)
+> for branch disposition and verification, and
+> [`rust/docs/continuation-20261125-rc3-promotion.md`](rust/docs/continuation-20261125-rc3-promotion.md)
+> for runtime and rollback state. Research/native archives are not production
+> integrations.
 
 <p align="right">
   English | <a href="./README_CN.md">中文</a>
