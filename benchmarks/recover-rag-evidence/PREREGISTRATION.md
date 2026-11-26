@@ -32,3 +32,10 @@ Frozen before implementation. Base: `work/discovery-selection-20261126@b05960d`.
   without increasing context tokens >25% or p95 latency >2x baseline.
 - Any change that degrades task correctness or normal-search parity is rejected.
 - Combination is qualified only after isolated results are recorded.
+
+## Amendment A — A6 after isolated results
+
+A1 was the only isolated arm that met the coverage gate. R1 pack (A4) reduced
+tokens and increased precision but lost coverage under the 24 KiB pack budget.
+A6 therefore tests the structural combination `A1 + R1 pack` only; no
+threshold is changed and no additional tuning is performed.
