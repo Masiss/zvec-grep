@@ -162,6 +162,11 @@ results remained 1/12 all-gold and 2/25 exact; precision improved and tokens
 fell slightly. D09 is blocked by a three-byte BOM gold-coordinate mismatch,
 recorded in [`../../docs/rag/d09-sql-bom-grading-erratum-20261126.md`](../../docs/rag/d09-sql-bom-grading-erratum-20261126.md).
 Index-only verdict: **NO-GO under v1 gates**, but necessary coverage foundation.
+The frozen benchmark v2 and parent review are now recorded in
+[`../../docs/rag/csharp-benchmark-v2-parent-review-20261126.md`](../../docs/rag/csharp-benchmark-v2-parent-review-20261126.md):
+explicit BOM-aware gold changes only D09/D12, all 12 packs are valid and
+byte-identical to the prior replay, and the corrected baseline is 2/12 all-gold
+and 3/25 exact. Baseline validity PASS; quality promotion not approved.
 
 ## Remaining bottleneck and next authorized action
 
