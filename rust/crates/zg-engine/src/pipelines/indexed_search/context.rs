@@ -1,6 +1,6 @@
 use super::storage::SearchStorage;
 
-use std::{collections::HashSet, fs, path::Path};
+use std::{collections::HashSet, env, fs, path::Path};
 
 use crate::{
     EngineError,
@@ -15,6 +15,7 @@ use crate::{
             IndexRouteDiagnostics, MatchedBy,
         },
     },
+    api::evidence::{EvidenceBudget, EvidenceRequest, assemble as assemble_evidence},
     domain::{Content, FileRecord, Range, Workspace},
     utils::sha256_hex,
 };
@@ -212,10 +213,17 @@ fn build_context_result(
         .filter(|group| group.role == ContextQueryGroupRole::Primary)
         .map(|group| group.id.clone())
         .collect::<Vec<_>>();
-    let items = select_and_rank_context_items(
-        group_items.iter().flatten().cloned().collect(),
-        &coverage_groups,
-    );
+    let items = if env::var_os("ZVEC_RAG_BUDGET_SELECT").is_some() {
+        rag_budget_select(group_items.iter().flatten().cloned().collect())
+    } else {
+        select_and_rank_context_items(
+            group_items.iter().flatten().cloned().collect(),
+            &coverage_groups,
+        )
+    };
+    if let Ok(pack_path) = env::var("ZVEC_RAG_EVIDENCE_PACK_FILE") {
+        write_verified_pack(root, &items, &pack_path);
+    }
     super::pipeline::dump_stage(
         "context_selected",
         items
@@ -335,6 +343,11 @@ fn search_plan_to_context_items(
                 matched_by: hit.matched_by,
                 metadata: hit.entity.metadata().cloned(),
                 entity_id: Some(hit.entity.id().as_str().to_owned()),
+                fragment_id: hit
+                    .evidence
+                    .first()
+                    .map(|evidence| evidence.fragment.id.as_str().to_owned()),
+                file_sha256: hit.file.snapshot().content_hash.clone(),
                 container: None,
                 trace: hit.trace.clone(),
                 query_groups: vec![ContextQueryGroupMatch {
@@ -349,6 +362,110 @@ fn search_plan_to_context_items(
             })
         })
         .collect()
+}
+
+fn rag_budget_select(items: Vec<ContextItem>) -> Vec<ContextItem> {
+    let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(10);
+    let byte_budget = env::var("ZVEC_RAG_BYTE_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(24 * 1024);
+    let mut ranked = items;
+    ranked.sort_by(compare_global_rank);
+    let mut selected: Vec<ContextItem> = Vec::new();
+    let mut used = 0usize;
+    for mut item in ranked {
+        if selected.len() >= item_budget {
+            break;
+        }
+        let cost = item.content.len();
+        if used.saturating_add(cost) > byte_budget {
+            continue;
+        }
+        let overlap = selected
+            .iter()
+            .map(|other| range_overlap_ratio(&item.range, &other.range))
+            .fold(0.0_f64, f64::max);
+        if overlap > 0.5 {
+            continue;
+        }
+        used += cost;
+        item.rank = selected.len() + 1;
+        item.selection_reason = Some(ContextSelectionReason::GlobalFill);
+        selected.push(item);
+    }
+    selected
+}
+
+fn range_overlap_ratio(left: &ContentRange, right: &ContentRange) -> f64 {
+    let (Some(ls), Some(le), Some(rs), Some(re)) = (
+        left.start_line(),
+        left.last_line(),
+        right.start_line(),
+        right.last_line(),
+    ) else {
+        return 0.0;
+    };
+    if ls > re || rs > le {
+        return 0.0;
+    }
+    let overlap = le.min(re).saturating_sub(ls.max(rs)) + 1;
+    let union = le.saturating_sub(ls.min(rs)) + 1;
+    if union == 0 {
+        0.0
+    } else {
+        overlap as f64 / union as f64
+    }
+}
+
+fn write_verified_pack(root: &Path, items: &[ContextItem], path: &str) {
+    let requests = items
+        .iter()
+        .filter_map(|item| {
+            let (start, end) = match item.content_range {
+                ContentRange::Text {
+                    start_byte_offset,
+                    end_byte_offset,
+                    ..
+                } => (start_byte_offset, end_byte_offset),
+                ContentRange::Byte {
+                    start_offset,
+                    end_offset,
+                } => (
+                    usize::try_from(start_offset).ok()?,
+                    usize::try_from(end_offset).ok()?,
+                ),
+                ContentRange::File => return None,
+            };
+            Some(EvidenceRequest {
+                project: "rag".to_owned(),
+                relative_path: item.relative_path.clone(),
+                expected_sha256: item.file_sha256.clone().unwrap_or_default(),
+                start_byte: start,
+                end_byte: end,
+                expected_start_line: item.content_range.start_line(),
+                expected_end_line: item.content_range.last_line(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let budget = EvidenceBudget {
+        max_bytes: env::var("ZVEC_RAG_BYTE_BUDGET")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(24 * 1024),
+        max_items: env::var("ZVEC_RAG_ITEM_BUDGET")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(10),
+    };
+    if let Ok(pack) = assemble_evidence(root, &requests, budget) {
+        if let Ok(text) = serde_json::to_string_pretty(&pack) {
+            let _ = fs::write(path, text);
+        }
+    }
 }
 
 fn select_and_rank_context_items(

@@ -289,6 +289,8 @@ fn context_item(enriched: EnrichedLexicalMatch, use_entity_ranges: bool) -> Cont
             .and_then(|value| value.metadata.as_ref())
             .cloned(),
         entity_id: None,
+        fragment_id: None,
+        file_sha256: None,
         container: container.map(|value| ContextContainer {
             entity_id: None,
             range: if use_entity_ranges {

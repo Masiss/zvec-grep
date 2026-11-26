@@ -201,6 +201,10 @@ pub(crate) async fn search_workspace_index(
     let routes = resolve_routes(&plan.routes)?;
     validate_modified_range(&plan)?;
     let limit = plan.limit.unwrap_or(DEFAULT_LIMIT);
+    let rank_limit = std::env::var("ZVEC_RAG_RANK_LIMIT")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(limit);
     let plan_duration = plan_started.elapsed();
 
     let filter_started = Instant::now();
@@ -274,7 +278,7 @@ pub(crate) async fn search_workspace_index(
 
     let load_started = Instant::now();
     // Every recalled entity must be eligible for structural boosts before cutoff.
-    let hits = load_candidates(fused, limit, plan.trace, storage)?;
+    let hits = load_candidates(fused, rank_limit, plan.trace, storage)?;
     dump_stage(
         "loaded",
         hits.iter()
@@ -296,7 +300,7 @@ pub(crate) async fn search_workspace_index(
         .iter()
         .map(|_| 1.0 / (RRF_K + 1.0))
         .sum();
-    let hits = super::ranking::rank(hits, &routes, &plan.filter, maximum_rrf, limit);
+    let hits = super::ranking::rank(hits, &routes, &plan.filter, maximum_rrf, rank_limit);
     dump_stage(
         "ranked",
         hits.iter()

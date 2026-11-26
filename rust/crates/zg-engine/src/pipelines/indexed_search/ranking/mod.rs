@@ -139,6 +139,11 @@ fn select(
     limit: usize,
     policy: Policy,
 ) -> Vec<SearchHit> {
+    let file_decay = if std::env::var_os("ZVEC_RAG_NO_DIVERSITY").is_some() {
+        0.0
+    } else {
+        FILE_DECAY
+    };
     let single_file = scored
         .iter()
         .all(|s| s.hit.file.id() == scored[0].hit.file.id());
@@ -154,7 +159,7 @@ fn select(
                     .copied()
                     .unwrap_or(0)
             };
-            item.static_score / (1.0 + FILE_DECAY * f64::from(count))
+            item.static_score / (1.0 + file_decay * f64::from(count))
         };
         let best = scored
             .iter()
@@ -171,7 +176,7 @@ fn select(
         let factor = if single_file {
             1.0
         } else {
-            1.0 / (1.0 + FILE_DECAY * f64::from(*count))
+            1.0 / (1.0 + file_decay * f64::from(*count))
         };
         item.hit.score = item.static_score * factor;
         item.hit.rank = output.len() + 1;
