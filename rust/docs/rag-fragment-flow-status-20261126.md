@@ -139,7 +139,8 @@ they intentionally predate the research ranker and coordinate repair. The
 wrapper hardcodes `zg-51c9eba`; G1 is a dirty `313e48d` build and needs
 `LD_LIBRARY_PATH=/home/masis/.local/lib`. Direct CLI use from the research
 worktree also fails before search because `/home/masis/.zvec-grep` is a symlink.
-No binary, wrapper, daemon, index or service was changed.
+A later owner-authorized deployment replaced the local CLI/daemon with clean
+`6b6f294`; no RAG feature flag was enabled and the index was unchanged.
 
 ## Remaining bottleneck and next authorized action
 

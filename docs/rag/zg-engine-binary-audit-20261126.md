@@ -234,9 +234,21 @@ the native delay-load hook.
    if the native runtime is not found. This catches the exact class of error
    without asking users to configure a library path.
 
+## Post-audit local deployment (owner-authorized)
+
+The owner subsequently authorized replacing the local binary. A clean release
+was built from RAG tip `6b6f294` and installed as `zg-6b6f294`; the wrapper now
+selects it and fixes observability-disable semantics. SHA-256:
+`c09061e08de538904cbdb610c13918175affbea114b621e8aa51dd6f0d34056c`.
+The daemon was restarted onto that binary (PID 4090677 at verification), with
+Research/metadata observability preserved and no RAG feature flag enabled.
+Clean-environment version/build-info, vector search, wrapper-disable and live
+MCP retrieval checks passed. The index manifest hash/generation was unchanged.
+Full receipt: `/home/masis/.cache/zvec-grep/local-binary-deploy-20261126/`.
+
 ## Safety and limitations
 
-- No production binary, wrapper, daemon, index, config, source repository, or service was modified. Nothing was installed, committed, pushed, killed, restarted, or signaled.
+- No production binary, wrapper, daemon, index, config, source repository, or service was modified **during the read-only audit**. The later owner-authorized local deployment is recorded separately above. Nothing was installed, committed, pushed, killed, restarted, or signaled by the audit itself.
 - `zg doctor` was not run because no doctor subcommand is advertised. Potentially mutating index/config/install/server-start/stop commands were skipped. Real-index queries were skipped; copied indexes were used.
 - Audit-created corpus copies and `/tmp` workspace were removed after hashes were preserved. Raw logs, receipts, hash manifests, and the command index remain under this audit directory.
 - Host state was captured before/after: initial load 1.83/1.99/1.86, available memory 4.6 GiB, swap free 140 MiB; final load 2.04/2.14/1.98, available memory 4.9 GiB, swap free 228 KiB. Root free space remained 22 GiB. No performance conclusion is drawn from the smoke timings.
