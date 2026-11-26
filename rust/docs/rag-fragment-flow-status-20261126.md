@@ -88,6 +88,16 @@ Env gating keeps normal search unchanged:
 - `benchmarks/recover-rag-evidence/CORRECT-FLOW-REPORT.md`
 - Preregistrations and tools live alongside those reports.
 
+## Selection recovery continuation (2026-11-26)
+
+The owner-authorized execution of `docs/rag/selection-recovery-plan-20261126.md`
+is recorded in [`../../docs/rag/selection-recovery-report-20261126.md`](../../docs/rag/selection-recovery-report-20261126.md).
+The G1 coordinate adapter was fixed (exclusive evidence endpoint and all
+clipped remainders preserved) and an env-gated coverage selector was tested and
+rejected. Rust G1K4 exact coverage rose from `0.125` to `0.208`, but C# exact
+`0.083` remains below K1 `0.167`; promotion verdict remains **NO-GO**. No
+production binary, daemon, index, model, default or held-out data changed.
+
 ## Remaining bottleneck and next authorized action
 
 Discovery, fusion and fragment identity preservation are no longer the limiting

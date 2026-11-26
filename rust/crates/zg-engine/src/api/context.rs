@@ -652,6 +652,15 @@ pub mod result {
             }
         }
 
+        /// Returns the exclusive endpoint line of a half-open text range.
+        #[must_use]
+        pub fn end_line(&self) -> Option<usize> {
+            match self {
+                Self::Text { end_line, .. } => Some(*end_line),
+                Self::File | Self::Byte { .. } => None,
+            }
+        }
+
         /// Returns the last covered line of a half-open text range.
         /// Empty ranges retain their source position, including positions at EOF.
         #[must_use]

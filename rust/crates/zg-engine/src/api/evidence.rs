@@ -584,6 +584,26 @@ mod tests {
         assert_eq!(pack.gaps[0].code, EvidenceGapCode::StaleCoordinates);
     }
 
+    #[test]
+    fn exclusive_endpoint_line_is_asserted_not_last_covered_line() {
+        let dir = tempdir().expect("valid evidence test fixture");
+        let text = "alpha\nbravo\ncharlie";
+        fs::write(dir.path().join("endpoint.cs"), text).expect("valid evidence test fixture");
+        let sha = digest(text.as_bytes());
+        let mut valid = request("p", "endpoint.cs", &sha, 0, 6);
+        valid.expected_start_line = Some(1);
+        valid.expected_end_line = Some(2);
+        let pack = assemble(dir.path(), &[valid], budget()).expect("valid evidence fixture");
+        assert_eq!(pack.items[0].content, "alpha\n");
+        assert_eq!(pack.items[0].range.last_line(), Some(1));
+        assert_eq!(pack.items[0].range.end_line(), Some(2));
+
+        let mut stale = request("p", "endpoint.cs", &sha, 0, 6);
+        stale.expected_end_line = Some(1);
+        let pack = assemble(dir.path(), &[stale], budget()).expect("valid evidence fixture");
+        assert_eq!(pack.gaps[0].code, EvidenceGapCode::StaleCoordinates);
+    }
+
     #[cfg(unix)]
     #[test]
     fn traversal_symlink_and_out_of_root_are_rejected() {
