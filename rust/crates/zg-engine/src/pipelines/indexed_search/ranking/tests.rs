@@ -2,6 +2,7 @@
 #![allow(clippy::float_cmp)]
 
 use super::*;
+use crate::pipelines::indexed_search::pipeline::FragmentSignals;
 use crate::{
     api::context::{
         options::ContextRouteMode,
@@ -66,6 +67,7 @@ pub(super) fn hit(
         rank,
         score,
         matched_by: MatchedBy::Fts,
+        signals: None,
         trace: Some(SearchHitTrace {
             recall: vec![],
             fusion: SearchFusionTrace {
@@ -576,4 +578,40 @@ fn ranking_traces_default_omitted_evidence_fields() {
     assert_eq!(ranking.path_bonus, 0.0);
     assert_eq!(ranking.file_support_bonus, 0.0);
     assert_eq!(ranking.file_support_count, 0);
+}
+
+#[test]
+fn fragment_ranking_ignores_observability_trace() {
+    use crate::api::context::result::SearchFinalTrace;
+    let routes = vec![ResolvedSearchRoute {
+        id: "Q1".to_owned(),
+        mode: ContextRouteMode::Fts,
+        query: "source".to_owned(),
+    }];
+    let mut first = hit("A", 1, "a.rs", 0.02, 1, None);
+    first.signals = Some(FragmentSignals {
+        fts: 12.0,
+        vector: 0.4,
+    });
+    let mut second = hit("B", 2, "b.rs", 0.02, 2, None);
+    second.signals = Some(FragmentSignals {
+        fts: 6.0,
+        vector: 0.8,
+    });
+    let traced = rank_fragments(vec![first.clone(), second.clone()], &routes, 0.016);
+    let mut untraced = vec![first, second];
+    for item in &mut untraced {
+        item.trace = None;
+    }
+    let untraced = rank_fragments(untraced, &routes, 0.016);
+    assert_eq!(traced.len(), untraced.len());
+    for (left, right) in traced.iter().zip(untraced.iter()) {
+        assert_eq!(left.score, right.score);
+        assert_eq!(left.rank, right.rank);
+    }
+    assert!(traced[0].score > traced[1].score);
+    drop(SearchFinalTrace {
+        returned_by_limit: false,
+        cutoff_rank: 0,
+    });
 }

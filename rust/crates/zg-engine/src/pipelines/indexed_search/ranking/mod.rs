@@ -194,13 +194,9 @@ pub(super) fn rank_fragments(
 }
 
 fn route_score(hit: &SearchHit, mode: SearchRouteMode) -> f64 {
-    hit.trace.as_ref().map_or(0.0, |trace| {
-        trace
-            .recall
-            .iter()
-            .filter(|recall| recall.path == mode)
-            .filter_map(|recall| recall.score)
-            .fold(0.0_f64, f64::max)
+    hit.signals.map_or(0.0, |signals| match mode {
+        SearchRouteMode::Fts => signals.fts,
+        SearchRouteMode::Vector => signals.vector,
     })
 }
 

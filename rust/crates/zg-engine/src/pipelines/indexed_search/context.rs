@@ -199,8 +199,11 @@ fn build_context_result(
             .map(|item| {
                 serde_json::json!({
                     "entity_id": item.entity_id,
+                    "fragment_id": item.fragment_id,
                     "path": item.relative_path,
+                    "file_sha256": item.file_sha256,
                     "range": format!("{:?}", item.range),
+                    "content_range": format!("{:?}", item.content_range),
                     "rank": item.rank,
                     "score": item.score,
                     "query_groups": item.query_groups,
@@ -214,9 +217,9 @@ fn build_context_result(
         .map(|group| group.id.clone())
         .collect::<Vec<_>>();
     let flat_items = || group_items.iter().flatten().cloned().collect::<Vec<_>>();
-    let items = if env::var_os("ZVEC_RAG_FRAGMENT_SELECT_V2").is_some() {
-        fragment_budget_select_v2(flat_items(), &request.display_query)
-    } else if env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some() {
+    let items = if env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some()
+        || env::var_os("ZVEC_RAG_FRAGMENT_SELECT_V2").is_some()
+    {
         fragment_budget_select(flat_items(), &request.display_query)
     } else if env::var_os("ZVEC_RAG_BUDGET_SELECT").is_some() {
         rag_budget_select(group_items.iter().flatten().cloned().collect())
@@ -369,15 +372,123 @@ fn search_plan_to_context_items(
         .collect()
 }
 
-fn fragment_budget_select_v2(items: Vec<ContextItem>, query: &str) -> Vec<ContextItem> {
+fn same_source(left: &ContextItem, right: &ContextItem) -> bool {
+    left.relative_path == right.relative_path && left.file_sha256 == right.file_sha256
+}
+
+fn source_overlap_ratio(item: &ContextItem, other: &ContextItem) -> f64 {
+    if !same_source(item, other) {
+        return 0.0;
+    }
+    range_overlap_ratio(&item.content_range, &other.content_range)
+}
+
+/// Removes only source lines already delivered by `selected`, keeping the
+/// non-overlapping remainder of the same fragment. Returns `None` when the
+/// fragment is fully duplicated.
+fn clip_fragment_overlap(mut item: ContextItem, selected: &[ContextItem]) -> Option<ContextItem> {
+    let (Some(start), Some(end)) = (
+        item.content_range.start_line(),
+        item.content_range.last_line(),
+    ) else {
+        return Some(item);
+    };
+    let mut blocked = selected
+        .iter()
+        .filter(|other| same_source(&item, other))
+        .filter_map(|other| {
+            let from = other.content_range.start_line()?;
+            let to = other.content_range.last_line()?;
+            Some((from, to))
+        })
+        .collect::<Vec<_>>();
+    if blocked.is_empty() {
+        return Some(item);
+    }
+    blocked.sort_unstable();
+    let mut keep = Vec::new();
+    let mut cursor = start;
+    for (from, to) in blocked {
+        if to < cursor {
+            continue;
+        }
+        if from > end {
+            break;
+        }
+        if from > cursor {
+            keep.push((cursor, from.saturating_sub(1)));
+        }
+        cursor = cursor.max(to.saturating_add(1));
+        if cursor > end {
+            break;
+        }
+    }
+    if cursor <= end {
+        keep.push((cursor, end));
+    }
+    let (keep_start, keep_end) = keep
+        .into_iter()
+        .max_by_key(|(from, to)| to.saturating_sub(*from))?;
+    let lines = crate::utils::line_byte_offsets(&item.content);
+    let local_start = keep_start.saturating_sub(start);
+    let local_end_exclusive = keep_end
+        .saturating_sub(start)
+        .saturating_add(1)
+        .min(lines.len().saturating_sub(1));
+    let Some(&from) = lines.get(local_start) else {
+        return Some(item);
+    };
+    let to = lines
+        .get(local_end_exclusive)
+        .copied()
+        .unwrap_or(item.content.len());
+    if from >= to {
+        return None;
+    }
+    let (old_start_byte, old_start_column, old_end_column) = match item.content_range {
+        ContentRange::Text {
+            start_byte_offset,
+            start_byte_column,
+            end_byte_column,
+            ..
+        } => (start_byte_offset, start_byte_column, end_byte_column),
+        _ => return Some(item),
+    };
+    item.content = item.content[from..to].to_owned();
+    item.content_range = ContentRange::Text {
+        start_line: keep_start,
+        end_line: keep_end.saturating_add(1),
+        start_byte_offset: old_start_byte.saturating_add(from),
+        end_byte_offset: old_start_byte.saturating_add(to),
+        start_byte_column: if local_start == 0 {
+            old_start_column
+        } else {
+            0
+        },
+        end_byte_column: if local_end_exclusive >= lines.len() {
+            old_end_column
+        } else {
+            0
+        },
+    };
+    item.excerpt_range = Some(item.content_range.clone());
+    Some(item)
+}
+
+fn fragment_budgets() -> (usize, usize) {
     let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(10);
+        .unwrap_or(64);
     let byte_budget = env::var("ZVEC_RAG_BYTE_BUDGET")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(24 * 1024);
+    (item_budget, byte_budget)
+}
+
+fn fragment_budget_select(items: Vec<ContextItem>, query: &str) -> Vec<ContextItem> {
+    let (item_budget, byte_budget) = fragment_budgets();
     let terms = {
         let mut terms = query
             .split(|c: char| !c.is_alphanumeric() && c != '_')
@@ -405,21 +516,20 @@ fn fragment_budget_select_v2(items: Vec<ContextItem>, query: &str) -> Vec<Contex
                 .count() as f64
                 / terms.len() as f64
         };
-        let cost = item.content.len();
-        candidates.push((item, coverage, cost));
+        candidates.push((item, coverage));
     }
     let mut selected: Vec<ContextItem> = Vec::new();
     let mut used = 0usize;
     while selected.len() < item_budget && !candidates.is_empty() {
         let utility = |index: usize| -> f64 {
-            let (item, coverage, cost) = &candidates[index];
+            let (item, coverage) = &candidates[index];
             let overlap = selected
                 .iter()
-                .map(|other| range_overlap_ratio(&item.range, &other.range))
+                .map(|other| source_overlap_ratio(item, other))
                 .fold(0.0_f64, f64::max);
             item.score.unwrap_or(0.0).max(0.0) + 0.25 * coverage
                 - 0.35 * overlap
-                - 0.05 * (*cost as f64 / byte_budget.max(1) as f64)
+                - 0.05 * (item.content.len() as f64 / byte_budget.max(1) as f64)
         };
         let best = (0..candidates.len())
             .max_by(|&a, &b| {
@@ -428,84 +538,11 @@ fn fragment_budget_select_v2(items: Vec<ContextItem>, query: &str) -> Vec<Contex
                     .then_with(|| candidates[a].0.rank.cmp(&candidates[b].0.rank))
             })
             .unwrap_or(0);
-        let (mut item, _, cost) = candidates.swap_remove(best);
-        if used.saturating_add(cost) > byte_budget {
+        let (item, _) = candidates.swap_remove(best);
+        let Some(mut item) = clip_fragment_overlap(item, &selected) else {
             continue;
-        }
-        used += cost;
-        item.rank = selected.len() + 1;
-        item.selection_reason = Some(ContextSelectionReason::GlobalFill);
-        selected.push(item);
-    }
-    selected
-}
-
-fn fragment_budget_select(items: Vec<ContextItem>, query: &str) -> Vec<ContextItem> {
-    let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(10);
-    let byte_budget = env::var("ZVEC_RAG_BYTE_BUDGET")
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(24 * 1024);
-    let terms = {
-        let mut terms = query
-            .split(|c: char| !c.is_alphanumeric() && c != '_')
-            .filter(|word| word.len() >= 3)
-            .map(|word| word.to_lowercase())
-            .collect::<Vec<_>>();
-        terms.sort_unstable();
-        terms.dedup();
-        terms.truncate(24);
-        terms
-    };
-    let coverage = |content: &str| -> f64 {
-        if terms.is_empty() {
-            return 0.0;
-        }
-        let lower = content.to_lowercase();
-        terms
-            .iter()
-            .filter(|term| lower.contains(term.as_str()))
-            .count() as f64
-            / terms.len() as f64
-    };
-    let mut candidates = Vec::new();
-    let mut seen = HashSet::new();
-    for item in items {
-        if seen.insert(context_item_dedupe_key(&item)) {
-            candidates.push(item);
-        }
-    }
-    let mut selected: Vec<ContextItem> = Vec::new();
-    let mut used = 0usize;
-    while selected.len() < item_budget && !candidates.is_empty() {
-        let cost_of = |item: &ContextItem| item.content.len().max(1);
-        let overlap_of = |item: &ContextItem| -> f64 {
-            selected
-                .iter()
-                .map(|other| range_overlap_ratio(&item.range, &other.range))
-                .fold(0.0_f64, f64::max)
         };
-        let utility = |item: &ContextItem| -> f64 {
-            let relevance = item.score.unwrap_or(0.0).max(0.0);
-            let novelty = 1.0 - overlap_of(item) * 0.75;
-            let cost = (cost_of(item) as f64 / 1024.0).max(1.0);
-            (relevance + 0.35 * coverage(&item.content)) * novelty / cost.powf(0.25)
-        };
-        let best = candidates
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| {
-                utility(a)
-                    .total_cmp(&utility(b))
-                    .then_with(|| a.rank.cmp(&b.rank))
-                    .then_with(|| a.entity_id.as_deref().cmp(&b.entity_id.as_deref()))
-            })
-            .map_or(0, |(index, _)| index);
-        let mut item = candidates.swap_remove(best);
-        let cost = cost_of(&item);
+        let cost = item.content.len();
         if used.saturating_add(cost) > byte_budget {
             continue;
         }
@@ -931,7 +968,7 @@ fn content_to_text(content: &Content) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{env, path::PathBuf};
 
     use crate::api::context::{
         ContextOptions,
@@ -942,7 +979,10 @@ mod tests {
         },
     };
 
-    use super::{normalize_context_request, select_and_rank_context_items};
+    use super::{
+        fragment_budget_select, fragment_budgets, normalize_context_request,
+        select_and_rank_context_items,
+    };
 
     #[test]
     fn best_fragment_preserves_original_content_and_source_range() {
@@ -1000,6 +1040,7 @@ mod tests {
             rank: 1,
             score: 1.0,
             matched_by: MatchedBy::Fts,
+            signals: None,
             trace: None,
         };
         let target = super::context_item_target(&hit).expect("fragment content");
@@ -1100,6 +1141,7 @@ mod tests {
                 rank: 1,
                 score: 1.0,
                 matched_by: MatchedBy::Fts,
+                signals: None,
                 trace: None,
             };
             let target = super::context_item_target(&hit).expect("source fragment");
@@ -1175,6 +1217,7 @@ mod tests {
                 rank: 1,
                 score: 1.0,
                 matched_by: MatchedBy::Fts,
+                signals: None,
                 trace: None,
             }],
             timings: Vec::new(),
@@ -1438,5 +1481,105 @@ mod tests {
             selection_reason: None,
             coverage_group: None,
         }
+    }
+    #[test]
+    fn fragment_selection_clips_only_duplicate_source_lines() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = "alpha\nbravo\n".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 3,
+            start_byte_offset: 0,
+            end_byte_offset: first.content.len(),
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        first.score = Some(2.0);
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "bravo\ncharlie\n".to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 2,
+            end_line: 4,
+            start_byte_offset: 6,
+            end_byte_offset: 6 + second.content.len(),
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        second.score = Some(0.9);
+        let selected = fragment_budget_select(vec![first, second], "bravo charlie");
+        assert_eq!(selected.len(), 2);
+        let kept = selected
+            .iter()
+            .find(|item| item.fragment_id.as_deref() == Some("frag-b"))
+            .expect("clipped fragment");
+        assert!(kept.content.contains("charlie"));
+        assert!(!kept.content.contains("bravo"));
+        assert_eq!(kept.content_range.start_line(), Some(3));
+    }
+
+    #[test]
+    fn fragment_selection_respects_source_identity() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("sha-a".to_owned());
+        first.content = "alpha\n".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 2,
+            start_byte_offset: 0,
+            end_byte_offset: first.content.len(),
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("sha-b".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "alpha\n".to_owned();
+        second.content_range = first.content_range.clone();
+        let selected = fragment_budget_select(vec![first, second], "alpha");
+        assert_eq!(selected.len(), 2);
+        assert!(
+            selected
+                .iter()
+                .any(|item| item.fragment_id.as_deref() == Some("frag-b")
+                    && item.content == "alpha\n")
+        );
+    }
+
+    #[test]
+    fn fragment_budget_defaults_to_byte_primary_safeguard() {
+        if env::var_os("ZVEC_RAG_ITEM_BUDGET").is_some()
+            || env::var_os("ZVEC_RAG_BYTE_BUDGET").is_some()
+        {
+            return;
+        }
+        let (items, bytes) = fragment_budgets();
+        assert!(
+            items >= 64,
+            "item count must be a safeguard, not a delivery cutoff"
+        );
+        assert_eq!(bytes, 24 * 1024);
     }
 }
