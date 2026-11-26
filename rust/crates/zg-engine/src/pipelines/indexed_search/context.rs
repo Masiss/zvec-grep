@@ -239,8 +239,11 @@ fn build_context_result(
             .map(|item| {
                 serde_json::json!({
                     "entity_id": item.entity_id,
+                    "fragment_id": item.fragment_id,
                     "path": item.relative_path,
+                    "file_sha256": item.file_sha256,
                     "range": format!("{:?}", item.range),
+                    "content_range": format!("{:?}", item.content_range),
                     "rank": item.rank,
                     "score": item.score,
                     "selection_reason": item.selection_reason,
