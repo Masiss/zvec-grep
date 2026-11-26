@@ -274,6 +274,7 @@ pub(crate) async fn search_workspace_index(
                     .iter()
                     .map(|evidence| {
                         serde_json::json!({
+                            "fragment_id": evidence.hit.document_id,
                             "entity_id": candidate.id.as_str(),
                             "file_id": candidate.file_id.get(),
                             "route": evidence.route_id,
