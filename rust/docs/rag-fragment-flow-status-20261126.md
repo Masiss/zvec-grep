@@ -152,6 +152,17 @@ a frozen-index coverage mismatch: C# scans only `csharp` while gold contains
 SQL. See [`../../docs/rag/frozen-csharp-index-coverage-erratum-20261126.md`](../../docs/rag/frozen-csharp-index-coverage-erratum-20261126.md).
 No reindex or second variant was run.
 
+## C# SQL index v2 (2026-11-26)
+
+An isolated `csharp,sql` index was built with the same corpus/model and the
+unchanged C0 pipeline; see
+[`../../docs/rag/csharp-sql-index-v2-report-20261126.md`](../../docs/rag/csharp-sql-index-v2-report-20261126.md).
+Coverage became 818/818 and D09's SQL view entered the pack, but frozen-gold
+results remained 1/12 all-gold and 2/25 exact; precision improved and tokens
+fell slightly. D09 is blocked by a three-byte BOM gold-coordinate mismatch,
+recorded in [`../../docs/rag/d09-sql-bom-grading-erratum-20261126.md`](../../docs/rag/d09-sql-bom-grading-erratum-20261126.md).
+Index-only verdict: **NO-GO under v1 gates**, but necessary coverage foundation.
+
 ## Remaining bottleneck and next authorized action
 
 Discovery, fusion and fragment identity preservation are no longer the limiting
