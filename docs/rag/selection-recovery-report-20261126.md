@@ -52,7 +52,9 @@ Two concrete defects were fixed in the experimental code:
    coordinates. Regression tests cover both sides of an intervening fragment
    and the exclusive endpoint assertion.
 
-Final G1-fixed binary SHA-256 `67d2267d…`; focused context tests 12 passed,
+Final G1-fixed binary SHA-256 `36017f2749b21ccfbc10a2f29cad377a4a3a554ccba623de8d2985b37bfcee1a`
+(an intermediate build `67d2267d…` was superseded after the clip endpoint
+refinement and is not the reported binary); focused context tests 12 passed,
 evidence tests 11 passed, `cargo fmt --check` clean.
 
 | Arm | Rust exact | Rust range | Rust precision | Rust tokens | Rust p95 | C# exact | C# precision | C# tokens | C# p95 |
