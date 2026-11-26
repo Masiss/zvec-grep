@@ -1262,6 +1262,8 @@ mod tests {
             matched_by: query_group.matched_by,
             metadata: None,
             entity_id: Some(id.to_owned()),
+            fragment_id: None,
+            file_sha256: None,
             container: None,
             trace: None,
             query_groups: vec![query_group],

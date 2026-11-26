@@ -181,14 +181,21 @@ def main() -> None:
             k: round(statistics.mean(v[k] for v in rows), 4)
             for k in ("exact_coverage", "range_recall", "precision", "delivered_bytes", "tokens", "oracle")
         }
-    run = json.loads((art / "results" / f"run-rag-arms-{args.split}.json").read_text())
     for arm in ARMS:
-        ts = [t for t in run["timings"] if t["arm"] == arm]
-        out["arms"][arm].update({
-            "p95_latency_s": round(sorted(t["wall"] for t in ts)[int(0.95 * (len(ts) - 1))], 3),
-            "cpu_user_sys_s": round(sum(t["user"] + t["sys"] for t in ts), 2),
-            "peak_rss_kb": max(t["rss_kb"] for t in ts),
-        })
+        ts = []
+        for cid in cases:
+            tm = art / "outputs2" / args.split / arm / f"{cid}.time"
+            if not tm.exists():
+                continue
+            parts = tm.read_text().split()
+            if len(parts) >= 4:
+                ts.append((float(parts[0]), float(parts[1]), float(parts[2]), int(parts[3])))
+        if ts:
+            out["arms"][arm].update({
+                "p95_latency_s": round(sorted(t[0] for t in ts)[int(0.95 * (len(ts) - 1))], 3),
+                "cpu_user_sys_s": round(sum(t[1] + t[2] for t in ts), 2),
+                "peak_rss_kb": max(t[3] for t in ts),
+            })
     dest = art / "results" / f"rag-arms-{args.split}.json"
     dest.write_text(json.dumps(out, indent=2) + "\n")
     print(json.dumps(out["arms"], indent=2))
