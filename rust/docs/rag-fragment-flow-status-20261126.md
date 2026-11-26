@@ -95,7 +95,12 @@ is recorded in [`../../docs/rag/selection-recovery-report-20261126.md`](../../do
 The follow-up coordinate repair and verified-pack replay is recorded in
 [`../../docs/rag/fragment-coordinate-repair-report-20261126.md`](../../docs/rag/fragment-coordinate-repair-report-20261126.md);
 all 24 dev packs now have zero verifier gaps, while the quality verdict stays
-NO-GO and R03 points to ranking as the next bottleneck.
+NO-GO. The owner-authorized entity-anchored span replay is recorded in
+[`../../docs/rag/entity-anchored-span-replay-report-20261126.md`](../../docs/rag/entity-anchored-span-replay-report-20261126.md).
+Both expansion arms passed integrity but added zero all-gold questions; B only
+improved byte precision. The measured blocker is now anchor scheduling: many
+gold-bearing entities are already in the frozen pool but their fragment
+anchors are not eligible before the byte cap or four-entity resolver quota.
 The G1 coordinate adapter was fixed (exclusive evidence endpoint and all
 clipped remainders preserved) and an env-gated coverage selector was tested and
 rejected. Rust G1K4 exact coverage rose from `0.125` to `0.208`, but C# exact
@@ -105,9 +110,11 @@ production binary, daemon, index, model, default or held-out data changed.
 ## Remaining bottleneck and next authorized action
 
 Discovery, fusion and fragment identity preservation are no longer the limiting
-stages. The remaining problem is fragment-level relevance under a fixed source
-budget: ranked pools still contain gold evidence that selection does not
-deliver. No further work is authorized by this status note. Any continuation
-must be a new owner-authorized task; production promotion requires a candidate
-that passes both-language coverage/precision/latency gates and task
-correctness.
+stages. The remaining measured problem is anchor scheduling under a fixed
+source budget: many entities containing gold are present in the pool, but their
+fragment anchors are considered too late or after the resolver quota is full.
+The next authorized research step is a single offline gold-aware upper-bound
+probe of entity-anchor ordering on the same pool; it is not a new production
+ranker. No further work is authorized by this status note. Production promotion
+requires a candidate that passes both-language coverage/precision/latency gates
+and task correctness.
