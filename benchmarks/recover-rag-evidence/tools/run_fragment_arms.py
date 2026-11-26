@@ -11,6 +11,7 @@ from pathlib import Path
 
 ARMS = {
     "F0": {},
+    "F4": {"ZVEC_RAG_FRAGMENT_FLOW": "1"},
     "F1": {"ZVEC_RAG_NO_DIVERSITY": "1"},
     "F2": {
         "ZVEC_RAG_FRAGMENT_FLOW": "1",
@@ -40,7 +41,7 @@ def main() -> None:
     ap.add_argument("--cases", required=True, type=Path)
     ap.add_argument("--corpus", required=True, type=Path)
     ap.add_argument("--split", choices=("rust", "csharp"), required=True)
-    ap.add_argument("--arms", default="F0,F1,F2,F3")
+    ap.add_argument("--arms", default="F0,F1,F2,F3,F4")
     args = ap.parse_args()
 
     art = args.artifacts.resolve()

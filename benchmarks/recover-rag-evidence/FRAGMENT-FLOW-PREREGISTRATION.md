@@ -28,3 +28,9 @@ At fixed 24 KiB / 10 items, fragment flow must improve exact evidence coverage
 by >=0.05 over F0 on both Rust and C# without >25% token growth or >2x p95
 latency. Evidence precision, task correctness, CPU/RAM and oracle ceiling are
 reported. No held-out, no production promotion.
+
+## Amendment F — fragment-only arm
+
+F2 combined fragment flow with budget selection and R1 delivery. To isolate the
+unit change, F4 tests `ZVEC_RAG_FRAGMENT_FLOW=1` only. Thresholds are unchanged;
+F4 is added before qualification.

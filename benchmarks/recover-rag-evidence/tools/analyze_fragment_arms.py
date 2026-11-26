@@ -10,12 +10,28 @@ import subprocess
 from pathlib import Path
 
 LINE = re.compile(r"line: (\d+)")
-ARMS = ("F0", "F1", "F2", "F3")
+ARMS = ("F0", "F1", "F2", "F3", "F4")
 
 
-def rng_from_debug(value: object) -> tuple[int, int] | None:
-    nums = LINE.findall(str(value))
-    return (int(nums[0]), int(nums[1])) if len(nums) >= 2 else None
+BYTE = re.compile(r"start_offset: (\d+), end_offset: (\d+)")
+
+
+def rng_from_debug(value: object, root: Path | None = None, path: str | None = None) -> tuple[int, int] | None:
+    text = str(value)
+    nums = LINE.findall(text)
+    if len(nums) >= 2:
+        return int(nums[0]), int(nums[1])
+    if root and path:
+        m = BYTE.search(text)
+        if m:
+            start, end = int(m.group(1)), int(m.group(2))
+            p = root / path
+            if p.exists():
+                raw = p.read_bytes()
+                prefix = raw[:end].decode("utf-8", errors="replace")
+                start_prefix = raw[:start].decode("utf-8", errors="replace")
+                return start_prefix.count("\n") + 1, max(start_prefix.count("\n") + 1, prefix.count("\n") + 1)
+    return None
 
 
 def rng_from_pack(value: object) -> tuple[int, int] | None:
@@ -37,7 +53,7 @@ def delivered_from_trace(root: Path, trace_path: Path) -> list[dict]:
     for line in trace_path.read_text().splitlines():
         row = json.loads(line)
         if row.get("stage") == "context_selected":
-            rng = rng_from_debug(row.get("range"))
+            rng = rng_from_debug(row.get("range"), root, str(row.get("path")))
             if rng and row.get("path"):
                 items.append({"path": row["path"], "start": rng[0], "end": rng[1]})
     picked = []
@@ -106,7 +122,7 @@ def oracle_ceiling(root: Path, trace_path: Path, gold: list[tuple[str, int, int]
     for line in trace_path.read_text().splitlines():
         row = json.loads(line)
         if row.get("stage") == "loaded":
-            rng = rng_from_debug(row.get("range"))
+            rng = rng_from_debug(row.get("range"), root, str(row.get("path")))
             if rng and row.get("path"):
                 loaded.append({"path": row["path"], "start": rng[0], "end": rng[1]})
     remaining = set(range(len(gold)))
