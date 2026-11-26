@@ -138,7 +138,7 @@ def narrow_methods(root: Path, hits: list[dict]) -> list[dict]:
             else:
                 i += 1
         if methods and hi - lo + 1 > 80:
-            for s, e in methods[:12]:
+            for s, e in methods[:80]:
                 new = dict(h)
                 new.update(start=s, end=e, unit="method", parent=(h["start"], h["end"]))
                 out.append(new)
@@ -153,6 +153,24 @@ def narrow_methods(root: Path, hits: list[dict]) -> list[dict]:
             seen.add(key)
             uniq.append(h)
     return uniq
+
+
+def rerank_by_question(root: Path, hits: list[dict], question: str) -> list[dict]:
+    """H5: rank method units by question/source lexical overlap. Question text is runtime-visible."""
+    q = tokens(question)
+    out = []
+    for h in hits:
+        p = root / h["path"]
+        text = ""
+        if p.exists():
+            lines = p.read_text(errors="replace").splitlines()
+            text = "\n".join(lines[max(0, h["start"] - 1):min(len(lines), h["end"])])
+        overlap = len(q & tokens(text))
+        new = dict(h)
+        new["score"] = (h["score"] or 0) + min(overlap, 12) * 0.02
+        new["question_overlap"] = overlap
+        out.append(new)
+    return sorted(out, key=lambda x: (-(x["score"] or 0), x["rank"]))
 
 
 def graph_expand(root: Path, hits: list[dict], inv: dict[str, list[tuple[str, int, int]]]) -> list[dict]:
@@ -310,7 +328,12 @@ def main() -> None:
                     base_hits = parse_output(text)
                 stats = {"wall": base_stats["wall"], "rss_kb": base_stats["rss_kb"], "derived_from": "baseline"}
                 hits = narrow_methods(root, base_hits)
-                hits = sorted(hits, key=lambda h: (-(h["score"] or 0), h["rank"]))
+            elif arm == "h5":
+                if base_hits is None:
+                    text, base_stats = run_search(binary, root, query, raw_dir, "baseline", cid)
+                    base_hits = parse_output(text)
+                stats = {"wall": base_stats["wall"], "rss_kb": base_stats["rss_kb"], "derived_from": "baseline"}
+                hits = rerank_by_question(root, narrow_methods(root, base_hits), gold["question"])
             elif arm == "h4":
                 if base_hits is None:
                     text, base_stats = run_search(binary, root, query, raw_dir, "baseline", cid)
