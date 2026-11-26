@@ -71,11 +71,31 @@ def metrics(rows: list[dict], gold: list[tuple[str, int, int]], id_map: dict[str
         elif row.get("entity_id") in id_map:
             mapped = id_map[row["entity_id"]]
             resolved.append({"path": mapped["path"], "range": mapped["range"]})
+    seen = set()
+    unique = []
+    for r in resolved:
+        key = (r.get("path"), str(r.get("range")))
+        if key not in seen:
+            seen.add(key)
+            unique.append(r)
+    gold_entities = []
+    for g in gold:
+        ids = {eid for eid, erow in id_map.items() if erow.get("path") == g[0] and overlap_hit(entry_range(erow), erow.get("path"), [g])}
+        gold_entities.append(ids)
+    seen_entities = set()
+    for row in rows:
+        if row.get("entity_id"):
+            seen_entities.add(row["entity_id"])
+        elif row.get("path"):
+            seen_entities.update(eid for eid, erow in id_map.items() if erow.get("path") == row.get("path") and erow.get("range") == row.get("range"))
+    entity_recall = round(sum(bool(ids & seen_entities) for ids in gold_entities) / len(gold_entities), 3) if gold_entities else 0
     return {
         "rows": len(rows),
-        "file_recall": round(sum(file_hit(r["path"], gold) for r in resolved) / len(gold), 3) if gold else 0,
-        "range_recall": round(sum(overlap_hit(entry_range(r), r["path"], gold) for r in resolved) / len(gold), 3) if gold else 0,
-        "exact_coverage": round(sum(exact_hit(entry_range(r), r["path"], gold) for r in resolved) / len(gold), 3) if gold else 0,
+        "unique_rows": len(unique),
+        "entity_recall": entity_recall,
+        "file_recall": round(sum(any(u.get("path") == g[0] for u in unique) for g in gold) / len(gold), 3) if gold else 0,
+        "range_recall": round(sum(any(overlap_hit(entry_range(u), u.get("path"), [g]) for u in unique) for g in gold) / len(gold), 3) if gold else 0,
+        "exact_coverage": round(sum(any(exact_hit(entry_range(u), u.get("path"), [g]) for u in unique) for g in gold) / len(gold), 3) if gold else 0,
         "unmapped": sum(1 for row in rows if "path" not in row and row.get("entity_id") not in id_map),
     }
 
@@ -114,7 +134,8 @@ def main() -> None:
     art = args.artifacts.resolve()
     corpus = args.corpus.resolve()
     cases_doc = json.loads(args.cases.read_text())
-    cases = {c["id"]: c for c in cases_doc["cases"] if (args.split == "rust" or c["id"].startswith("D"))}
+    dev12 = {f"D{i:02d}" for i in range(1, 13)}
+    cases = {c["id"]: c for c in cases_doc["cases"] if (args.split == "rust" or c["id"] in dev12)}
     stages = ("raw", "fused", "loaded", "ranked", "context_group_items", "context_selected")
     out = {"split": args.split, "limit": args.limit, "cases": {}, "summary": {}}
 
@@ -208,12 +229,12 @@ def main() -> None:
     for key in list(stages) + [f"rank_{x}" for x in ("current_rule", "pure_cosine", "pure_rrf", "rule_no_diversity")]:
         out["summary"][key] = {
             m: round(statistics.mean([out["cases"][c][key][m] for c in cases]), 4)
-            for m in ("file_recall", "range_recall", "exact_coverage")
+            for m in ("file_recall", "entity_recall", "range_recall", "exact_coverage")
         }
     out["summary"]["final_noise_ratio"] = round(statistics.mean([
         out["cases"][c]["budget"]["items10_kib24"]["noise_ratio"] for c in cases
     ]), 4)
-    dest = art / "results" / f"stage-analysis-{args.split}.json"
+    dest = art / "results" / f"stage-analysis-{args.split}-L{args.limit}.json"
     dest.write_text(json.dumps(out, indent=2) + "\n")
     print(json.dumps(out["summary"], indent=2))
     print("receipt", dest)
