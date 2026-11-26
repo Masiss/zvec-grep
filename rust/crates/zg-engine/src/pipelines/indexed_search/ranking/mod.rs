@@ -113,12 +113,17 @@ pub(super) fn rank_fragments(
                 0.0
             };
             let coverage = term_coverage(&terms, fragment_text(&hit));
-            let (symbol_match, symbol_bonus, definition_bonus) = match hit.entity.metadata() {
-                Some(EntityMetadata::Code(code)) => {
-                    query_features.symbol_bonus_with(code, Policy::CURRENT)
-                }
-                _ => ("none", 0.0, 0.0),
-            };
+            let (symbol_match, symbol_bonus, definition_bonus) =
+                if std::env::var_os("ZVEC_RAG_RANK_RRF_ONLY").is_some() {
+                    ("none", 0.0, 0.0)
+                } else {
+                    match hit.entity.metadata() {
+                        Some(EntityMetadata::Code(code)) => {
+                            query_features.symbol_bonus_with(code, Policy::CURRENT)
+                        }
+                        _ => ("none", 0.0, 0.0),
+                    }
+                };
             let metadata_bonus = (symbol_bonus + definition_bonus).min(0.08);
             let relevance = if std::env::var_os("ZVEC_RAG_RANK_RRF_ONLY").is_some() {
                 rrf + 0.02 * coverage + metadata_bonus

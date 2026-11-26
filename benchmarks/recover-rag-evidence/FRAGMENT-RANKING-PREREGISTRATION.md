@@ -49,3 +49,10 @@ G4/G5 kept the same selection defect as G2: mixed FTS/vector/coverage weights
 reordered fragments away from the proven RRF pool. H1 tests RRF-dominant
 relevance (`1.0*RRF + 0.02*coverage + bounded metadata`) with the G4 selection
 utility. Budgets and gates are unchanged.
+
+## Amendment I — minimal RRF relevance
+
+H1's C# latency/quality still trailed G1. I1 removes the expensive metadata
+bonus path entirely in RRF-only mode and uses the proven rank-ordered budget
+selection (`rag_budget_select`), keeping fragment relevance ranking and
+verified pack assembly. Gates unchanged.
