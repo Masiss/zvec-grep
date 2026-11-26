@@ -108,7 +108,13 @@ and 1 to 3 C#, with no C0 losses. This is a gold-aware upper bound, not a
 deployable ranker. The authorized gold-blind RRF/path scheduler v1 is recorded
 in [`../../docs/rag/entity-scheduler-v1-report-20261126.md`](../../docs/rag/entity-scheduler-v1-report-20261126.md);
 it rescued R11 but lost mandatory R10, rescued no C# case and lost D11, so its
-verdict is NO-GO.
+verdict is NO-GO. The stored-metadata hybrid reranker plus soft entity-byte
+scheduling is recorded in
+[`../../docs/rag/hybrid-ranking-v1-report-20261126.md`](../../docs/rag/hybrid-ranking-v1-report-20261126.md).
+Independent parent review passed the frozen offline gates: R10 remains 3/3, D11
+is preserved, C# D04 becomes all-gold, precision improves in both splits and
+mean tokens fall. Rust adds no all-gold case and R11 remains unresolved, so this
+is a research candidate only.
 The G1 coordinate adapter was fixed (exclusive evidence endpoint and all
 clipped remainders preserved) and an env-gated coverage selector was tested and
 rejected. Rust G1K4 exact coverage rose from `0.125` to `0.208`, but C# exact
@@ -121,7 +127,10 @@ Discovery, fusion and fragment identity preservation are no longer the limiting
 stages. The oracle probe confirms substantial upside from entity-anchor
 scheduling under the fixed source budget, but its gold-aware ordering is not
 deployable. The first gold-blind RRF/path scheduler failed mandatory regression
-and paired precision gates. No further variant is authorized by this status
-note; a different policy or information source requires a new owner-authorized
-preregistration. Production promotion requires a candidate that passes
-both-language coverage/precision/latency gates and task correctness.
+and paired precision gates. The stored-metadata hybrid reranker passed the
+single offline replay gate and is the first gold-blind candidate to preserve
+R10/D11 while adding D04, but it has not been ported or measured on a real
+binary. No further variant is authorized by this status note. Any opt-in port
+requires a new owner-authorized task with ranker/selector regression tests and
+paired runtime/p95 validation. Production promotion requires a candidate that
+passes both-language coverage/precision/latency gates and task correctness.
