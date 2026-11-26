@@ -114,7 +114,11 @@ scheduling is recorded in
 Independent parent review passed the frozen offline gates: R10 remains 3/3, D11
 is preserved, C# D04 becomes all-gold, precision improves in both splits and
 mean tokens fall. Rust adds no all-gold case and R11 remains unresolved, so this
-is a research candidate only.
+is a research candidate only. A follow-up feature study and concrete fix design
+are recorded in
+[`../../docs/rag/ranking-fix-proposal-20261126.md`](../../docs/rag/ranking-fix-proposal-20261126.md):
+use a reserved multi-route entity slate (base, content TF-IDF, metadata and query
+facets) before soft budget scheduling, rather than one additive score.
 The G1 coordinate adapter was fixed (exclusive evidence endpoint and all
 clipped remainders preserved) and an env-gated coverage selector was tested and
 rejected. Rust G1K4 exact coverage rose from `0.125` to `0.208`, but C# exact
@@ -130,7 +134,9 @@ deployable. The first gold-blind RRF/path scheduler failed mandatory regression
 and paired precision gates. The stored-metadata hybrid reranker passed the
 single offline replay gate and is the first gold-blind candidate to preserve
 R10/D11 while adding D04, but it has not been ported or measured on a real
-binary. No further variant is authorized by this status note. Any opt-in port
-requires a new owner-authorized task with ranker/selector regression tests and
-paired runtime/p95 validation. Production promotion requires a candidate that
-passes both-language coverage/precision/latency gates and task correctness.
+binary. The next proposed ranking fix is one preregistered multi-route entity
+slate replay; it is not yet implemented. No further variant is authorized by
+this status note. Any opt-in port requires a new owner-authorized task with
+ranker/selector regression tests and paired runtime/p95 validation. Production
+promotion requires a candidate that passes both-language
+coverage/precision/latency gates and task correctness.

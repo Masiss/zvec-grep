@@ -108,10 +108,13 @@ oracle is gold-aware and is only an upper bound, not a deployable policy.
 The failed gold-blind RRF+path v1 had lost R10 and D11; this policy loses
 neither.
 
-D04's gain is concrete: its rank-2 `EditEmployeeSecurity` entity was scheduled
-first with static priority 1.073551; arm A expanded the 495-byte fragment to the
-containing 1,950-byte method at bytes 24,535–26,485, covering the gold span
-24,119–24,525. C0 delivered 0/1; hybrid delivered 1/1.
+D04's gain is concrete: the exact-metadata `EmployeeUpdateInfo` entity
+(original fragment rank 119, static priority 0.620746) was admitted after soft
+saturation lowered earlier broad entities. Its original 406-byte fragment at
+24,119–24,525 covers the gold span exactly. The resolver fell back with
+`entity_quota`; no structural expansion was involved. C0 delivered 0/1; hybrid
+delivered 1/1. This corrects the subagent's original mechanism description;
+the measured metrics and hashes are unchanged.
 
 ## Target diagnosis
 
