@@ -34,3 +34,10 @@ Fixed byte budget 24 KiB, item safeguard 64, 12 Rust + 12 C# dev cases.
 Gate: beat K0 and K1 on exact coverage in both languages, no precision
 regression, <=25% token growth and <=2x p95 vs K1; task correctness reported.
 No held-out, no promotion, no new architecture.
+
+## Amendment K — rank-order selection with clipping
+
+K2/K3 pass lineage contracts but deliver many small clipped fragments and lose
+coverage. K4/K5 keep corrected fusion/ranking/source-aware clipping and byte
+primary budget, but select in rank order instead of utility order. Gates are
+unchanged.

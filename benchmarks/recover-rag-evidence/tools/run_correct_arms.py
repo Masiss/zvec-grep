@@ -10,6 +10,25 @@ import time
 from pathlib import Path
 
 ARMS = {
+    "K4": {
+        "ZVEC_RAG_FRAGMENT_FLOW": "1",
+        "ZVEC_RAG_FRAGMENT_RELEVANCE": "1",
+        "ZVEC_RAG_RANK_RRF_ONLY": "1",
+        "ZVEC_RAG_FRAGMENT_SELECT_RANK_ONLY": "1",
+        "ZVEC_RAG_BYTE_BUDGET": "24576",
+        "ZVEC_RAG_ITEM_BUDGET": "64",
+        "ZVEC_RAG_BUDGET_SELECT": "1",
+        "ZVEC_RAG_EVIDENCE_PACK_FILE": "@pack",
+    },
+    "K5": {
+        "ZVEC_RAG_FRAGMENT_FLOW": "1",
+        "ZVEC_RAG_FRAGMENT_RELEVANCE": "1",
+        "ZVEC_RAG_FRAGMENT_SELECT_RANK_ONLY": "1",
+        "ZVEC_RAG_BYTE_BUDGET": "24576",
+        "ZVEC_RAG_ITEM_BUDGET": "64",
+        "ZVEC_RAG_BUDGET_SELECT": "1",
+        "ZVEC_RAG_EVIDENCE_PACK_FILE": "@pack",
+    },
     "K0": {},
     "K1": {
         "ZVEC_RAG_FRAGMENT_FLOW": "1",
@@ -107,7 +126,7 @@ def main() -> None:
     ap.add_argument("--cases", required=True, type=Path)
     ap.add_argument("--corpus", required=True, type=Path)
     ap.add_argument("--split", choices=("rust", "csharp"), required=True)
-    ap.add_argument("--arms", default="K0,K1,K2,K3")
+    ap.add_argument("--arms", default="K0,K1,K2,K3,K4,K5")
     args = ap.parse_args()
 
     art = args.artifacts.resolve()

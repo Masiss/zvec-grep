@@ -503,10 +503,15 @@ fn fragment_budget_select(items: Vec<ContextItem>, query: &str) -> Vec<ContextIt
         terms.truncate(24);
         terms
     };
+    let rank_only = env::var_os("ZVEC_RAG_FRAGMENT_SELECT_RANK_ONLY").is_some();
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
     for item in items {
         if !seen.insert(context_item_dedupe_key(&item)) {
+            continue;
+        }
+        if rank_only {
+            candidates.push((item, 0.0));
             continue;
         }
         let lower = item.content.to_lowercase();
@@ -526,6 +531,9 @@ fn fragment_budget_select(items: Vec<ContextItem>, query: &str) -> Vec<ContextIt
     while selected.len() < item_budget && !candidates.is_empty() {
         let utility = |index: usize| -> f64 {
             let (item, coverage) = &candidates[index];
+            if rank_only {
+                return -(item.rank as f64);
+            }
             let overlap = selected
                 .iter()
                 .map(|other| source_overlap_ratio(item, other))
