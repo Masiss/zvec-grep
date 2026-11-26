@@ -14,6 +14,29 @@ ARMS = ("F0", "F1", "F2", "F3", "F4")
 
 
 BYTE = re.compile(r"start_offset: (\d+), end_offset: (\d+)")
+TEXT_BYTES = re.compile(r"byte_offset: (\d+)")
+TEXT_LINES = re.compile(r"line: (\d+)")
+
+
+def rng_for_loaded(row: dict, root: Path) -> tuple[int, int] | None:
+    path = str(row.get("path"))
+    entity = row.get("entity_range")
+    fragment = row.get("fragment_range")
+    if entity and fragment:
+        eb = TEXT_BYTES.findall(str(entity))
+        el = TEXT_LINES.findall(str(entity))
+        if len(eb) >= 2 and len(el) >= 2 and (root / path).exists():
+            es, ee = int(eb[0]), int(eb[1])
+            sl = int(el[0])
+            raw = (root / path).read_bytes()[es:ee].decode("utf-8", errors="replace")
+            if "Full" in str(fragment):
+                return sl, max(sl, int(el[1]))
+            f = BYTE.search(str(fragment))
+            if f:
+                a = sl + raw[:int(f.group(1))].count("\n")
+                b = max(a, sl + raw[:int(f.group(2))].count("\n"))
+                return a, b
+    return rng_from_debug(row.get("range"), root, path)
 
 
 def rng_from_debug(value: object, root: Path | None = None, path: str | None = None) -> tuple[int, int] | None:
@@ -119,9 +142,11 @@ def score_ranges(root: Path, delivered: list[dict], gold: list[tuple[str, int, i
 
 def oracle_ceiling(root: Path, trace_path: Path, gold: list[tuple[str, int, int]]) -> float:
     loaded = []
-    for line in trace_path.read_text().splitlines():
-        row = json.loads(line)
-        if row.get("stage") == "loaded":
+    stages = [json.loads(line) for line in trace_path.read_text().splitlines()]
+    pool = [r for r in stages if r.get("stage") == "context_group_items"]
+    if not pool:
+        pool = [r for r in stages if r.get("stage") == "loaded"]
+    for row in pool:
             rng = rng_from_debug(row.get("range"), root, str(row.get("path")))
             if rng and row.get("path"):
                 loaded.append({"path": row["path"], "start": rng[0], "end": rng[1]})
