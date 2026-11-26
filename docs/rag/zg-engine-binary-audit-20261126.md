@@ -191,13 +191,48 @@ Source corpus: `/home/masis/.cache/zvec-grep/rust-rag-20261126/corpus/clap`, fro
 
 Raw evidence: `raw/frozen-copy-installed-vector.*`, `raw/g1-fresh-vector-libpath-only.*`, `raw/frozen-integrity-final.txt`, `raw/frozen-query-resource-before.txt`, `raw/frozen-query-resource-after.txt`.
 
+## Native runtime layout proof
+
+The parent independently staged the current G1 binary and native library as:
+
+```text
+native-runtime-bundle-check-20261126/
+  bin/zg
+  lib/libzvec_c_api.so
+```
+
+In a clean environment with no `LD_LIBRARY_PATH`, `env -i PATH=/usr/bin:/bin
+HOME=... bin/zg --version` exited 0 with `0.3.0-rc.3`. `LD_DEBUG=libs` confirmed
+resolution from `bin/../lib/libzvec_c_api.so`. Both the executable and library
+retain their original SHA-256 values. Receipt:
+`/home/masis/.cache/zvec-grep/native-runtime-bundle-check-20261126/`.
+
+This confirms the engine is already release-capable without user loader
+variables. The failing G1 was a staging mistake (binary copied away from
+`../lib`), not a loader defect. The npm release implementation already stages
+all runtime libraries under `lib/`; Unix uses `../lib` rpaths and Windows uses
+the native delay-load hook.
+
 ## Recommended remediation options (not applied)
 
-1. **If the goal is research behavior:** build a clean binary from `b336cbb` or a later approved commit, record its hash/build-info, package `libzvec_c_api.so` (and applicable ORT assets) under the expected `../lib`, then explicitly select that binary. The current wrapper cannot do this. Any daemon switch requires a separately approved controlled restart.
-2. **If the goal is only to run G1 now:** invoke it directly with `LD_LIBRARY_PATH=/home/masis/.local/lib`; for non-model2vec/ORT backends also set `ORT_DYLIB_PATH=/home/masis/.local/lib/libonnxruntime.so.1` or `ZVEC_GREP_NATIVE_LIB_DIR=/home/masis/.local/lib`. Treat the dirty `313e48d` provenance as a research-only limitation.
+1. **If the goal is research behavior:** build a clean binary from `b336cbb` or
+   a later approved commit, record its hash/build-info, then stage it with the
+   runtime as `bin/zg` + `lib/libzvec_c_api.so` (and applicable ORT/backend
+   assets). Do not copy only the executable. The current wrapper cannot select
+   a research bundle. Any daemon switch requires a separately approved
+   controlled restart.
+2. **If the goal is only to run G1 now:** use the verified self-contained bundle
+   at `/home/masis/.cache/zvec-grep/native-runtime-bundle-check-20261126/bin/zg`.
+   It is still a dirty `313e48d` research artifact. `LD_LIBRARY_PATH` is only a
+   developer workaround for a broken layout, not a user-facing release solution.
 3. **Fix direct CLI workspace discovery:** `/home/masis/.zvec-grep` is a symlink to the dogfood home. An approved engine fix should prevent a symlinked ancestor outside the requested workspace from being selected (or canonicalize the runtime home safely), or the deployment should stop exposing that symlink as a workspace marker. Merely setting `ZVEC_GREP_HOME` did not fix the reproduced status/query path.
 4. **Fix wrapper disable semantics:** only default the related observability variables when observability is enabled, or require callers to unset all four. Until changed, bypass the wrapper and unset all four variables to disable capture.
 5. **Do not rebuild/replace the real index based on this audit.** Format/generation evidence is consistent. If a real-workspace status/refresh is desired, perform it later under an explicit authorization because it may update caches/locks/state.
+6. **Add a release smoke gate:** copy only the packaged `bin/` and `lib/` into a
+   fresh temporary prefix, run `zg --version` and `zg --build-info` with all
+   project/native library environment overrides stripped, and fail the release
+   if the native runtime is not found. This catches the exact class of error
+   without asking users to configure a library path.
 
 ## Safety and limitations
 
