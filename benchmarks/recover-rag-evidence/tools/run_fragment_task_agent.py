@@ -9,7 +9,7 @@ import subprocess
 import time
 from pathlib import Path
 
-ARMS = ("F0", "F1", "F2", "F4")
+ARMS = ("F0", "F2", "F4")
 
 
 def norm(s: str) -> str:
@@ -64,7 +64,8 @@ def main() -> None:
             pack = pack_path.read_text()
             prompt = (
                 "Answer using ONLY the evidence below. Cite exact [path:start-end] headers from the evidence. "
-                "If insufficient, say INSUFFICIENT on the first line. Do not speculate.\n"
+                "If insufficient, say INSUFFICIENT on the first line. Do not speculate. "
+                "Answer in at most 120 words.\n"
                 f"Question: {case['question']}\nEvidence:\n{pack}"
             )
             session = art / "agent-sessions" / args.split / arm / cid
@@ -115,7 +116,7 @@ def main() -> None:
             "total_tokens": sum(r["usage"]["totalTokens"] for r in rows),
             "mean_wall_s": round(sum(r["wall_s"] for r in rows) / len(rows), 2),
         }
-    dest = art / "results" / f"task-agent-fragment-{args.split}.json"
+    dest = art / "results" / f"task-agent-fragment-final-{args.split}.json"
     dest.write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps(receipt["summary"], indent=2))
     print("receipt", dest)
