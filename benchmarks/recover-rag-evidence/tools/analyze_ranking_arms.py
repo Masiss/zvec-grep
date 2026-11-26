@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 LINE = re.compile(r"line: (\d+)")
-ARMS = ("G0", "G1", "G2", "G3", "G4", "G5")
+ARMS = ("G0", "G1", "G2", "G3", "G4", "G5", "H1")
 
 
 BYTE = re.compile(r"start_offset: (\d+), end_offset: (\d+)")

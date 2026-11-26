@@ -120,8 +120,11 @@ pub(super) fn rank_fragments(
                 _ => ("none", 0.0, 0.0),
             };
             let metadata_bonus = (symbol_bonus + definition_bonus).min(0.08);
-            let relevance =
-                0.45 * rrf + 0.25 * fts + 0.20 * vector + 0.10 * coverage + metadata_bonus;
+            let relevance = if std::env::var_os("ZVEC_RAG_RANK_RRF_ONLY").is_some() {
+                rrf + 0.02 * coverage + metadata_bonus
+            } else {
+                0.45 * rrf + 0.25 * fts + 0.20 * vector + 0.10 * coverage + metadata_bonus
+            };
             (
                 hit,
                 relevance,

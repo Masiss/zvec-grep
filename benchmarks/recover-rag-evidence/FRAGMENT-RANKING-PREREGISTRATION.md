@@ -42,3 +42,10 @@ selection with a precomputed, score-first utility:
 `utility = score + 0.25*query_coverage - 0.35*max_range_overlap - 0.05*(cost/24KiB)`
 
 G5 is G4 with rank limit 200. Thresholds and budget are unchanged.
+
+## Amendment H — RRF-dominant relevance
+
+G4/G5 kept the same selection defect as G2: mixed FTS/vector/coverage weights
+reordered fragments away from the proven RRF pool. H1 tests RRF-dominant
+relevance (`1.0*RRF + 0.02*coverage + bounded metadata`) with the G4 selection
+utility. Budgets and gates are unchanged.
