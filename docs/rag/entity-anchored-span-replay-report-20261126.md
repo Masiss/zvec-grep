@@ -161,13 +161,13 @@ union of actual pack bytes covers it completely.
 
 | First blocking stage | Rust A | Rust B | C# A | C# B |
 |---|---:|---:|---:|---:|
-| Delivered | 5 | 5 | 2 | 2 |
+| Delivered | 7 | 7 | 2 | 2 |
 | Entity absent from pool | 3 | 3 | 9 | 9 |
 | Entity in pool, no anchor eligible before budget | 15 | 14 | 5 | 6 |
 | Resolver entity/quota limit | 3 | 4 | 7 | 6 |
-| No containing declaration (A) | 4 | — | 2 | — |
-| No query signal (B) | — | 2 | — | 0 |
-| Wrong declaration selected (B) | — | 2 | — | 2 |
+| No containing declaration (A) | 2 | — | 2 | — |
+| No query signal (B) | — | 1 | — | 0 |
+| Wrong declaration selected (B) | — | 1 | — | 2 |
 | Correct span blocked by cap | 0 | 0 | 0 | 0 |
 
 `original_not_fit` dominates the raw candidate ledger because the selector walks
@@ -220,6 +220,14 @@ gold spans have a matching entity in the pool but no eligible anchor before
 budget, with another 3/4 Rust + 7/6 C# stopped by the resolver quota. If the
 oracle does not create a new all-gold question, close the anchor-order line and
 do not spend effort on a new ranker or resolver variant.
+
+### Follow-up outcome
+
+The authorized probe was executed and recorded in
+[`oracle-anchor-order-report-20261126.md`](oracle-anchor-order-report-20261126.md).
+It added five Rust and two C# all-gold questions with no C0 losses, so the
+anchor-order line remains open. The oracle uses gold and is not deployable; a
+separate owner-authorized gold-blind scheduler task is the next action.
 
 ## Reproduction
 
