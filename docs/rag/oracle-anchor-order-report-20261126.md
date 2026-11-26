@@ -174,6 +174,13 @@ precision/token/integrity gates before any opt-in port discussion.
 
 No oracle ordering may enter production code.
 
+### Follow-up scheduler outcome
+The owner-authorized gold-blind scheduler v1 was measured and recorded in
+[`entity-scheduler-v1-report-20261126.md`](entity-scheduler-v1-report-20261126.md).
+It rescued R11 but lost mandatory R10, rescued no C# case and lost D11; macro
+precision fell in both languages. Verdict: **NO-GO**, no port and no weight
+tuning. Any different policy requires a new owner-authorized preregistration.
+
 ## Reproduction
 
 ```bash

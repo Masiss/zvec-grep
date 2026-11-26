@@ -105,7 +105,10 @@ The single authorized oracle anchor-order probe is recorded in
 [`../../docs/rag/oracle-anchor-order-report-20261126.md`](../../docs/rag/oracle-anchor-order-report-20261126.md).
 Prioritizing gold-bearing entity anchors raised all-gold cases from 2 to 7 Rust
 and 1 to 3 C#, with no C0 losses. This is a gold-aware upper bound, not a
-deployable ranker.
+deployable ranker. The authorized gold-blind RRF/path scheduler v1 is recorded
+in [`../../docs/rag/entity-scheduler-v1-report-20261126.md`](../../docs/rag/entity-scheduler-v1-report-20261126.md);
+it rescued R11 but lost mandatory R10, rescued no C# case and lost D11, so its
+verdict is NO-GO.
 The G1 coordinate adapter was fixed (exclusive evidence endpoint and all
 clipped remainders preserved) and an env-gated coverage selector was tested and
 rejected. Rust G1K4 exact coverage rose from `0.125` to `0.208`, but C# exact
@@ -117,8 +120,8 @@ production binary, daemon, index, model, default or held-out data changed.
 Discovery, fusion and fragment identity preservation are no longer the limiting
 stages. The oracle probe confirms substantial upside from entity-anchor
 scheduling under the fixed source budget, but its gold-aware ordering is not
-deployable. The next action is a separate owner-authorized task to preregister
-and measure one gold-blind entity-anchor scheduler on the same frozen pool and
-cap. No oracle ordering may enter production. No further work is authorized by
-this status note. Production promotion requires a candidate that passes
+deployable. The first gold-blind RRF/path scheduler failed mandatory regression
+and paired precision gates. No further variant is authorized by this status
+note; a different policy or information source requires a new owner-authorized
+preregistration. Production promotion requires a candidate that passes
 both-language coverage/precision/latency gates and task correctness.
