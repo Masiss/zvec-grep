@@ -190,6 +190,23 @@ fn build_context_result(
         .zip(groups)
         .map(|(search, group)| search_plan_to_context_items(search, workspace.source_root(), group))
         .collect::<Result<Vec<_>, _>>()?;
+    super::pipeline::dump_stage(
+        "context_group_items",
+        group_items
+            .iter()
+            .flatten()
+            .map(|item| {
+                serde_json::json!({
+                    "entity_id": item.entity_id,
+                    "path": item.relative_path,
+                    "range": format!("{:?}", item.range),
+                    "rank": item.rank,
+                    "score": item.score,
+                    "query_groups": item.query_groups,
+                })
+            })
+            .collect(),
+    );
     let coverage_groups = groups
         .iter()
         .filter(|group| group.role == ContextQueryGroupRole::Primary)
@@ -198,6 +215,25 @@ fn build_context_result(
     let items = select_and_rank_context_items(
         group_items.iter().flatten().cloned().collect(),
         &coverage_groups,
+    );
+    super::pipeline::dump_stage(
+        "context_selected",
+        items
+            .iter()
+            .map(|item| {
+                serde_json::json!({
+                    "entity_id": item.entity_id,
+                    "path": item.relative_path,
+                    "range": format!("{:?}", item.range),
+                    "rank": item.rank,
+                    "score": item.score,
+                    "selection_reason": item.selection_reason,
+                    "coverage_group": item.coverage_group,
+                    "query_groups": item.query_groups,
+                    "trace": item.trace,
+                })
+            })
+            .collect(),
     );
     let timings = searches
         .iter()

@@ -2,6 +2,8 @@ use super::storage::SearchStorage;
 
 use std::{
     collections::{HashMap, HashSet},
+    fs::OpenOptions,
+    io::Write,
     path::Path,
     time::Instant,
 };
@@ -147,6 +149,25 @@ struct RecallRoute {
     vector_route_id: Option<String>,
 }
 
+/// Env-gated stage dumper for isolated research. No output unless explicitly enabled.
+pub(crate) fn dump_stage(stage: &str, rows: Vec<serde_json::Value>) {
+    let Ok(path) = std::env::var("ZVEC_DISCOVERY_TRACE_FILE") else {
+        return;
+    };
+    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
+        return;
+    };
+    for row in rows {
+        let mut value = serde_json::json!({"stage": stage});
+        if let (Some(object), Some(fields)) = (value.as_object_mut(), row.as_object()) {
+            for (key, item) in fields {
+                object.insert(key.clone(), item.clone());
+            }
+        }
+        let _ = writeln!(file, "{}", value);
+    }
+}
+
 struct Candidate {
     id: EntityId,
     file_id: FileId,
@@ -216,14 +237,59 @@ pub(crate) async fn search_workspace_index(
         )?;
     }
     let recall_duration = recall_started.elapsed();
+    dump_stage(
+        "raw",
+        candidates
+            .values()
+            .flat_map(|candidate| {
+                candidate
+                    .evidence
+                    .iter()
+                    .map(|evidence| {
+                        serde_json::json!({
+                            "entity_id": candidate.id.as_str(),
+                            "file_id": candidate.file_id.get(),
+                            "route": evidence.route_id,
+                            "mode": format!("{:?}", evidence.path),
+                            "rank": evidence.rank,
+                            "score": evidence.hit.score,
+                            "raw_score": candidate.score,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+    );
 
     let fusion_started = Instant::now();
     let fused = fuse_candidates(candidates);
+    dump_stage("fused", fused.iter().map(|candidate| serde_json::json!({
+        "entity_id": candidate.id.as_str(),
+        "file_id": candidate.file_id.get(),
+        "score": candidate.score,
+        "rank": candidate.rank,
+        "sources": candidate.sources.iter().map(|s| format!("{s:?}")).collect::<Vec<_>>(),
+    })).collect());
     let fusion_duration = fusion_started.elapsed();
 
     let load_started = Instant::now();
     // Every recalled entity must be eligible for structural boosts before cutoff.
     let hits = load_candidates(fused, limit, plan.trace, storage)?;
+    dump_stage(
+        "loaded",
+        hits.iter()
+            .map(|hit| {
+                serde_json::json!({
+                    "entity_id": hit.entity.id().as_str(),
+                    "path": hit.file.relative_path().as_ref(),
+                    "range": format!("{:?}", hit.entity.source_range()),
+                    "rank": hit.rank,
+                    "score": hit.score,
+                    "trace": hit.trace,
+                })
+            })
+            .collect(),
+    );
     let load_duration = load_started.elapsed();
     let ranking_started = Instant::now();
     let maximum_rrf = build_recall_routes(&routes, filter.as_ref(), plan.prefer_symbol)
@@ -231,6 +297,21 @@ pub(crate) async fn search_workspace_index(
         .map(|_| 1.0 / (RRF_K + 1.0))
         .sum();
     let hits = super::ranking::rank(hits, &routes, &plan.filter, maximum_rrf, limit);
+    dump_stage(
+        "ranked",
+        hits.iter()
+            .map(|hit| {
+                serde_json::json!({
+                    "entity_id": hit.entity.id().as_str(),
+                    "path": hit.file.relative_path().as_ref(),
+                    "range": format!("{:?}", hit.entity.source_range()),
+                    "rank": hit.rank,
+                    "score": hit.score,
+                    "trace": hit.trace,
+                })
+            })
+            .collect(),
+    );
     let ranking_duration = ranking_started.elapsed();
 
     Ok(SearchPlanResult {
