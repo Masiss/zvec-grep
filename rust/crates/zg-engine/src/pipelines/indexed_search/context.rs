@@ -617,6 +617,11 @@ fn context_group_number(id: &str) -> usize {
 }
 
 fn context_item_dedupe_key(item: &ContextItem) -> String {
+    if std::env::var_os("ZVEC_RAG_FRAGMENT_FLOW").is_some() {
+        if let Some(fragment_id) = &item.fragment_id {
+            return format!("fragment:{fragment_id}");
+        }
+    }
     item.entity_id.as_ref().map_or_else(
         || format!("range:{}:{:?}", item.absolute_path.display(), item.range),
         |id| format!("entity:{id}"),

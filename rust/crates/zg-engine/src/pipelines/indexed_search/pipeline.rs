@@ -25,7 +25,10 @@ use crate::{
     },
     file_selection::GlobMatcher,
     models::{EmbeddingOptions, ModelError, ModelRuntimeLease},
-    storage::types::{StoragePathFilter, StorageSearchFilter, StorageSearchHit, StoredSearchData},
+    storage::types::{
+        StoragePathFilter, StorageSearchFilter, StorageSearchHit, StorageSearchPath,
+        StoredSearchData,
+    },
 };
 
 use super::{
@@ -178,6 +181,17 @@ struct Candidate {
     rank: usize,
 }
 
+#[derive(Clone, Debug)]
+struct FragmentCandidate {
+    document_id: String,
+    entity_id: EntityId,
+    file_id: FileId,
+    sources: HashSet<SearchRouteMode>,
+    recall: Vec<SearchRecallTrace>,
+    score: f64,
+    rank: usize,
+}
+
 struct InternalEvidence {
     hit: StorageSearchHit,
     path: SearchRouteMode,
@@ -266,35 +280,71 @@ pub(crate) async fn search_workspace_index(
     );
 
     let fusion_started = Instant::now();
-    let fused = fuse_candidates(candidates);
-    dump_stage("fused", fused.iter().map(|candidate| serde_json::json!({
-        "entity_id": candidate.id.as_str(),
-        "file_id": candidate.file_id.get(),
-        "score": candidate.score,
-        "rank": candidate.rank,
-        "sources": candidate.sources.iter().map(|s| format!("{s:?}")).collect::<Vec<_>>(),
-    })).collect());
-    let fusion_duration = fusion_started.elapsed();
-
-    let load_started = Instant::now();
-    // Every recalled entity must be eligible for structural boosts before cutoff.
-    let hits = load_candidates(fused, rank_limit, plan.trace, storage)?;
-    dump_stage(
-        "loaded",
-        hits.iter()
-            .map(|hit| {
-                serde_json::json!({
-                    "entity_id": hit.entity.id().as_str(),
-                    "path": hit.file.relative_path().as_ref(),
-                    "range": format!("{:?}", hit.entity.source_range()),
-                    "rank": hit.rank,
-                    "score": hit.score,
-                    "trace": hit.trace,
+    let fragment_flow = std::env::var_os("ZVEC_RAG_FRAGMENT_FLOW").is_some();
+    let (hits, fusion_duration, load_duration) = if fragment_flow {
+        let fused_fragments = fuse_fragment_candidates(&candidates);
+        dump_stage(
+            "fragment_fused",
+            fused_fragments
+                .iter()
+                .map(|candidate| {
+                    serde_json::json!({
+                        "fragment_id": candidate.document_id,
+                        "entity_id": candidate.entity_id.as_str(),
+                        "file_id": candidate.file_id.get(),
+                        "score": candidate.score,
+                        "rank": candidate.rank,
+                        "recall": candidate.recall,
+                    })
                 })
-            })
-            .collect(),
-    );
-    let load_duration = load_started.elapsed();
+                .collect(),
+        );
+        let fusion_duration = fusion_started.elapsed();
+        let load_started = Instant::now();
+        let loaded = load_fragment_candidates(fused_fragments, rank_limit, plan.trace, storage)?;
+        dump_stage("loaded", loaded.iter().map(|hit| serde_json::json!({
+            "entity_id": hit.entity.id().as_str(),
+            "fragment_id": hit.evidence.first().map(|e| e.fragment.id.as_str()),
+            "path": hit.file.relative_path().as_ref(),
+            "entity_range": format!("{:?}", hit.entity.source_range()),
+            "fragment_range": hit.evidence.first().map(|e| format!("{:?}", e.fragment.range)),
+            "range": format!("{:?}", hit.evidence.first().map(|e| e.fragment.range).unwrap_or_else(|| hit.entity.source_range())),
+            "rank": hit.rank,
+            "score": hit.score,
+            "trace": hit.trace,
+        })).collect());
+        (loaded, fusion_duration, load_started.elapsed())
+    } else {
+        let fused = fuse_candidates(candidates);
+        dump_stage("fused", fused.iter().map(|candidate| serde_json::json!({
+            "entity_id": candidate.id.as_str(),
+            "file_id": candidate.file_id.get(),
+            "score": candidate.score,
+            "rank": candidate.rank,
+            "sources": candidate.sources.iter().map(|src| format!("{src:?}")).collect::<Vec<_>>(),
+        })).collect());
+        let fusion_duration = fusion_started.elapsed();
+        let load_started = Instant::now();
+        // Every recalled entity must be eligible for structural boosts before cutoff.
+        let loaded = load_candidates(fused, rank_limit, plan.trace, storage)?;
+        dump_stage(
+            "loaded",
+            loaded
+                .iter()
+                .map(|hit| {
+                    serde_json::json!({
+                        "entity_id": hit.entity.id().as_str(),
+                        "path": hit.file.relative_path().as_ref(),
+                        "range": format!("{:?}", hit.entity.source_range()),
+                        "rank": hit.rank,
+                        "score": hit.score,
+                        "trace": hit.trace,
+                    })
+                })
+                .collect(),
+        );
+        (loaded, fusion_duration, load_started.elapsed())
+    };
     let ranking_started = Instant::now();
     let maximum_rrf = build_recall_routes(&routes, filter.as_ref(), plan.prefer_symbol)
         .iter()
@@ -589,6 +639,126 @@ fn add_or_update_recall(recall: &mut Vec<SearchRecallTrace>, next: SearchRecallT
     } else {
         recall.push(next);
     }
+}
+
+fn fuse_fragment_candidates(candidates: &HashMap<EntityId, Candidate>) -> Vec<FragmentCandidate> {
+    let mut fragments: HashMap<String, FragmentCandidate> = HashMap::new();
+    for candidate in candidates.values() {
+        for evidence in &candidate.evidence {
+            let id = evidence.hit.document_id.clone();
+            let entry = fragments
+                .entry(id.clone())
+                .or_insert_with(|| FragmentCandidate {
+                    document_id: id,
+                    entity_id: candidate.id.clone(),
+                    file_id: candidate.file_id,
+                    sources: HashSet::new(),
+                    recall: Vec::new(),
+                    score: 0.0,
+                    rank: 0,
+                });
+            entry.sources.insert(evidence.path);
+            for trace in candidate
+                .recall
+                .iter()
+                .filter(|trace| trace.route_id == evidence.route_id)
+            {
+                if let Some(rank) = trace.rank {
+                    entry.score += 1.0 / (RRF_K + rank_as_f64(rank));
+                }
+                entry.recall.push(trace.clone());
+            }
+        }
+    }
+    let mut fused = fragments.into_values().collect::<Vec<_>>();
+    fused.sort_by(|left, right| {
+        right
+            .score
+            .total_cmp(&left.score)
+            .then_with(|| left.document_id.cmp(&right.document_id))
+    });
+    for (index, candidate) in fused.iter_mut().enumerate() {
+        candidate.rank = index + 1;
+    }
+    fused
+}
+
+fn load_fragment_candidates(
+    candidates: Vec<FragmentCandidate>,
+    limit: usize,
+    trace: bool,
+    storage: &dyn SearchStorage,
+) -> Result<Vec<SearchHit>, EngineError> {
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+    let hits = candidates
+        .iter()
+        .map(|candidate| StorageSearchHit {
+            document_id: candidate.document_id.clone(),
+            entity_id: candidate.entity_id.clone(),
+            file_id: candidate.file_id,
+            path: if candidate.sources.contains(&SearchRouteMode::Fts) {
+                StorageSearchPath::Fts
+            } else {
+                StorageSearchPath::Vector
+            },
+            score: candidate.score,
+        })
+        .collect::<Vec<_>>();
+    let data = storage.load_search_hits(&hits)?;
+    let mut loaded = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        let Some(stored) = data.entities.get(&candidate.entity_id) else {
+            continue;
+        };
+        if stored.entity.id() != &candidate.entity_id
+            || stored.entity.file_id() != candidate.file_id
+            || stored.file.id() != candidate.file_id
+        {
+            return Err(EngineError::storage_failure(
+                "loaded search entity has inconsistent ownership",
+            ));
+        }
+        let Some(fragment) = data.fragments.get(&candidate.document_id) else {
+            continue;
+        };
+        if fragment.id.as_str() != candidate.document_id
+            || !stored
+                .entity
+                .fragments()
+                .iter()
+                .any(|owned| owned == fragment)
+        {
+            return Err(EngineError::storage_failure(
+                "loaded search fragment has inconsistent ownership",
+            ));
+        }
+        loaded.push(SearchHit {
+            entity: stored.entity.clone(),
+            file: stored.file.clone(),
+            evidence: vec![SearchEvidence {
+                fragment: fragment.clone(),
+            }],
+            rank: candidate.rank,
+            score: candidate.score,
+            matched_by: derive_matched_by(&candidate.sources),
+            trace: trace.then_some(SearchHitTrace {
+                recall: candidate.recall,
+                ranking: None,
+                fusion: SearchFusionTrace {
+                    rank: candidate.rank,
+                    score: candidate.score,
+                    forced: false,
+                },
+                final_selection: SearchFinalTrace {
+                    returned_by_limit: candidate.rank <= limit,
+                    cutoff_rank: limit,
+                },
+            }),
+        });
+    }
+    Ok(loaded)
 }
 
 fn fuse_candidates(candidates: HashMap<EntityId, Candidate>) -> Vec<Candidate> {

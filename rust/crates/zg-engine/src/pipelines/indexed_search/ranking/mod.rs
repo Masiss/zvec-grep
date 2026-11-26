@@ -139,7 +139,9 @@ fn select(
     limit: usize,
     policy: Policy,
 ) -> Vec<SearchHit> {
-    let file_decay = if std::env::var_os("ZVEC_RAG_NO_DIVERSITY").is_some() {
+    let file_decay = if std::env::var_os("ZVEC_RAG_NO_DIVERSITY").is_some()
+        || std::env::var_os("ZVEC_RAG_FRAGMENT_FLOW").is_some()
+    {
         0.0
     } else {
         FILE_DECAY
