@@ -32,3 +32,13 @@ At fixed 24 KiB / 10 items, G2/G3 must beat G1 and G0 on exact coverage with
 no precision regression, <=25% token growth vs G1 and <=2x p95 latency.
 Task correctness, oracle ceiling, CPU/RAM and normal-search parity reported.
 No held-out, no production promotion.
+
+## Amendment G — revised selection utility
+
+G2/G3 lost evidence at selection despite a high loaded-pool oracle and had high
+C# latency. G4 keeps the fragment relevance ranking unchanged and replaces
+selection with a precomputed, score-first utility:
+
+`utility = score + 0.25*query_coverage - 0.35*max_range_overlap - 0.05*(cost/24KiB)`
+
+G5 is G4 with rank limit 200. Thresholds and budget are unchanged.

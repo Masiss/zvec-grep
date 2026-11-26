@@ -213,11 +213,11 @@ fn build_context_result(
         .filter(|group| group.role == ContextQueryGroupRole::Primary)
         .map(|group| group.id.clone())
         .collect::<Vec<_>>();
-    let items = if env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some() {
-        fragment_budget_select(
-            group_items.iter().flatten().cloned().collect(),
-            &request.display_query,
-        )
+    let flat_items = || group_items.iter().flatten().cloned().collect::<Vec<_>>();
+    let items = if env::var_os("ZVEC_RAG_FRAGMENT_SELECT_V2").is_some() {
+        fragment_budget_select_v2(flat_items(), &request.display_query)
+    } else if env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some() {
+        fragment_budget_select(flat_items(), &request.display_query)
     } else if env::var_os("ZVEC_RAG_BUDGET_SELECT").is_some() {
         rag_budget_select(group_items.iter().flatten().cloned().collect())
     } else {
@@ -367,6 +367,77 @@ fn search_plan_to_context_items(
             })
         })
         .collect()
+}
+
+fn fragment_budget_select_v2(items: Vec<ContextItem>, query: &str) -> Vec<ContextItem> {
+    let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(10);
+    let byte_budget = env::var("ZVEC_RAG_BYTE_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(24 * 1024);
+    let terms = {
+        let mut terms = query
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .filter(|word| word.len() >= 3)
+            .map(|word| word.to_lowercase())
+            .collect::<Vec<_>>();
+        terms.sort_unstable();
+        terms.dedup();
+        terms.truncate(24);
+        terms
+    };
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    for item in items {
+        if !seen.insert(context_item_dedupe_key(&item)) {
+            continue;
+        }
+        let lower = item.content.to_lowercase();
+        let coverage = if terms.is_empty() {
+            0.0
+        } else {
+            terms
+                .iter()
+                .filter(|term| lower.contains(term.as_str()))
+                .count() as f64
+                / terms.len() as f64
+        };
+        let cost = item.content.len();
+        candidates.push((item, coverage, cost));
+    }
+    let mut selected: Vec<ContextItem> = Vec::new();
+    let mut used = 0usize;
+    while selected.len() < item_budget && !candidates.is_empty() {
+        let utility = |index: usize| -> f64 {
+            let (item, coverage, cost) = &candidates[index];
+            let overlap = selected
+                .iter()
+                .map(|other| range_overlap_ratio(&item.range, &other.range))
+                .fold(0.0_f64, f64::max);
+            item.score.unwrap_or(0.0).max(0.0) + 0.25 * coverage
+                - 0.35 * overlap
+                - 0.05 * (*cost as f64 / byte_budget.max(1) as f64)
+        };
+        let best = (0..candidates.len())
+            .max_by(|&a, &b| {
+                utility(a)
+                    .total_cmp(&utility(b))
+                    .then_with(|| candidates[a].0.rank.cmp(&candidates[b].0.rank))
+            })
+            .unwrap_or(0);
+        let (mut item, _, cost) = candidates.swap_remove(best);
+        if used.saturating_add(cost) > byte_budget {
+            continue;
+        }
+        used += cost;
+        item.rank = selected.len() + 1;
+        item.selection_reason = Some(ContextSelectionReason::GlobalFill);
+        selected.push(item);
+    }
+    selected
 }
 
 fn fragment_budget_select(items: Vec<ContextItem>, query: &str) -> Vec<ContextItem> {
@@ -533,7 +604,8 @@ fn write_verified_pack(root: &Path, items: &[ContextItem], path: &str) {
             })
         })
         .collect::<Vec<_>>();
-    let no_prune = env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some();
+    let no_prune = env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some()
+        || env::var_os("ZVEC_RAG_FRAGMENT_SELECT_V2").is_some();
     let budget = EvidenceBudget {
         max_bytes: if no_prune {
             usize::MAX
