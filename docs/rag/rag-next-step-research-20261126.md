@@ -124,3 +124,14 @@ separate **sub-declaration window resolver**:
 
 Do not increase resolver slot count, declaration cap, index representation or
 model until the corresponding blocker is isolated by a preregistered replay.
+
+## Outcome addendum
+
+The file/facet query-expansion arm was run and returned NO-GO: D04 was rescued,
+R10 was lost, C# precision fell, and D09/D10 were not rescued. The decisive
+finding is that the frozen C# index scans only `csharp` while gold includes
+SQL, so those spans are absent before ranking. See
+`file-facet-discovery-report-20261126.md` and
+`frozen-csharp-index-coverage-erratum-20261126.md`. The next owner decision is
+a direct exact-file source route for D09/D10 or a versioned `csharp,sql` index
+v2 for broad SQL coverage.

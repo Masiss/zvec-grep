@@ -142,6 +142,16 @@ worktree also fails before search because `/home/masis/.zvec-grep` is a symlink.
 A later owner-authorized deployment replaced the local CLI/daemon with clean
 `6b6f294`; no RAG feature flag was enabled and the index was unchanged.
 
+## File/facet discovery expansion v1 (2026-11-26)
+
+The authorized offline replay is recorded in
+[`../../docs/rag/file-facet-discovery-report-20261126.md`](../../docs/rag/file-facet-discovery-report-20261126.md).
+C0 parity was 24/24, but the expansion rescued D04 while losing R10 and reducing
+C# precision; D09/D10 were not rescued. Verdict: **NO-GO**. The run also exposed
+a frozen-index coverage mismatch: C# scans only `csharp` while gold contains
+SQL. See [`../../docs/rag/frozen-csharp-index-coverage-erratum-20261126.md`](../../docs/rag/frozen-csharp-index-coverage-erratum-20261126.md).
+No reindex or second variant was run.
+
 ## Remaining bottleneck and next authorized action
 
 Discovery, fusion and fragment identity preservation are no longer the limiting
