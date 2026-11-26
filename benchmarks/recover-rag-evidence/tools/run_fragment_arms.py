@@ -40,7 +40,7 @@ def main() -> None:
     ap.add_argument("--cases", required=True, type=Path)
     ap.add_argument("--corpus", required=True, type=Path)
     ap.add_argument("--split", choices=("rust", "csharp"), required=True)
-    ap.add_argument("--arms", default="A0,A1,A2,A3,A4,A5")
+    ap.add_argument("--arms", default="F0,F1,F2,F3")
     args = ap.parse_args()
 
     art = args.artifacts.resolve()
