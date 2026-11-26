@@ -510,6 +510,12 @@ pub mod result {
         pub matched_by: MatchedBy,
         pub metadata: Option<EntityMetadata>,
         pub entity_id: Option<String>,
+        /// Stable retrieval fragment identity, preserved for evidence lineage.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub fragment_id: Option<String>,
+        /// Whole-file SHA-256 at discovery time, used by Verified Evidence Pack.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub file_sha256: Option<String>,
         pub container: Option<ContextContainer>,
         pub trace: Option<SearchHitTrace>,
         pub query_groups: Vec<ContextQueryGroupMatch>,
@@ -642,6 +648,15 @@ pub mod result {
         pub fn start_line(&self) -> Option<usize> {
             match self {
                 Self::Text { start_line, .. } => Some(*start_line),
+                Self::File | Self::Byte { .. } => None,
+            }
+        }
+
+        /// Returns the exclusive endpoint line of a half-open text range.
+        #[must_use]
+        pub fn end_line(&self) -> Option<usize> {
+            match self {
+                Self::Text { end_line, .. } => Some(*end_line),
                 Self::File | Self::Byte { .. } => None,
             }
         }

@@ -1,6 +1,6 @@
 use super::storage::SearchStorage;
 
-use std::{collections::HashSet, fs, path::Path};
+use std::{collections::HashSet, env, fs, io::Read, path::Path};
 
 use crate::{
     EngineError,
@@ -15,7 +15,8 @@ use crate::{
             IndexRouteDiagnostics, MatchedBy,
         },
     },
-    domain::{Content, FileRecord, Range, Workspace},
+    api::evidence::{EvidenceBudget, EvidenceRequest, assemble as assemble_evidence},
+    domain::{Content, FileRecord, Range, TextRange, Workspace},
     utils::sha256_hex,
 };
 
@@ -190,14 +191,76 @@ fn build_context_result(
         .zip(groups)
         .map(|(search, group)| search_plan_to_context_items(search, workspace.source_root(), group))
         .collect::<Result<Vec<_>, _>>()?;
+    super::pipeline::dump_stage(
+        "context_group_items",
+        group_items
+            .iter()
+            .flatten()
+            .map(|item| {
+                serde_json::json!({
+                    "entity_id": item.entity_id,
+                    "fragment_id": item.fragment_id,
+                    "path": item.relative_path,
+                    "file_sha256": item.file_sha256,
+                    "range": format!("{:?}", item.range),
+                    "content_range": format!("{:?}", item.content_range),
+                    "rank": item.rank,
+                    "score": item.score,
+                    "query_groups": item.query_groups,
+                })
+            })
+            .collect(),
+    );
     let coverage_groups = groups
         .iter()
         .filter(|group| group.role == ContextQueryGroupRole::Primary)
         .map(|group| group.id.clone())
         .collect::<Vec<_>>();
-    let items = select_and_rank_context_items(
-        group_items.iter().flatten().cloned().collect(),
-        &coverage_groups,
+    let flat_items = || group_items.iter().flatten().cloned().collect::<Vec<_>>();
+    let items = if env::var_os("ZVEC_RAG_QUERY_COVERAGE_SELECT").is_some() {
+        let (item_budget, byte_budget) = fragment_budgets();
+        let byte_cap = env::var("ZVEC_RAG_SELECT_BYTE_CAP")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(byte_budget)
+            .min(byte_budget);
+        coverage_budget_select(flat_items(), &request.display_query, item_budget, byte_cap)
+    } else if env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some()
+        || env::var_os("ZVEC_RAG_FRAGMENT_SELECT_V2").is_some()
+    {
+        fragment_budget_select(flat_items(), &request.display_query)
+    } else if env::var_os("ZVEC_RAG_BUDGET_SELECT").is_some() {
+        rag_budget_select(group_items.iter().flatten().cloned().collect())
+    } else {
+        select_and_rank_context_items(
+            group_items.iter().flatten().cloned().collect(),
+            &coverage_groups,
+        )
+    };
+    if let Ok(pack_path) = env::var("ZVEC_RAG_EVIDENCE_PACK_FILE") {
+        write_verified_pack(root, &items, &pack_path);
+    }
+    super::pipeline::dump_stage(
+        "context_selected",
+        items
+            .iter()
+            .map(|item| {
+                serde_json::json!({
+                    "entity_id": item.entity_id,
+                    "fragment_id": item.fragment_id,
+                    "path": item.relative_path,
+                    "file_sha256": item.file_sha256,
+                    "range": format!("{:?}", item.range),
+                    "content_range": format!("{:?}", item.content_range),
+                    "rank": item.rank,
+                    "score": item.score,
+                    "selection_reason": item.selection_reason,
+                    "coverage_group": item.coverage_group,
+                    "query_groups": item.query_groups,
+                    "trace": item.trace,
+                })
+            })
+            .collect(),
     );
     let timings = searches
         .iter()
@@ -277,7 +340,7 @@ fn search_plan_to_context_items(
         .hits
         .iter()
         .map(|hit| {
-            let target = context_item_target(hit)?;
+            let target = context_item_target(hit, workspace_root)?;
             Ok(ContextItem {
                 kind: ContextItemKind::IndexedEntity,
                 rank: hit.rank,
@@ -299,6 +362,11 @@ fn search_plan_to_context_items(
                 matched_by: hit.matched_by,
                 metadata: hit.entity.metadata().cloned(),
                 entity_id: Some(hit.entity.id().as_str().to_owned()),
+                fragment_id: hit
+                    .evidence
+                    .first()
+                    .map(|evidence| evidence.fragment.id.as_str().to_owned()),
+                file_sha256: hit.file.snapshot().content_hash.clone(),
                 container: None,
                 trace: hit.trace.clone(),
                 query_groups: vec![ContextQueryGroupMatch {
@@ -313,6 +381,421 @@ fn search_plan_to_context_items(
             })
         })
         .collect()
+}
+
+fn same_source(left: &ContextItem, right: &ContextItem) -> bool {
+    left.relative_path == right.relative_path && left.file_sha256 == right.file_sha256
+}
+
+fn source_overlap_ratio(item: &ContextItem, other: &ContextItem) -> f64 {
+    if !same_source(item, other) {
+        return 0.0;
+    }
+    range_overlap_ratio(&item.content_range, &other.content_range)
+}
+
+fn context_byte_offsets(range: &ContentRange) -> Option<(usize, usize)> {
+    match range {
+        ContentRange::Text {
+            start_byte_offset,
+            end_byte_offset,
+            ..
+        } => Some((*start_byte_offset, *end_byte_offset)),
+        ContentRange::Byte {
+            start_offset,
+            end_offset,
+        } => Some((
+            usize::try_from(*start_offset).ok()?,
+            usize::try_from(*end_offset).ok()?,
+        )),
+        ContentRange::File => None,
+    }
+}
+
+fn text_range_for_slice(
+    range: &ContentRange,
+    content: &str,
+    local_start: usize,
+    local_end: usize,
+) -> Option<ContentRange> {
+    let ContentRange::Text {
+        start_line,
+        start_byte_column,
+        start_byte_offset,
+        ..
+    } = range
+    else {
+        return None;
+    };
+    let position = |local: usize| -> (usize, usize) {
+        let prefix = &content[..local];
+        let newlines = prefix
+            .as_bytes()
+            .iter()
+            .filter(|&&byte| byte == b'\n')
+            .count();
+        let column = match prefix.rfind('\n') {
+            Some(index) => local.saturating_sub(index + 1),
+            None => start_byte_column.saturating_add(local),
+        };
+        (start_line.saturating_add(newlines), column)
+    };
+    let (start_line, start_byte_column) = position(local_start);
+    let (end_line, end_byte_column) = position(local_end);
+    Some(ContentRange::Text {
+        start_line,
+        end_line,
+        start_byte_offset: start_byte_offset.saturating_add(local_start),
+        end_byte_offset: start_byte_offset.saturating_add(local_end),
+        start_byte_column,
+        end_byte_column,
+    })
+}
+
+/// Subtracts byte ranges already delivered by `selected` from one fragment.
+/// Each remainder keeps its own verified half-open source coordinates, and
+/// fully duplicated fragments produce no item. Non-text or inconsistent
+/// coordinates are returned unchanged so the verifier can fail closed.
+fn clip_fragment_overlap(item: ContextItem, selected: &[ContextItem]) -> Vec<ContextItem> {
+    let Some((start, end)) = context_byte_offsets(&item.content_range) else {
+        return vec![item];
+    };
+    let len = item.content.len();
+    if end < start
+        || end.saturating_sub(start) != len
+        || !matches!(item.content_range, ContentRange::Text { .. })
+    {
+        return vec![item];
+    }
+    let mut blocked = Vec::new();
+    for other in selected.iter().filter(|other| same_source(&item, other)) {
+        let Some((other_start, other_end)) = context_byte_offsets(&other.content_range) else {
+            continue;
+        };
+        if other_end <= other_start {
+            continue;
+        }
+        let from = other_start.max(start).saturating_sub(start);
+        let to = other_end.min(end).saturating_sub(start);
+        if from >= to || from > len || to > len {
+            continue;
+        }
+        if !item.content.is_char_boundary(from) || !item.content.is_char_boundary(to) {
+            return vec![item];
+        }
+        blocked.push((from, to));
+    }
+    if blocked.is_empty() {
+        return vec![item];
+    }
+    blocked.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::new();
+    for (from, to) in blocked {
+        if let Some(last) = merged.last_mut() {
+            if from <= last.1 {
+                last.1 = last.1.max(to);
+                continue;
+            }
+        }
+        merged.push((from, to));
+    }
+    let mut remainders = Vec::new();
+    let mut cursor = 0usize;
+    for (from, to) in merged {
+        if from > cursor {
+            remainders.push((cursor, from));
+        }
+        cursor = cursor.max(to);
+    }
+    if cursor < len {
+        remainders.push((cursor, len));
+    }
+    let mut clipped = Vec::new();
+    for (from, to) in remainders {
+        let Some(slice) = item.content.get(from..to) else {
+            continue;
+        };
+        if slice.is_empty() {
+            continue;
+        }
+        let Some(range) = text_range_for_slice(&item.content_range, &item.content, from, to) else {
+            continue;
+        };
+        let mut piece = item.clone();
+        piece.content = slice.to_owned();
+        piece.content_range = range.clone();
+        piece.excerpt_range = Some(range);
+        clipped.push(piece);
+    }
+    clipped
+}
+
+fn fragment_budgets() -> (usize, usize) {
+    let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(64);
+    let byte_budget = env::var("ZVEC_RAG_BYTE_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(24 * 1024);
+    (item_budget, byte_budget)
+}
+
+fn fragment_budget_select(items: Vec<ContextItem>, query: &str) -> Vec<ContextItem> {
+    let (item_budget, byte_budget) = fragment_budgets();
+    let terms = {
+        let mut terms = query
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .filter(|word| word.len() >= 3)
+            .map(|word| word.to_lowercase())
+            .collect::<Vec<_>>();
+        terms.sort_unstable();
+        terms.dedup();
+        terms.truncate(24);
+        terms
+    };
+    let rank_only = env::var_os("ZVEC_RAG_FRAGMENT_SELECT_RANK_ONLY").is_some();
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    for item in items {
+        if !seen.insert(context_item_dedupe_key(&item)) {
+            continue;
+        }
+        if rank_only {
+            candidates.push((item, 0.0));
+            continue;
+        }
+        let lower = item.content.to_lowercase();
+        let coverage = if terms.is_empty() {
+            0.0
+        } else {
+            terms
+                .iter()
+                .filter(|term| lower.contains(term.as_str()))
+                .count() as f64
+                / terms.len() as f64
+        };
+        candidates.push((item, coverage));
+    }
+    let mut selected: Vec<ContextItem> = Vec::new();
+    let mut used = 0usize;
+    while selected.len() < item_budget && !candidates.is_empty() {
+        let utility = |index: usize| -> f64 {
+            let (item, coverage) = &candidates[index];
+            if rank_only {
+                return -(item.rank as f64);
+            }
+            let overlap = selected
+                .iter()
+                .map(|other| source_overlap_ratio(item, other))
+                .fold(0.0_f64, f64::max);
+            item.score.unwrap_or(0.0).max(0.0) + 0.25 * coverage
+                - 0.35 * overlap
+                - 0.05 * (item.content.len() as f64 / byte_budget.max(1) as f64)
+        };
+        let best = (0..candidates.len())
+            .max_by(|&a, &b| {
+                utility(a)
+                    .total_cmp(&utility(b))
+                    .then_with(|| candidates[a].0.rank.cmp(&candidates[b].0.rank))
+            })
+            .unwrap_or(0);
+        let (item, _) = candidates.swap_remove(best);
+        for mut item in clip_fragment_overlap(item, &selected) {
+            let cost = item.content.len();
+            if used.saturating_add(cost) > byte_budget {
+                continue;
+            }
+            used += cost;
+            item.rank = selected.len() + 1;
+            item.selection_reason = Some(ContextSelectionReason::GlobalFill);
+            selected.push(item);
+        }
+    }
+    selected
+}
+
+/// Select full fragments by query-term coverage, with rank as a tie-break.
+/// This is an env-gated candidate: it never changes normal or baseline flows.
+fn coverage_budget_select(
+    items: Vec<ContextItem>,
+    query: &str,
+    item_budget: usize,
+    byte_budget: usize,
+) -> Vec<ContextItem> {
+    let terms = {
+        let mut terms = query
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .filter(|word| word.len() >= 3)
+            .map(|word| word.to_lowercase())
+            .collect::<Vec<_>>();
+        terms.sort_unstable();
+        terms.dedup();
+        terms.truncate(24);
+        terms
+    };
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    for item in items {
+        if !seen.insert(context_item_dedupe_key(&item)) {
+            continue;
+        }
+        let lower = item.content.to_lowercase();
+        let coverage = if terms.is_empty() {
+            0.0
+        } else {
+            terms
+                .iter()
+                .filter(|term| lower.contains(term.as_str()))
+                .count() as f64
+                / terms.len() as f64
+        };
+        candidates.push((item, coverage));
+    }
+    candidates.sort_by(|left, right| {
+        right
+            .1
+            .total_cmp(&left.1)
+            .then_with(|| left.0.rank.cmp(&right.0.rank))
+            .then_with(|| context_item_dedupe_key(&left.0).cmp(&context_item_dedupe_key(&right.0)))
+    });
+    let mut selected: Vec<ContextItem> = Vec::new();
+    let mut used = 0usize;
+    for (mut item, _) in candidates {
+        if selected.len() >= item_budget {
+            break;
+        }
+        if selected
+            .iter()
+            .any(|other| source_overlap_ratio(&item, other) >= 0.9)
+        {
+            continue;
+        }
+        let cost = item.content.len();
+        if used.saturating_add(cost) > byte_budget {
+            continue;
+        }
+        used += cost;
+        item.rank = selected.len() + 1;
+        item.selection_reason = Some(ContextSelectionReason::GlobalFill);
+        selected.push(item);
+    }
+    selected
+}
+
+fn rag_budget_select(items: Vec<ContextItem>) -> Vec<ContextItem> {
+    let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(10);
+    let byte_budget = env::var("ZVEC_RAG_BYTE_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(24 * 1024);
+    let mut ranked = items;
+    ranked.sort_by(compare_global_rank);
+    let mut selected: Vec<ContextItem> = Vec::new();
+    let mut used = 0usize;
+    for mut item in ranked {
+        if selected.len() >= item_budget {
+            break;
+        }
+        let cost = item.content.len();
+        if used.saturating_add(cost) > byte_budget {
+            continue;
+        }
+        let overlap = selected
+            .iter()
+            .map(|other| range_overlap_ratio(&item.range, &other.range))
+            .fold(0.0_f64, f64::max);
+        if overlap > 0.5 {
+            continue;
+        }
+        used += cost;
+        item.rank = selected.len() + 1;
+        item.selection_reason = Some(ContextSelectionReason::GlobalFill);
+        selected.push(item);
+    }
+    selected
+}
+
+fn range_overlap_ratio(left: &ContentRange, right: &ContentRange) -> f64 {
+    let (Some(ls), Some(le), Some(rs), Some(re)) = (
+        left.start_line(),
+        left.last_line(),
+        right.start_line(),
+        right.last_line(),
+    ) else {
+        return 0.0;
+    };
+    if ls > re || rs > le {
+        return 0.0;
+    }
+    let overlap = le.min(re).saturating_sub(ls.max(rs)) + 1;
+    let union = le.saturating_sub(ls.min(rs)) + 1;
+    if union == 0 {
+        0.0
+    } else {
+        overlap as f64 / union as f64
+    }
+}
+
+fn write_verified_pack(root: &Path, items: &[ContextItem], path: &str) {
+    let requests = items
+        .iter()
+        .filter_map(|item| {
+            let (start, end) = match item.content_range {
+                ContentRange::Text {
+                    start_byte_offset,
+                    end_byte_offset,
+                    ..
+                } => (start_byte_offset, end_byte_offset),
+                ContentRange::Byte {
+                    start_offset,
+                    end_offset,
+                } => (
+                    usize::try_from(start_offset).ok()?,
+                    usize::try_from(end_offset).ok()?,
+                ),
+                ContentRange::File => return None,
+            };
+            Some(EvidenceRequest {
+                project: "rag".to_owned(),
+                relative_path: item.relative_path.clone(),
+                expected_sha256: item.file_sha256.clone().unwrap_or_default(),
+                start_byte: start,
+                end_byte: end,
+                expected_start_line: item.content_range.start_line(),
+                expected_end_line: item.content_range.end_line(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let no_prune = env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some()
+        || env::var_os("ZVEC_RAG_FRAGMENT_SELECT_V2").is_some();
+    let budget = EvidenceBudget {
+        max_bytes: if no_prune {
+            usize::MAX
+        } else {
+            env::var("ZVEC_RAG_BYTE_BUDGET")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(24 * 1024)
+        },
+        max_items: if no_prune {
+            items.len().max(1)
+        } else {
+            env::var("ZVEC_RAG_ITEM_BUDGET")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(10)
+        },
+    };
+    if let Ok(pack) = assemble_evidence(root, &requests, budget) {
+        if let Ok(text) = serde_json::to_string_pretty(&pack) {
+            let _ = fs::write(path, text);
+        }
+    }
 }
 
 fn select_and_rank_context_items(
@@ -464,6 +947,11 @@ fn context_group_number(id: &str) -> usize {
 }
 
 fn context_item_dedupe_key(item: &ContextItem) -> String {
+    if std::env::var_os("ZVEC_RAG_FRAGMENT_FLOW").is_some() {
+        if let Some(fragment_id) = &item.fragment_id {
+            return format!("fragment:{fragment_id}");
+        }
+    }
     item.entity_id.as_ref().map_or_else(
         || format!("range:{}:{:?}", item.absolute_path.display(), item.range),
         |id| format!("entity:{id}"),
@@ -477,11 +965,72 @@ struct ContextItemTarget {
     excerpt_range: Option<ContentRange>,
 }
 
-fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError> {
+/// Stored entity byte offsets are relative to decoded text, while evidence
+/// requests use offsets into the original source bytes. For UTF-8 BOM files
+/// the two coordinate spaces differ by exactly three bytes. Other BOMs cannot
+/// be translated by a constant offset and are left unchanged so verification
+/// fails closed.
+fn source_bom_shift(workspace_root: &Path, relative_path: &Path) -> usize {
+    let Ok(mut file) = fs::File::open(workspace_root.join(relative_path)) else {
+        return 0;
+    };
+    let mut head = [0u8; 4];
+    let Ok(count) = file.read(&mut head) else {
+        return 0;
+    };
+    if count >= 3 && head.starts_with(&[0xef, 0xbb, 0xbf]) {
+        3
+    } else {
+        0
+    }
+}
+
+fn shifted_text_range(range: TextRange, shift: usize) -> Result<TextRange, EngineError> {
+    if shift == 0 {
+        return Ok(range);
+    }
+    let start = range
+        .start_byte_offset()
+        .checked_add(shift)
+        .ok_or_else(|| EngineError::storage_failure("BOM-adjusted offset overflow"))?;
+    let end = range
+        .end_byte_offset()
+        .checked_add(shift)
+        .ok_or_else(|| EngineError::storage_failure("BOM-adjusted offset overflow"))?;
+    let start_column = if range.start_line() == 1 {
+        range.start_byte_column().saturating_add(shift)
+    } else {
+        range.start_byte_column()
+    };
+    let end_column = if range.end_line() == 1 {
+        range.end_byte_column().saturating_add(shift)
+    } else {
+        range.end_byte_column()
+    };
+    TextRange::from_coordinates(
+        start,
+        end,
+        range.start_line(),
+        range.end_line(),
+        start_column,
+        end_column,
+    )
+    .map_err(|error| EngineError::storage_failure(format!("invalid BOM-adjusted range: {error}")))
+}
+
+fn context_item_target(
+    hit: &SearchHit,
+    workspace_root: &Path,
+) -> Result<ContextItemTarget, EngineError> {
+    let shift = source_bom_shift(workspace_root, hit.file.relative_path().as_ref());
+    let entity_source = match hit.entity.source_range() {
+        Range::Text(range) => Range::Text(shifted_text_range(range, shift)?),
+        other => other,
+    };
     let Some(evidence) = hit.evidence.first() else {
         return Ok(ContextItemTarget {
             content: content_to_text(hit.entity.content()),
-            content_range: hit.entity.source_range().into(),
+            content_range: entity_source.into(),
             content_role: ContextContentRole::Source,
             excerpt_range: None,
         });
@@ -510,7 +1059,7 @@ fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError
             let lines = crate::utils::line_byte_offsets(text);
             let local = crate::utils::text_range_from_offsets(text, &lines, start, end)
                 .map_err(invalid_fragment)?;
-            let source = match hit.entity.source_range() {
+            let source = match entity_source {
                 Range::Full => local,
                 Range::Text(origin) => {
                     crate::utils::map_text_range(local, origin).map_err(invalid_fragment)?
@@ -533,7 +1082,7 @@ fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError
         content,
         content_range: excerpt_range
             .clone()
-            .unwrap_or_else(|| hit.entity.source_range().into()),
+            .unwrap_or_else(|| entity_source.into()),
         content_role: ContextContentRole::Source,
         excerpt_range,
     })
@@ -610,7 +1159,7 @@ fn content_to_text(content: &Content) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{env, path::PathBuf};
 
     use crate::api::context::{
         ContextOptions,
@@ -621,7 +1170,10 @@ mod tests {
         },
     };
 
-    use super::{normalize_context_request, select_and_rank_context_items};
+    use super::{
+        clip_fragment_overlap, coverage_budget_select, fragment_budget_select, fragment_budgets,
+        normalize_context_request, select_and_rank_context_items,
+    };
 
     #[test]
     fn best_fragment_preserves_original_content_and_source_range() {
@@ -679,9 +1231,11 @@ mod tests {
             rank: 1,
             score: 1.0,
             matched_by: MatchedBy::Fts,
+            signals: None,
             trace: None,
         };
-        let target = super::context_item_target(&hit).expect("fragment content");
+        let target =
+            super::context_item_target(&hit, std::path::Path::new(".")).expect("fragment content");
         assert_eq!(target.content_role, ContextContentRole::Source);
         assert_eq!(target.content, "中😀\r\nβ");
         assert_eq!(target.excerpt_range, Some(fragment_source_range.into()));
@@ -708,7 +1262,8 @@ mod tests {
         assert_eq!(items[0].content_range, fragment_source_range.into());
         assert_eq!(items[0].content, "中😀\r\nβ");
         hit.evidence.reverse();
-        let target = super::context_item_target(&hit).expect("full content");
+        let target =
+            super::context_item_target(&hit, std::path::Path::new(".")).expect("full content");
         assert_eq!(target.content, source);
         assert_eq!(target.content_range, source_range.into());
         assert_eq!(
@@ -717,7 +1272,7 @@ mod tests {
         );
         hit.evidence[0].fragment.range =
             Range::Byte(ByteRange::new(0, 999).expect("ordered byte offsets"));
-        let error = super::context_item_target(&hit)
+        let error = super::context_item_target(&hit, std::path::Path::new("."))
             .err()
             .expect("invalid fragment must fail");
         assert_eq!(error.code(), crate::EngineError::STORAGE_FAILURE);
@@ -779,9 +1334,11 @@ mod tests {
                 rank: 1,
                 score: 1.0,
                 matched_by: MatchedBy::Fts,
+                signals: None,
                 trace: None,
             };
-            let target = super::context_item_target(&hit).expect("source fragment");
+            let target = super::context_item_target(&hit, std::path::Path::new("."))
+                .expect("source fragment");
             let start = usize::try_from(bytes.start_offset()).expect("start");
             let end = usize::try_from(bytes.end_offset()).expect("end");
             assert!(start > "# Heading\nprefix ".len());
@@ -854,6 +1411,7 @@ mod tests {
                 rank: 1,
                 score: 1.0,
                 matched_by: MatchedBy::Fts,
+                signals: None,
                 trace: None,
             }],
             timings: Vec::new(),
@@ -1109,11 +1667,388 @@ mod tests {
             matched_by: query_group.matched_by,
             metadata: None,
             entity_id: Some(id.to_owned()),
+            fragment_id: None,
+            file_sha256: None,
             container: None,
             trace: None,
             query_groups: vec![query_group],
             selection_reason: None,
             coverage_group: None,
         }
+    }
+    #[test]
+    fn fragment_selection_clips_only_duplicate_source_lines() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = "alpha\nbravo\n".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 3,
+            start_byte_offset: 0,
+            end_byte_offset: first.content.len(),
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        first.score = Some(2.0);
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "bravo\ncharlie\n".to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 2,
+            end_line: 4,
+            start_byte_offset: 6,
+            end_byte_offset: 6 + second.content.len(),
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        second.score = Some(0.9);
+        let selected = fragment_budget_select(vec![first, second], "bravo charlie");
+        assert_eq!(selected.len(), 2);
+        let kept = selected
+            .iter()
+            .find(|item| item.fragment_id.as_deref() == Some("frag-b"))
+            .expect("clipped fragment");
+        assert!(kept.content.contains("charlie"));
+        assert!(!kept.content.contains("bravo"));
+        assert_eq!(kept.content_range.start_line(), Some(3));
+    }
+
+    #[test]
+    fn fragment_selection_respects_source_identity() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("sha-a".to_owned());
+        first.content = "alpha\n".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 2,
+            start_byte_offset: 0,
+            end_byte_offset: first.content.len(),
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("sha-b".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "alpha\n".to_owned();
+        second.content_range = first.content_range.clone();
+        let selected = fragment_budget_select(vec![first, second], "alpha");
+        assert_eq!(selected.len(), 2);
+        assert!(
+            selected
+                .iter()
+                .any(|item| item.fragment_id.as_deref() == Some("frag-b")
+                    && item.content == "alpha\n")
+        );
+    }
+
+    #[test]
+    fn utf8_bom_source_offsets_are_shifted_into_evidence_coordinates() {
+        use crate::{
+            domain::{
+                ByteRange, Content, Entity, EntityFragment, EntityId, FileId, FileIndexStatus,
+                FileRecord, FileSnapshot, FragmentId, Range, TextRange,
+            },
+            pipelines::indexed_search::pipeline::{SearchEvidence, SearchHit},
+        };
+        let dir = tempfile::tempdir().expect("temporary workspace");
+        let text = "alpha\nbravo";
+        let mut bytes = vec![0xef, 0xbb, 0xbf];
+        bytes.extend_from_slice(text.as_bytes());
+        std::fs::write(dir.path().join("bom.cs"), bytes).expect("BOM source");
+
+        let file_id = FileId::new(1);
+        let source_range = Range::Text(
+            TextRange::from_coordinates(0, text.len(), 1, 2, 0, 5).expect("decoded range"),
+        );
+        let content = Content::Text(text.to_owned());
+        let entity_id = EntityId::new(file_id, &content, source_range).expect("entity id");
+        let fragment = EntityFragment {
+            id: FragmentId::new(&entity_id, 0),
+            range: Range::Byte(ByteRange::new(6, 11).expect("ordered byte offsets")),
+        };
+        let hit = SearchHit {
+            entity: Entity::new(
+                entity_id,
+                file_id,
+                source_range,
+                content,
+                None,
+                vec![fragment.clone()],
+            )
+            .expect("entity"),
+            file: FileRecord::new(
+                file_id,
+                crate::domain::SourcePath::new("bom.cs").expect("source path"),
+                FileSnapshot {
+                    size_bytes: 14,
+                    modified_epoch_ms: None,
+                    content_hash: None,
+                },
+                FileIndexStatus::NotIndexed,
+            )
+            .expect("file"),
+            evidence: vec![SearchEvidence { fragment }],
+            rank: 1,
+            score: 1.0,
+            matched_by: MatchedBy::Fts,
+            signals: None,
+            trace: None,
+        };
+        let target = super::context_item_target(&hit, dir.path()).expect("BOM-adjusted target");
+        assert_eq!(target.content, "bravo");
+        assert!(matches!(
+            target.content_range,
+            ContentRange::Text {
+                start_line: 2,
+                end_line: 2,
+                start_byte_offset: 9,
+                end_byte_offset: 14,
+                start_byte_column: 0,
+                end_byte_column: 5,
+            }
+        ));
+    }
+
+    #[test]
+    fn fragment_clipping_keeps_both_non_overlapping_remainders() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = "line4\nline5\n".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 4,
+            end_line: 6,
+            start_byte_offset: 18,
+            end_byte_offset: 30,
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "line1\nline2\nline3\nline4\nline5\nline6\n".to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 7,
+            start_byte_offset: 0,
+            end_byte_offset: second.content.len(),
+            start_byte_column: 0,
+            end_byte_column: 0,
+        };
+        let pieces = clip_fragment_overlap(second, &[first]);
+        assert_eq!(pieces.len(), 2);
+        assert_eq!(pieces[0].content, "line1\nline2\nline3\n");
+        assert_eq!(pieces[0].content_range.start_line(), Some(1));
+        assert_eq!(pieces[0].content_range.end_line(), Some(4));
+        assert_eq!(pieces[1].content, "line6\n");
+        assert_eq!(pieces[1].content_range.start_line(), Some(6));
+        assert_eq!(pieces[1].content_range.end_line(), Some(7));
+    }
+
+    #[test]
+    fn clipping_preserves_mid_line_endpoint_and_eof_without_newline() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = "alpha".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: 5,
+            start_byte_column: 0,
+            end_byte_column: 5,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "alpha bravo".to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: second.content.len(),
+            start_byte_column: 0,
+            end_byte_column: second.content.len(),
+        };
+        let pieces = clip_fragment_overlap(second, &[first]);
+        assert_eq!(pieces.len(), 1);
+        assert_eq!(pieces[0].content, " bravo");
+        assert_eq!(pieces[0].content_range.start_line(), Some(1));
+        assert_eq!(pieces[0].content_range.end_line(), Some(1));
+        assert!(matches!(
+            pieces[0].content_range,
+            ContentRange::Text {
+                start_byte_offset: 5,
+                end_byte_offset: 11,
+                start_byte_column: 5,
+                end_byte_column: 11,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn clipping_subtracts_byte_slices_on_the_same_line() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = " bravo ".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 5,
+            end_byte_offset: 12,
+            start_byte_column: 5,
+            end_byte_column: 12,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "alpha bravo charlie".to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: second.content.len(),
+            start_byte_column: 0,
+            end_byte_column: second.content.len(),
+        };
+        let pieces = clip_fragment_overlap(second, &[first]);
+        assert_eq!(pieces.len(), 2);
+        assert_eq!(pieces[0].content, "alpha");
+        assert_eq!(pieces[1].content, "charlie");
+        assert_eq!(pieces[0].content_range.end_line(), Some(1));
+        assert_eq!(pieces[1].content_range.start_line(), Some(1));
+    }
+
+    #[test]
+    fn clipping_respects_utf8_character_boundaries() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let text = "tiếng Việt";
+        let split = text.find("Việt").expect("UTF-8 boundary");
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = text[..split].to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: split,
+            start_byte_column: 0,
+            end_byte_column: split,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = text.to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: text.len(),
+            start_byte_column: 0,
+            end_byte_column: text.len(),
+        };
+        let pieces = clip_fragment_overlap(second, &[first]);
+        assert_eq!(pieces.len(), 1);
+        assert_eq!(pieces[0].content, "Việt");
+        assert_eq!(pieces[0].content_range.start_line(), Some(1));
+    }
+
+    #[test]
+    fn coverage_selection_prefers_query_terms_and_keeps_whole_fragments() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut low = item("A", group.clone());
+        low.rank = 1;
+        low.file_sha256 = Some("sha-a".to_owned());
+        low.content = "unrelated\n".to_owned();
+        let mut high = item("B", group);
+        high.rank = 9;
+        high.file_sha256 = Some("sha-b".to_owned());
+        high.content = "matcher value\n".to_owned();
+        let selected = coverage_budget_select(vec![low, high], "matcher value", 64, 24 * 1024);
+        assert_eq!(selected.len(), 2);
+        assert_eq!(selected[0].content, "matcher value\n");
+        assert_eq!(selected[0].rank, 1);
+    }
+
+    #[test]
+    fn fragment_budget_defaults_to_byte_primary_safeguard() {
+        if env::var_os("ZVEC_RAG_ITEM_BUDGET").is_some()
+            || env::var_os("ZVEC_RAG_BYTE_BUDGET").is_some()
+        {
+            return;
+        }
+        let (items, bytes) = fragment_budgets();
+        assert!(
+            items >= 64,
+            "item count must be a safeguard, not a delivery cutoff"
+        );
+        assert_eq!(bytes, 24 * 1024);
     }
 }

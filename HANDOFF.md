@@ -3,6 +3,11 @@
 > **Current continuation checkpoint:** [`rust/docs/continuation-20261125-rc3-promotion.md`](rust/docs/continuation-20261125-rc3-promotion.md).
 > Read that first for the promoted RC3 runtime, rebuilt project index, rollback
 > and exact next-session actions. This file is historical integration detail.
+>
+> **2026-11-26 research status:** active branch `work/recover-rag-evidence-20261126`;
+> see [`rust/docs/rag-fragment-flow-status-20261126.md`](rust/docs/rag-fragment-flow-status-20261126.md)
+> for current fragment-flow contracts, receipts and NO-GO qualification. Production
+> runtime is unchanged.
 
 ## Scope and branch
 
