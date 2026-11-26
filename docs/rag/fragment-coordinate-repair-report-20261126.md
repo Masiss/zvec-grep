@@ -160,6 +160,23 @@ arm now**. A representation change may require index/schema work and needs a
 separate owner decision. Quality remains NO-GO; the 0-gap and R10 3/3
 regressions are unchanged.
 
+## Offline union-byte pack replay (follow-up)
+
+With index, model, ranker and the 24 KiB cap fixed, the ranked pool was replayed
+offline with pack assembly replaced by a byte union per `(path, file_sha256)`.
+Exact was graded on that same byte surface. Cases with every gold span
+DELIVERED stayed at **2/12 Rust and 1/12 C#**; newly rescued cases: **0 in both
+languages**. Span-level exact rose from 5 to 7 in Rust and stayed at 2 in C#,
+but no case crossed the all-gold boundary. Decision: **do not change pack
+assembly to join fragments**.
+
+Tracing spans still missing bytes: 13 Rust and 20 C# spans are lost at raw
+retrieval/representation, 10 Rust and 3 C# at pack union budget, and none at
+fusion/load/rank cutoff. R03's four missing spans are all `pack_union_budget`.
+The next investigation, if authorized, is raw discovery/cutoff before any
+reindex discussion. Raw receipts:
+`final/ranking-decision/union-replay/results/`.
+
 ## Verification and reproduction
 
 - Focused context tests: **16 passed, 0 failed**; evidence tests: **11 passed,
