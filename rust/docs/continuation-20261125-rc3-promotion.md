@@ -5,6 +5,12 @@ Read this first for the current maintained/runtime state. It supersedes the
 [`../../HANDOFF.md`](../../HANDOFF.md) and
 [`../../HANDOFF-20261031-NEXT.md`](../../HANDOFF-20261031-NEXT.md).
 
+> **2026-11-26 research note:** the active investigation branch is
+> `work/recover-rag-evidence-20261126`; current fragment-flow status, verdicts
+> and receipts are in
+> [`rag-fragment-flow-status-20261126.md`](rag-fragment-flow-status-20261126.md).
+> The maintained runtime and production binary remain unchanged.
+
 ## Current state
 
 - Canonical development branch: `main` (local and origin)
