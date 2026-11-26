@@ -27,6 +27,8 @@ def main() -> None:
     for case in cases:
         trace = art / "lineage" / args.split / f"{case['id']}.jsonl"
         trace.parent.mkdir(parents=True, exist_ok=True)
+        trace.unlink(missing_ok=True)
+        (trace.parent / f"{case['id']}.pack.json").unlink(missing_ok=True)
         env = os.environ.copy()
         for key in list(env):
             if key.startswith("ZVEC_GREP_OBSERVABILITY"):
