@@ -168,6 +168,12 @@ explicit BOM-aware gold changes only D09/D12, all 12 packs are valid and
 byte-identical to the prior replay, and the corrected baseline is 2/12 all-gold
 and 3/25 exact. Baseline validity PASS; quality promotion not approved.
 
+The direct exact-file/header arm is recorded in
+[`../../docs/rag/direct-file-header-v1-report-20261126.md`](../../docs/rag/direct-file-header-v1-report-20261126.md).
+It changed only D10, rescued 2/2 spans, and reached 3/12 all-gold and 5/25 exact
+with higher precision and lower tokens; all offline gates pass. This is not an
+engine port or production approval.
+
 ## Remaining bottleneck and next authorized action
 
 Discovery, fusion and fragment identity preservation are no longer the limiting
