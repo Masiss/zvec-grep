@@ -350,13 +350,18 @@ pub(crate) async fn search_workspace_index(
         .iter()
         .map(|_| 1.0 / (RRF_K + 1.0))
         .sum();
-    let hits = super::ranking::rank(hits, &routes, &plan.filter, maximum_rrf, rank_limit);
+    let hits = if fragment_flow {
+        super::ranking::rank_fragments(hits, &routes, maximum_rrf)
+    } else {
+        super::ranking::rank(hits, &routes, &plan.filter, maximum_rrf, rank_limit)
+    };
     dump_stage(
         "ranked",
         hits.iter()
             .map(|hit| {
                 serde_json::json!({
                     "entity_id": hit.entity.id().as_str(),
+                    "fragment_id": hit.evidence.first().map(|evidence| evidence.fragment.id.as_str()),
                     "path": hit.file.relative_path().as_ref(),
                     "range": format!("{:?}", hit.entity.source_range()),
                     "rank": hit.rank,

@@ -213,7 +213,12 @@ fn build_context_result(
         .filter(|group| group.role == ContextQueryGroupRole::Primary)
         .map(|group| group.id.clone())
         .collect::<Vec<_>>();
-    let items = if env::var_os("ZVEC_RAG_BUDGET_SELECT").is_some() {
+    let items = if env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some() {
+        fragment_budget_select(
+            group_items.iter().flatten().cloned().collect(),
+            &request.display_query,
+        )
+    } else if env::var_os("ZVEC_RAG_BUDGET_SELECT").is_some() {
         rag_budget_select(group_items.iter().flatten().cloned().collect())
     } else {
         select_and_rank_context_items(
@@ -364,6 +369,83 @@ fn search_plan_to_context_items(
         .collect()
 }
 
+fn fragment_budget_select(items: Vec<ContextItem>, query: &str) -> Vec<ContextItem> {
+    let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(10);
+    let byte_budget = env::var("ZVEC_RAG_BYTE_BUDGET")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(24 * 1024);
+    let terms = {
+        let mut terms = query
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .filter(|word| word.len() >= 3)
+            .map(|word| word.to_lowercase())
+            .collect::<Vec<_>>();
+        terms.sort_unstable();
+        terms.dedup();
+        terms.truncate(24);
+        terms
+    };
+    let coverage = |content: &str| -> f64 {
+        if terms.is_empty() {
+            return 0.0;
+        }
+        let lower = content.to_lowercase();
+        terms
+            .iter()
+            .filter(|term| lower.contains(term.as_str()))
+            .count() as f64
+            / terms.len() as f64
+    };
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    for item in items {
+        if seen.insert(context_item_dedupe_key(&item)) {
+            candidates.push(item);
+        }
+    }
+    let mut selected: Vec<ContextItem> = Vec::new();
+    let mut used = 0usize;
+    while selected.len() < item_budget && !candidates.is_empty() {
+        let cost_of = |item: &ContextItem| item.content.len().max(1);
+        let overlap_of = |item: &ContextItem| -> f64 {
+            selected
+                .iter()
+                .map(|other| range_overlap_ratio(&item.range, &other.range))
+                .fold(0.0_f64, f64::max)
+        };
+        let utility = |item: &ContextItem| -> f64 {
+            let relevance = item.score.unwrap_or(0.0).max(0.0);
+            let novelty = 1.0 - overlap_of(item) * 0.75;
+            let cost = (cost_of(item) as f64 / 1024.0).max(1.0);
+            (relevance + 0.35 * coverage(&item.content)) * novelty / cost.powf(0.25)
+        };
+        let best = candidates
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| {
+                utility(a)
+                    .total_cmp(&utility(b))
+                    .then_with(|| a.rank.cmp(&b.rank))
+                    .then_with(|| a.entity_id.as_deref().cmp(&b.entity_id.as_deref()))
+            })
+            .map_or(0, |(index, _)| index);
+        let mut item = candidates.swap_remove(best);
+        let cost = cost_of(&item);
+        if used.saturating_add(cost) > byte_budget {
+            continue;
+        }
+        used += cost;
+        item.rank = selected.len() + 1;
+        item.selection_reason = Some(ContextSelectionReason::GlobalFill);
+        selected.push(item);
+    }
+    selected
+}
+
 fn rag_budget_select(items: Vec<ContextItem>) -> Vec<ContextItem> {
     let item_budget = env::var("ZVEC_RAG_ITEM_BUDGET")
         .ok()
@@ -451,15 +533,24 @@ fn write_verified_pack(root: &Path, items: &[ContextItem], path: &str) {
             })
         })
         .collect::<Vec<_>>();
+    let no_prune = env::var_os("ZVEC_RAG_FRAGMENT_RELEVANCE").is_some();
     let budget = EvidenceBudget {
-        max_bytes: env::var("ZVEC_RAG_BYTE_BUDGET")
-            .ok()
-            .and_then(|value| value.parse::<usize>().ok())
-            .unwrap_or(24 * 1024),
-        max_items: env::var("ZVEC_RAG_ITEM_BUDGET")
-            .ok()
-            .and_then(|value| value.parse::<usize>().ok())
-            .unwrap_or(10),
+        max_bytes: if no_prune {
+            usize::MAX
+        } else {
+            env::var("ZVEC_RAG_BYTE_BUDGET")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(24 * 1024)
+        },
+        max_items: if no_prune {
+            items.len().max(1)
+        } else {
+            env::var("ZVEC_RAG_ITEM_BUDGET")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(10)
+        },
     };
     if let Ok(pack) = assemble_evidence(root, &requests, budget) {
         if let Ok(text) = serde_json::to_string_pretty(&pack) {
