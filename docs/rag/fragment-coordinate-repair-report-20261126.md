@@ -131,6 +131,35 @@ cause for R03. A new ranking arm (not a selection arm) is the evidence-backed
 next experiment. This decision is diagnostic on dev data only; no new arm or
 promotion is authorized by this report.
 
+## Rank-loss measurement and decision (follow-up)
+
+A bounded aggregate over all 24 dev cases was computed from the final frozen
+receipts (`final/ranking-decision/`). For each gold span it records the first
+ranked fragment fully containing the span, the bytes already delivered before
+that rank, and whether the span was only partially represented or absent from
+the pool.
+
+| Metric | Rust | C# |
+|---|---:|---:|
+| Gold spans | 30 | 25 |
+| Full-containing fragment in pool | 16 | 4 |
+| Partial-only in pool | 8 | 13 |
+| Absent entirely from pool | 6 | 8 |
+| Present in pool but not exact in pack | 11 | 3 |
+| First full rank, mean / max of missing spans | 125.7 / 320 | 167.7 / 262 |
+| Bytes delivered before that rank, mean | 23,230 | 24,545 |
+| Cases fully ranking-rescuable | 2 (R03, R08) | 1 (D04) |
+| Perfect-rerank exact ceiling | 0.528 | 0.222 |
+
+R03 is a real ranking-by-budget case (ranks 111/264/111/320, 24,574 bytes
+already spent), but only 2 Rust and 1 C# cases are fully rescuable by
+reordering. Since 22/30 Rust and 21/25 C# spans have no full-containing
+fragment in the pool, the dominant bottleneck is representation/discovery, not
+priority. Decision: **do not authorize the proposed signature/body ranking
+arm now**. A representation change may require index/schema work and needs a
+separate owner decision. Quality remains NO-GO; the 0-gap and R10 3/3
+regressions are unchanged.
+
 ## Verification and reproduction
 
 - Focused context tests: **16 passed, 0 failed**; evidence tests: **11 passed,
