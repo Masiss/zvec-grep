@@ -145,40 +145,86 @@ similarly named `ArgMatches` impl entities.
 For the first arm, use only containment relationships already present in the
 loaded candidate pool. Fetching additional index entities is a later variant.
 
-## Reserved entity slate
+## Reserved entity slate and real byte reservation
 
-Do not collapse the routes into one fragile weighted sum. Build an ordered,
-deduplicated slate with reserved positions:
+Do not collapse the routes into one fragile weighted sum. Build a deduplicated
+slate with reserved positions and a primary route label:
 
-1. Top **3** entities from base route.
-2. Top **4** entities from content TF-IDF.
-3. Top **2** entities from metadata route.
-4. Top **2** entities from facet coverage.
+1. Top **3** entities from base route — wallet **8,192 bytes**.
+2. Top **4** entities from content TF-IDF — wallet **8,192 bytes**.
+3. Top **2** entities from metadata route — wallet **4,096 bytes**.
+4. Top **2** entities from facet coverage — wallet **4,096 bytes**.
 5. Fill remaining positions by hybrid-v1 static priority, then three-route RRF.
 
 Maximum reserved entities before normal fill: **11**. Duplicates retain their
-earliest route position. This is a research quota, not a tuned production
-constant; it must be preregistered before the next replay.
+earliest route position, wallet label and resolver-slot eligibility.
 
-The slate fixes the main weakness of additive reranking: a strong but irrelevant
-route cannot completely drain the pack before a low-base-rank but exact/content
-entity is considered.
+The four wallets sum to the existing **24,576-byte** pack cap. A route can spend
+only its own wallet during its reserved pass; base cannot consume the content,
+metadata or facet reservation. Wallets are maximum allocations, not mandatory
+spend: unused bytes become shared spillover only after every route has had its
+reserved pass.
 
-## Budget-aware scheduling
+## Exact dynamic scheduling
 
-Keep hybrid-v1's soft saturation:
+For each route, process its reserved entities in fair rounds:
+
+1. Round 1 offers each entity its best remaining fragment; round 2 offers the
+   second, and so on. No entity receives a second fragment before every remaining
+   entity in that route has been offered its first.
+2. Within a round, order entities by:
+   `route_score * saturation_factor(entity_accepted_bytes)`, descending; tie-break
+   by route rank, then entity ID.
+3. A candidate is accepted only if all of its clipped pieces fit both the global
+   remaining cap and that route's remaining wallet, and the 64-item cap is not
+   exceeded. Resolver proposals must satisfy the same two byte budgets.
+4. If the original does not fit, defer the entity/candidate to spillover. If a
+   resolver proposal is invalid or over budget, use the original only if it fits
+   the same budgets; otherwise defer.
+5. After all four reserved passes, combine every remaining candidate into one
+   spillover pool. Choose the entity with highest
+   `hybrid_static_priority * saturation_factor`, then its best remaining fragment
+   by original rank, until the global cap or item cap is reached.
+
+Saturation remains soft:
 
 - accepted entity bytes <4,096: factor `1.0`;
 - 4,096–8,191: factor `0.5`;
 - >=8,192: factor `0.25`;
-- no hard entity cap.
+- no hard entity-byte cap.
 
-At each step choose the highest-priority remaining slate entity, then its best
-remaining fragment by original rank. This preserves R11-style same-entity
-coherence while preventing R10/D11-style starvation.
+This makes slate position operational: it determines a protected wallet and a
+fair first-round opportunity, not merely an ordering hint.
 
-Arm A resolver, clipping, dedupe, atomic fallback, 24,576-byte / 64-item pack cap
-and resolver I/O quotas remain unchanged.
+## Resolver quota allocation
+
+The existing maximum of four resolver entity attempts and four distinct files
+per question is retained, but slots are allocated by primary route:
+
+| Primary route | Resolver entity slots |
+|---|---:|
+| Base | 2 |
+| Content TF-IDF | 1 |
+| Metadata | 1 |
+| Facet | 0 |
+
+Rules:
+
+- A slot is consumed when an entity is selected for a resolver attempt, whether
+  the attempt succeeds, falls back, or is blocked by the file/I/O quota.
+- An entity may receive at most one resolver attempt, exactly as in hybrid v1.
+- Entities without an available route slot receive original fragments only; no
+  resolver call is made and the ledger records `resolver_slot_unavailable`.
+- Resolver is considered only after the original clipped fragment is known to
+  fit the global cap and the active route wallet.
+- The four-distinct-file and 1 MiB cold-source-byte limits remain global. A new
+  file that would exceed either limit causes original fallback and consumes the
+  already-allocated entity slot.
+- Unused route slots are not reassigned in this first arm. This keeps the quota
+  conflict explicit and avoids a new optimization dimension.
+
+Arm A resolver selection, clipping, dedupe, atomic fallback, 24,576-byte / 64-item
+pack cap and resolver I/O limits otherwise remain unchanged.
 
 ## Why this should address the measured cases
 
@@ -204,9 +250,20 @@ Run exactly one offline arm with the architecture above:
 - no semantic model calls, source re-parse or index changes in this first arm;
 - score C0 vs candidate with union exact, legacy single-item exact, macro
   precision, full tokens, bytes/items and per-case all-gold transitions;
-- require 24/24 integrity receipts, 0 gaps, R10 3/3, no C0 all-gold loss,
-  at least one newly all-gold case, precision >= C0 and mean tokens <=1.25× C0;
-- diagnose R03/R07/R08/R10/R11/R12/D03/D04/D11 target reach and byte occupancy.
+- require 24/24 integrity receipts, 0 gaps, valid hash/offset/content, proposal
+  containment, wallet/pack/I/O quota compliance, R10 3/3 and no C0 all-gold loss;
+- require **Rust >=4/12 all-gold**, including **R11**;
+- require **C# >=3/12 all-gold**, including preserved **D04** and **D11**;
+- require union exact spans **Rust >=11/30** and **C# >=4/25**;
+- require macro precision >= C0 separately per split and mean full tokens
+  <=1.10× C0 separately per split;
+- diagnose R03/R07/R08/R10/R11/R12/D03/D04/D11 target reach, route wallet use,
+  resolver-slot use and prior byte-consuming entities.
+
+These thresholds deliberately reject a D04-only or R11-only result. They require
+at least two newly all-gold cases in each split versus C0, close at least 40% of
+the Rust oracle all-gold gap and the full C# oracle gap, and add at least four
+Rust plus two C# exact spans. Any failed integrity or quality gate is **NO-GO**.
 
 Stop after that one configuration. Do not tune route weights after seeing the
 score.
