@@ -1,6 +1,6 @@
 use super::storage::SearchStorage;
 
-use std::{collections::HashSet, env, fs, path::Path};
+use std::{collections::HashSet, env, fs, io::Read, path::Path};
 
 use crate::{
     EngineError,
@@ -16,7 +16,7 @@ use crate::{
         },
     },
     api::evidence::{EvidenceBudget, EvidenceRequest, assemble as assemble_evidence},
-    domain::{Content, FileRecord, Range, Workspace},
+    domain::{Content, FileRecord, Range, TextRange, Workspace},
     utils::sha256_hex,
 };
 
@@ -340,7 +340,7 @@ fn search_plan_to_context_items(
         .hits
         .iter()
         .map(|hit| {
-            let target = context_item_target(hit)?;
+            let target = context_item_target(hit, workspace_root)?;
             Ok(ContextItem {
                 kind: ContextItemKind::IndexedEntity,
                 rank: hit.rank,
@@ -394,97 +394,137 @@ fn source_overlap_ratio(item: &ContextItem, other: &ContextItem) -> f64 {
     range_overlap_ratio(&item.content_range, &other.content_range)
 }
 
-/// Removes only source lines already delivered by `selected`, keeping every
-/// non-overlapping remainder of the same fragment. Each remainder keeps its own
-/// verified half-open source coordinates. Returns an empty vector when the
-/// fragment is fully duplicated.
+fn context_byte_offsets(range: &ContentRange) -> Option<(usize, usize)> {
+    match range {
+        ContentRange::Text {
+            start_byte_offset,
+            end_byte_offset,
+            ..
+        } => Some((*start_byte_offset, *end_byte_offset)),
+        ContentRange::Byte {
+            start_offset,
+            end_offset,
+        } => Some((
+            usize::try_from(*start_offset).ok()?,
+            usize::try_from(*end_offset).ok()?,
+        )),
+        ContentRange::File => None,
+    }
+}
+
+fn text_range_for_slice(
+    range: &ContentRange,
+    content: &str,
+    local_start: usize,
+    local_end: usize,
+) -> Option<ContentRange> {
+    let ContentRange::Text {
+        start_line,
+        start_byte_column,
+        start_byte_offset,
+        ..
+    } = range
+    else {
+        return None;
+    };
+    let position = |local: usize| -> (usize, usize) {
+        let prefix = &content[..local];
+        let newlines = prefix
+            .as_bytes()
+            .iter()
+            .filter(|&&byte| byte == b'\n')
+            .count();
+        let column = match prefix.rfind('\n') {
+            Some(index) => local.saturating_sub(index + 1),
+            None => start_byte_column.saturating_add(local),
+        };
+        (start_line.saturating_add(newlines), column)
+    };
+    let (start_line, start_byte_column) = position(local_start);
+    let (end_line, end_byte_column) = position(local_end);
+    Some(ContentRange::Text {
+        start_line,
+        end_line,
+        start_byte_offset: start_byte_offset.saturating_add(local_start),
+        end_byte_offset: start_byte_offset.saturating_add(local_end),
+        start_byte_column,
+        end_byte_column,
+    })
+}
+
+/// Subtracts byte ranges already delivered by `selected` from one fragment.
+/// Each remainder keeps its own verified half-open source coordinates, and
+/// fully duplicated fragments produce no item. Non-text or inconsistent
+/// coordinates are returned unchanged so the verifier can fail closed.
 fn clip_fragment_overlap(item: ContextItem, selected: &[ContextItem]) -> Vec<ContextItem> {
-    let (Some(start), Some(end)) = (
-        item.content_range.start_line(),
-        item.content_range.last_line(),
-    ) else {
+    let Some((start, end)) = context_byte_offsets(&item.content_range) else {
         return vec![item];
     };
-    let mut blocked = selected
-        .iter()
-        .filter(|other| same_source(&item, other))
-        .filter_map(|other| {
-            let from = other.content_range.start_line()?;
-            let to = other.content_range.last_line()?;
-            Some((from, to))
-        })
-        .collect::<Vec<_>>();
+    let len = item.content.len();
+    if end < start
+        || end.saturating_sub(start) != len
+        || !matches!(item.content_range, ContentRange::Text { .. })
+    {
+        return vec![item];
+    }
+    let mut blocked = Vec::new();
+    for other in selected.iter().filter(|other| same_source(&item, other)) {
+        let Some((other_start, other_end)) = context_byte_offsets(&other.content_range) else {
+            continue;
+        };
+        if other_end <= other_start {
+            continue;
+        }
+        let from = other_start.max(start).saturating_sub(start);
+        let to = other_end.min(end).saturating_sub(start);
+        if from >= to || from > len || to > len {
+            continue;
+        }
+        if !item.content.is_char_boundary(from) || !item.content.is_char_boundary(to) {
+            return vec![item];
+        }
+        blocked.push((from, to));
+    }
     if blocked.is_empty() {
         return vec![item];
     }
     blocked.sort_unstable();
-    let mut keep = Vec::new();
-    let mut cursor = start;
+    let mut merged: Vec<(usize, usize)> = Vec::new();
     for (from, to) in blocked {
-        if to < cursor {
-            continue;
+        if let Some(last) = merged.last_mut() {
+            if from <= last.1 {
+                last.1 = last.1.max(to);
+                continue;
+            }
         }
-        if from > end {
-            break;
-        }
+        merged.push((from, to));
+    }
+    let mut remainders = Vec::new();
+    let mut cursor = 0usize;
+    for (from, to) in merged {
         if from > cursor {
-            keep.push((cursor, from.saturating_sub(1)));
+            remainders.push((cursor, from));
         }
-        cursor = cursor.max(to.saturating_add(1));
-        if cursor > end {
-            break;
-        }
+        cursor = cursor.max(to);
     }
-    if cursor <= end {
-        keep.push((cursor, end));
+    if cursor < len {
+        remainders.push((cursor, len));
     }
-    let (old_start_byte, old_start_column, old_end_column) = match item.content_range {
-        ContentRange::Text {
-            start_byte_offset,
-            start_byte_column,
-            end_byte_column,
-            ..
-        } => (start_byte_offset, start_byte_column, end_byte_column),
-        _ => return vec![item],
-    };
-    let lines = crate::utils::line_byte_offsets(&item.content);
     let mut clipped = Vec::new();
-    for (keep_start, keep_end) in keep {
-        let local_start = keep_start.saturating_sub(start);
-        let local_end_exclusive = keep_end
-            .saturating_sub(start)
-            .saturating_add(1)
-            .min(lines.len().saturating_sub(1));
-        let Some(&from) = lines.get(local_start) else {
+    for (from, to) in remainders {
+        let Some(slice) = item.content.get(from..to) else {
             continue;
         };
-        let to = lines
-            .get(local_end_exclusive)
-            .copied()
-            .unwrap_or(item.content.len());
-        if from >= to {
+        if slice.is_empty() {
             continue;
         }
-        let mut piece = item.clone();
-        piece.content = item.content[from..to].to_owned();
-        let at_line_boundary = local_end_exclusive < lines.len();
-        piece.content_range = ContentRange::Text {
-            start_line: keep_start,
-            end_line: if at_line_boundary {
-                keep_end.saturating_add(1)
-            } else {
-                keep_end
-            },
-            start_byte_offset: old_start_byte.saturating_add(from),
-            end_byte_offset: old_start_byte.saturating_add(to),
-            start_byte_column: if local_start == 0 {
-                old_start_column
-            } else {
-                0
-            },
-            end_byte_column: if at_line_boundary { 0 } else { old_end_column },
+        let Some(range) = text_range_for_slice(&item.content_range, &item.content, from, to) else {
+            continue;
         };
-        piece.excerpt_range = Some(piece.content_range.clone());
+        let mut piece = item.clone();
+        piece.content = slice.to_owned();
+        piece.content_range = range.clone();
+        piece.excerpt_range = Some(range);
         clipped.push(piece);
     }
     clipped
@@ -925,11 +965,72 @@ struct ContextItemTarget {
     excerpt_range: Option<ContentRange>,
 }
 
-fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError> {
+/// Stored entity byte offsets are relative to decoded text, while evidence
+/// requests use offsets into the original source bytes. For UTF-8 BOM files
+/// the two coordinate spaces differ by exactly three bytes. Other BOMs cannot
+/// be translated by a constant offset and are left unchanged so verification
+/// fails closed.
+fn source_bom_shift(workspace_root: &Path, relative_path: &Path) -> usize {
+    let Ok(mut file) = fs::File::open(workspace_root.join(relative_path)) else {
+        return 0;
+    };
+    let mut head = [0u8; 4];
+    let Ok(count) = file.read(&mut head) else {
+        return 0;
+    };
+    if count >= 3 && head.starts_with(&[0xef, 0xbb, 0xbf]) {
+        3
+    } else {
+        0
+    }
+}
+
+fn shifted_text_range(range: TextRange, shift: usize) -> Result<TextRange, EngineError> {
+    if shift == 0 {
+        return Ok(range);
+    }
+    let start = range
+        .start_byte_offset()
+        .checked_add(shift)
+        .ok_or_else(|| EngineError::storage_failure("BOM-adjusted offset overflow"))?;
+    let end = range
+        .end_byte_offset()
+        .checked_add(shift)
+        .ok_or_else(|| EngineError::storage_failure("BOM-adjusted offset overflow"))?;
+    let start_column = if range.start_line() == 1 {
+        range.start_byte_column().saturating_add(shift)
+    } else {
+        range.start_byte_column()
+    };
+    let end_column = if range.end_line() == 1 {
+        range.end_byte_column().saturating_add(shift)
+    } else {
+        range.end_byte_column()
+    };
+    TextRange::from_coordinates(
+        start,
+        end,
+        range.start_line(),
+        range.end_line(),
+        start_column,
+        end_column,
+    )
+    .map_err(|error| EngineError::storage_failure(format!("invalid BOM-adjusted range: {error}")))
+}
+
+fn context_item_target(
+    hit: &SearchHit,
+    workspace_root: &Path,
+) -> Result<ContextItemTarget, EngineError> {
+    let shift = source_bom_shift(workspace_root, hit.file.relative_path().as_ref());
+    let entity_source = match hit.entity.source_range() {
+        Range::Text(range) => Range::Text(shifted_text_range(range, shift)?),
+        other => other,
+    };
     let Some(evidence) = hit.evidence.first() else {
         return Ok(ContextItemTarget {
             content: content_to_text(hit.entity.content()),
-            content_range: hit.entity.source_range().into(),
+            content_range: entity_source.into(),
             content_role: ContextContentRole::Source,
             excerpt_range: None,
         });
@@ -958,7 +1059,7 @@ fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError
             let lines = crate::utils::line_byte_offsets(text);
             let local = crate::utils::text_range_from_offsets(text, &lines, start, end)
                 .map_err(invalid_fragment)?;
-            let source = match hit.entity.source_range() {
+            let source = match entity_source {
                 Range::Full => local,
                 Range::Text(origin) => {
                     crate::utils::map_text_range(local, origin).map_err(invalid_fragment)?
@@ -981,7 +1082,7 @@ fn context_item_target(hit: &SearchHit) -> Result<ContextItemTarget, EngineError
         content,
         content_range: excerpt_range
             .clone()
-            .unwrap_or_else(|| hit.entity.source_range().into()),
+            .unwrap_or_else(|| entity_source.into()),
         content_role: ContextContentRole::Source,
         excerpt_range,
     })
@@ -1133,7 +1234,8 @@ mod tests {
             signals: None,
             trace: None,
         };
-        let target = super::context_item_target(&hit).expect("fragment content");
+        let target =
+            super::context_item_target(&hit, std::path::Path::new(".")).expect("fragment content");
         assert_eq!(target.content_role, ContextContentRole::Source);
         assert_eq!(target.content, "中😀\r\nβ");
         assert_eq!(target.excerpt_range, Some(fragment_source_range.into()));
@@ -1160,7 +1262,8 @@ mod tests {
         assert_eq!(items[0].content_range, fragment_source_range.into());
         assert_eq!(items[0].content, "中😀\r\nβ");
         hit.evidence.reverse();
-        let target = super::context_item_target(&hit).expect("full content");
+        let target =
+            super::context_item_target(&hit, std::path::Path::new(".")).expect("full content");
         assert_eq!(target.content, source);
         assert_eq!(target.content_range, source_range.into());
         assert_eq!(
@@ -1169,7 +1272,7 @@ mod tests {
         );
         hit.evidence[0].fragment.range =
             Range::Byte(ByteRange::new(0, 999).expect("ordered byte offsets"));
-        let error = super::context_item_target(&hit)
+        let error = super::context_item_target(&hit, std::path::Path::new("."))
             .err()
             .expect("invalid fragment must fail");
         assert_eq!(error.code(), crate::EngineError::STORAGE_FAILURE);
@@ -1234,7 +1337,8 @@ mod tests {
                 signals: None,
                 trace: None,
             };
-            let target = super::context_item_target(&hit).expect("source fragment");
+            let target = super::context_item_target(&hit, std::path::Path::new("."))
+                .expect("source fragment");
             let start = usize::try_from(bytes.start_offset()).expect("start");
             let end = usize::try_from(bytes.end_offset()).expect("end");
             assert!(start > "# Heading\nprefix ".len());
@@ -1659,6 +1763,74 @@ mod tests {
     }
 
     #[test]
+    fn utf8_bom_source_offsets_are_shifted_into_evidence_coordinates() {
+        use crate::{
+            domain::{
+                ByteRange, Content, Entity, EntityFragment, EntityId, FileId, FileIndexStatus,
+                FileRecord, FileSnapshot, FragmentId, Range, TextRange,
+            },
+            pipelines::indexed_search::pipeline::{SearchEvidence, SearchHit},
+        };
+        let dir = tempfile::tempdir().expect("temporary workspace");
+        let text = "alpha\nbravo";
+        let mut bytes = vec![0xef, 0xbb, 0xbf];
+        bytes.extend_from_slice(text.as_bytes());
+        std::fs::write(dir.path().join("bom.cs"), bytes).expect("BOM source");
+
+        let file_id = FileId::new(1);
+        let source_range = Range::Text(
+            TextRange::from_coordinates(0, text.len(), 1, 2, 0, 5).expect("decoded range"),
+        );
+        let content = Content::Text(text.to_owned());
+        let entity_id = EntityId::new(file_id, &content, source_range).expect("entity id");
+        let fragment = EntityFragment {
+            id: FragmentId::new(&entity_id, 0),
+            range: Range::Byte(ByteRange::new(6, 11).expect("ordered byte offsets")),
+        };
+        let hit = SearchHit {
+            entity: Entity::new(
+                entity_id,
+                file_id,
+                source_range,
+                content,
+                None,
+                vec![fragment.clone()],
+            )
+            .expect("entity"),
+            file: FileRecord::new(
+                file_id,
+                crate::domain::SourcePath::new("bom.cs").expect("source path"),
+                FileSnapshot {
+                    size_bytes: 14,
+                    modified_epoch_ms: None,
+                    content_hash: None,
+                },
+                FileIndexStatus::NotIndexed,
+            )
+            .expect("file"),
+            evidence: vec![SearchEvidence { fragment }],
+            rank: 1,
+            score: 1.0,
+            matched_by: MatchedBy::Fts,
+            signals: None,
+            trace: None,
+        };
+        let target = super::context_item_target(&hit, dir.path()).expect("BOM-adjusted target");
+        assert_eq!(target.content, "bravo");
+        assert!(matches!(
+            target.content_range,
+            ContentRange::Text {
+                start_line: 2,
+                end_line: 2,
+                start_byte_offset: 9,
+                end_byte_offset: 14,
+                start_byte_column: 0,
+                end_byte_column: 5,
+            }
+        ));
+    }
+
+    #[test]
     fn fragment_clipping_keeps_both_non_overlapping_remainders() {
         use crate::api::context::result::ContextQueryGroupRole;
         let group = ContextQueryGroupMatch {
@@ -1701,6 +1873,144 @@ mod tests {
         assert_eq!(pieces[1].content, "line6\n");
         assert_eq!(pieces[1].content_range.start_line(), Some(6));
         assert_eq!(pieces[1].content_range.end_line(), Some(7));
+    }
+
+    #[test]
+    fn clipping_preserves_mid_line_endpoint_and_eof_without_newline() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = "alpha".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: 5,
+            start_byte_column: 0,
+            end_byte_column: 5,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "alpha bravo".to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: second.content.len(),
+            start_byte_column: 0,
+            end_byte_column: second.content.len(),
+        };
+        let pieces = clip_fragment_overlap(second, &[first]);
+        assert_eq!(pieces.len(), 1);
+        assert_eq!(pieces[0].content, " bravo");
+        assert_eq!(pieces[0].content_range.start_line(), Some(1));
+        assert_eq!(pieces[0].content_range.end_line(), Some(1));
+        assert!(matches!(
+            pieces[0].content_range,
+            ContentRange::Text {
+                start_byte_offset: 5,
+                end_byte_offset: 11,
+                start_byte_column: 5,
+                end_byte_column: 11,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn clipping_subtracts_byte_slices_on_the_same_line() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = " bravo ".to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 5,
+            end_byte_offset: 12,
+            start_byte_column: 5,
+            end_byte_column: 12,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = "alpha bravo charlie".to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: second.content.len(),
+            start_byte_column: 0,
+            end_byte_column: second.content.len(),
+        };
+        let pieces = clip_fragment_overlap(second, &[first]);
+        assert_eq!(pieces.len(), 2);
+        assert_eq!(pieces[0].content, "alpha");
+        assert_eq!(pieces[1].content, "charlie");
+        assert_eq!(pieces[0].content_range.end_line(), Some(1));
+        assert_eq!(pieces[1].content_range.start_line(), Some(1));
+    }
+
+    #[test]
+    fn clipping_respects_utf8_character_boundaries() {
+        use crate::api::context::result::ContextQueryGroupRole;
+        let group = ContextQueryGroupMatch {
+            id: "Q1".to_owned(),
+            query: "Q1".to_owned(),
+            role: ContextQueryGroupRole::Primary,
+            rank: 1,
+            matched_by: MatchedBy::Fts,
+        };
+        let text = "tiếng Việt";
+        let split = text.find("Việt").expect("UTF-8 boundary");
+        let mut first = item("A", group.clone());
+        first.relative_path = PathBuf::from("same.rs");
+        first.file_sha256 = Some("same-sha".to_owned());
+        first.content = text[..split].to_owned();
+        first.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: split,
+            start_byte_column: 0,
+            end_byte_column: split,
+        };
+        let mut second = item("B", group);
+        second.relative_path = PathBuf::from("same.rs");
+        second.file_sha256 = Some("same-sha".to_owned());
+        second.fragment_id = Some("frag-b".to_owned());
+        second.content = text.to_owned();
+        second.content_range = ContentRange::Text {
+            start_line: 1,
+            end_line: 1,
+            start_byte_offset: 0,
+            end_byte_offset: text.len(),
+            start_byte_column: 0,
+            end_byte_column: text.len(),
+        };
+        let pieces = clip_fragment_overlap(second, &[first]);
+        assert_eq!(pieces.len(), 1);
+        assert_eq!(pieces[0].content, "Việt");
+        assert_eq!(pieces[0].content_range.start_line(), Some(1));
     }
 
     #[test]

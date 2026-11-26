@@ -92,6 +92,10 @@ Env gating keeps normal search unchanged:
 
 The owner-authorized execution of `docs/rag/selection-recovery-plan-20261126.md`
 is recorded in [`../../docs/rag/selection-recovery-report-20261126.md`](../../docs/rag/selection-recovery-report-20261126.md).
+The follow-up coordinate repair and verified-pack replay is recorded in
+[`../../docs/rag/fragment-coordinate-repair-report-20261126.md`](../../docs/rag/fragment-coordinate-repair-report-20261126.md);
+all 24 dev packs now have zero verifier gaps, while the quality verdict stays
+NO-GO and R03 points to ranking as the next bottleneck.
 The G1 coordinate adapter was fixed (exclusive evidence endpoint and all
 clipped remainders preserved) and an env-gated coverage selector was tested and
 rejected. Rust G1K4 exact coverage rose from `0.125` to `0.208`, but C# exact
