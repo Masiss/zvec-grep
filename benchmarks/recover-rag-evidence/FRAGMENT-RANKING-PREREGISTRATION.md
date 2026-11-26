@@ -56,3 +56,11 @@ H1's C# latency/quality still trailed G1. I1 removes the expensive metadata
 bonus path entirely in RRF-only mode and uses the proven rank-ordered budget
 selection (`rag_budget_select`), keeping fragment relevance ranking and
 verified pack assembly. Gates unchanged.
+
+## Amendment J — bounded structural support
+
+I1 recovered Rust precision but C# still lost to G1. J1 adds bounded entity
+structural support (symbol/definition bonus capped at 0.25) to RRF relevance,
+still keeps fragment identity and rank-ordered budget selection. This directly
+tests whether C# needs structural metadata as a supporting signal. Gates
+unchanged.

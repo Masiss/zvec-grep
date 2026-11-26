@@ -16,6 +16,14 @@ ARMS = {
         "ZVEC_RAG_BUDGET_SELECT": "1",
         "ZVEC_RAG_EVIDENCE_PACK_FILE": "@pack",
     },
+    "J1": {
+        "ZVEC_RAG_FRAGMENT_FLOW": "1",
+        "ZVEC_RAG_FRAGMENT_RELEVANCE": "1",
+        "ZVEC_RAG_RANK_RRF_ONLY": "1",
+        "ZVEC_RAG_RANK_RRF_SUPPORT": "1",
+        "ZVEC_RAG_BUDGET_SELECT": "1",
+        "ZVEC_RAG_EVIDENCE_PACK_FILE": "@pack",
+    },
     "I1": {
         "ZVEC_RAG_FRAGMENT_FLOW": "1",
         "ZVEC_RAG_FRAGMENT_RELEVANCE": "1",
@@ -76,7 +84,7 @@ def main() -> None:
     ap.add_argument("--cases", required=True, type=Path)
     ap.add_argument("--corpus", required=True, type=Path)
     ap.add_argument("--split", choices=("rust", "csharp"), required=True)
-    ap.add_argument("--arms", default="G0,G1,G2,G3,G4,G5,H1,I1")
+    ap.add_argument("--arms", default="G0,G1,G2,G3,G4,G5,H1,I1,J1")
     args = ap.parse_args()
 
     art = args.artifacts.resolve()
