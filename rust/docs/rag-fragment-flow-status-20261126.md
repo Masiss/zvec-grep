@@ -118,12 +118,28 @@ is a research candidate only. A follow-up feature study and concrete fix design
 are recorded in
 [`../../docs/rag/ranking-fix-proposal-20261126.md`](../../docs/rag/ranking-fix-proposal-20261126.md):
 use a reserved multi-route entity slate (base, content TF-IDF, metadata and query
-facets) before soft budget scheduling, rather than one additive score.
+facets) before soft budget scheduling, rather than one additive score. The
+authorized multi-route v1 replay is recorded in
+[`../../docs/rag/multi-route-slate-v1-report-20261126.md`](../../docs/rag/multi-route-slate-v1-report-20261126.md);
+it rescued R12 and preserved D04/D11/R10, but failed the stronger gates
+(Rust 3/12 and 9/30 exact; C# 2/12 and 3/25; R11 still 2/3), so verdict is
+NO-GO.
 The G1 coordinate adapter was fixed (exclusive evidence endpoint and all
 clipped remainders preserved) and an env-gated coverage selector was tested and
 rejected. Rust G1K4 exact coverage rose from `0.125` to `0.208`, but C# exact
 `0.083` remains below K1 `0.167`; promotion verdict remains **NO-GO**. No
 production binary, daemon, index, model, default or held-out data changed.
+
+## Local engine/binary audit (2026-11-26)
+
+The read-only audit is recorded in
+[`../../docs/rag/zg-engine-binary-audit-20261126.md`](../../docs/rag/zg-engine-binary-audit-20261126.md).
+The installed `51c9eba` engine and daemon are healthy and search-capable, but
+they intentionally predate the research ranker and coordinate repair. The
+wrapper hardcodes `zg-51c9eba`; G1 is a dirty `313e48d` build and needs
+`LD_LIBRARY_PATH=/home/masis/.local/lib`. Direct CLI use from the research
+worktree also fails before search because `/home/masis/.zvec-grep` is a symlink.
+No binary, wrapper, daemon, index or service was changed.
 
 ## Remaining bottleneck and next authorized action
 
@@ -134,9 +150,9 @@ deployable. The first gold-blind RRF/path scheduler failed mandatory regression
 and paired precision gates. The stored-metadata hybrid reranker passed the
 single offline replay gate and is the first gold-blind candidate to preserve
 R10/D11 while adding D04, but it has not been ported or measured on a real
-binary. The next proposed ranking fix is one preregistered multi-route entity
-slate replay; it is not yet implemented. No further variant is authorized by
-this status note. Any opt-in port requires a new owner-authorized task with
-ranker/selector regression tests and paired runtime/p95 validation. Production
-promotion requires a candidate that passes both-language
+binary. The clarified multi-route entity-slate replay was subsequently run and
+returned NO-GO under the stronger both-language gates. No further variant is
+authorized by this status note. Any opt-in port requires a new owner-authorized
+task with ranker/selector regression tests and paired runtime/p95 validation.
+Production promotion requires a candidate that passes both-language
 coverage/precision/latency gates and task correctness.
