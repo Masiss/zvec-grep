@@ -153,6 +153,12 @@ non-gold or incomplete entities ahead of the full evidence set. This is a
 quality failure of the locked signal, not a reason to tune weights after seeing
 the score.
 
+The read-only per-span ledger analysis in
+[`r10-d11-r11-ledger-analysis-20261126.md`](r10-d11-r11-ledger-analysis-20261126.md)
+separates the mechanism: R10/D11 are budget starvation by prior entities, while
+R11 is rescued by same-entity coverage with no foreign bytes before the needed
+fragments.
+
 ## Decision
 
 **NO-GO for scheduler v1. Do not port.**
