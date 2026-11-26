@@ -56,3 +56,18 @@ exceeds a bound is reported as NO-GO, not silently retuned.
 Every experiment records command, binary hash, corpus hash, case hash, raw
 candidates, selected pack, timing/resource counters and a verdict. No gold term
 is inserted into a runtime query. No threshold is changed after measurement.
+
+## Amendment A — H5 (added after baseline, before running H5)
+
+Baseline diagnosis showed pool recall `0.7292` but delivered recall `0.2500`,
+and an evaluation-only oracle over the same pool reaches `0.7292` under the same
+10-item/24 KiB pack. That motivated one isolated selection experiment:
+
+- **H5**: reuse baseline candidates, narrow large declarations to method units
+  as in revised H3, then rerank by lexical overlap between the *question text*
+  (available to any runtime policy) and each candidate's symbol/signature/source
+  window. No gold fact, gold span or gold identifier is used by the scorer.
+- Success threshold: delivered macro recall `>=0.35` (baseline `0.25 + 0.10`)
+  with no new search call and pack `<=24 KiB`.
+- If H5 fails, selection is recorded as unresolved and no further blind rerank
+  variant is run in this mission.
